@@ -1653,10 +1653,10 @@
       "claude_code": "Anthropic 官方 CLI 编程助手",
       "gemini_cli": "Google Gemini 命令行助手",
       "github_copilot_cli": "GitHub Copilot 命令行版本",
-      "iflow_cli": "iFlow 推出的多模型 CLI 助手",
       "kimi_cli": "Moonshot Kimi 命令行助手",
       "openai_codex": "OpenAI 官方代码生成 CLI",
       "opencode": "开源社区的多模型代码 Agent",
+      "qoder_cli": "阿里 Qoder 的智能体命令行编程工具",
       "qwen_code": "阿里通义出品的开源 CLI 编程工具"
     },
     "update_options": "更新选项",

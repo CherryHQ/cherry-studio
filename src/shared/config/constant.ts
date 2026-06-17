@@ -250,7 +250,7 @@ export enum codeCLI {
   claudeCode = 'claude-code',
   geminiCli = 'gemini-cli',
   openaiCodex = 'openai-codex',
-  iFlowCli = 'iflow-cli',
+  qoderCli = 'qoder-cli',
   githubCopilotCli = 'github-copilot-cli',
   kimiCli = 'kimi-cli',
   openCode = 'opencode'

@@ -245,7 +245,7 @@ export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
   'claude-code',
   'gemini-cli',
   'openai-codex',
-  'iflow-cli',
+  'qoder-cli',
   'github-copilot-cli',
   'kimi-cli',
   'opencode'
