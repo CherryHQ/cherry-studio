@@ -3167,7 +3167,9 @@
         "placeholder": "输入对助手的要求，例如回答风格、角色设定或背景说明",
         "title": "提示词",
         "tokens_label": "Tokens: ",
-        "variables_title": "可用的变量",
+        "variables_description": "可在系统提示词中插入这些系统变量；每次助手回复前，系统会按当时的信息自动填写。",
+        "variables_example": "例如：今天是 {{variable}}，会使用当前日期。",
+        "variables_title": "系统变量",
         "vars": {
           "arch": "CPU 架构",
           "date": "日期",

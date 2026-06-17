@@ -104,7 +104,9 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     labelAddon,
     value,
     onChange,
-    placeholder
+    placeholder,
+    minHeight,
+    maxHeight
   }: {
     actions?: ReactNode
     label?: ReactNode
@@ -112,6 +114,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
+    minHeight?: string
+    maxHeight?: string
   }) => (
     <div>
       <div>
@@ -124,6 +128,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        style={{ minHeight, maxHeight }}
       />
     </div>
   )
@@ -305,7 +310,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
           'library.config.prompt.tokens_label': 'Tokens: ',
-          'library.config.prompt.variables_title': 'Variables',
+          'library.config.prompt.variables_description':
+            'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
+          'library.config.prompt.variables_example': 'Example: Today is {{date}}, and the current date is used.',
+          'library.config.prompt.variables_title': 'System variables',
           'library.config.prompt.vars.arch': 'Architecture',
           'library.config.prompt.vars.date': 'Date',
           'library.config.prompt.vars.datetime': 'Datetime',
@@ -536,9 +544,17 @@ function expectHelpTrigger(label: string, description: string) {
 }
 
 async function expectVariablesHelpOnHover() {
-  const trigger = screen.getByRole('button', { name: 'Variables' })
+  const trigger = screen.getByRole('button', { name: 'System variables' })
   expect(trigger).toHaveClass('size-4')
   fireEvent.pointerMove(trigger, { pointerType: 'mouse' })
+  await waitFor(() => {
+    expect(
+      screen.getAllByText(
+        'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.'
+      )
+    ).not.toHaveLength(0)
+  })
+  expect(screen.getAllByText('Example: Today is {{date}}, and the current date is used.')).not.toHaveLength(0)
   await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
 }
 
@@ -649,7 +665,9 @@ describe('edit dialogs', () => {
 
     selectTab('Prompt')
     await expectVariablesHelpOnHover()
-    const instructionsInput = screen.getByLabelText('Instructions')
+    expect(screen.getByText('Instructions')).toBeInTheDocument()
+    const instructionsInput = screen.getByLabelText('Prompt editor')
+    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
     expect(instructionsInput).toHaveStyle({
       minHeight: EDIT_DIALOG_PROMPT_MIN_HEIGHT,
       maxHeight: EDIT_DIALOG_PROMPT_MAX_HEIGHT

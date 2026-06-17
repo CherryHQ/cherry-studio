@@ -523,17 +523,25 @@ export function CompactModelField({
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
   const content = (
-    <div>
-      <div className="mb-2 font-medium text-neutral-50 text-xs dark:text-neutral-900">
-        {t('library.config.prompt.variables_title')}
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <div className="font-medium text-neutral-50 text-xs">{t('library.config.prompt.variables_title')}</div>
+        <div className="text-neutral-300 text-xs leading-relaxed">
+          {t('library.config.prompt.variables_description')}
+        </div>
       </div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs dark:text-neutral-700">
-        {PROMPT_VARIABLES.map((variable) => (
-          <div key={variable.name} className="contents">
-            <span className="text-neutral-50 dark:text-neutral-900">{variable.name}</span>
-            <span>{t(variable.i18n)}</span>
-          </div>
-        ))}
+      <div className="rounded-md border border-neutral-700/70 bg-neutral-800/70 px-2 py-1.5 text-neutral-200 text-xs">
+        {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
+      </div>
+      <div>
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs">
+          {PROMPT_VARIABLES.map((variable) => (
+            <div key={variable.name} className="contents">
+              <span className="text-neutral-50">{variable.name}</span>
+              <span className="font-sans">{t(variable.i18n)}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -546,7 +554,7 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
       sideOffset={4}
       contentProps={{
         portalContainer,
-        className: 'w-72 p-3'
+        className: 'w-80 p-3'
       }}>
       <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
     </NormalTooltip>

@@ -3167,7 +3167,9 @@
         "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
         "title": "Prompt",
         "tokens_label": "Tokens: ",
-        "variables_title": "Available variables",
+        "variables_description": "Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.",
+        "variables_example": "Example: Today is {{variable}}, and the current date is used.",
+        "variables_title": "System variables",
         "vars": {
           "arch": "CPU architecture",
           "date": "Date",

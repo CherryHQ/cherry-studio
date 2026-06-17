@@ -15,6 +15,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useAgentMutationsById } from '@renderer/pages/library/adapters/agentAdapter'
 import type { AgentDetail } from '@renderer/pages/library/types'
@@ -564,22 +565,20 @@ function AgentPromptField({
       control={form.control}
       name="instructions"
       render={({ field }) => (
-        <FormItem>
-          <FieldLabelWithHelp
-            label={t('library.config.agent.field.instructions.label')}
-            helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-          />
-          <FormControl>
-            <Textarea.Input
-              value={field.value}
-              rows={6}
-              placeholder={t('library.config.agent.field.instructions.placeholder')}
-              onValueChange={field.onChange}
-              style={{ minHeight: EDIT_DIALOG_PROMPT_MIN_HEIGHT, maxHeight: EDIT_DIALOG_PROMPT_MAX_HEIGHT }}
+        <PromptEditorField
+          label={
+            <FieldLabelWithHelp
+              label={t('library.config.agent.field.instructions.label')}
+              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+              formLabel={false}
             />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
+          }
+          value={field.value}
+          onChange={field.onChange}
+          placeholder={t('library.config.agent.field.instructions.placeholder')}
+          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+        />
       )}
     />
   )
