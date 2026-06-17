@@ -89,14 +89,8 @@ export interface ToolbarDropdownOption {
 export interface RichEditorRef {
   /** Get current editor content as plain text */
   getContent: () => string
-  /** Get current editor content as HTML */
-  getHtml: () => string
   /** Get current editor content as Markdown */
   getMarkdown: () => string
-  /** Set editor content (plain text) */
-  setContent: (content: string) => void
-  /** Set editor HTML content */
-  setHtml: (html: string) => void
   /** Set editor Markdown content */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
@@ -107,8 +101,6 @@ export interface RichEditorRef {
   insertText: (text: string) => void
   /** Execute a formatting command */
   executeCommand: (command: string, value?: any) => void
-  /** Get preview text from current content */
-  getPreviewText: (maxLength?: number) => string
   /** Get scrollTop of the editor scroll container */
   getScrollTop: () => number
   /** Set scrollTop of the editor scroll container */

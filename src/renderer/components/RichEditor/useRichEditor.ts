@@ -1,69 +1,19 @@
 import 'katex/dist/katex.min.css'
 
-import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 import { loggerService } from '@logger'
-import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import {
-  htmlToMarkdown,
-  isMarkdownContent,
-  markdownToHtml,
-  markdownToPreviewText
-} from '@renderer/utils/markdownConverter'
 import type { Editor } from '@tiptap/core'
-import { Extension } from '@tiptap/core'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
-import Mention from '@tiptap/extension-mention'
-import {
-  getHierarchicalIndexes,
-  type TableOfContentDataItem,
-  TableOfContents
-} from '@tiptap/extension-table-of-contents'
-import Typography from '@tiptap/extension-typography'
-import { Markdown } from '@tiptap/markdown'
+import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { useEditor, useEditorState } from '@tiptap/react'
-import { StarterKit } from '@tiptap/starter-kit'
 import { t } from 'i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { commandSuggestion } from './command'
-import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
-import { EnhancedImage } from './extensions/enhancedImage'
-import { EnhancedLink } from './extensions/enhancedLink'
-import { EnhancedMath } from './extensions/enhancedMath'
-import { MarkdownTable } from './extensions/markdownTable'
-import { Placeholder } from './extensions/placeholder'
-import { YamlFrontMatter } from './extensions/yamlFrontMatter'
+import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
 const logger = loggerService.withContext('useRichEditor')
-
-// Create extension to preserve data-source-line attribute
-const SourceLineAttribute = Extension.create({
-  name: 'sourceLineAttribute',
-  addGlobalAttributes() {
-    return [
-      {
-        types: ['paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'listItem', 'horizontalRule'],
-        attributes: {
-          dataSourceLine: {
-            default: null,
-            parseHTML: (element) => {
-              const value = element.getAttribute(MARKDOWN_SOURCE_LINE_ATTR)
-              return value
-            },
-            renderHTML: (attributes) => {
-              if (!attributes.dataSourceLine) return {}
-              return { [MARKDOWN_SOURCE_LINE_ATTR]: attributes.dataSourceLine }
-            }
-          }
-        }
-      }
-    ]
-  }
-})
 
 export interface UseRichEditorOptions {
   /** Initial markdown content */
@@ -78,8 +28,6 @@ export interface UseRichEditorOptions {
   onBlur?: () => void
   /** Callback when paste event occurs */
   onPaste?: (html: string) => void
-  /** Maximum length for preview text */
-  previewLength?: number
   /** Placeholder text when editor is empty */
   placeholder?: string
   /** Whether the editor is editable */
@@ -103,12 +51,6 @@ export interface UseRichEditorReturn {
   editor: Editor
   /** Current markdown content */
   markdown: string
-  /** Current HTML content (converted from markdown) */
-  html: string
-  /** Preview text for display */
-  previewText: string
-  /** Whether content is detected as markdown */
-  isMarkdown: boolean
   /** Whether editor is disabled */
   disabled: boolean
   /** Current formatting state from TipTap editor */
@@ -127,24 +69,13 @@ export interface UseRichEditorReturn {
 
   /** Set markdown content */
   setMarkdown: (content: string) => void
-  /** Set HTML content (converts to markdown) */
-  setHtml: (html: string) => void
   /** Clear all content */
   clear: () => void
-
-  /** Convert markdown to HTML */
-  toHtml: (markdown: string) => string
-  /** Convert markdown to safe HTML */
-  toSafeHtml: (markdown: string) => string
-  /** Convert HTML to markdown */
-  toMarkdown: (html: string) => string
-  /** Get preview text from markdown */
-  getPreviewText: (markdown: string, maxLength?: number) => string
 }
 
 /**
- * Custom hook for managing rich text content with Markdown storage
- * Provides conversion between Markdown and HTML with sanitization
+ * Custom hook for managing rich text content. Markdown is the single source of truth: parsing and
+ * serialization go through the native @tiptap/markdown AST (see createRichEditorExtensions).
  */
 export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditorReturn => {
   const {
@@ -154,7 +85,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onContentChange,
     onBlur,
     onPaste,
-    previewLength = 50,
     placeholder = '',
     editable = true,
     enableSpellCheck = false,
@@ -163,20 +93,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   } = options
 
   const [markdown, setMarkdownState] = useState<string>(initialContent)
-
-  const html = useMemo(() => {
-    if (!markdown) return ''
-    return markdownToHtml(markdown)
-  }, [markdown])
-
-  const previewText = useMemo(() => {
-    if (!markdown) return ''
-    return markdownToPreviewText(markdown, previewLength)
-  }, [markdown, previewLength])
-
-  const isMarkdown = useMemo(() => {
-    return isMarkdownContent(markdown)
-  }, [markdown])
 
   // Get theme and language mapping from CodeStyleProvider
   const { activeShikiTheme } = useCodeStyle()
@@ -222,32 +138,18 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
   const handleLinkHoverEnd = useCallback(() => {}, [])
 
-  // TipTap editor extensions
+  // TipTap editor extensions. The schema/markdown hooks live in createRichEditorExtensions (shared
+  // with the round-trip tests); only the interactive callbacks below are wired up from the hook.
   const extensions = useMemo(
-    () => [
-      // Native Markdown parsing/serialization via the official @tiptap/markdown AST
-      // (marked-based). Custom nodes contribute their own parse/render hooks.
-      Markdown.configure({
-        markedOptions: {
-          gfm: true
-        }
-      }),
-      SourceLineAttribute,
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6]
-        },
-        codeBlock: false,
-        link: false
-      }),
-      EnhancedLink.configure({
+    () =>
+      createRichEditorExtensions({
+        editable,
+        placeholder,
+        shikiTheme: activeShikiTheme,
         onLinkHover: handleLinkHover,
         onLinkHoverEnd: handleLinkHoverEnd,
-        editable: editable
-      }),
-      TableOfContents.configure({
-        getIndex: getHierarchicalIndexes,
-        onUpdate(content) {
+        tocScrollParent: scrollParent,
+        onTocUpdate: (content) => {
           const resolveParent = (): HTMLElement | null => {
             if (!scrollParent) return null
             return typeof scrollParent === 'function' ? (scrollParent as () => HTMLElement)() : scrollParent
@@ -287,14 +189,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
           setTableOfContentsItems(normalized)
         },
-        scrollParent: (scrollParent as any) ?? window
-      }),
-      CodeBlockShiki.configure({
-        theme: activeShikiTheme,
-        defaultLanguage: 'text'
-      }),
-      EnhancedMath.configure({
-        blockOptions: {
+        mathBlockOptions: {
           onClick: (node, pos) => {
             // Get position from the clicked element
             let position: { x: number; y: number; top: number } | undefined
@@ -324,7 +219,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             return true
           }
         },
-        inlineOptions: {
+        mathInlineOptions: {
           onClick: (node, pos) => {
             let position: { x: number; y: number; top: number } | undefined
             if (event?.target instanceof HTMLElement) {
@@ -352,26 +247,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             window.dispatchEvent(customEvent)
             return true
           }
-        }
-      }),
-      EnhancedImage,
-      Placeholder.configure({
-        placeholder,
-        showOnlyWhenEditable: true,
-        showOnlyCurrent: true,
-        includeChildren: false
-      }),
-      YamlFrontMatter,
-      Mention.configure({
-        HTMLAttributes: {
-          class: 'mention'
         },
-        suggestion: commandSuggestion
-      }),
-      Typography,
-      MarkdownTable.configure({
-        resizable: true,
-        allowTableNodeSelection: true,
         onRowActionClick: ({ rowIndex, position }) => {
           showTableActionMenu('row', rowIndex, position)
         },
@@ -379,16 +255,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           showTableActionMenu('column', colIndex, position)
         }
       }),
-      TableRow,
-      TableHeader,
-      TableCell.configure({
-        allowNestedNodes: false
-      }),
-      TaskList,
-      TaskItem.configure({
-        nested: true
-      })
-    ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
   )
@@ -783,68 +649,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     [editor, onChange, onHtmlChange]
   )
 
-  const setHtml = useCallback(
-    (htmlContent: string) => {
-      try {
-        const convertedMarkdown = htmlToMarkdown(htmlContent)
-        setMarkdownState(convertedMarkdown)
-        onChange?.(convertedMarkdown)
-
-        editor.commands.setContent(htmlContent)
-
-        onHtmlChange?.(htmlContent)
-      } catch (error) {
-        logger.error('Error setting HTML content:', error as Error)
-      }
-    },
-    [editor.commands, onChange, onHtmlChange]
-  )
-
   const clear = useCallback(() => {
     setMarkdownState('')
     onChange?.('')
     onHtmlChange?.('')
   }, [onChange, onHtmlChange])
-
-  // Utility methods
-  const toHtml = useCallback((content: string): string => {
-    try {
-      return markdownToHtml(content)
-    } catch (error) {
-      logger.error('Error converting markdown to HTML:', error as Error)
-      return ''
-    }
-  }, [])
-
-  const toSafeHtml = useCallback((content: string): string => {
-    try {
-      return markdownToHtml(content)
-    } catch (error) {
-      logger.error('Error converting markdown to safe HTML:', error as Error)
-      return ''
-    }
-  }, [])
-
-  const toMarkdown = useCallback((htmlContent: string): string => {
-    try {
-      return htmlToMarkdown(htmlContent)
-    } catch (error) {
-      logger.error('Error converting HTML to markdown:', error as Error)
-      return ''
-    }
-  }, [])
-
-  const getPreviewText = useCallback(
-    (content: string, maxLength?: number): string => {
-      try {
-        return markdownToPreviewText(content, maxLength || previewLength)
-      } catch (error) {
-        logger.error('Error generating preview text:', error as Error)
-        return ''
-      }
-    },
-    [previewLength]
-  )
 
   return {
     // Editor instance
@@ -852,9 +661,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
     // State
     markdown,
-    html,
-    previewText,
-    isMarkdown,
     disabled: !editable,
     formattingState,
     tableOfContentsItems,
@@ -869,13 +675,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
     // Actions
     setMarkdown,
-    setHtml,
-    clear,
-
-    // Utilities
-    toHtml,
-    toSafeHtml,
-    toMarkdown,
-    getPreviewText
+    clear
   }
 }
