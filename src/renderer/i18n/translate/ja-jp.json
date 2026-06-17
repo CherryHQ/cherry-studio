@@ -6851,10 +6851,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "ドキュメント処理"
+            "title": "ドキュメント処理",
+            "tooltip": "ナレッジベースでドキュメントを解析するために使用します"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "翻訳機能で画像内の文字を認識するために使用します"
           }
         },
         "fields": {
