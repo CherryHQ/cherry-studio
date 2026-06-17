@@ -88,6 +88,16 @@ const preview: ModelSyncPreviewResponse = {
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
+    },
+    {
+      id: 'openai::mistral-large',
+      providerId: 'openai',
+      apiModelId: 'mistral-large',
+      name: 'Mistral Large',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
     }
   ],
   missing: [
@@ -121,12 +131,14 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByTestId('drawer-body')).toHaveClass('pt-0')
     expect(screen.getByText('GPT 5')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.getByText('Mistral Large')).toBeInTheDocument()
     expect(screen.getByText('Legacy Model')).toBeInTheDocument()
 
     fireEvent.change(searchInput, { target: { value: 'claude' } })
 
     expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.queryByText('Mistral Large')).not.toBeInTheDocument()
     expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
   })
 
@@ -142,6 +154,97 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
     expect(screen.getByText('GPT 5')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.getByText('Mistral Large')).toBeInTheDocument()
+  })
+
+  it('selects only visible added rows while preserving hidden selections', async () => {
+    const onApply = vi.fn()
+    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={onApply} onClose={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.models.manage.fetch_summary_add:3/3')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_deselect_all_add' }))
+    expect(screen.getByText('settings.models.manage.fetch_summary_add:0/3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('GPT 5'))
+    expect(screen.getByText('settings.models.manage.fetch_summary_add:1/3')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_select_all_add' }))
+    expect(screen.getByText('settings.models.manage.fetch_summary_add:2/3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_apply_changes' }))
+
+    expect(onApply).toHaveBeenCalledWith({
+      toAdd: [preview.added[0], preview.added[1]],
+      toRemove: ['openai::legacy-model']
+    })
+  })
+
+  it('deselects only visible added rows while preserving hidden selections', async () => {
+    const onApply = vi.fn()
+    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={onApply} onClose={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.models.manage.fetch_summary_add:3/3')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_deselect_all_add' }))
+    expect(screen.getByText('settings.models.manage.fetch_summary_add:2/3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_apply_changes' }))
+
+    expect(onApply).toHaveBeenCalledWith({
+      toAdd: [preview.added[0], preview.added[2]],
+      toRemove: ['openai::legacy-model']
+    })
+  })
+
+  it('shows no-results copy instead of the up-to-date empty state for unmatched search', () => {
+    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'no-match' } })
+
+    expect(screen.getByText('common.no_results')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.manage.fetch_up_to_date')).not.toBeInTheDocument()
+  })
+
+  it('disables search while applying', () => {
+    render(<ModelListSyncDrawer open preview={preview} isApplying onApply={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeDisabled()
+  })
+
+  it('resets search when the drawer closes or receives a new preview', () => {
+    const { rerender } = render(
+      <ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('claude')
+
+    rerender(
+      <ModelListSyncDrawer open={false} preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />
+    )
+    rerender(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
+
+    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'legacy' } })
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('legacy')
+
+    rerender(
+      <ModelListSyncDrawer
+        open
+        preview={{ ...preview, added: [preview.added[0]], missing: preview.missing }}
+        isApplying={false}
+        onApply={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
   })
 
   it('keeps hidden selections in the apply payload while filtering visible rows', async () => {
@@ -149,7 +252,7 @@ describe('ModelListSyncDrawer', () => {
     render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={onApply} onClose={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByText('settings.models.manage.fetch_summary_add:2/2')).toBeInTheDocument()
+      expect(screen.getByText('settings.models.manage.fetch_summary_add:3/3')).toBeInTheDocument()
     })
 
     fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })

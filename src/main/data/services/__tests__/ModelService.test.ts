@@ -1197,6 +1197,7 @@ describe('ModelService.reconcileForProvider', () => {
         isDeprecated: false
       })
     )
+    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
     const result = await modelService.reconcileForProvider('openai', {
       toAdd: [],
@@ -1206,6 +1207,12 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((model) => model.id)).toEqual([])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, gpt4o))
     expect(rows).toHaveLength(0)
+    expect(infoSpy).toHaveBeenCalledWith('Deleted preset-backed models during reconcile', {
+      providerId: 'openai',
+      deletedCount: 1,
+      deletedIds: [gpt4o]
+    })
+    infoSpy.mockRestore()
   })
 
   it('does not remove the managed CherryAI default model during reconcile', async () => {

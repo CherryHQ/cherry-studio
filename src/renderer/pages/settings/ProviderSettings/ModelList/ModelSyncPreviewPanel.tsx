@@ -58,6 +58,7 @@ export default function ModelSyncPreviewPanel({
 
   const hasNew = preview.added.length > 0
   const hasMissing = preview.missing.length > 0
+  // The panel receives a filtered preview, while selections still span the full unfiltered result.
   const allVisibleAddedSelected = hasNew && preview.added.every((model) => selectedAddedIds.has(model.id))
   const allVisibleMissingSelected = hasMissing && preview.missing.every((item) => selectedMissingIds.has(item.model.id))
 

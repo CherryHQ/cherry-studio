@@ -50,30 +50,6 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
     })
   }, [])
 
-  const toggleAllAdded = useCallback(() => {
-    if (!preview) {
-      return
-    }
-    setSelectedAddedIds((current) => {
-      if (current.size === preview.added.length) {
-        return new Set()
-      }
-      return new Set(preview.added.map((model) => model.id))
-    })
-  }, [preview])
-
-  const toggleAllMissing = useCallback(() => {
-    if (!preview) {
-      return
-    }
-    setSelectedMissingIds((current) => {
-      if (current.size === preview.missing.length) {
-        return new Set()
-      }
-      return new Set(preview.missing.map((item) => item.model.id))
-    })
-  }, [preview])
-
   const setAddedSelectionFor = useCallback((uniqueModelIds: UniqueModelId[], selected: boolean) => {
     setSelectedAddedIds((current) => {
       const next = new Set(current)
@@ -104,10 +80,6 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
 
   const totalSelected = selectedAddedIds.size + selectedMissingIds.size
 
-  const allAddedSelected = !!preview && preview.added.length > 0 && selectedAddedIds.size === preview.added.length
-  const allMissingSelected =
-    !!preview && preview.missing.length > 0 && selectedMissingIds.size === preview.missing.length
-
   const getApplyPayload = useCallback((): ModelPullApplyPayload | null => {
     if (!preview) {
       return null
@@ -124,13 +96,9 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
     selectedMissingIds,
     toggleAddedSelection,
     toggleMissingSelection,
-    toggleAllAdded,
-    toggleAllMissing,
     setAddedSelectionFor,
     setMissingSelectionFor,
     totalSelected,
-    allAddedSelected,
-    allMissingSelected,
     getApplyPayload
   }
 }
