@@ -223,7 +223,8 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
 const renderParts = (
   parts: CherryMessagePart[],
   message?: MessageListItem,
-  actions: MessageListProviderValue['actions'] = {}
+  actions: MessageListProviderValue['actions'] = {},
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
 ) => {
   const m = message ?? msg()
   const value: MessageListProviderValue = {
@@ -236,7 +237,7 @@ const renderParts = (
       overscan: 0,
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
-      renderConfig: defaultMessageRenderConfig,
+      renderConfig,
       getMessageActivityState: () => ({
         isProcessing: false,
         isStreamTarget: false,
@@ -465,6 +466,26 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
   })
 
+  it('renders grouped tool parts inline when tool history collapse is disabled', () => {
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 't1', state: 'output-available', output: {} },
+        { type: 'dynamic-tool', toolCallId: 'b', toolName: 't2', state: 'output-available', output: {} }
+      ] as unknown as CherryMessagePart[],
+      undefined,
+      {},
+      { ...defaultMessageRenderConfig, collapseCompletedToolHistory: false }
+    )
+
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByTestId('mock-tool-group')).toBeNull()
+    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      't1',
+      't2'
+    ])
+  })
+
   it('renders grouped dynamic-tool parts without persisted toolCallId using fallback ids', () => {
     renderParts([
       { type: 'dynamic-tool', toolName: 'TodoWrite', state: 'output-available', output: {} },
@@ -593,6 +614,32 @@ describe('MessagePartsRenderer', () => {
     fireEvent.click(historyButton)
 
     expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought after tool')
+    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
+      'checking project files',
+      'final answer'
+    ])
+  })
+
+  it('collapses reasoning after a hidden agent task event before final result', () => {
+    renderParts([
+      { type: 'text', text: 'checking project files' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'completed', taskId: 'task-1', title: 'Inspect task state' }
+      },
+      { type: 'reasoning', text: 'deep thought after hidden event', state: 'done' },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
+    expect(screen.queryByText(/checking project files/)).toBeNull()
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought after hidden event')
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'checking project files',
       'final answer'

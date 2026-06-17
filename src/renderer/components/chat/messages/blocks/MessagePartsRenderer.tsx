@@ -231,7 +231,8 @@ function shouldCollapseAfterLastTool(part: CherryMessagePart): boolean {
     isReasoningMessagePart(part) ||
     partType === 'step-start' ||
     partType === 'source-url' ||
-    partType === 'data-citation'
+    partType === 'data-citation' ||
+    partType === 'data-agent-task-event'
   )
 }
 
@@ -769,7 +770,9 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
         </AnimatedBlockWrapper>
       )}
       {grouped.map((entry) => {
-        return renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive)
+        return renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, {
+          renderToolGroupsInline: !renderConfig.collapseCompletedToolHistory
+        })
       })}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
