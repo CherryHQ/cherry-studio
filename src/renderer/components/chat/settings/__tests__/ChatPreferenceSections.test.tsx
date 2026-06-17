@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
     'chat.message.navigation_mode': 'none',
-    'chat.narrow_mode': false,
+    'chat.narrow_mode': true,
     'chat.message.thought.auto_collapse': true,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
@@ -101,7 +101,7 @@ vi.mock('react-i18next', () => ({
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
-    mocks.preferenceValues['chat.narrow_mode'] = false
+    mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.setPreference.mockClear()
   })
 
@@ -148,15 +148,15 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
   })
 
-  it('toggles wide layout mode by enabling narrow mode', () => {
+  it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {
     render(<ChatPreferenceSections />)
 
     const wideModeSwitch = screen.getByRole('button', { name: 'settings.messages.wide_mode' })
-    expect(wideModeSwitch).toHaveAttribute('data-checked', 'true')
+    expect(wideModeSwitch).toHaveAttribute('data-checked', 'false')
 
     fireEvent.click(wideModeSwitch)
 
-    expect(mocks.setPreference).toHaveBeenCalledWith('chat.narrow_mode', true)
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.narrow_mode', false)
   })
 
   it('renders preference groups without collapsible controls', () => {

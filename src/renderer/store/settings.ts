@@ -351,7 +351,7 @@ export const initialState: SettingsState = {
     visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
     disabled: []
   },
-  narrowMode: false,
+  narrowMode: true,
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
   readClipboardAtStartup: true,
