@@ -12,8 +12,8 @@ import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/us
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
@@ -87,6 +87,7 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
  * Convert database row to Provider entity
  */
 function rowToRuntimeProvider(row: UserProviderRow): Provider {
+  const providerRegistryService = getDataService('ProviderRegistryService')
   const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId ?? undefined
@@ -636,6 +637,7 @@ class ProviderService {
       // covers presets that group under themselves; the registry check also
       // covers presets that group under a different preset (e.g. zai → zhipu,
       // minimax-global → minimax) whose presetProviderId no longer equals their id.
+      const providerRegistryService = getDataService('ProviderRegistryService')
       if (
         (provider.presetProviderId && provider.presetProviderId === providerId) ||
         providerRegistryService.isRegistryProvider(providerId)
@@ -705,3 +707,5 @@ class ProviderService {
 }
 
 export const providerService = new ProviderService()
+
+registerDataService('ProviderService', providerService)

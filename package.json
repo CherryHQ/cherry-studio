@@ -14,7 +14,7 @@
     "start": "electron-vite preview",
     "dev": "dotenv electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",
-    "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
+    "debug": "dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "pnpm lint && pnpm docs:check-links && pnpm test",
     "build:unpack": "dotenv npm run build && electron-builder --dir",

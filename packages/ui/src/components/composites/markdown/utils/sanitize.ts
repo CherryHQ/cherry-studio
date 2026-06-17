@@ -3,8 +3,8 @@
  *
  * Moved verbatim from src/renderer/src/components/chat/messages/markdown/Markdown.tsx
  * (lines 39-225). Extended `defaultSchema` allows the SVG subset Streamdown's
- * Mermaid plugin (and inline SVG content) emits, plus `<style>` and
- * `<sup data-citation>` for the citation pipeline.
+ * Mermaid plugin (and inline SVG content) emits, plus `<sup data-citation>`
+ * for the citation pipeline.
  */
 
 export const SVG_ELEMENT_REGEX = /<svg[\s>]/i
@@ -151,7 +151,6 @@ export const SVG_ATTRIBUTES = [
   'stroke-opacity',
   'strokeWidth',
   'stroke-width',
-  'style',
   'surfaceScale',
   'targetX',
   'targetY',
@@ -168,6 +167,7 @@ export const SVG_ATTRIBUTES = [
   'x1',
   'x2',
   'xlinkHref',
+  'xLinkHref',
   'xlink:href',
   'xmlns',
   'xmlnsXlink',
@@ -176,29 +176,49 @@ export const SVG_ATTRIBUTES = [
   'y2'
 ]
 
-export function createMarkdownSanitizeSchema(schema: any) {
+type SanitizeAttribute = string | [string, ...unknown[]]
+
+export interface MarkdownSanitizeSchema {
+  tagNames?: string[]
+  attributes?: Record<string, SanitizeAttribute[] | undefined>
+  protocols?: Record<string, string[] | null | undefined>
+  strip?: string[]
+  clobberPrefix?: string
+  [key: string]: unknown
+}
+
+function mergeUnique<T>(...groups: readonly (readonly T[] | null | undefined)[]): T[] {
+  return Array.from(new Set(groups.flatMap((group) => group ?? [])))
+}
+
+export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): MarkdownSanitizeSchema {
   const svgAttributes = Object.fromEntries(
-    SVG_ELEMENTS.map((tagName) => [tagName, [...(schema.attributes?.[tagName] || []), ...SVG_ATTRIBUTES]])
+    SVG_ELEMENTS.map((tagName) => [tagName, mergeUnique(schema.attributes?.[tagName], SVG_ATTRIBUTES)])
   )
+  const safeLinkProtocols = mergeUnique(schema.protocols?.href, ['http', 'https'])
 
   return {
     ...schema,
-    tagNames: [...(schema.tagNames || []), 'style', 'span', ...SVG_ELEMENTS],
+    tagNames: mergeUnique(schema.tagNames, ['span'], SVG_ELEMENTS),
+    strip: mergeUnique(schema.strip, ['style']),
     attributes: {
       ...schema.attributes,
-      span: [
-        ...(schema.attributes?.span || []),
+      span: mergeUnique(schema.attributes?.span, [
         'data-composer-token-index',
         'dataComposerTokenIndex',
         'data-composer-token-block',
         'dataComposerTokenBlock'
-      ],
-      sup: [...(schema.attributes?.sup || []), 'data-citation'],
+      ]),
+      sup: mergeUnique(schema.attributes?.sup, ['data-citation']),
       ...svgAttributes
     },
     protocols: {
       ...schema.protocols,
-      src: [...(schema.protocols?.src || []), 'data']
+      href: safeLinkProtocols,
+      xlinkHref: safeLinkProtocols,
+      xLinkHref: safeLinkProtocols,
+      'xlink:href': safeLinkProtocols,
+      src: mergeUnique(schema.protocols?.src, ['data'])
     }
   }
 }

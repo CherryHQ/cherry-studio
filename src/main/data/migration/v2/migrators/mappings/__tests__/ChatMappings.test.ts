@@ -289,6 +289,115 @@ describe('transformBlocksToParts', () => {
     expect(part.callProviderMetadata?.cherry).toMatchObject({
       tool: { type: 'mcp', serverId: 's1', serverName: 'search' }
     })
+    expect(readCherryMeta(part)?.tool).toMatchObject({
+      type: 'mcp',
+      serverId: 's1',
+      serverName: 'search'
+    })
+  })
+
+  it('fills toolCallId from raw id when block and raw tool call ids are missing', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: '',
+        toolName: 'raw_id_tool',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'raw-call-id',
+            tool: { id: 'tool_raw', name: 'raw_id_tool', type: 'mcp' },
+            arguments: { value: true },
+            status: 'done',
+            response: 'ok',
+            toolCallId: ''
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.toolCallId).toBe('raw-call-id')
+  })
+
+  it('fills toolCallId from block id when no legacy tool ids are present', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: '',
+        toolName: 'block_id_tool',
+        content: { content: [{ type: 'text', text: 'ok' }] }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.toolCallId).toBe('block-tool')
+  })
+
+  it('writes builtin tool metadata to providerMetadata', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: 'call-builtin',
+        toolName: 'builtin_clock',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'call-builtin',
+            tool: { id: 'tool_clock', name: 'builtin_clock', type: 'builtin' },
+            arguments: {},
+            status: 'done',
+            response: 'ok',
+            toolCallId: 'call-builtin'
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'builtin' }
+    })
+    expect(readCherryMeta(part)?.tool).toEqual({ type: 'builtin' })
+  })
+
+  it('keeps server identity but omits invalid tool type metadata', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: 'call-custom',
+        toolName: 'custom_tool',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'call-custom',
+            tool: {
+              id: 'tool_custom',
+              name: 'custom_tool',
+              type: 'custom',
+              serverId: 'custom-server',
+              serverName: 'Custom'
+            },
+            arguments: {},
+            status: 'done',
+            response: 'ok',
+            toolCallId: 'call-custom'
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(readCherryMeta(part)?.tool).toEqual({
+      serverId: 'custom-server',
+      serverName: 'Custom'
+    })
+  })
+
+  it('does not write cherry tool metadata when raw tool identity is absent', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: 'call-simple',
+        toolName: 'calc',
+        content: { content: [{ type: 'text', text: '2' }], isError: false }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(readCherryMeta(part)).toBeUndefined()
   })
 
   it('falls back to block fields when rawMcpToolResponse is missing', async () => {
@@ -355,6 +464,7 @@ describe('transformBlocksToParts', () => {
     expect(part.callProviderMetadata?.cherry).toMatchObject({
       tool: { type: 'provider' }
     })
+    expect(readCherryMeta(part)?.tool).toMatchObject({ type: 'provider' })
   })
 
   it('transforms tool with isError to output-error state', async () => {

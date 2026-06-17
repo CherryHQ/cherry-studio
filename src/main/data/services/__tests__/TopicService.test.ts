@@ -1,3 +1,6 @@
+// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
+import '@data/services/MessageService'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { groupTable } from '@data/db/schemas/group'

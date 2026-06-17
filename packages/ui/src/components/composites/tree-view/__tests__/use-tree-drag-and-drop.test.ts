@@ -2,7 +2,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useTreeDragAndDrop } from '../useTreeDragAndDrop'
+import { useTreeDragAndDrop } from '../use-tree-drag-and-drop'
 
 function makeDragEvent(overrides: Partial<{ clientY: number; rect: DOMRect; data: string }> = {}) {
   const rect = overrides.rect ?? ({ top: 0, bottom: 100, height: 100, left: 0, right: 100 } as DOMRect)
@@ -83,20 +83,97 @@ describe('useTreeDragAndDrop', () => {
   it('calls onMove on drop with computed position', () => {
     const onMove = vi.fn()
     const { result } = renderHook(() => useTreeDragAndDrop({ onMove }))
+    const sourceHandles = result.current.getDragHandleProps('source')
+    act(() => {
+      sourceHandles.onDragStart(makeDragEvent({ data: 'source' }))
+    })
     const handles = result.current.getDragHandleProps('target')
     act(() => {
       handles.onDragOver(makeDragEvent({ clientY: 5 }))
     })
     act(() => {
-      handles.onDrop(makeDragEvent({ data: 'source' }))
+      handles.onDrop(makeDragEvent({ data: 'spoofed' }))
     })
     expect(onMove).toHaveBeenCalledWith('source', 'target', 'before')
+  })
+
+  it('ignores external drops without an active internal drag', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() => useTreeDragAndDrop({ onMove }))
+    const handles = result.current.getDragHandleProps('target')
+
+    act(() => {
+      handles.onDrop(makeDragEvent({ data: 'external' }))
+    })
+
+    expect(onMove).not.toHaveBeenCalled()
+  })
+
+  it('falls back to after on leaf drop without a prior dragOver', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() =>
+      useTreeDragAndDrop({
+        onMove,
+        canHaveChildren: () => false
+      })
+    )
+    const sourceHandles = result.current.getDragHandleProps('source')
+    act(() => {
+      sourceHandles.onDragStart(makeDragEvent({ data: 'source' }))
+    })
+    const targetHandles = result.current.getDragHandleProps('leaf')
+
+    act(() => {
+      targetHandles.onDrop(makeDragEvent())
+    })
+
+    expect(onMove).toHaveBeenCalledWith('source', 'leaf', 'after')
+  })
+
+  it('falls back to inside on container drop without a prior dragOver', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() =>
+      useTreeDragAndDrop({
+        onMove,
+        canHaveChildren: () => true
+      })
+    )
+    const sourceHandles = result.current.getDragHandleProps('source')
+    act(() => {
+      sourceHandles.onDragStart(makeDragEvent({ data: 'source' }))
+    })
+    const targetHandles = result.current.getDragHandleProps('container')
+
+    act(() => {
+      targetHandles.onDrop(makeDragEvent())
+    })
+
+    expect(onMove).toHaveBeenCalledWith('source', 'container', 'inside')
+  })
+
+  it('falls back to inside when canHaveChildren is omitted', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() => useTreeDragAndDrop({ onMove }))
+    const sourceHandles = result.current.getDragHandleProps('source')
+    act(() => {
+      sourceHandles.onDragStart(makeDragEvent({ data: 'source' }))
+    })
+    const targetHandles = result.current.getDragHandleProps('target')
+
+    act(() => {
+      targetHandles.onDrop(makeDragEvent())
+    })
+
+    expect(onMove).toHaveBeenCalledWith('source', 'target', 'inside')
   })
 
   it('ignores self-drop', () => {
     const onMove = vi.fn()
     const { result } = renderHook(() => useTreeDragAndDrop({ onMove }))
     const handles = result.current.getDragHandleProps('same')
+    act(() => {
+      handles.onDragStart(makeDragEvent({ data: 'same' }))
+    })
     act(() => {
       handles.onDrop(makeDragEvent({ data: 'same' }))
     })

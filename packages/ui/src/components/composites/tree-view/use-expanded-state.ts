@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 export interface UseExpandedStateOptions {
   expandedIds?: ReadonlySet<string>
@@ -18,17 +18,23 @@ export function useExpandedState(options: UseExpandedStateOptions): UseExpandedS
   const { expandedIds: controlled, defaultExpandedIds, onExpandedChange } = options
   const isControlled = controlled !== undefined
   const [internal, setInternal] = useState<ReadonlySet<string>>(defaultExpandedIds ?? EMPTY_SET)
+  const internalRef = useRef(internal)
+  internalRef.current = internal
   const current = isControlled ? controlled : internal
 
   const toggle = useCallback(
     (id: string) => {
-      const next = new Set(current)
+      const next = new Set(isControlled ? controlled : internalRef.current)
       if (next.has(id)) next.delete(id)
       else next.add(id)
-      if (!isControlled) setInternal(next)
+
+      if (!isControlled) {
+        internalRef.current = next
+        setInternal(next)
+      }
       onExpandedChange?.(next)
     },
-    [current, isControlled, onExpandedChange]
+    [controlled, isControlled, onExpandedChange]
   )
 
   const isExpanded = useCallback((id: string) => current.has(id), [current])

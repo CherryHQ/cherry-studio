@@ -7,7 +7,9 @@ export default defineConfig({
     'icons/index': 'src/components/icons/index.ts',
     'hooks/index': 'src/hooks/index.ts',
     'utils/index': 'src/utils/index.ts',
-    'composites/markdown/index': 'src/components/composites/markdown/index.ts'
+    'composites/markdown/index': 'src/components/composites/markdown/index.ts',
+    'composites/markdown/presets': 'src/components/composites/markdown/presets.ts',
+    'composites/markdown/styles': 'src/components/composites/markdown/styles.ts'
   },
   outDir: 'dist',
   format: ['esm', 'cjs'],

@@ -63,7 +63,13 @@ export interface TreeViewProps<T> {
 
   renderRow: RenderRowFn<T>
 
-  /** When omitted, DnD is fully disabled — no listeners attached, draggable=false. */
+  /**
+   * When omitted, DnD is fully disabled — no listeners attached, draggable=false.
+   *
+   * TreeView guards self-drops, external drops, and leaf `inside` fallback, but
+   * callers still own structural move validation such as rejecting descendant
+   * targets before mutating their tree data.
+   */
   onMove?: (sourceId: string, targetId: string, position: DragPosition) => void
 
   /** Optional virtualizer slot. When omitted, rows render as a plain flat list. */

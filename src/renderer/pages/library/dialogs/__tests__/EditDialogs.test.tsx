@@ -558,6 +558,15 @@ async function expectVariablesHelpOnHover() {
   await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
 }
 
+function openTagCombobox() {
+  const removeTagButton = screen.getByRole('button', { name: 'Remove work' })
+  const combobox = removeTagButton.closest('[role="combobox"]')
+  if (!combobox) {
+    throw new Error('Tag combobox trigger not found')
+  }
+  fireEvent.click(combobox)
+}
+
 describe('edit dialogs', () => {
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     const onSaved = vi.fn()
@@ -613,7 +622,7 @@ describe('edit dialogs', () => {
     ])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'work' }))
+    openTagCombobox()
     fireEvent.click(await screen.findByText('personal'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -632,7 +641,7 @@ describe('edit dialogs', () => {
     ])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'work' }))
+    openTagCombobox()
     fireEvent.change(screen.getByPlaceholderText('Search tags'), { target: { value: 'new-tag' } })
     fireEvent.click(await screen.findByText('new-tag'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -648,7 +657,7 @@ describe('edit dialogs', () => {
   it('does not expose typed tag names beyond the server-side max length', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
     // Open the combobox popover (CommandInput only mounts once the trigger is active)
-    fireEvent.click(screen.getByRole('button', { name: 'work' }))
+    openTagCombobox()
     const atLimit = 'y'.repeat(64) // TagNameSchema.max(64)
     const tooLong = 'x'.repeat(65) // one over the limit — server would reject
     const searchInput = screen.getByPlaceholderText('Search tags')

@@ -8,10 +8,10 @@ IpcApi is the **fifth parallel subsystem** alongside BootConfig / Cache / Prefer
 
 ## Quick Navigation
 
-- [IpcApi Overview](./ipc-overview.md) — paradigm split (RPC vs REST), layering, the two orthogonal axes, trust boundary, `IpcContext`, error model, security
+- [IpcApi Overview](./ipc-overview.md) — paradigm split (RPC vs REST), surface narrowing + direction cheat sheet, no one-way R→M, layering, the two orthogonal axes, trust boundary, `IpcContext`, error model, security
 - [IpcApi Usage](./ipc-usage.md) — add a request (schema + handler), add an event (type + `broadcast`/`send` + `useIpcOn`), three-process end-to-end examples
 - [IpcApi Schema Guide](./ipc-schema-guide.md) — route/event naming, `*RequestSchemas`/`*EventSchemas`, `IpcRoute`/`IpcEventName`, ESLint key validation
-- [IpcApi Migration Guide](./ipc-migration-guide.md) — collecting scattered `ipcMain.handle`/`this.ipcHandle`/hand-written preload per domain, the `send` work-list, exposure-surface audit
+- [IpcApi Migration Guide](./ipc-migration-guide.md) — collecting scattered `ipcMain.handle`/`this.ipcHandle`/hand-written preload per domain, the `send` work-list, escape hatch (when a channel stays out), exposure-surface audit
 
 ## Boundary — When To Use Which Subsystem
 

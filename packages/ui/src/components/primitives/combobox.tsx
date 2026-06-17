@@ -98,6 +98,8 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   searchPlacement?: ComboboxSearchPlacement
   searchPlaceholder?: string
   emptyText?: string
+  /** Aria-label for the remove tag button. Receives the selected option label. */
+  getRemoveTagAriaLabel?: (optionLabel: string) => string
   onSearch?: (search: string) => void
   filterOption?: (option: ComboboxOption<TExtra>, search: string) => boolean
 
@@ -134,6 +136,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   searchPlacement = 'content',
   searchPlaceholder = 'Search...',
   emptyText = 'No results found.',
+  getRemoveTagAriaLabel = (optionLabel) => `Remove ${optionLabel}`,
   onSearch,
   filterOption,
   error = false,
@@ -234,7 +237,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     }
   }
 
-  const handleRemoveTag = (tagValue: string, e: React.MouseEvent | React.KeyboardEvent) => {
+  const handleRemoveTag = (tagValue: string, e: React.MouseEvent | React.KeyboardEvent): void => {
     e.preventDefault()
     e.stopPropagation()
     if (multiple) {
@@ -243,7 +246,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     }
   }
 
-  const handleRemoveTagKeyDown = (tagValue: string, e: React.KeyboardEvent) => {
+  const handleRemoveTagKeyDown = (tagValue: string, e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' || e.key === ' ') {
       handleRemoveTag(tagValue, e)
     }
@@ -361,15 +364,14 @@ export function Combobox<TExtra extends object = Record<never, never>>({
                 'text-success-foreground text-xs'
               )}>
               {option.label}
-              <span
-                role="button"
-                tabIndex={0}
-                aria-label={`Remove ${option.label}`}
+              <button
+                type="button"
+                aria-label={getRemoveTagAriaLabel(option.label)}
                 className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-success"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
                 <X className="size-3" />
-              </span>
+              </button>
             </span>
           ))}
         </div>
@@ -436,6 +438,38 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     )
   }
 
+  const renderMultiTrigger = () => {
+    const inputSize = size ?? 'default'
+
+    return (
+      <PopoverTrigger asChild>
+        <div
+          role="combobox"
+          tabIndex={disabled ? -1 : 0}
+          aria-expanded={open}
+          aria-invalid={error}
+          aria-disabled={disabled}
+          style={{ width: triggerWidth, ...triggerStyle }}
+          className={cn(
+            comboboxTriggerVariants({ state, size }),
+            comboboxInputSizeClasses[inputSize],
+            'cursor-pointer',
+            className
+          )}
+          onKeyDown={(event) => {
+            if (disabled) return
+            if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+              event.preventDefault()
+              handleOpenChange(true)
+            }
+          }}>
+          {renderTriggerContent()}
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        </div>
+      </PopoverTrigger>
+    )
+  }
+
   const renderOptionContent = (option: ComboboxOption<TExtra>) => {
     if (renderOption) {
       return renderOption(option)
@@ -462,6 +496,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     <Popover open={open} onOpenChange={handleOpenChange}>
       {triggerSearchEnabled ? (
         renderTriggerInput()
+      ) : multiple ? (
+        renderMultiTrigger()
       ) : (
         <PopoverTrigger asChild>
           <Button

@@ -4,6 +4,11 @@ export type PortalContainer = HTMLElement | null
 
 const PortalContainerContext = React.createContext<PortalContainer>(null)
 
+/**
+ * Overlays should portal into the nearest provided container, usually dialog
+ * content, so Radix focus traps and dismiss layers treat nested overlays as
+ * inside the same interaction boundary.
+ */
 export function PortalContainerProvider({
   container,
   children

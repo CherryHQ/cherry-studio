@@ -1,3 +1,4 @@
+import type * as CherryUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
@@ -45,7 +46,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<typeof CherryUi>()
   return {
     ...actual,
     Tooltip: ({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) => (

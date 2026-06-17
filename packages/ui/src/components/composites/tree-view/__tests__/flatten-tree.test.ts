@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { flattenTree } from '../flattenTree'
+import { flattenTree } from '../flatten-tree'
 import type { TreeNodeAdapter } from '../types'
 
 interface Node {
@@ -61,5 +61,22 @@ describe('flattenTree', () => {
     const data: Node[] = [{ id: 'leaf1' }, { id: 'branch', children: [{ id: 'inner' }] }, { id: 'leaf2' }]
     const result = flattenTree(data, adapter, new Set(['branch']))
     expect(result.map((r) => r.id)).toEqual(['leaf1', 'branch', 'inner', 'leaf2'])
+  })
+
+  it('skips revisited ids to avoid recursive cycles', () => {
+    const root: Node = { id: 'root' }
+    root.children = [root]
+
+    const result = flattenTree([root], adapter, new Set(['root']))
+
+    expect(result.map((r) => r.id)).toEqual(['root'])
+  })
+
+  it('skips duplicate ids to keep flat rows and React keys unique', () => {
+    const data: Node[] = [{ id: 'same' }, { id: 'same' }]
+
+    const result = flattenTree(data, adapter, new Set(['same']))
+
+    expect(result.map((r) => r.id)).toEqual(['same'])
   })
 })

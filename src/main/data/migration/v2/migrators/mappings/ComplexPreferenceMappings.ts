@@ -201,13 +201,13 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['ui.sidebar.favorites'],
     transform: (sources) => {
-      const rewrite = (arr: unknown): unknown =>
-        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
-      const addAgents = (visible: unknown, invisible: unknown): unknown => {
-        if (!Array.isArray(visible) || visible.includes('agents')) {
+      const rewrite = (arr: unknown): unknown[] | undefined =>
+        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : undefined
+      const addAgents = (visible: unknown[] | undefined, invisible: unknown[] | undefined): unknown[] | undefined => {
+        if (!visible || visible.includes('agents')) {
           return visible
         }
-        if (Array.isArray(invisible) && invisible.includes('agents')) {
+        if (invisible?.includes('agents')) {
           return visible
         }
 
@@ -216,9 +216,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
         nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
         return nextVisible
       }
+      const dedup = (arr: unknown[] | undefined): unknown[] | undefined => (arr ? [...new Set(arr)] : undefined)
       const visible = rewrite(sources.visible)
       const invisible = rewrite(sources.disabled)
-      const visibleWithAgents = addAgents(visible, invisible)
+      const visibleWithAgents = dedup(addAgents(visible, invisible))
       return {
         'ui.sidebar.favorites': shouldUseDefaultSidebarFavorites(visibleWithAgents, invisible)
           ? [...DEFAULT_SIDEBAR_FAVORITES]

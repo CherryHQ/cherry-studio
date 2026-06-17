@@ -5,7 +5,8 @@
  * - `<StreamingMarkdown>` — token-by-token output with AST-stable per-id
  *   animation that does NOT re-fade already-rendered text on mid-stream
  *   structural changes.
- * - `withChatPlugins()` etc — opt-in Streamdown plugin presets.
+ * - Plugin presets live at `@cherrystudio/ui/composites/markdown/presets`
+ *   so math / Mermaid dependencies remain opt-in.
  * - rehype plugins + sanitize schema — used by chat to ship its own
  *   pre-processing layer on top.
  * Side-effect styles: `import '@cherrystudio/ui/composites/markdown/styles'`
@@ -15,7 +16,7 @@
 export { MarkdownBlockContext, type MarkdownBlockContextValue, useMarkdownBlockContext } from './context'
 export { Markdown, type MarkdownProps } from './markdown'
 export * from './plugins'
-export { defaultMarkdownPlugins, withChatPlugins, withMath, withMermaid } from './presets'
+export { defaultMarkdownPlugins, withChatPlugins, withFullMarkdown, withMath, withMermaid } from './presets'
 export { StreamingMarkdown, type StreamingMarkdownProps } from './streaming-markdown'
 export type { MarkdownSource, MarkdownStatus } from './types'
 export * from './utils'

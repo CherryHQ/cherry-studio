@@ -1,10 +1,17 @@
 import type React from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { DragPosition, TreeDragHandleProps } from './types'
 
 export interface UseTreeDragAndDropOptions {
-  /** Move callback. When undefined, all returned listeners are no-ops and draggable is false. */
+  /**
+   * Move callback. When undefined, all returned listeners are no-ops and draggable is false.
+   *
+   * The hook guards self-drops and external drops. Callers still own structural
+   * validation before mutating tree data, including rejecting moves where
+   * `targetId` is a descendant of `sourceId`; accepting those moves can create
+   * cycles or orphan nodes in the caller's tree.
+   */
   onMove?: (sourceId: string, targetId: string, position: DragPosition) => void
   /** Whether the target node accepts 'inside' drops. Default: true for everything. */
   canHaveChildren?: (nodeId: string) => boolean
@@ -35,8 +42,10 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<DragPosition | null>(null)
   const positionRef = useRef<DragPosition | null>(null)
+  const draggedIdRef = useRef<string | null>(null)
 
   const clear = useCallback(() => {
+    draggedIdRef.current = null
     setDraggedId(null)
     setDragOverId(null)
     setDragPosition(null)
@@ -45,6 +54,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
 
   const handleDragStart = useCallback(
     (nodeId: string) => (e: React.DragEvent) => {
+      draggedIdRef.current = nodeId
       setDraggedId(nodeId)
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', nodeId)
@@ -72,7 +82,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       e.preventDefault()
       e.dataTransfer.dropEffect = 'move'
 
-      if (draggedId === nodeId) return
+      if (draggedIdRef.current === nodeId) return
 
       setDragOverId(nodeId)
 
@@ -91,7 +101,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       positionRef.current = next
       setDragPosition(next)
     },
-    [canHaveChildren, draggedId]
+    [canHaveChildren]
   )
 
   const handleDragLeave = useCallback(() => {
@@ -103,24 +113,31 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
   const handleDrop = useCallback(
     (nodeId: string) => (e: React.DragEvent) => {
       e.preventDefault()
-      const sourceId = e.dataTransfer.getData('text/plain')
-      const finalPosition = positionRef.current ?? 'inside'
+      const sourceId = draggedIdRef.current
+      const fallbackPosition: DragPosition = canHaveChildren?.(nodeId) === false ? 'after' : 'inside'
+      const finalPosition = positionRef.current ?? fallbackPosition
       if (sourceId && sourceId !== nodeId && onMove) {
         onMove(sourceId, nodeId, finalPosition)
       }
       clear()
     },
-    [onMove, clear]
+    [canHaveChildren, onMove, clear]
   )
 
   const handleDragEnd = useCallback(() => {
     clear()
   }, [clear])
 
-  const getDragHandleProps = useCallback(
-    (nodeId: string): TreeDragHandleProps => {
+  const getDragHandleProps = useMemo(() => {
+    const handleCache = new Map<string, TreeDragHandleProps>()
+
+    return (nodeId: string): TreeDragHandleProps => {
       if (!enabled) return DISABLED_HANDLE
-      return {
+
+      const cached = handleCache.get(nodeId)
+      if (cached) return cached
+
+      const handleProps = {
         draggable: true,
         onDragStart: handleDragStart(nodeId),
         onDragOver: handleDragOver(nodeId),
@@ -128,9 +145,10 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
         onDrop: handleDrop(nodeId),
         onDragEnd: handleDragEnd
       }
-    },
-    [enabled, handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd]
-  )
+      handleCache.set(nodeId, handleProps)
+      return handleProps
+    }
+  }, [enabled, handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd])
 
   return {
     draggedId: enabled ? draggedId : null,

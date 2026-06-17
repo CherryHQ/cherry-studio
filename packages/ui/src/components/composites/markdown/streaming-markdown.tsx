@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { type ReactElement, useMemo } from 'react'
 import type { AnimateOptions, Components, PluginConfig } from 'streamdown'
 import type { Pluggable } from 'unified'
 
@@ -38,7 +38,7 @@ export function StreamingMarkdown({
   footnoteLabel,
   animated,
   parseIncompleteMarkdown = true
-}: StreamingMarkdownProps) {
+}: StreamingMarkdownProps): ReactElement {
   // Stable reference so Streamdown's internal memo on JSON.stringify(animated)
   // sees the same identity across renders.
   const resolvedAnimated = useMemo<AnimateOptions | false>(

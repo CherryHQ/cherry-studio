@@ -236,10 +236,13 @@ describe('Tooltip', () => {
       const trigger = screen.getByText('Trigger')
       const matchesSpy = vi.spyOn(trigger, 'matches').mockReturnValue(false)
 
-      fireEvent.focus(trigger)
+      try {
+        fireEvent.focus(trigger)
 
-      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
-      matchesSpy.mockRestore()
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      } finally {
+        matchesSpy.mockRestore()
+      }
     })
 
     it('opens tooltip when focused with :focus-visible', async () => {
@@ -254,12 +257,15 @@ describe('Tooltip', () => {
         return selector === ':focus-visible'
       })
 
-      fireEvent.focus(trigger)
+      try {
+        fireEvent.focus(trigger)
 
-      const tooltip = await screen.findByRole('tooltip')
-      expect(tooltip).toBeInTheDocument()
-      expect(tooltip).toHaveTextContent('focus tip')
-      matchesSpy.mockRestore()
+        const tooltip = await screen.findByRole('tooltip')
+        expect(tooltip).toBeInTheDocument()
+        expect(tooltip).toHaveTextContent('focus tip')
+      } finally {
+        matchesSpy.mockRestore()
+      }
     })
 
     it('calls custom onFocus handler passed to TooltipTrigger', () => {

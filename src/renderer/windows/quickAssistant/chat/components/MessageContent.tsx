@@ -11,7 +11,7 @@ const MessageContent: React.FC<Props> = ({ block }) => {
   const markdownSource: MarkdownSource = {
     id: block.id,
     content: block.content,
-    status: String(block.status).toLowerCase() as MarkdownSource['status']
+    status: String(block.status).toLowerCase()
   }
 
   return (

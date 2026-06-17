@@ -26,12 +26,19 @@ const mocks = vi.hoisted(() => ({
     title: 'Chat'
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
+  sidebarWidth: 50,
   tabs: [] as FakeTab[],
   sidebarFavorites: ['assistants'] as string[]
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [0, mocks.setSidebarWidth]
+  usePersistCache: () => [
+    mocks.sidebarWidth,
+    (width: number) => {
+      mocks.sidebarWidth = width
+      mocks.setSidebarWidth(width)
+    }
+  ]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -112,11 +119,15 @@ vi.mock('../../Sidebar', () => ({
     onDismiss,
     onHoverChange,
     onItemClick,
-    items
+    items,
+    width,
+    onResizePreview
   }: {
     isFloating?: boolean
     isFloatingClosing?: boolean
     items?: Array<{ id: string; label: string }>
+    width?: number
+    onResizePreview?: (width: number | null) => void
     onDismiss?: () => void
     onHoverChange?: (hovering: boolean) => void
     onItemClick?: (id: string) => void
@@ -131,9 +142,12 @@ vi.mock('../../Sidebar', () => ({
       </div>
     ) : (
       <>
+        <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
+        <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
         <button type="button" onClick={() => onHoverChange?.(true)}>
           reveal
         </button>
+        <div data-testid="ui-sidebar" data-width={width} />
         <div data-testid="sidebar-items">
           {items?.map((item) => (
             <button
@@ -173,7 +187,9 @@ afterEach(() => {
     title: 'Chat'
   }
   mocks.tabs = []
+  mocks.sidebarWidth = 50
   vi.useRealTimers()
+  document.documentElement.style.removeProperty('--sidebar-width')
 })
 
 describe('app Sidebar', () => {
@@ -325,5 +341,38 @@ describe('app Sidebar', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
+  })
+
+  it('migrates a persisted intermediate sidebar width to icon width and converges', () => {
+    mocks.sidebarWidth = 80
+
+    const { rerender } = render(<Sidebar />)
+
+    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.setSidebarWidth).toHaveBeenCalledTimes(1)
+
+    rerender(<Sidebar />)
+
+    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.setSidebarWidth).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the resize preview width for rendering and CSS variable without persisting it', () => {
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+
+    fireEvent.click(screen.getByTestId('preview-80'))
+
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
+    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.setSidebarWidth).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('preview-null'))
+
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
   })
 })
