@@ -95,6 +95,16 @@ export interface DeleteMessageResponse {
   newActiveNodeId?: string | null
 }
 
+/**
+ * Response for "clear all messages" — deletes every content message of a topic
+ * (the virtual root's whole subtree) in one transaction, keeping the content-less
+ * virtual root and clearing activeNodeId.
+ */
+export interface ClearTopicMessagesResponse {
+  /** IDs of the deleted (live) messages */
+  deletedIds: string[]
+}
+
 // ============================================================================
 // Query Parameters
 // ============================================================================
@@ -194,6 +204,11 @@ export type MessageSchemas = {
       params: { topicId: string }
       body: CreateMessageDto
       response: Message
+    }
+    /** Clear all of the topic's messages, keeping the (content-less) virtual root */
+    DELETE: {
+      params: { topicId: string }
+      response: ClearTopicMessagesResponse
     }
   }
 

@@ -38,7 +38,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -379,6 +379,7 @@ export class MessageService {
         .where(
           and(
             inArray(messageTable.parentId, activePathArray),
+            isNull(messageTable.deletedAt),
             sql`${messageTable.id} NOT IN (${sql.join(
               [...treeNodeIds].map((id) => sql`${id}`),
               sql`, `
@@ -1369,6 +1370,36 @@ export class MessageService {
         reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
         newActiveNodeId
       }
+    })
+  }
+
+  /**
+   * Clear all of a topic's content messages, keeping the content-less virtual root.
+   *
+   * The structural replacement for the old "delete the root row to clear the topic":
+   * with the virtual root, first turns (and their resends) are independent children of
+   * the root and `delete(root)` is rejected, so there is no single message whose cascade
+   * clears the topic. This deletes every non-root row of the topic in one transaction —
+   * the self-FK `ON DELETE CASCADE` removes whole subtrees, the root (excluded) survives,
+   * so the single-root invariant holds — and clears `activeNodeId`.
+   */
+  async clearTopicMessages(topicId: string): Promise<{ deletedIds: string[] }> {
+    return await application.get('DbService').withWriteTx(async (tx) => {
+      const rootId = await this.getRootMessageIdTx(tx, topicId)
+
+      const rows = await tx
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId), isNull(messageTable.deletedAt)))
+      const deletedIds = rows.map((r) => r.id)
+
+      if (deletedIds.length === 0) return { deletedIds }
+
+      await tx.delete(messageTable).where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
+      await getDataService('TopicService').clearActiveNodeTx(tx, topicId)
+
+      logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
+      return { deletedIds }
     })
   }
 

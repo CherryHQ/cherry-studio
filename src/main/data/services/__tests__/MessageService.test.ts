@@ -1317,6 +1317,29 @@ describe('MessageService', () => {
       expect(remaining[0].parentId).toBeNull()
     })
 
+    it('clearTopicMessages removes every content message, keeps the virtual root, and clears activeNodeId', async () => {
+      await seedMultiModelTree() // root + m-root/m-a1/m-a2/m-follow, activeNodeId='m-follow'
+
+      const result = await messageService.clearTopicMessages('topic-1')
+      expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
+
+      const remaining = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topicRow.activeNodeId).toBeNull()
+    })
+
+    it('clearTopicMessages on an empty topic is a no-op that keeps the root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-empty', activeNodeId: null, orderKey: 'a0' })
+      await messageService.createRootMessageTx(dbh.db, 'topic-empty')
+
+      const result = await messageService.clearTopicMessages('topic-empty')
+      expect(result.deletedIds).toEqual([])
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-empty'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0].role).toBe('root')
+    })
+
     it('cascade-deleting the active first-turn subtree clears activeNodeId (never points it at the root)', async () => {
       await seedMultiModelTree() // topic.activeNodeId = 'm-follow', inside m-root's subtree
 
