@@ -134,6 +134,13 @@ export function useChatVirtualizerRuntime<T>({
   const atBottom = useAtBottomTracker()
   const preserveScrollAnchorRef = useRef(preserveScrollAnchor)
   preserveScrollAnchorRef.current = preserveScrollAnchor
+  // True once the user manually scrolls during the current streaming turn. While
+  // `preserveScrollAnchor` keeps the message pinned to the top, bottom-follow is
+  // suppressed; but the moment the user takes the scroll into their own hands we
+  // hand governance back to the at-bottom tracker, so scrolling to the bottom
+  // re-engages auto-stick. Reset at the start of each turn (see the pin effect
+  // and the preserve rising edge below).
+  const userTookControlRef = useRef(false)
   const canReleaseScrollAnchor = useCallback(() => !preserveScrollAnchorRef.current, [])
   const anchor = useScrollAnchor({
     scrollerRef,
@@ -141,7 +148,10 @@ export function useChatVirtualizerRuntime<T>({
     smoothScroll,
     canRelease: canReleaseScrollAnchor
   })
-  const isBottomFollowSuppressed = useCallback(() => preserveScrollAnchorRef.current || anchor.isPinned(), [anchor])
+  const isBottomFollowSuppressed = useCallback(
+    () => anchor.isPinned() || (preserveScrollAnchorRef.current && !userTookControlRef.current),
+    [anchor]
+  )
   const autoStick = useAutoStickToBottom({
     scrollerRef,
     smoothScroll,
@@ -283,6 +293,43 @@ export function useChatVirtualizerRuntime<T>({
     return () => observer.disconnect()
   }, [anchor, atBottom, autoStick, isBottomFollowSuppressed, updateScrollToBottomButtonVisibility])
 
+  // ---- react to the preserve-anchor lock edges -----------------------
+
+  // This effect handles both edges of `preserveScrollAnchor`.
+  //
+  // Falling edge (assistant finished streaming) — reclaim the spacer. While
+  // pinned, the spacer is monotonic: it grows to keep the user message at the
+  // viewport top and is never shrunk per streaming chunk (that would jitter
+  // scrollHeight under the viewport). Decay back to 0 is gated on `canRelease()`
+  // (i.e. `!preserveScrollAnchor`) but only ever runs inside the ResizeObserver's
+  // `onContentSizeChange`. The lock opens on its own when streaming ends
+  // (status pending→done), and that transition usually carries no DOM size
+  // change — so without a nudge here the grown spacer lingers as a phantom blank
+  // block below the messages until the next unrelated resize (typically the next
+  // reply). Re-run the decay once on the falling edge so a long reply that
+  // already fills the viewport drops its spacer immediately. Short replies keep
+  // their spacer (needed > 0), the intended "stay pinned to the top" behavior.
+  //
+  // Rising edge (a new generation began) — reset the manual-control gate so the
+  // fresh turn starts pinned-to-top instead of inheriting the previous turn's
+  // "user took over" state.
+  const anchorRef = useRef(anchor)
+  anchorRef.current = anchor
+  const wasPreservingScrollAnchorRef = useRef(preserveScrollAnchor)
+  useEffect(() => {
+    const wasPreserving = wasPreservingScrollAnchorRef.current
+    wasPreservingScrollAnchorRef.current = preserveScrollAnchor
+    if (preserveScrollAnchor) {
+      // Rising edge — a new generation began: start it pinned-to-top again
+      // rather than inheriting the previous turn's manual-control state.
+      if (!wasPreserving) userTookControlRef.current = false
+      return
+    }
+    if (!wasPreserving) return
+    const raf = requestAnimationFrame(() => anchorRef.current.onContentSizeChange())
+    return () => cancelAnimationFrame(raf)
+  }, [preserveScrollAnchor])
+
   // ---- scrollToTopKey trigger: pin the named item ---------------------
 
   const lastScrollToTopKeyRef = useRef<string | undefined>(undefined)
@@ -300,6 +347,9 @@ export function useChatVirtualizerRuntime<T>({
     if (idx < 0) return
     anchor.pinTo(idx)
     atBottom.reset()
+    // New user turn: the message is freshly pinned to the top, so revoke any
+    // manual-control gate carried over from the previous turn.
+    userTookControlRef.current = false
   }, [anchor, atBottom, findDataIndexByKey, scrollToTopKey])
 
   // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
@@ -354,6 +404,14 @@ export function useChatVirtualizerRuntime<T>({
     const scrollSize = el.scrollHeight
     const viewportSize = el.clientHeight
     anchor.onUserScroll(offset)
+    // A user scroll during a streaming turn (which just released the top pin,
+    // or there was none) means the user has taken over: stop letting
+    // `preserveScrollAnchor` suppress bottom-follow so reaching the bottom can
+    // re-engage auto-stick. `onUserScroll` runs first, so the pin is already
+    // released here when this scroll crossed the release tolerance.
+    if (preserveScrollAnchorRef.current && !anchor.isPinned()) {
+      userTookControlRef.current = true
+    }
     const wheelDir = lastWheelDirRef.current
     const delta = offset - lastScrollOffsetRef.current
     const direction: 'up' | 'down' | 'none' =

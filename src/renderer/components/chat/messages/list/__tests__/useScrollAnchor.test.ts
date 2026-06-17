@@ -36,7 +36,7 @@ describe('useScrollAnchor', () => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps pinned spacer stable until real scroller height can hold the anchored viewport', () => {
+  it('sizes the pinned spacer to the exact room needed and holds it until release', () => {
     const scroller = document.createElement('div')
     let scrollHeight = 420
     let canRelease = false
@@ -63,21 +63,26 @@ describe('useScrollAnchor', () => {
       })
     )
 
+    // needed = anchorOffset(300) + viewport(400) - natural(420) = 280.
+    // The spacer is the exact remaining room (not a full extra viewport), so
+    // scrollSize == anchorOffset + viewport and the scrollbar rests at bottom.
     act(() => result.current.pinTo(2))
-    expect(result.current.spacerHeight).toBe(400)
+    expect(result.current.spacerHeight).toBe(280)
 
     flushRaf()
     expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
 
+    // While pinned, the spacer is monotonic: as the reply grows (needed shrinks)
+    // it is not shrunk per chunk, to avoid jittering scrollHeight under the view.
     scrollHeight = 780
     act(() => result.current.onContentSizeChange())
 
-    expect(result.current.spacerHeight).toBe(400)
+    expect(result.current.spacerHeight).toBe(280)
 
     scrollHeight = 1100
     act(() => result.current.onContentSizeChange())
 
-    expect(result.current.spacerHeight).toBe(400)
+    expect(result.current.spacerHeight).toBe(280)
 
     canRelease = true
     act(() => result.current.onContentSizeChange())

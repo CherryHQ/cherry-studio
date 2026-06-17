@@ -112,8 +112,17 @@ export function useScrollAnchor({
       // it yet, but its index into the WRAPPED items is still dataIndex
       // (spacer goes at the end). Use scrollToIndex — virtua handles the
       // measurement race internally and re-positions on next frame if needed.
+      //
+      // Size the spacer to exactly the room still needed to bring the anchored
+      // message to the top — no more. That makes scrollSize == anchorOffset +
+      // viewport, so the user message sits at the top AND the scrollbar rests
+      // at the bottom: the blank below is exactly one viewport minus the user
+      // message and the reply placeholder, which is where the answer streams
+      // in. A previous `Math.max(viewport, needed)` floor over-reserved a whole
+      // extra viewport, leaving a too-tall blank with the scrollbar stuck
+      // mid-track until the reply grew (or the pin released).
       const needed = computeNeededSpacer()
-      setSpacerHeight(Math.max(el.clientHeight, needed))
+      setSpacerHeight(needed)
       // Schedule the scroll for after the spacer-applying render commits.
       // RAF is enough because virtua's scrollToIndex resolves the item offset
       // after the spacer-applying render has committed. Keep this instant:
