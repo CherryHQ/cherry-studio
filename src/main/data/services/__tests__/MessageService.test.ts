@@ -513,7 +513,7 @@ describe('MessageService', () => {
       )
 
       const ftsRow = await dbh.client.execute({
-        sql: 'SELECT rowid, searchable_text FROM message WHERE id = ?',
+        sql: 'SELECT fts_rowid, searchable_text FROM message WHERE id = ?',
         args: ['m-fts-candidate']
       })
       await dbh.client.execute({
