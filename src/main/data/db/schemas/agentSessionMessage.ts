@@ -79,18 +79,5 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     ), '') WHERE id = NEW.id;
     INSERT INTO agent_session_message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
-  END`,
-
-  `UPDATE agent_session_message SET searchable_text = COALESCE((
-    SELECT group_concat(json_extract(value, '$.text'), char(10))
-    FROM json_each(json_extract(agent_session_message.data, '$.parts'))
-    WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
-  ), '')`,
-
-  `INSERT INTO agent_session_message_fts(rowid, searchable_text)
-    SELECT m.rowid, m.searchable_text
-    FROM agent_session_message m
-    WHERE NOT EXISTS (
-      SELECT 1 FROM agent_session_message_fts fts WHERE fts.rowid = m.rowid
-    )`
+  END`
 ]
