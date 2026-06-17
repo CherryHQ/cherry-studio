@@ -44,6 +44,19 @@ vi.mock('react-i18next', () => ({
   }
 }))
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  return {
+    ...actual,
+    Tooltip: ({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) => (
+      <>
+        {children}
+        {content ? <span data-testid="tooltip-content">{content}</span> : null}
+      </>
+    )
+  }
+})
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -409,6 +422,42 @@ describe('AgentToolRenderer', () => {
       // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
       expect(screen.getByText('Error')).toHaveStyle('color: var(--color-foreground-secondary)')
+      expect(
+        screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
+      ).toBe(false)
+    })
+
+    it('renders Write target paths as non-interactive intermediate output', () => {
+      const openArtifactFile = vi.fn()
+      mockMessageListActions.mockReturnValue({ openArtifactFile })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/tmp/game.html', content: '<html></html>' },
+        response: 'File written'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('game.html')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'game.html' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('game.html'))
+      expect(openArtifactFile).not.toHaveBeenCalled()
+    })
+
+    it('renders Write error details on the error status tooltip', () => {
+      const errorText = "EROFS: read-only file system, open '/plane.html'"
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'error',
+        arguments: { file_path: '/plane.html', content: '<html></html>' },
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('plane.html')).toBeInTheDocument()
+      expect(screen.getAllByTestId('tooltip-content').some((element) => element.textContent === errorText)).toBe(true)
     })
   })
 

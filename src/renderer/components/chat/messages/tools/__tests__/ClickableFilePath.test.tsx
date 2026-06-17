@@ -171,7 +171,7 @@ describe('ClickableFilePath', () => {
     })
     const span = screen.getByRole('link', { name: '/tmp/test.ts' })
     expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveStyle({ color: 'var(--color-primary)' })
+    expect(span).toHaveClass('text-primary')
     expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
   })
 
@@ -228,5 +228,19 @@ describe('ClickableFilePath', () => {
     expect(screen.getAllByText('/tmp/test.ts').some((element) => element.classList.contains('cursor-default'))).toBe(
       true
     )
+  })
+
+  it('should disable all file actions when interactive is false', () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" interactive={false} />, {
+      openArtifactFile: mockOpenArtifactFile,
+      showInFolder: mockShowInFolder,
+      openInExternalApp: mockOpenInExternalApp
+    })
+
+    expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+    const text = screen.getAllByText('/tmp/test.ts').find((element) => element.classList.contains('cursor-default'))
+    expect(text).toBeInTheDocument()
+    expect(text).toHaveClass('text-foreground-secondary')
   })
 })

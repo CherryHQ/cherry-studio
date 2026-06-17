@@ -1,10 +1,15 @@
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { type ToolStatus, ToolStatusIndicator } from './GenericTools'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
-import type { ToolInput, ToolOutput } from './types'
+import { AgentToolsType, type ToolInput, type ToolOutput } from './types'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
+
+function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: ToolDisclosureItem) {
+  return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
+}
 
 function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | Record<string, unknown> | undefined) {
   if (typeof input === 'string') return input.trim() || toolName
@@ -65,6 +70,7 @@ export function AgentToolCallCard({
             title: getAgentToolFlowTitle(toolName, input)
           })
       : undefined
+  const errorText = shouldShowHeaderErrorText(toolName, renderedItem) ? extractToolErrorText(output) : undefined
 
   const toolContentItem: ToolDisclosureItem = {
     ...renderedItem,
@@ -72,7 +78,10 @@ export function AgentToolCallCard({
       <AgentToolDisclosureLabel
         label={renderedItem.label}
         trailing={
-          status && (status !== 'done' || hasError) && <ToolStatusIndicator status={status} hasError={hasError} />
+          status &&
+          (status !== 'done' || hasError) && (
+            <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
+          )
         }
       />
     ),

@@ -18,7 +18,11 @@ export function WriteTool({ input }: { input?: WriteToolInput; output?: WriteToo
         args={input}
         params={
           <SkeletonValue
-            value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
+            value={
+              input?.file_path ? (
+                <ClickableFilePath path={input.file_path} displayName={filename} interactive={false} />
+              ) : undefined
+            }
             width="200px"
           />
         }

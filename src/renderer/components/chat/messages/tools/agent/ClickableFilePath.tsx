@@ -15,18 +15,23 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '../../utils/file
 interface ClickableFilePathProps {
   path: string
   displayName?: string
+  interactive?: boolean
 }
 
-export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
+export const ClickableFilePath = memo(function ClickableFilePath({
+  path,
+  displayName,
+  interactive = true
+}: ClickableFilePathProps) {
   const { t } = useTranslation()
   const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
   const targetPath = useMemo(() => resolveInlineFilePath(path), [path])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const ui = useOptionalMessageListUi()
   const actions = useOptionalMessageListActions()
-  const openArtifactFile = actions?.openArtifactFile
-  const showInFolder = actions?.showInFolder
-  const openInExternalApp = actions?.openInExternalApp
+  const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
+  const showInFolder = interactive ? actions?.showInFolder : undefined
+  const openInExternalApp = interactive ? actions?.openInExternalApp : undefined
   const notifyError = actions?.notifyError
   const availableEditors = ui?.externalCodeEditors ?? []
   const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
@@ -85,8 +90,11 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
           tabIndex={openArtifactFile ? 0 : undefined}
           onClick={openArtifactFile ? handleOpen : undefined}
           onKeyDown={openArtifactFile ? handleKeyDown : undefined}
-          className={`inline-flex items-center gap-1 ${openArtifactFile ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
-          style={{ color: 'var(--color-primary)', wordBreak: 'break-all' }}>
+          className={`inline-flex items-center gap-1 break-all ${
+            openArtifactFile
+              ? 'cursor-pointer text-primary hover:underline'
+              : 'cursor-default text-foreground-secondary'
+          }`}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
           {displayName ?? displayPath}
         </span>

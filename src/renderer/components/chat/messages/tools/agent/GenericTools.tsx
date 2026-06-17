@@ -1,5 +1,6 @@
 // 通用工具组件 - 减少重复代码
 
+import { Tooltip } from '@cherrystudio/ui'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { McpToolResponseStatus } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils/file'
@@ -132,7 +133,15 @@ export function getEffectiveStatus(status: McpToolResponseStatus | undefined, is
 }
 
 // 工具状态指示器 - 显示在 Collapse 标题右侧
-export function ToolStatusIndicator({ status, hasError = false }: { status: ToolStatus; hasError?: boolean }) {
+export function ToolStatusIndicator({
+  status,
+  hasError = false,
+  errorText
+}: {
+  status: ToolStatus
+  hasError?: boolean
+  errorText?: string
+}) {
   const { t } = useTranslation()
 
   const getStatusInfo = (): { label: string; icon?: ReactNode; color: StatusColor } | null => {
@@ -176,11 +185,22 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
   const info = getStatusInfo()
   if (!info) return null
 
-  return (
+  const indicator = (
     <StatusIndicatorContainer $color={info.color}>
       {info.label}
       {info.icon}
     </StatusIndicatorContainer>
+  )
+
+  if (!errorText || (status !== 'error' && !hasError)) return indicator
+
+  return (
+    <Tooltip
+      content={<div className="max-w-96 whitespace-pre-wrap break-words">{errorText}</div>}
+      delay={300}
+      classNames={{ placeholder: 'inline-flex' }}>
+      <span>{indicator}</span>
+    </Tooltip>
   )
 }
 
