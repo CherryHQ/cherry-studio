@@ -123,3 +123,8 @@ So unit-test the handler (`src/main/ipc/handlers/__tests__/<domain>.test.ts`) fo
 ## High-Frequency / Topic Streams
 
 Token streams and file-tree mutations do **not** go through `broadcast`. The owning service keeps a listener registry (preserving its batching) and directs `send(windowId, …)` per topic to attached windows — avoiding the O(windows × frequency) fan-out of broadcasting a hot event. See the migration guide (class B).
+
+The two directions diverge under load:
+
+- **M→R high-frequency** stays in IpcApi — its transport is already one-way `webContents.send`, so frequency costs no extra round-trip; just use directed `send` + batching (above).
+- **R→M high-frequency** (per-frame, e.g. tab-drag window moves) gets no such luck — R→M is `invoke`/`handle`, so the rare per-frame channel may leave IpcApi via the escape hatch. See the [migration guide](./ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out).

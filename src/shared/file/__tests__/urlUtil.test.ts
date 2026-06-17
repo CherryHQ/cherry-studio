@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FilePath } from '../types/common'
-import { isDangerExt, toFileUrl, toSafeFileUrl } from '../urlUtil'
+import type { FilePath, FileURLString } from '../types/common'
+import { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from '../urlUtil'
 
 describe('isDangerExt', () => {
   it('returns false for null and empty string', () => {
@@ -47,6 +47,29 @@ describe('toFileUrl', () => {
 
   it('encodes non-ASCII characters', () => {
     expect(toFileUrl('/foo/中文.pdf' as FilePath)).toBe('file:///foo/%E4%B8%AD%E6%96%87.pdf')
+  })
+})
+
+describe('fileUrlToPath', () => {
+  it('decodes unix file URLs with spaces and non-ASCII characters', () => {
+    expect(fileUrlToPath('file:///foo/bar%20baz.pdf')).toBe('/foo/bar baz.pdf')
+    expect(fileUrlToPath(new URL('file:///foo/%E4%B8%AD%E6%96%87.pdf'))).toBe('/foo/中文.pdf')
+  })
+
+  it('decodes Windows drive file URLs without a POSIX leading slash', () => {
+    expect(fileUrlToPath('file:///C:/foo/bar%20baz.pdf')).toBe('C:/foo/bar baz.pdf')
+  })
+
+  it('preserves UNC hosts as network paths', () => {
+    expect(fileUrlToPath('file://server/share/report%20final.pdf')).toBe('//server/share/report final.pdf')
+  })
+
+  it('throws for a non-file: URL', () => {
+    expect(() => fileUrlToPath(new URL('https://example.com/foo.pdf'))).toThrow(TypeError)
+  })
+
+  it('throws on malformed percent-encoding', () => {
+    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileURLString)).toThrow(URIError)
   })
 })
 

@@ -244,7 +244,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
           // Seed the new topic with the user's first message as a placeholder
-          // name so the sidebar entry isn't blank while the auto-namer runs.
+          // name so the topic title isn't blank while the auto-namer runs.
           await onPersistTemporaryTopic(text)
           onTemporaryTopicPersisted()
         } catch (err) {

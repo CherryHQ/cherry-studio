@@ -65,6 +65,7 @@ export async function registerIpc() {
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: application.getPath('app.root'),
+    homePath: application.getPath('sys.home'),
     filesPath: application.getPath('feature.files.data'),
     notesPath: application.getPath('feature.notes.data'),
     configPath: application.getPath('cherry.config'),

@@ -70,6 +70,12 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     }
   },
 
+  '/assistants/:assistantId/topics': {
+    DELETE: async ({ params }) => {
+      return await topicService.deleteByAssistantId(params.assistantId)
+    }
+  },
+
   '/topics/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)

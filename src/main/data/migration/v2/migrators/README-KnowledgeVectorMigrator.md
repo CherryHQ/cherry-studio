@@ -1,14 +1,6 @@
 # KnowledgeVectorMigrator
 
-`KnowledgeVectorMigrator` migrates legacy per-base `embedjs` vector databases into the legacy single-table `libsql_vectorstores_embedding` layout.
-
-> **⚠️ Transitional state (PR A → PR B).** The runtime `KnowledgeIndexStore` no longer
-> reads this single-table layout — it uses the 7-table material model in the same
-> `index.sqlite` file. Until this migrator is rewritten to emit that final layout
-> (PR B), its output mounts as an **empty** index: the store-open path detects the
-> legacy remnant and logs an error, and an integration test in
-> `__tests__/KnowledgeVectorMigrator.test.ts` pins the contract. PR B is a hard
-> blocker for enabling this migration for real users.
+`KnowledgeVectorMigrator` migrates legacy per-base `embedjs` vector databases into the new per-base 7-table `index.sqlite` store (`KnowledgeIndexStore`).
 
 ## Data Sources
 
@@ -23,17 +15,18 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 ## Target Storage
 
-- Per-base libsql vector store at the migrated base's runtime path:
+- Per-base 7-table index store at the migrated base's runtime path:
   `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`
-- Table: `libsql_vectorstores_embedding` — the legacy single-table layout, which
-  the runtime store does not read (see the transitional note above)
+- Built through the exact runtime open sequence — `openLibsqlIndexDriver` →
+  `createKnowledgeIndexSchema` → `ensureIndexMeta` → `KnowledgeIndexStore.rebuildMaterial` —
+  so the migrated store is byte-for-byte one the runtime would produce. One `material`
+  per migrated item; its legacy chunks become that material's `search_unit`s.
 
 ## Key Transformations
 
 1. Loader identity remapping
    - Failed knowledge bases without a resolved embedding model are skipped at the base level; they keep their SQLite base/items and must be rebuilt after the user selects a new model.
-   - `uniqueLoaderId` is not kept as a persisted field.
-   - It is resolved back to `knowledge_item.id` and written into `external_id`.
+   - `uniqueLoaderId` is not kept as a persisted field; it is resolved back to the migrated `knowledge_item` (the `material_id`).
    - `uniqueIds[]` takes precedence over legacy `uniqueId`.
    - A legacy vector row is considered valid only if it can be mapped to an existing V2 `knowledge_item.id`.
    - Unmapped legacy rows are treated as invalid index residue, not as business data that must be preserved.
@@ -42,34 +35,54 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
    - Only vectors mapped to indexable V2 item types are migrated.
    - Indexable types are `file`, `url`, and `note`.
    - Vectors mapped to container items, currently `directory`, are skipped with warnings.
-   - This does not remove the `directory` rows from `knowledge_item`; it only prevents container-level vectors from being written into the V2 vector store.
+   - This does not remove the `directory` rows from `knowledge_item`; it only prevents container-level vectors from being written into the V2 store.
 
-3. Chunk payload migration
-   - `pageContent` -> `document`
-   - `knowledge_item.id` -> `metadata.itemId`
-   - `knowledge_item.type` -> `metadata.itemType`
-   - Legacy row `source`, falling back to `knowledge_item.data.source` -> `metadata.source`
-   - Per-item migrated row order -> `metadata.chunkIndex`
-   - Estimated document token count -> `metadata.tokenCount`
-   - Other legacy metadata fields are dropped.
+3. Material assembly (Route A — preserve the v1 split)
+   - One `material` per migrated item; its `relative_path` is derived from the migrated
+     `knowledge_item` via the shared `toMaterialRelativePath` helper, identical to the runtime
+     indexing job — a file uses its stored `relativePath` (the processed-artifact path when
+     present). A migrated url is pinned instead to the snapshot file materialized for it under
+     `raw/` (frontmatter-stamped from `content.text`), replacing the item-id virtual path the
+     helper would otherwise return. The store fills the rest of the row (`current_content_hash`,
+     timestamps); there is no `origin` / `index_policy` / `file_ext` column and `content` carries
+     no `text_format`.
+   - The item's legacy chunk bodies are concatenated (in legacy read order) into one
+     canonical `content.text` joined by the document separator (`\n\n`); each chunk becomes
+     a `search_unit` whose `[char_start, char_end)` slices that text back to its exact body,
+     plus a body `search_text` row. `unit_index` is the per-item read order.
+   - This is a synthetic concatenation, not a fresh re-split: the first real reindex
+     re-chunks with the live splitter and converges. The migration is logged per base.
 
-4. Embedding reuse
-   - Legacy `vector` payloads are decoded from `F32_BLOB` and written directly to `embeddings`.
+4. Embedding reuse (no re-embedding)
+   - Legacy `vector` payloads are decoded from `F32_BLOB` to `number[]` and written through
+     `encodeVectorBlob` (raw little-endian float32) into the `embedding` table, keyed by the
+     body's `embedding_text_hash`. The bytes are identical to the runtime encoding, so no
+     re-embedding happens and the store is engine-portable.
+   - Identical chunk bodies (within or across materials) collapse to one `embedding` row.
    - Unsupported vector encodings are skipped under `unsupported_vector_encoding`, separate from truly missing payloads.
-   - Existing chunk embeddings are reused; this migrator does not re-embed content.
+   - A vector whose length disagrees with the base's recorded `dimensions` is skipped under `dimension_mismatch` rather than corrupting the brute-force cosine scan for the whole base.
 
-5. Chunk identity regeneration
-   - Legacy chunk IDs are not reused.
-   - Every migrated vector row gets a new UUID v4 `id`.
+5. Identity regeneration
+   - Legacy chunk row IDs are not reused; `unit_id` / `content_hash` / `search_text_id` are
+     derived deterministically by the store from the material id, content and offsets.
 
-6. Schema bootstrap
-   - Creates the legacy single-table layout (`external_id`, `collection`, FTS shadow tables). The runtime store does **not** read this layout; it is rewritten to the 7-table final state in PR B.
-   - Migrated rows use `collection = base.id`, matching what the removed vendored store wrote.
+6. Identity stamp
+   - `ensureIndexMeta` writes the single `meta` identity row (schema version + base id) so the
+     runtime opens the store without re-bootstrapping and rejects a swapped/foreign
+     `index.sqlite` on a `base_id` mismatch. Build-contract snapshots (embedding model,
+     dimensions, chunker config hash) are intentionally not stored — a model/dimension change
+     creates a new base and a chunker change rebuilds the derived index.
 
 ## File-Safety Contract
 
-- The migrator writes each rebuilt vector store to a temporary sibling of the
-  target (`{targetDbPath}.vectorstore.tmp`), then renames it onto the target path.
+- The migrator writes each rebuilt store to a temporary sibling of the target
+  (`{targetDbPath}.vectorstore.tmp`), then renames it onto the target path.
+- Before renaming, the WAL is folded into the main db file via
+  `PRAGMA wal_checkpoint(TRUNCATE)`: only the main file is renamed, and libsql does
+  not reliably checkpoint on close, so without this the renamed store would read
+  short (`SQLITE_IOERR_SHORT_READ`) with its committed pages stranded in the
+  orphaned `-wal` sidecar. The store's `index.sqlite{,-wal,-shm}` family is removed
+  (with EBUSY-survivable retries) on both temp and target before (re)creation.
 - The v1 legacy embedjs DB (`{knowledgeBaseDir}/{legacyBaseId}`) is **never**
   moved or deleted. Each migrated base gets a new uuid, so the rebuilt V2 store
   lives under a different path (`{migratedBaseId}/.cherry/index.sqlite`) and never
@@ -95,24 +108,25 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 ## Validation
 
-Validation checks the migrated rows inside the legacy table only — it does not
-(and currently cannot) prove the runtime store can read them; see the
-transitional note at the top.
+Per successful base, the rebuilt store's row counts must match what was prepared:
 
-- Per-base row count must equal the prepared row count.
-- `external_id` must be non-empty for every migrated row.
-- `metadata.itemId` must be present and match `external_id` for every migrated row.
-- `metadata` must satisfy the runtime `KnowledgeChunkMetadataSchema`.
+- `material` count == one per migrated item.
+- `search_unit` count == total preserved chunks across those items.
+- `embedding` count == distinct embedding-text hashes across the base.
+- Every `search_text` row must resolve to a stored `embedding` (zero uncovered
+  units) — the migration-time form of the rebuild self-heal invariant: a unit with
+  no backing vector is silently absent from vector search.
 
 ## Skipped Data
 
 - Bases missing from migrated `knowledge_base`
 - Bases marked `failed` or with `embeddingModelId = null`
+- Bases with invalid `dimensions`
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows mapped to non-indexable container item types such as `directory`
 - Vector rows with missing or empty `vector` payloads
 - Vector rows whose `vector` payload exists but is exposed through an unsupported runtime encoding
-- Vector rows whose source cannot be resolved from either the legacy row or migrated `knowledge_item.data.source`
+- Vector rows whose `vector` length disagrees with the base's recorded `dimensions`
 
-If every legacy vector row under one base is skipped, the rebuilt V2 vector store for that base is expected to be empty. This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.
+If every legacy vector row under one base is skipped, the rebuilt V2 store for that base is expected to be empty (schema + `meta` row only). This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.
