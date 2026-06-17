@@ -81,6 +81,8 @@ export interface SettingsState {
   showTopicTime: boolean
   pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
+  pasteLongTextAsFile: boolean
+  pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   testPlan: boolean
@@ -191,6 +193,7 @@ export interface SettingsState {
   enableDataCollection: boolean
   enableSpellCheck: boolean
   spellCheckLanguages: string[]
+  enableQuickPanelTriggers: boolean
   // 硬件加速设置
   disableHardwareAcceleration: boolean
   // 使用系统标题栏 (仅Linux)
@@ -276,6 +279,8 @@ export const initialState: SettingsState = {
   showTopicTime: false,
   pinTopicsToTop: false,
   assistantIconType: 'emoji',
+  pasteLongTextAsFile: false,
+  pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   testPlan: false,
@@ -373,6 +378,7 @@ export const initialState: SettingsState = {
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
+  enableQuickPanelTriggers: false,
   // 消息操作确认设置
   confirmDeleteMessage: true,
   confirmRegenerateMessage: true,
@@ -532,6 +538,9 @@ const settingsSlice = createSlice({
     // setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
     //   state.assistantIconType = action.payload
     // },
+    // setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
+    //   state.pasteLongTextAsFile = action.payload
+    // },
     // setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
     //   state.autoCheckUpdate = action.payload
     // },
@@ -672,6 +681,9 @@ const settingsSlice = createSlice({
     // setEnableTopicNaming: (state, action: PayloadAction<boolean>) => {
     //   state.enableTopicNaming = action.payload
     // },
+    // setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
+    //   state.pasteLongTextThreshold = action.payload
+    // },
     // setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
     //   state.topicNamingPrompt = action.payload
     // },
@@ -799,6 +811,9 @@ const settingsSlice = createSlice({
     // },
     // setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
     //   state.exportMenuOptions = action.payload
+    // },
+    // setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
+    //   state.enableQuickPanelTriggers = action.payload
     // },
     // setConfirmDeleteMessage: (state, action: PayloadAction<boolean>) => {
     //   state.confirmDeleteMessage = action.payload

@@ -21,13 +21,31 @@ import { TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 
 type ToolOrder = {
-  visible: InputBarToolType[]
-  hidden: InputBarToolType[]
+  visible: LegacyInputBarToolType[]
+  hidden: LegacyInputBarToolType[]
 }
 
+type LegacyInputBarToolType =
+  | InputBarToolType
+  | 'mcp_tools'
+  | 'mention_models'
+  | 'clear_topic'
+  | 'toggle_expand'
+  | 'new_context'
+
 export const DEFAULT_TOOL_ORDER: ToolOrder = {
-  visible: ['new_topic', 'attachment', 'thinking', 'web_search', 'url_context', 'knowledge_base', 'generate_image'],
-  hidden: ['quick_phrases']
+  visible: [
+    'new_topic',
+    'attachment',
+    'thinking',
+    'web_search',
+    'url_context',
+    'knowledge_base',
+    'mcp_tools',
+    'generate_image',
+    'mention_models'
+  ],
+  hidden: ['quick_phrases', 'clear_topic', 'toggle_expand', 'new_context']
 }
 
 // Default tool order per scope
@@ -45,11 +63,11 @@ export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-windo
     hidden: []
   },
   'mini-window': {
-    visible: ['attachment', 'quick_phrases'],
+    visible: ['attachment', 'mention_models', 'quick_phrases'],
     hidden: []
   },
   'quick-assistant': {
-    visible: ['attachment', 'quick_phrases'],
+    visible: ['attachment', 'mention_models', 'quick_phrases'],
     hidden: []
   }
 }
