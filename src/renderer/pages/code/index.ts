@@ -66,7 +66,7 @@ export const CLI_TOOLS = [
   { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
   { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
   { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
-  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCli },
+  { value: codeCLI.kimiCli, label: 'Kimi Code', icon: KimiCli },
   { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
 ] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
@@ -239,9 +239,10 @@ export const generateToolEnvironment = ({
       break
 
     case codeCLI.kimiCli:
-      env.KIMI_API_KEY = apiKey
-      env.KIMI_BASE_URL = formattedBaseUrl
       env.KIMI_MODEL_NAME = rawModelId
+      env.KIMI_MODEL_API_KEY = apiKey
+      env.KIMI_MODEL_BASE_URL = formattedBaseUrl
+      env.KIMI_MODEL_PROVIDER_TYPE = 'openai'
       break
 
     case codeCLI.openCode:

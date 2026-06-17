@@ -594,8 +594,39 @@ export class KnowledgeService extends BaseService {
           type: 'file',
           data: {
             source: item.data.source,
-            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath)
+            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
+            // Carry the processed artifact across so the new base indexes from it
+            // instead of re-running the (slow, paid) file processor.
+            ...(item.data.indexedRelativePath
+              ? { indexedPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.indexedRelativePath) }
+              : {})
           }
+        })
+      }
+
+      if (item.type === 'url') {
+        return KnowledgeAddItemInputSchema.parse({
+          type: 'url',
+          data: {
+            source: item.data.source,
+            url: item.data.url,
+            // Carry the captured snapshot across so the restored URL indexes offline
+            // instead of re-fetching the live page (which may have changed or died).
+            // If the source never captured one, omit it and let the first index capture.
+            ...(item.data.relativePath
+              ? { snapshotPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath) }
+              : {})
+          }
+        })
+      }
+
+      if (item.type === 'note') {
+        return KnowledgeAddItemInputSchema.parse({
+          type: 'note',
+          // The snapshot relativePath is intentionally dropped: the content is the
+          // source of truth and re-capturing it into the new base on first index is
+          // free and deterministic, so there is no snapshot file to carry across.
+          data: { source: item.data.source, content: item.data.content }
         })
       }
 
