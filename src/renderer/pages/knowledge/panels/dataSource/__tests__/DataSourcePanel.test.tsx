@@ -363,6 +363,7 @@ describe('DataSourcePanel', () => {
     // migration-failed tooltip so the user knows to delete and re-upload.
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createDirectoryItem({
             id: 'directory-1',
