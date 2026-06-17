@@ -39,7 +39,8 @@ describe('buildTopicMessageFlowGraph', () => {
         treeNode({ id: 'user-2', parentId: 'assistant-1' })
       ],
       siblingsGroups: [],
-      activeNodeId: 'user-2'
+      activeNodeId: 'user-2',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -71,7 +72,8 @@ describe('buildTopicMessageFlowGraph', () => {
           ]
         }
       ],
-      activeNodeId: 'assistant-b'
+      activeNodeId: 'assistant-b',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -99,7 +101,8 @@ describe('buildTopicMessageFlowGraph', () => {
           nodes: [siblingNode({ id: 'root-original' }), siblingNode({ id: 'root-edited' })]
         }
       ],
-      activeNodeId: 'assistant-edited'
+      activeNodeId: 'assistant-edited',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -128,7 +131,8 @@ describe('buildTopicMessageFlowGraph', () => {
         treeNode({ id: 'answer-b', parentId: 'root-b', role: 'assistant' })
       ],
       siblingsGroups: [],
-      activeNodeId: 'answer-b'
+      activeNodeId: 'answer-b',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -172,7 +176,8 @@ describe('buildTopicMessageFlowGraph', () => {
         })
       ],
       siblingsGroups: [],
-      activeNodeId: 'assistant-web'
+      activeNodeId: 'assistant-web',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -197,7 +202,8 @@ describe('buildTopicMessageFlowGraph', () => {
         treeNode({ id: 'assistant-b', parentId: 'root', role: 'assistant' })
       ],
       siblingsGroups: [],
-      activeNodeId: 'assistant-a'
+      activeNodeId: 'assistant-a',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -215,7 +221,8 @@ describe('buildTopicMessageFlowGraph', () => {
         treeNode({ id: 'side-branch', parentId: 'root', role: 'assistant' })
       ],
       siblingsGroups: [],
-      activeNodeId: 'user-2'
+      activeNodeId: 'user-2',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)
@@ -230,7 +237,8 @@ describe('buildTopicMessageFlowGraph', () => {
     const graph = buildTopicMessageFlowGraph({
       nodes: [],
       siblingsGroups: [],
-      activeNodeId: null
+      activeNodeId: null,
+      rootId: null
     })
 
     expect(graph).toEqual({
@@ -253,7 +261,8 @@ describe('buildTopicMessageFlowGraph', () => {
         treeNode({ id: 'inactive-leaf', parentId: 'root', role: 'assistant' })
       ],
       siblingsGroups: [],
-      activeNodeId: 'active-leaf'
+      activeNodeId: 'active-leaf',
+      rootId: null
     }
 
     const graph = buildTopicMessageFlowGraph(tree)

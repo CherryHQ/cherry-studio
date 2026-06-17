@@ -207,6 +207,7 @@ export function mergeTopicMessageFlowLiveTree(
 
   return {
     activeNodeId: liveState.activeNodeId ?? tree.activeNodeId,
+    rootId: tree.rootId,
     nodes: Array.from(regularNodes.values())
       .filter((node) => !groupedNodeIds.has(node.id))
       .map((node) => ({ ...node, hasChildren: node.hasChildren || childParentIds.has(node.id) })),

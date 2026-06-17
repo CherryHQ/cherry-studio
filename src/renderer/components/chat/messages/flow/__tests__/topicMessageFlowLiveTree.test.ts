@@ -52,6 +52,7 @@ describe('topicMessageFlowLiveTree', () => {
   it('adds reserved turn nodes and overlays live assistant preview/status', () => {
     const tree: TreeResponse = {
       activeNodeId: 'root',
+      rootId: null,
       nodes: [treeNode({ id: 'root', hasChildren: true })],
       siblingsGroups: []
     }
@@ -82,6 +83,7 @@ describe('topicMessageFlowLiveTree', () => {
   it('groups live multi-model assistant placeholders without changing the data API shape', () => {
     const tree: TreeResponse = {
       activeNodeId: 'user-1',
+      rootId: null,
       nodes: [treeNode({ id: 'user-1', hasChildren: true })],
       siblingsGroups: []
     }
@@ -129,6 +131,7 @@ describe('topicMessageFlowLiveTree', () => {
   it('groups live root siblings so the flow canvas can render multiple root trees', () => {
     const tree: TreeResponse = {
       activeNodeId: 'root-original',
+      rootId: null,
       nodes: [treeNode({ id: 'root-original', preview: 'original root', hasChildren: true })],
       siblingsGroups: []
     }
@@ -176,6 +179,7 @@ describe('topicMessageFlowLiveTree', () => {
   it('returns the original tree when live state is cleared after final history refresh', () => {
     const tree: TreeResponse = {
       activeNodeId: 'assistant-1',
+      rootId: null,
       nodes: [
         treeNode({ id: 'user-1', preview: 'question', hasChildren: true }),
         treeNode({
@@ -195,6 +199,7 @@ describe('topicMessageFlowLiveTree', () => {
   it('overrides the active node without adding live nodes', () => {
     const tree: TreeResponse = {
       activeNodeId: 'assistant-1',
+      rootId: null,
       nodes: [
         treeNode({ id: 'user-1', preview: 'question', hasChildren: true }),
         treeNode({

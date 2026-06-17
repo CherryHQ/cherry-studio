@@ -44,6 +44,8 @@ interface UseChatRuntimeStateParams {
   uiMessages: CherryUIMessage[]
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
+  rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
@@ -121,6 +123,7 @@ export function useChatRuntimeState({
   uiMessages,
   refresh,
   activeNodeId,
+  rootId,
   messagesCacheMutate,
   onBranchLiveStateChange,
   clearBranchDraft,
@@ -357,6 +360,7 @@ export function useChatRuntimeState({
   const { actions: chatWriteActions } = useChatWriteActions({
     topic,
     uiMessages: messages,
+    rootId,
     regenerate,
     setMessages,
     stop,

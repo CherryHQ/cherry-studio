@@ -60,6 +60,7 @@ const ChatContent: FC<Props> = ({
     isLoading: isHistoryLoading,
     refresh,
     activeNodeId,
+    rootId,
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
@@ -81,6 +82,7 @@ const ChatContent: FC<Props> = ({
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
+      rootId={rootId}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       messagesCacheMutate={messagesCacheMutate}
@@ -102,6 +104,7 @@ interface InnerProps extends Props {
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  rootId: string | null
   loadOlder: () => void
   hasOlder: boolean
   messagesCacheMutate: ReturnType<typeof useTopicMessages>['mutate']
@@ -122,6 +125,7 @@ const ChatContentInner: FC<InnerProps> = ({
   siblingsMap,
   refresh,
   activeNodeId,
+  rootId,
   loadOlder,
   hasOlder,
   messagesCacheMutate
@@ -135,6 +139,7 @@ const ChatContentInner: FC<InnerProps> = ({
     uiMessages,
     refresh,
     activeNodeId,
+    rootId,
     messagesCacheMutate,
     onBranchLiveStateChange,
     clearBranchDraft,

@@ -50,6 +50,8 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
+  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
+  rootId: string | null
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
@@ -66,7 +68,7 @@ interface Result {
 }
 
 export function useChatWriteActions(params: Params): Result {
-  const { topic, uiMessages, regenerate, setMessages, stop, refresh, cache, seedReservedMessages } = params
+  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache, seedReservedMessages } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
@@ -80,12 +82,10 @@ export function useChatWriteActions(params: Params): Result {
     clearTopicMessagesTrigger
   } = cache
 
-  // A message is a "first turn" when its parent is the topic's content-less virtual root,
-  // which is never in the displayed list — so its parent id resolves to no visible message.
-  const isFirstTurnId = useCallback(
-    (parentId?: string | null) => !parentId || !uiMessages.some((m) => m.id === parentId),
-    [uiMessages]
-  )
+  // A message is a "first turn" iff its parent IS the topic's virtual root — compared against
+  // the authoritative rootId (pagination-independent; the "parent not loaded" proxy
+  // misclassified the topmost-paged message). Unknown rootId ⇒ nothing is a first turn.
+  const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
 
   const handleClearTopicMessages = useCallback(async () => {
     await clearBranchCache()

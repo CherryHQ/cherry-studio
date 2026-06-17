@@ -310,7 +310,7 @@ export class MessageService {
         : []
 
     if (rootIds.length === 0) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null }
+      return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
     }
 
     // Get tree with depth limit via CTE
@@ -409,7 +409,7 @@ export class MessageService {
     }
 
     if (treeRows.length === 0) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null }
+      return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
     }
 
     // Build maps for tree processing
@@ -505,7 +505,8 @@ export class MessageService {
     return {
       nodes: resultNodes,
       siblingsGroups,
-      activeNodeId
+      activeNodeId,
+      rootId: virtualRootId
     }
   }
 
@@ -540,11 +541,20 @@ export class MessageService {
       throw DataApiErrorFactory.notFound('Topic', topicId)
     }
 
+    // Authoritative first-turn signal for renderers (pagination-independent): a message is a
+    // first turn iff its parentId === this root id. Looked up once, returned in the response.
+    const [rootRow] = await db
+      .select({ id: messageTable.id })
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
+      .limit(1)
+    const rootId = rootRow?.id ?? null
+
     const nodeId = options.nodeId || topic.activeNodeId
 
     // Return empty if no active node
     if (!nodeId) {
-      return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId }
+      return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId, rootId }
     }
 
     const fullPath = await this.getPathRowsToNodeTx(db, nodeId, { topicId })
@@ -639,7 +649,8 @@ export class MessageService {
       items: result,
       nextCursor,
       activeNodeId: topic.activeNodeId,
-      assistantId: topic.assistantId
+      assistantId: topic.assistantId,
+      rootId
     }
   }
 

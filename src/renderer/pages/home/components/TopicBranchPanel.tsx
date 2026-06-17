@@ -34,6 +34,7 @@ const logger = loggerService.withContext('TopicBranchPanel')
 
 const emptyTree: TreeResponse = {
   activeNodeId: null,
+  rootId: null,
   nodes: [],
   siblingsGroups: []
 }
