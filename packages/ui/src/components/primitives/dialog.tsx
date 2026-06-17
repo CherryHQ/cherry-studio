@@ -1,4 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { composeEventHandlers } from '@radix-ui/primitive'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
@@ -21,7 +22,7 @@ function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.C
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
-function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
@@ -29,6 +30,9 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
         'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[80] bg-black/50',
         className
       )}
+      onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
+        checkForDefaultPrevented: false
+      })}
       {...props}
     />
   )
@@ -43,7 +47,9 @@ const dialogContentSizeClass: Record<DialogContentSize, string> = {
 }
 
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
+  closeOnOverlayClick?: boolean
   overlayClassName?: string
+  overlayProps?: React.ComponentProps<typeof DialogPrimitive.Overlay>
   showCloseButton?: boolean
   size?: DialogContentSize
 }
@@ -51,8 +57,11 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
 function DialogContent({
   className,
   children,
+  closeOnOverlayClick = true,
   showCloseButton = true,
   overlayClassName,
+  overlayProps,
+  onPointerDown,
   size = 'default',
   ref,
   ...props
@@ -72,7 +81,13 @@ function DialogContent({
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay className={overlayClassName} />
+      {closeOnOverlayClick ? (
+        <DialogPrimitive.Close asChild>
+          <DialogOverlay {...overlayProps} className={cn(overlayClassName, overlayProps?.className)} />
+        </DialogPrimitive.Close>
+      ) : (
+        <DialogOverlay {...overlayProps} className={cn(overlayClassName, overlayProps?.className)} />
+      )}
       <PortalContainerProvider container={contentElement}>
         <DialogPrimitive.Content
           ref={handleRef}
@@ -82,6 +97,9 @@ function DialogContent({
             dialogContentSizeClass[size],
             className
           )}
+          onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
+            checkForDefaultPrevented: false
+          })}
           {...props}>
           {children}
           {showCloseButton && (
