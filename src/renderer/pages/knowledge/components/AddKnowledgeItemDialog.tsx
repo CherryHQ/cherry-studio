@@ -75,16 +75,25 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setIsResolvingSubmit(false)
   }, [])
 
-  const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
-    setSubmitErrorMessage('')
-    setSelectedFiles((currentFiles) => {
-      const existingKeys = new Set(currentFiles.map(getSelectedFileKey))
-      const newFiles = filterSupportedKnowledgeFiles(acceptedFiles).filter(
-        (file) => !existingKeys.has(getSelectedFileKey(file))
-      )
-      return [...currentFiles, ...newFiles]
-    })
-  }, [])
+  const handleFileDrop = useCallback<DropzoneOnDrop>(
+    (acceptedFiles, fileRejections) => {
+      setSubmitErrorMessage('')
+      const supportedFiles = filterSupportedKnowledgeFiles(acceptedFiles)
+      // Files the dropzone's `accept` rejected never reach `acceptedFiles`; count them
+      // alongside any that slip past it but fail our extension allow-list, so the user
+      // learns nothing was silently dropped.
+      const skippedCount = fileRejections.length + (acceptedFiles.length - supportedFiles.length)
+      if (skippedCount > 0) {
+        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      }
+      setSelectedFiles((currentFiles) => {
+        const existingKeys = new Set(currentFiles.map(getSelectedFileKey))
+        const newFiles = supportedFiles.filter((file) => !existingKeys.has(getSelectedFileKey(file)))
+        return [...currentFiles, ...newFiles]
+      })
+    },
+    [t]
+  )
 
   const handleDirectorySelect = useCallback(async () => {
     setSubmitErrorMessage('')
@@ -138,14 +147,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     if (pendingAddFiles?.length) {
       setActiveSource('file')
-      setSelectedFiles(filterSupportedKnowledgeFiles(pendingAddFiles))
+      const supportedFiles = filterSupportedKnowledgeFiles(pendingAddFiles)
+      const skippedCount = pendingAddFiles.length - supportedFiles.length
+      if (skippedCount > 0) {
+        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      }
+      setSelectedFiles(supportedFiles)
       return
     }
 
     if (pendingAddSource) {
       setActiveSource(pendingAddSource)
     }
-  }, [open, pendingAddFiles, pendingAddSource, resetDialogState])
+  }, [open, pendingAddFiles, pendingAddSource, resetDialogState, t])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {

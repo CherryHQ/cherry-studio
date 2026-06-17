@@ -2174,6 +2174,7 @@
           "success": "Data source added to knowledge base"
         },
         "title": "Add Data Source",
+        "unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Enter a webpage URL:",
           "help": "Page text will be fetched, chunked, and indexed automatically",
