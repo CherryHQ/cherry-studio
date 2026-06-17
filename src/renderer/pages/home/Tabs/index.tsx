@@ -1,35 +1,31 @@
-import { usePreference } from '@data/hooks/usePreference'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
-import Topics from './TopicsTab'
+import type { AddNewTopicPayload } from '../types'
+import { Topics } from './components/Topics'
 
 interface Props {
-  activeTopic: Topic
+  activeTopic?: Topic
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
-  position: 'left' | 'right'
+  revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, setActiveTopic, position, style }) => {
-  const [topicPosition] = usePreference('topic.position')
-  const { isLeftNavbar } = useNavbarPosition()
-
-  const borderStyle = '0.5px solid var(--color-border)'
-  const border =
-    position === 'left'
-      ? { borderRight: isLeftNavbar ? borderStyle : 'none' }
-      : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
-
+const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, onOpenHistory, setActiveTopic, revealRequest, style }) => {
   return (
-    <Container
-      style={{ ...border, ...style }}
-      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
+    <Container style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
-        <Topics activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={position} />
+        <Topics
+          activeTopic={activeTopic}
+          setActiveTopic={setActiveTopic}
+          onNewTopic={onNewTopic}
+          onOpenHistory={onOpenHistory}
+          revealRequest={revealRequest}
+        />
       </TabContent>
     </Container>
   )
@@ -43,16 +39,6 @@ const Container = styled.div`
   height: calc(100vh - var(--navbar-height));
   position: relative;
 
-  &.right {
-    height: calc(100vh - var(--navbar-height));
-  }
-
-  [navbar-position='left'] & {
-    background-color: var(--color-background);
-  }
-  [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height));
-  }
   overflow: hidden;
   .collapsed {
     width: 0;
