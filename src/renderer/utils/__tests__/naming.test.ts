@@ -41,6 +41,14 @@ describe('naming', () => {
       expect(firstLetter('😊Hello')).toBe('😊')
     })
 
+    it('should return full emoji sequence from string', () => {
+      // 验证 ZWJ/keycap/flag/skin-tone 表情不会被截断
+      expect(firstLetter('🧛‍♂️Bob')).toBe('🧛‍♂️')
+      expect(firstLetter('1️⃣First')).toBe('1️⃣')
+      expect(firstLetter('🇺🇸USA')).toBe('🇺🇸')
+      expect(firstLetter('👍🏽User')).toBe('👍🏽')
+    })
+
     it('should return empty string for empty input', () => {
       // 验证空字符串
       expect(firstLetter('')).toBe('')
