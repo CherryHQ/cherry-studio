@@ -166,9 +166,14 @@ export type ColorPickerSelectionProps = HTMLAttributes<HTMLDivElement>
 export const ColorPickerSelection = memo(({ className, ...props }: ColorPickerSelectionProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [positionX, setPositionX] = useState(0)
-  const [positionY, setPositionY] = useState(0)
-  const { hue, setSaturation, setLightness } = useColorPicker()
+  const { hue, saturation, lightness, setSaturation, setLightness } = useColorPicker()
+
+  // Derive the marker position from the current saturation/lightness so it tracks
+  // the seeded/controlled color, not just pointer drags. This inverts the
+  // pointer->color mapping in commitFromEvent and round-trips exactly.
+  const positionX = saturation / 100
+  const topLightnessAtX = positionX < 0.01 ? 100 : 50 + 50 * (1 - positionX)
+  const positionY = Math.max(0, Math.min(1, 1 - lightness / topLightnessAtX))
 
   const backgroundGradient = useMemo(() => {
     return `linear-gradient(0deg, rgba(0,0,0,1), rgba(0,0,0,0)),
@@ -184,13 +189,10 @@ export const ColorPickerSelection = memo(({ className, ...props }: ColorPickerSe
       const rect = containerRef.current.getBoundingClientRect()
       const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
       const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
-      setPositionX(x)
-      setPositionY(y)
       setSaturation(x * 100)
       const topLightness = x < 0.01 ? 100 : 50 + 50 * (1 - x)
-      const lightness = topLightness * (1 - y)
 
-      setLightness(lightness)
+      setLightness(topLightness * (1 - y))
     },
     [setSaturation, setLightness]
   )
