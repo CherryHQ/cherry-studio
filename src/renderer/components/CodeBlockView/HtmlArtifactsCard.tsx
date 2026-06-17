@@ -36,7 +36,9 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
 
   const handleDownload = async () => {
     const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
-    await window.api.file.save(fileName, htmlContent)
+    const savedPath = await window.api.file.save(fileName, htmlContent)
+    if (!savedPath) return
+
     window.toast.success(t('message.download.success'))
   }
 

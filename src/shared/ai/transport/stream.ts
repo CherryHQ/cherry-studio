@@ -69,6 +69,12 @@ export interface ComposerQueuedMessagePayload {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
+  /**
+   * Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same
+   * topic. Main writes it today; the renderer consumer is not yet wired — it lands in the renderer
+   * split (do not remove: the consumer is real, just unsplit).
+   */
+  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
@@ -222,9 +228,10 @@ export type AiStreamOpenResponse =
        */
       reservedMessages?: CherryUIMessage[]
       /**
-       * Backward-compatible assistant placeholder ids derived from `reservedMessages`.
-       * @deprecated Derive from `reservedMessages` at the call site; remove with the legacy home page
-       *   (its `usePendingMessages` is the only remaining reader).
+       * Assistant placeholder ids derived from `reservedMessages` (its assistant rows, or the
+       * per-model `request.messageId` fallback). The v2 home page reads this through
+       * `usePendingMessages` (via `V2ChatContent`) as the join key for reconciling its optimistic
+       * pending bubbles against the persisted rows.
        */
       placeholderIds?: string[]
     }
