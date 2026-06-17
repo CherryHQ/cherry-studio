@@ -7191,10 +7191,10 @@
         "multiple": "Не разрешается загружать несколько файлов",
         "ocr": "Не удалось распознать текст на изображении",
         "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
-        "ocr_not_configured": "[to be translated]:Select a default OCR processor in File Processing settings first",
         "too_large": "Файл слишком большой",
         "unknown": "Ошибка при чтении содержимого файла"
       },
+      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Чтение содержимого файла...",
       "upload": "Перетащите или нажмите, чтобы загрузить изображение/документ"
     },

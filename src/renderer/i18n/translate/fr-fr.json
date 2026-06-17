@@ -7191,10 +7191,10 @@
         "multiple": "Impossible de téléverser plusieurs fichiers",
         "ocr": "Échec de la reconnaissance du texte de l'image",
         "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
-        "ocr_not_configured": "[to be translated]:Select a default OCR processor in File Processing settings first",
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
       },
+      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Lecture du contenu du fichier en cours...",
       "upload": "Déposez ou cliquez pour télécharger une image/un document"
     },

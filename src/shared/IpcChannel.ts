@@ -181,8 +181,6 @@ export enum IpcChannel {
   Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
 
   FileProcessing_StartJob = 'file-processing:start-job',
-  FileProcessing_CancelImageToText = 'file-processing:cancel-image-to-text',
-  FileProcessing_ImageToText = 'file-processing:image-to-text',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file

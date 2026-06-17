@@ -39,16 +39,7 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
-import type {
-  FileProcessingImageToTextInput,
-  FileProcessingImageToTextResult,
-  FileProcessingOutputTarget,
-  ListAvailableFileProcessorsResult
-} from '@shared/data/types/fileProcessing'
-import {
-  FileProcessingImageToTextError,
-  FileProcessingImageToTextIpcResultSchema
-} from '@shared/data/types/fileProcessing'
+import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddItemInput,
@@ -690,19 +681,6 @@ const api = {
       }
       processorId?: FileProcessorId
     }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
-    cancelImageToText: (requestId: string, reason?: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelImageToText, { requestId, reason }),
-    imageToText: async (payload: FileProcessingImageToTextInput): Promise<FileProcessingImageToTextResult> => {
-      const response = FileProcessingImageToTextIpcResultSchema.parse(
-        await ipcRenderer.invoke(IpcChannel.FileProcessing_ImageToText, payload)
-      )
-
-      if (!response.ok) {
-        throw new FileProcessingImageToTextError(response.code, response.message)
-      }
-
-      return { text: response.text }
-    },
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },

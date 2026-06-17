@@ -7191,10 +7191,10 @@
         "multiple": "Mehrfach-Upload nicht erlaubt",
         "ocr": "Erkennung des Bildtextes fehlgeschlagen",
         "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
-        "ocr_not_configured": "[to be translated]:Select a default OCR processor in File Processing settings first",
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },
+      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Dateiinhalt wird gelesen...",
       "upload": "Bild/Dokument hier ablegen oder klicken, um hochzuladen"
     },

@@ -15,7 +15,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   appGetMock,
   enqueueMock,
-  jobManagerCancelMock,
   registerHandlerMock,
   preferenceGetMock,
   preferenceSetMock,
@@ -31,7 +30,6 @@ const {
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   enqueueMock: vi.fn(),
-  jobManagerCancelMock: vi.fn(),
   registerHandlerMock: vi.fn(),
   preferenceGetMock: vi.fn(),
   preferenceSetMock: vi.fn(),
@@ -180,19 +178,11 @@ function setupFileInfo() {
   })
 }
 
-function getIpcHandler(svc: InstanceType<typeof FileProcessingService>, channelFragment: string) {
-  const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-  const call = ipcHandle.mock.calls.find(([channel]) => String(channel).endsWith(`:${channelFragment}`))
-  expect(call).toBeDefined()
-  return call?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'JobManager') {
       return {
-        cancel: jobManagerCancelMock,
         enqueue: enqueueMock,
         registerHandler: registerHandlerMock
       }
@@ -209,8 +199,6 @@ beforeEach(() => {
     throw new Error(`Unexpected application.get(${name})`)
   })
   setupFileInfo()
-  jobManagerCancelMock.mockReset()
-  jobManagerCancelMock.mockResolvedValue({ outcome: 'cancelled' })
   preferenceGetMock.mockReturnValue('tesseract')
   preferenceSetMock.mockResolvedValue(undefined)
   resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
@@ -237,7 +225,7 @@ describe('FileProcessingService.onInit', () => {
     expect(types).toContain('file-processing.remote-poll')
   })
 
-  it('registers IPC handlers for start, cancelImageToText, imageToText, and listAvailableProcessors', async () => {
+  it('registers IPC handlers for starting jobs and listing processors', async () => {
     const svc = new FileProcessingService()
     await (svc as unknown as { onInit(): Promise<void> }).onInit()
 
@@ -245,8 +233,6 @@ describe('FileProcessingService.onInit', () => {
     const channels = ipcHandle.mock.calls.map((c) => c[0])
     expect(channels).toEqual([
       expect.stringContaining('start-job'),
-      expect.stringContaining('cancel-image-to-text'),
-      expect.stringContaining('image-to-text'),
       expect.stringContaining('list-available-processors')
     ])
   })
@@ -454,228 +440,6 @@ describe('FileProcessingService.startJob — routing', () => {
       })
     ).rejects.toThrow(/does not support document_to_markdown/)
     expect(enqueueMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('FileProcessingService.imageToText', () => {
-  const initialImageJobSnapshot = {
-    id: 'job-test-1',
-    type: 'file-processing.background',
-    status: 'pending',
-    input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
-  }
-
-  function setupImageToTextJob(snapshot: unknown) {
-    resolveProcessorConfigByFeatureMock.mockReturnValue({
-      id: 'tesseract',
-      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
-    })
-    enqueueMock.mockResolvedValue({
-      id: 'job-test-1',
-      snapshot: initialImageJobSnapshot,
-      finished: Promise.resolve(snapshot)
-    })
-  }
-
-  it('runs image_to_text with the configured default processor and reads the finished job result', async () => {
-    setupImageToTextJob({
-      status: 'completed',
-      output: { artifact: { kind: 'text', format: 'plain', text: 'recognized text' } },
-      error: null
-    })
-
-    const svc = new FileProcessingService()
-    const result = await svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })
-
-    expect(resolveProcessorConfigByFeatureMock).toHaveBeenCalledWith('image_to_text', undefined)
-    expect(enqueueMock).toHaveBeenCalledWith(
-      'file-processing.background',
-      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
-      {}
-    )
-    expect(result).toEqual({ text: 'recognized text' })
-  })
-
-  it('returns a structured IPC success result', async () => {
-    setupImageToTextJob({
-      status: 'completed',
-      output: { artifact: { kind: 'text', format: 'plain', text: 'recognized text' } },
-      error: null
-    })
-
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-    const handler = getIpcHandler(svc, 'image-to-text')
-
-    await expect(handler(null, { file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).resolves.toEqual({
-      ok: true,
-      text: 'recognized text'
-    })
-  })
-
-  it('returns a structured IPC error code when OCR default is not configured', async () => {
-    const error = new Error('Default file processor for image_to_text is not configured')
-    resolveProcessorConfigByFeatureMock.mockImplementation(() => {
-      throw error
-    })
-
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-    const handler = getIpcHandler(svc, 'image-to-text')
-
-    await expect(handler(null, { file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).resolves.toEqual({
-      code: 'default_not_configured',
-      message: error.message,
-      ok: false
-    })
-  })
-
-  it('throws the job error when image_to_text fails', async () => {
-    setupImageToTextJob({
-      status: 'failed',
-      output: null,
-      error: { message: 'OCR failed' }
-    })
-
-    const svc = new FileProcessingService()
-
-    await expect(svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).rejects.toThrow('OCR failed')
-  })
-
-  it('throws when image_to_text is cancelled', async () => {
-    setupImageToTextJob({
-      status: 'cancelled',
-      output: null,
-      error: null
-    })
-
-    const svc = new FileProcessingService()
-
-    await expect(svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).rejects.toThrow(
-      'File processing image_to_text job cancelled'
-    )
-  })
-
-  it('throws when image_to_text returns a non-text artifact', async () => {
-    setupImageToTextJob({
-      status: 'completed',
-      output: { artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' } },
-      error: null
-    })
-
-    const svc = new FileProcessingService()
-
-    await expect(svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).rejects.toThrow(
-      'File processing image_to_text did not return text'
-    )
-  })
-})
-
-describe('FileProcessingService.cancelImageToText', () => {
-  const initialImageJobSnapshot = {
-    id: 'job-test-1',
-    type: 'file-processing.background',
-    status: 'pending',
-    input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
-  }
-
-  const cancelledSnapshot = { status: 'cancelled', output: null, error: null }
-
-  // Drain the microtask queue so an in-flight imageToText() unwinds past enqueue
-  // (and its requestId → jobId mapping) to park on `await handle.finished`.
-  const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
-
-  function deferred<T>() {
-    let resolve!: (value: T) => void
-    const promise = new Promise<T>((res) => {
-      resolve = res
-    })
-    return { promise, resolve }
-  }
-
-  it('cancels an active image_to_text request by requestId', async () => {
-    const finished = deferred<unknown>()
-    resolveProcessorConfigByFeatureMock.mockReturnValue({
-      id: 'tesseract',
-      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
-    })
-    enqueueMock.mockResolvedValue({
-      id: 'job-test-1',
-      snapshot: initialImageJobSnapshot,
-      finished: finished.promise
-    })
-
-    const svc = new FileProcessingService()
-    const resultPromise = svc
-      .imageToText({
-        file: { kind: 'entry', entryId: IMAGE_ENTRY_ID },
-        requestId: 'ocr-request-1'
-      })
-      .catch((error) => error)
-
-    // Job id is now mapped, so cancellation cancels the job directly.
-    await flushMicrotasks()
-    await svc.cancelImageToText('ocr-request-1', 'translate-ocr-cancelled')
-    expect(jobManagerCancelMock).toHaveBeenCalledWith('job-test-1', 'translate-ocr-cancelled')
-
-    finished.resolve(cancelledSnapshot)
-    const result = await resultPromise
-    expect(result).toBeInstanceOf(Error)
-    expect((result as Error).message).toBe('File processing image_to_text job cancelled')
-  })
-
-  it('treats missing image_to_text requestIds as no-ops', async () => {
-    const svc = new FileProcessingService()
-
-    await svc.cancelImageToText('missing-request', 'translate-ocr-cancelled')
-
-    expect(jobManagerCancelMock).not.toHaveBeenCalled()
-  })
-
-  it('cancels after enqueue when cancellation arrives before the job id is available', async () => {
-    let resolveEnqueue: (handle: unknown) => void = () => {}
-    resolveProcessorConfigByFeatureMock.mockReturnValue({
-      id: 'tesseract',
-      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
-    })
-    enqueueMock.mockReturnValue(
-      new Promise((resolve) => {
-        resolveEnqueue = resolve
-      })
-    )
-
-    const svc = new FileProcessingService()
-    const resultPromise = svc
-      .imageToText({
-        file: { kind: 'entry', entryId: IMAGE_ENTRY_ID },
-        requestId: 'ocr-request-1'
-      })
-      .catch((error) => error)
-
-    await svc.cancelImageToText('ocr-request-1', 'translate-ocr-cancelled')
-    expect(jobManagerCancelMock).not.toHaveBeenCalled()
-
-    resolveEnqueue({
-      id: 'job-test-1',
-      snapshot: initialImageJobSnapshot,
-      finished: Promise.resolve(cancelledSnapshot)
-    })
-
-    const result = await resultPromise
-    expect(result).toBeInstanceOf(Error)
-    expect((result as Error).message).toBe('File processing image_to_text job cancelled')
-    expect(jobManagerCancelMock).toHaveBeenCalledWith('job-test-1', 'translate-ocr-cancelled')
-  })
-
-  it('registers a cancel-image-to-text IPC handler that forwards the request', async () => {
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-    const handler = getIpcHandler(svc, 'cancel-image-to-text')
-
-    await expect(
-      handler(null, { requestId: 'missing-request', reason: 'translate-ocr-cancelled' })
-    ).resolves.toBeUndefined()
-    expect(jobManagerCancelMock).not.toHaveBeenCalled()
   })
 })
 

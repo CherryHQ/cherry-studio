@@ -7191,10 +7191,10 @@
         "multiple": "No se permite cargar varios archivos",
         "ocr": "No se pudo reconocer el texto de la imagen",
         "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
-        "ocr_not_configured": "[to be translated]:Select a default OCR processor in File Processing settings first",
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"
       },
+      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Leyendo el contenido del archivo...",
       "upload": "Suelta o haz clic para cargar imagen/documento"
     },

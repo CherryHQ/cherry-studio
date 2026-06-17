@@ -7191,10 +7191,10 @@
         "multiple": "No se permiten múltiples cargas de archivos.",
         "ocr": "Không thể nhận dạng văn bản trong hình ảnh",
         "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
-        "ocr_not_configured": "[to be translated]:Select a default OCR processor in File Processing settings first",
         "too_large": "Tập tin quá lớn",
         "unknown": "Không đọc được nội dung tệp"
       },
+      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Đang đọc nội dung tệp...",
       "upload": "Thả hoặc nhấp để tải lên hình ảnh/tài liệu"
     },

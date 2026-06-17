@@ -3576,7 +3576,6 @@
     "builtin": {
       "system": "系统 OCR"
     },
-    "completed": "OCR 处理完成",
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能删除内置提供商",
@@ -7191,11 +7190,11 @@
         "check_type": "检查文件类型时发生错误",
         "multiple": "不允许上传多个文件",
         "ocr": "识别图片文字失败",
-        "ocr_default_unavailable": "当前默认 OCR 处理器不可用，请重新选择",
-        "ocr_not_configured": "请先在文件处理设置中选择默认 OCR 处理器",
+        "ocr_default_unavailable": "当前默认 OCR 处理器不可用，请在文件处理设置中重新选择",
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
+      "ocr_completed": "图片 OCR 完成",
       "reading": "读取文件内容中...",
       "upload": "拖入或点击上传图片/文档"
     },
