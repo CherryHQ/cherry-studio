@@ -352,6 +352,7 @@
       "close": "关闭预览",
       "code": "代码",
       "code_unavailable": "二进制文件无法显示源代码",
+      "default_app": "默认应用",
       "empty": {
         "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",
         "title": "准备就绪"
@@ -377,6 +378,10 @@
       "maximize": "最大化",
       "minimize": "最小化",
       "no_search_results": "没有文件符合你的搜索",
+      "office": {
+        "description": "此类型文件需要使用系统默认应用打开。",
+        "title": "暂不支持在此打开 {{extension}} 文件"
+      },
       "preview": "预览",
       "refresh": "刷新",
       "search_placeholder": "搜索文件",

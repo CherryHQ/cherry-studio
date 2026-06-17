@@ -307,8 +307,9 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number; name?: string }) => {
+    t: (key: string, options?: { count?: number; extension?: string; name?: string }) => {
       if (key === 'agent.preview_pane.items') return `${options?.count ?? 0} localized items`
+      if (key === 'agent.preview_pane.office.title') return `unsupported ${options?.extension ?? ''}`
       if (key === 'agent.session.file_manager.finder') return 'Finder'
       if (key === 'common.open_in') return `Open in ${options?.name ?? ''}`
       return key
@@ -1102,10 +1103,9 @@ describe('ArtifactPane', () => {
     expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
   })
 
-  it.each(['report.xlsx', 'report.xlsm', 'proposal.docx'])(
-    'shows the binary unavailable state for %s without loading a dedicated preview',
+  it.each(['report.xlsx', 'report.xlsm', 'proposal.docx', 'legacy.doc', 'legacy.xls', 'slides.ppt', 'slides.pptx'])(
+    'shows the Office document state for %s without reading source content',
     async (fileName) => {
-      mocks.isTextFile.mockResolvedValueOnce(false)
       mockWorkspaceTree('/tmp/workspace', [fileName])
 
       render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1115,12 +1115,14 @@ describe('ArtifactPane', () => {
 
       fireEvent.click(screen.getByTestId(`tree-node-${fileName}`))
 
-      await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByText(`unsupported ${fileName.split('.').pop()}`)).toBeInTheDocument())
+      expect(screen.getByText('agent.preview_pane.office.description')).toBeInTheDocument()
+      expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
       expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
       expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
       expect(mocks.fsRead).not.toHaveBeenCalled()
       expect(mocks.fsReadText).not.toHaveBeenCalled()
-      expect(mocks.isTextFile).toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
+      expect(mocks.isTextFile).not.toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
     }
   )
 

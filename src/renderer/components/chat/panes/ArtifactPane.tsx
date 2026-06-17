@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import {
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -69,6 +70,7 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
+  officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
@@ -83,6 +85,7 @@ const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
+const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -92,6 +95,7 @@ const extOf = (name: string): string => {
 const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
+export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
   if (!ids.has(WORKSPACE_ROOT_ID)) return ids
@@ -354,6 +358,7 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
+  officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -363,8 +368,12 @@ export function ArtifactFilePreview({
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
+  const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
   const oversizedForPreview =
-    !isPdfPreview && fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+    !isPdfPreview &&
+    !isOfficeDocumentPreview &&
+    fileSize.status === 'ok' &&
+    fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 
   useEffect(() => {
     if (!filePath || !workspacePath) {
@@ -373,8 +382,8 @@ export function ArtifactFilePreview({
       return
     }
 
-    // Binary previewers render straight from disk; no readText needed.
-    if (isPdfFile(filePath)) {
+    // Binary previewers render straight from disk or external apps; no readText needed.
+    if (isPdfFile(filePath) || isOfficeDocumentFile(filePath)) {
       setFileContent(null)
       setLoadingContent(false)
       return
@@ -486,6 +495,17 @@ export function ArtifactFilePreview({
         icon={AlertCircle}
         title={t('agent.preview_pane.unavailable.title')}
         description={t('agent.preview_pane.unavailable.description')}
+      />
+    )
+  }
+  if (isOfficeDocumentPreview) {
+    const extension = extOf(filePath).replace(/^\./, '')
+    return (
+      <EmptyState
+        icon={FileText}
+        title={t('agent.preview_pane.office.title', { extension })}
+        description={t('agent.preview_pane.office.description')}
+        actions={officeActions}
       />
     )
   }
@@ -706,7 +726,10 @@ const ArtifactPane = ({
   )
 
   const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
-  const isText = useIsTextFile(workspacePath, selectedFile)
+  const isOfficeDocumentSelection = selectedFile ? isOfficeDocumentFile(selectedFile) : false
+  const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection
+  const sniffedIsText = useIsTextFile(workspacePath, selectedFile, { enabled: shouldSniffSelectedFile })
+  const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
   const fileSize = useFileSize(workspacePath, selectedFile)
 
   const handleRefresh = useCallback(() => {
@@ -718,6 +741,7 @@ const ArtifactPane = ({
 
   const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
   const isSelectedPdfPreview = isPdfSelection
+  const openableFilePath = isOfficeDocumentSelection ? selectedFile : null
 
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const FileTreeIcon = treeOpen ? FolderOpen : Folder
@@ -845,7 +869,7 @@ const ArtifactPane = ({
                   <RotateCw size={16} />
                 </Button>
               </Tooltip>
-              {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
+              {workspacePath && <OpenExternalAppButton workdir={workspacePath} filePath={openableFilePath} />}
               {onToggleMaximized && (
                 <Tooltip content={maximizeLabel} delay={800}>
                   <Button

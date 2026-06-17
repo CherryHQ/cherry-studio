@@ -5,6 +5,10 @@ const logger = loggerService.withContext('useIsTextFile')
 
 export type IsTextState = 'pending' | 'text' | 'binary'
 
+interface UseIsTextFileOptions {
+  enabled?: boolean
+}
+
 const joinAbsPath = (base: string, rel: string): string => {
   const trimmed = rel.replace(/^[/\\]+/, '')
   return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
@@ -12,20 +16,26 @@ const joinAbsPath = (base: string, rel: string): string => {
 
 /**
  * Buffer-sniff whether a file is text via the main-side `isbinaryfile` + chardet
- * pipeline (`window.api.file.isTextFile`). No extension whitelist — every file
- * goes through the sniff. Callers that render a known-binary format specially
- * (e.g. PDF) should branch on the filename synchronously before consulting
- * this state, since the IPC settles a tick later.
+ * pipeline (`window.api.file.isTextFile`). Callers that render a known-binary
+ * format specially (e.g. PDF or Office documents) can pass `enabled: false` to
+ * skip sniffing and receive a synchronous `binary` state.
  */
 export function useIsTextFile(
   workspacePath: string | null | undefined,
-  filePath: string | null | undefined
+  filePath: string | null | undefined,
+  options?: UseIsTextFileOptions
 ): IsTextState {
   const [state, setState] = useState<IsTextState>('pending')
+  const enabled = options?.enabled ?? true
 
   useEffect(() => {
     if (!workspacePath || !filePath) {
       setState('pending')
+      return
+    }
+
+    if (!enabled) {
+      setState('binary')
       return
     }
 
@@ -48,7 +58,7 @@ export function useIsTextFile(
     return () => {
       cancelled = true
     }
-  }, [filePath, workspacePath])
+  }, [enabled, filePath, workspacePath])
 
   return state
 }

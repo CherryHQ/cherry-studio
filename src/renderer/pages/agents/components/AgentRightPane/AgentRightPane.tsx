@@ -6,8 +6,10 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import ArtifactPane, {
   ArtifactFilePreview,
+  isOfficeDocumentFile,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
+import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -327,7 +329,10 @@ function AgentRightPaneFilesPanel() {
 
 function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
-  const isText = useIsTextFile(preview.workspacePath, preview.filePath)
+  const isOfficeDocumentPreview = isOfficeDocumentFile(preview.filePath)
+  const shouldSniffFile = !isOfficeDocumentPreview && !/\.pdf$/i.test(preview.filePath)
+  const sniffedIsText = useIsTextFile(preview.workspacePath, preview.filePath, { enabled: shouldSniffFile })
+  const isText = shouldSniffFile ? sniffedIsText : 'binary'
   const fileSize = useFileSize(preview.workspacePath, preview.filePath)
 
   return (
@@ -341,6 +346,11 @@ function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
         filePath={preview.filePath}
         isText={isText}
         fileSize={fileSize}
+        officeActions={
+          isOfficeDocumentPreview ? (
+            <OpenExternalAppButton workdir={preview.workspacePath} filePath={preview.filePath} />
+          ) : undefined
+        }
         pdfLayoutPending={shellState.pdfLayoutPending}
         pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       />

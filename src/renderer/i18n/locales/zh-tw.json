@@ -352,6 +352,7 @@
       "close": "[to be translated]:Close preview",
       "code": "[to be translated]:Code",
       "code_unavailable": "[to be translated]:Source view not available for binary files",
+      "default_app": "[to be translated]:Default app",
       "empty": {
         "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
         "title": "[to be translated]:Ready"
@@ -377,6 +378,10 @@
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
       "no_search_results": "[to be translated]:No files match your search",
+      "office": {
+        "description": "[to be translated]:This file type needs to be opened with the system default app.",
+        "title": "[to be translated]:Opening {{extension}} files here is not supported yet"
+      },
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
       "search_placeholder": "[to be translated]:Search files...",

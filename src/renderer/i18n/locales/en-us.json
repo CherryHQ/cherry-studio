@@ -352,6 +352,7 @@
       "close": "Close preview",
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
+      "default_app": "Default app",
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
@@ -377,6 +378,10 @@
       "maximize": "Maximize",
       "minimize": "Minimize",
       "no_search_results": "No files match your search",
+      "office": {
+        "description": "This file type needs to be opened with the system default app.",
+        "title": "Opening {{extension}} files here is not supported yet"
+      },
       "preview": "Preview",
       "refresh": "Refresh",
       "search_placeholder": "Search files...",

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   lastUsedTarget: null as 'vscode' | 'cursor' | 'zed' | 'file_manager' | null,
   setLastUsedTarget: vi.fn(),
   openPath: vi.fn(),
+  showInFolder: vi.fn(),
   windowOpen: vi.fn(),
   toastError: vi.fn()
 }))
@@ -90,6 +91,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'agent.session.file_manager.finder') return 'Finder'
       if (key === 'common.open_in') return `Open in ${options?.name ?? ''}`
       if (key === 'common.more') return 'More'
+      if (key === 'agent.preview_pane.default_app') return 'Default app'
       if (key === 'files.error.open_path') return `Failed to open ${options?.path ?? ''}`
       return key
     }
@@ -118,9 +120,12 @@ describe('OpenExternalAppButton', () => {
     mocks.externalApps = []
     mocks.lastUsedTarget = null
     mocks.openPath.mockResolvedValue(undefined)
+    mocks.showInFolder.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { file: { openPath: mocks.openPath } }
+      value: {
+        file: { openPath: mocks.openPath, showInFolder: mocks.showInFolder }
+      }
     })
     Object.defineProperty(window, 'open', {
       configurable: true,
@@ -178,5 +183,19 @@ describe('OpenExternalAppButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }))
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
+  })
+
+  it('opens the selected file with the default app without changing the editor target', async () => {
+    mocks.externalApps = [vscodeApp]
+
+    render(<OpenExternalAppButton workdir="/tmp/workspace" filePath="report.xlsx" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Default app' }))
+    await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
+    expect(mocks.windowOpen).not.toHaveBeenCalled()
+    expect(mocks.setLastUsedTarget).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
+    await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
   })
 })
