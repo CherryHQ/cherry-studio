@@ -1,4 +1,3 @@
-import type { MarkdownToken } from '@tiptap/core'
 import { mergeAttributes } from '@tiptap/core'
 import Link from '@tiptap/extension-link'
 import type { MarkType, ResolvedPos } from '@tiptap/pm/model'
@@ -313,10 +312,9 @@ export const EnhancedLink = Link.extend<EnhancedLinkOptions>({
   // throws and drops the entire surrounding text. Re-map the link token onto our mark name.
   // (renderMarkdown is inherited unchanged — it reads node.attrs generically, no name hardcoding.)
   parseMarkdown(token, helpers) {
-    const linkToken = token as MarkdownToken & { href?: string; title?: string; tokens?: MarkdownToken[] }
-    return helpers.applyMark('enhancedLink', helpers.parseInline(linkToken.tokens || []), {
-      href: linkToken.href,
-      title: linkToken.title || null
+    return helpers.applyMark('enhancedLink', helpers.parseInline(token.tokens || []), {
+      href: token.href,
+      title: token.title || null
     })
   },
 
