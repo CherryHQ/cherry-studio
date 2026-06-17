@@ -166,13 +166,7 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
-  END`,
-
-  `UPDATE message
-   SET searchable_text = ${searchableTextExpression('data')}
-   WHERE searchable_text = '' AND deleted_at IS NULL`,
-
-  `INSERT INTO message_fts(message_fts) VALUES ('rebuild')`
+  END`
 ]
 
 /** Examples */

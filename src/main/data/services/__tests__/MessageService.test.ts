@@ -1450,11 +1450,9 @@ describe('MessageService', () => {
 
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-rebase'))
       const byId = new Map(rows.map((r) => [r.id, r]))
-      // c1/c2 moved to u1 and stay grouped together…
       expect(byId.get('c1')?.parentId).toBe('u1')
       expect(byId.get('c2')?.parentId).toBe('u1')
       expect(byId.get('c1')?.siblingsGroupId).toBe(byId.get('c2')?.siblingsGroupId)
-      // …but their group was rebased off 5, so it no longer collides with y's group 5.
       expect(byId.get('c1')?.siblingsGroupId).not.toBe(5)
       expect(byId.get('y')?.siblingsGroupId).toBe(5)
     })
