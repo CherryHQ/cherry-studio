@@ -39,11 +39,13 @@ export type FileProcessingJobOutput = z.infer<typeof FileProcessingJobOutputSche
 
 export const FileProcessingImageToTextInputSchema = z
   .object({
-    file: FileHandleSchema
+    file: FileHandleSchema,
+    requestId: z.string().trim().min(1).optional()
   })
   .strict()
 export type FileProcessingImageToTextInput = {
   file: FileHandle
+  requestId?: string
 }
 
 export const FileProcessingImageToTextResultSchema = z

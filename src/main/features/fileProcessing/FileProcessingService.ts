@@ -33,6 +33,7 @@ const logger = loggerService.withContext('FileProcessingService')
 
 const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
+const DEFAULT_IMAGE_TO_TEXT_CANCEL_REASON = 'file-processing-image-to-text-cancelled'
 
 const StartJobPayloadSchema = z
   .object({
@@ -49,10 +50,21 @@ const StartJobPayloadSchema = z
   })
   .strict()
 
+const CancelImageToTextPayloadSchema = z
+  .object({
+    requestId: z.string().trim().min(1),
+    reason: z.string().trim().min(1).max(200).optional()
+  })
+  .strict()
+
 @Injectable('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['FileManager', 'JobManager'])
 export class FileProcessingService extends BaseService {
+  private readonly pendingImageToTextRequestIds = new Set<string>()
+  private readonly imageToTextRequestJobIds = new Map<string, string>()
+  private readonly cancelledImageToTextRequests = new Map<string, string>()
+
   protected async onInit(): Promise<void> {
     // Register handlers in onInit (NOT onReady) so JobManager.onAllReady's
     // startup recovery sweep sees them when re-dispatching non-terminal jobs.
@@ -137,23 +149,66 @@ export class FileProcessingService extends BaseService {
 
   async imageToText(input: unknown) {
     const parsed = FileProcessingImageToTextInputSchema.parse(input)
-    const handle = await this.enqueueJob({
-      feature: 'image_to_text',
-      file: parsed.file as FileHandle
-    })
-    const result = await handle.finished
-
-    if (result.status !== 'completed') {
-      throw new Error(result.error?.message ?? `File processing image_to_text job ${result.status}`)
+    const requestId = parsed.requestId
+    if (requestId) {
+      this.pendingImageToTextRequestIds.add(requestId)
     }
 
-    const output = FileProcessingJobOutputSchema.parse(result.output)
+    try {
+      const handle = await this.enqueueJob({
+        feature: 'image_to_text',
+        file: parsed.file as FileHandle
+      })
 
-    if (output.artifact.kind !== 'text') {
-      throw new Error('File processing image_to_text did not return text')
+      if (requestId) {
+        this.pendingImageToTextRequestIds.delete(requestId)
+        this.imageToTextRequestJobIds.set(requestId, handle.id)
+
+        const cancelReason = this.cancelledImageToTextRequests.get(requestId)
+        if (cancelReason) {
+          await this.cancelImageToTextJob(handle.id, cancelReason)
+        }
+      }
+
+      const result = await handle.finished
+
+      if (result.status !== 'completed') {
+        throw new Error(result.error?.message ?? `File processing image_to_text job ${result.status}`)
+      }
+
+      const output = FileProcessingJobOutputSchema.parse(result.output)
+
+      if (output.artifact.kind !== 'text') {
+        throw new Error('File processing image_to_text did not return text')
+      }
+
+      return FileProcessingImageToTextResultSchema.parse({ text: output.artifact.text })
+    } finally {
+      if (requestId) {
+        this.pendingImageToTextRequestIds.delete(requestId)
+        this.imageToTextRequestJobIds.delete(requestId)
+        this.cancelledImageToTextRequests.delete(requestId)
+      }
+    }
+  }
+
+  async cancelImageToText(requestId: string, reason: string = DEFAULT_IMAGE_TO_TEXT_CANCEL_REASON): Promise<void> {
+    const parsed = CancelImageToTextPayloadSchema.parse({ requestId, reason })
+    const cancelReason = parsed.reason ?? DEFAULT_IMAGE_TO_TEXT_CANCEL_REASON
+    const jobId = this.imageToTextRequestJobIds.get(parsed.requestId)
+
+    if (!jobId) {
+      if (this.pendingImageToTextRequestIds.has(parsed.requestId)) {
+        this.cancelledImageToTextRequests.set(parsed.requestId, cancelReason)
+      }
+      return
     }
 
-    return FileProcessingImageToTextResultSchema.parse({ text: output.artifact.text })
+    await this.cancelImageToTextJob(jobId, cancelReason)
+  }
+
+  private async cancelImageToTextJob(jobId: string, reason: string): Promise<void> {
+    await application.get('JobManager').cancel(jobId, reason)
   }
 
   private async imageToTextForIpc(input: unknown): Promise<FileProcessingImageToTextIpcResult> {
@@ -181,6 +236,10 @@ export class FileProcessingService extends BaseService {
     this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
       const parsed = StartJobPayloadSchema.parse(payload)
       return await this.startJob({ ...parsed, file: parsed.file as FileHandle })
+    })
+    this.ipcHandle(IpcChannel.FileProcessing_CancelImageToText, async (_, payload: unknown) => {
+      const parsed = CancelImageToTextPayloadSchema.parse(payload)
+      await this.cancelImageToText(parsed.requestId, parsed.reason)
     })
     this.ipcHandle(IpcChannel.FileProcessing_ImageToText, async (_, payload: unknown) => {
       return await this.imageToTextForIpc(payload)

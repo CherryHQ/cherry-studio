@@ -30,6 +30,7 @@ import { documentExts, imageExts, MB, textExts } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import {
   type FileProcessingImageToTextErrorCode,
+  getFileProcessingImageToTextErrorCode,
   isFileProcessingImageToTextErrorCode
 } from '@shared/data/types/fileProcessing'
 import {
@@ -60,18 +61,21 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const TRANSLATE_OCR_CANCEL_REASON = 'translate-ocr-cancelled'
 
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getImageOcrErrorCode = (error: unknown): FileProcessingImageToTextErrorCode | undefined => {
-  if (!error || typeof error !== 'object') {
-    return undefined
+  if (error && typeof error === 'object') {
+    const code = (error as { code?: unknown }).code
+    if (isFileProcessingImageToTextErrorCode(code)) {
+      return code
+    }
   }
 
-  const code = (error as { code?: unknown }).code
-  return isFileProcessingImageToTextErrorCode(code) ? code : undefined
+  return getFileProcessingImageToTextErrorCode(error)
 }
 
 const getImageOcrErrorMessage = (error: unknown, t: (key: string) => string) => {
@@ -464,15 +468,25 @@ const TranslatePage: FC = () => {
     [appendTranslateInput, t]
   )
 
+  const cancelImageToText = useCallback(async (requestId: string) => {
+    try {
+      await window.api.fileProcessing.cancelImageToText(requestId, TRANSLATE_OCR_CANCEL_REASON)
+    } catch (error) {
+      logger.warn('Failed to cancel OCR request.', { requestId, error })
+    }
+  }, [])
+
   const ocrFile = useCallback(
     async (file: FileMetadata) => {
-      const toastKey = `translate-ocr-${uuid()}`
+      const requestId = uuid()
+      const toastKey = `translate-ocr-${requestId}`
       let cancelled = false
       let settled = false
 
       const promise = window.api.fileProcessing
         .imageToText({
-          file: { kind: 'path', path: file.path as FilePath }
+          file: { kind: 'path', path: file.path as FilePath },
+          requestId
         })
         .then((result) => {
           if (cancelled) return
@@ -496,14 +510,16 @@ const TranslatePage: FC = () => {
           if (settled) return
           cancelled = true
           setIsProcessing(false)
+          void cancelImageToText(requestId)
         },
         promise,
         successTitle: t('ocr.completed'),
         title: t('ocr.processing')
       })
+
       await promise.catch(() => undefined)
     },
-    [appendTranslateInput, t]
+    [appendTranslateInput, cancelImageToText, t]
   )
 
   const processFile = useCallback(

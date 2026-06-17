@@ -9,6 +9,8 @@ const fileMock = vi.hoisted(() => ({
   readText: vi.fn(),
   readExternal: vi.fn(),
   imageToText: vi.fn(),
+  startJob: vi.fn(),
+  cancelImageToText: vi.fn(),
   getFileExtension: vi.fn(() => 'txt'),
   isTextFile: vi.fn()
 }))
@@ -252,10 +254,13 @@ describe('TranslatePage', () => {
     fileMock.readText.mockReset()
     fileMock.readExternal.mockReset()
     fileMock.imageToText.mockReset()
+    fileMock.startJob.mockReset()
+    fileMock.cancelImageToText.mockReset()
     fileMock.getFileExtension.mockReset()
     fileMock.getFileExtension.mockReturnValue('txt')
     fileMock.isTextFile.mockResolvedValue(true)
     fileMock.imageToText.mockResolvedValue({ text: 'recognized text' })
+    fileMock.cancelImageToText.mockResolvedValue(undefined)
     fileMock.readExternal.mockResolvedValue('document content')
     dropMock.getFilesFromDropEvent.mockReset()
     dropMock.getFilesFromDropEvent.mockResolvedValue(null)
@@ -302,7 +307,9 @@ describe('TranslatePage', () => {
         readText: fileMock.readText
       },
       fileProcessing: {
-        imageToText: fileMock.imageToText
+        imageToText: fileMock.imageToText,
+        startJob: fileMock.startJob,
+        cancelImageToText: fileMock.cancelImageToText
       }
     }
   })
@@ -341,7 +348,7 @@ describe('TranslatePage', () => {
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
   })
 
-  it('uses File Processing imageToText for selected image files', async () => {
+  it('uses File Processing imageToText for selected image files and appends recognized text', async () => {
     fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
     fileMock.imageToText.mockResolvedValueOnce({ text: 'recognized image text' })
 
@@ -350,7 +357,10 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
     await waitFor(() =>
-      expect(fileMock.imageToText).toHaveBeenCalledWith({ file: { kind: 'path', path: '/tmp/image.png' } })
+      expect(fileMock.imageToText).toHaveBeenCalledWith({
+        file: { kind: 'path', path: '/tmp/image.png' },
+        requestId: 'abort-key'
+      })
     )
     expect(toastLoadingMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -358,13 +368,14 @@ describe('TranslatePage', () => {
         title: 'ocr.processing'
       })
     )
+    expect(fileMock.startJob).not.toHaveBeenCalled()
     expect(fileMock.readText).not.toHaveBeenCalled()
     await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('recognized image text'))
     rerender(<TranslatePage />)
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('recognized image text')
   })
 
-  it('unlocks input and ignores OCR result after closing the loading toast', async () => {
+  it('cancels the OCR request and ignores its later result after closing the loading toast', async () => {
     let resolveOcr: (value: { text: string }) => void = () => {}
     fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
     fileMock.imageToText.mockReturnValueOnce(
@@ -387,6 +398,7 @@ describe('TranslatePage', () => {
       toastConfig?.onClose?.()
     })
 
+    await waitFor(() => expect(fileMock.cancelImageToText).toHaveBeenCalledWith('abort-key', 'translate-ocr-cancelled'))
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
 
     await act(async () => {
@@ -440,6 +452,19 @@ describe('TranslatePage', () => {
     await waitFor(() =>
       expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr_default_unavailable')
     )
+  })
+
+  it('shows an OCR error when imageToText fails', async () => {
+    const ocrError = new Error('OCR failed')
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+    fileMock.imageToText.mockRejectedValueOnce(ocrError)
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
   })
 
   it('ignores empty text data when handling drops', async () => {

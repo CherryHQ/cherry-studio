@@ -690,6 +690,8 @@ const api = {
       }
       processorId?: FileProcessorId
     }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
+    cancelImageToText: (requestId: string, reason?: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelImageToText, { requestId, reason }),
     imageToText: async (payload: FileProcessingImageToTextInput): Promise<FileProcessingImageToTextResult> => {
       const response = FileProcessingImageToTextIpcResultSchema.parse(
         await ipcRenderer.invoke(IpcChannel.FileProcessing_ImageToText, payload)
