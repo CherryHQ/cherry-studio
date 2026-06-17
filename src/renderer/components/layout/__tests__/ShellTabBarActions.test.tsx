@@ -1,16 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
-    openSettingsWindow: vi.fn(),
+    openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn(),
-    toggleTheme: vi.fn(),
-    toastError: vi.fn()
+    toggleTheme: vi.fn()
   }
 }))
 
@@ -52,14 +51,6 @@ vi.mock('@renderer/i18n/label', () => ({
   getThemeModeLabelKey: () => 'Light'
 }))
 
-vi.mock('@renderer/services/SettingsWindowService', () => ({
-  openSettingsWindow: mocks.openSettingsWindow
-}))
-
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -85,7 +76,7 @@ describe('ShellTabBarActions', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'toast', {
       configurable: true,
-      value: { error: mocks.toastError }
+      value: { error: vi.fn() }
     })
   })
 
@@ -109,40 +100,27 @@ describe('ShellTabBarActions', () => {
   it('toggles theme from the sidebar icon footer action', async () => {
     const user = userEvent.setup()
 
-    render(<SidebarShellActions layout="icon" />)
+    render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
     await user.click(screen.getByRole('button', { name: 'Light' }))
 
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1)
   })
 
-  it('opens the standalone settings window from the sidebar footer action', async () => {
+  it('opens the settings tab from the sidebar footer action', async () => {
     const user = userEvent.setup()
 
-    render(<SidebarShellActions layout="icon" />)
+    render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
-    expect(mocks.openSettingsWindow).toHaveBeenCalledWith('/settings/provider')
+    expect(mocks.openSettingsTab).toHaveBeenCalledTimes(1)
   })
 
   it('renders sidebar full footer actions with visible labels', () => {
-    render(<SidebarShellActions layout="full" />)
+    render(<SidebarShellActions layout="full" onSettingsClick={mocks.openSettingsTab} />)
 
     expect(screen.getByRole('button', { name: 'Light' })).toHaveTextContent('Light')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
-  })
-
-  it('shows a toast when opening the settings window from the sidebar action fails', async () => {
-    const user = userEvent.setup()
-    mocks.openSettingsWindow.mockRejectedValueOnce(new Error('IPC failed'))
-
-    render(<SidebarShellActions layout="icon" />)
-
-    await user.click(screen.getByRole('button', { name: /settings/i }))
-
-    await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith({ title: 'common.error', description: 'IPC failed' })
-    })
   })
 })

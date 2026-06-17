@@ -123,7 +123,9 @@ vi.mock('../../Sidebar/primitives', () => ({
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({
-  SidebarShellActions: ({ layout }: { layout: string }) => <div data-testid={`sidebar-shell-actions-${layout}`} />
+  SidebarShellActions: ({ layout, onSettingsClick }: { layout: string; onSettingsClick: () => void }) => (
+    <button type="button" data-testid={`sidebar-shell-actions-${layout}`} onClick={onSettingsClick} />
+  )
 }))
 
 vi.mock('../../Sidebar', () => ({
@@ -230,6 +232,14 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'JD' }))
 
     expect(mocks.showUserPopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens settings in a main-window tab from the sidebar footer action', () => {
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
   })
 
   it('derives conversation detach URLs from instance metadata', () => {

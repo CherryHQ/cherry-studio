@@ -1,20 +1,15 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar/types'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { CommandTooltip } from '@renderer/features/command'
 import { getThemeModeLabelKey } from '@renderer/i18n/label'
-import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
-import { formatErrorMessage } from '@renderer/utils/error'
 import { Monitor, Moon, Search, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import WindowControls from '../WindowControls'
-
-const logger = loggerService.withContext('ShellTabBarActions')
 
 export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
@@ -28,23 +23,12 @@ export function useShellTabBarLayout() {
   }
 }
 
-function useShellActionHandlers() {
+function useShellActionHandlers(onSettingsClick: () => void) {
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
-  const handleSettingsClick = async () => {
-    const settingsPath = '/settings/provider'
-
-    try {
-      await openSettingsWindow(settingsPath)
-    } catch (error) {
-      logger.error('Failed to open settings', error as Error)
-      window.toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
-    }
-  }
-
-  return { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick }
+  return { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick: onSettingsClick }
 }
 
 export function ShellTabBarActions() {
@@ -76,8 +60,14 @@ export function ShellTabBarActions() {
   )
 }
 
-export function SidebarShellActions({ layout }: { layout: SidebarVisibleLayout }) {
-  const { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick } = useShellActionHandlers()
+export function SidebarShellActions({
+  layout,
+  onSettingsClick
+}: {
+  layout: SidebarVisibleLayout
+  onSettingsClick: () => void
+}) {
+  const { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick } = useShellActionHandlers(onSettingsClick)
 
   if (layout === 'icon') {
     return (

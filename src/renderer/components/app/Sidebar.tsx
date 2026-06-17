@@ -173,6 +173,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     },
     [activeTab, tabs, updateTab, openTab, setActiveTab, defaultPaintingProvider]
   )
+  const handleOpenSettingsTab = useCallback(() => {
+    openTab('/settings/provider', { title: t('settings.title') })
+  }, [openTab, t])
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
@@ -180,7 +183,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     items,
     title: sidebarUser.name,
     logo: sidebarLogo,
-    actions: (footerLayout: SidebarVisibleLayout) => <SidebarShellActions layout={footerLayout} />,
+    actions: (footerLayout: SidebarVisibleLayout) => (
+      <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
+    ),
     dockedTabs: [],
     onItemClick: handleNavigate,
     onCloseDockedTab: noop
