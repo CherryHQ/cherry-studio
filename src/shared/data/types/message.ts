@@ -398,8 +398,16 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>
 
+/**
+ * Roles a caller may supply when creating/updating a message — content roles only.
+ * The virtual-root sentinel (`role = 'root'`) is written exclusively by
+ * `createRootMessageTx` / the migrator, never through the public create/update DTOs,
+ * so input schemas use this to reject `'root'` at validation (a clean 422) rather than
+ * letting it reach the DB and trip `message_root_parent_check`.
+ */
+export const ContentMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
 /** Roles that carry content — everything except the virtual-root sentinel. */
-export type ContentMessageRole = Exclude<MessageRole, 'root'>
+export type ContentMessageRole = z.infer<typeof ContentMessageRoleSchema>
 
 /**
  * Narrow a message role to a content role for model serialization. The virtual root
@@ -490,8 +498,8 @@ export interface TreeNode {
   id: string
   /** Parent message ID — the topic's virtual root for first turns, else a content message; omitted in SiblingsGroup.nodes */
   parentId: string
-  /** Message role */
-  role: MessageRole
+  /** Message role — a tree node is never the virtual root, so content roles only */
+  role: ContentMessageRole
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

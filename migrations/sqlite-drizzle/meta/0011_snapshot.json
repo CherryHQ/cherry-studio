@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "72767170-e9b3-43e2-bae3-24b78d6d60e6",
+  "id": "0b8a1676-4dcb-4ed4-bb30-ed057de9a39a",
   "prevId": "f0f0edbf-6464-4f08-914c-43c662a6c066",
   "tables": {
     "agent": {
@@ -2456,6 +2456,10 @@
         "message_status_check": {
           "name": "message_status_check",
           "value": "\"message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
+        },
+        "message_root_parent_check": {
+          "name": "message_root_parent_check",
+          "value": "(\"message\".\"role\" = 'root') = (\"message\".\"parent_id\" is null)"
         }
       }
     },

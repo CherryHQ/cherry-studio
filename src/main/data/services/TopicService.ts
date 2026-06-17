@@ -315,7 +315,6 @@ export class TopicService {
     }
     if (deletedIds.length === 0) return []
 
-    const { messageService } = await import('./MessageService')
     await messageService.purgeByTopicIdsTx(tx, deletedIds)
     await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)

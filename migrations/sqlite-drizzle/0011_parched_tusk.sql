@@ -18,7 +18,8 @@ CREATE TABLE `__new_message` (
 	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`parent_id`) REFERENCES `message`(`id`) ON UPDATE no action ON DELETE cascade,
 	CONSTRAINT "message_role_check" CHECK("__new_message"."role" IN ('user', 'assistant', 'system', 'root')),
-	CONSTRAINT "message_status_check" CHECK("__new_message"."status" IN ('pending', 'success', 'error', 'paused'))
+	CONSTRAINT "message_status_check" CHECK("__new_message"."status" IN ('pending', 'success', 'error', 'paused')),
+	CONSTRAINT "message_root_parent_check" CHECK(("__new_message"."role" = 'root') = ("__new_message"."parent_id" is null))
 );
 --> statement-breakpoint
 INSERT INTO `__new_message`("id", "parent_id", "topic_id", "role", "data", "searchable_text", "status", "siblings_group_id", "model_id", "model_snapshot", "stats", "created_at", "updated_at", "deleted_at") SELECT "id", "parent_id", "topic_id", "role", "data", "searchable_text", "status", "siblings_group_id", "model_id", "model_snapshot", "stats", "created_at", "updated_at", "deleted_at" FROM `message`;--> statement-breakpoint
