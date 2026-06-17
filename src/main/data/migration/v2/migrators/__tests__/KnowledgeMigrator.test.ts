@@ -975,11 +975,11 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
     const migratedId = migrator.legacyItemIdRemap.get('item-directory')
     const tombstone = migrator.preparedItems.find((item: any) => item.id === migratedId)
-    // A single directory item (no children synthesized), `warning` with the not-migrated code.
+    // A single directory item (no children synthesized), `failed` with the not-migrated code.
     expect(migrator.preparedItems.filter((item: any) => item.groupId === migratedId)).toHaveLength(0)
     expect(tombstone).toMatchObject({
       type: 'directory',
-      status: 'warning',
+      status: 'failed',
       error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
     })
     expect(migrator.directoryChildLoaderRemap.size).toBe(0)
@@ -1153,7 +1153,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedItems.filter((i: any) => i.groupId === migratedId)).toHaveLength(0)
     expect(migrator.preparedItems.find((i: any) => i.id === migratedId)).toMatchObject({
       type: 'directory',
-      status: 'warning',
+      status: 'failed',
       error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
     })
   })
@@ -1208,7 +1208,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migratedId = migrator.legacyItemIdRemap.get('item-directory')
     expect(migrator.preparedItems.find((i: any) => i.id === migratedId)).toMatchObject({
       type: 'directory',
-      status: 'warning',
+      status: 'failed',
       error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
     })
   })

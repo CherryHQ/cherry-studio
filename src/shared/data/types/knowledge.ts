@@ -44,13 +44,9 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
  * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
  * - `completed`: indexing or container reconciliation finished successfully.
- * - `failed`: workflow failed; `error` must be a non-empty string.
- * - `warning`: recoverable attention state — the item exists but is not searchable
- *   until the user acts (e.g. a v1-indexed folder whose vectors could not be migrated
- *   and must be re-embedded). Like `failed`, `error` must be a non-empty string — either a
- *   code the UI localizes (e.g. `directory_not_migrated`) or a free-form message (e.g. the
- *   container rollup reason) — and the item is re-indexable; unlike `failed`, the UI frames it
- *   as a warning, not an error.
+ * - `failed`: workflow failed; `error` must be a non-empty string — either a code the
+ *   UI localizes (e.g. `directory_not_migrated`, set when a v1-indexed folder's vectors
+ *   could not be migrated and it must be re-indexed) or a free-form message.
  * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
  */
 export const KNOWLEDGE_ITEM_STATUSES = [
@@ -61,7 +57,6 @@ export const KNOWLEDGE_ITEM_STATUSES = [
   'embedding',
   'completed',
   'failed',
-  'warning',
   'deleting'
 ] as const
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
@@ -89,8 +84,8 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCod
  * Item-level error code stored on v1-indexed `directory` items by the v2
  * migration: v1 embedded a folder's files under the directory item's loader ids
  * without per-file items, so those container-level vectors have no v2 home and
- * are dropped. The migrator marks such items with status `warning` and this code;
- * the renderer maps the code to a localized re-embed warning (same code → i18n
+ * are dropped. The migrator marks such items with status `failed` and this code;
+ * the renderer maps the code to a localized re-embed message (same code → i18n
  * pattern as the base error codes above).
  */
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED = 'directory_not_migrated'
@@ -355,17 +350,6 @@ const FailedKnowledgeItemLifecycleSchema = {
   error: z.string().trim().min(1).describe('Non-empty failure message for failed items.')
 } as const
 
-const WarningKnowledgeItemLifecycleSchema = {
-  status: z
-    .literal('warning')
-    .describe('Recoverable attention state; the item exists but is not searchable until the user re-embeds it.'),
-  error: z
-    .string()
-    .trim()
-    .min(1)
-    .describe('Non-empty reason (localizable code or free-form message) for items that need attention.')
-} as const
-
 const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(
   type: TType,
   data: TData
@@ -442,13 +426,6 @@ const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemTy
       type: z.literal(type),
       data,
       ...FailedKnowledgeItemLifecycleSchema
-    }),
-    // Container-only: a v1 folder whose vectors could not be migrated surfaces as a
-    // `warning` (re-embed needed) rather than a hard failure. Leaf items never warn.
-    KnowledgeItemEntityBaseSchema.extend({
-      type: z.literal(type),
-      data,
-      ...WarningKnowledgeItemLifecycleSchema
     })
   ] as const
 

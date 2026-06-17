@@ -26,20 +26,19 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
-const CONTAINER_CHILD_WARNING_ERROR = 'One or more child items need attention'
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
   data: KnowledgeItemData | string
 }
 
-/** Error payload required by status updates that carry a non-empty `error` (`failed` / `warning`). */
+/** Error payload required by status updates that carry a non-empty `error` (`failed`). */
 type KnowledgeItemErrorUpdate = {
   error: string
 }
 
 /** Statuses whose DB invariant requires a non-empty `error` string (see knowledge_item_status_error_check). */
-const STATUSES_REQUIRING_ERROR = new Set<KnowledgeItemStatus>(['failed', 'warning'])
+const STATUSES_REQUIRING_ERROR = new Set<KnowledgeItemStatus>(['failed'])
 
 type KnowledgeItemsByBaseOptions = {
   groupId?: string | null
@@ -436,12 +435,8 @@ export class KnowledgeItemService {
     return rows.map((row) => rowToKnowledgeItem(row))
   }
 
-  async updateStatus(
-    id: string,
-    status: Exclude<KnowledgeItemStatus, 'failed' | 'warning'>,
-    update?: never
-  ): Promise<KnowledgeItem>
-  async updateStatus(id: string, status: 'failed' | 'warning', update: KnowledgeItemErrorUpdate): Promise<KnowledgeItem>
+  async updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): Promise<KnowledgeItem>
+  async updateStatus(id: string, status: 'failed', update: KnowledgeItemErrorUpdate): Promise<KnowledgeItem>
   async updateStatus(
     id: string,
     status: KnowledgeItemStatus,
@@ -452,7 +447,7 @@ export class KnowledgeItemService {
 
     if (STATUSES_REQUIRING_ERROR.has(status) && !error) {
       throw DataApiErrorFactory.validation({
-        error: ['Failed or warning knowledge items must include a non-empty error']
+        error: ['Failed knowledge items must include a non-empty error']
       })
     }
 
@@ -621,9 +616,8 @@ export class KnowledgeItemService {
 
         const [stats] = await tx
           .select({
-            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'warning', 'deleting') then 1 else 0 end)`,
-            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`,
-            warningCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'warning' then 1 else 0 end)`
+            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
+            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
           })
           .from(knowledgeItemTable)
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
@@ -641,22 +635,9 @@ export class KnowledgeItemService {
         }
 
         // Roll the child severities up by precedence: a failed child fails the
-        // container; otherwise a warning child (e.g. a not-yet-re-embedded folder)
-        // surfaces as a container warning; otherwise it is complete. Migration
-        // tombstones are flat root directories with no parent, so `warning` only
-        // reaches here if a future flow marks a child item `warning`.
-        const nextStatus: KnowledgeItemStatus =
-          Number(stats?.failedCount ?? 0) > 0
-            ? 'failed'
-            : Number(stats?.warningCount ?? 0) > 0
-              ? 'warning'
-              : 'completed'
-        const nextError =
-          nextStatus === 'failed'
-            ? CONTAINER_CHILD_FAILURE_ERROR
-            : nextStatus === 'warning'
-              ? CONTAINER_CHILD_WARNING_ERROR
-              : null
+        // container; otherwise it is complete.
+        const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
+        const nextError = nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null
         await tx
           .update(knowledgeItemTable)
           .set({ status: nextStatus, error: nextError })

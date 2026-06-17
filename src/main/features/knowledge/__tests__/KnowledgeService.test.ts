@@ -224,7 +224,7 @@ function createNoteItem(
 function createDirectoryItem(
   id = 'dir-1',
   groupId: string | null = null,
-  status: Exclude<KnowledgeItemOf<'directory'>['status'], 'warning'> = 'idle'
+  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
 ): KnowledgeItemOf<'directory'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)

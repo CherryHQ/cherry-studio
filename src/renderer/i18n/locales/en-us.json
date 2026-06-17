@@ -2226,7 +2226,6 @@
         "chunking": "Chunking",
         "embedding": "Embedding",
         "error": "Error",
-        "needs_reembed": "Re-embed needed",
         "pending": "Waiting",
         "ready": "Ready"
       },

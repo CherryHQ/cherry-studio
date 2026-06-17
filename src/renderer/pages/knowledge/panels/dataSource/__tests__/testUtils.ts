@@ -31,7 +31,7 @@ const createContainerLifecycle = (
   status: KnowledgeItemOf<'directory'>['status'],
   error = 'Indexing failed'
 ): ContainerKnowledgeItemLifecycle => {
-  if (status === 'failed' || status === 'warning') {
+  if (status === 'failed') {
     return {
       status,
       error

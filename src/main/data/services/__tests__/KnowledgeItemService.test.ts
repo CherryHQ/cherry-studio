@@ -477,34 +477,6 @@ describe('KnowledgeItemService', () => {
       ).rejects.toThrow()
     })
 
-    it('rejects warning status on leaf items (only directories may be warning)', async () => {
-      // `warning` is the migrated-folder re-embed state — knowledge_item_type_status_check limits
-      // it to `directory`; a leaf (file/url/note) marked `warning` must be rejected even with a
-      // non-empty error (so it is the type/status check failing, not the status/error check).
-      await expect(
-        dbh.db.insert(knowledgeItemTable).values({
-          baseId: KNOWLEDGE_BASE_ID,
-          groupId: null,
-          type: 'note',
-          data: { source: 'invalid-warning-note', content: 'invalid warning note' },
-          status: 'warning',
-          error: 'needs attention'
-        })
-      ).rejects.toThrow()
-
-      // The constraint is type-specific: a directory with the same warning+error is accepted.
-      await expect(
-        dbh.db.insert(knowledgeItemTable).values({
-          baseId: KNOWLEDGE_BASE_ID,
-          groupId: null,
-          type: 'directory',
-          data: { source: '/docs', path: '/docs' },
-          status: 'warning',
-          error: 'needs re-embed'
-        })
-      ).resolves.toBeDefined()
-    })
-
     it('creates a file knowledge item with a copied relative path', async () => {
       const result = await service.create(KNOWLEDGE_BASE_ID, {
         type: 'file',
@@ -883,38 +855,6 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('normalizes warning status with a non-empty error', async () => {
-      const seeded = await seedItem({
-        type: 'directory',
-        data: { source: '/docs', path: '/docs' },
-        status: 'processing'
-      })
-
-      const result = await service.updateStatus(seeded.id, 'warning', { error: '  directory_not_migrated  ' })
-
-      expect(result).toMatchObject({
-        status: 'warning',
-        error: 'directory_not_migrated'
-      })
-      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
-        status: 'warning',
-        error: 'directory_not_migrated'
-      })
-    })
-
-    it('rejects warning status without a non-empty error', async () => {
-      const seeded = await seedItem({
-        type: 'directory',
-        data: { source: '/docs', path: '/docs' },
-        status: 'processing'
-      })
-
-      await expect(service.updateStatus(seeded.id, 'warning', { error: '   ' })).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        status: 422
-      })
-    })
-
     it('does not overwrite deleting items with a non-delete status', async () => {
       const seeded = await seedItem({
         status: 'deleting'
@@ -1280,68 +1220,6 @@ describe('KnowledgeItemService', () => {
         data: { source: 'note', content: 'note' },
         status: 'failed',
         error: 'read failed'
-      })
-
-      await service.updateStatus(NOTE_1_ID, 'failed', { error: 'read failed' })
-
-      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
-        status: 'failed',
-        error: 'One or more child items failed'
-      })
-    })
-
-    it('marks a container warning when a terminal child is warning and none failed', async () => {
-      await seedItem({
-        id: DIR_ROOT_ID,
-        type: 'directory',
-        data: { source: '/docs', path: '/docs' },
-        status: 'processing'
-      })
-      await seedItem({
-        id: DIR_CHILD_ID,
-        groupId: DIR_ROOT_ID,
-        type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' },
-        status: 'warning',
-        error: 'needs re-embed'
-      })
-      await seedItem({
-        id: NOTE_1_ID,
-        groupId: DIR_ROOT_ID,
-        type: 'note',
-        data: { source: 'note', content: 'note' },
-        status: 'processing'
-      })
-
-      await service.updateStatus(NOTE_1_ID, 'completed')
-
-      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
-        status: 'warning',
-        error: 'One or more child items need attention'
-      })
-    })
-
-    it('prefers failed over warning when rolling child severities up', async () => {
-      await seedItem({
-        id: DIR_ROOT_ID,
-        type: 'directory',
-        data: { source: '/docs', path: '/docs' },
-        status: 'processing'
-      })
-      await seedItem({
-        id: DIR_CHILD_ID,
-        groupId: DIR_ROOT_ID,
-        type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' },
-        status: 'warning',
-        error: 'needs re-embed'
-      })
-      await seedItem({
-        id: NOTE_1_ID,
-        groupId: DIR_ROOT_ID,
-        type: 'note',
-        data: { source: 'note', content: 'note' },
-        status: 'processing'
       })
 
       await service.updateStatus(NOTE_1_ID, 'failed', { error: 'read failed' })

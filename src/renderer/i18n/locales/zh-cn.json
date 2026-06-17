@@ -2226,7 +2226,6 @@
         "chunking": "分块中",
         "embedding": "嵌入中",
         "error": "错误",
-        "needs_reembed": "需重新嵌入",
         "pending": "等待中",
         "ready": "就绪"
       },

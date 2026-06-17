@@ -191,7 +191,6 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.error': '失败',
             'knowledge.data_source.status.embedding': '向量化中',
             'knowledge.data_source.status.chunking': '分块中',
-            'knowledge.data_source.status.needs_reembed': '需重新嵌入',
             'knowledge.data_source.status.pending': '等待中',
             'knowledge.error.directory_not_migrated': '该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
@@ -323,17 +322,17 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
   })
 
-  it('renders a migrated v1 directory as a re-embed warning instead of a red error', () => {
+  it('renders a migrated v1 directory as a red failure with a re-embed tooltip', () => {
     // The v2 migration drops a v1 folder's container-level vectors and marks the
-    // item `warning` with this code; the row must render it as an actionable
-    // re-embed warning (amber badge + localized tooltip), not a generic failure.
+    // item `failed` with this code; the row must render it with the localized
+    // re-embed tooltip so the user knows to re-index.
     render(
       <DataSourcePanel
         items={[
           createDirectoryItem({
             id: 'directory-1',
             source: '/Users/eeee/本地资料夹',
-            status: 'warning',
+            status: 'failed',
             error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
           })
         ]}
@@ -344,8 +343,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    expect(screen.getByText('需重新嵌入')).toBeInTheDocument()
-    expect(screen.queryByText('失败')).not.toBeInTheDocument()
+    expect(screen.getByText('失败')).toBeInTheDocument()
     expect(screen.getByLabelText('该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。')).toBeInTheDocument()
   })
 

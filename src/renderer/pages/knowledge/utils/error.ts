@@ -20,7 +20,7 @@ export const getKnowledgeBaseFailureReason = (base: Pick<KnowledgeBase, 'error'>
   return base.error ?? t('knowledge.error.failed_base_unknown')
 }
 
-/** Failed or warning item tooltip text: known error codes map to localized copy, free-form messages pass through. */
+/** Failed item tooltip text: known error codes map to localized copy, free-form messages pass through. */
 export const getKnowledgeItemFailureReason = (item: Pick<KnowledgeItem, 'error'>, t: KnowledgeErrorTranslator) => {
   if (item.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED) {
     return t('knowledge.error.directory_not_migrated')

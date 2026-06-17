@@ -252,7 +252,7 @@ export function createFileItem(
 
 export function createDirectoryItem(
   id = 'dir-1',
-  status: Exclude<KnowledgeItemOf<'directory'>['status'], 'failed' | 'warning'> = 'preparing'
+  status: Exclude<KnowledgeItemOf<'directory'>['status'], 'failed'> = 'preparing'
 ): KnowledgeItemOf<'directory'> {
   return {
     id,

@@ -152,7 +152,6 @@ vi.mock('react-i18next', () => ({
         ({
           'knowledge.data_source.status.ready': '就绪',
           'knowledge.data_source.status.error': '失败',
-          'knowledge.data_source.status.needs_reembed': '需重新嵌入',
           'knowledge.error.directory_not_migrated': '该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。',
           'knowledge.data_source.status.embedding': '向量化中',
           'knowledge.data_source.status.chunking': '分块中',
@@ -234,24 +233,23 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
   })
 
-  it('renders a not-migrated directory as an amber re-embed warning, reindexable but not chunk-viewable', () => {
+  it('renders a not-migrated directory as a red failure, reindexable but not chunk-viewable', () => {
     render(
       <KnowledgeItemRow
         item={createDirectoryItem({
           id: 'directory-1',
-          status: 'warning',
+          status: 'failed',
           error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
         })}
         {...defaultHandlers}
       />
     )
 
-    // Amber warning label, not the red failure label, with the localized re-embed tooltip.
-    expect(screen.getByText('需重新嵌入')).toBeInTheDocument()
-    expect(screen.queryByText('失败')).not.toBeInTheDocument()
+    // Red failure label with the localized re-embed tooltip.
+    expect(screen.getByText('失败')).toBeInTheDocument()
     expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容未自动迁移')
 
-    // Re-embedding restores the index, but there are no chunks to view yet.
+    // Re-indexing restores the index, but there are no chunks to view yet.
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()

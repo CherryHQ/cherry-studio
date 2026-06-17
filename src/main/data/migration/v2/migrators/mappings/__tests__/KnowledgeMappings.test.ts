@@ -628,12 +628,11 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeItem marks a v1-indexed directory `warning` with the not-migrated code', () => {
+  it('transformKnowledgeItem marks a v1-indexed directory `failed` with the not-migrated code', () => {
     // V1 embedded the folder's files under the directory item's loader ids; the
     // vector migrator drops those container-level vectors, so a `completed`
     // directory would be an empty shell that never re-indexes. It must surface
-    // as `warning` (a recoverable attention state, not a hard failure) with the
-    // code the UI renders as a re-embed prompt.
+    // as `failed` with the code the UI renders as a re-embed prompt.
     const result = transformKnowledgeItem(
       'kb-1',
       {
@@ -650,7 +649,7 @@ describe('KnowledgeMappings', () => {
 
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.value.status).toBe('warning')
+      expect(result.value.status).toBe('failed')
       expect(result.value.error).toBe(KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED)
     }
   })

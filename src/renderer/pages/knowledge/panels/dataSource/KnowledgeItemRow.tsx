@@ -245,11 +245,10 @@ const KnowledgeItemRow = ({
   } = useTranslation()
   const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
-  // `failed` (red) and `warning` (amber, e.g. a migrated folder awaiting re-embed) both
-  // carry a reason code in `error`; surface it as the badge tooltip.
-  const failureReason =
-    item.status === 'failed' || item.status === 'warning' ? getKnowledgeItemFailureReason(item, t) : null
-  const canReindex = item.status === 'completed' || item.status === 'failed' || item.status === 'warning'
+  // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
+  // be migrated); surface it as the badge tooltip.
+  const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
+  const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)

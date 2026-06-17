@@ -400,12 +400,11 @@ export const transformKnowledgeItem = (
   // A v1-indexed folder is one container item whose files were embedded under its
   // loader ids; the vector migrator drops those container-level vectors (no v2
   // home), so letting the directory claim `completed` would leave an empty shell
-  // that never re-indexes. Mark it `warning` with a code the UI renders as a
-  // re-embed prompt (it migrated as a record but is not searchable until re-embedded
-  // — a recoverable attention state, not a hard failure). Interrupted (failed) and
-  // never-indexed (idle) directories keep the shared mapping.
+  // that never re-indexes. Mark it `failed` with a code the UI renders as a
+  // re-embed prompt (it migrated as a record but is not searchable until re-indexed).
+  // Interrupted (failed) and never-indexed (idle) directories keep the shared mapping.
   const directoryIndexDropped = type === 'directory' && inferredStatus === 'completed'
-  const status = directoryIndexDropped ? 'warning' : inferredStatus
+  const status = directoryIndexDropped ? 'failed' : inferredStatus
 
   return {
     ok: true,

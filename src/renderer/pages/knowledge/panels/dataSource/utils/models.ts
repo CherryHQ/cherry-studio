@@ -3,7 +3,7 @@ import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@s
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
-export type DataSourceStatus = 'completed' | 'processing' | 'failed' | 'warning'
+export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
 
 export interface DataSourceDisplayContext {
@@ -94,16 +94,6 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
       textClassName: 'text-red-500/60',
-      icon: 'alert'
-    }
-  }
-
-  // Recoverable attention state (e.g. a migrated folder awaiting re-embed): amber, not red.
-  if (status === 'warning') {
-    return {
-      kind: 'warning',
-      labelKey: 'knowledge.data_source.status.needs_reembed',
-      textClassName: 'text-amber-500/70',
       icon: 'alert'
     }
   }
