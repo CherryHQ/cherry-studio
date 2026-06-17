@@ -26,7 +26,9 @@
  *    instead of the file URL).
  * 2. `toFileUrl(path)` — encode an absolute filesystem path into a `file://`
  *    URL (Windows drive letters, URL-encoded segments, forward-slash normalized).
- * 3. `toSafeFileUrl(path, ext)` — the composition that used to live behind
+ * 3. `fileUrlToPath(url)` — decode an existing `file://` URL back to a path
+ *    string in renderer-safe code (including Windows drive and UNC URL forms).
+ * 4. `toSafeFileUrl(path, ext)` — the composition that used to live behind
  *    the `getSafeUrl` IPC: apply the danger-wrap then `toFileUrl`.
  *
  * ## Why "formatting" stays in a shared module, not behind an IPC
@@ -151,6 +153,32 @@ export function toFileUrl(absolutePath: FilePath): FileURLString {
     .map((segment) => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
     .join('/')
   return `file://${encoded}`
+}
+
+/**
+ * Decode a `file://` URL into a filesystem path string without importing
+ * `node:url`, so renderer/shared callers can use the same path handling.
+ *
+ * - Unix:    `file:///foo/bar%20baz.pdf`     → `/foo/bar baz.pdf`
+ * - Windows: `file:///C:/foo/bar%20baz.pdf`  → `C:/foo/bar baz.pdf`
+ * - UNC:     `file://server/share/file.pdf`  → `//server/share/file.pdf`
+ *
+ * Main-process code should use Node's `fileURLToPath` when it is already in a
+ * Node-only module. This helper exists for shared / renderer-safe code.
+ *
+ * Throws `TypeError` for a non-`file:` URL and `URIError` for malformed
+ * percent-encoding (via `decodeURIComponent`).
+ */
+export function fileUrlToPath(fileUrl: FileURLString | URL): string {
+  const url = typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl
+  if (url.protocol !== 'file:') {
+    throw new TypeError('Expected a file:// URL')
+  }
+
+  const pathname = decodeURIComponent(url.pathname)
+  if (url.hostname) return `//${url.hostname}${pathname}`
+  if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
+  return pathname
 }
 
 /**

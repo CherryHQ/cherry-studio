@@ -5,11 +5,11 @@ export { default as CopyButton } from './primitives/copy-button'
 export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/divider-with-text'
-export * from './primitives/dropdown-menu'
 export { default as EmojiIcon } from './primitives/emoji-icon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
 export { ErrorBoundary } from './primitives/error-boundary'
 export { default as IndicatorLight } from './primitives/indicator-light'
+export { type PortalContainer, PortalContainerProvider, usePortalContainer } from './primitives/portal-container'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
 export {
@@ -135,6 +135,18 @@ export {
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
 export { Sortable } from './composites/sortable'
+// TreeView
+export {
+  type DragPosition,
+  type FlatTreeItem,
+  type RenderRowArgs,
+  type RenderRowFn,
+  type TreeDragHandleProps,
+  type TreeListSlotArgs,
+  type TreeNodeAdapter,
+  TreeView,
+  type TreeViewProps
+} from './composites/tree-view'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'
@@ -150,7 +162,9 @@ export * from './primitives/command'
 export * from './primitives/context-menu'
 export * from './primitives/dialog'
 export * from './primitives/drawer'
+export * from './primitives/dropdown-menu'
 export * from './primitives/field'
+export * from './primitives/hover-card'
 export * from './primitives/input'
 export * from './primitives/input-group'
 export * from './primitives/item'

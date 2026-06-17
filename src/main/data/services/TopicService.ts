@@ -25,6 +25,7 @@ import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
+import { getDataService, registerDataService } from './dataServiceRegistry'
 import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -179,8 +180,7 @@ export class TopicService {
 
   async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
-    // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
-    const { messageService } = await import('./MessageService')
+    const messageService = getDataService('MessageService')
 
     const copiedTopic = await dbService.withWriteTx(async (tx) => {
       const [sourceTopic] = await tx
@@ -313,7 +313,7 @@ export class TopicService {
     }
     if (deletedIds.length === 0) return []
 
-    const { messageService } = await import('./MessageService')
+    const messageService = getDataService('MessageService')
     await messageService.purgeByTopicIdsTx(tx, deletedIds)
     await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
@@ -546,6 +546,34 @@ export class TopicService {
       })
     })
   }
+
+  async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const [assistant] = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+        .limit(1)
+      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+
+      const rows = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+
+      return await this.deleteManyByIdsTx(
+        tx,
+        rows.map((row) => row.id)
+      )
+    })
+
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
 }
 
 export const topicService = new TopicService()
+
+registerDataService('TopicService', topicService)

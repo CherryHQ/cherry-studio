@@ -3,9 +3,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTabs } from '@renderer/hooks/useTabs'
-import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { getSidebarFavoriteLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite as SidebarFavoriteType } from '@shared/data/preference/preferenceTypes'
 import {
   Code,
   FileSearch,
@@ -31,7 +31,7 @@ import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
 
-const routePrefixMap: Record<SidebarIconType, string> = {
+const routePrefixMap: Record<SidebarFavoriteType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
   store: '/app/library',
@@ -45,7 +45,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   openclaw: '/app/openclaw'
 }
 
-const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
+const iconMap: Record<SidebarFavoriteType, SidebarMenuItem['icon']> = {
   assistants: MessageCircle,
   agents: MousePointerClick,
   store: Sparkle,
@@ -59,12 +59,12 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   openclaw: OpenClawSidebarIcon
 }
 
-function getMenuPath(icon: SidebarIconType): string {
-  return routePrefixMap[icon] || ''
+function getMenuPath(favorite: SidebarFavoriteType): string {
+  return routePrefixMap[favorite] || ''
 }
 
-function resolveActiveItem(pathname: string): SidebarIconType | '' {
-  const match = (Object.entries(routePrefixMap) as Array<[SidebarIconType, string]>).find(
+function resolveActiveItem(pathname: string): SidebarFavoriteType | '' {
+  const match = (Object.entries(routePrefixMap) as Array<[SidebarFavoriteType, string]>).find(
     ([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   )
   return match?.[0] || ''
@@ -73,7 +73,7 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, updateTab, openTab } = useTabs()
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -122,28 +122,28 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon)
-        const Icon = iconMap[icon]
+      sidebarFavorites.flatMap((favorite) => {
+        const path = getMenuPath(favorite)
+        const Icon = iconMap[favorite]
         if (!path || !Icon) {
           return []
         }
         return [
           {
-            id: icon,
-            label: t(getSidebarIconLabelKey(icon)),
+            id: favorite,
+            label: t(getSidebarFavoriteLabelKey(favorite)),
             icon: Icon
           }
         ]
       }),
-    [visibleSidebarIcons, t]
+    [sidebarFavorites, t]
   )
 
   const activeItem = resolveActiveItem(pathname)
 
   const handleNavigate = useCallback(
     async (menuItemId: string) => {
-      const menuId = menuItemId as SidebarIconType
+      const menuId = menuItemId as SidebarFavoriteType
       const path = getMenuPath(menuId)
       if (!path) return
 

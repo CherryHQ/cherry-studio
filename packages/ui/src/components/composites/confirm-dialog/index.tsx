@@ -31,6 +31,10 @@ interface ConfirmDialogProps {
   destructive?: boolean
   /** Loading state for confirm button */
   confirmLoading?: boolean
+  /** Optional className for DialogContent */
+  contentClassName?: string
+  /** Optional className for DialogOverlay */
+  overlayClassName?: string
 }
 
 function ConfirmDialog({
@@ -43,7 +47,9 @@ function ConfirmDialog({
   cancelText = 'Cancel',
   onConfirm,
   destructive = false,
-  confirmLoading = false
+  confirmLoading = false,
+  contentClassName,
+  overlayClassName
 }: ConfirmDialogProps) {
   const handleConfirm = React.useCallback(async () => {
     await onConfirm?.()
@@ -52,7 +58,7 @@ function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false}>
+      <DialogContent showCloseButton={false} className={contentClassName} overlayClassName={overlayClassName}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

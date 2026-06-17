@@ -21,6 +21,7 @@
  */
 
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { type FileType, FileTypeSchema } from '@shared/file/types'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -118,6 +119,8 @@ export type CherryDataPartTypes = {
 export interface CherryTextMeta {
   /** Content references (citations, mentions). */
   references?: unknown[]
+  /** Composer inline token display snapshot — on user TextUIPart by convention. */
+  composer?: ComposerMessageSnapshot
 }
 
 /** Cherry metadata on a ReasoningUIPart. */
@@ -151,6 +154,8 @@ export interface CherryFileMeta {
    * `file_ref` rows after migration.
    */
   fileEntryId?: string
+  /** Composer file token association identity. Not a path, filename, or file storage id. */
+  fileTokenSourceId?: string
 }
 
 /**
@@ -178,8 +183,35 @@ export type CherryProviderMetadata = CherryTextMeta & CherryReasoningMeta & Cher
 // Zod schemas — runtime validation at the read boundary
 // ============================================================================
 
+const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenPayload> = z.object({
+  type: FileTypeSchema.optional(),
+  ext: z.string().optional(),
+  name: z.string().optional(),
+  // Serialized key — mirrors the `origin_name` file-part payload key. Do not rename.
+  origin_name: z.string().optional(),
+  size: z.number().optional()
+})
+
+const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
+  id: z.string(),
+  kind: z.enum(['skill', 'file', 'command', 'knowledge', 'reference', 'quote']),
+  label: z.string(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
+  index: z.number(),
+  textOffset: z.number(),
+  promptText: z.string().optional(),
+  payload: ComposerMessageFileTokenPayloadSchema.optional()
+})
+
+const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.object({
+  version: z.literal(1),
+  tokens: z.array(ComposerMessageTokenSchema)
+})
+
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
-  references: z.array(z.unknown()).optional()
+  references: z.array(z.unknown()).optional(),
+  composer: ComposerMessageSnapshotSchema.optional()
 })
 
 export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.object({
@@ -200,7 +232,8 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 })
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
-  fileEntryId: z.string().optional()
+  fileEntryId: z.string().optional(),
+  fileTokenSourceId: z.string().optional()
 })
 
 // Table-driven dispatch — part `type` → schema. First match wins.
@@ -221,6 +254,36 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 // ============================================================================
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
+
+export type ComposerMessageTokenKind = 'skill' | 'file' | 'command' | 'knowledge' | 'reference' | 'quote'
+
+export interface ComposerMessageFileTokenPayload {
+  type?: FileType
+  ext?: string
+  name?: string
+  /** Serialized key — mirrors the `origin_name` file-part payload key. */
+  origin_name?: string
+  size?: number
+}
+
+export type ComposerMessageTokenPayload = ComposerMessageFileTokenPayload
+
+export interface ComposerMessageToken {
+  id: string
+  kind: ComposerMessageTokenKind
+  label: string
+  icon?: string
+  description?: string
+  index: number
+  textOffset: number
+  promptText?: string
+  payload?: ComposerMessageTokenPayload
+}
+
+export interface ComposerMessageSnapshot {
+  version: 1
+  tokens: ComposerMessageToken[]
+}
 
 /**
  * Read cherry meta with runtime validation. Returns `undefined` for missing,
