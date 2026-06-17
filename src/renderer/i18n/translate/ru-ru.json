@@ -395,9 +395,6 @@
           "failed": "Не удалось изменить порядок сеансов"
         }
       },
-      "tool": {
-        "disabled": "Инструмент {{toolName}} отключен для этого агента."
-      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"
@@ -2159,7 +2156,8 @@
         "note": {
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Выбираемые заметки появятся здесь после подключения списка реальных заметок. Пока используйте файлы, папки, URL-адреса или карты сайта.",
-          "empty_title": "Заметки ещё не связаны"
+          "empty_title": "Заметки ещё не связаны",
+          "loading": "Загрузка заметок…"
         },
         "placeholder": {
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2192,8 +2190,6 @@
         "reindex": "Переиндексация",
         "selected_count": "{{count}} выбрано"
       },
-      "chunk_delete_confirm_description": "После удаления этот фрагмент больше не будет использоваться для поиска. Повторная индексация источника данных сгенерирует его снова.",
-      "chunk_delete_confirm_title": "Удалить фрагмент?",
       "chunks_count": "{{count}} частей",
       "delete_confirm_description": "Этот источник данных и его индексные данные не могут быть восстановлены после удаления.",
       "delete_confirm_title": "Удалить источник данных?",
@@ -2250,9 +2246,7 @@
         "search_placeholder": "Поиск источников данных"
       }
     },
-    "dimensions": "Размерности вложений",
     "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
-    "dimensions_error_invalid": "Неверная размерность эмбеддинга",
     "dimensions_size_placeholder": "Оставьте пустым, чтобы не устанавливать",
     "drag_file": "Перетащите файл сюда",
     "embedding_model": "Модель встраивания",
@@ -2304,7 +2298,6 @@
       "chunk_size_invalid": "Размер фрагмента должен быть больше 0",
       "chunking": "Разбиение на блоки",
       "default_separator": "Авто (рекомендуется)",
-      "dimensions": "Векторные размерности",
       "document_count": "Количество документов",
       "embedding_model": "Модель вложений",
       "embedding_model_select": "Выбор модели",
@@ -2313,7 +2306,6 @@
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
         "chunk_size": "Целевое количество токенов для каждого фрагмента документа. Это влияет на гранулярность извлечения и длину контекста.",
-        "dimensions": "Размерность вектора, выдаваемая текущей моделью встраивания, используемой для создания и сопоставления векторных индексов.",
         "document_count": "Максимальное количество фрагментов документа, возвращаемых для каждого поиска. Более высокие значения охватывают больше контента, но используют больше контекста.",
         "embedding_model": "Используется для преобразования содержимого базы знаний в векторы. Смена модели обычно требует переиндексации существующего содержимого.",
         "hybrid_alpha": "Вес векторной оценки в гибридном поиске. Более высокие значения делают приоритетнее семантическое соответствие.",
@@ -2324,9 +2316,7 @@
         "threshold_disabled": "Этот режим извлечения возвращает упорядоченные результаты и не использует порог сходства."
       },
       "hybrid_alpha": "Гибридный Альфа",
-      "hybrid_alpha_hint": "Доступно только в режиме гибридного поиска",
       "processor": "Поставщик обработки",
-      "refresh_dimensions": "Обновить размерности векторов",
       "rerank_disabled": "Отключено",
       "rerank_model": "Переупорядочивающая модель",
       "reset_action": "Восстановить значения по умолчанию",
@@ -2336,9 +2326,9 @@
       "saved": "Сохранено",
       "search_mode": {
         "bm25": "Полнотекстовый поиск",
-        "default": "Векторный поиск",
         "hybrid": "Гибридный поиск (рекомендуется)",
-        "title": "Режим поиска"
+        "title": "Режим поиска",
+        "vector": "Векторный поиск"
       },
       "separator_rule": "Правило разделителя",
       "threshold": "Порог сходства",
@@ -6663,7 +6653,7 @@
         "project_id": "ID проекта",
         "project_id_help": "Ваш ID проекта Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Выберите местоположение",
         "service_account": {
           "auth_success": "Service Account успешно аутентифицирован",
           "client_email": "Email клиента",
@@ -6680,9 +6670,9 @@
           "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
           "private_key_placeholder": "Введите приватный ключ Service Account",
           "title": "Конфигурация Service Account",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Переключить видимость электронной почты клиента",
+          "toggle_private_key_visibility": "Переключить видимость приватного ключа",
+          "toggle_project_id_visibility": "Переключить видимость идентификатора проекта"
         }
       }
     },
@@ -6752,6 +6742,7 @@
       },
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "close_tab": "Закрыть вкладку",
       "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
@@ -6759,8 +6750,11 @@
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
+      "move_tab_to_first": "Переместить вкладку на первое место",
       "new_topic": "Новый топик",
       "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
+      "open_tab_in_new_window": "Открыть вкладку в новом окне",
+      "pin_tab": "Закрепить/открепить вкладку",
       "press_shortcut": "Нажмите сочетание клавиш",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
