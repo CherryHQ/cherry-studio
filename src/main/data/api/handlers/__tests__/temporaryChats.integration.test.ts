@@ -112,9 +112,12 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
     expect(byId.get(m4.id)!.hasChildren).toBe(false)
 
     // 7. FTS5 trigger must have populated searchable_text for every message.
+    // The extra row is the structural virtual root (parentId === null, no content);
+    // filter to content rows before asserting count and searchable_text.
     const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
-    expect(rows).toHaveLength(4)
-    for (const r of rows) {
+    const contentRows = rows.filter((r) => r.parentId !== null)
+    expect(contentRows).toHaveLength(4)
+    for (const r of contentRows) {
       expect(r.searchableText).toBeTruthy()
     }
 
