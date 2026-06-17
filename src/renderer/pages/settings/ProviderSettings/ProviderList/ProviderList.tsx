@@ -273,8 +273,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             aria-label={t('settings.provider.add.title')}
             disabled={dragging}
             onClick={startAdd}
-            className="hover:bg-[var(--color-surface-hover-soft)]">
-            <Plus size={14} strokeWidth={1.6} />
+            className="hover:bg-[var(--color-surface-hover-soft)] [&_svg]:[stroke-width:var(--icon-stroke)]">
+            <Plus size={14} />
             {t('common.add')}
           </Button>
         }

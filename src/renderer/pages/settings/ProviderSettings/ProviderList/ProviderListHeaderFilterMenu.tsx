@@ -17,8 +17,6 @@ const FILTER_MENU_OPTIONS: { mode: ProviderFilterMode; labelKey: string }[] = [
 interface ProviderListHeaderFilterMenuProps {
   filterMode: ProviderFilterMode
   disabled: boolean
-  triggerClassName?: string
-  triggerIconSize?: number
   onFilterChange: (mode: ProviderFilterMode) => void
   className?: string
 }

@@ -396,8 +396,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')} placement="top">
                       <CircleHelp
                         size={14}
-                        strokeWidth={1.6}
-                        className="ml-1.5 shrink-0 cursor-pointer text-foreground-muted"
+                        className="ml-1.5 shrink-0 cursor-pointer text-foreground-muted [stroke-width:var(--icon-stroke)]"
                       />
                     </Tooltip>
                   </div>
