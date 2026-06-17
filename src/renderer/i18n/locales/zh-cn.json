@@ -6845,10 +6845,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文档处理"
+            "title": "文档处理",
+            "tooltip": "用于知识库文档解析"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用于翻译功能图片识别"
           }
         },
         "fields": {

@@ -130,7 +130,7 @@ export const settingsSubmenuItemClassName =
 export const settingsSubmenuItemLabelClassName = 'group-data-[active=true]:font-medium'
 
 export const settingsSubmenuSectionTitleClassName =
-  'px-2.5 pt-1.5 pb-1 font-normal text-foreground-muted text-xs first:pt-0'
+  'flex items-center gap-2 px-2.5 pt-1.5 pb-1 font-normal text-foreground-muted text-xs first:pt-0'
 
 export const settingsSubmenuDividerClassName = 'my-1 bg-transparent'
 

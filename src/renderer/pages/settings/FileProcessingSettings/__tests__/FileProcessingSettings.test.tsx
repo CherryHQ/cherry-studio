@@ -143,6 +143,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ),
     DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+    InfoTooltip: ({ content }: { content?: React.ReactNode }) => <span>{content}</span>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
     MenuItem: ({
@@ -277,8 +278,13 @@ describe('FileProcessingSettings', () => {
   it('shows feature group titles so processors shared by OCR and document parsing are not ambiguous', async () => {
     render(<FileProcessingSettings />)
 
-    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
-    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
+    const imageFeatureTitle = await screen.findByText('settings.tool.file_processing.features.image_to_text.title')
+    const documentFeatureTitle = screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')
+
+    expect(imageFeatureTitle).toBeInTheDocument()
+    expect(documentFeatureTitle).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.tooltip')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.tooltip')).toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     ).toHaveLength(2)
