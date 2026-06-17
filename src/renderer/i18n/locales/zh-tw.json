@@ -2952,7 +2952,7 @@
           "model": {
             "help": "UniqueModelId；稍後將切換為由 /models 支援的選擇器",
             "hint": "主要推理與執行",
-            "label": "主要模型（必填）"
+            "label": "主要模型"
           },
           "name": {
             "hint": "顯示於圖書館和會話清單",
@@ -2971,11 +2971,11 @@
           },
           "plan_model": {
             "hint": "任務分解與規劃",
-            "label": "計畫模型（可選）"
+            "label": "計畫模型"
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",
-            "label": "小型模型（可選）"
+            "label": "小型模型"
           },
           "soul_enabled": {
             "help": "啟用後，將自動授予 bypassPermissions",
@@ -3087,7 +3087,7 @@
         "model": "預設模型",
         "model_clear": "清除",
         "model_not_found": "找不到模型（可能已被移除）：{{id}}",
-        "model_pick": "+ 選擇模型",
+        "model_pick": "選擇模型",
         "pick_avatar": "選擇頭像",
         "precise": "精確",
         "stream_output": "串流輸出",

@@ -2,7 +2,7 @@ import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@c
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { CircleDashed } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
 
 export const EmojiAvatarPicker: FC<{
@@ -53,7 +53,7 @@ export function DialogModelFrame({ invalid, children }: { invalid?: boolean; chi
     <div
       className={cn(
         'flex w-full min-w-0 items-center transition-colors',
-        invalid && 'rounded-full ring-1 ring-destructive/50 ring-offset-1 ring-offset-background'
+        invalid && 'rounded-md ring-1 ring-destructive/50 ring-offset-1 ring-offset-background'
       )}>
       {children}
     </div>
@@ -66,6 +66,7 @@ type DialogModelTriggerProps = Omit<ComponentPropsWithoutRef<typeof Button>, 'ch
   model?: ComponentProps<typeof ModelAvatar>['model']
   ariaLabel?: string
   ariaLabelledBy?: string
+  chevronClassName?: string
 }
 
 export const DialogModelTrigger = ({
@@ -76,6 +77,7 @@ export const DialogModelTrigger = ({
   model,
   ariaLabel,
   ariaLabelledBy,
+  chevronClassName,
   className,
   type,
   ...props
@@ -84,29 +86,27 @@ export const DialogModelTrigger = ({
     {...props}
     ref={ref}
     type={type ?? 'button'}
-    variant="ghost"
+    variant="outline"
     size="sm"
     disabled={disabled}
     aria-label={ariaLabel}
     aria-labelledby={ariaLabelledBy}
     className={cn(
-      'h-8 min-w-0 max-w-full shrink-0 justify-start gap-2 rounded-md bg-muted/45 px-2 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40',
-      !model && 'text-muted-foreground/70',
+      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-md border border-input bg-background px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40',
+      model ? 'text-foreground' : 'text-muted-foreground',
       className
     )}>
-    {model ? (
-      <ModelAvatar model={model} size={18} />
-    ) : (
-      <span
-        className="flex size-4 shrink-0 items-center justify-center rounded-full border border-muted-foreground/35 border-dashed bg-background"
-        data-testid="model-trigger-placeholder">
-        <CircleDashed size={11} strokeWidth={1.8} />
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      {model ? <ModelAvatar model={model} size={18} /> : null}
+      <span className="min-w-0 flex-1 truncate text-left">
+        {displayLabel}
+        {providerLabel ? <span className="text-muted-foreground/70"> | {providerLabel}</span> : null}
       </span>
-    )}
-    <span className="min-w-0 flex-1 truncate text-left">
-      {displayLabel}
-      {providerLabel ? <span className="text-muted-foreground/70"> | {providerLabel}</span> : null}
     </span>
+    <ChevronDown
+      aria-hidden="true"
+      className={cn('size-3.5 shrink-0 text-muted-foreground/70 transition-opacity', chevronClassName)}
+    />
   </Button>
 )
 

@@ -26,8 +26,8 @@ describe('DialogModelTrigger', () => {
 
     const trigger = screen.getByRole('button', { name: 'Model' })
 
-    expect(trigger).toHaveClass('h-8', 'rounded-md', 'gap-2', 'bg-muted/45', 'text-sm')
-    expect(screen.getByTestId('model-trigger-placeholder')).toBeInTheDocument()
+    expect(trigger).toHaveClass('h-8', 'rounded-md', 'gap-2', 'border-input', 'bg-background', 'text-sm')
+    expect(screen.queryByTestId('model-trigger-placeholder')).not.toBeInTheDocument()
     expect(screen.queryByTestId('model-avatar')).not.toBeInTheDocument()
 
     fireEvent.click(trigger)

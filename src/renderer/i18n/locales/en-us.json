@@ -2952,7 +2952,7 @@
           "model": {
             "help": "UniqueModelId; will switch to a picker backed by /models later",
             "hint": "Main reasoning and execution",
-            "label": "Primary model (required)"
+            "label": "Primary model"
           },
           "name": {
             "hint": "Shown in the library and session lists",
@@ -2971,11 +2971,11 @@
           },
           "plan_model": {
             "hint": "Task decomposition and planning",
-            "label": "Plan model (optional)"
+            "label": "Plan model"
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",
-            "label": "Small model (optional)"
+            "label": "Small model"
           },
           "soul_enabled": {
             "help": "When enabled, automatically grants bypassPermissions",
@@ -3087,7 +3087,7 @@
         "model": "Default model",
         "model_clear": "Clear",
         "model_not_found": "Model not found (may have been removed): {{id}}",
-        "model_pick": "+ Pick model",
+        "model_pick": "Pick model",
         "pick_avatar": "Pick avatar",
         "precise": "Precise",
         "stream_output": "Stream output",

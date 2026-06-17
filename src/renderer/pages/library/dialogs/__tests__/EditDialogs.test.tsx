@@ -550,7 +550,7 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated assistant description' } })
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
-    expect(modelTrigger).toHaveClass('h-8', 'rounded-md', 'bg-muted/45')
+    expect(modelTrigger).toHaveClass('h-8', 'rounded-md', 'border-input', 'bg-background')
     expect(screen.getByText(/Old Model/)).toBeInTheDocument()
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
@@ -566,6 +566,28 @@ describe('edit dialogs', () => {
       })
     )
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
+  })
+
+  it('shows the clear model affordance beside the chevron and clears the selected model', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    const modelTrigger = screen.getByRole('button', { name: 'Model' })
+    const clearButton = screen.getByRole('button', { name: 'Model Clear' })
+
+    expect(modelTrigger).toHaveClass('hover:bg-background')
+    expect(modelTrigger).not.toHaveClass('pr-7')
+    expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
+
+    fireEvent.click(clearButton)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          modelId: null
+        })
+      })
+    )
   })
 
   it('submits assistant tag changes through ensureTags', async () => {

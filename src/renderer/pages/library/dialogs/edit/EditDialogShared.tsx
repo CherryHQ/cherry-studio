@@ -25,7 +25,7 @@ import { ModelSelector } from '@renderer/components/Selector/model'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, HelpCircle, Trash2 } from 'lucide-react'
+import { ChevronDown, HelpCircle, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { FieldValues, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -475,7 +475,15 @@ export function CompactModelField({
                     model={triggerModel}
                     displayLabel={displayLabel}
                     providerLabel={selectorValue ? providerLabel || parsedModelId?.providerId : undefined}
-                    className={cn('w-full', allowClear && value && 'pr-7')}
+                    className={cn(
+                      'w-full hover:bg-background',
+                      triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground'
+                    )}
+                    chevronClassName={
+                      allowClear && value
+                        ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0'
+                        : undefined
+                    }
                   />
                 }
               />
@@ -484,7 +492,8 @@ export function CompactModelField({
                   type="button"
                   variant="ghost"
                   aria-label={`${label} ${t('library.config.basic.model_clear')}`}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation()
                     if (onModelChange) {
                       onModelChange(null)
                     } else {
@@ -492,8 +501,8 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-sm bg-background/85 p-0 text-muted-foreground/55 opacity-0 shadow-none transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/40 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
-                  <Trash2 size={12} />
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/40 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  <X size={12} />
                 </Button>
               ) : null}
             </div>
