@@ -1,30 +1,15 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TreeNode from './components/TreeNode'
-import {
-  NotesActionsContext,
-  NotesDragContext,
-  NotesEditingContext,
-  NotesSearchContext,
-  NotesSelectionContext
-} from './context/NotesContexts'
 import { useFullTextSearch } from './hooks/useFullTextSearch'
-import { useNotesDragAndDrop } from './hooks/useNotesDragAndDrop'
 import { useNotesEditing } from './hooks/useNotesEditing'
 import { useNotesFileUpload } from './hooks/useNotesFileUpload'
 import { useNotesMenu } from './hooks/useNotesMenu'
@@ -44,6 +29,43 @@ interface NotesSidebarProps {
   activeFilePath?: string
   sortType: NotesSortType
   selectedFolderId?: string | null
+}
+
+const collectExpandedIds = (nodes: NotesTreeNode[], result: Set<string>): Set<string> => {
+  for (const node of nodes) {
+    if (node.type === 'folder' && node.expanded) {
+      result.add(node.id)
+    }
+    if (node.children?.length) {
+      collectExpandedIds(node.children, result)
+    }
+  }
+  return result
+}
+
+const toFileTreeNode = (node: NotesTreeNode, flat: boolean): FileTreeNode => ({
+  id: node.id,
+  name: node.name,
+  kind: node.type === 'folder' ? 'folder' : 'file',
+  // In flat modes (search/starred), use id as path so the tree model doesn't try to
+  // reconstruct missing parent folders from hierarchical treePaths.
+  path: flat ? node.id : node.treePath || node.id,
+  children:
+    flat || node.type !== 'folder' || !node.children?.length
+      ? undefined
+      : node.children.map((c) => toFileTreeNode(c, false))
+})
+
+const collectStarredFiles = (nodes: NotesTreeNode[], result: NotesTreeNode[] = []): NotesTreeNode[] => {
+  for (const node of nodes) {
+    if (node.type === 'file' && node.isStarred) {
+      result.push(node)
+    }
+    if (node.children?.length) {
+      collectStarredFiles(node.children, result)
+    }
+  }
+  return result
 }
 
 const NotesSidebar: FC<NotesSidebarProps> = ({
@@ -70,30 +92,20 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
 
   const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
-  const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
   const hasSearchKeyword = trimmedSearchKeyword.length > 0
 
   const { editingNodeId, renamingNodeIds, newlyRenamedNodeIds, inPlaceEdit, handleStartEdit, handleAutoRename } =
-    useNotesEditing({ onRenameNode })
-
-  const {
-    draggedNodeId,
-    dragOverNodeId,
-    dragPosition,
-    handleDragStart,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handleDragEnd
-  } = useNotesDragAndDrop({ onMoveNode })
+    useNotesEditing({
+      onRenameNode
+    })
 
   const { handleDropFiles, handleSelectFiles, handleSelectFolder } = useNotesFileUpload({
     onUploadFiles,
     setIsDragOverSidebar
   })
 
-  const { renderMenuItems } = useNotesMenu({
+  const { getMenuItems } = useNotesMenu({
     renamingNodeIds,
     onCreateNote,
     onCreateFolder,
@@ -112,7 +124,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       maxResults: 100,
       contextLength: 50,
       caseSensitive: false,
-      maxFileSize: 10 * 1024 * 1024, // 10MB
+      maxFileSize: 10 * 1024 * 1024,
       enabled: isShowSearch
     }),
     [isShowSearch]
@@ -136,15 +148,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       reset()
       return
     }
-
     if (hasSearchKeyword) {
       search(notesTreeRef.current, trimmedSearchKeyword)
     } else {
       reset()
     }
   }, [isShowSearch, hasSearchKeyword, trimmedSearchKeyword, search, reset])
-
-  // --- Logic ---
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))
@@ -155,12 +164,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   }, [onCreateNote, t])
 
   const handleToggleStarredView = useCallback(() => {
-    setIsShowStarred(!isShowStarred)
-  }, [isShowStarred])
+    setIsShowStarred((prev) => !prev)
+  }, [])
 
   const handleToggleSearchView = useCallback(() => {
-    setIsShowSearch(!isShowSearch)
-  }, [isShowSearch])
+    setIsShowSearch((prev) => !prev)
+  }, [])
 
   const handleSelectSortType = useCallback(
     (selectedSortType: NotesSortType) => {
@@ -169,272 +178,232 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onSortNodes]
   )
 
-  const renderEmptyAreaMenuItems = () => (
-    <>
-      <ContextMenuItem onSelect={handleCreateNote}>
-        <ContextMenuItemContent icon={<FilePlus size={14} />}>{t('notes.new_note')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={handleCreateFolder}>
-        <ContextMenuItemContent icon={<Folder size={14} />}>{t('notes.new_folder')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={handleSelectFiles}>
-        <ContextMenuItemContent icon={<Upload size={14} />}>{t('notes.upload_files')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={handleSelectFolder}>
-        <ContextMenuItemContent icon={<FolderUp size={14} />}>{t('notes.upload_folder')}</ContextMenuItemContent>
-      </ContextMenuItem>
-    </>
-  )
-
-  // Flatten tree nodes for virtualization and filtering
-  const flattenedNodes = useMemo(() => {
-    const flattenForVirtualization = (
-      nodes: NotesTreeNode[],
-      depth: number = 0
-    ): Array<{ node: NotesTreeNode; depth: number }> => {
-      let result: Array<{ node: NotesTreeNode; depth: number }> = []
-
-      for (const node of nodes) {
-        result.push({ node, depth })
-
-        // Include children only if the folder is expanded
-        if (node.type === 'folder' && node.expanded && node.children && node.children.length > 0) {
-          result = [...result, ...flattenForVirtualization(node.children, depth + 1)]
-        }
-      }
-      return result
-    }
-
-    const flattenForFiltering = (nodes: NotesTreeNode[]): NotesTreeNode[] => {
-      let result: NotesTreeNode[] = []
-
-      for (const node of nodes) {
-        if (isShowStarred) {
-          if (node.type === 'file' && node.isStarred) {
-            result.push(node)
-          }
-        }
-        if (node.children && node.children.length > 0) {
-          result = [...result, ...flattenForFiltering(node.children)]
-        }
-      }
-      return result
-    }
-
+  const fileTreeNodes = useMemo<FileTreeNode[]>(() => {
     if (isShowSearch) {
-      if (hasSearchKeyword) {
-        return searchResults.map((result) => ({ node: result, depth: 0 }))
-      }
-      return [] // 搜索关键词为空
+      if (!hasSearchKeyword) return []
+      return searchResults.map((r) => toFileTreeNode(r, true))
     }
-
     if (isShowStarred) {
-      const filteredNodes = flattenForFiltering(notesTree)
-      return filteredNodes.map((node) => ({ node, depth: 0 }))
+      return collectStarredFiles(notesTree).map((n) => toFileTreeNode(n, true))
     }
+    return notesTree.map((n) => toFileTreeNode(n, false))
+  }, [isShowSearch, hasSearchKeyword, searchResults, isShowStarred, notesTree])
 
-    return flattenForVirtualization(notesTree)
-  }, [notesTree, isShowStarred, isShowSearch, hasSearchKeyword, searchResults])
+  const expandedIds = useMemo<ReadonlySet<string>>(() => {
+    if (isShowSearch || isShowStarred) return new Set<string>()
+    return collectExpandedIds(notesTree, new Set<string>())
+  }, [isShowSearch, isShowStarred, notesTree])
 
-  // Scroll to active node
-  useEffect(() => {
-    if (activeNode?.id && !isShowStarred && !isShowSearch && virtualListRef.current) {
-      const timer = setTimeout(() => {
-        const activeIndex = flattenedNodes.findIndex(({ node }) => node.id === activeNode.id)
-        if (activeIndex !== -1) {
-          virtualListRef.current?.scrollToIndex(activeIndex, {
-            align: 'center',
-            behavior: 'auto'
-          })
+  const selectedId = selectedFolderId ?? activeNode?.id ?? null
+
+  // handleSelectNode (NotesPage) already toggles expansion for folders. FileTreeRow's
+  // row click fires onSelectedChange AND onExpandedChange — without dedup the folder
+  // would toggle twice (net no-op). Remember the folder that selection just toggled
+  // so the matching onExpandedChange call can skip it. Chevron clicks only fire
+  // onExpandedChange, so they still toggle as expected.
+  const pendingFolderToggleRef = useRef<string | null>(null)
+
+  const handleFileTreeSelectedChange = useCallback(
+    (id: string | null) => {
+      if (!id) return
+      const node = findNode(notesTreeRef.current, id)
+      if (!node) return
+      if (node.type === 'folder') {
+        pendingFolderToggleRef.current = id
+      }
+      onSelectNode(node)
+    },
+    [onSelectNode]
+  )
+
+  const handleFileTreeExpandedChange = useCallback(
+    (nextExpanded: ReadonlySet<string>) => {
+      const skip = pendingFolderToggleRef.current
+      pendingFolderToggleRef.current = null
+      for (const id of nextExpanded) {
+        if (id !== skip && !expandedIds.has(id)) {
+          onToggleExpanded(id)
         }
-      }, 200)
-      return () => clearTimeout(timer)
-    }
-    return undefined
-  }, [activeNode?.id, isShowStarred, isShowSearch, flattenedNodes])
-
-  // Determine which items should be sticky (only folders in normal view)
-  const isSticky = useCallback(
-    (index: number) => {
-      const item = flattenedNodes[index]
-      if (!item) return false
-
-      // Only folders should be sticky, and only in normal view (not search or starred)
-      return item.node.type === 'folder' && !isShowSearch && !isShowStarred
+      }
+      for (const id of expandedIds) {
+        if (id !== skip && !nextExpanded.has(id)) {
+          onToggleExpanded(id)
+        }
+      }
     },
-    [flattenedNodes, isShowSearch, isShowStarred]
+    [expandedIds, onToggleExpanded]
   )
 
-  // Get the depth of an item for hierarchical sticky positioning
-  const getItemDepth = useCallback(
-    (index: number) => {
-      const item = flattenedNodes[index]
-      return item?.depth ?? 0
+  const renameSlot = useMemo(
+    () => ({
+      isRenaming: (node: FileTreeNode) => editingNodeId === node.id && inPlaceEdit.isEditing,
+      inputProps: inPlaceEdit.inputProps
+    }),
+    [editingNodeId, inPlaceEdit.isEditing, inPlaceEdit.inputProps]
+  )
+
+  const animationSlot = useMemo(
+    () => ({
+      isAnimating: (node: FileTreeNode) => renamingNodeIds.has(node.id),
+      isNewlyRenamed: (node: FileTreeNode) => newlyRenamedNodeIds.has(node.id)
+    }),
+    [renamingNodeIds, newlyRenamedNodeIds]
+  )
+
+  const renderRowExtras = useCallback(
+    (node: FileTreeNode) => {
+      if (!isShowSearch) return null
+      const result = searchResults.find((r) => r.id === node.id)
+      if (!result || !result.matchType || result.matchType === 'filename') return null
+      const label = result.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')
+      return (
+        <span
+          className={
+            result.matchType === 'both'
+              ? 'inline-flex h-4 shrink-0 items-center rounded-xs bg-secondary px-1 font-medium text-secondary-foreground text-xs leading-none'
+              : 'inline-flex h-4 shrink-0 items-center rounded-xs bg-muted px-1 font-medium text-muted-foreground text-xs leading-none'
+          }>
+          {label}
+        </span>
+      )
     },
-    [flattenedNodes]
+    [isShowSearch, searchResults, t]
   )
 
-  const actionsValue = useMemo(
-    () => ({
-      renderMenuItems,
-      onSelectNode,
-      onToggleExpanded
-    }),
-    [renderMenuItems, onSelectNode, onToggleExpanded]
+  const getTreeNodeMenuItems = useCallback(
+    (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
+      const treeNode = findNode(notesTreeRef.current, node.id)
+      if (!treeNode) return []
+      return getMenuItems(treeNode)
+    },
+    [getMenuItems]
   )
 
-  const selectionValue = useMemo(
-    () => ({
-      selectedFolderId,
-      activeNodeId: activeNode?.id
-    }),
-    [selectedFolderId, activeNode?.id]
+  const handleMove = useCallback(
+    (sourceId: string, targetId: string, position: 'before' | 'after' | 'inside') => {
+      onMoveNode(sourceId, targetId, position)
+    },
+    [onMoveNode]
   )
 
-  const editingValue = useMemo(
-    () => ({
-      editingNodeId,
-      renamingNodeIds,
-      newlyRenamedNodeIds,
-      inPlaceEdit
-    }),
-    [editingNodeId, renamingNodeIds, newlyRenamedNodeIds, inPlaceEdit]
-  )
-
-  const dragValue = useMemo(
-    () => ({
-      draggedNodeId,
-      dragOverNodeId,
-      dragPosition,
-      onDragStart: handleDragStart,
-      onDragOver: handleDragOver,
-      onDragLeave: handleDragLeave,
-      onDrop: handleDrop,
-      onDragEnd: handleDragEnd
-    }),
-    [
-      draggedNodeId,
-      dragOverNodeId,
-      dragPosition,
-      handleDragStart,
-      handleDragOver,
-      handleDragLeave,
-      handleDrop,
-      handleDragEnd
-    ]
-  )
-
-  const searchValue = useMemo(
-    () => ({
-      searchKeyword: isShowSearch ? trimmedSearchKeyword : '',
-      showMatches: isShowSearch
-    }),
-    [isShowSearch, trimmedSearchKeyword]
+  const emptyAreaMenuItems = useMemo<CommandContextMenuExtraItem[]>(
+    () => [
+      {
+        type: 'item',
+        id: 'notes.new-note',
+        label: t('notes.new_note'),
+        icon: <FilePlus size={14} />,
+        onSelect: handleCreateNote
+      },
+      {
+        type: 'item',
+        id: 'notes.new-folder',
+        label: t('notes.new_folder'),
+        icon: <Folder size={14} />,
+        onSelect: handleCreateFolder
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        id: 'notes.upload-files',
+        label: t('notes.upload_files'),
+        icon: <Upload size={14} />,
+        onSelect: handleSelectFiles
+      },
+      {
+        type: 'item',
+        id: 'notes.upload-folder',
+        label: t('notes.upload_folder'),
+        icon: <FolderUp size={14} />,
+        onSelect: handleSelectFolder
+      }
+    ],
+    [t, handleCreateNote, handleCreateFolder, handleSelectFiles, handleSelectFolder]
   )
 
   return (
-    <NotesActionsContext value={actionsValue}>
-      <NotesSelectionContext value={selectionValue}>
-        <NotesEditingContext value={editingValue}>
-          <NotesDragContext value={dragValue}>
-            <NotesSearchContext value={searchValue}>
-              <div
-                className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  if (!draggedNodeId) {
-                    setIsDragOverSidebar(true)
-                  }
-                }}
-                onDragLeave={() => setIsDragOverSidebar(false)}
-                onDrop={(e) => {
-                  if (!draggedNodeId) {
-                    void handleDropFiles(e)
-                  }
-                }}>
-                <NotesSidebarHeader
-                  isShowStarred={isShowStarred}
-                  isShowSearch={isShowSearch}
-                  searchKeyword={searchKeyword}
-                  sortType={sortType}
-                  onCreateFolder={handleCreateFolder}
-                  onCreateNote={handleCreateNote}
-                  onToggleStarredView={handleToggleStarredView}
-                  onToggleSearchView={handleToggleSearchView}
-                  onSetSearchKeyword={setSearchKeyword}
-                  onSelectSortType={handleSelectSortType}
-                />
+    <div
+      className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
+      onDragOver={(e) => {
+        e.preventDefault()
+        setIsDragOverSidebar(true)
+      }}
+      onDragLeave={() => setIsDragOverSidebar(false)}
+      onDrop={(e) => {
+        void handleDropFiles(e)
+      }}>
+      <NotesSidebarHeader
+        isShowStarred={isShowStarred}
+        isShowSearch={isShowSearch}
+        searchKeyword={searchKeyword}
+        sortType={sortType}
+        onCreateFolder={handleCreateFolder}
+        onCreateNote={handleCreateNote}
+        onToggleStarredView={handleToggleStarredView}
+        onToggleSearchView={handleToggleSearchView}
+        onSetSearchKeyword={setSearchKeyword}
+        onSelectSortType={handleSelectSortType}
+      />
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  {!isShowStarred && !isShowSearch && (
-                    <div className="px-2 pt-2">
-                      <TreeNode
-                        node={{
-                          id: 'hint-node',
-                          name: '',
-                          type: 'hint',
-                          treePath: '',
-                          externalPath: '',
-                          createdAt: '',
-                          updatedAt: ''
-                        }}
-                        depth={0}
-                        renderChildren={false}
-                        onHintClick={handleSelectFolder}
-                      />
-                    </div>
-                  )}
-                  {isShowSearch && isSearching && (
-                    <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>{t('notes.search.searching')}</span>
-                      <button
-                        type="button"
-                        className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
-                        onClick={cancel}
-                        title={t('common.cancel')}>
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                  {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
-                    <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
-                      <span>
-                        {t('notes.search.found_results', {
-                          count: searchStats.total,
-                          nameCount: searchStats.fileNameMatches,
-                          contentCount: searchStats.contentMatches + searchStats.bothMatches
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  <ContextMenu>
-                    <ContextMenuTrigger asChild>
-                      <DynamicVirtualList
-                        ref={virtualListRef}
-                        list={flattenedNodes}
-                        estimateSize={() => 28}
-                        itemContainerStyle={{ padding: '8px 8px 0 8px' }}
-                        overscan={10}
-                        isSticky={isSticky}
-                        getItemDepth={getItemDepth}>
-                        {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
-                      </DynamicVirtualList>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
-                  </ContextMenu>
-                </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {isShowSearch && isSearching && (
+          <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
+            <Loader2 size={14} className="animate-spin" />
+            <span>{t('notes.search.searching')}</span>
+            <button
+              type="button"
+              className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
+              onClick={cancel}
+              title={t('common.cancel')}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+        {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
+          <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
+            <span>
+              {t('notes.search.found_results', {
+                count: searchStats.total,
+                nameCount: searchStats.fileNameMatches,
+                contentCount: searchStats.contentMatches + searchStats.bothMatches
+              })}
+            </span>
+          </div>
+        )}
 
-                {isDragOverSidebar && (
-                  <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />
-                )}
-              </div>
-            </NotesSearchContext>
-          </NotesDragContext>
-        </NotesEditingContext>
-      </NotesSelectionContext>
-    </NotesActionsContext>
+        <div className="min-h-0 flex-1 px-2 pt-2">
+          <CommandContextMenu location="webcontents.context" extraItems={emptyAreaMenuItems}>
+            <div className="h-full min-h-0">
+              <FileTree
+                nodes={fileTreeNodes}
+                expandedIds={expandedIds}
+                onExpandedChange={handleFileTreeExpandedChange}
+                selectedId={selectedId}
+                onSelectedChange={handleFileTreeSelectedChange}
+                onMove={handleMove}
+                renameSlot={renameSlot}
+                animationSlot={animationSlot}
+                renderRowExtras={renderRowExtras}
+                getMenuItems={getTreeNodeMenuItems}
+              />
+            </div>
+          </CommandContextMenu>
+        </div>
+
+        {!isShowStarred && !isShowSearch && (
+          <div
+            className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-muted-foreground text-xs italic hover:text-foreground"
+            onClick={handleSelectFolder}>
+            <FilePlus size={14} className="shrink-0" />
+            <span>{t('notes.drop_markdown_hint')}</span>
+          </div>
+        )}
+      </div>
+
+      {isDragOverSidebar && (
+        <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />
+      )}
+    </div>
   )
 }
 

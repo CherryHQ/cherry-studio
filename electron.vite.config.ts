@@ -128,6 +128,7 @@ export default defineConfig({
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
+        '@cherrystudio/ui/composites/markdown': resolve('packages/ui/src/components/composites/markdown'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
         '@test-mocks': resolve('tests/__mocks__')
       }

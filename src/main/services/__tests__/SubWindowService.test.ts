@@ -451,41 +451,28 @@ describe('SubWindowService', () => {
     })
   })
 
-  describe('Tab_TryAttach handler', () => {
-    it('broadcasts + closes sub window when drop is over Main tab bar', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:try-attach')
-      const mainWin = createMockWindow()
-      windowManagerMock.getWindowsByType.mockImplementation((type) => (type === 'main' ? [mainWin as any] : []))
-      ;(svc as any).tabIdToWindowId.set('tab-drop', 'wid-drop')
+  describe('SubWindow_SetAlwaysOnTop handler', () => {
+    it('pins via WindowManager behavior when the sender window is tracked', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-9')
 
-      const result = await handler({} as any, {
-        tab: { id: 'tab-drop' },
-        screenX: 500,
-        screenY: 120 // within 100..900 x and 100..140 y (tab bar 40px)
-      })
+      const result = handler({ sender: {} } as any, true)
 
       expect(result).toBe(true)
-      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith('main', 'tab:attach', { id: 'tab-drop' })
-      expect(windowManagerMock.close).toHaveBeenCalledWith('wid-drop')
+      expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub-9', true)
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
     })
 
-    it('restores opacity to 1 when drop misses the tab bar', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:try-attach')
-      const mainWin = createMockWindow()
-      const subWin = createMockWindow()
-      windowManagerMock.getWindowsByType.mockImplementation((type) => (type === 'main' ? [mainWin as any] : []))
-      windowManagerMock.getWindow.mockImplementation((id) => (id === 'wid-drop' ? subWin : undefined))
-      ;(svc as any).tabIdToWindowId.set('tab-drop', 'wid-drop')
+    it('ignores (returns false) when the sender is not a WindowManager-tracked window', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
 
-      const result = await handler({} as any, {
-        tab: { id: 'tab-drop' },
-        screenX: 500,
-        screenY: 500 // well below tab bar
-      })
+      const result = handler({ sender: {} } as any, true)
 
       expect(result).toBe(false)
-      expect(windowManagerMock.close).not.toHaveBeenCalled()
-      expect(subWin.setOpacity).toHaveBeenCalledWith(1)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
+      // No fallback: an untracked sender is not a sub-window, so we never poke a raw BrowserWindow.
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
     })
   })
 

@@ -101,12 +101,14 @@ describe('ImageViewer', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
-  it('downloads the image from the context menu', () => {
+  it('downloads the image from the context menu', async () => {
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
 
-    expect(mocks.download).toHaveBeenCalledWith('https://example.com/image.png')
+    await waitFor(() => {
+      expect(mocks.download).toHaveBeenCalledWith('https://example.com/image.png')
+    })
   })
 
   it('reads image blobs from data URLs', async () => {

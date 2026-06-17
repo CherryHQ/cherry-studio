@@ -788,12 +788,26 @@ async function transformSingleBlockToPart(
             ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
           }
         : undefined
+      const callProviderMetadata = raw?.tool
+        ? {
+            cherry: {
+              tool: {
+                ...(toolType ? { type: toolType } : {}),
+                ...(raw.tool.name ? { name: raw.tool.name } : {}),
+                ...(raw.tool.description ? { description: raw.tool.description } : {}),
+                ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+                ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+              }
+            }
+          }
+        : undefined
 
       const base = {
         type: 'dynamic-tool' as const,
         toolName,
         toolCallId,
-        input
+        input,
+        ...(callProviderMetadata ? { callProviderMetadata } : {})
       }
 
       const partWithoutMeta: DynamicToolUIPart = isError

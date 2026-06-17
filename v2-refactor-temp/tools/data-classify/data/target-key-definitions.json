@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2026-03-24"
+    "lastUpdated": "2026-06-01"
   },
   "definitions": [
     {
@@ -99,7 +99,7 @@
     {
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": ["assistants", "agents", "paintings", "translate", "store"],
+      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
       "status": "classified",
       "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
     },
@@ -116,6 +116,78 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.tab.display_mode",
+      "type": "PreferenceTypes.TopicDisplayMode",
+      "defaultValue": "assistant",
+      "status": "classified",
+      "description": "Topic sidebar display grouping mode"
+    },
+    {
+      "targetKey": "topic.tab.group_expansion",
+      "type": "PreferenceTypes.TopicGroupExpansionPreference",
+      "defaultValue": {
+        "assistant": {
+          "expandedGroupIds": [],
+          "expandedSectionIds": [
+            "topic:section:pinned",
+            "topic:section:assistant"
+          ]
+        },
+        "time": {
+          "expandedGroupIds": [
+            "topic:pinned",
+            "topic:time:today",
+            "topic:time:yesterday",
+            "topic:time:this-week",
+            "topic:time:earlier"
+          ],
+          "expandedSectionIds": []
+        }
+      },
+      "status": "classified",
+      "description": "Topic sidebar expansion state by display mode"
+    },
+    {
+      "targetKey": "agent.session.display_mode",
+      "type": "PreferenceTypes.AgentSessionDisplayMode",
+      "defaultValue": "agent",
+      "status": "classified",
+      "description": "Agent session sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.session.group_expansion",
+      "type": "PreferenceTypes.AgentSessionGroupExpansionPreference",
+      "defaultValue": {
+        "agent": {
+          "expandedGroupIds": [],
+          "expandedSectionIds": [
+            "session:section:pinned",
+            "session:section:agent"
+          ]
+        },
+        "time": {
+          "expandedGroupIds": [
+            "session:pinned",
+            "session:time:today",
+            "session:time:yesterday",
+            "session:time:this-week",
+            "session:time:earlier"
+          ],
+          "expandedSectionIds": []
+        },
+        "workdir": {
+          "expandedGroupIds": [],
+          "expandedSectionIds": [
+            "session:section:pinned",
+            "session:section:workdir",
+            "session:section:no-project"
+          ]
+        }
+      },
+      "status": "classified",
+      "description": "Agent session sidebar expansion state by display mode"
     },
     {
       "targetKey": "feature.quick_assistant.model_id",
