@@ -37,6 +37,7 @@ import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
+const SQLITE_INARRAY_CHUNK = 500
 
 function assertManagedCherryAiDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
   if (!isManagedCherryAiDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
@@ -857,6 +858,64 @@ class ModelService {
     })
 
     logger.info('Deleted model', { providerId, modelId })
+  }
+
+  /**
+   * Delete multiple models atomically.
+   */
+  async bulkDelete(items: { providerId: string; modelId: string }[]): Promise<void> {
+    if (items.length === 0) return
+
+    const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
+
+    for (const item of items) {
+      assertManagedCherryAiDefaultModelMutationAllowed(
+        item.providerId,
+        item.modelId,
+        `delete model ${item.providerId}/${item.modelId}`
+      )
+      uniqueItems.set(createUniqueModelId(item.providerId, item.modelId), item)
+    }
+
+    const ids = [...uniqueItems.keys()]
+
+    await application.get('DbService').withWriteTx(async (tx) => {
+      const existingIds = new Set<string>()
+      for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+        const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+        const existingRows = await tx
+          .select({ id: userModelTable.id })
+          .from(userModelTable)
+          .where(inArray(userModelTable.id, chunk))
+        for (const row of existingRows) existingIds.add(row.id)
+      }
+
+      const missingId = ids.find((id) => !existingIds.has(id))
+      if (missingId) {
+        throw DataApiErrorFactory.notFound('Model', missingId)
+      }
+
+      for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+        const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+        const deletedRows = await tx
+          .delete(userModelTable)
+          .where(inArray(userModelTable.id, chunk))
+          .returning({ id: userModelTable.id })
+
+        if (deletedRows.length > 0) {
+          await pinService.purgeForEntitiesTx(
+            tx,
+            'model',
+            deletedRows.map((row) => row.id)
+          )
+        }
+      }
+    })
+
+    logger.info('Bulk deleted models', {
+      count: ids.length,
+      providers: [...new Set([...uniqueItems.values()].map((item) => item.providerId))]
+    })
   }
 
   /**

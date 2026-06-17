@@ -95,7 +95,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     { providerId },
     { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
   )
-  const { deleteModel, updateModel, updateModels } = useModelMutations()
+  const { deleteModel, deleteModels, updateModel, updateModels } = useModelMutations()
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
   const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
@@ -237,15 +237,10 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         return
       }
 
-      const targets = modelsToDelete.map((model) => ({
-        model,
-        modelId: parseUniqueModelId(model.id).modelId
-      }))
-
       setOptimisticDeletedByModelId((current) => {
         const next = { ...current }
 
-        for (const { model } of targets) {
+        for (const model of modelsToDelete) {
           next[model.id] = true
         }
 
@@ -254,46 +249,40 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       setPendingModelIdMap((current) => {
         const next = { ...current }
 
-        for (const { model } of targets) {
+        for (const model of modelsToDelete) {
           next[model.id] = true
         }
 
         return next
       })
 
-      const results = await Promise.allSettled(
-        targets.map(({ model, modelId }) => deleteModel(model.providerId, modelId))
-      )
-      const failedTargets = targets.filter((_, index) => results[index]?.status === 'rejected')
-
-      if (failedTargets.length > 0) {
+      try {
+        await deleteModels(modelsToDelete.map((model) => model.id))
+      } catch (error) {
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
 
-          for (const { model } of failedTargets) {
+          for (const model of modelsToDelete) {
+            delete next[model.id]
+          }
+
+          return next
+        })
+
+        throw error
+      } finally {
+        setPendingModelIdMap((current) => {
+          const next = { ...current }
+
+          for (const model of modelsToDelete) {
             delete next[model.id]
           }
 
           return next
         })
       }
-
-      setPendingModelIdMap((current) => {
-        const next = { ...current }
-
-        for (const { model } of targets) {
-          delete next[model.id]
-        }
-
-        return next
-      })
-
-      const firstFailure = results.find((result) => result.status === 'rejected')
-      if (firstFailure?.status === 'rejected') {
-        throw firstFailure.reason
-      }
     },
-    [deleteModel]
+    [deleteModels]
   )
 
   const onToggleModel = useCallback(
