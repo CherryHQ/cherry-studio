@@ -98,6 +98,8 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   searchPlacement?: ComboboxSearchPlacement
   searchPlaceholder?: string
   emptyText?: string
+  /** Aria-label for the remove tag button. Receives the selected option label. */
+  getRemoveTagAriaLabel?: (optionLabel: string) => string
   onSearch?: (search: string) => void
   filterOption?: (option: ComboboxOption<TExtra>, search: string) => boolean
 
@@ -134,6 +136,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   searchPlacement = 'content',
   searchPlaceholder = 'Search...',
   emptyText = 'No results found.',
+  getRemoveTagAriaLabel = (optionLabel) => `Remove ${optionLabel}`,
   onSearch,
   filterOption,
   error = false,
@@ -363,7 +366,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               {option.label}
               <button
                 type="button"
-                aria-label={`Remove ${option.label}`}
+                aria-label={getRemoveTagAriaLabel(option.label)}
                 className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-success"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>

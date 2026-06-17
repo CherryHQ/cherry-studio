@@ -130,6 +130,43 @@ describe('useTreeDragAndDrop', () => {
     expect(onMove).toHaveBeenCalledWith('source', 'leaf', 'after')
   })
 
+  it('falls back to inside on container drop without a prior dragOver', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() =>
+      useTreeDragAndDrop({
+        onMove,
+        canHaveChildren: () => true
+      })
+    )
+    const sourceHandles = result.current.getDragHandleProps('source')
+    act(() => {
+      sourceHandles.onDragStart(makeDragEvent({ data: 'source' }))
+    })
+    const targetHandles = result.current.getDragHandleProps('container')
+
+    act(() => {
+      targetHandles.onDrop(makeDragEvent())
+    })
+
+    expect(onMove).toHaveBeenCalledWith('source', 'container', 'inside')
+  })
+
+  it('falls back to inside when canHaveChildren is omitted', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() => useTreeDragAndDrop({ onMove }))
+    const sourceHandles = result.current.getDragHandleProps('source')
+    act(() => {
+      sourceHandles.onDragStart(makeDragEvent({ data: 'source' }))
+    })
+    const targetHandles = result.current.getDragHandleProps('target')
+
+    act(() => {
+      targetHandles.onDrop(makeDragEvent())
+    })
+
+    expect(onMove).toHaveBeenCalledWith('source', 'target', 'inside')
+  })
+
   it('ignores self-drop', () => {
     const onMove = vi.fn()
     const { result } = renderHook(() => useTreeDragAndDrop({ onMove }))

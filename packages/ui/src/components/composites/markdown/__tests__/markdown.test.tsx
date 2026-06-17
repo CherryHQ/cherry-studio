@@ -35,6 +35,18 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('pre')).not.toBeNull()
   })
 
+  it('keeps generated SVG max-width through the full sanitize pipeline', () => {
+    const { container } = render(
+      <Markdown id="m3">{'<svg width="120" height="60"><rect width="120" height="60" /></svg>'}</Markdown>
+    )
+    const svg = container.querySelector('svg')
+
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 120 60')
+    expect(svg?.getAttribute('width')).toBe('100%')
+    expect(svg?.getAttribute('style')).toContain('max-width: 120px')
+    expect(svg?.hasAttribute('height')).toBe(false)
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {

@@ -17,7 +17,7 @@ export interface WithMathOptions {
   singleDollar?: boolean
 }
 
-export interface WithChatPluginsOptions {
+export interface WithFullMarkdownOptions {
   singleDollarMath?: boolean
 }
 
@@ -39,12 +39,18 @@ export function withMermaid(): PluginConfig['mermaid'] {
 
 /**
  * Composer preset bundling all four plugins (code + cjk + math + mermaid).
- * Suitable for chat surfaces that render the full markdown surface.
+ * Suitable for consumers that render the full markdown surface.
  */
-export function withChatPlugins(opts?: WithChatPluginsOptions): PluginConfig {
+export function withFullMarkdown(opts?: WithFullMarkdownOptions): PluginConfig {
   return {
     ...defaultMarkdownPlugins,
     math: withMath({ singleDollar: opts?.singleDollarMath ?? false }),
     mermaid: withMermaid()
   }
 }
+
+/**
+ * @deprecated Use `withFullMarkdown`. Kept as a compatibility alias for
+ * downstream branches that still import this preset from the markdown barrel.
+ */
+export const withChatPlugins = withFullMarkdown

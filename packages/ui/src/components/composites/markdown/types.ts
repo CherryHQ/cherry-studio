@@ -1,18 +1,15 @@
 /**
- * Status alphabet that the chat layer happens to use. Replicated as a local
- * literal union so this package does not depend on `@shared/data/types/message`.
- * Callers passing the chat-layer's `MessageStatus | 'streaming'` are
- * structurally compatible.
+ * Generic render source status. Kept as `string` so app-specific layers can
+ * pass their own status alphabet without coupling this package to chat types.
  */
-export type MarkdownStatus = 'pending' | 'success' | 'error' | 'paused' | 'streaming'
+export type MarkdownStatus = string
 
 /**
  * Lightweight interface for Markdown rendering source.
- * Mirrors the chat layer's MarkdownSource so a future Markdown component in
- * this package can consume the same shape callers already pass today.
+ * Provides the common id/content/status shape without owning status semantics.
  */
-export interface MarkdownSource {
+export interface MarkdownSource<TStatus extends MarkdownStatus = MarkdownStatus> {
   id: string
   content: string
-  status: MarkdownStatus
+  status: TStatus
 }

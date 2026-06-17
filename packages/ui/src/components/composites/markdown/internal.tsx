@@ -1,7 +1,7 @@
 /**
  * Shared rendering body for `<Markdown>` and `<StreamingMarkdown>`. Builds
- * the rehype pipeline (defaultRehypePlugins → conditional SVG scaling →
- * extended sanitize schema → SVG ID prefixing → harden → heading IDs →
+ * the rehype pipeline (defaultRehypePlugins → extended sanitize schema →
+ * conditional SVG scaling → SVG ID prefixing → harden → heading IDs →
  * caller-supplied `extraRehypePlugins`) and hands `children`
  * to Streamdown verbatim. Any pre-processing (LaTeX bracket conversion,
  * SVG cleanup, citation tag injection) is the caller's responsibility —
@@ -104,9 +104,9 @@ export function MarkdownCore({
     const { raw, sanitizeFn, sanitizeSchema, harden } = resolveDefaultRehypePlugins()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
     const result: Pluggable[] = [raw]
-    if (hasSvgElement) result.push(rehypeScalableSvg)
     result.push(
       [sanitizeFn, extendedSchema] as Pluggable,
+      ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
       harden,
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable

@@ -4,7 +4,14 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { DragPosition, TreeDragHandleProps } from './types'
 
 export interface UseTreeDragAndDropOptions {
-  /** Move callback. When undefined, all returned listeners are no-ops and draggable is false. */
+  /**
+   * Move callback. When undefined, all returned listeners are no-ops and draggable is false.
+   *
+   * The hook guards self-drops and external drops. Callers still own structural
+   * validation before mutating tree data, including rejecting moves where
+   * `targetId` is a descendant of `sourceId`; accepting those moves can create
+   * cycles or orphan nodes in the caller's tree.
+   */
   onMove?: (sourceId: string, targetId: string, position: DragPosition) => void
   /** Whether the target node accepts 'inside' drops. Default: true for everything. */
   canHaveChildren?: (nodeId: string) => boolean

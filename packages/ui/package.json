@@ -141,8 +141,7 @@
   "sideEffects": [
     "**/*.css",
     "./dist/composites/markdown/styles.js",
-    "./dist/composites/markdown/styles.mjs",
-    "./src/components/composites/markdown/styles.ts"
+    "./dist/composites/markdown/styles.mjs"
   ],
   "engines": {
     "node": ">=18.0.0"

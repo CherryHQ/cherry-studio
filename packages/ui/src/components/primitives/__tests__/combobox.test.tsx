@@ -173,4 +173,20 @@ describe('Combobox', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Remove Alpha' }), { key: ' ' })
     expect(onChange).toHaveBeenCalledWith(['beta'])
   })
+
+  it('allows selected multi-value removal labels to be localized', () => {
+    render(
+      <Combobox
+        multiple
+        options={options}
+        value={['alpha']}
+        placeholder="Pick values"
+        emptyText="No results"
+        getRemoveTagAriaLabel={(label) => `Clear ${label}`}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Clear Alpha' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
+  })
 })
