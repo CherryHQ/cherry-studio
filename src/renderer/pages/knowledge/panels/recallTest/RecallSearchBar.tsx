@@ -31,7 +31,11 @@ const RecallSearchBar = () => {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
-      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50">
+      {/* Inset focus ring: an outset ring is painted outside the wrapper's box and gets
+          clipped by the panel's `overflow-x-hidden` ancestor (and overlapped by the open
+          history dropdown), leaving the lower/right edge incomplete. Drawing it inset keeps
+          the whole focus border within the wrapper, so it always renders fully. */}
+      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50 focus-within:ring-inset">
         <Search className="size-3.5 shrink-0 text-foreground-muted" />
         <Input
           value={query}

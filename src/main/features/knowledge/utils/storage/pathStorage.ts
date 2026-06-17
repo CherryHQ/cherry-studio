@@ -6,10 +6,16 @@ import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
 import { copy, ensureDir, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
-import { documentExts } from '@shared/config/constant'
+import { knowledgeFileProcessingExts } from '@shared/config/constant'
 import type { FilePath } from '@shared/file/types'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
+
+// A processed `.md` artifact is emitted iff the source actually runs through the file
+// processor — the exact predicate `needsFileProcessing` (sourcePlanning) uses. Keying
+// reservation off the same processing-ext source of truth keeps the two from ever
+// disagreeing (e.g. `.xls`, which is processed but not in the app-wide `documentExts`).
+const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
 const CHERRY_META_DIR = '.cherry'
 const VECTOR_STORE_FILE = 'index.sqlite'
@@ -139,7 +145,7 @@ export function needsProcessedArtifactReservation(
   if (!fileProcessorId) {
     return false
   }
-  return documentExts.includes(getFileExt(relativePath).toLowerCase())
+  return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(getFileExt(relativePath).toLowerCase())
 }
 
 /**

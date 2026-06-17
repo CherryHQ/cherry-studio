@@ -2174,6 +2174,7 @@
           "success": "Data source added to knowledge base"
         },
         "title": "Add Data Source",
+        "unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Enter a webpage URL:",
           "help": "Page text will be fetched, chunked, and indexed automatically",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "Cancel",
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
         "delete_confirm_title": "Delete Selected Data Sources?",
@@ -2241,9 +2241,7 @@
         "select_row": "Select row"
       },
       "toolbar": {
-        "add": "Add Data Source",
-        "no_search_results": "No matching data sources",
-        "search_placeholder": "Search data sources"
+        "add": "Add Data Source"
       }
     },
     "dimensions_auto_set": "Auto-set embedding dimensions",

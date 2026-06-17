@@ -157,6 +157,55 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
+  it('skips unsupported file extensions while expanding directory trees', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'workspace')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
+    realFs.writeFileSync(path.join(rootDir, 'app.exe'), 'binary')
+    // OpenDocument formats are app-wide "documents" but intentionally unsupported by the
+    // knowledge base, so a rebuild/restore that walks a directory must skip them too.
+    realFs.writeFileSync(path.join(rootDir, 'legacy.odt'), 'odt')
+    realFs.writeFileSync(path.join(rootDir, 'deck.odp'), 'odp')
+    realFs.writeFileSync(path.join(rootDir, 'sheet.ods'), 'ods')
+
+    copyFileIntoKnowledgeBaseAtMock.mockClear()
+    const nodes = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: rootDir,
+          path: rootDir
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      createSignal()
+    )
+
+    expect(nodes).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(rootDir, 'readme.md'),
+          relativePath: 'dir-owner-1/readme.md'
+        }
+      }
+    ])
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(1)
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'kb-1',
+      path.join(rootDir, 'readme.md'),
+      'dir-owner-1/readme.md'
+    )
+  })
+
   it('gives same-basename files in different subdirectories distinct relative paths', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'project')
