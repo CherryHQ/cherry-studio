@@ -36,12 +36,13 @@ describe('useScrollAnchor', () => {
     vi.unstubAllGlobals()
   })
 
-  it('sizes the pinned spacer to the exact room needed and holds it until release', () => {
+  it('over-allocates the pinned spacer, then tightens to the exact room once content settles', () => {
     const scroller = document.createElement('div')
-    let scrollHeight = 420
+    let contentHeight = 420
     let canRelease = false
     setElementMetric(scroller, 'clientHeight', () => 400)
-    setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+    // DOM scrollHeight = real content + the rendered spacer (itself a virtua item).
+    setElementMetric(scroller, 'scrollHeight', () => contentHeight + result.current.spacerHeight)
 
     const handle = {
       getItemOffset: vi.fn(() => 300),
@@ -63,30 +64,28 @@ describe('useScrollAnchor', () => {
       })
     )
 
-    // needed = anchorOffset(300) + viewport(400) - natural(420) = 280.
-    // The spacer is the exact remaining room (not a full extra viewport), so
-    // scrollSize == anchorOffset + viewport and the scrollbar rests at bottom.
+    // On pin the spacer is over-allocated to a full viewport (400) so the
+    // message reliably reaches the top even before virtua has measured — NOT the
+    // tight needed (300 + 400 - 420 = 280).
     act(() => result.current.pinTo(2))
-    expect(result.current.spacerHeight).toBe(280)
+    expect(result.current.spacerHeight).toBe(400)
 
     flushRaf()
     expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
 
-    // While pinned, the spacer is monotonic: as the reply grows (needed shrinks)
-    // it is not shrunk per chunk, to avoid jittering scrollHeight under the view.
-    scrollHeight = 780
+    // Content stable (a measurement settle): tighten down to needed = 280 so the
+    // scrollbar rests at the bottom.
     act(() => result.current.onContentSizeChange())
-
     expect(result.current.spacerHeight).toBe(280)
 
-    scrollHeight = 1100
+    // Reply streams in (content grows): hold the spacer, do not shrink per chunk.
+    contentHeight = 900
     act(() => result.current.onContentSizeChange())
-
     expect(result.current.spacerHeight).toBe(280)
 
+    // Streaming finished and the lock opened: needed is now 0, reclaim the spacer.
     canRelease = true
     act(() => result.current.onContentSizeChange())
-
     expect(result.current.spacerHeight).toBe(0)
   })
 })

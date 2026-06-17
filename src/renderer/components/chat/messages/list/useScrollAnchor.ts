@@ -12,10 +12,15 @@
  *     always the last item; data indices are unaffected)
  *
  * The spacer height is maintained so the invariant `anchorOffset +
- * viewportHeight <= scrollSize` holds. While pinned, the spacer is
- * monotonic: it grows only when the natural scroll range is not enough to
- * keep the user message at the top. It is not shrunk per streaming chunk,
- * because changing scrollHeight under the viewport can visibly jitter.
+ * viewportHeight <= scrollSize` holds. On pin it is over-allocated to at
+ * least a full viewport so the message reliably reaches the top even before
+ * virtua has measured the freshly inserted items (its offset table is
+ * briefly an estimate, which would otherwise leave too little scroll range
+ * and strand the message near the bottom). Once the content settles it is
+ * tightened to exactly the room needed, so the scrollbar comes to rest at
+ * the bottom. It is never shrunk while content is actively growing (a
+ * streaming chunk), because changing scrollHeight under the viewport can
+ * visibly jitter — it only tightens on a stable measurement pass.
  *
  * Release triggers:
  *   - User scrolls more than `RELEASE_TOLERANCE_PX` away from the anchor
@@ -75,6 +80,10 @@ export function useScrollAnchor({
   const anchorIndexRef = useRef<number | null>(null)
   // Last known offset of the anchored item — used to detect user scroll-away.
   const anchorOffsetRef = useRef<number>(0)
+  // Natural (non-spacer) scroll size at the previous pinned size check. Lets us
+  // tell a measurement settle (safe to tighten the spacer) from a streaming
+  // chunk (hold it, to avoid jitter).
+  const lastPinnedNaturalRef = useRef(0)
   const [spacerHeight, setSpacerHeight] = useState(0)
   // The spacer is appended after data items, so wrappedIdx for a data
   // item is identical to its data index. The orchestrator passes us the
@@ -113,16 +122,16 @@ export function useScrollAnchor({
       // (spacer goes at the end). Use scrollToIndex — virtua handles the
       // measurement race internally and re-positions on next frame if needed.
       //
-      // Size the spacer to exactly the room still needed to bring the anchored
-      // message to the top — no more. That makes scrollSize == anchorOffset +
-      // viewport, so the user message sits at the top AND the scrollbar rests
-      // at the bottom: the blank below is exactly one viewport minus the user
-      // message and the reply placeholder, which is where the answer streams
-      // in. A previous `Math.max(viewport, needed)` floor over-reserved a whole
-      // extra viewport, leaving a too-tall blank with the scrollbar stuck
-      // mid-track until the reply grew (or the pin released).
+      // Over-allocate the spacer to at least a full viewport here. At this
+      // instant virtua may not have measured the freshly inserted message, so
+      // `getItemOffset` (hence `needed`) can read low and leave too little
+      // scroll range to lift the message to the top — stranding it near the
+      // bottom. The viewport floor guarantees enough range regardless; the
+      // ResizeObserver pass below then tightens the spacer down to `needed` once
+      // the content settles, so the scrollbar still ends at the bottom.
       const needed = computeNeededSpacer()
-      setSpacerHeight(needed)
+      setSpacerHeight(Math.max(el.clientHeight, needed))
+      lastPinnedNaturalRef.current = getNaturalScrollableSize()
       // Schedule the scroll for after the spacer-applying render commits.
       // RAF is enough because virtua's scrollToIndex resolves the item offset
       // after the spacer-applying render has committed. Keep this instant:
@@ -135,7 +144,7 @@ export function useScrollAnchor({
         anchorOffsetRef.current = h.getItemOffset(dataIndex)
       })
     },
-    [computeNeededSpacer, scrollerRef, vlistHandleRef]
+    [computeNeededSpacer, getNaturalScrollableSize, scrollerRef, vlistHandleRef]
   )
 
   const release = useCallback(() => {
@@ -162,11 +171,20 @@ export function useScrollAnchor({
         anchorIndexRef.current = null
         return
       }
+      const naturalNow = getNaturalScrollableSize()
+      const contentGrew = naturalNow > lastPinnedNaturalRef.current
+      lastPinnedNaturalRef.current = naturalNow
       const needed = computeNeededSpacer()
       if (needed === 0 && canRelease()) {
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
       } else if (needed > spacerHeight) {
+        setSpacerHeight(needed)
+      } else if (needed < spacerHeight && !contentGrew) {
+        // Content is stable (a measurement settle, not a streaming chunk): the
+        // pin's viewport over-allocation can be tightened to exactly the room
+        // needed so the scrollbar rests at the bottom. While content is actively
+        // growing we hold the spacer (monotonic) to avoid jittering scrollHeight.
         setSpacerHeight(needed)
       }
       return
