@@ -25,8 +25,8 @@ import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
+import { getDataService, registerDataService } from './dataServiceRegistry'
 import { fileRefService } from './FileRefService'
-import { messageService } from './MessageService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -154,6 +154,7 @@ export class TopicService {
 
   async create(dto: CreateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
+    const messageService = getDataService('MessageService')
     const groupId = dto.groupId ?? null
 
     const row = await dbService.withWriteTx(async (tx) => {
@@ -182,6 +183,7 @@ export class TopicService {
 
   async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
+    const messageService = getDataService('MessageService')
 
     const copiedTopic = await dbService.withWriteTx(async (tx) => {
       const [sourceTopic] = await tx
@@ -315,6 +317,7 @@ export class TopicService {
     }
     if (deletedIds.length === 0) return []
 
+    const messageService = getDataService('MessageService')
     await messageService.purgeByTopicIdsTx(tx, deletedIds)
     await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
@@ -584,3 +587,5 @@ export class TopicService {
 }
 
 export const topicService = new TopicService()
+
+registerDataService('TopicService', topicService)
