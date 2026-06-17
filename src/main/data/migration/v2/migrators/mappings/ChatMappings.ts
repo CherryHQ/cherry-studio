@@ -61,7 +61,7 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
-import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
+import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { Base64String, FilePath } from '@shared/file/types/common'
 import type { FileMetadata } from '@types'
@@ -187,7 +187,6 @@ export interface OldMessage {
   // Metadata
   usage?: OldUsage
   metrics?: OldMetrics
-  traceId?: string
 
   // Dropped: mentions are redundant in tree-based architecture
   // (derivable from sibling response messages' modelId + siblingsGroupId)
@@ -199,6 +198,8 @@ export interface OldMessage {
   enabledMCPs?: unknown[]
   agentSessionId?: string
   providerMetadata?: unknown
+  // Legacy span pointer; dropped because v1 span detail files are not migrated.
+  traceId?: string
 }
 
 /**
@@ -773,15 +774,35 @@ async function transformSingleBlockToPart(
       const rawName = block.toolName || raw?.tool?.name || 'unknown'
       const serverName = raw?.tool?.serverName
       const toolName = serverName ? `${serverName}: ${rawName}` : rawName
+      const toolCallId = block.toolId || raw?.toolCallId || raw?.id || block.id
       const input = block.arguments ?? raw?.arguments ?? {}
       const output = raw?.response ?? block.content
       const isError = contentObj?.isError === true || raw?.status === 'error'
+      const rawToolType = raw?.tool?.type
+      const toolType =
+        rawToolType === 'mcp' || rawToolType === 'builtin' || rawToolType === 'provider' ? rawToolType : undefined
+      const toolMetadata: CherryToolMeta['tool'] | undefined = raw?.tool
+        ? {
+            ...(toolType ? { type: toolType } : {}),
+            ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+            ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+          }
+        : undefined
 
-      const base = { type: 'dynamic-tool' as const, toolName, toolCallId: block.toolId, input }
+      const base = {
+        type: 'dynamic-tool' as const,
+        toolName,
+        toolCallId,
+        input
+      }
 
-      const part: DynamicToolUIPart = isError
+      const partWithoutMeta: DynamicToolUIPart = isError
         ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
         : { ...base, state: 'output-available', output }
+      const part =
+        toolMetadata && Object.keys(toolMetadata).length > 0
+          ? withCherryMeta(partWithoutMeta, { tool: toolMetadata })
+          : partWithoutMeta
 
       return { part, extraParts: null, citations: null, searchableText: null }
     }

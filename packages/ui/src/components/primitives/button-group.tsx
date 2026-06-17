@@ -4,7 +4,7 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 const buttonGroupVariants = cva(
-  "flex w-fit items-stretch has-[>[data-slot=button-group]]:gap-2 *:focus-visible:relative *:focus-visible:z-10 has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-md [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:bg-primary/10 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:text-primary [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:shadow-[inset_0_0_0_1px_var(--color-primary)]/20 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:hover:bg-primary/15 [&>[data-slot=button][data-variant=default]]:bg-primary/10 [&>[data-slot=button][data-variant=default]]:text-primary [&>[data-slot=button][data-variant=default]]:shadow-[inset_0_0_0_1px_var(--color-primary)]/20 [&>[data-slot=button][data-variant=default]]:hover:bg-primary/15",
+  "flex w-fit items-stretch has-[>[data-slot=button-group]]:gap-2 *:focus-visible:relative *:focus-visible:z-10 has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-md [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:relative [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:z-1 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:bg-primary/10 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:text-primary [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:shadow-[inset_0_0_0_1px_var(--color-primary)]/20 [&>[data-slot=button-group-item]>[data-slot=button][data-variant=default]]:hover:bg-primary/15 [&>[data-slot=button][data-variant=default]]:relative [&>[data-slot=button][data-variant=default]]:z-1 [&>[data-slot=button][data-variant=default]]:bg-primary/10 [&>[data-slot=button][data-variant=default]]:text-primary [&>[data-slot=button][data-variant=default]]:shadow-[inset_0_0_0_1px_var(--color-primary)]/20 [&>[data-slot=button][data-variant=default]]:hover:bg-primary/15",
   {
     variants: {
       orientation: {
@@ -21,13 +21,13 @@ const buttonGroupVariants = cva(
         orientation: 'horizontal',
         attached: true,
         className:
-          '[&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-l-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:border-l-0 [&>[data-slot=button-group-item]:not(:last-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-r-none'
+          '[&>*:not(:first-child)]:-ml-px [&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-l-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:border-l-0 [&>[data-slot=button-group-item]:not(:last-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-r-none'
       },
       {
         orientation: 'vertical',
         attached: true,
         className:
-          'flex-col [&>*:not(:first-child)]:rounded-t-none [&>*:not(:first-child)]:border-t-0 [&>*:not(:last-child)]:rounded-b-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-t-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:border-t-0 [&>[data-slot=button-group-item]:not(:last-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-b-none'
+          'flex-col [&>*:not(:first-child)]:-mt-px [&>*:not(:first-child)]:rounded-t-none [&>*:not(:first-child)]:border-t-0 [&>*:not(:last-child)]:rounded-b-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-t-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:border-t-0 [&>[data-slot=button-group-item]:not(:last-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-b-none'
       }
     ],
     defaultVariants: {
