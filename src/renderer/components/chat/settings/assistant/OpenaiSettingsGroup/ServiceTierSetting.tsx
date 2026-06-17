@@ -1,39 +1,26 @@
-import Selector from '@renderer/components/Selector'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingRowTitleSmall } from '@renderer/components/chat/settings/settingsPanelPrimitives'
+import { isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { SettingRow } from '@renderer/pages/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { Model } from '@shared/data/types/model'
 import type { OpenAIServiceTier, ServiceTier } from '@shared/data/types/provider'
-import { isSupportFlexServiceTierModel } from '@shared/utils/model'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type OpenAIServiceTierOption = { value: NonNullable<OpenAIServiceTier> | 'null' | 'undefined'; label: string }
 
 interface Props {
   model: Model
-  providerId: string
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  serviceTierMode: ServiceTier
+  disabled?: boolean
+  onServiceTierChange: (value: ServiceTier) => void
 }
 
-const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall }) => {
+const ServiceTierSetting: FC<Props> = ({ model, serviceTierMode, disabled, onServiceTierChange }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
-  const serviceTierMode = provider?.settings?.serviceTier as OpenAIServiceTier | undefined
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
-
-  const setServiceTierMode = useCallback(
-    (value: ServiceTier) => {
-      if (!provider) return
-      void updateProvider({
-        providerSettings: { ...provider.settings, serviceTier: value ?? undefined }
-      })
-    },
-    [provider, updateProvider]
-  )
 
   const serviceTierOptions = useMemo(() => {
     const options = [
@@ -72,19 +59,26 @@ const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.service_tier.title')}{' '}
-        <Tooltip title={t('settings.openai.service_tier.tip')}>
-          <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-        </Tooltip>
+      <SettingRowTitleSmall hint={t('settings.openai.service_tier.tip')}>
+        {t('settings.openai.service_tier.title')}
       </SettingRowTitleSmall>
-      <Selector
+      <Select
+        disabled={disabled}
         value={toOptionValue(serviceTierMode)}
-        onChange={(value) => {
-          setServiceTierMode(toRealValue(value))
-        }}
-        options={serviceTierOptions}
-      />
+        onValueChange={(value) => {
+          onServiceTierChange(toRealValue(value as OpenAIServiceTierOption['value']))
+        }}>
+        <SelectTrigger disabled={disabled} size="sm" className="w-[220px] text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="text-sm">
+          {serviceTierOptions.map((option) => (
+            <SelectItem className="text-sm" key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingRow>
   )
 }
