@@ -39,7 +39,7 @@ import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
-import { topicService } from './TopicService'
+import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -727,6 +727,7 @@ export class MessageService {
         })
         .returning()
 
+      const topicService = getDataService('TopicService')
       await topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
 
       logger.info('Created sibling message', {
@@ -837,6 +838,7 @@ export class MessageService {
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
+        const topicService = getDataService('TopicService')
         await topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
       }
 
@@ -966,6 +968,7 @@ export class MessageService {
 
       // 4. Point activeNodeId at the last placeholder (or user message if N=0)
       const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
+      const topicService = getDataService('TopicService')
       await topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
 
       logger.info('Reserved assistant turn', {
@@ -1188,6 +1191,7 @@ export class MessageService {
 
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
+        const topicService = getDataService('TopicService')
         if (newActiveNodeId === null) {
           await topicService.clearActiveNodeTx(tx, message.topicId)
         } else {
@@ -1390,3 +1394,5 @@ export class MessageService {
 }
 
 export const messageService = new MessageService()
+
+registerDataService('MessageService', messageService)
