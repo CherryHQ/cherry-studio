@@ -9,7 +9,7 @@ const parseFrontMatters = (markdown: string) => {
   const manager = new MarkdownManager({
     extensions: [YamlFrontMatter]
   })
-  const doc = manager.parse(markdown) as JSONContent
+  const doc = manager.parse(markdown)
   const frontMatterNodes = (doc.content || []).filter((node) => node.type === 'yamlFrontMatter')
   return frontMatterNodes.map((node) => (node.attrs as { content?: string } | undefined)?.content?.trim())
 }
