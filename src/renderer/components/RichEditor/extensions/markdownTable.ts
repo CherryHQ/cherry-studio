@@ -55,6 +55,17 @@ export const MarkdownTable = Table.extend({
 
     const columns = (rows[0].content || []).length
     const separator = `| ${Array.from({ length: columns }, () => '---').join(' | ')} |`
-    return `${[renderRow(rows[0]), separator, ...rows.slice(1).map(renderRow)].join('\n')}\n\n`
+
+    // GFM tables require a header row. Only treat the first row as the header when it actually
+    // contains header cells — a table can lose its header via the row action menu, leaving a
+    // `tableCell`-only first row. Emitting that as the header would silently promote a body row to
+    // a header on reload, so for headerless tables synthesize an empty header and keep every row as
+    // a body row.
+    const firstRowIsHeader = (rows[0].content || []).some((cell) => cell.type === 'tableHeader')
+    if (firstRowIsHeader) {
+      return `${[renderRow(rows[0]), separator, ...rows.slice(1).map(renderRow)].join('\n')}\n\n`
+    }
+    const emptyHeader = `| ${Array.from({ length: columns }, () => '').join(' | ')} |`
+    return `${[emptyHeader, separator, ...rows.map(renderRow)].join('\n')}\n\n`
   }
 })
