@@ -84,8 +84,10 @@ export const providerListClasses = {
   shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-r border-[color:var(--section-border)]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  headerAddButton:
+    'flex size-7 shrink-0 items-center justify-center rounded-md text-primary transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-primary disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
-    'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
+    'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
   searchWrap:
     'flex h-8 items-center gap-1 rounded-[10px] border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',

@@ -91,7 +91,7 @@ Documented intentional skips (must be called out in release notes):
 
 ## 4. Schema / Migration SQL Finalization
 
-- `migrations/sqlite-drizzle/` is already a single `0000_loud_sugar_man.sql` (+ `meta/`).
+- `migrations/sqlite-drizzle/` currently holds the incremental dev chain (`0000`–`0012` + `meta/`); the single-clean-migration regeneration below has NOT happened yet.
 - Before release, regenerate a single clean initial migration from the final schemas to clear intermediate dev state (already mandated in CLAUDE.md).
 - Note `drizzle-kit generate` still exits 0 on a forked chain; only `pnpm db:migrations:check` flags it. Mid-development schema drift is acceptable — do not author patch migrations.
 

@@ -67,9 +67,31 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
   return <RouterProvider router={router} />
 }
 
+const settingsWindowFormControlTextClassName = [
+  '[&_[data-slot=input].text-base]:text-sm',
+  '[&_[data-slot=input-group-control].text-base]:text-sm',
+  '[&_[data-slot=textarea-input].text-lg]:text-sm'
+].join(' ')
+
+// These selectors must also reach portals (Dialog/Popover/Drawer) rendered
+// outside the settings shell div, so we apply them to document.body.
+function useSettingsWindowFormControlText() {
+  useEffect(() => {
+    const classes = settingsWindowFormControlTextClassName.split(' ')
+    document.body.classList.add(...classes)
+    return () => {
+      document.body.classList.remove(...classes)
+    }
+  }, [])
+}
+
 function SettingsApp({ initialPath }: { initialPath: string }): React.ReactElement {
   const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
+
+  // Apply form control text size overrides to body so portals (Dialog/Popover/Drawer)
+  // rendered outside the settings shell div also get the correct text size.
+  useSettingsWindowFormControlText()
 
   return (
     <Provider store={store}>
@@ -85,6 +107,7 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
                         <div
                           className={cn(
                             'flex h-screen w-screen overflow-hidden text-foreground',
+                            settingsWindowFormControlTextClassName,
                             isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
                           )}
                           style={shellStyle}>

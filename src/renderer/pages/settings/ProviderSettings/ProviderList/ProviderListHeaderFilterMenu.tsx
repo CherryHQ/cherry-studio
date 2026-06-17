@@ -8,25 +8,30 @@ import { useTranslation } from 'react-i18next'
 import type { ProviderFilterMode } from './providerFilterMode'
 
 const FILTER_MENU_OPTIONS: { mode: ProviderFilterMode; labelKey: string }[] = [
-  { mode: 'enabled', labelKey: 'settings.provider.filter.enabled' },
-  { mode: 'disabled', labelKey: 'settings.provider.filter.disabled' },
   { mode: 'all', labelKey: 'settings.provider.filter.all' },
-  { mode: 'agent', labelKey: 'settings.provider.filter.agent' }
+  { mode: 'agent', labelKey: 'settings.provider.filter.agent' },
+  { mode: 'enabled', labelKey: 'settings.provider.filter.enabled' },
+  { mode: 'disabled', labelKey: 'settings.provider.filter.disabled' }
 ]
 
 interface ProviderListHeaderFilterMenuProps {
   filterMode: ProviderFilterMode
   disabled: boolean
+  triggerClassName?: string
+  triggerIconSize?: number
   onFilterChange: (mode: ProviderFilterMode) => void
 }
 
 export default function ProviderListHeaderFilterMenu({
   filterMode,
   disabled,
+  triggerClassName = providerListClasses.headerIconButton,
+  triggerIconSize = 14,
   onFilterChange
 }: ProviderListHeaderFilterMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const hasActiveFilter = filterMode !== 'all'
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -35,8 +40,14 @@ export default function ProviderListHeaderFilterMenu({
           type="button"
           aria-label={t('settings.provider.filter.label')}
           disabled={disabled}
-          className={providerListClasses.headerIconButton}>
-          <Filter size={14} />
+          className={cn('group', triggerClassName)}>
+          <Filter
+            size={triggerIconSize}
+            className={cn(
+              'shrink-0',
+              hasActiveFilter ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
+            )}
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">

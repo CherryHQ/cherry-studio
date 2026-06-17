@@ -29,6 +29,8 @@ import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoni
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
 
+import { getDataService, registerDataService } from './dataServiceRegistry'
+
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
 export interface ProviderDisplayMetadata {
@@ -483,7 +485,7 @@ class ProviderRegistryService {
     const registryConfig = this.getRegistryReasoningConfig(providerId)
 
     try {
-      const { providerService } = await import('./ProviderService')
+      const providerService = getDataService('ProviderService')
       const provider = await providerService.getByProviderId(providerId)
       const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
       const reasoningFormatTypes =
@@ -671,3 +673,5 @@ class ProviderRegistryService {
 }
 
 export const providerRegistryService = new ProviderRegistryService()
+
+registerDataService('ProviderRegistryService', providerRegistryService)

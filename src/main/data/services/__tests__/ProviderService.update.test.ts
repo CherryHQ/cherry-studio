@@ -1,3 +1,6 @@
+// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
+import '@data/services/ProviderRegistryService'
+
 import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'

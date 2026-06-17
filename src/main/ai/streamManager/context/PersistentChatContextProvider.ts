@@ -11,7 +11,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
-import type { Message as SharedMessage } from '@shared/data/types/message'
+import { type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -91,7 +91,7 @@ function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
 function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
   return {
     id: message.id,
-    role: message.role,
+    role: toContentRole(message.role),
     parts: message.data.parts ?? [],
     metadata: {
       parentId: message.parentId,
@@ -461,7 +461,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const messagePath = await messageService.getPathToNode(anchorMessageId)
     return messagePath.map((msg) => ({
       id: msg.id,
-      role: msg.role,
+      role: toContentRole(msg.role),
       parts: msg.data.parts ?? []
     }))
   }
