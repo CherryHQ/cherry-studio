@@ -38,6 +38,7 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
+  App_OpenAgentSession = 'app:open-agent-session',
 
   // StorageMonitor: main-process disk-space watcher for the user-data volume
   StorageMonitor_GetHealth = 'storage-monitor:get-health',

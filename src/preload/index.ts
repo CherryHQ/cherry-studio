@@ -616,6 +616,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Channel_GetStatuses)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
+  openAgentSessionInMainWindow: (sessionId: string) => ipcRenderer.invoke(IpcChannel.App_OpenAgentSession, sessionId),
   // setDisableHardwareAcceleration: (isDisable: boolean) =>
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),

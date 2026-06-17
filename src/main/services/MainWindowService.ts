@@ -147,6 +147,10 @@ export class MainWindowService extends BaseService {
 
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
 
+    this.ipcHandle(IpcChannel.App_OpenAgentSession, (_, sessionId: string) =>
+      this.openAgentSessionInMainWindow(sessionId)
+    )
+
     // ─── Main-window-specific handlers migrated from src/main/ipc.ts ───
     // Each reads `this.mainWindow` at call time, so a main window that was
     // destroyed and rebuilt (singleton reopen path) is handled correctly.
@@ -603,6 +607,25 @@ export class MainWindowService extends BaseService {
       }
     } catch (error) {
       logger.error('Failed to quote to main window:', error as Error)
+    }
+  }
+
+  /**
+   * Surface the main window and ask it to open the given agent session.
+   * Called cross-window (e.g. from the Settings popup) — mirrors quoteToMainWindow.
+   */
+  public openAgentSessionInMainWindow(sessionId: string): void {
+    try {
+      this.showMainWindow()
+
+      const mainWindow = this.mainWindow
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        setTimeout(() => {
+          mainWindow.webContents.send(IpcChannel.App_OpenAgentSession, sessionId)
+        }, 100)
+      }
+    } catch (error) {
+      logger.error('Failed to open agent session in main window:', error as Error)
     }
   }
 }

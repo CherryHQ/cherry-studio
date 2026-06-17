@@ -36,7 +36,6 @@ import type {
   TaskRunLogEntity,
   UpdateTaskRequest
 } from '@shared/data/types/agent'
-import { useNavigate } from '@tanstack/react-router'
 import {
   AlertTriangle,
   CalendarClock,
@@ -492,7 +491,6 @@ const TaskDetail: FC<{
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const navigate = useNavigate()
   const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
 
@@ -508,12 +506,13 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     )
   }, [locale, logs, searchText])
 
-  const navigateToSession = useCallback(
-    (sessionId: string) => {
-      void navigate({ to: '/app/agents', search: { sessionId } })
-    },
-    [navigate]
-  )
+  const navigateToSession = useCallback((sessionId: string) => {
+    // Settings runs in its own window with the same routeTree as main, so calling
+    // `navigate({ to: '/app/agents' })` here would mount the agent page inside
+    // the Settings popup. Cross-window via the main process instead — settings
+    // stays open, main is surfaced and switched to the session.
+    void window.api.openAgentSessionInMainWindow(sessionId)
+  }, [])
 
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
     () => [

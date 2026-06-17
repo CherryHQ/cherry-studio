@@ -1,12 +1,14 @@
 import '@renderer/databases'
 
+import { cacheService } from '@data/CacheService'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useCommandHandler } from '@renderer/hooks/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { useCallback } from 'react'
+import { IpcChannel } from '@shared/IpcChannel'
+import { useCallback, useEffect } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
@@ -18,6 +20,16 @@ export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
     useTabs()
+
+  useEffect(() => {
+    const dispose = window.electron?.ipcRenderer.on(IpcChannel.App_OpenAgentSession, (_, sessionId: string) => {
+      cacheService.set('agent.active_session_id', sessionId)
+      openTab('/app/agents')
+    })
+    return () => {
+      dispose?.()
+    }
+  }, [openTab])
 
   const handleOpenGlobalSearch = useCallback(() => {
     void SearchPopup.show()
