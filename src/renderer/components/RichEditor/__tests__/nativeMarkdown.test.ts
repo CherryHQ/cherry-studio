@@ -191,6 +191,14 @@ describe('jump-to-line resolver', () => {
     expect(el?.textContent).toBe('Second paragraph')
   })
 
+  it('disambiguates duplicate text by the line position', () => {
+    const dom = buildDom(['intro', 'repeat', 'middle', 'repeat', 'end']) // "repeat" at index 1 and 3
+    // Line 8/10 -> estimated index floor(0.7 * 5) = 3 -> the second "repeat".
+    expect(findElementByLine(dom, 8, 'repeat', 10)).toBe(dom.children[3])
+    // Line 2/10 -> estimated index 0 -> nearest match is the first "repeat".
+    expect(findElementByLine(dom, 2, 'repeat', 10)).toBe(dom.children[1])
+  })
+
   it('falls back to a proportional block when no content matches', () => {
     const dom = buildDom(['a', 'b', 'c', 'd'])
     // line 10 of 20 -> ratio 0.45 -> block index floor(0.45 * 4) = 1
