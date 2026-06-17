@@ -5,7 +5,7 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn, compressImage, convertToBase64, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
+import { cn, fileToAvatarDataUrl, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
@@ -40,6 +40,7 @@ const SECONDARY_ENDPOINT_LABELS: Array<{ type: EndpointType; labelKey: string }>
   { type: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, labelKey: 'settings.provider.more_endpoints.gemini' },
   { type: ENDPOINT_TYPE.OPENAI_RESPONSES, labelKey: 'settings.provider.more_endpoints.openai_responses' }
 ]
+
 function emptyAuthConfigFor(authType: AuthType): AuthConfig {
   switch (authType) {
     case 'iam-azure':
@@ -162,15 +163,12 @@ export default function ProviderEditorDrawer({
     }
 
     try {
-      const processedFile = file.type === 'image/gif' ? file : await compressImage(file)
-      const encoded = await convertToBase64(processedFile)
-      if (typeof encoded === 'string') {
-        setLogo(encoded)
-        setLogoDirty(true)
-      }
+      const storedLogo = await fileToAvatarDataUrl(file)
+      setLogo(storedLogo)
+      setLogoDirty(true)
     } catch (error) {
-      // compressImage / convertToBase64 can reject on a corrupt or
-      // unsupported file — tell the user instead of silently doing nothing.
+      // fileToAvatarDataUrl can reject on a corrupt or unsupported file
+      // (compression or base64 encoding) — tell the user instead of silently doing nothing.
       logger.error('Failed to process uploaded provider logo', error as Error)
       window.toast.error(t('settings.provider.logo_upload_failed'))
     }

@@ -58,8 +58,10 @@ export const providerListClasses = {
   shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-border border-r-[0.5px]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  headerAddButton:
+    'flex size-7 shrink-0 items-center justify-center rounded-md text-primary transition-colors hover:bg-accent/40 hover:text-primary disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
-    'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-muted text-foreground transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
+    'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
   searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
