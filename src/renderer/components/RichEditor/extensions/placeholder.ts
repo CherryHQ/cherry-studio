@@ -1,8 +1,8 @@
 import type { Editor } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
+import type { Node } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import type { Node } from 'prosemirror-model'
 
 export interface PlaceholderOptions {
   placeholder: ((props: { editor: Editor; node: Node; pos: number; hasAnchor: boolean }) => string) | string | undefined
