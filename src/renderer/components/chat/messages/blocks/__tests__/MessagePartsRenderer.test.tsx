@@ -599,6 +599,45 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
+  it('collapses trailing reasoning after the final tool without a final result', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'final deep thought after tool', state: 'done' }
+    ] as unknown as CherryMessagePart[])
+
+    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('final deep thought after tool')
+  })
+
+  it('collapses trailing reasoning even when the history includes an agent tool', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'agent-a', toolName: 'Agent', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'read-a', toolName: 'Read', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'agent flow final thought', state: 'done' }
+    ] as unknown as CherryMessagePart[])
+
+    const historyButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'Agent',
+      'Read'
+    ])
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('agent flow final thought')
+  })
+
   it('marks consecutive reasoning blocks for consistent spacing', () => {
     renderParts([
       { type: 'reasoning', text: 'first thought', state: 'done' },

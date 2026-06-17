@@ -18,7 +18,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -28,7 +28,6 @@ import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent/ReportArtifacts'
-import { AgentToolsType } from '../tools/agent/types'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
@@ -224,12 +223,6 @@ function isStreamingReasoningMessagePart(part: CherryMessagePart): boolean {
 function isResultPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
-}
-
-function isTopLevelSubagentToolPart(part: CherryMessagePart): boolean {
-  if (!isToolUIPart(part) || hasPartParentToolCallId(part)) return false
-  const toolName = getToolName(part)
-  return toolName === AgentToolsType.Agent || toolName === AgentToolsType.Task
 }
 
 function shouldCollapseAfterLastTool(part: CherryMessagePart): boolean {
@@ -612,10 +605,10 @@ function getToolHistoryGroup(
   const collapsedEntries = entries.slice(0, collapsedEndIndex + 1)
   const resultEntries = entries.slice(collapsedEndIndex + 1)
   const hasResult = resultEntries.some((entry) => isResultPart(entry.part))
-  if (message.status === 'success' && !isProcessing && !hasResult) return null
-  if (collapsedEntries.some((entry) => isTopLevelSubagentToolPart(entry.part))) return null
+  const hasCollapsedTail = collapsedEndIndex > lastToolIndex
+  if (message.status === 'success' && !isProcessing && !hasResult && !hasCollapsedTail) return null
 
-  const toolCount = collapsedEntries.filter((entry) => isToolUIPart(entry.part)).length
+  const toolCount = buildToolRenderItems(collapsedEntries, message.id).length
   if (toolCount === 0) return null
 
   return {
