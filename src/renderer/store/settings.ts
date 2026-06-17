@@ -41,7 +41,17 @@ import type { RemoteSyncState } from './backup'
 // Re-export for backward compatibility
 // export { DEFAULT_SIDEBAR_ICONS }
 
-const DEFAULT_LEGACY_SIDEBAR_ICONS: SidebarIcon[] = ['assistants', 'agents', 'paintings', 'translate', 'store']
+const DEFAULT_LEGACY_SIDEBAR_ICONS = [
+  'assistants',
+  'store',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes'
+]
 
 export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
@@ -337,7 +347,8 @@ export const initialState: SettingsState = {
   customCss: '',
   topicNamingPrompt: '',
   sidebarIcons: {
-    visible: [...DEFAULT_LEGACY_SIDEBAR_ICONS],
+    // @ts-ignore eslint-disable-next-line
+    visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
     disabled: []
   },
   narrowMode: false,

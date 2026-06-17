@@ -47,12 +47,7 @@ import {
 } from '@shared/config/constant'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import {
-  parseTranslateLangCode,
-  type SidebarIcon,
-  type TranslateLangCode,
-  UpgradeChannel
-} from '@shared/data/preference/preferenceTypes'
+import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -66,7 +61,17 @@ import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
-const DEFAULT_LEGACY_SIDEBAR_ICONS: SidebarIcon[] = ['assistants', 'agents', 'paintings', 'translate', 'store']
+const DEFAULT_LEGACY_SIDEBAR_ICONS = [
+  'assistants',
+  'store',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes'
+]
 
 const logger = loggerService.withContext('Migrate')
 
@@ -903,7 +908,8 @@ const migrateConfig = {
         })
       }
       state.settings.sidebarIcons = {
-        visible: [...DEFAULT_LEGACY_SIDEBAR_ICONS],
+        // @ts-ignore eslint-disable-next-line
+        visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
         disabled: []
       }
       return state
@@ -915,7 +921,8 @@ const migrateConfig = {
     try {
       if (!state.settings.sidebarIcons) {
         state.settings.sidebarIcons = {
-          visible: [...DEFAULT_LEGACY_SIDEBAR_ICONS],
+          // @ts-ignore eslint-disable-next-line
+          visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
           disabled: []
         }
       }
