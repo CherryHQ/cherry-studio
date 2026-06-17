@@ -236,7 +236,7 @@
     "@tiptap/react": "3.26.1",
     "@tiptap/starter-kit": "3.26.1",
     "@tiptap/suggestion": "3.26.1",
-    "@tiptap/y-tiptap": "^3.0.0",
+    "@tiptap/y-tiptap": "^3.0.5",
     "@tryfabric/martian": "^1.2.4",
     "@types/adm-zip": "^0.5.7",
     "@types/cli-progress": "^3",
