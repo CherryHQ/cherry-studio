@@ -77,6 +77,9 @@ patchedDependencies:
   '@tiptap/extension-drag-handle@3.26.1':
     hash: 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
     path: patches/@tiptap__extension-drag-handle@3.26.1.patch
+  '@tiptap/markdown@3.26.1':
+    hash: 4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540
+    path: patches/@tiptap__markdown@3.26.1.patch
   ai@6.0.143:
     hash: a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e
     path: patches/ai@6.0.143.patch
@@ -526,7 +529,7 @@ importers:
         version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))
       '@tiptap/markdown':
         specifier: 3.26.1
-        version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
+        version: 3.26.1(patch_hash=4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540)(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
       '@tiptap/pm':
         specifier: 3.26.1
         version: 3.26.1
@@ -20485,7 +20488,7 @@ snapshots:
       '@tiptap/core': 3.26.1(@tiptap/pm@3.26.1)
       '@tiptap/pm': 3.26.1
 
-  '@tiptap/markdown@3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)':
+  '@tiptap/markdown@3.26.1(patch_hash=4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540)(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)':
     dependencies:
       '@tiptap/core': 3.26.1(@tiptap/pm@3.26.1)
       '@tiptap/pm': 3.26.1

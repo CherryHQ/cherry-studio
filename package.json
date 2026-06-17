@@ -498,7 +498,8 @@
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
       "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch",
       "ai@6.0.143": "patches/ai@6.0.143.patch",
-      "@tiptap/extension-drag-handle@3.26.1": "patches/@tiptap__extension-drag-handle@3.26.1.patch"
+      "@tiptap/extension-drag-handle@3.26.1": "patches/@tiptap__extension-drag-handle@3.26.1.patch",
+      "@tiptap/markdown@3.26.1": "patches/@tiptap__markdown@3.26.1.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

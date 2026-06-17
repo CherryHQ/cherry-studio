@@ -56,6 +56,16 @@ second: no
     expect(contents[0]).toBe('first: yes')
   })
 
+  it('does not parse a quoted --- block inside a blockquote as front matter', () => {
+    const markdown = `> ---
+> title: quoted
+> ---`
+
+    // The quoted block must stay ordinary blockquote content, not become a nested front-matter node.
+    const contents = parseFrontMatters(markdown)
+    expect(contents).toHaveLength(0)
+  })
+
   it('does not treat body content containing --- as additional front matter', () => {
     const markdown = `---
 title: Only header

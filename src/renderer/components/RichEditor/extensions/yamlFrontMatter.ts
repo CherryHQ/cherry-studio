@@ -1,4 +1,4 @@
-import { type MarkdownToken, mergeAttributes, Node } from '@tiptap/core'
+import { type MarkdownLexerConfiguration, type MarkdownToken, mergeAttributes, Node } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
 import YamlFrontMatterNodeView from '../components/YamlFrontMatterNodeView'
@@ -10,6 +10,11 @@ declare module '@tiptap/core' {
     }
   }
 }
+
+// @tiptap/markdown passes its tokenizer helper bag as the third argument (typed upstream as
+// MarkdownLexerConfiguration). Our patch (patches/@tiptap__markdown@3.26.1.patch) additionally exposes
+// the marked lexer on it, whose root `tokens` array we use to detect the absolute document root.
+type MarkdownTokenizeHelpers = MarkdownLexerConfiguration & { lexer?: { tokens?: unknown[] } }
 
 export const YamlFrontMatter = Node.create({
   name: 'yamlFrontMatter',
@@ -25,8 +30,17 @@ export const YamlFrontMatter = Node.create({
     start(src: string) {
       return src.match(/^---\n/) ? 0 : -1
     },
-    tokenize(src: string, tokens: MarkdownToken[] = []) {
-      // Front matter is only valid at the very top of the document.
+    tokenize(src: string, tokens: MarkdownToken[] = [], helpers?: MarkdownTokenizeHelpers) {
+      // Front matter is only valid at the very top of the document. Marked re-lexes blockquote and
+      // list contents into their own token arrays, so `tokens` only equals the lexer's root token
+      // array at the absolute document root. Gating on that prevents a quoted/nested `--- … ---`
+      // block (e.g. inside a blockquote) from being turned into a front-matter node. Fall back to the
+      // prior behavior if the patched lexer reference is absent.
+      const rootTokens = helpers?.lexer?.tokens
+      if (rootTokens && tokens !== rootTokens) {
+        return undefined
+      }
+
       const hasExistingContent = tokens.some((token) => token.type && token.type !== 'space')
       if (hasExistingContent) {
         return undefined
