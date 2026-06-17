@@ -117,26 +117,22 @@ export function useScrollAnchor({
       if (!el || !handle) return
       anchorIndexRef.current = dataIndex
       anchorOffsetRef.current = handle.getItemOffset(dataIndex)
-      // The user message has just been rendered; virtua may not have measured
-      // it yet, but its index into the WRAPPED items is still dataIndex
-      // (spacer goes at the end). Use scrollToIndex — virtua handles the
-      // measurement race internally and re-positions on next frame if needed.
-      //
-      // Over-allocate the spacer to at least a full viewport here. At this
-      // instant virtua may not have measured the freshly inserted message, so
+      // The freshly inserted message may not be measured by virtua yet, so
       // `getItemOffset` (hence `needed`) can read low and leave too little
-      // scroll range to lift the message to the top — stranding it near the
-      // bottom. The viewport floor guarantees enough range regardless; the
-      // ResizeObserver pass below then tightens the spacer down to `needed` once
-      // the content settles, so the scrollbar still ends at the bottom.
+      // scroll range to lift it to the top — stranding it near the bottom.
+      // Over-allocate the spacer to at least a full viewport so the range is
+      // always sufficient; the ResizeObserver pass below tightens it down to
+      // `needed` once the content settles, so the scrollbar still ends at the
+      // bottom.
       const needed = computeNeededSpacer()
       setSpacerHeight(Math.max(el.clientHeight, needed))
       lastPinnedNaturalRef.current = getNaturalScrollableSize()
-      // Schedule the scroll for after the spacer-applying render commits.
-      // RAF is enough because virtua's scrollToIndex resolves the item offset
-      // after the spacer-applying render has committed. Keep this instant:
-      // browser smooth-scroll emits intermediate scroll events that look like
-      // the user leaving the anchor and can release the pin.
+      // Scroll the message to the top after the spacer-applying render commits.
+      // The spacer is appended last, so the message's wrapped index is still
+      // `dataIndex`; virtua resolves the real offset once measured and
+      // re-positions next frame. Keep it instant — a browser smooth scroll emits
+      // intermediate scroll events that look like the user leaving the anchor and
+      // would release the pin.
       requestAnimationFrame(() => {
         const h = vlistHandleRef.current
         if (!h) return
