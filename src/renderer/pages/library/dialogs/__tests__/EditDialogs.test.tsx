@@ -648,6 +648,44 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('keeps MCP catalog rows compact without detail text', async () => {
+    mcpStatusState.current = {
+      'mcp-command-only': { state: 'connected', lastCheckedAt: 1 }
+    }
+    useQueryMock.mockImplementation((path: string) => {
+      if (path === '/mcp-servers') {
+        return {
+          data: {
+            items: [
+              {
+                id: 'mcp-command-only',
+                name: '@cherry/mcp-auto-install',
+                description: 'Installs MCP servers automatically',
+                baseUrl: 'https://mcp.example.com',
+                command: 'npx',
+                isActive: true
+              }
+            ]
+          },
+          isLoading: false
+        }
+      }
+      return { data: { items: [] }, isLoading: false }
+    })
+
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    expandToolsMenu()
+    selectTab('MCP')
+
+    expect(await screen.findByText('@cherry/mcp-auto-install')).toBeInTheDocument()
+    expect(screen.queryByText('Installs MCP servers automatically')).not.toBeInTheDocument()
+    expect(screen.queryByText('https://mcp.example.com')).not.toBeInTheDocument()
+    expect(screen.queryByText('npx')).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: '@cherry/mcp-auto-install' })).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+  })
+
   it('submits assistant knowledge, MCP, and model parameter changes', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 

@@ -80,8 +80,8 @@ export const CatalogToggleGrid: FC<{
           item.disabledReason ?? (toggleDisabled && item.inactiveBadge ? item.inactiveBadge : undefined)
 
         return (
-          <div key={item.id} className="flex min-w-0 items-center justify-between gap-3 py-1">
-            <div className="min-w-0 flex-1">
+          <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1">
+            <div className="min-w-0">
               <div
                 className={cn('flex min-w-0 items-center gap-1.5 text-sm', toggleDisabled && 'text-muted-foreground')}>
                 <span className="truncate" title={item.name}>

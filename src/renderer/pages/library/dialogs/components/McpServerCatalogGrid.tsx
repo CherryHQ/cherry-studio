@@ -11,7 +11,6 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from './CatalogPicker'
-import { McpServerAvatar } from './McpServerAvatar'
 
 const logger = loggerService.withContext('McpServerCatalogGrid')
 const MCP_SERVERS_SETTINGS_PATH = '/settings/mcp/servers'
@@ -72,8 +71,6 @@ export function McpServerCatalogGrid({
         return {
           id: server.id,
           name: server.name,
-          description: server.description || server.baseUrl || server.command,
-          icon: <McpServerAvatar server={server} size={28} />,
           inactiveBadge: server.isActive ? undefined : t('library.config.tools.inactive_badge'),
           statusBadge: getStatusBadge(t, state),
           statusBadgeClassName: getStatusBadgeClassName(state),

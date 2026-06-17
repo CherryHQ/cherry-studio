@@ -293,7 +293,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                 </TabsList>
               </div>
 
-              <Scrollbar ref={scrollContainerRef} className="min-w-0 flex-1 pl-5">
+              <Scrollbar ref={scrollContainerRef} className="min-w-0 flex-1 px-5">
                 {children}
               </Scrollbar>
             </Tabs>
