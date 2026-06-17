@@ -44,7 +44,7 @@ function QuickAssistantContent(): React.ReactElement {
  * No react-redux `<Provider>` — the quick-assistant window intentionally stays
  * Redux-Provider-free (continuation of b5343606a). Downstream assistant/model
  * data now comes from the v2 Preference + DataApi layer (`usePreference`,
- * `useQuery('/models/:id')` via `useDefaultAssistant` / `useDefaultModel`), so
+ * `useQuery('/models/:id')` via assistant hooks / `useDefaultModel`), so
  * there is no dependency on Redux rehydration and no `<PersistGate>` is needed.
  *
  * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the

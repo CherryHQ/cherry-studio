@@ -1,5 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { cn } from '@renderer/utils'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 
 export type AgentLabelProps = {
@@ -13,12 +14,12 @@ export type AgentLabelProps = {
 }
 
 export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
-  const emoji = agent?.configuration?.avatar || '⭐️'
+  const emoji = getAgentAvatarFromConfiguration(agent?.configuration)
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
       {!hideIcon && <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />}
-      <span className={cn('truncate', 'text-(--color-foreground)', classNames?.name)}>{agent?.name ?? ''}</span>
+      <span className={cn('truncate', 'text-foreground', classNames?.name)}>{agent?.name ?? ''}</span>
     </div>
   )
 }

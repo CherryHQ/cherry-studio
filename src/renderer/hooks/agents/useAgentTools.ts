@@ -1,7 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { AgentType } from '@renderer/types'
-import { claudeCodeBuiltinToolDescriptors } from '@shared/ai/claudecode/builtinTools'
+import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
   type ClaudeToolDescriptor,
@@ -11,6 +10,7 @@ import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { AgentConfiguration, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { AgentType } from '@shared/data/types/agent'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@types'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -107,7 +107,7 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
     if ((source?.type ?? 'claude-code') !== 'claude-code') return []
 
     const selectedServers = new Map(mcpServers.map((server) => [server.id, server]))
-    const descriptors: ClaudeToolDescriptor[] = [...claudeCodeBuiltinToolDescriptors()]
+    const descriptors: ClaudeToolDescriptor[] = [...claudeRegistrySdkDescriptors()]
     for (const id of mcpIds) {
       const server = selectedServers.get(id)
       if (!server) continue
