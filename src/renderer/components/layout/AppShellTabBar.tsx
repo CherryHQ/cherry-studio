@@ -1,48 +1,25 @@
+import { Tooltip } from '@cherrystudio/ui'
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+  emitResourceListReveal,
+  type ResourceListRevealSource
+} from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
-import { getMiniAppsLogo } from '@renderer/config/miniApps'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import type { Tab } from '@renderer/hooks/useTabs'
-import { cn, uuid } from '@renderer/utils'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { ChevronsLeft, Home, Pin, PinOff, Plus, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/useTabs'
+import { cn } from '@renderer/utils'
+import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
-import { getTabIcon } from './tabIcons'
+import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
-const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ tab, size, className }) => {
-  if (tab.icon) {
-    const logo = getMiniAppsLogo(tab.icon)
-    if (logo) {
-      const Compound = logo
-      return <Compound.Avatar size={size} shape="rounded" className={cn('select-none', className)} />
-    }
-    return (
-      <img
-        src={tab.icon}
-        alt=""
-        draggable={false}
-        className={cn('select-none rounded-[3px] object-cover', className)}
-        style={{ width: size, height: size }}
-      />
-    )
-  }
-  const Icon = getTabIcon(tab)
-  return <Icon size={size} strokeWidth={1.6} className={className} />
+function isHomeTab(tab: Pick<Tab, 'id'>) {
+  return tab.id === 'home'
 }
-
-const HOME_TAB_ID = 'home'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -51,11 +28,12 @@ type AppShellTabBarProps = {
   activeTabId: string
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
-  addTab: (tab: Tab) => void
+  addTab?: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   pinTab: (id: string) => void
   unpinTab: (id: string) => void
-  isDetached?: boolean
+  detachTab?: (id: string) => void
+  openTab: (url: string, options?: OpenTabOptions) => string
 }
 
 // ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
@@ -76,30 +54,6 @@ interface TabToneProps {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
-
-const HomeTabButton = ({
-  isActive,
-  onClick,
-  tooltip,
-  tone
-}: {
-  isActive: boolean
-  onClick: () => void
-  tooltip: string
-  tone: TabToneProps
-}) => (
-  <Tooltip placement="bottom" content={tooltip} delay={600}>
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
-        isActive ? tone.activeClass : tone.hoverClass
-      )}>
-      <Home size={14} strokeWidth={1.6} />
-    </button>
-  </Tooltip>
-)
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -136,7 +90,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150',
+          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
@@ -149,6 +103,12 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 // Threshold below which the right-side X is hidden and icon-overlay X is used instead
 const NARROW_TAB_THRESHOLD = 64
+
+function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
+  if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
+  if (url === '/app/agents' || url.startsWith('/app/agents?') || url.startsWith('/app/agents/')) return 'agents'
+  return null
+}
 
 type NormalTabButtonProps = {
   tab: Tab
@@ -174,7 +134,6 @@ const NormalTabButton = ({
   ref,
   ...rest
 }: NormalTabButtonProps) => {
-  const isCloseable = tab.id !== HOME_TAB_ID
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const [isNarrow, setIsNarrow] = useState(false)
 
@@ -198,8 +157,8 @@ const NormalTabButton = ({
     [tabRef, ref]
   )
 
-  const showRightClose = isCloseable && showClose && !isNarrow
-  const showIconOverlayClose = isCloseable && showClose && isNarrow
+  const showRightClose = showClose && !isNarrow
+  const showIconOverlayClose = showClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -220,7 +179,7 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
+        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
         showRightClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
@@ -242,7 +201,7 @@ const NormalTabButton = ({
                 onClose()
               }
             }}
-            className="absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
+            className="nodrag absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
             <X size={11} />
           </div>
         )}
@@ -268,7 +227,7 @@ const NormalTabButton = ({
             }
           }}
           className={cn(
-            'ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
+            'nodrag ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
             isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}>
           <X size={10} />
@@ -280,37 +239,123 @@ const NormalTabButton = ({
 
 // ─── Tab right-click menu ─────────────────────────────────────────────────────
 
+// ─── Tab capabilities (declarative rule table) ────────────────────────────────
+
+interface TabCapabilities {
+  /** Show a right-click context menu at all. */
+  menu: boolean
+  /** "Move to first" + drag-to-reorder, within the tab's own zone. */
+  reorder: boolean
+  /** Pin (normal) or unpin (pinned). */
+  togglePin: boolean
+  /** "Open in new window" (detach to its own window). */
+  detach: boolean
+  /** Close the tab (context-menu item + inline X). */
+  close: boolean
+}
+
+/**
+ * Single source of truth for what a tab can do, derived from its zone and the
+ * tab counts. A window always keeps at least one normal tab, so the last normal
+ * tab can't be closed / pinned / detached and therefore shows no menu. Pinned
+ * tabs can always be unpinned but never closed directly; reordering is per-zone.
+ */
+export function getTabCapabilities(
+  tab: Pick<Tab, 'id' | 'isPinned'>,
+  ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
+): TabCapabilities {
+  if (isHomeTab(tab)) {
+    return { menu: false, reorder: false, togglePin: false, detach: false, close: false }
+  }
+
+  const detach = ctx.canDetach
+  if (tab.isPinned) {
+    const hasSiblings = ctx.pinnedCount > 1
+    return { menu: true, reorder: hasSiblings, togglePin: true, detach, close: false }
+  }
+  const hasSiblings = ctx.normalCount > 1
+  return {
+    menu: hasSiblings,
+    reorder: hasSiblings,
+    togglePin: hasSiblings,
+    detach: hasSiblings && detach,
+    close: hasSiblings
+  }
+}
+
 const TabRightClickMenu = ({
   isPinned,
+  capabilities,
   onMoveToFirst,
-  onPin,
+  onTogglePin,
+  onDetach,
   onClose,
   children
 }: {
   isPinned: boolean
+  capabilities: TabCapabilities
   onMoveToFirst: () => void
-  onPin: () => void
+  onTogglePin: () => void
+  onDetach: () => void
   onClose: () => void
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
+
+  const items = useMemo<CommandContextMenuExtraItem[]>(() => {
+    const entries: Array<{ enabled: boolean; item: CommandContextMenuExtraItem }> = [
+      {
+        enabled: capabilities.reorder,
+        item: {
+          type: 'item',
+          id: 'tab.move-to-first',
+          label: t('tab.move_to_first'),
+          icon: <ChevronsLeft size={14} />,
+          onSelect: onMoveToFirst
+        }
+      },
+      {
+        enabled: capabilities.togglePin,
+        item: {
+          type: 'item',
+          id: 'tab.pin',
+          label: isPinned ? t('tab.unpin') : t('tab.pin'),
+          icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
+          onSelect: onTogglePin
+        }
+      },
+      {
+        enabled: capabilities.detach,
+        item: {
+          type: 'item',
+          id: 'tab.open-in-new-window',
+          label: t('tab.open_in_new_window'),
+          icon: <OpenInNewWindowIcon size={14} />,
+          onSelect: onDetach
+        }
+      },
+      {
+        enabled: capabilities.close,
+        item: {
+          type: 'item',
+          id: 'tab.close',
+          label: t('tab.close'),
+          icon: <X size={14} />,
+          onSelect: onClose
+        }
+      }
+    ]
+    return entries.filter((entry) => entry.enabled).map((entry) => entry.item)
+  }, [t, isPinned, capabilities, onMoveToFirst, onTogglePin, onDetach, onClose])
+
+  if (!capabilities.menu || items.length === 0) {
+    return <>{children}</>
+  }
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="min-w-[130px]">
-        <ContextMenuItem onSelect={onMoveToFirst}>
-          <ContextMenuItemContent icon={<ChevronsLeft size={14} />}>{t('tab.move_to_first')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onPin}>
-          <ContextMenuItemContent icon={isPinned ? <PinOff size={14} /> : <Pin size={14} />}>
-            {isPinned ? t('tab.unpin') : t('tab.pin')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onClose}>
-          <ContextMenuItemContent icon={<X size={14} />}>{t('tab.close')}</ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={items} contentClassName="min-w-[130px]">
+      {children}
+    </CommandContextMenu>
   )
 }
 
@@ -321,23 +366,23 @@ export const AppShellTabBar = ({
   activeTabId,
   setActiveTab,
   closeTab,
-  addTab,
   reorderTabs,
   pinTab,
   unpinTab,
-  isDetached = false
+  detachTab,
+  openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { rightPaddingClass } = useShellTabBarLayout(isDetached)
+  const { rightPaddingClass } = useShellTabBarLayout()
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/6 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]',
+              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
           }
         : {
             activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
@@ -347,20 +392,27 @@ export const AppShellTabBar = ({
     [isMacTransparentWindow]
   )
 
-  const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
+  const { pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
     const normal: Tab[] = []
-    const home = tabs.find((tab) => tab.id === HOME_TAB_ID)
     for (const tab of tabs) {
-      if (tab.id === HOME_TAB_ID) continue
       if (tab.isPinned) {
         pinned.push(tab)
       } else {
         normal.push(tab)
       }
     }
-    return { homeTab: home, pinnedTabs: pinned, normalTabs: normal }
+    return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
+  const hasUnpinnedTabs = normalTabs.length > 0
+  const homeTabIndex = normalTabs.findIndex(isHomeTab)
+  const normalReorderStartIndex = homeTabIndex === -1 ? 0 : homeTabIndex + 1
+  // Shared input for `getTabCapabilities` — every per-tab affordance is derived
+  // from this, so the render stays declarative.
+  const tabContext = useMemo(
+    () => ({ pinnedCount: pinnedTabs.length, normalCount: normalTabs.length, canDetach: !!detachTab }),
+    [pinnedTabs.length, normalTabs.length, detachTab]
+  )
 
   // ─── Context menu actions ───────────────────────────────────────────────────
 
@@ -381,42 +433,48 @@ export const AppShellTabBar = ({
     (tabId: string) => {
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
+      // `normalTabs`/`pinnedTabs` now mirror the TabsContext arrays that
+      // `reorderTabs` splices (the default `chat` tab is no longer pulled out),
+      // so the bar index maps straight onto the context index.
       const list = tab.isPinned ? pinnedTabs : normalTabs
       const currentIndex = list.findIndex((t) => t.id === tabId)
-      if (currentIndex > 0) {
-        reorderTabs(tab.isPinned ? 'pinned' : 'normal', currentIndex, 0)
+      const targetIndex = tab.isPinned ? 0 : normalReorderStartIndex
+      if (currentIndex > targetIndex) {
+        reorderTabs(tab.isPinned ? 'pinned' : 'normal', currentIndex, targetIndex)
       }
     },
-    [tabs, pinnedTabs, normalTabs, reorderTabs]
+    [tabs, pinnedTabs, normalTabs, normalReorderStartIndex, reorderTabs]
   )
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
+    useTabDrag({
+      pinnedTabs,
+      normalTabs,
+      normalReorderStartIndex,
+      canDetach: !!detachTab,
+      reorderTabs,
+      closeTab,
+      setActiveTab
+    })
+
+  const handleSelectTab = useCallback(
+    (tab: Tab) => {
+      if (!handleTabClick(tab.id)) return
+
+      const revealSource = getResourceListRevealSourceFromUrl(tab.url)
+      if (revealSource) {
+        emitResourceListReveal({ source: revealSource, tabId: tab.id })
+      }
+    },
+    [handleTabClick]
+  )
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
-  const handleHomeClick = () => {
-    if (homeTab) {
-      setActiveTab(homeTab.id)
-      return
-    }
-    addTab({
-      id: HOME_TAB_ID,
-      type: 'route',
-      url: '/home',
-      title: getDefaultRouteTitle('/home')
-    })
-  }
-
-  const handleAddTab = () => {
-    addTab({
-      id: uuid(),
-      type: 'route',
-      url: '/',
-      title: getDefaultRouteTitle('/')
-    })
+  const handleOpenLaunchpad = () => {
+    openTab('/app/launchpad', { title: t('title.launchpad') })
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -431,106 +489,108 @@ export const AppShellTabBar = ({
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
         )}>
-        {/* Home tab */}
-        {!isDetached && (
-          <HomeTabButton
-            isActive={activeTabId === HOME_TAB_ID}
-            onClick={handleHomeClick}
-            tooltip={t('title.home')}
-            tone={tabTone}
-          />
-        )}
-        {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
-
-        {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
-        <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+        {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
+        <div
+          data-testid="app-shell-tab-strip"
+          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
-              {pinnedTabs.map((tab) => (
-                <TabRightClickMenu
-                  key={tab.id}
-                  isPinned={!!tab.isPinned}
-                  onMoveToFirst={() => handleMoveToFirst(tab.id)}
-                  onPin={() => handlePinToggle(tab.id)}
-                  onClose={() => closeTab(tab.id)}>
-                  <PinnedTabButton
-                    tab={tab}
-                    isActive={tab.id === activeTabId}
-                    onSelect={() => handleTabClick(tab.id)}
-                    tone={tabTone}
-                    drag={{
-                      isDragging: isDragging(tab.id),
-                      isGhost: isGhost(tab.id),
-                      noTransition,
-                      translateX: getTranslateX(tab.id, 'pinned'),
-                      onPointerDown: (e) => handlePointerDown(e, tab, 'pinned')
-                    }}
-                    tabRef={(el) => {
-                      if (el) {
-                        tabRefs.current.set(tab.id, el)
-                      } else {
-                        tabRefs.current.delete(tab.id)
-                      }
-                    }}
-                  />
-                </TabRightClickMenu>
-              ))}
+              {pinnedTabs.map((tab) => {
+                const caps = getTabCapabilities(tab, tabContext)
+                return (
+                  <TabRightClickMenu
+                    key={tab.id}
+                    isPinned
+                    capabilities={caps}
+                    onMoveToFirst={() => handleMoveToFirst(tab.id)}
+                    onTogglePin={() => handlePinToggle(tab.id)}
+                    onDetach={() => detachTab?.(tab.id)}
+                    onClose={() => closeTab(tab.id)}>
+                    <PinnedTabButton
+                      tab={tab}
+                      isActive={tab.id === activeTabId}
+                      onSelect={() => handleSelectTab(tab)}
+                      tone={tabTone}
+                      drag={{
+                        isDragging: isDragging(tab.id),
+                        isGhost: isGhost(tab.id),
+                        noTransition,
+                        translateX: getTranslateX(tab.id, 'pinned'),
+                        onPointerDown:
+                          caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'pinned') : () => undefined
+                      }}
+                      tabRef={(el) => {
+                        if (el) {
+                          tabRefs.current.set(tab.id, el)
+                        } else {
+                          tabRefs.current.delete(tab.id)
+                        }
+                      }}
+                    />
+                  </TabRightClickMenu>
+                )
+              })}
             </div>
           )}
 
-          {/* Separator before normal tabs */}
-          {!isDetached && pinnedTabs.length > 0 && normalTabs.length > 0 && <Separator />}
+          {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
 
-          {/* Normal tabs */}
-          {normalTabs.map((tab) => (
-            <TabRightClickMenu
-              key={tab.id}
-              isPinned={!!tab.isPinned}
-              onMoveToFirst={() => handleMoveToFirst(tab.id)}
-              onPin={() => handlePinToggle(tab.id)}
-              onClose={() => closeTab(tab.id)}>
-              <NormalTabButton
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onSelect={() => handleTabClick(tab.id)}
-                onClose={() => closeTab(tab.id)}
-                showClose={!isDetached}
-                tone={tabTone}
-                drag={{
-                  isDragging: isDragging(tab.id),
-                  isGhost: isGhost(tab.id),
-                  noTransition,
-                  translateX: getTranslateX(tab.id, 'normal'),
-                  onPointerDown: (e) => handlePointerDown(e, tab, 'normal')
-                }}
-                tabRef={(el) => {
-                  if (el) {
-                    tabRefs.current.set(tab.id, el)
-                  } else {
-                    tabRefs.current.delete(tab.id)
-                  }
-                }}
-              />
-            </TabRightClickMenu>
-          ))}
+          {/* Normal tabs — affordances come entirely from getTabCapabilities. */}
+          {normalTabs.map((tab) => {
+            const caps = getTabCapabilities(tab, tabContext)
+            return (
+              <TabRightClickMenu
+                key={tab.id}
+                isPinned={false}
+                capabilities={caps}
+                onMoveToFirst={() => handleMoveToFirst(tab.id)}
+                onTogglePin={() => handlePinToggle(tab.id)}
+                onDetach={() => detachTab?.(tab.id)}
+                onClose={() => closeTab(tab.id)}>
+                <NormalTabButton
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onSelect={() => handleSelectTab(tab)}
+                  onClose={() => closeTab(tab.id)}
+                  showClose={caps.close}
+                  tone={tabTone}
+                  drag={{
+                    isDragging: isDragging(tab.id),
+                    isGhost: isGhost(tab.id),
+                    noTransition,
+                    translateX: getTranslateX(tab.id, 'normal'),
+                    onPointerDown:
+                      caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                  }}
+                  tabRef={(el) => {
+                    if (el) {
+                      tabRefs.current.set(tab.id, el)
+                    } else {
+                      tabRefs.current.delete(tab.id)
+                    }
+                  }}
+                />
+              </TabRightClickMenu>
+            )
+          })}
 
-          {/* New tab button — sticky so it hugs the last tab but never scrolls away */}
-          {!isDetached && (
+          {/* Launchpad button — sticky so it hugs the last tab but never scrolls away */}
+          <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
             <button
               type="button"
-              onClick={handleAddTab}
+              aria-label={t('title.launchpad')}
+              onClick={handleOpenLaunchpad}
               className={cn(
                 'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
                 isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
-              )}
-              title={t('tab.new')}>
+              )}>
               <Plus size={14} />
             </button>
-          )}
+          </Tooltip>
         </div>
 
-        <ShellTabBarActions isDetached={isDetached} />
+        <ShellTabBarActions />
       </header>
     </>
   )
