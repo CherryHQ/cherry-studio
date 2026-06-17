@@ -112,6 +112,25 @@ Why writes are strict: the owning service is the single source of truth for the 
 
 If you're tempted to write "going through `XxxService` would be over-engineering" — stop. A 5-line method on the owner is not over-engineering; a foreign service writing to its table is.
 
+#### Breaking a circular dependency (`dataServiceRegistry`)
+
+When two services call **each other** (A→B and B→A), a top-level `import { bService } from './BService'` forms a value-level import cycle the bundler cannot order. Do **not** paper over it with `await import('./BService')` at the call site — that infects the caller with `async`, hides the edge from static tooling, and is easy to reintroduce.
+
+Resolve the sibling lazily through `dataServiceRegistry` instead:
+
+- the sibling **self-registers** at the bottom of its module: `registerDataService('BService', bService)`
+- the caller **resolves at call time**: `const bService = getDataService('BService')`
+
+The registry imports services only as `import type`, so it stays a sink in the import graph and no value cycle can form. **Only the services that form a cycle are added to the registry and self-register; every other data service stays a plain direct-import singleton and never touches it.** Acyclic cross-calls keep using a plain direct import (e.g. `pinService` above) — reach for the registry **only** when a real cycle exists.
+
+**Tests:** the registry is populated by module load — in production each service is loaded by its DataApi handler before any call runs. A unit test that drives a cross-service path must load the sibling so it self-registers, via a side-effect import:
+
+```ts
+import '@data/services/BService' // self-registers; otherwise getDataService throws "not registered yet"
+```
+
+Contract and rationale: `src/main/data/services/dataServiceRegistry.ts`.
+
 ### Example Service
 
 ```typescript

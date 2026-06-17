@@ -15,7 +15,7 @@ src/main/data/
 ├── api/                       # Data API framework
 │   ├── core/                  # ApiServer, MiddlewareEngine, adapters
 │   └── handlers/              # API endpoint implementations
-├── services/                  # Business logic layer
+├── services/                  # Business logic layer (see services/README.md)
 │   └── utils/                 # Row → Entity mapping utilities (see utils/README.md)
 ├── db/                        # Database layer
 │   ├── schemas/               # Drizzle table definitions
