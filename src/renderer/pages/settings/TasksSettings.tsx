@@ -247,7 +247,7 @@ const TaskDetail: FC<{
   }
 
   return (
-    <SettingsContentColumn theme={theme}>
+    <SettingsContentColumn theme={theme} className="min-w-0 overflow-x-hidden">
       {/* Header card */}
       <SettingGroup theme={theme}>
         <SettingTitle>
@@ -560,7 +560,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
       {
         id: 'result',
         header: t('agent.cherryClaw.tasks.logs.result'),
-        meta: { width: 'calc(100% - 320px)', className: 'min-w-0' },
+        meta: { className: 'whitespace-nowrap', headerClassName: 'whitespace-nowrap' },
         cell: ({ row }) => {
           const record = row.original
           const val = record.result
@@ -575,11 +575,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
           return (
             <div className="flex items-center gap-1">
-              <span
-                className={isErrorStatus ? 'text-red-500' : ''}
-                style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {text}
-              </span>
+              <span className={isErrorStatus ? 'text-red-500' : ''}>{text}</span>
               {sessionId && (
                 <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
                   <Button
@@ -639,7 +635,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         data={filteredLogs}
         columns={columns}
         rowKey="id"
-        maxHeight={300}
+        className="[&_[data-slot=table-container]::-webkit-scrollbar]:hidden [&_[data-slot=table-container]]:[scrollbar-width:none]"
         emptyText={t('agent.cherryClaw.tasks.logs.empty')}
       />
     </div>
@@ -1040,9 +1036,9 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <div className="flex flex-1">
+    <div className="flex min-w-0 flex-1">
       <div
-        className="flex w-full flex-1 flex-row overflow-hidden"
+        className="flex w-full min-w-0 flex-1 flex-row overflow-hidden"
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
         <Scrollbar
@@ -1087,7 +1083,7 @@ const TasksSettings: FC = () => {
         </Scrollbar>
 
         {/* Right panel */}
-        <div className="relative flex flex-1">
+        <div className="relative flex min-w-0 flex-1 overflow-hidden">
           {creating ? (
             <CreateForm
               agents={agents}

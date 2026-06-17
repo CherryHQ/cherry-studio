@@ -45,10 +45,10 @@ const SettingsPage: FC = () => {
   return (
     <div
       className={cn(
-        'flex min-h-0 flex-1 flex-col',
+        'flex min-h-0 min-w-0 flex-1 flex-col',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
-      <div className="flex min-h-0 flex-1 flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-row">
         <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
