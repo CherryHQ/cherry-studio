@@ -405,7 +405,7 @@ export const AssistantMenu: Story = {
         </ContextMenuItem>
         <ContextMenuItem>
           <Folder className="size-4" />
-          <span>Save to assistant library</span>
+          <span>Save to resources</span>
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
