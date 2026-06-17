@@ -110,6 +110,7 @@ export function ResourceCreateDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
+        closeOnOverlayClick={!submitting}
         className="sm:max-w-[460px]"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         <DialogHeader>

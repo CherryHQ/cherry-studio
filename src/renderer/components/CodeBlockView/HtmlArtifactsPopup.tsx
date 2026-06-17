@@ -229,6 +229,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
       }}>
       <DialogContent
         showCloseButton={false}
+        closeOnOverlayClick={false}
         overlayClassName={isFullscreen ? 'hidden' : 'bg-black/35 backdrop-blur-[2px]'}
         onPointerDownOutside={(event) => event.preventDefault()}
         className={cn(

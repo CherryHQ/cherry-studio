@@ -51,7 +51,7 @@ vi.mock('@cherrystudio/ui', async () => {
             {...overlayProps}
             onClick={(event) => {
               overlayProps?.onClick?.(event)
-              if (closeOnOverlayClick) {
+              if (closeOnOverlayClick !== false) {
                 context?.onOpenChange?.(false)
               }
             }}

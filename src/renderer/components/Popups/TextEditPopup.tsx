@@ -172,6 +172,7 @@ const PopupContainer: React.FC<Props> = ({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
       <DialogContent
         showCloseButton={modalProps?.closable !== false}
+        closeOnOverlayClick={modalProps?.maskClosable !== false}
         className={cn('max-h-[70vh] overflow-y-auto sm:max-w-none', modalProps?.rootClassName, modalProps?.className)}
         style={contentStyle}
         onEscapeKeyDown={(event) => {

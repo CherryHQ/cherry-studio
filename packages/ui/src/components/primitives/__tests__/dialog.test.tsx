@@ -109,12 +109,12 @@ describe('Dialog primitive', () => {
     expect(handleOverlayClick).toHaveBeenCalledTimes(1)
   })
 
-  it('closes when the overlay is clicked if enabled', () => {
+  it('closes when the overlay is clicked by default', () => {
     const handleOpenChange = vi.fn()
 
     render(
       <Dialog open onOpenChange={handleOpenChange}>
-        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
+        <DialogContent aria-describedby={undefined}>
           <DialogTitle>Rename item</DialogTitle>
         </DialogContent>
       </Dialog>
@@ -126,5 +126,24 @@ describe('Dialog primitive', () => {
     fireEvent.click(overlay!)
 
     expect(handleOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('does not close when overlay click close is disabled', () => {
+    const handleOpenChange = vi.fn()
+
+    render(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick={false}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    fireEvent.click(overlay!)
+
+    expect(handleOpenChange).not.toHaveBeenCalled()
   })
 })

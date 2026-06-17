@@ -231,6 +231,7 @@ export function EditDialogShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         ref={setDialogContentElement}
+        closeOnOverlayClick={!isSubmitting}
         className="flex h-[min(600px,70vh)] flex-col gap-4 sm:max-w-180 lg:max-w-200"
         onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
         <DialogTitle className="text-xl">{title}</DialogTitle>

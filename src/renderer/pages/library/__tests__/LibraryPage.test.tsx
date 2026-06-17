@@ -253,14 +253,18 @@ vi.mock('../dialogs', () => ({
     onSaved: (resource: { id: string }) => Promise<void> | void
     onOpenChange: (open: boolean) => void
   }) =>
-    open && resource ? (
-      <div role="dialog" data-testid="agent-edit-dialog">
-        <button type="button" onClick={() => void onSaved(resource)}>
-          finish agent edit
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          close agent edit
-        </button>
+    resource ? (
+      <div data-testid="agent-edit-dialog-host" data-open={open ? 'true' : 'false'}>
+        {open ? (
+          <div role="dialog" data-testid="agent-edit-dialog">
+            <button type="button" onClick={() => void onSaved(resource)}>
+              finish agent edit
+            </button>
+            <button type="button" onClick={() => onOpenChange(false)}>
+              close agent edit
+            </button>
+          </div>
+        ) : null}
       </div>
     ) : null,
   AssistantEditDialog: ({
@@ -274,14 +278,18 @@ vi.mock('../dialogs', () => ({
     onSaved: (resource: { id: string }) => Promise<void> | void
     onOpenChange: (open: boolean) => void
   }) =>
-    open && resource ? (
-      <div role="dialog" data-testid="assistant-edit-dialog">
-        <button type="button" onClick={() => void onSaved(resource)}>
-          finish assistant edit
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          close assistant edit
-        </button>
+    resource ? (
+      <div data-testid="assistant-edit-dialog-host" data-open={open ? 'true' : 'false'}>
+        {open ? (
+          <div role="dialog" data-testid="assistant-edit-dialog">
+            <button type="button" onClick={() => void onSaved(resource)}>
+              finish assistant edit
+            </button>
+            <button type="button" onClick={() => onOpenChange(false)}>
+              close assistant edit
+            </button>
+          </div>
+        ) : null}
       </div>
     ) : null
 }))
@@ -619,6 +627,29 @@ describe('LibraryPage create flow', () => {
 
     expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
     expect(screen.getByTestId('agent-edit-dialog')).toBeInTheDocument()
+  })
+
+  it('keeps the edit dialog host mounted while the close animation can run', async () => {
+    const user = userEvent.setup()
+    allResourcesMock.push({
+      id: 'agent-from-selector',
+      type: 'agent',
+      name: 'Selector Agent',
+      description: '',
+      avatar: '',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'agent-from-selector' }
+    })
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+    await user.click(screen.getByRole('button', { name: 'close agent edit' }))
+
+    expect(screen.queryByTestId('agent-edit-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-edit-dialog-host')).toHaveAttribute('data-open', 'false')
   })
 
   it('opens the assistant edit dialog from the grid while keeping the list visible', async () => {

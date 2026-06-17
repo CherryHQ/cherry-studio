@@ -46,6 +46,7 @@ type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'age
 type PromptDialogState = { prompt: Prompt | null } | null
 
 const DEFAULT_RESOURCE_TYPE = RESOURCE_TYPE_ORDER[0]
+const DIALOG_EXIT_ANIMATION_MS = 200
 
 /**
  * Build the top-bar chip list.
@@ -87,7 +88,9 @@ export default function LibraryPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateDialogKind | null>(null)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [creatingResource, setCreatingResource] = useState(false)
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
@@ -191,11 +194,27 @@ export default function LibraryPage() {
     setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
   }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
 
+  useEffect(() => {
+    if (createDialogOpen || !createDialogKind) return
+
+    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), DIALOG_EXIT_ANIMATION_MS)
+    return () => window.clearTimeout(timeoutId)
+  }, [createDialogKind, createDialogOpen])
+
+  useEffect(() => {
+    if (editDialogOpen || !editDialog) return
+
+    const timeoutId = window.setTimeout(() => setEditDialog(null), DIALOG_EXIT_ANIMATION_MS)
+    return () => window.clearTimeout(timeoutId)
+  }, [editDialog, editDialogOpen])
+
   const handleOpenResource = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
       setEditDialog({ kind: 'assistant', resource: r.raw })
+      setEditDialogOpen(true)
     } else if (r.type === 'agent') {
       setEditDialog({ kind: 'agent', resource: r.raw })
+      setEditDialogOpen(true)
     } else if (r.type === 'skill') {
       setSelectedSkill(r.raw)
     } else if (r.type === 'prompt') {
@@ -297,8 +316,10 @@ export default function LibraryPage() {
   const handleCreate = useCallback((type: ResourceType) => {
     if (type === 'assistant') {
       setCreateDialogKind('assistant')
+      setCreateDialogOpen(true)
     } else if (type === 'agent') {
       setCreateDialogKind('agent')
+      setCreateDialogOpen(true)
     } else if (type === 'skill') {
       // Skill install lives in a dialog (mirrors ImportAssistantDialog) so the
       // ZIP / directory / marketplace flows from Settings → Skills can be exposed
@@ -311,8 +332,8 @@ export default function LibraryPage() {
 
   const handleCreateDialogOpenChange = useCallback(
     (open: boolean) => {
-      if (open || creatingResource) return
-      setCreateDialogKind(null)
+      if (!open && creatingResource) return
+      setCreateDialogOpen(open)
     },
     [creatingResource]
   )
@@ -347,7 +368,7 @@ export default function LibraryPage() {
           })
         }
 
-        setCreateDialogKind(null)
+        setCreateDialogOpen(false)
         refetch()
       } finally {
         setCreatingResource(false)
@@ -357,8 +378,7 @@ export default function LibraryPage() {
   )
 
   const handleEditDialogOpenChange = useCallback((open: boolean) => {
-    if (open) return
-    setEditDialog(null)
+    setEditDialogOpen(open)
   }, [])
 
   const handleEditSaved = useCallback(() => {
@@ -483,7 +503,7 @@ export default function LibraryPage() {
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
       <ResourceCreateDialog
         kind={createDialogKind ?? 'assistant'}
-        open={createDialogKind !== null}
+        open={createDialogOpen}
         isSubmitting={creatingResource}
         modelFilter={createDialogKind === 'agent' ? agentModelFilter : isSelectableAssistantModel}
         onOpenChange={handleCreateDialogOpenChange}
@@ -491,7 +511,7 @@ export default function LibraryPage() {
       />
       {editDialog?.kind === 'assistant' ? (
         <AssistantEditDialog
-          open
+          open={editDialogOpen}
           resource={editDialog.resource}
           modelFilter={isSelectableAssistantModel}
           onOpenChange={handleEditDialogOpenChange}
@@ -500,7 +520,7 @@ export default function LibraryPage() {
       ) : null}
       {editDialog?.kind === 'agent' ? (
         <AgentEditDialog
-          open
+          open={editDialogOpen}
           resource={editDialog.resource}
           modelFilter={agentModelFilter}
           onOpenChange={handleEditDialogOpenChange}
