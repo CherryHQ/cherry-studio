@@ -8,7 +8,9 @@
 
 import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { MemoryServer } from '@main/ai/mcp/servers/memory'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -139,11 +141,39 @@ export class McpServerService {
    * Delete an MCP server
    */
   async delete(id: string): Promise<void> {
-    await this.getById(id)
+    const server = await this.getById(id)
 
     await this.db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
 
     logger.info('Deleted MCP server', { id })
+
+    // Cascade cleanup: remove KG routing entries referencing this MCP by name.
+    // Prefer the live in-memory graph when an active MemoryServer instance exists;
+    // fall back to file-based cleanup otherwise.
+    try {
+      const memoryPath = application.getPath('feature.mcp.memory_file')
+      const result = await MemoryServer.cleanupReferencesByName(memoryPath, server.name)
+      if (result && result.deletedEntities > 0) {
+        logger.info('Cleaned up knowledge graph references for deleted MCP', {
+          mcpId: id,
+          mcpName: server.name,
+          deletedEntities: result.deletedEntities,
+          deletedRelations: result.deletedRelations
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to cleanup knowledge graph references during MCP deletion', { id, error })
+    }
+
+    // Cascade cleanup: remove deleted MCP ID from agent.mcps JSON arrays
+    try {
+      const affectedAgents = await agentService.removeMcpFromAgents(id)
+      if (affectedAgents > 0) {
+        logger.info('Cleaned up agent MCP references during MCP deletion', { mcpId: id, affectedAgents })
+      }
+    } catch (error) {
+      logger.warn('Failed to cleanup agent MCP references during MCP deletion', { id, error })
+    }
   }
 
   /**

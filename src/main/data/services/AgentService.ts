@@ -368,6 +368,37 @@ export class AgentService {
 
     await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
   }
+
+  /**
+   * Remove a deleted MCP server ID from the `mcps` JSON array of all agents
+   * that reference it. This prevents dangling references after MCP deletion.
+   */
+  async removeMcpFromAgents(mcpId: string): Promise<number> {
+    return application.get('DbService').withWriteTx((tx) => this.removeMcpFromAgentsTx(tx, mcpId))
+  }
+
+  async removeMcpFromAgentsTx(tx: DbOrTx, mcpId: string): Promise<number> {
+    const rows = await tx
+      .select({ id: agentsTable.id, mcps: agentsTable.mcps })
+      .from(agentsTable)
+      .where(isNull(agentsTable.deletedAt))
+
+    let updatedCount = 0
+    for (const row of rows) {
+      const mcps = row.mcps
+      if (!Array.isArray(mcps) || !mcps.includes(mcpId)) continue
+
+      const updatedMcps = mcps.filter((id) => id !== mcpId)
+      await tx.update(agentsTable).set({ mcps: updatedMcps, updatedAt: Date.now() }).where(eq(agentsTable.id, row.id))
+      updatedCount++
+    }
+
+    if (updatedCount > 0) {
+      logger.info(`Cleaned up MCP references from agents`, { mcpId, affectedAgents: updatedCount })
+    }
+
+    return updatedCount
+  }
 }
 
 export const agentService = new AgentService()
