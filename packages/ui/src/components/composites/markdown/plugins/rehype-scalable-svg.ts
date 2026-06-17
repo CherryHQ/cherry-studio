@@ -9,10 +9,14 @@ const isNumeric = (value: unknown): boolean => {
 }
 
 const isNegativeNumeric = (value: string): boolean => /^-\d/.test(value.trim())
+const isSafeCssLength = (value: string): boolean =>
+  /^(?:\d+\.?\d*|\.\d+)(?:px|pt|em|rem|%|vw|vh|cm|mm|in)?$/i.test(value.trim())
+const isSafeSvgDimension = (value: string): boolean => isNumeric(value) || isSafeCssLength(value)
 
 const toCssMaxWidth = (width: string): string | null => {
   if (isNegativeNumeric(width)) return null
-  return isNumeric(width) ? `${width}px` : width
+  if (isNumeric(width)) return `${width}px`
+  return isSafeCssLength(width) ? width : null
 }
 
 /**
@@ -41,6 +45,9 @@ function rehypeScalableSvg() {
         const hasViewBox = 'viewBox' in properties
         const width = (properties.width as string)?.trim()
         const height = (properties.height as string)?.trim()
+
+        if (width && !isSafeSvgDimension(width)) delete properties.width
+        if (height && !isSafeSvgDimension(height)) delete properties.height
 
         // 1. Universally set max-width from the width attribute if it exists.
         // This is safe for both simple and complex cases.

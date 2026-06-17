@@ -47,6 +47,19 @@ describe('Markdown (static)', () => {
     expect(svg?.hasAttribute('height')).toBe(false)
   })
 
+  it('does not preserve injected SVG width declarations as style', () => {
+    const { container } = render(
+      <Markdown id="m3">
+        {'<svg width="9px; background: url(https://attacker.example/leak)" height="9"><rect /></svg>'}
+      </Markdown>
+    )
+    const svg = container.querySelector('svg')
+
+    expect(svg?.getAttribute('style')).toBeNull()
+    expect(container.innerHTML).not.toContain('background')
+    expect(container.innerHTML).not.toContain('attacker.example')
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {

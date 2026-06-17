@@ -180,9 +180,9 @@ describe('rehypeScalableSvg', () => {
       const result = processHtml(html)
 
       expect(result).toContain('data-needs-measurement="true"')
-      expect(result).toContain('width="auto"')
-      expect(result).toContain('height="inherit"')
-      expect(result).toContain('max-width: auto')
+      expect(result).not.toContain('width="auto"')
+      expect(result).not.toContain('height="inherit"')
+      expect(result).not.toContain('max-width:')
       expect(result).not.toContain('viewBox=')
     })
 
@@ -192,7 +192,7 @@ describe('rehypeScalableSvg', () => {
 
       expect(result).toContain('data-needs-measurement="true"')
       expect(result).toContain('width="100"')
-      expect(result).toContain('height="auto"')
+      expect(result).not.toContain('height="auto"')
       expect(result).toContain('max-width: 100px')
       expect(result).not.toContain('viewBox=')
     })
