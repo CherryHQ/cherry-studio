@@ -1,0 +1,28 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 5812dcd0b49a7e78b4381a91e4631c5c69eaa48b..a2378f06073d606eda0001ffe4e3853a81ff67f3 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -231,7 +231,8 @@ var MarkdownManager = class {
+   createTokenizerHelpers(lexer) {
+     return {
+       inlineTokens: (src) => lexer.inlineTokens(src),
+-      blockTokens: (src) => lexer.blockTokens(src)
++      blockTokens: (src) => lexer.blockTokens(src),
++      lexer
+     };
+   }
+   tokenizeInline(src) {
+diff --git a/dist/index.js b/dist/index.js
+index f29ad96882b43e17dcf4bb78998e6a88a4c5b192..b7f071ea827055f93cf9a16bc3965c1c68887b34 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -231,7 +231,8 @@ var MarkdownManager = class {
+   createTokenizerHelpers(lexer) {
+     return {
+       inlineTokens: (src) => lexer.inlineTokens(src),
+-      blockTokens: (src) => lexer.blockTokens(src)
++      blockTokens: (src) => lexer.blockTokens(src),
++      lexer
+     };
+   }
+   tokenizeInline(src) {

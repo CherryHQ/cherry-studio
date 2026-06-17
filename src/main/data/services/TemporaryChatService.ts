@@ -25,6 +25,7 @@ import type { Topic } from '@shared/data/types/topic'
 import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
+import { messageService } from './MessageService'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -216,7 +217,6 @@ export class TemporaryChatService {
 
         // 3. Create the topic's virtual root, then linearize buffered messages under it:
         // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
-        const { messageService } = await import('./MessageService')
         const rootId = await messageService.createRootMessageTx(tx, topic.id)
         let prevId: string = rootId
         for (const m of msgs) {

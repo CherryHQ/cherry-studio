@@ -27,7 +27,6 @@ function makeCache() {
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const uiMsg = (id: string, role: string, parentId: string | null): any => ({
   id,
   role,
