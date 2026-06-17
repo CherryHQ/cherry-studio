@@ -49,8 +49,9 @@ import {
 } from './types/ipc'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
+import { canKnowledgeItemRebuildSource } from './utils/items'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
-import { getKnowledgeBaseFilePath, knowledgeFileExists, knowledgeSourcePathExists } from './utils/storage/pathStorage'
+import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
 import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 
@@ -570,7 +571,7 @@ export class KnowledgeService extends BaseService {
       // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
       // is a file root whose raw/ file never existed, so this rejects it too.
       const root = subtreeItems.find((item) => item.id === rootItemId)
-      if (root && !(await this.canReindexRebuildSource(baseId, root))) {
+      if (root && !(await canKnowledgeItemRebuildSource(baseId, root))) {
         missingSourceItemIds.push(rootItemId)
       }
 
@@ -607,21 +608,6 @@ export class KnowledgeService extends BaseService {
       },
       'Cannot reindex knowledge item until the entire subtree is completed or failed'
     )
-  }
-
-  /**
-   * Whether a reindex root can rebuild its content from a still-existing source. A directory is
-   * rescanned from its original folder (`data.path`); a file leaf reads its own material file
-   * (`indexedRelativePath ?? relativePath`); note/url always rebuild from the DB / network.
-   */
-  private async canReindexRebuildSource(baseId: string, root: KnowledgeItem): Promise<boolean> {
-    if (root.type === 'directory') {
-      return knowledgeSourcePathExists(root.data.path)
-    }
-    if (root.type === 'file') {
-      return knowledgeFileExists(baseId, root.data.indexedRelativePath ?? root.data.relativePath)
-    }
-    return true
   }
 
   private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeAddItemInput {

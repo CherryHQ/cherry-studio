@@ -19,7 +19,7 @@ import {
   toKnowledgeItemId
 } from '../types'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
-import { isContainerKnowledgeItem } from '../utils/items'
+import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../utils/items'
 import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
@@ -67,13 +67,40 @@ export function createReindexSubtreeJobHandler(
         }
 
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
+        // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
+        // source can vanish between admission and acquiring this lock. Re-check right before the delete:
+        // a root that can no longer rebuild keeps its existing vectors (stays completed/searchable)
+        // instead of being wiped with nothing to re-read from.
+        const rebuildableRoots: typeof selectedRoots = []
+        const missingSourceRootIds: string[] = []
+        for (const root of selectedRoots) {
+          if (await canKnowledgeItemRebuildSource(baseId, root)) {
+            rebuildableRoots.push(root)
+          } else {
+            missingSourceRootIds.push(root.id)
+          }
+        }
+        if (missingSourceRootIds.length > 0) {
+          logger.warn('Skipping reindex for roots whose source vanished before the mutation lock', {
+            baseId,
+            missingSourceRootIds,
+            jobId: ctx.jobId
+          })
+        }
+        if (rebuildableRoots.length === 0) {
+          return { roots: [], skippedDeleting: false }
+        }
+
+        const rebuildableRootIds = rebuildableRoots.map((item) => item.id)
         const leafItemIds = (
-          await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true, leafOnly: true })
+          await knowledgeItemService.getSubtreeItems(baseId, rebuildableRootIds, { includeRoots: true, leafOnly: true })
         ).map((item) => item.id)
 
         await deleteKnowledgeItemVectors(base, leafItemIds)
 
-        const containerRootIds = selectedRoots.filter((item) => isContainerKnowledgeItem(item)).map((item) => item.id)
+        const containerRootIds = rebuildableRoots
+          .filter((item) => isContainerKnowledgeItem(item))
+          .map((item) => item.id)
         if (containerRootIds.length > 0) {
           // Container roots are rescanned from source, so their previous expansion must be removed.
           const descendantItems = await knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
@@ -85,10 +112,10 @@ export function createReindexSubtreeJobHandler(
           )
         }
 
-        for (const item of selectedRoots) {
+        for (const item of rebuildableRoots) {
           await knowledgeItemService.updateStatus(item.id, item.type === 'directory' ? 'preparing' : 'processing')
         }
-        return { roots: selectedRoots, skippedDeleting: false }
+        return { roots: rebuildableRoots, skippedDeleting: false }
       })
       if (resetResult.roots.length === 0) {
         reportKnowledgeProgress(ctx, 100, {
@@ -109,8 +136,12 @@ export function createReindexSubtreeJobHandler(
       } catch (error) {
         // Roots are already visible as active after reset. If scheduling the durable
         // follow-up job fails, flip them to failed so the UI does not show stuck work.
+        // Only the rebuildable roots were reset/activated — missing-source roots were left
+        // untouched (still completed on their existing vectors), so they must not be failed here.
         const message = error instanceof Error ? error.message : String(error)
-        const unscheduledRootIds = rootItemIds.filter((rootItemId) => !completedSchedulingRootIds.has(rootItemId))
+        const unscheduledRootIds = resetResult.roots
+          .map((item) => item.id)
+          .filter((rootItemId) => !completedSchedulingRootIds.has(rootItemId))
         if (unscheduledRootIds.length > 0) {
           await knowledgeItemService.setSubtreeStatus(baseId, unscheduledRootIds, 'failed', {
             error: `Failed to schedule reindex after reset: ${message}`

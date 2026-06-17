@@ -2,7 +2,7 @@
 title: Knowledge folders keep their search index through the v1 → v2 migration
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#16093'
 date: 2026-06-11
 ---
 
@@ -12,7 +12,7 @@ Folders added to a v1 knowledge base now carry their search index through the v1
 
 ## Why this matters to the user
 
-In v1, a folder's files were embedded under the folder entry itself with no per-file records. The migration now reconstructs that structure: the folder becomes a container with one entry per embedded file, and each file's v1 vectors are reused as-is (no embedding API calls re-spent). The migrated file entries are searchable but keep no copy of the original file inside the knowledge base — v1 never stored the folder inside the app, so there is nothing to copy; search uses the migrated vectors directly. Re-indexing a single such file is not yet supported and falls back to its original on-disk path; re-adding the whole folder always works.
+In v1, a folder's files were embedded under the folder entry itself with no per-file records. The migration now reconstructs that structure: the folder becomes a container with one entry per embedded file, and each file's v1 vectors are reused as-is (no embedding API calls re-spent). The migrated file entries are searchable but keep no copy of the original file inside the knowledge base — v1 never stored the folder inside the app, so there is nothing to copy; search uses the migrated vectors directly. Re-indexing a single such migrated file is not supported: it has no file under the base's `raw/` folder, so reindex is rejected up front and its existing vectors are never deleted. Re-adding the whole folder always works, and if the folder's original directory is still on disk, reindexing the container rebuilds it for real.
 
 ## What the user should do
 

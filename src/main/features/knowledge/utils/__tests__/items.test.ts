@@ -1,7 +1,25 @@
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { describe, expect, it } from 'vitest'
+import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem } from '../items'
+import type * as PathStorage from '../storage/pathStorage'
+
+const { knowledgeFileExistsMock, knowledgeSourcePathExistsMock } = vi.hoisted(() => ({
+  knowledgeFileExistsMock: vi.fn(),
+  knowledgeSourcePathExistsMock: vi.fn()
+}))
+
+vi.mock('../storage/pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../storage/pathStorage')
+  return {
+    ...actual,
+    knowledgeFileExists: knowledgeFileExistsMock,
+    knowledgeSourcePathExists: knowledgeSourcePathExistsMock
+  }
+})
+
+const { canKnowledgeItemRebuildSource, filterIndexableKnowledgeItems, isIndexableKnowledgeItem } = await import(
+  '../items'
+)
 
 function createItem(type: KnowledgeItem['type']): KnowledgeItem {
   const base = {
@@ -36,5 +54,39 @@ describe('indexable knowledge item helpers', () => {
 
     expect(items.map((item) => isIndexableKnowledgeItem(item))).toEqual([true, true, true, false])
     expect(filterIndexableKnowledgeItems(items).map((item) => item.type)).toEqual(['file', 'url', 'note'])
+  })
+})
+
+describe('canKnowledgeItemRebuildSource', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    knowledgeFileExistsMock.mockResolvedValue(true)
+    knowledgeSourcePathExistsMock.mockResolvedValue(true)
+  })
+
+  it('checks a directory against its original folder path', async () => {
+    knowledgeSourcePathExistsMock.mockResolvedValue(false)
+
+    await expect(canKnowledgeItemRebuildSource('kb-1', createItem('directory'))).resolves.toBe(false)
+    expect(knowledgeSourcePathExistsMock).toHaveBeenCalledWith('/docs')
+    expect(knowledgeFileExistsMock).not.toHaveBeenCalled()
+  })
+
+  it('checks a file against its material file, preferring indexedRelativePath', async () => {
+    const file: KnowledgeItemOf<'file'> = {
+      ...(createItem('file') as KnowledgeItemOf<'file'>),
+      data: { source: '/docs/file.md', relativePath: 'file.md', indexedRelativePath: 'processed/file.md' }
+    }
+
+    await expect(canKnowledgeItemRebuildSource('kb-1', file)).resolves.toBe(true)
+    expect(knowledgeFileExistsMock).toHaveBeenCalledWith('kb-1', 'processed/file.md')
+    expect(knowledgeSourcePathExistsMock).not.toHaveBeenCalled()
+  })
+
+  it('treats note and url items as always rebuildable without touching disk', async () => {
+    await expect(canKnowledgeItemRebuildSource('kb-1', createItem('note'))).resolves.toBe(true)
+    await expect(canKnowledgeItemRebuildSource('kb-1', createItem('url'))).resolves.toBe(true)
+    expect(knowledgeFileExistsMock).not.toHaveBeenCalled()
+    expect(knowledgeSourcePathExistsMock).not.toHaveBeenCalled()
   })
 })

@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
+  knowledgeFileExistsMock: vi.fn(),
+  knowledgeSourcePathExistsMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
@@ -44,6 +46,8 @@ export const {
   getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
+  knowledgeFileExistsMock,
+  knowledgeSourcePathExistsMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -152,7 +156,12 @@ vi.mock('../../utils/storage/pathStorage', async () => {
     // Stub the best-effort cleanup the handlers call. Its swallow-on-failure
     // contract is unit-tested directly in pathStorage's own test; here we only
     // need handlers to route cleanup through it and still delete rows.
-    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock
+    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
+    // Stub the on-disk source existence checks (used by canKnowledgeItemRebuildSource
+    // in the reindex source guard) so tests control rebuildability without touching
+    // the real filesystem; default to true in beforeEach.
+    knowledgeFileExists: knowledgeFileExistsMock,
+    knowledgeSourcePathExists: knowledgeSourcePathExistsMock
   }
 })
 
@@ -375,6 +384,8 @@ beforeEach(() => {
   knowledgeItemUpdateIndexedRelativePathMock.mockResolvedValue(createFileItem())
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
+  knowledgeFileExistsMock.mockResolvedValue(true)
+  knowledgeSourcePathExistsMock.mockResolvedValue(true)
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   workflowService.scheduleIndexing.mockResolvedValue(undefined)
