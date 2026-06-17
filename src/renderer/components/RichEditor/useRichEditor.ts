@@ -1,6 +1,6 @@
 import 'katex/dist/katex.min.css'
 
-import { TableKit } from '@cherrystudio/extension-table-plus'
+import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 import { loggerService } from '@logger'
 import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
@@ -33,6 +33,7 @@ import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
 import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink } from './extensions/enhancedLink'
 import { EnhancedMath } from './extensions/enhancedMath'
+import { MarkdownTable } from './extensions/markdownTable'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yamlFrontMatter'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
@@ -368,22 +369,20 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         suggestion: commandSuggestion
       }),
       Typography,
-      TableKit.configure({
-        table: {
-          resizable: true,
-          allowTableNodeSelection: true,
-          onRowActionClick: ({ rowIndex, position }) => {
-            showTableActionMenu('row', rowIndex, position)
-          },
-          onColumnActionClick: ({ colIndex, position }) => {
-            showTableActionMenu('column', colIndex, position)
-          }
+      MarkdownTable.configure({
+        resizable: true,
+        allowTableNodeSelection: true,
+        onRowActionClick: ({ rowIndex, position }) => {
+          showTableActionMenu('row', rowIndex, position)
         },
-        tableRow: {},
-        tableHeader: {},
-        tableCell: {
-          allowNestedNodes: false
+        onColumnActionClick: ({ colIndex, position }) => {
+          showTableActionMenu('column', colIndex, position)
         }
+      }),
+      TableRow,
+      TableHeader,
+      TableCell.configure({
+        allowNestedNodes: false
       }),
       TaskList,
       TaskItem.configure({
