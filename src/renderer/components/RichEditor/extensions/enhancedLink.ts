@@ -1,3 +1,4 @@
+import type { MarkdownToken } from '@tiptap/core'
 import { mergeAttributes } from '@tiptap/core'
 import Link from '@tiptap/extension-link'
 import type { MarkType, ResolvedPos } from '@tiptap/pm/model'
@@ -305,6 +306,19 @@ export interface EnhancedLinkOptions {
 
 export const EnhancedLink = Link.extend<EnhancedLinkOptions>({
   name: 'enhancedLink',
+
+  // The base Link's inherited parseMarkdown hardcodes the 'link' mark name. Because this extension
+  // renames the mark to 'enhancedLink' (and StarterKit's built-in link is disabled), parsing any
+  // markdown link would otherwise emit a non-existent 'link' mark — ProseMirror's markFromJSON then
+  // throws and drops the entire surrounding text. Re-map the link token onto our mark name.
+  // (renderMarkdown is inherited unchanged — it reads node.attrs generically, no name hardcoding.)
+  parseMarkdown(token, helpers) {
+    const linkToken = token as MarkdownToken & { href?: string; title?: string; tokens?: MarkdownToken[] }
+    return helpers.applyMark('enhancedLink', helpers.parseInline(linkToken.tokens || []), {
+      href: linkToken.href,
+      title: linkToken.title || null
+    })
+  },
 
   addOptions() {
     return {
