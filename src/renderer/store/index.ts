@@ -44,7 +44,6 @@ import newMessagesReducer from './newMessage'
 // import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
-import ocr from './ocr'
 import openclaw from './openclaw'
 import paintings from './paintings'
 import preprocess from './preprocess'
@@ -83,7 +82,6 @@ const rootReducer = combineReducers({
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
   translate,
-  ocr,
   note,
   toolPermissions
 })

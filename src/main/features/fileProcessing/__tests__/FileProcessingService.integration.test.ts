@@ -16,11 +16,14 @@ const {
   appGetMock,
   enqueueMock,
   registerHandlerMock,
+  preferenceGetMock,
+  preferenceSetMock,
   fileManagerGetByIdMock,
   fileManagerGetMetadataMock,
   toFileInfoMock,
   processorRegistryMock,
   resolveProcessorConfigByFeatureMock,
+  resolveDefaultImageToTextProcessorMock,
   isAvailableTesseractMock,
   isAvailableDoc2xMock,
   isAvailableSystemMock
@@ -28,11 +31,14 @@ const {
   appGetMock: vi.fn(),
   enqueueMock: vi.fn(),
   registerHandlerMock: vi.fn(),
+  preferenceGetMock: vi.fn(),
+  preferenceSetMock: vi.fn(),
   fileManagerGetByIdMock: vi.fn(),
   fileManagerGetMetadataMock: vi.fn(),
   toFileInfoMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   resolveProcessorConfigByFeatureMock: vi.fn(),
+  resolveDefaultImageToTextProcessorMock: vi.fn(() => 'system'),
   isAvailableTesseractMock: vi.fn(() => true),
   isAvailableDoc2xMock: vi.fn(() => true),
   isAvailableSystemMock: vi.fn(() => false)
@@ -65,6 +71,10 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock
+}))
+
+vi.mock('../config/defaultImageToTextProcessor', () => ({
+  resolveDefaultImageToTextProcessor: resolveDefaultImageToTextProcessorMock
 }))
 
 vi.mock('../processors/registry', () => ({
@@ -168,6 +178,13 @@ function setupFileInfo() {
   })
 }
 
+function getIpcHandler(svc: InstanceType<typeof FileProcessingService>, channelFragment: string) {
+  const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
+  const call = ipcHandle.mock.calls.find(([channel]) => String(channel).includes(channelFragment))
+  expect(call).toBeDefined()
+  return call?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
@@ -180,9 +197,15 @@ beforeEach(() => {
         getMetadata: fileManagerGetMetadataMock
       }
     }
+    if (name === 'PreferenceService') {
+      return { get: preferenceGetMock, set: preferenceSetMock }
+    }
     throw new Error(`Unexpected application.get(${name})`)
   })
   setupFileInfo()
+  preferenceGetMock.mockReturnValue('tesseract')
+  preferenceSetMock.mockResolvedValue(undefined)
+  resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
   isAvailableTesseractMock.mockReturnValue(true)
   isAvailableDoc2xMock.mockReturnValue(true)
   isAvailableSystemMock.mockReturnValue(false)
@@ -196,9 +219,9 @@ describe('FileProcessingService — lifecycle metadata', () => {
 })
 
 describe('FileProcessingService.onInit', () => {
-  it('registers both job handlers on JobManager', () => {
+  it('registers both job handlers on JobManager', async () => {
     const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
 
     expect(registerHandlerMock).toHaveBeenCalledTimes(2)
     const types = registerHandlerMock.mock.calls.map((c) => c[0])
@@ -206,23 +229,42 @@ describe('FileProcessingService.onInit', () => {
     expect(types).toContain('file-processing.remote-poll')
   })
 
-  it('registers IPC handlers for start + listAvailableProcessors only', () => {
+  it('registers IPC handlers for start, imageToText, and listAvailableProcessors', async () => {
     const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
 
     const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
     const channels = ipcHandle.mock.calls.map((c) => c[0])
     expect(channels).toEqual([
       expect.stringContaining('start-job'),
+      expect.stringContaining('image-to-text'),
       expect.stringContaining('list-available-processors')
     ])
+  })
+
+  it('initializes an empty default image OCR processor to the platform default', async () => {
+    preferenceGetMock.mockReturnValue(null)
+    resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
+
+    const svc = new FileProcessingService()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
+
+    expect(preferenceSetMock).toHaveBeenCalledWith('feature.file_processing.default_image_to_text', 'system')
+  })
+
+  it('does not overwrite an existing default image OCR processor', async () => {
+    preferenceGetMock.mockReturnValue('paddleocr')
+
+    const svc = new FileProcessingService()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
+
+    expect(preferenceSetMock).not.toHaveBeenCalled()
   })
 })
 
 describe('FileProcessingService.startJob — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
     enqueueMock.mockResolvedValue({
       id: 'job-test-1',
       snapshot: {
@@ -403,6 +445,118 @@ describe('FileProcessingService.startJob — routing', () => {
       })
     ).rejects.toThrow(/does not support document_to_markdown/)
     expect(enqueueMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('FileProcessingService.imageToText', () => {
+  function setupImageToTextJob(finished: unknown) {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    enqueueMock.mockResolvedValue({
+      id: 'job-test-1',
+      snapshot: {
+        id: 'job-test-1',
+        type: 'file-processing.background',
+        status: 'pending',
+        input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
+      },
+      finished: Promise.resolve(finished)
+    })
+  }
+
+  it('runs image_to_text with the configured default processor and returns text', async () => {
+    setupImageToTextJob({
+      status: 'completed',
+      output: { artifact: { kind: 'text', format: 'plain', text: 'recognized text' } },
+      error: null
+    })
+
+    const svc = new FileProcessingService()
+    const result = await svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })
+
+    expect(resolveProcessorConfigByFeatureMock).toHaveBeenCalledWith('image_to_text', undefined)
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'file-processing.background',
+      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
+      {}
+    )
+    expect(result).toEqual({ text: 'recognized text' })
+  })
+
+  it('returns a structured IPC success result', async () => {
+    setupImageToTextJob({
+      status: 'completed',
+      output: { artifact: { kind: 'text', format: 'plain', text: 'recognized text' } },
+      error: null
+    })
+
+    const svc = new FileProcessingService()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
+    const handler = getIpcHandler(svc, 'image-to-text')
+
+    await expect(handler(null, { file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).resolves.toEqual({
+      ok: true,
+      text: 'recognized text'
+    })
+  })
+
+  it('returns a structured IPC error code when OCR default is not configured', async () => {
+    const error = new Error('Default file processor for image_to_text is not configured')
+    resolveProcessorConfigByFeatureMock.mockImplementation(() => {
+      throw error
+    })
+
+    const svc = new FileProcessingService()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
+    const handler = getIpcHandler(svc, 'image-to-text')
+
+    await expect(handler(null, { file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).resolves.toEqual({
+      code: 'default_not_configured',
+      message: error.message,
+      ok: false
+    })
+  })
+
+  it('throws the job error when image_to_text fails', async () => {
+    setupImageToTextJob({
+      status: 'failed',
+      output: null,
+      error: { message: 'OCR failed' }
+    })
+
+    const svc = new FileProcessingService()
+
+    await expect(svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).rejects.toThrow('OCR failed')
+  })
+
+  it('throws when image_to_text is cancelled', async () => {
+    setupImageToTextJob({
+      status: 'cancelled',
+      output: null,
+      error: null
+    })
+
+    const svc = new FileProcessingService()
+
+    await expect(svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).rejects.toThrow(
+      'File processing image_to_text job cancelled'
+    )
+  })
+
+  it('throws when image_to_text returns a non-text artifact', async () => {
+    setupImageToTextJob({
+      status: 'completed',
+      output: { artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' } },
+      error: null
+    })
+
+    const svc = new FileProcessingService()
+
+    await expect(svc.imageToText({ file: { kind: 'entry', entryId: IMAGE_ENTRY_ID } })).rejects.toThrow(
+      'File processing image_to_text did not return text'
+    )
   })
 })
 

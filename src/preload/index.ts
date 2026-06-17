@@ -39,7 +39,16 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
+import type {
+  FileProcessingImageToTextInput,
+  FileProcessingImageToTextResult,
+  FileProcessingOutputTarget,
+  ListAvailableFileProcessorsResult
+} from '@shared/data/types/fileProcessing'
+import {
+  FileProcessingImageToTextError,
+  FileProcessingImageToTextIpcResultSchema
+} from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddItemInput,
@@ -69,16 +78,7 @@ import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type { StorageHealth } from '@shared/types/storageMonitor'
-import type {
-  ApiGatewayStatusResult,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  OcrResult,
-  S3Config,
-  SupportedOcrFile,
-  WebDavConfig
-} from '@types'
+import type { ApiGatewayStatusResult, FileMetadata, Notification, S3Config, WebDavConfig } from '@types'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
@@ -680,11 +680,6 @@ const api = {
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
-  ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
-    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
-  },
   fileProcessing: {
     startJob: (payload: {
       feature: FileProcessorFeature
@@ -695,6 +690,17 @@ const api = {
       }
       processorId?: FileProcessorId
     }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
+    imageToText: async (payload: FileProcessingImageToTextInput): Promise<FileProcessingImageToTextResult> => {
+      const response = FileProcessingImageToTextIpcResultSchema.parse(
+        await ipcRenderer.invoke(IpcChannel.FileProcessing_ImageToText, payload)
+      )
+
+      if (!response.ok) {
+        throw new FileProcessingImageToTextError(response.code, response.message)
+      }
+
+      return { text: response.text }
+    },
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },

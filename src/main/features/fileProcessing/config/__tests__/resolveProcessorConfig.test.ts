@@ -1,10 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { isAvailableSystemMock } = vi.hoisted(() => ({
+  isAvailableSystemMock: vi.fn(() => true)
+}))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
 
   return mockApplicationFactory()
 })
+
+vi.mock('../../processors/registry', () => ({
+  processorRegistry: {
+    tesseract: { isAvailable: () => true },
+    system: { isAvailable: isAvailableSystemMock },
+    paddleocr: { isAvailable: () => true },
+    ovocr: { isAvailable: () => true },
+    mineru: { isAvailable: () => true },
+    doc2x: { isAvailable: () => true },
+    mistral: { isAvailable: () => true },
+    'open-mineru': { isAvailable: () => true }
+  }
+}))
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
@@ -14,6 +31,7 @@ describe('resolveProcessorConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
+    isAvailableSystemMock.mockReturnValue(true)
   })
 
   it('getFileProcessorConfigById merges preference override into preset config', () => {
@@ -123,6 +141,15 @@ describe('resolveProcessorConfig', () => {
 
     expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
       'File processor open-mineru does not support image_to_text'
+    )
+  })
+
+  it('throws when the configured default processor is not available on this platform', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'system')
+    isAvailableSystemMock.mockReturnValue(false)
+
+    expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
+      'File processor system is not available on this platform'
     )
   })
 })

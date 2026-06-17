@@ -1,12 +1,18 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions } from '@main/core/job/types'
+import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import {
+  FileProcessingImageToTextInputSchema,
+  type FileProcessingImageToTextIpcResult,
+  FileProcessingImageToTextIpcResultSchema,
+  FileProcessingImageToTextResultSchema,
+  FileProcessingJobOutputSchema,
   FileProcessingOutputTargetSchema,
+  getFileProcessingImageToTextErrorCode,
   ListAvailableFileProcessorsResultSchema
 } from '@shared/data/types/fileProcessing'
 import type { FileHandle } from '@shared/file/types'
@@ -14,6 +20,7 @@ import { FileHandleSchema } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
+import { resolveDefaultImageToTextProcessor } from './config/defaultImageToTextProcessor'
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
@@ -46,14 +53,25 @@ const StartJobPayloadSchema = z
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['FileManager', 'JobManager'])
 export class FileProcessingService extends BaseService {
-  protected onInit(): void {
+  protected async onInit(): Promise<void> {
     // Register handlers in onInit (NOT onReady) so JobManager.onAllReady's
     // startup recovery sweep sees them when re-dispatching non-terminal jobs.
     const jobManager = application.get('JobManager')
     jobManager.registerHandler('file-processing.background', backgroundJobHandler)
     jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
     this.registerIpcHandlers()
+    await this.initializeDefaultImageToTextProcessor()
     logger.info('File processing service initialized')
+  }
+
+  private async initializeDefaultImageToTextProcessor(): Promise<void> {
+    const preferenceService = application.get('PreferenceService')
+
+    if (preferenceService.get('feature.file_processing.default_image_to_text') !== null) {
+      return
+    }
+
+    await preferenceService.set('feature.file_processing.default_image_to_text', resolveDefaultImageToTextProcessor())
   }
 
   /**
@@ -73,6 +91,14 @@ export class FileProcessingService extends BaseService {
     input: StartFileProcessingJobInput,
     options: Pick<EnqueueOptions, 'parentId'> = {}
   ): Promise<JobSnapshot> {
+    const handle = await this.enqueueJob(input, options)
+    return handle.snapshot
+  }
+
+  private async enqueueJob(
+    input: StartFileProcessingJobInput,
+    options: Pick<EnqueueOptions, 'parentId'> = {}
+  ): Promise<JobHandle> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -106,7 +132,42 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle.snapshot
+    return handle
+  }
+
+  async imageToText(input: unknown) {
+    const parsed = FileProcessingImageToTextInputSchema.parse(input)
+    const handle = await this.enqueueJob({
+      feature: 'image_to_text',
+      file: parsed.file as FileHandle
+    })
+    const result = await handle.finished
+
+    if (result.status !== 'completed') {
+      throw new Error(result.error?.message ?? `File processing image_to_text job ${result.status}`)
+    }
+
+    const output = FileProcessingJobOutputSchema.parse(result.output)
+
+    if (output.artifact.kind !== 'text') {
+      throw new Error('File processing image_to_text did not return text')
+    }
+
+    return FileProcessingImageToTextResultSchema.parse({ text: output.artifact.text })
+  }
+
+  private async imageToTextForIpc(input: unknown): Promise<FileProcessingImageToTextIpcResult> {
+    try {
+      const result = await this.imageToText(input)
+      return FileProcessingImageToTextIpcResultSchema.parse({ ok: true, text: result.text })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error ?? '')
+      return FileProcessingImageToTextIpcResultSchema.parse({
+        ok: false,
+        code: getFileProcessingImageToTextErrorCode(error),
+        message
+      })
+    }
   }
 
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
@@ -120,6 +181,9 @@ export class FileProcessingService extends BaseService {
     this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
       const parsed = StartJobPayloadSchema.parse(payload)
       return await this.startJob({ ...parsed, file: parsed.file as FileHandle })
+    })
+    this.ipcHandle(IpcChannel.FileProcessing_ImageToText, async (_, payload: unknown) => {
+      return await this.imageToTextForIpc(payload)
     })
     this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
       return this.listAvailableProcessors()

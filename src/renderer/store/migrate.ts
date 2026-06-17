@@ -20,7 +20,6 @@ import { isMac } from '@renderer/config/constant'
 import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { toSharedCompatModel } from '@renderer/config/models/bridge'
-import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
@@ -29,7 +28,6 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
-  BuiltinOcrProvider,
   LegacyAssistant as Assistant,
   Model,
   Provider,
@@ -153,13 +151,6 @@ function fixMissingProvider(state: RootState) {
       state.llm.providers.push(p)
     }
   })
-}
-
-// add ocr provider
-function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
-  if (!state.ocr.providers.find((p) => p.id === provider.id)) {
-    state.ocr.providers.push(provider)
-  }
 }
 
 function updateProvider(state: RootState, id: string, provider: Partial<Provider>) {
@@ -2306,10 +2297,6 @@ const migrateConfig = {
   },
   '137': (state: RootState) => {
     try {
-      state.ocr = {
-        providers: BUILTIN_OCR_PROVIDERS,
-        imageProviderId: DEFAULT_OCR_PROVIDER.image.id
-      }
       state.translate.translateInput = ''
       return state
     } catch (error) {
@@ -2319,7 +2306,6 @@ const migrateConfig = {
   },
   '138': (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
       return state
     } catch (error) {
       logger.error('migrate 138 error', error as Error)
@@ -2493,7 +2479,6 @@ const migrateConfig = {
   },
   '148': (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
       return state
     } catch (error) {
       logger.error('migrate 148 error', error as Error)
@@ -2757,8 +2742,7 @@ const migrateConfig = {
       addMiniApp(state, 'ling')
       addMiniApp(state, 'huggingchat')
 
-      // Add ovocr provider and clear ovms paintings
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      // Clear ovms paintings
       if (isEmpty(state.paintings.ovms_paintings)) {
         state.paintings.ovms_paintings = []
       }

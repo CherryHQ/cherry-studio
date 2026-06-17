@@ -11,12 +11,11 @@ import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useModels } from '@renderer/hooks/useModel'
-import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
-import { isSupportedOcrFile } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { isImageFileMetadata } from '@renderer/types'
 import { cn, getFileExtension, isTextFile, uuid } from '@renderer/utils'
 import { abortCompletion, addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
@@ -30,6 +29,10 @@ import {
 import { documentExts, imageExts, MB, textExts } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import {
+  type FileProcessingImageToTextErrorCode,
+  isFileProcessingImageToTextErrorCode
+} from '@shared/data/types/fileProcessing'
+import {
   isUniqueModelId,
   type Model as SelectorModel,
   MODEL_CAPABILITY,
@@ -37,6 +40,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
+import type { FilePath } from '@shared/file/types'
 import { isEmpty, throttle } from 'lodash'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -61,6 +65,29 @@ const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUn
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
+const getImageOcrErrorCode = (error: unknown): FileProcessingImageToTextErrorCode | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined
+  }
+
+  const code = (error as { code?: unknown }).code
+  return isFileProcessingImageToTextErrorCode(code) ? code : undefined
+}
+
+const getImageOcrErrorMessage = (error: unknown, t: (key: string) => string) => {
+  const code = getImageOcrErrorCode(error)
+
+  if (code === 'default_not_configured') {
+    return t('translate.files.error.ocr_not_configured')
+  }
+
+  if (code === 'default_unavailable') {
+    return t('translate.files.error.ocr_default_unavailable')
+  }
+
+  return formatErrorMessageWithPrefix(error, t('translate.files.error.ocr'))
+}
+
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
@@ -69,7 +96,6 @@ const TranslatePage: FC = () => {
   const { add: addHistory } = useTranslateHistory()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
-  const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
@@ -439,16 +465,50 @@ const TranslatePage: FC = () => {
   )
 
   const ocrFile = useCallback(
-    async (file: SupportedOcrFile) => {
-      const ocrResult = await ocr(file)
-      appendTranslateInput(ocrResult.text)
+    async (file: FileMetadata) => {
+      const toastKey = `translate-ocr-${uuid()}`
+      let cancelled = false
+      let settled = false
+
+      const promise = window.api.fileProcessing
+        .imageToText({
+          file: { kind: 'path', path: file.path as FilePath }
+        })
+        .then((result) => {
+          if (cancelled) return
+          appendTranslateInput(result.text)
+        })
+        .catch((error) => {
+          if (cancelled) return
+          settled = true
+          window.toast.closeToast(toastKey)
+          logger.error('Failed to recognize image text.', error as Error)
+          window.toast.error(getImageOcrErrorMessage(error, t))
+          throw error
+        })
+        .finally(() => {
+          settled = true
+        })
+
+      window.toast.loading({
+        key: toastKey,
+        onClose: () => {
+          if (settled) return
+          cancelled = true
+          setIsProcessing(false)
+        },
+        promise,
+        successTitle: t('ocr.completed'),
+        title: t('ocr.processing')
+      })
+      await promise.catch(() => undefined)
     },
-    [appendTranslateInput, ocr]
+    [appendTranslateInput, t]
   )
 
   const processFile = useCallback(
     async (file: FileMetadata) => {
-      if (isSupportedOcrFile(file)) {
+      if (isImageFileMetadata(file)) {
         await ocrFile(file)
       } else {
         await readFile(file)

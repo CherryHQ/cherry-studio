@@ -181,6 +181,7 @@ export enum IpcChannel {
   Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
 
   FileProcessing_StartJob = 'file-processing:start-job',
+  FileProcessing_ImageToText = 'file-processing:image-to-text',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
@@ -372,10 +373,6 @@ export enum IpcChannel {
   CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
   CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
   CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
-
-  // OCR
-  OCR_ocr = 'ocr:ocr',
-  OCR_ListProviders = 'ocr:list-providers',
 
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',

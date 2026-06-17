@@ -2,6 +2,8 @@ import { application } from '@application'
 import type { FileProcessorFeature, FileProcessorId, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
+import { processorRegistry } from '../processors/registry'
+
 const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
   document_to_markdown: 'feature.file_processing.default_document_to_markdown',
   image_to_text: 'feature.file_processing.default_image_to_text'
@@ -49,6 +51,10 @@ export function resolveProcessorConfigByFeature(
       throw new Error(`File processor ${processorId} does not support ${feature}`)
     }
 
+    if (!processorRegistry[config.id].isAvailable()) {
+      throw new Error(`File processor ${config.id} is not available on this platform`)
+    }
+
     return config
   }
 
@@ -59,6 +65,10 @@ export function resolveProcessorConfigByFeature(
 
     if (!config.capabilities.some((capability) => capability.feature === feature)) {
       throw new Error(`File processor ${defaultProcessorId} does not support ${feature}`)
+    }
+
+    if (!processorRegistry[config.id].isAvailable()) {
+      throw new Error(`File processor ${config.id} is not available on this platform`)
     }
 
     return config

@@ -3576,6 +3576,7 @@
     "builtin": {
       "system": "System OCR"
     },
+    "completed": "OCR processing complete",
     "error": {
       "provider": {
         "cannot_remove_builtin": "Cannot delete built-in provider",
@@ -7190,6 +7191,8 @@
         "check_type": "An error occurred while checking the file type",
         "multiple": "Multiple file uploads are not allowed",
         "ocr": "Failed to recognize image text",
+        "ocr_default_unavailable": "The current default OCR processor is unavailable. Choose another one in File Processing settings.",
+        "ocr_not_configured": "Select a default OCR processor in File Processing settings first",
         "too_large": "File too large",
         "unknown": "Failed to read file content"
       },
