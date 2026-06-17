@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 type FakeTab = {
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     title: 'Chat'
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
+  showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
   sidebarFavorites: ['assistants'] as string[]
@@ -104,12 +106,24 @@ vi.mock('@renderer/context/TabsContext', () => ({
 
 vi.mock('../../Popups/UserPopup', () => ({
   default: {
-    show: vi.fn()
+    show: mocks.showUserPopup
   }
 }))
 
 vi.mock('../../Icons/SVGIcon', () => ({
   OpenClawSidebarIcon: () => null
+}))
+
+vi.mock('../../Sidebar/primitives', () => ({
+  UserAvatar: ({ user, className }: { user: { name: string }; className?: string }) => (
+    <div className={className} data-testid="sidebar-user-avatar">
+      {user.name}
+    </div>
+  )
+}))
+
+vi.mock('../../layout/ShellTabBarActions', () => ({
+  SidebarShellActions: ({ layout }: { layout: string }) => <div data-testid={`sidebar-shell-actions-${layout}`} />
 }))
 
 vi.mock('../../Sidebar', () => ({
@@ -120,12 +134,20 @@ vi.mock('../../Sidebar', () => ({
     onHoverChange,
     onItemClick,
     items,
+    title,
+    logo,
+    user,
+    actions,
     width,
     onResizePreview
   }: {
     isFloating?: boolean
     isFloatingClosing?: boolean
     items?: Array<{ id: string; label: string }>
+    title?: string
+    logo?: ReactNode
+    user?: unknown
+    actions?: ReactNode | ((layout: 'icon' | 'full') => ReactNode)
     width?: number
     onResizePreview?: (width: number | null) => void
     onDismiss?: () => void
@@ -142,6 +164,10 @@ vi.mock('../../Sidebar', () => ({
       </div>
     ) : (
       <>
+        <div data-testid="sidebar-title">{title}</div>
+        <div data-testid="sidebar-logo">{logo}</div>
+        <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
+        <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
         <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
         <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
         <button type="button" onClick={() => onHoverChange?.(true)}>
@@ -193,6 +219,19 @@ afterEach(() => {
 })
 
 describe('app Sidebar', () => {
+  it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-logo')).toContainElement(screen.getByTestId('sidebar-user-avatar'))
+    expect(screen.getByTestId('sidebar-title')).toHaveTextContent('JD')
+    expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
+    expect(screen.getByTestId('sidebar-shell-actions-icon')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'JD' }))
+
+    expect(mocks.showUserPopup).toHaveBeenCalledTimes(1)
+  })
+
   it('derives conversation detach URLs from instance metadata', () => {
     expect(
       resolveSidebarAppTabEntryUrl({

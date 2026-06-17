@@ -9,6 +9,7 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsWindow: vi.fn(),
     showSearchPopup: vi.fn(),
+    toggleTheme: vi.fn(),
     toastError: vi.fn()
   }
 }))
@@ -34,7 +35,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
-  useTheme: () => ({ settedTheme: 'light', toggleTheme: vi.fn() })
+  useTheme: () => ({ settedTheme: 'light', toggleTheme: mocks.toggleTheme })
 }))
 
 vi.mock('@renderer/components/Popups/SearchPopup', () => ({
@@ -73,7 +74,7 @@ vi.mock('../../WindowControls', () => ({
   default: () => null
 }))
 
-import { ShellTabBarActions } from '../ShellTabBarActions'
+import { ShellTabBarActions, SidebarShellActions } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()
@@ -98,21 +99,45 @@ describe('ShellTabBarActions', () => {
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
-  it('opens the standalone settings window', async () => {
+  it('keeps theme and settings actions out of the tab bar', () => {
+    render(<ShellTabBarActions />)
+
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
+  })
+
+  it('toggles theme from the sidebar icon footer action', async () => {
     const user = userEvent.setup()
 
-    render(<ShellTabBarActions />)
+    render(<SidebarShellActions layout="icon" />)
+
+    await user.click(screen.getByRole('button', { name: 'Light' }))
+
+    expect(mocks.toggleTheme).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the standalone settings window from the sidebar footer action', async () => {
+    const user = userEvent.setup()
+
+    render(<SidebarShellActions layout="icon" />)
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
     expect(mocks.openSettingsWindow).toHaveBeenCalledWith('/settings/provider')
   })
 
-  it('shows a toast when opening the settings window fails', async () => {
+  it('renders sidebar full footer actions with visible labels', () => {
+    render(<SidebarShellActions layout="full" />)
+
+    expect(screen.getByRole('button', { name: 'Light' })).toHaveTextContent('Light')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
+  })
+
+  it('shows a toast when opening the settings window from the sidebar action fails', async () => {
     const user = userEvent.setup()
     mocks.openSettingsWindow.mockRejectedValueOnce(new Error('IPC failed'))
 
-    render(<ShellTabBarActions />)
+    render(<SidebarShellActions layout="icon" />)
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 

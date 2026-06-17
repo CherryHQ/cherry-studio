@@ -4,7 +4,6 @@ import {
   emitResourceListReveal,
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { AppLogo } from '@renderer/config/env'
 import {
   findAppTabToFocus,
   getOrderedVisibleSidebarIcons,
@@ -24,12 +23,13 @@ import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
-import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
+import { UserAvatar } from '../Sidebar/primitives'
+import type { SidebarMenuItem, SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
 
-const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
 
 function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
@@ -79,6 +79,18 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       onClick: () => UserPopup.show()
     }),
     [avatar, t, userName]
+  )
+  const sidebarLogo = useMemo(
+    () => (
+      <button
+        type="button"
+        aria-label={sidebarUser.name}
+        onClick={sidebarUser.onClick}
+        className="flex h-full w-full items-center justify-center rounded-full [-webkit-app-region:no-drag]">
+        <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />
+      </button>
+    ),
+    [sidebarUser]
   )
 
   // Floating sidebar (hover reveal when hidden)
@@ -166,9 +178,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const sidebarProps = {
     activeItem,
     items,
-    title: 'Cherry Studio',
-    logo: APP_LOGO,
-    user: sidebarUser,
+    title: sidebarUser.name,
+    logo: sidebarLogo,
+    actions: (footerLayout: SidebarVisibleLayout) => <SidebarShellActions layout={footerLayout} />,
     dockedTabs: [],
     onItemClick: handleNavigate,
     onCloseDockedTab: noop

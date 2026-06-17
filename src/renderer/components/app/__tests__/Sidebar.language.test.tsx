@@ -91,6 +91,10 @@ vi.mock('../../Popups/UserPopup', () => ({
   }
 }))
 
+vi.mock('../../layout/ShellTabBarActions', () => ({
+  SidebarShellActions: () => null
+}))
+
 import Sidebar from '../Sidebar'
 
 describe('Sidebar language refresh', () => {

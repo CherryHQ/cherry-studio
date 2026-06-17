@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
+import type { SidebarVisibleLayout } from '@renderer/components/Sidebar/types'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { CommandTooltip } from '@renderer/features/command'
@@ -19,7 +20,7 @@ export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
 
-  const rightPaddingClass = hasWindowControls ? 'pr-[248px]' : 'pr-[120px]'
+  const rightPaddingClass = hasWindowControls ? 'pr-[184px]' : 'pr-[56px]'
 
   return {
     hasWindowControls,
@@ -27,16 +28,10 @@ export function useShellTabBarLayout() {
   }
 }
 
-export function ShellTabBarActions() {
+function useShellActionHandlers() {
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
-  const { hasWindowControls } = useShellTabBarLayout()
-
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
-
-  const handleSearchClick = () => {
-    void SearchPopup.show()
-  }
 
   const handleSettingsClick = async () => {
     const settingsPath = '/settings/provider'
@@ -47,6 +42,17 @@ export function ShellTabBarActions() {
       logger.error('Failed to open settings', error as Error)
       window.toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
     }
+  }
+
+  return { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick }
+}
+
+export function ShellTabBarActions() {
+  const { t } = useTranslation()
+  const { hasWindowControls } = useShellTabBarLayout()
+
+  const handleSearchClick = () => {
+    void SearchPopup.show()
   }
 
   return (
@@ -62,28 +68,60 @@ export function ShellTabBarActions() {
               <Search size={16} strokeWidth={1.8} />
             </button>
           </CommandTooltip>
-          <Tooltip placement="bottom" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
-            <button
-              type="button"
-              aria-label={t(getThemeModeLabelKey(settedTheme))}
-              onClick={toggleTheme}
-              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-              <ThemeIcon size={16} strokeWidth={1.8} />
-            </button>
-          </Tooltip>
-          <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
-            <button
-              type="button"
-              aria-label={t('settings.title')}
-              onClick={handleSettingsClick}
-              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-              <Settings size={16} strokeWidth={1.8} />
-            </button>
-          </CommandTooltip>
         </div>
       </div>
 
       {hasWindowControls && <WindowControls />}
     </div>
+  )
+}
+
+export function SidebarShellActions({ layout }: { layout: SidebarVisibleLayout }) {
+  const { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick } = useShellActionHandlers()
+
+  if (layout === 'icon') {
+    return (
+      <>
+        <Tooltip placement="right" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
+          <button
+            type="button"
+            aria-label={t(getThemeModeLabelKey(settedTheme))}
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+            <ThemeIcon size={18} strokeWidth={1.6} />
+          </button>
+        </Tooltip>
+        <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+          <button
+            type="button"
+            aria-label={t('settings.title')}
+            onClick={handleSettingsClick}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+            <Settings size={18} strokeWidth={1.6} />
+          </button>
+        </CommandTooltip>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={t(getThemeModeLabelKey(settedTheme))}
+        onClick={toggleTheme}
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+        <ThemeIcon size={16} strokeWidth={1.6} />
+        <span>{t(getThemeModeLabelKey(settedTheme))}</span>
+      </button>
+      <button
+        type="button"
+        aria-label={t('settings.title')}
+        onClick={handleSettingsClick}
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+        <Settings size={16} strokeWidth={1.6} />
+        <span>{t('settings.title')}</span>
+      </button>
+    </>
   )
 }

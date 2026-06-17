@@ -100,7 +100,7 @@ export const AppShell = () => {
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[16px] bg-background">
+          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             {tabs
               .filter((t) => t.type === 'route' && !t.isDormant)
