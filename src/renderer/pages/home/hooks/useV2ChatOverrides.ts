@@ -17,7 +17,6 @@ import { loggerService } from '@logger'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { V2ChatOverrides } from '@renderer/hooks/V2ChatContext'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,
@@ -36,7 +35,6 @@ const logger = loggerService.withContext('useV2ChatOverrides')
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
-  projectedMessages: Message[]
   /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
   rootId: string | null
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
@@ -54,7 +52,7 @@ interface Result {
 }
 
 export function useV2ChatOverrides(params: Params): Result {
-  const { topic, uiMessages, projectedMessages, rootId, regenerate, setMessages, stop, refresh, cache } = params
+  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
@@ -86,12 +84,14 @@ export function useV2ChatOverrides(params: Params): Result {
     async (id) => {
       // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
       // reparent its replies onto the virtual root, stranding them as parent-less assistants.
-      const target = projectedMessages.find((m: Message) => m.id === id)
+      // Use the row's real parentId (metadata) — NOT the projected `askId`, which is undefined
+      // for user messages and would misclassify a first-turn user delete as a splice.
+      const target = uiMessages.find((m) => m.id === id)
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        if (target && isFirstTurnId(target.askId)) {
+        if (target && isFirstTurnId(target.metadata?.parentId)) {
           const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
           await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         } else {
@@ -103,7 +103,7 @@ export function useV2ChatOverrides(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, projectedMessages, rollbackBranch, seedOptimisticBranch]
+    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, uiMessages, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<V2ChatOverrides['deleteMessageGroup']>(

@@ -47,9 +47,9 @@ the indexed root *lookup* key.
 
 | Invariant | Enforced by |
 |---|---|
-| Exactly one virtual root per topic | `message_topic_root_uniq` — a partial `UNIQUE` index on `(topic_id)` `WHERE parent_id IS NULL`. Rejects a second root on insert. |
-| Every content message has a non-null parent | Convention + the single writer below; first-turn content messages get `parentId = <virtual root>`. |
-| `role = 'root'` ⇔ `parentId IS NULL` | `createRootMessageTx` (runtime) and `ChatMigrator` (migration) are the **sole writers** of both; nothing else inserts a `parentId = NULL` row. |
+| Exactly one (live) virtual root per topic | `message_topic_root_uniq` — a partial `UNIQUE` index on `(topic_id)` `WHERE parent_id IS NULL AND deleted_at IS NULL`. Rejects a second live root on insert. |
+| Every content message has a non-null parent | **DB CHECK** `message_root_parent_check` `((role = 'root') = (parent_id IS NULL))` — a content row (`role != 'root'`) with a null parent is rejected at the storage layer, not by convention. First-turn content messages get `parentId = <virtual root>`. |
+| `role = 'root'` ⇔ `parentId IS NULL` | Same **DB CHECK** `message_root_parent_check`. `createRootMessageTx` (runtime) / `ChatMigrator` (migration) are the sole *writers* of the root row, but the biconditional itself is enforced structurally. |
 | `activeNodeId` is never the virtual root | `NULL` for an empty topic, otherwise a content message; read paths drop the root from the active path. |
 | The virtual root is deletable only via topic deletion | `delete()` hard-rejects it (see below); the topic FK `ON DELETE CASCADE` is the only path that removes it. |
 
@@ -72,13 +72,13 @@ papered over).
 | Virtual root | **Rejected** (`INVALID_OPERATION`), regardless of `cascade`. Deleting it would orphan first-turn children (unique-index violation) or leave a rootless topic. |
 | Content message, `cascade = false` | Splice the node out: reparent its children onto its parent (their grandparent), then delete it. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
 | Content message, `cascade = true` | Delete the message and its whole subtree. |
-| "Clear all messages" | Delete the virtual root's **children** (cascade), not the root — the empty virtual root stays. |
+| "Clear all messages" | `clearTopicMessages(topicId)` (`DELETE /topics/:topicId/messages`) — deletes every non-root row of the topic in one statement and clears `activeNodeId`; the content-less virtual root stays. The structural replacement for the old "delete the root to clear the topic" (now rejected). |
 
 The self-FK (`parentId → message.id`) is **`ON DELETE CASCADE`**. Deleting a node
 removes its whole subtree in one statement — no leaf-first ordering, and no `SET NULL`
 to manufacture a colliding `parentId = NULL` row. This is why `cascade = true`,
-`purgeByTopicIdsTx` (topic delete), and the `topic` FK cascade are all single
-unordered deletes that stay correct. `cascade = false` reparents children **before**
+`clearTopicMessages`, `purgeByTopicIdsTx` (topic delete), and the `topic` FK cascade are
+all single unordered deletes that stay correct. `cascade = false` reparents children **before**
 deleting the node, so the cascade fires on nothing. (A `cascade = false` delete of a
 first-turn message reparents its children onto the virtual root — structurally valid;
 they become first-turn nodes.)
@@ -90,14 +90,21 @@ they become first-turn nodes.)
 
 ## Consumer contract
 
+- **`rootId` is the authoritative first-turn signal.** `getBranchMessages` and `getTree`
+  return `rootId: string | null` (the topic's virtual-root id) on every page, alongside
+  `activeNodeId`. A message is a **first turn** iff `message.parentId === rootId` — the only
+  reliable check. Do **not** infer "first turn" from "parent not in the loaded list" (the
+  branch is paginated, the root is never in the response) nor from the v1 `askId` field
+  (role-coupled, `undefined` for user messages). When `rootId` is unknown, treat nothing as a
+  first turn (fail-safe). See [#16120](https://github.com/CherryHQ/cherry-studio/issues/16120).
 - **`getPathRowsToNodeTx`** walks from a node up to the virtual root and **excludes** the
   root — the displayed conversation starts at the first user message.
 - **`getTree`** finds the virtual root (`parentId IS NULL`), drops it from the active
   path, and treats its children as the logical roots. First-turn nodes keep their **real**
   parent (the virtual root id) in the response; the virtual root is **never** returned as a
   node. Hence `TreeNode.parentId` and `SiblingsGroup.parentId` are non-null `string`.
-- **Flow canvas** *(forward reference — the renderer flow-canvas work lands on the
-  `feat/message-tree-virtual-root` follow-up, not this branch)*: the edge builder will skip
+- **Flow canvas** *(forward reference — the renderer flow-canvas work lives on the
+  `feat/chat-page` integration branch, not this PR branch)*: the edge builder will skip
   edges whose parent isn't a rendered node — the virtual root, which first turns hang off
   but which is never a node — so first turns still render as graph roots.
 - **Role-based content queries** need no special root handling: the root is `role = 'root'`,

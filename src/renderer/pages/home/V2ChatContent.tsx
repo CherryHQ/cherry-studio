@@ -235,7 +235,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const { overrides: v2ChatOverrides, capabilityBody } = useV2ChatOverrides({
     topic,
     uiMessages: messages,
-    projectedMessages,
     rootId,
     regenerate,
     setMessages,
