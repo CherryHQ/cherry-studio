@@ -744,7 +744,7 @@ describe('KnowledgeVectorMigrator', () => {
       ).toBe(true)
     })
 
-    it('flushes skipped warning buckets when prepare fails after partial progress', async () => {
+    it('keeps an unreadable legacy vector DB as a recoverable per-base skip', async () => {
       const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
       const migrationCtx = createMigrationCtx({
         migratedBases: [
@@ -774,7 +774,9 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator()
       const result = await migrator.prepare(migrationCtx as any)
 
-      expect(result.success).toBe(false)
+      // An unreadable legacy DB is a per-base skip (mirrors KnowledgeMigrator's failed tombstone),
+      // not a fatal failure — re-running once the DB is readable recovers it without re-embedding.
+      expect(result.success).toBe(true)
       expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
       expect(
         result.warnings?.some((warning) =>
@@ -783,7 +785,13 @@ describe('KnowledgeVectorMigrator', () => {
           )
         )
       ).toBe(true)
-      expect(result.warnings).toContain('loadBase failed')
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (read_error): count=1') &&
+            warning.includes('loadBase failed')
+        )
+      ).toBe(true)
     })
   })
 

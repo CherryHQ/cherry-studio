@@ -34,6 +34,7 @@ import {
 import { eq } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { LegacyKnowledgeVectorLoadResult } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
   KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
@@ -383,7 +384,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           continue
         }
 
-        const source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
+        // A legacy DB that exists but cannot be read (locked / corrupt) makes `loadBase` reject. That
+        // is a recoverable per-base failure, mirroring KnowledgeMigrator: its v1 folders are kept as
+        // failed tombstones and re-running migration once the DB is readable recovers them without
+        // re-embedding. Skip this base instead of letting the reject abort the whole migration.
+        let source: LegacyKnowledgeVectorLoadResult
+        try {
+          source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          this.recordSkippedWarning(
+            'read_error',
+            `Skipped knowledge vector base ${base.id}: legacy vector DB unreadable (${message})`
+          )
+          continue
+        }
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
