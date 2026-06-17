@@ -503,14 +503,14 @@ const CodeCliPage: FC = () => {
 
         {activeMeta && (
           <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
-            <DialogContent aria-describedby={undefined}>
+            <DialogContent aria-describedby={undefined} className="min-w-0">
               <DialogHeader>
                 <DialogTitle>{activeMeta.label}</DialogTitle>
               </DialogHeader>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-4">
                 {selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && (
-                  <div>
+                  <div className="min-w-0">
                     <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
                     <SelectDropdown
                       items={modelItems}
@@ -520,15 +520,15 @@ const CodeCliPage: FC = () => {
                       placeholder={t('code.model_placeholder')}
                       triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
                       renderSelected={(item) => (
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                           <ModelAvatar model={item.model} size={18} />
                           <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
                         </div>
                       )}
                       renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <ModelAvatar model={item.model} size={18} />
-                          <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
+                          <span className="min-w-0 flex-1 truncate">{item.model.name || item.model.id}</span>
                           <span className="shrink-0 text-muted-foreground text-xs">
                             {getProviderDisplayName(item.provider)}
                           </span>
@@ -539,9 +539,9 @@ const CodeCliPage: FC = () => {
                   </div>
                 )}
 
-                <div>
+                <div className="min-w-0">
                   <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <SelectDropdown
                         items={directoryItems}
@@ -553,14 +553,16 @@ const CodeCliPage: FC = () => {
                         placeholder={t('code.folder_placeholder')}
                         triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
                         renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
-                        renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
+                        renderSelected={(item) => (
+                          <span className="min-w-0 flex-1 truncate font-mono text-foreground">{item.id}</span>
+                        )}
                         renderItem={(item, isSelected) => (
                           <>
                             <FolderOpen
                               size={11}
                               className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
                             />
-                            <span className="flex-1 truncate font-mono">{item.id}</span>
+                            <span className="min-w-0 flex-1 truncate font-mono">{item.id}</span>
                             {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
                           </>
                         )}
@@ -573,7 +575,7 @@ const CodeCliPage: FC = () => {
                 </div>
 
                 {(isMac || isWin) && terminalItems.length > 0 && (
-                  <div>
+                  <div className="min-w-0">
                     <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
                     <SelectDropdown
                       items={terminalItems}
@@ -581,16 +583,18 @@ const CodeCliPage: FC = () => {
                       onSelect={setTerminal}
                       placeholder={t('code.terminal_placeholder')}
                       triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                      renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
+                      renderSelected={(item) => (
+                        <span className="min-w-0 flex-1 truncate text-foreground">{item.name}</span>
+                      )}
                       renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
-                          <span className="flex-1">{item.name}</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
                           {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
                         </div>
                       )}
                     />
                     {needsWindowsCustomPath && (
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-2 flex min-w-0 items-center gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -599,7 +603,7 @@ const CodeCliPage: FC = () => {
                           <FolderOpen size={10} />
                           {t('code.set_custom_path')}
                         </Button>
-                        <span className="truncate text-muted-foreground text-xs">
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
                           {terminalCustomPaths[selectedTerminal]
                             ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                             : t('code.custom_path_required')}
