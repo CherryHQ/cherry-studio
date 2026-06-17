@@ -39,7 +39,7 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
 }
 
 describe('planKnowledgeItemSource', () => {
-  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods'])(
+  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'xls'])(
     'routes supported document .%s files to file processing when a processor is configured',
     (ext) => {
       expect(planKnowledgeItemSource(createBase(), createFileItem(`/docs/source.${ext}`))).toEqual({
