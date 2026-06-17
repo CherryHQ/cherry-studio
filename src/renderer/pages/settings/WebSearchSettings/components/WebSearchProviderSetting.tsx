@@ -296,7 +296,9 @@ export const WebSearchProviderSetting: FC<Props> = ({
           <div className="min-w-0">
             <SettingTitle>
               <Flex className="min-w-0 items-center gap-2.5">
-                <span className="truncate font-semibold text-[17px] text-foreground">{provider.name}</span>
+                <span className="truncate font-semibold text-(length:--font-size-body-md) text-foreground">
+                  {provider.name}
+                </span>
                 {officialWebsite && (
                   <SettingTitleExternalLink href={officialWebsite}>
                     <ExternalLink size={13} />

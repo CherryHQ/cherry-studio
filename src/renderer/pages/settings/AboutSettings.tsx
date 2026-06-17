@@ -211,7 +211,7 @@ const AboutSettings: FC = () => {
                   type="button"
                   onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                   className="mt-1.5">
-                  <Badge className="cursor-pointer rounded-md border-info/20 bg-info/10 px-1.5 py-0 font-medium text-[11px] text-info leading-4 transition-colors hover:bg-info/15">
+                  <Badge className="cursor-pointer rounded-md border-info/20 bg-info/10 px-1.5 py-0 font-medium text-(length:--font-size-body-xs) text-info leading-4 transition-colors hover:bg-info/15">
                     v{version}
                   </Badge>
                 </button>

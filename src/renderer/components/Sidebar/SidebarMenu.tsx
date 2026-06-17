@@ -86,7 +86,7 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 type="button"
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                className={`relative flex w-full items-center gap-2 rounded-lg py-[5px] pr-2.5 pl-7 text-[12px] transition-all duration-150 ${
+                className={`relative flex w-full items-center gap-2 rounded-lg py-[5px] pr-2.5 pl-7 text-(length:--font-size-body-xs) transition-all duration-150 ${
                   activeTabId === miniTab.id
                     ? 'bg-selected text-foreground shadow-[inset_0_0_0_0.5px_var(--color-selected-border)]'
                     : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'

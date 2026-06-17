@@ -293,7 +293,10 @@ const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-medium text-[13px] leading-5', className)} {...props} />
+  <span
+    className={cn('min-w-0 truncate font-medium text-(length:--font-size-body-xs) leading-5', className)}
+    {...props}
+  />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
@@ -336,7 +339,10 @@ const ActiveDot = ({
 const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
   <Badge
     variant="secondary"
-    className={cn('h-5 max-w-full rounded-md border-transparent px-2 font-medium text-[11px] leading-none', className)}
+    className={cn(
+      'h-5 max-w-full rounded-md border-transparent px-2 font-medium text-(length:--font-size-body-xs) leading-none',
+      className
+    )}
     {...props}
   />
 )

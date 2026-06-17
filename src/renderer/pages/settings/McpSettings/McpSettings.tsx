@@ -1248,7 +1248,7 @@ const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
+  <span className={cn('wrap-break-word text-(length:--font-size-body-xs) leading-normal', className)} {...props} />
 )
 
 const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
@@ -1279,7 +1279,7 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
 const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
   <Badge
     className={cn(
-      'h-4.5 min-w-4.5 bg-primary px-1.5 py-0 text-[11px] text-primary-foreground leading-4.5 shadow-sm',
+      'h-4.5 min-w-4.5 bg-primary px-1.5 py-0 text-(length:--font-size-body-xs) text-primary-foreground leading-4.5 shadow-sm',
       className
     )}
     {...props}>
@@ -1294,7 +1294,7 @@ const McpRuntimeStatusBadge = ({
 }: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
   <Badge
     className={cn(
-      'h-4.5 px-1.5 py-0 text-[11px] leading-4.5',
+      'h-4.5 px-1.5 py-0 text-(length:--font-size-body-xs) leading-4.5',
       state === 'connected' && 'bg-success/10 text-success',
       state === 'connecting' && 'bg-warning/10 text-warning',
       state === 'error' && 'bg-destructive/10 text-destructive',

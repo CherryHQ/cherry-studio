@@ -248,7 +248,7 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
+        className="min-w-0 flex-1 truncate text-left font-medium text-(length:--font-size-body-xs) leading-none"
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>

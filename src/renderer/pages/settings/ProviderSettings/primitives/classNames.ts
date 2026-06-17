@@ -100,7 +100,8 @@ export const providerListClasses = {
   sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
-  emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-[14px]',
+  emptyState:
+    'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-(length:--font-size-body-sm)',
   addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
   addButton:
     'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
@@ -495,7 +496,7 @@ export const oauthCardClasses = {
     'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-[weight:var(--font-weight-semibold)] text-white',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
-  name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',
+  name: 'truncate text-(length:--font-size-body-md) leading-[1.2] font-semibold tracking-tight text-foreground',
   /** Logged-in title line — `text-xs` in structured. */
   loggedInName:
     'truncate text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] leading-tight text-foreground',
@@ -515,7 +516,7 @@ export const oauthCardClasses = {
     'mt-2.5 border-t border-[color:var(--color-border-fg-hairline)] pt-2.5 text-[length:var(--font-size-body-xs)] text-muted-foreground/25',
   serviceLink: 'text-muted-foreground/40 transition-colors hover:text-foreground',
   actionsRow: 'flex flex-wrap items-center gap-2',
-  footer: 'mt-4 text-[12px] leading-[1.35] text-foreground-muted'
+  footer: 'mt-4 text-(length:--font-size-body-xs) leading-[1.35] text-foreground-muted'
 } as const
 
 /** Shared visual for provider-settings icon buttons (bordered, cherry-* hover); size is composed per usage. */

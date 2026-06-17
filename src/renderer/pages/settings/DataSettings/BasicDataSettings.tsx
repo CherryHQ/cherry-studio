@@ -591,7 +591,7 @@ const MigrationPathRow = ({ className, ...props }: React.ComponentPropsWithoutRe
 )
 
 const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-semibold text-[15px] text-foreground', className)} {...props} />
+  <div className={cn('font-semibold text-(length:--font-size-body-md) text-foreground', className)} {...props} />
 )
 
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

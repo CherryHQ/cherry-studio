@@ -155,7 +155,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
             className={cn(
               'w-full select-none text-center text-foreground-secondary',
               isLaunchpad
-                ? 'mt-2 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? 'mt-2 max-w-[92px] overflow-hidden whitespace-normal text-(length:--font-size-body-xs) leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}

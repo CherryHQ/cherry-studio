@@ -526,7 +526,9 @@ const ShortcutSettings: FC = () => {
                     icon={groupIconMap[group.key]}
                     active={isActive}
                     label={group.label}
-                    suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
+                    suffix={
+                      <span className="shrink-0 text-(length:--font-size-body-xs) text-muted-foreground">{count}</span>
+                    }
                     onClick={() => {
                       setActiveGroup(group.key)
                       setSearchQuery('')

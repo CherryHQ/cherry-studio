@@ -155,7 +155,7 @@ const ChannelLogModal: FC<{
             {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
           </DialogTitle>
         </DialogHeader>
-        <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
+        <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-(length:--font-size-body-xs) leading-[1.6]">
           {logs.length === 0 && (
             <div className="py-8 text-center text-muted-foreground text-xs">
               {t('agent.cherryClaw.channels.noLogs')}

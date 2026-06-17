@@ -87,7 +87,9 @@ const BuiltinMcpServerList: FC = () => {
               )}>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden">
-                  <span className="truncate font-medium text-[13px] leading-5">{server.name}</span>
+                  <span className="truncate font-medium text-(length:--font-size-body-xs) leading-5">
+                    {server.name}
+                  </span>
                   {server?.shouldConfig && (
                     <a
                       href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
@@ -95,7 +97,7 @@ const BuiltinMcpServerList: FC = () => {
                       rel="noopener noreferrer">
                       <Badge
                         variant="outline"
-                        className="h-5 rounded-md border-destructive/25 bg-destructive/10 px-1.5 font-medium text-[11px] text-destructive leading-none">
+                        className="h-5 rounded-md border-destructive/25 bg-destructive/10 px-1.5 font-medium text-(length:--font-size-body-xs) text-destructive leading-none">
                         {t('settings.mcp.requiresConfig')}
                       </Badge>
                     </a>
@@ -103,13 +105,13 @@ const BuiltinMcpServerList: FC = () => {
                 </div>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <div className="line-clamp-2 cursor-pointer text-[13px] text-muted-foreground leading-5 transition-colors hover:text-foreground">
+                    <div className="line-clamp-2 cursor-pointer text-(length:--font-size-body-xs) text-muted-foreground leading-5 transition-colors hover:text-foreground">
                       {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                     </div>
                   </PopoverTrigger>
                   <PopoverContent align="start" side="top" className="w-auto max-w-100">
                     <div className="mb-2 font-semibold text-foreground text-sm">{server.name}</div>
-                    <div className="wrap-break-word whitespace-pre-wrap text-[14px] text-foreground leading-normal">
+                    <div className="wrap-break-word whitespace-pre-wrap text-(length:--font-size-body-sm) text-foreground leading-normal">
                       {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                       {server.reference && (
                         <a

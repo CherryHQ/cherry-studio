@@ -116,7 +116,10 @@ export const SettingRowTitle = ({
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { tip?: React.ReactNode }) => (
   <div
-    className={cn('flex min-w-0 flex-wrap items-center font-normal text-[13px] text-foreground leading-4.5', className)}
+    className={cn(
+      'flex min-w-0 flex-wrap items-center font-normal text-(length:--font-size-body-xs) text-foreground leading-4.5',
+      className
+    )}
     {...props}>
     {children}
     {tip && (
@@ -134,12 +137,15 @@ export const SettingHelpTextRow = ({ className, ...props }: React.ComponentProps
 
 // Inline hint copy under a field (11px, low-emphasis foreground).
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-[11px] text-foreground/40', className)} {...props} />
+  <div className={cn('text-(length:--font-size-body-xs) text-foreground/40', className)} {...props} />
 )
 
 // Inline help link in caption tier (11px, blue info color).
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-  <a className={cn('!text-info cursor-pointer text-[11px] hover:underline', className)} {...props} />
+  <a
+    className={cn('!text-info cursor-pointer text-(length:--font-size-body-xs) hover:underline', className)}
+    {...props}
+  />
 )
 
 // External link displayed next to a SettingTitle (inline-flex, blue info color, opens in new tab by default).
@@ -203,7 +209,7 @@ export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-
 export const settingsContentHeaderClassName = 'mb-5'
 
 // 3-column page content-header title (15px, weight 550).
-export const settingsContentHeaderTitleClassName = 'font-[weight:550] text-foreground text-[15px]'
+export const settingsContentHeaderTitleClassName = 'font-[weight:550] text-foreground text-(length:--font-size-body-md)'
 
 // 3-column page content-header description (muted, 14px).
 export const settingsContentHeaderDescriptionClassName = 'mt-1 text-foreground-muted text-sm'

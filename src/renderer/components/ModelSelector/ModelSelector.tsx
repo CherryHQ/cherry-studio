@@ -586,7 +586,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-3 text-[11px] text-muted-foreground">
+          <div className="group flex h-7 items-center gap-1 bg-popover px-3 text-(length:--font-size-body-xs) text-muted-foreground">
             <span className="truncate">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>

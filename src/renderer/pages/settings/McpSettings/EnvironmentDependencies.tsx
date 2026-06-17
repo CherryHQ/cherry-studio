@@ -72,12 +72,12 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
 
     <div className="flex min-w-23 shrink-0 items-center justify-end gap-2">
       {installed ? (
-        <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
+        <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-(length:--font-size-body-xs) text-success leading-4">
           {t('settings.skills.installed')}
         </Badge>
       ) : (
         <>
-          <Badge className="border-transparent bg-muted px-1.5 py-0 font-medium text-[11px] text-muted-foreground leading-4">
+          <Badge className="border-transparent bg-muted px-1.5 py-0 font-medium text-(length:--font-size-body-xs) text-muted-foreground leading-4">
             {t('settings.plugins.notInstalled')}
           </Badge>
           <Button
