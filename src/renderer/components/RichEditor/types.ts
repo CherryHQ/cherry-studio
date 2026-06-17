@@ -1,5 +1,5 @@
 export interface RichEditorProps {
-  /** Initial content for the editor (can be markdown or HTML) */
+  /** Initial markdown content for the editor */
   initialContent?: string
   /** Placeholder text when editor is empty */
   placeholder?: string
@@ -31,8 +31,6 @@ export interface RichEditorProps {
   maxHeight?: number
   /** Available toolbar tools */
   toolbarItems?: ToolbarItem[]
-  /** Whether initial content is markdown (default: auto-detect) */
-  isMarkdown?: boolean
   /** Initial commands to register on mount */
   initialCommands?: Command[]
   /** Command configuration callback called after editor initialization */
