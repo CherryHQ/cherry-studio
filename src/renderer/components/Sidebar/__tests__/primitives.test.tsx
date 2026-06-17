@@ -20,7 +20,8 @@ describe('UserAvatar', () => {
     expect(emojiIcon).toHaveTextContent('🌈')
     expect(screen.getByTestId('emoji-icon-background')).toHaveTextContent('🌈')
     // Emoji avatars must not fall through to the gradient-initial branch.
-    expect(container.firstChild).not.toHaveClass('from-blue-400', 'to-indigo-500')
+    // The gradient classes live on the inner fallback div, so query that element directly.
+    expect(container.querySelector('.from-blue-400')).not.toBeInTheDocument()
     expect(screen.queryByText('U')).not.toBeInTheDocument()
   })
 })
