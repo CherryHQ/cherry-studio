@@ -2428,6 +2428,11 @@
       "mine": "Mine",
       "no_match_description": "Try a different search keyword",
       "no_match_title": "No matching assistants",
+      "official": {
+        "go_to_settings": "Open model settings",
+        "no_models_body": "You don't have any {{vendor}} models enabled yet. Open model settings to enable one, then come back to add this assistant.",
+        "no_models_title": "No {{vendor}} models enabled"
+      },
       "preview": "Preview",
       "preview_description": "Overview",
       "preview_prompt": "Prompt",

@@ -2428,6 +2428,11 @@
       "mine": "我的",
       "no_match_description": "尝试其他搜索关键词",
       "no_match_title": "未找到匹配的助手",
+      "official": {
+        "go_to_settings": "去模型设置",
+        "no_models_body": "你的设置里还没有启用任何 {{vendor}} 系列模型。先去模型设置启用一个，再回来添加这个助手。",
+        "no_models_title": "未启用 {{vendor}} 模型"
+      },
       "preview": "预览",
       "preview_description": "简介",
       "preview_prompt": "提示词",

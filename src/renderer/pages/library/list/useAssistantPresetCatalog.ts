@@ -1,6 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,13 +16,21 @@ interface AssistantCatalogModel {
 }
 
 export interface AssistantCatalogPreset {
+  id?: string
   name: string
   prompt?: string
   description?: string
   emoji?: string
   group?: string[]
   defaultModel?: AssistantCatalogModel
+  // Official-vendor presets only: drives auto-selection of a model from the
+  // user's configured providers (see officialVendorResolver).
+  vendor?: OfficialVendor
+  // Icon key for resolveProviderIcon; only meaningful when set (otherwise emoji is used).
+  iconKey?: string
 }
+
+export type OfficialVendor = 'anthropic' | 'openai' | 'google' | 'deepseek' | 'moonshot' | 'doubao'
 
 export interface AssistantCatalogTab {
   id: string
@@ -39,6 +48,7 @@ interface UseAssistantPresetCatalogOptions {
 const logger = loggerService.withContext('useAssistantPresetCatalog')
 
 const ORDERED_GROUP_ALIASES = [
+  ['官方', 'Official'],
   ['精选', 'Featured'],
   ['职业', 'Career'],
   ['商业', 'Business'],
@@ -130,7 +140,15 @@ export function getAssistantPresetCatalogKey(preset: Pick<AssistantCatalogPreset
   return `${preset.name.trim()}\n${(preset.prompt || preset.description || '').trim()}`
 }
 
-export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPreset): CreateAssistantDto {
+export function toCreateAssistantDtoFromCatalogPreset(
+  preset: AssistantCatalogPreset,
+  /**
+   * Optional pre-resolved UniqueModelId. When provided (e.g., by
+   * officialVendorResolver for vendor-bound presets), it overrides the
+   * `preset.defaultModel` mapping below.
+   */
+  resolvedModelId?: UniqueModelId
+): CreateAssistantDto {
   const dto: CreateAssistantDto = {
     name: preset.name.trim(),
     prompt: preset.prompt?.trim() || ''
@@ -142,7 +160,9 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
   const emoji = preset.emoji?.trim()
   if (emoji) dto.emoji = emoji
 
-  if (preset.defaultModel?.provider && preset.defaultModel.id) {
+  if (resolvedModelId) {
+    dto.modelId = resolvedModelId
+  } else if (preset.defaultModel?.provider && preset.defaultModel.id) {
     dto.modelId = createUniqueModelId(preset.defaultModel.provider, preset.defaultModel.id)
   }
 
