@@ -1,20 +1,21 @@
 /**
- * V2 chat write-side Context.
+ * Chat write-side context.
  *
- * Owned by `V2ChatContent`, which composes `useChat` + DataApi mutations
- * into a single bag of operations and passes it down the tree. Per-message
- * consumers use `useMessage(messageId, topic)`; topic-level and dynamic-id
- * consumers use `useV2Chat()`.
+ * Owned by `ChatContent`, which composes `useChat` + DataApi mutations into a
+ * single bag of operations and passes it down the tree. Per-message consumers
+ * use `useMessage(messageId, topic)`; topic-level and dynamic-id consumers use
+ * `useChatWrite()`.
  */
 
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
-/**
- * V2 chat overrides injected via React Context. Operations delegate to
- * DataApi + useChat.
- */
+/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
+/** Optional hints passed alongside `deleteMessage`. */
+export interface DeleteMessageTraceOptions {
+  modelName?: string
+}
 
 /** Options carried alongside a regenerate request. */
 export interface RegenerateOptions {
@@ -35,18 +36,18 @@ export interface RegenerateOptions {
   modelSnapshot?: ModelSnapshot
 }
 
-export interface V2ChatOverrides {
+export interface ChatWriteActions {
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
-  deleteMessage: (id: string) => Promise<void>
+  deleteMessage: (id: string, traceOptions?: DeleteMessageTraceOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**
-   * Branch a user message: create a new sibling under the same parent with the
-   * edited parts, make it the active node, then regenerate the assistant
-   * response anchored at the new sibling. The source message stays intact.
+   * Branch a user message: create a sibling with edited parts, make it active,
+   * then regenerate the assistant response anchored at that sibling. The source
+   * message stays intact, including for the first root user message.
    */
   forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**
@@ -68,14 +69,14 @@ export interface V2ChatOverrides {
   refresh: () => Promise<unknown>
 }
 
-export const V2ChatOverridesContext = createContext<V2ChatOverrides | null>(null)
+export const ChatWriteContext = createContext<ChatWriteActions | null>(null)
 
-export const V2ChatOverridesProvider = V2ChatOverridesContext.Provider
+export const ChatWriteProvider = ChatWriteContext.Provider
 
 /**
- * Zero-arg accessor. Returns `null` outside a `V2ChatOverridesProvider` —
+ * Zero-arg accessor. Returns `null` outside a `ChatWriteProvider` —
  * callers that must have a value should throw or early-return.
  */
-export function useV2Chat(): V2ChatOverrides | null {
-  return use(V2ChatOverridesContext)
+export function useChatWrite(): ChatWriteActions | null {
+  return use(ChatWriteContext)
 }

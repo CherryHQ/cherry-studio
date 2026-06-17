@@ -2669,9 +2669,11 @@
           }
         },
         "generate": "Prompt generieren",
+        "generate_failed_description": "Prüfe oder ändere das Standardmodell und versuche es erneut.",
+        "generate_failed_title": "Prompt konnte nicht generiert werden",
         "insert_variable": "Variable einfügen",
         "label": "Systemaufforderung",
-        "placeholder": "Gib die Systemaufforderung ein. Variablen wie {{date}} und {{model_name}} werden unterstützt...",
+        "placeholder": "Gib Anweisungen für den Assistenten ein, etwa Antwortstil, Rolle oder Hintergrundinformationen",
         "title": "Aufforderung",
         "tokens_label": "Token",
         "variables_title": "Verfügbare Variablen",

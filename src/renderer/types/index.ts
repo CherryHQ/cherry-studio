@@ -276,6 +276,8 @@ export type Topic = {
   name: string
   createdAt: string
   updatedAt: string
+  orderKey?: string
+  traceId?: string
   messages: Message[]
   pinned?: boolean
   prompt?: string
@@ -514,6 +516,7 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  homePath: string
   configPath: string
   appDataPath: string
   resourcesPath: string
@@ -897,7 +900,7 @@ export interface Citation {
   metadata?: Record<string, any>
 }
 
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+export type MathEngine = 'KaTeX' | 'none'
 
 export type S3Config = {
   endpoint: string

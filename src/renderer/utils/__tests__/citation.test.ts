@@ -1,8 +1,8 @@
 import type { GroundingSupport } from '@google/genai'
 import type { Citation } from '@renderer/types'
-import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
+import { WEB_SEARCH_SOURCE } from '../citation'
 import {
   determineCitationSource,
   generateCitationTag,

@@ -1,5 +1,5 @@
 /**
- * V2 hook for loading topic messages from DataApi as CherryUIMessage[].
+ * Hook for loading topic messages from DataApi as CherryUIMessage[].
  *
  * Uses `useInfiniteQuery` + `useInfiniteFlatItems` with `reversePages: true` —
  * the branch endpoint paginates newest-page-first but keeps within-page items
@@ -14,37 +14,21 @@
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import {
-  type BranchMessage,
-  type BranchMessagesResponse,
-  type Message as SharedMessage,
-  toContentRole
+import { sharedMessageToUIMessage } from '@renderer/utils/messageUtils/messageProjection'
+import type {
+  BranchMessage,
+  BranchMessagesResponse,
+  CherryUIMessage,
+  Message as SharedMessage
 } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 const PAGE_SIZE = 50
 
-// ── Converters ──
-
-function toUIMessage(shared: SharedMessage): CherryUIMessage {
-  return {
-    id: shared.id,
-    role: toContentRole(shared.role),
-    parts: (shared.data?.parts ?? []) as CherryUIMessage['parts'],
-    metadata: {
-      parentId: shared.parentId,
-      siblingsGroupId: shared.siblingsGroupId || undefined,
-      modelId: shared.modelId ?? undefined,
-      modelSnapshot: shared.modelSnapshot ?? undefined,
-      status: shared.status,
-      createdAt: shared.createdAt,
-      updatedAt: shared.updatedAt,
-      stats: shared.stats ?? undefined,
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
-    }
-  }
+interface DisplayBranchMessage {
+  message: SharedMessage
+  isActiveBranch: boolean
 }
 
 /**
@@ -71,9 +55,25 @@ function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, S
 function pickLatest(bucket: SharedMessage[]): SharedMessage {
   let latest = bucket[0]
   for (let i = 1; i < bucket.length; i++) {
-    if (bucket[i].createdAt.localeCompare(latest.createdAt) > 0) latest = bucket[i]
+    if (compareMessageOrder(bucket[i], latest) > 0) latest = bucket[i]
   }
   return latest
+}
+
+function compareMessageOrder(a: SharedMessage, b: SharedMessage): number {
+  return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+}
+
+function getBucketFirstMessage(bucket: SharedMessage[]): SharedMessage {
+  let first = bucket[0]
+  for (let i = 1; i < bucket.length; i++) {
+    if (compareMessageOrder(bucket[i], first) < 0) first = bucket[i]
+  }
+  return first
+}
+
+function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): SharedMessage {
+  return bucket.find((m) => m.id === activeMessageId) ?? pickLatest(bucket)
 }
 
 /**
@@ -83,27 +83,31 @@ function pickLatest(bucket: SharedMessage[]): SharedMessage {
  * - User siblings: alternate branches — only the active one is on the path;
  *   off-path branches go through the sibling navigator.
  * - Assistant siblings: bucket by `modelId`. One bubble per distinct model.
- *   - The bucket containing `item.message` (the on-path / active member)
- *     is already represented by that push.
- *   - Every other bucket contributes its most-recent sibling as an
- *     additional bubble (same askId → same `MessageGroup` tab bar).
+ *   - Buckets are sorted by their first-created member, so switching active
+ *     branch does not reshuffle the multi-model tab order.
+ *   - The active bucket displays the active member. Off-path buckets display
+ *     their most-recent sibling.
  *
  * This handles the three shapes uniformly: pure regenerate (1 bucket of N →
  * 1 bubble), pure multi-model (N buckets of 1 → N bubbles), mixed (N buckets
  * where at least one has >1 → N bubbles, per-model navigator on the larger
  * buckets).
  */
-function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
-  const result: SharedMessage[] = []
+function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
+  const result: DisplayBranchMessage[] = []
   for (const item of items) {
-    result.push(item.message)
-    if (!item.siblingsGroup || item.siblingsGroup.length === 0) continue
-    if (item.message.role === 'user') continue
+    if (!item.siblingsGroup || item.siblingsGroup.length === 0 || item.message.role === 'user') {
+      result.push({ message: item.message, isActiveBranch: true })
+      continue
+    }
 
     const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    for (const bucket of buckets.values()) {
-      if (bucket.some((m) => m.id === item.message.id)) continue
-      result.push(pickLatest(bucket))
+    const sortedBuckets = Array.from(buckets.values()).sort((a, b) =>
+      compareMessageOrder(getBucketFirstMessage(a), getBucketFirstMessage(b))
+    )
+    for (const bucket of sortedBuckets) {
+      const message = pickDisplayMember(bucket, item.message.id)
+      result.push({ message, isActiveBranch: message.id === item.message.id })
     }
   }
   return result
@@ -144,7 +148,7 @@ function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[
 
 // ── Hook ──
 
-export interface UseTopicMessagesV2Result {
+export interface UseTopicMessagesResult {
   uiMessages: CherryUIMessage[]
   /**
    * Map from any sibling member's id to the full ordered sibling group
@@ -170,34 +174,61 @@ export interface UseTopicMessagesV2Result {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesV2(topicId: string, options?: { enabled?: boolean }): UseTopicMessagesV2Result {
+export function useTopicMessages(
+  topicId: string,
+  options?: { enabled?: boolean; fetchOnMount?: boolean }
+): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
-  const { pages, isLoading, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
+  const fetchOnMount = options?.fetchOnMount ?? enabled
+  const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
     limit: PAGE_SIZE,
     enabled,
-    swrOptions: { dedupingInterval: 0 }
+    swrOptions: {
+      dedupingInterval: 0,
+      ...(!fetchOnMount && {
+        revalidateIfStale: false,
+        revalidateOnMount: false
+      })
+    }
   })
 
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.
   const branchItems = useInfiniteFlatItems(pages, { reversePages: true })
+  const pagesBelongToTopic = useMemo(
+    () =>
+      pages.every((page) =>
+        page.items.every(
+          (item) =>
+            item.message.topicId === topicId &&
+            (item.siblingsGroup ?? []).every((sibling) => sibling.topicId === topicId)
+        )
+      ),
+    [pages, topicId]
+  )
   const activeNodeId = pages[0]?.activeNodeId ?? null
   const rootId = pages[0]?.rootId ?? null
 
-  // On remount with stale SWR cache, isLoading=false but data is stale.
-  // Force a fresh fetch and track readiness so the loading gate blocks until fresh.
-  const [isReady, setIsReady] = useState(false)
+  // On remount with stale SWR cache, SWR may expose cached data while it
+  // revalidates. Track freshness per topic so the loading gate blocks stale
+  // cached rows without issuing an extra mutate() on top of SWR's own fetch.
+  const [readyTopicId, setReadyTopicId] = useState<string | null>(() => (!fetchOnMount ? topicId : null))
   useEffect(() => {
-    if (!enabled) {
-      setIsReady(true)
+    if (!enabled || !fetchOnMount) {
+      setReadyTopicId(topicId)
       return
     }
-    setIsReady(false)
-    void mutate().then(() => setIsReady(true))
-  }, [topicId, mutate, enabled])
+
+    setReadyTopicId((current) => (current === topicId ? current : null))
+  }, [topicId, enabled, fetchOnMount])
+
+  useEffect(() => {
+    if (!enabled || isLoading || isRefreshing || !pagesBelongToTopic) return
+    setReadyTopicId(topicId)
+  }, [enabled, isLoading, isRefreshing, pagesBelongToTopic, topicId])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const uiMessages = useMemo<CherryUIMessage[]>(
@@ -225,7 +256,7 @@ export function useTopicMessagesV2(topicId: string, options?: { enabled?: boolea
   return {
     uiMessages,
     siblingsMap,
-    isLoading: enabled && (isLoading || !isReady),
+    isLoading: enabled && (isLoading || readyTopicId !== topicId || !pagesBelongToTopic),
     refresh,
     activeNodeId,
     rootId,
@@ -244,11 +275,15 @@ function projectPagesToUI(
   branchItems: BranchMessage[],
   cache: WeakMap<SharedMessage, CherryUIMessage>
 ): CherryUIMessage[] {
-  return flattenBranchMessages(branchItems).map((shared) => {
-    const cached = cache.get(shared)
-    if (cached) return cached
-    const projected = toUIMessage(shared)
-    cache.set(shared, projected)
+  return flattenBranchMessages(branchItems).map(({ message, isActiveBranch }) => {
+    const cached = cache.get(message)
+    if (cached && cached.metadata?.isActiveBranch === isActiveBranch) return cached
+    const projected = sharedMessageToUIMessage(message)
+    projected.metadata = {
+      ...projected.metadata,
+      isActiveBranch
+    }
+    cache.set(message, projected)
     return projected
   })
 }

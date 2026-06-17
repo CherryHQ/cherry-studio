@@ -10,6 +10,8 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -358,7 +360,10 @@ const api = {
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize),
+    // Pin/unpin the current sub-window (always-on-top).
+    setAlwaysOnTop: (pinned: boolean): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.SubWindow_SetAlwaysOnTop, pinned)
   },
   command: {
     showNativePopupMenu: (
@@ -874,14 +879,8 @@ const api = {
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {
-      respond: (payload: {
-        approvalId: string
-        approved: boolean
-        reason?: string
-        updatedInput?: Record<string, unknown>
-        topicId?: string
-        anchorId?: string
-      }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+      respond: (payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> =>
+        ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     },
     agent: {
       runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)

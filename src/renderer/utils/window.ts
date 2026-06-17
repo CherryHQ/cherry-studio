@@ -3,5 +3,5 @@ export const isFocused = () => {
 }
 
 export const isOnHomePage = () => {
-  return window.location.hash === '#/' || window.location.hash === '#' || window.location.hash === ''
+  return window.location.hash === '#/app/chat' || window.location.hash === '#' || window.location.hash === ''
 }

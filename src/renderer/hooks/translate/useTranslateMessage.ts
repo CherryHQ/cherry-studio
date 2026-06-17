@@ -1,5 +1,5 @@
 /**
- * Message-bound translation hook for the `MessageMenubar` "translate this
+ * Message-bound translation hook for the `MessageMenuBar` "translate this
  * reply" flow.
  *
  * Drives a stream entirely through main:
@@ -21,8 +21,7 @@
  */
 
 import { loggerService } from '@logger'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
-import { useOptionalTranslationOverlaySetter } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
+import { useOptionalTranslationOverlaySetter, useRefresh } from '@renderer/components/chat/messages/blocks'
 import type { TranslateLanguage } from '@renderer/types'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useRef } from 'react'
@@ -51,7 +50,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
   // translate button, so `translate` is never invoked there — the guards
   // below just make the hook safe to mount regardless.
   const setOverlay = useOptionalTranslationOverlaySetter()
-  const v2 = useV2Chat()
+  const refresh = useRefresh()
   const activeRef = useRef<ActiveStream | null>(null)
 
   const teardown = useCallback((expectedStreamId: string | null) => {
@@ -123,7 +122,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         if (topicId !== streamId) return
         if (status === 'success') {
           try {
-            await v2?.refresh()
+            refresh()
           } catch (err) {
             logger.warn('refresh after translation done failed', err as Error)
           }
@@ -154,7 +153,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         throw err
       }
     },
-    [messageId, setOverlay, teardown, v2]
+    [messageId, refresh, setOverlay, teardown]
   )
 
   const cancel = useCallback(() => {
