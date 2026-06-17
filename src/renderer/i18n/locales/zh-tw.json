@@ -395,6 +395,9 @@
           "failed": "無法重新排序工作階段"
         }
       },
+      "tool": {
+        "disabled": "{{toolName}} 工具已被此智慧體停用。"
+      },
       "update": {
         "error": {
           "failed": "無法更新工作階段"
@@ -6118,6 +6121,10 @@
           "placeholder": "選填，例如 GPT-4",
           "tooltip": "例如 GPT-4"
         },
+        "section": {
+          "capabilities": "模型特性",
+          "pricing": "模型定價"
+        },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
           "tooltip": "模型每次回傳文字增量，而不是一次性回傳所有文字，預設開啟，如果模型不支援，請關閉"
@@ -6749,7 +6756,6 @@
       },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
-      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
@@ -6757,11 +6763,8 @@
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "新增話題",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",

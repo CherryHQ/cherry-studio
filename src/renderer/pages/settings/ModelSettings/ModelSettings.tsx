@@ -43,7 +43,9 @@ interface ModelSettingRowProps {
 
 const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, tip, compact, children }) => (
   <SettingRow className={cn('rounded-xl border border-border/60 px-4 py-3', compact && 'flex-col items-stretch gap-3')}>
-    <SettingRowTitle tip={tip} className="min-w-0 flex-1 gap-2">
+    <SettingRowTitle
+      tip={tip}
+      className="min-w-0 flex-1 gap-2 text-(length:--font-size-body-sm) leading-(--line-height-body-sm)">
       {icon}
       {title}
     </SettingRowTitle>
@@ -194,7 +196,10 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             <ModelSettingRow
               compact={compact}
               icon={
-                <MessageSquareMore size={16} strokeWidth={1.6} className="lucide-custom shrink-0 text-foreground" />
+                <MessageSquareMore
+                  size={16}
+                  className="lucide-custom shrink-0 text-foreground [stroke-width:var(--icon-stroke)]"
+                />
               }
               title={t('settings.models.default_assistant_model')}
               tip={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
@@ -209,7 +214,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             </ModelSettingRow>
             <ModelSettingRow
               compact={compact}
-              icon={<Rocket size={16} strokeWidth={1.6} className="lucide-custom shrink-0 text-foreground" />}
+              icon={
+                <Rocket
+                  size={16}
+                  className="lucide-custom shrink-0 text-foreground [stroke-width:var(--icon-stroke)]"
+                />
+              }
               title={t('settings.models.quick_model.label')}
               tip={
                 showDescription ? (
@@ -233,17 +243,22 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               {showSettingsButton && (
                 <Button
                   aria-label={t('settings.models.quick_model.setting_title')}
-                  className="shrink-0"
+                  className="shrink-0 rounded-lg border-[color:var(--color-border-fg-muted)] hover:bg-(--color-surface-fg-subtle-solid) [&_svg]:size-3.5! [&_svg]:[stroke-width:var(--icon-stroke)]"
                   onClick={() => setActivePanel('quick-model')}
                   size="icon-sm"
                   variant="outline">
-                  <Settings2 size={16} />
+                  <Settings2 />
                 </Button>
               )}
             </ModelSettingRow>
             <ModelSettingRow
               compact={compact}
-              icon={<Languages size={16} strokeWidth={1.6} className="lucide-custom shrink-0 text-foreground" />}
+              icon={
+                <Languages
+                  size={16}
+                  className="lucide-custom shrink-0 text-foreground [stroke-width:var(--icon-stroke)]"
+                />
+              }
               title={t('settings.models.translate_model')}
               tip={showDescription ? t('settings.models.translate_model_description') : undefined}>
               <DefaultModelSelector
@@ -258,11 +273,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 <>
                   <Button
                     aria-label={t('settings.translate.title')}
-                    className="shrink-0"
+                    className="shrink-0 rounded-lg border-[color:var(--color-border-fg-muted)] hover:bg-(--color-surface-fg-subtle-solid) [&_svg]:size-3.5! [&_svg]:[stroke-width:var(--icon-stroke)]"
                     onClick={() => setActivePanel('translate')}
                     size="icon-sm"
                     variant="outline">
-                    <Settings2 size={16} />
+                    <Settings2 />
                   </Button>
                   {translateModelPrompt !== TRANSLATE_PROMPT && (
                     <Tooltip content={t('common.reset')}>

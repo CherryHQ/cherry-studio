@@ -73,7 +73,7 @@ export function ApiHostField({
   return (
     <ProviderField
       title={t('settings.provider.api_host')}
-      titleClassName="text-foreground"
+      titleClassName="text-foreground font-normal"
       help={
         <div className="space-y-1 pt-1">
           {isVertexAI && (
@@ -93,13 +93,14 @@ export function ApiHostField({
           </div>
           <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
             <span className="inline-flex shrink-0">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 className={fieldClasses.inputActionButton}
                 aria-label={t('settings.provider.request_configuration_tooltip')}
                 onClick={onOpenRequestConfig}>
                 <Settings size={14} aria-hidden />
-              </button>
+              </Button>
             </span>
           </Tooltip>
         </div>
@@ -135,27 +136,29 @@ export function ApiHostField({
             {isApiHostResettable ? (
               <Tooltip content={t('settings.provider.api.url.reset')}>
                 <span className="inline-flex shrink-0">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     className={fieldClasses.inputActionButton}
                     aria-label={t('settings.provider.api.url.reset')}
                     onClick={() => {
                       onResetApiHost()
                     }}>
                     <RotateCcw size={14} />
-                  </button>
+                  </Button>
                 </span>
               </Tooltip>
             ) : null}
             <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
               <span className="inline-flex shrink-0">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   className={fieldClasses.inputActionButton}
                   aria-label={t('settings.provider.request_configuration_tooltip')}
                   onClick={onOpenRequestConfig}>
                   <Settings size={14} aria-hidden />
-                </button>
+                </Button>
               </span>
             </Tooltip>
           </div>
@@ -216,13 +219,14 @@ export function AnthropicApiHostField({
         </InputGroup>
         <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
           <span className="inline-flex shrink-0">
-            <button
+            <Button
               type="button"
+              variant="outline"
               className={fieldClasses.inputActionButton}
               aria-label={t('settings.provider.request_configuration_tooltip')}
               onClick={onOpenRequestConfig}>
               <Settings size={14} aria-hidden />
-            </button>
+            </Button>
           </span>
         </Tooltip>
       </div>

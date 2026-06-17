@@ -87,7 +87,7 @@ export const providerListClasses = {
   headerAddButton:
     'flex size-7 shrink-0 items-center justify-center rounded-md text-primary transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-primary disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
-    'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
+    'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-(--color-surface-fg-subtle-solid) text-foreground transition-colors hover:bg-(--color-frame-border) disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
   searchWrap:
     'flex h-8 items-center gap-1 rounded-[10px] border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
@@ -151,7 +151,7 @@ export const customHeaderDrawerClasses = {
   headerRow: 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2',
   /** Quiet trailing delete: neutral until hover, then destructive. */
   removeIconButton:
-    'size-7 shrink-0 rounded-lg text-muted-foreground/45 shadow-none transition-colors hover:bg-accent hover:text-destructive [&_svg]:size-3.5',
+    'size-7 shrink-0 rounded-lg text-muted-foreground/45 shadow-none transition-colors hover:bg-accent hover:text-destructive [&_svg]:size-3.5 [&_svg]:[stroke-width:var(--icon-stroke)]',
   addRowButton:
     'flex h-auto w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-muted py-2 text-xs text-muted-foreground shadow-none transition-colors hover:border-border-hover hover:bg-accent/40 hover:text-foreground'
 } as const
@@ -165,8 +165,7 @@ export const drawerClasses = {
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
   fieldList: 'space-y-3.5',
   field: 'space-y-1.5',
-  fieldTitle:
-    'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-secondary',
+  fieldTitle: 'font-normal text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground',
   input:
     'h-8 min-h-8 w-full rounded-[length:var(--radius-md)] border border-input bg-background px-3 py-1 text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
   inputDisabled: 'bg-muted text-foreground-muted',
@@ -248,27 +247,27 @@ export const modelListClasses = {
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/65',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5 [&_svg]:[stroke-width:var(--icon-stroke)]',
   addModelIconButton:
-    'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5 [&_svg]:[stroke-width:var(--icon-stroke)]',
   addIconButton:
     'size-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   capabilityFilterRoot: 'flex min-w-0 shrink-0 items-center gap-1',
   capabilityFilterButton:
-    'h-7 min-h-0 max-w-[170px] gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2 py-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
-  capabilityFilterButtonIconOnly: 'size-7 px-0',
+    'h-8 min-h-0 max-w-[170px] gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2 py-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground disabled:opacity-40 [&_svg]:[stroke-width:var(--icon-stroke)]',
+  capabilityFilterButtonIconOnly: 'size-8 px-0',
   capabilityFilterButtonActive: 'border-[color:var(--color-border-active)] bg-[var(--color-surface-fg-subtle)]',
   capabilityFilterLabel: 'min-w-0 truncate',
   capabilityFilterClear:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-muted-foreground/80',
   capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
   capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
-  capabilityTabIcon: 'size-3 shrink-0',
+  capabilityTabIcon: 'size-3.5 shrink-0',
   subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
   subsectionActions: 'ml-1 flex shrink-0 items-center gap-2',
   subsectionIconButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
+    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
   listActionTriggerButton:
     'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/55 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/80 disabled:opacity-40',
@@ -406,7 +405,7 @@ export const modelSyncClasses = {
   fetchEmptyIconWrap: 'mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted',
   fetchEmptyIcon: 'size-4 text-foreground-muted',
   fetchEmptyTitle:
-    'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-secondary',
+    'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground',
   fetchEmptyDescription:
     'mt-1 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
   fetchSection: 'min-w-0',
@@ -521,7 +520,7 @@ export const oauthCardClasses = {
 
 /** Shared visual for provider-settings icon buttons (bordered, cherry-* hover); size is composed per usage. */
 const fieldIconButtonBase =
-  'flex shrink-0 items-center justify-center rounded-lg border border-[var(--cherry-active-border)] text-[var(--cherry-text-muted)] transition-colors hover:bg-[var(--cherry-active-bg)] hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40'
+  'flex shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border-fg-muted)] text-foreground transition-colors hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:[stroke-width:var(--icon-stroke)]'
 
 export const fieldClasses = {
   inputRow: 'flex min-w-0 items-center gap-1.5',
@@ -549,11 +548,16 @@ export const fieldClasses = {
     'placeholder:text-muted-foreground/60 md:text-[length:var(--font-size-body-md)]',
   /** Small 24px icon control (e.g. copy / inline settings) — for compact rows, not next to a full input. */
   iconButton: cn(fieldIconButtonBase, 'size-6'),
-  /** 32px icon control that matches the connection input-group height (`h-8`) when placed beside it in an `inputRow`. */
-  inputActionButton: cn(fieldIconButtonBase, 'size-8'),
+  /**
+   * 32px icon control that matches the connection input-group height (`h-8`) when placed beside it in an `inputRow`.
+   * Apply to `<Button variant="outline">` so visual parity with the input neighbor stays exact
+   * (same `h-8`, `rounded-lg`, `border-fg-muted`, hover-solid, icon-stroke).
+   */
+  inputActionButton:
+    'size-8 min-h-0 p-0 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent text-foreground shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground [&_svg]:size-3.5! [&_svg]:[stroke-width:var(--icon-stroke)]',
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
+    'flex size-5 shrink-0 items-center justify-center text-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:[stroke-width:var(--icon-stroke)]',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
   titleHelpLink:
     'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] !text-info hover:underline'
