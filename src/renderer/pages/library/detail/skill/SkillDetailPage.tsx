@@ -271,7 +271,6 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
                     <RichEditor
                       key={selectedFile}
                       initialContent={fileContent}
-                      isMarkdown={true}
                       editable={false}
                       showToolbar={false}
                       isFullWidth={true}
