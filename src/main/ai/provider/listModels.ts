@@ -173,6 +173,20 @@ const ollamaFetcher: ModelFetcher = {
   }
 }
 
+const EXCLUDED_GEMINI_GENERATION_METHODS = ['predictLongRunning', 'bidiGenerateContent'] as const
+
+const EXCLUDED_GEMINI_MODEL_KEYWORDS = ['tts'] as const
+
+function isSupportedGeminiModel(model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]): boolean {
+  const methods = model.supportedGenerationMethods ?? []
+  if (EXCLUDED_GEMINI_GENERATION_METHODS.some((method) => methods.includes(method))) {
+    return false
+  }
+
+  const id = (model.name.startsWith('models/') ? model.name.slice(7) : model.name).toLowerCase()
+  return !EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
 const geminiFetcher: ModelFetcher = {
   match: (p) => isGeminiProvider(p),
   fetch: async (provider, signal) => {
@@ -188,10 +202,12 @@ const geminiFetcher: ModelFetcher = {
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => {
-      const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
-      return toModel(id, provider, { name: m.displayName || id, description: m.description })
-    })
+    return dedup(response.models, (m) => m.name)
+      .filter(isSupportedGeminiModel)
+      .map((m) => {
+        const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
+        return toModel(id, provider, { name: m.displayName || id, description: m.description })
+      })
   }
 }
 

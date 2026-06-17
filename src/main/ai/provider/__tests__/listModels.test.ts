@@ -110,6 +110,59 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(models[0].apiModelId).toBe('gemini-2.0-flash')
     expect(models[0].name).toBe('Gemini 2.0 Flash')
   })
+
+  it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          {
+            name: 'models/gemini-2.0-flash',
+            displayName: 'Gemini 2.0 Flash',
+            supportedGenerationMethods: ['generateContent', 'countTokens']
+          },
+          {
+            name: 'models/gemini-2.5-flash-image',
+            displayName: 'Gemini 2.5 Flash Image',
+            supportedGenerationMethods: ['generateContent', 'countTokens']
+          },
+          {
+            name: 'models/imagen-4.0-generate-001',
+            displayName: 'Imagen 4',
+            supportedGenerationMethods: ['predict']
+          },
+          {
+            name: 'models/gemini-embedding-001',
+            displayName: 'Gemini Embedding 001',
+            supportedGenerationMethods: ['embedContent', 'countTokens']
+          },
+          {
+            name: 'models/veo-3.1-generate-preview',
+            displayName: 'Veo 3.1',
+            supportedGenerationMethods: ['predictLongRunning']
+          },
+          {
+            name: 'models/gemini-2.5-flash-preview-tts',
+            displayName: 'Gemini 2.5 Flash TTS',
+            supportedGenerationMethods: ['countTokens', 'generateContent']
+          },
+          {
+            name: 'models/gemini-2.5-flash-native-audio-dialog',
+            displayName: 'Gemini Native Audio',
+            supportedGenerationMethods: ['countTokens', 'bidiGenerateContent']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeGeminiProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'gemini-2.0-flash',
+      'gemini-2.5-flash-image',
+      'imagen-4.0-generate-001',
+      'gemini-embedding-001'
+    ])
+  })
 })
 
 describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
