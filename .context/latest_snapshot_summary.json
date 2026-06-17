@@ -1,198 +1,144 @@
 {
-  "generated_at": "2026-06-16T17:50:06.598364+00:00",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "snapshot_date": "2026-06-17",
+  "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "count": 927,
-    "total_in_repo": null
+    "total": 936,
+    "by_title_type": {
+      "bug": 376,
+      "feature": 432,
+      "other": 128
+    },
+    "by_label": {
+      "inactive": 37,
+      "UI/UX": 31,
+      "Models": 20,
+      "Assistant": 13,
+      "internal_team": 10,
+      "feature": 8,
+      "MCP": 8,
+      "prd": 7,
+      "Agent": 5,
+      "help_wanted": 5,
+      "discussion": 5,
+      "RAG": 5,
+      "needs-repro": 4,
+      "Data": 3,
+      "Connectivity": 3,
+      "needs-more-info": 2,
+      "needs-triage": 6,
+      "Performance": 1,
+      "Dev_Team": 1
+    },
+    "no_label_count": 92,
+    "no_label_pct": 9.8,
+    "needs_triage_count": 6,
+    "health": {
+      "active_updated_30d": 582,
+      "not_updated_30d": 354,
+      "created_before_6mo": 134,
+      "created_before_9mo": 22,
+      "note": "Active = updated in last 30d; zombie proxy = created >6 months ago (134 issues)"
+    }
   },
   "open_prs": {
-    "count": 257,
-    "by_base": {
-      "SiinXu/ui-shell": 1,
-      "SiinXu/ui-design-system": 1,
-      "main": 236,
-      "v1": 19
-    }
+    "total": 255,
+    "v2_labeled": 15,
+    "v1_base": 12,
+    "draft": 6,
+    "stale_over_30d": 12,
+    "updated_last_7d": 63,
+    "top_authors": [
+      {"login": "DeJeune", "count": 18},
+      {"login": "Raymond8196", "count": 12},
+      {"login": "kangfenmao", "count": 8},
+      {"login": "LWWZH", "count": 8},
+      {"login": "kovsu", "count": 6},
+      {"login": "404-Page-Found", "count": 5}
+    ]
   },
-  "closed_issues_30d": 405,
-  "closed_prs_30d": 541,
-  "label_distribution": [
+  "last_30_days": {
+    "issues_closed": 394,
+    "issues_closed_resolution": {
+      "not_planned": 318,
+      "completed": 79
+    },
+    "issues_closed_by_type": {
+      "bug": 49,
+      "feature": 24,
+      "no_type": 26
+    },
+    "avg_time_to_close_hours": 926,
+    "median_time_to_close_hours": 981,
+    "prs_merged": 126,
+    "busiest_close_day": {"date": "2026-06-15", "count": 22}
+  },
+  "p1_candidates": [
     {
-      "label": "UI/UX",
-      "count": 301
+      "number": 16142,
+      "title": "[Bug] 日志文件占用17GB+，日志目录硬编码无法修改位置",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142",
+      "comments": 1,
+      "created_at": "2026-06-17",
+      "severity_reason": "Critical: log files consuming 17GB+ on C drive, created today, blocked users",
+      "label": "needs-triage"
     },
     {
-      "label": "Models",
-      "count": 198
+      "number": 15416,
+      "title": "[Bug]: Taskbar icon becomes blank after merging",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15416",
+      "comments": 6,
+      "severity_reason": "High engagement, regression in core UI"
     },
     {
-      "label": "Assistant",
-      "count": 149
+      "number": 15051,
+      "title": "[Bug]: Cannot select any model while trying to create a new Agent",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15051",
+      "comments": 6,
+      "severity_reason": "Blocks core Agent creation flow"
     },
     {
-      "label": "feature",
-      "count": 131
+      "number": 15293,
+      "title": "[Bug]: deepseek-v4-pro only displays the last token",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15293",
+      "comments": 5,
+      "severity_reason": "Rendering regression for popular model"
     },
     {
-      "label": "inactive",
-      "count": 110
+      "number": 14800,
+      "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14800",
+      "comments": 5,
+      "severity_reason": "Breaks local model integration"
     },
     {
-      "label": "BUG",
-      "count": 104
-    },
-    {
-      "label": "MCP",
-      "count": 75
-    },
-    {
-      "label": "internal_team",
-      "count": 70
-    },
-    {
-      "label": "Data",
-      "count": 52
-    },
-    {
-      "label": "needs-repro",
-      "count": 48
-    },
-    {
-      "label": "Blocked: v2",
-      "count": 47
-    },
-    {
-      "label": "discussion",
-      "count": 44
-    },
-    {
-      "label": "help wanted",
-      "count": 42
-    },
-    {
-      "label": "RAG",
-      "count": 34
-    },
-    {
-      "label": "Connectivity",
-      "count": 31
-    },
-    {
-      "label": "P3",
-      "count": 23
-    },
-    {
-      "label": "v2",
-      "count": 18
-    },
-    {
-      "label": "Planned",
-      "count": 16
-    },
-    {
-      "label": "Dev Team",
-      "count": 15
-    },
-    {
-      "label": "needs-more-info",
-      "count": 15
+      "number": 16112,
+      "title": "[Bug]: 上下文太大导致死机且无法恢复",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16112",
+      "comments": 4,
+      "severity_reason": "Critical: app hangs and cannot recover on large context"
     }
   ],
-  "unlabeled_pct": 9.6,
-  "p1_issues": [
+  "notable_today": [
     {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": [
-        "Planned",
-        "P1",
-        "feature",
-        "UI/UX"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+      "number": 16142,
+      "title": "日志文件占用17GB+，日志目录硬编码无法修改位置",
+      "type": "critical_bug",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      "number": 16152,
+      "title": "feat(renderer): v2 history & app-shell chat surfaces (9/10)",
+      "type": "v2_pr",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/16152",
+      "author": "DeJeune"
     },
     {
-      "number": 13193,
-      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai in the latest macos app",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    }
-  ],
-  "v2_prs": {
-    "open": 0,
-    "merged_30d": 148
-  },
-  "top_issues_by_comments": [
-    {
-      "number": 6505,
-      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-      "comments": 360,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/6505"
-    },
-    {
-      "number": 5640,
-      "title": "【需求汇总】Cherry Studio as a Service (CSaaS) / Cherry Studio作为服务对外提供API接口",
-      "comments": 26,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/5640"
-    },
-    {
-      "number": 6972,
-      "title": "[功能]: 允许缓存对话中 markdown 引用的图片到本地",
-      "comments": 17,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/6972"
-    },
-    {
-      "number": 14362,
-      "title": "[Bug]: The model list displays grouped garbled text.",
-      "comments": 15,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14362"
-    },
-    {
-      "number": 9943,
-      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-      "comments": 15,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/9943"
-    },
-    {
-      "number": 12618,
-      "title": "[Bug]: Unable to properly configure and use the Anthropic (Claude) API provided by Azure",
-      "comments": 14,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12618"
-    },
-    {
-      "number": 3922,
-      "title": "[功能]: 助手作为对话参与者而非话题容器",
-      "comments": 13,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/3922"
-    },
-    {
-      "number": 12612,
-      "title": "[Bug]: Azure OpenAI gpt-5.2 models fail with \"Unsupported parameter: 'messages'\" error",
-      "comments": 13,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12612"
-    },
-    {
-      "number": 13209,
-      "title": "[Feature]: Properly handle MCP image content instead of embedding raw base64 in messages",
-      "comments": 12,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13209"
-    },
-    {
-      "number": 11101,
-      "title": "[Feature]: Keep Tool Calling Context",
-      "comments": 11,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/11101"
+      "number": 16136,
+      "title": "[Feature]: Migrate from Gemini CLI to Antigravity CLI",
+      "type": "feature_request",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16136",
+      "note": "Gemini CLI stops serving unpaid tiers 2026-06-18"
     }
   ]
 }

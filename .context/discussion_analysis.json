@@ -1,5 +1,71 @@
 {
-  "generated_at": "2026-06-15T00:00:00Z",
-  "note": "GitHub Discussions GraphQL API not available via MCP tooling; data sourced from issue tracker only",
-  "total": 0
+  "generated_at": "2026-06-17T00:00:00Z",
+  "snapshot_date": "2026-06-17",
+  "data_source": "GitHub Issues API (discussion-labeled issues) + known top discussions",
+  "note": "Full Discussion GraphQL data unavailable in this environment; data derived from issues with 'discussion' label and known high-engagement threads",
+  "discussion_labeled_issues": {
+    "open_count": 5,
+    "closed_30d_count": 6
+  },
+  "top_discussions_by_engagement": [
+    {
+      "number": 5640,
+      "title": "【需求汇总】Cherry Studio as a Service (CSaaS)...",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/5640",
+      "comments": 26,
+      "type": "feature_discussion",
+      "created_at": "2025-05-03",
+      "age_days": 410,
+      "status": "open",
+      "note": "Oldest active issue, highest comment count — multi-year roadmap discussion"
+    },
+    {
+      "number": 16078,
+      "title": "Cherry Studio智能体功能申请",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16078",
+      "comments": 9,
+      "type": "feature_discussion",
+      "status": "open"
+    },
+    {
+      "number": 14018,
+      "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6 New Feature Adoption",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14018",
+      "comments": 8,
+      "type": "feature_discussion",
+      "status": "open"
+    }
+  ],
+  "hot_topics": [
+    {
+      "topic": "Gemini CLI / Antigravity CLI Migration",
+      "urgency": "HIGH",
+      "deadline": "2026-06-18",
+      "issue": 16136,
+      "note": "Gemini CLI stops serving unpaid tier 2026-06-18; user requesting migration support"
+    },
+    {
+      "topic": "Log file disk space explosion",
+      "urgency": "CRITICAL",
+      "issue": 16142,
+      "note": "17GB+ logs due to HTTP 418 error loop and hardcoded log path on Windows"
+    },
+    {
+      "topic": "V2 chat page migration (stacked PRs)",
+      "urgency": "HIGH",
+      "pr": 16152,
+      "note": "10-part stacked PR series for v1->v2 chat migration; layer 9/10 opened today by DeJeune"
+    },
+    {
+      "topic": "Agent model selection regression",
+      "urgency": "HIGH",
+      "issue": 15051,
+      "note": "Cannot select model when creating new Agent; 6 comments"
+    }
+  ],
+  "community_sentiment": {
+    "observation": "High volume (936 open issues) with 80% of closed issues marked not_planned suggests aggressive triage. Community active — 394 issues closed in 30 days. V2 refactor is a major ongoing discussion.",
+    "engagement_health": "moderate",
+    "top_contributor": "DeJeune (18 open PRs, leading v2 chat migration stacked series)"
+  }
 }

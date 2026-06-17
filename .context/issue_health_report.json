@@ -1,206 +1,86 @@
 {
-  "generated_at": "2026-06-16T17:50:10.949567+00:00",
-  "health_buckets": {
-    "Active": {
-      "count": 358,
-      "pct": 38.6
+  "generated_at": "2026-06-17T00:00:00Z",
+  "snapshot_date": "2026-06-17",
+  "methodology": "Active=updated<30d; Aging=updated 30-90d; Stale=not updated in 90-180d; Zombie=not updated in 180d+",
+  "health_distribution": {
+    "total_open": 936,
+    "active": {
+      "count": 582,
+      "pct": 62.2,
+      "definition": "Updated in last 30 days (since 2026-05-17)"
     },
-    "Aging": {
-      "count": 211,
-      "pct": 22.8
+    "not_updated_30d": {
+      "count": 354,
+      "pct": 37.8,
+      "note": "Includes aging, stale, and zombie"
     },
-    "Stale": {
-      "count": 77,
-      "pct": 8.3
+    "zombie_proxy": {
+      "count": 134,
+      "pct": 14.3,
+      "definition": "Created before 2025-12-17 (>6 months ago)"
     },
-    "Zombie": {
-      "count": 281,
-      "pct": 30.3
+    "very_old_proxy": {
+      "count": 22,
+      "pct": 2.4,
+      "definition": "Created before 2025-09-17 (>9 months ago)"
     }
   },
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": [
-        "Planned",
-        "P1",
-        "feature",
-        "UI/UX"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
-    },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai in the latest macos app",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    }
+  "closure_health": {
+    "last_30d_closed": 394,
+    "completion_rate_pct": 20.0,
+    "not_planned_rate_pct": 80.0,
+    "avg_time_to_close_days": 38.6,
+    "median_time_to_close_days": 40.9,
+    "note": "Tight p25-p75 range (969-1000h) indicates batch auto-close after ~40d inactivity window"
+  },
+  "label_health": {
+    "no_label_open": 92,
+    "needs_triage": 6,
+    "needs_repro": 4,
+    "needs_more_info": 2,
+    "inactive_labeled": 37,
+    "unactionable_total": 98,
+    "unactionable_pct": 10.5
+  },
+  "high_engagement_open_bugs": [
+    {"number": 16142, "title": "日志文件占用17GB+，日志目录硬编码无法修改位置", "comments": 1, "created": "2026-06-17", "severity": "CRITICAL"},
+    {"number": 15416, "title": "[Bug]: Taskbar icon becomes blank after merging", "comments": 6, "severity": "HIGH"},
+    {"number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6, "severity": "HIGH"},
+    {"number": 15293, "title": "[Bug]: deepseek-v4-pro only displays the last token", "comments": 5, "severity": "HIGH"},
+    {"number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models", "comments": 5, "severity": "HIGH"},
+    {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "severity": "HIGH"},
+    {"number": 15072, "title": "[Bug]: Xiaomi MiMo cannot disable deep thinking in agent mode", "comments": 4, "severity": "MEDIUM"},
+    {"number": 14217, "title": "[Bug]: knowledge-base:search fails with TypeError", "comments": 3, "severity": "MEDIUM"},
+    {"number": 14602, "title": "[Bug]: API response parsing failed", "comments": 3, "severity": "MEDIUM"}
   ],
-  "high_comment_issues": [
-    {
-      "number": 6505,
-      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-      "comments": 360
-    },
-    {
-      "number": 5640,
-      "title": "【需求汇总】Cherry Studio as a Service (CSaaS) / Cherry Studio作为服务对外提供API接口",
-      "comments": 26
-    },
-    {
-      "number": 6972,
-      "title": "[功能]: 允许缓存对话中 markdown 引用的图片到本地",
-      "comments": 17
-    },
-    {
-      "number": 14362,
-      "title": "[Bug]: The model list displays grouped garbled text.",
-      "comments": 15
-    },
-    {
-      "number": 9943,
-      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-      "comments": 15
-    },
-    {
-      "number": 12618,
-      "title": "[Bug]: Unable to properly configure and use the Anthropic (Claude) API provided by Azure",
-      "comments": 14
-    },
-    {
-      "number": 3922,
-      "title": "[功能]: 助手作为对话参与者而非话题容器",
-      "comments": 13
-    },
-    {
-      "number": 12612,
-      "title": "[Bug]: Azure OpenAI gpt-5.2 models fail with \"Unsupported parameter: 'messages'\" error",
-      "comments": 13
-    },
-    {
-      "number": 13209,
-      "title": "[Feature]: Properly handle MCP image content instead of embedding raw base64 in messages",
-      "comments": 12
-    },
-    {
-      "number": 11101,
-      "title": "[Feature]: Keep Tool Calling Context",
-      "comments": 11
-    }
+  "recently_closed_notable": [
+    {"number": 13629, "title": "[Bug]: Cannot select models when adding agent", "comments": 15, "closed": "2026-06-12", "resolution": "completed"},
+    {"number": 14699, "title": "[Bug]: Agent tool no response for a long time", "comments": 8, "closed": "2026-06-10", "resolution": "not_planned"},
+    {"number": 13418, "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "comments": 5, "closed": "2026-06-17", "resolution": "not_planned"},
+    {"number": 14517, "title": "[Bug]: v1.9.2 Data Backup Failed", "comments": 5, "closed": "2026-06-12", "resolution": "not_planned"}
   ],
-  "unlabeled_issues": [
-    {
-      "number": 16092,
-      "title": "[Feature]: Collapse skill IPC results into native IpcApi errors",
-      "created_at": "2026-06-16T08:33:09Z"
+  "trend": {
+    "daily_close_recent": {
+      "2026-06-09": 8,
+      "2026-06-10": 15,
+      "2026-06-11": 4,
+      "2026-06-12": 18,
+      "2026-06-13": 1,
+      "2026-06-14": 7,
+      "2026-06-15": 22,
+      "2026-06-16": 12,
+      "2026-06-17": 13
     },
-    {
-      "number": 16090,
-      "title": "[Feature]: Anthropic OAuth Sign-In for Claude Pro / Max Subscribers",
-      "created_at": "2026-06-16T06:57:20Z"
-    },
-    {
-      "number": 16082,
-      "title": "[Bug]: Agent auto-deleted via internal API with all 29 sessions lost (hard delete, soft:false)",
-      "created_at": "2026-06-16T04:16:04Z"
-    },
-    {
-      "number": 16083,
-      "title": "Forward-port abnormal finish-reason error handling (#16072) to the v2 chat pipeline",
-      "created_at": "2026-06-16T04:48:07Z"
-    },
-    {
-      "number": 16042,
-      "title": "[Feature]: Model group @mention (carry-over from #10006 / #10949)",
-      "created_at": "2026-06-14T08:53:29Z"
-    },
-    {
-      "number": 16041,
-      "title": "[Bug]: Assistant custom parameters silently ignored by AI SDK provider adapters",
-      "created_at": "2026-06-14T08:38:02Z"
-    },
-    {
-      "number": 16039,
-      "title": "[Feature]: Support quick model switching via /model command in input box",
-      "created_at": "2026-06-14T03:11:18Z"
-    },
-    {
-      "number": 16037,
-      "title": "[Feature]: Add a setting to convert responses to speech during output",
-      "created_at": "2026-06-13T17:33:10Z"
-    },
-    {
-      "number": 16024,
-      "title": "[Feature]: Document Parsing",
-      "created_at": "2026-06-13T04:11:48Z"
-    },
-    {
-      "number": 14018,
-      "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6 New Feature Adoption + Provider Bug Fixes",
-      "created_at": "2026-04-03T14:35:31Z"
-    },
-    {
-      "number": 16008,
-      "title": "[Bug] Custom system prompts are not mapped to the instructions field in Responses API mode",
-      "created_at": "2026-06-12T09:03:58Z"
-    },
-    {
-      "number": 16006,
-      "title": "[Feature]: Add auto TTS function & built-in OCR for vision-less LLM models",
-      "created_at": "2026-06-12T05:16:09Z"
-    },
-    {
-      "number": 15982,
-      "title": "[Feature]: Add Sub-Agent Calling Mechanism between Agents",
-      "created_at": "2026-06-11T09:05:59Z"
-    },
-    {
-      "number": 15944,
-      "title": "[Other]: Tracking — src/main chat-page split consolidated into 8 backend review PRs",
-      "created_at": "2026-06-10T11:15:02Z"
-    },
-    {
-      "number": 15962,
-      "title": "[Bug]: API address cannot end with #",
-      "created_at": "2026-06-11T00:26:34Z"
-    },
-    {
-      "number": 15169,
-      "title": "[Feature]: Add WeCom and DingTalk Channel Adapters for CherryClaw",
-      "created_at": "2026-05-18T13:13:54Z"
-    },
-    {
-      "number": 15949,
-      "title": "[Feature]: \"Autonomous Mode\" should clearly indicate that it disables MCP tools",
-      "created_at": "2026-06-10T14:03:23Z"
-    },
-    {
-      "number": 15947,
-      "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files in one day",
-      "created_at": "2026-06-10T12:20:31Z"
-    },
-    {
-      "number": 15842,
-      "title": "Showcase inquiry for Cherry Studio as a practical AI workspace",
-      "created_at": "2026-06-09T10:49:29Z"
-    },
-    {
-      "number": 15836,
-      "title": "[Bug]: DeepSeek V4+ reasoning_effort dropped for OpenAI-compatible providers on main (forward-port of #15824)",
-      "created_at": "2026-06-09T07:58:46Z"
+    "weekly_close": {
+      "2026-W24": 53,
+      "2026-W25": 47
     }
+  },
+  "action_items": [
+    "URGENT: Triage #16142 (log files 17GB+) — critical disk space issue reported today",
+    "Review 6 open needs-triage issues for classification",
+    "Clear 92 unlabeled open issues (10.5% of backlog)",
+    "Address 134 zombie issues (created >6mo ago) — consider batch close or milestone planning",
+    "Fix regression: #15051 agent model selection broken, #15416 taskbar icon blank"
   ]
 }
