@@ -8,7 +8,6 @@ import { knowledgeDataSourceCheckboxClassName } from './styles'
 
 export interface KnowledgeItemListProps {
   items: KnowledgeItem[]
-  allItemsCount: number
   isLoading: boolean
   selectedIds: Set<string>
   onToggleOne: (itemId: string, next: boolean) => void
@@ -22,7 +21,6 @@ export interface KnowledgeItemListProps {
 
 const KnowledgeItemList = ({
   items,
-  allItemsCount,
   isLoading,
   selectedIds,
   onToggleOne,
@@ -43,16 +41,8 @@ const KnowledgeItemList = ({
     )
   }
 
-  if (allItemsCount === 0) {
-    return null
-  }
-
   if (items.length === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-3 text-center text-foreground-muted text-sm">
-        {t('knowledge.data_source.toolbar.no_search_results')}
-      </div>
-    )
+    return null
   }
 
   const allSelected = items.every((item) => selectedIds.has(item.id))

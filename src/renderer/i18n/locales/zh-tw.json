@@ -2241,9 +2241,7 @@
         "select_row": "選取列"
       },
       "toolbar": {
-        "add": "新增資料來源",
-        "no_search_results": "未找到符合的資料來源",
-        "search_placeholder": "搜尋資料來源"
+        "add": "新增資料來源"
       }
     },
     "dimensions_auto_set": "自動設定嵌入維度",

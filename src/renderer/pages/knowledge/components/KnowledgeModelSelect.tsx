@@ -2,12 +2,11 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
-import { isUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, X } from 'lucide-react'
 import { useMemo } from 'react'
 
-export const isEmbeddingModel = (model: Model) => model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING)
-export const isRerankModel = (model: Model) => model.capabilities.includes(MODEL_CAPABILITY.RERANK)
+export { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 
 interface KnowledgeModelSelectProps {
   value: string | null

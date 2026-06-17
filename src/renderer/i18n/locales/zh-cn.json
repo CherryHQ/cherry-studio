@@ -2241,9 +2241,7 @@
         "select_row": "选择行"
       },
       "toolbar": {
-        "add": "添加数据源",
-        "no_search_results": "未找到匹配的数据源",
-        "search_placeholder": "搜索数据源"
+        "add": "添加数据源"
       }
     },
     "dimensions_auto_set": "自动设置嵌入维度",

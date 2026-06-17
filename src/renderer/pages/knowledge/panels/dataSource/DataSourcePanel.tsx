@@ -164,7 +164,6 @@ const DataSourcePanel = ({
         ) : (
           <KnowledgeItemList
             items={items}
-            allItemsCount={items.length}
             isLoading={isLoading}
             selectedIds={selectedIds}
             onToggleOne={handleToggleOne}

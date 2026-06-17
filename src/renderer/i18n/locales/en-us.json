@@ -2241,9 +2241,7 @@
         "select_row": "Select row"
       },
       "toolbar": {
-        "add": "Add Data Source",
-        "no_search_results": "No matching data sources",
-        "search_placeholder": "Search data sources"
+        "add": "Add Data Source"
       }
     },
     "dimensions_auto_set": "Auto-set embedding dimensions",

@@ -149,8 +149,6 @@ vi.mock('react-i18next', () => ({
           {
             'knowledge.data_source.add_dialog.title': '添加数据源',
             'knowledge.data_source.toolbar.add': '添加数据源',
-            'knowledge.data_source.toolbar.search_placeholder': '搜索数据源',
-            'knowledge.data_source.toolbar.no_search_results': '未找到匹配的数据源',
             'knowledge.data_source.empty.title': '上传第一个数据源',
             'knowledge.data_source.empty.shortcuts.file.title': '文件',
             'knowledge.data_source.empty.shortcuts.url.title': '链接',

@@ -1,5 +1,4 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -281,30 +280,6 @@ describe('RagConfigPanel', () => {
         searchMode: 'vector',
         hybridAlpha: null
       },
-      embeddingModels: [
-        {
-          id: 'openai::text-embedding-3-small',
-          providerId: 'openai',
-          apiModelId: 'text-embedding-3-small',
-          name: 'text-embedding-3-small',
-          capabilities: [MODEL_CAPABILITY.EMBEDDING],
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-          supportsStreaming: false,
-          isEnabled: true,
-          isHidden: false
-        },
-        {
-          id: 'voyage::voyage-3-large',
-          providerId: 'voyage',
-          apiModelId: 'voyage-3-large',
-          name: 'voyage-3-large',
-          capabilities: [MODEL_CAPABILITY.EMBEDDING],
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-          supportsStreaming: false,
-          isEnabled: true,
-          isHidden: false
-        }
-      ],
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
@@ -485,19 +460,6 @@ describe('RagConfigPanel', () => {
         { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
-      embeddingModels: [
-        {
-          id: 'openai::text-embedding-3-small',
-          providerId: 'openai',
-          apiModelId: 'text-embedding-3-small',
-          name: 'text-embedding-3-small',
-          capabilities: [MODEL_CAPABILITY.EMBEDDING],
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-          supportsStreaming: false,
-          isEnabled: true,
-          isHidden: false
-        }
-      ],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -532,19 +494,6 @@ describe('RagConfigPanel', () => {
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
-      ],
-      embeddingModels: [
-        {
-          id: 'openai::text-embedding-3-small',
-          providerId: 'openai',
-          apiModelId: 'text-embedding-3-small',
-          name: 'text-embedding-3-small',
-          capabilities: [MODEL_CAPABILITY.EMBEDDING],
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-          supportsStreaming: false,
-          isEnabled: true,
-          isHidden: false
-        }
       ],
       save: mockSave,
       isLoading: false,
