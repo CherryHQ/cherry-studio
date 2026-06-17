@@ -1,10 +1,10 @@
 import { TopicType } from '@renderer/types'
 
-import type { InputbarScope, InputbarScopeConfig } from './types'
+import type { ComposerToolScope, ComposerToolScopeConfig } from './types'
 
-const DEFAULT_INPUTBAR_SCOPE: InputbarScope = TopicType.Chat
+const DEFAULT_COMPOSER_TOOL_SCOPE: ComposerToolScope = TopicType.Chat
 
-const inputbarRegistry = new Map<InputbarScope, InputbarScopeConfig>([
+const composerToolConfigRegistry = new Map<ComposerToolScope, ComposerToolScopeConfig>([
   [
     TopicType.Chat,
     {
@@ -44,10 +44,10 @@ const inputbarRegistry = new Map<InputbarScope, InputbarScopeConfig>([
   ]
 ])
 
-export const registerInputbarConfig = (scope: InputbarScope, config: InputbarScopeConfig): void => {
-  inputbarRegistry.set(scope, config)
+export const registerComposerToolConfig = (scope: ComposerToolScope, config: ComposerToolScopeConfig): void => {
+  composerToolConfigRegistry.set(scope, config)
 }
 
-export const getInputbarConfig = (scope: InputbarScope): InputbarScopeConfig => {
-  return inputbarRegistry.get(scope) || inputbarRegistry.get(DEFAULT_INPUTBAR_SCOPE)!
+export const getComposerToolConfig = (scope: ComposerToolScope): ComposerToolScopeConfig => {
+  return composerToolConfigRegistry.get(scope) || composerToolConfigRegistry.get(DEFAULT_COMPOSER_TOOL_SCOPE)!
 }
