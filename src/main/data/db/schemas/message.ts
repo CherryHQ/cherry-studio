@@ -1,6 +1,6 @@
 import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { topicTable } from './topic'
@@ -25,9 +25,9 @@ export const messageTable = sqliteTable(
       .references(() => topicTable.id, { onDelete: 'cascade' }),
     // Message role: user, assistant, system
     role: text().notNull(),
-    // Main content - contains blocks[] (inline JSON)
+    // Main content - contains AI SDK UIMessage.parts (inline JSON)
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
-    // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
+    // Searchable text extracted from data.parts (populated by trigger, used for FTS5)
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
@@ -45,16 +45,27 @@ export const messageTable = sqliteTable(
   },
   (t) => [
     // Foreign keys
-    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('set null'),
+    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     // Indexes
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),
     // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),
+    // Single-root invariant: at most one live virtual-root (parentId IS NULL) row per topic.
+    // Guarantees one root and backs O(1) root lookup (WHERE topic_id=? AND parent_id IS NULL).
+    // Scoped to deleted_at IS NULL so a future soft-delete of a root can't collide with a
+    // freshly created one (getRootMessageIdTx filters deleted_at to match).
+    uniqueIndex('message_topic_root_uniq')
+      .on(t.topicId)
+      .where(sql`${t.parentId} is null and ${t.deletedAt} is null`),
     // Check constraints for enum fields
-    check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
-    check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
+    check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system', 'root')`),
+    check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`),
+    // Structural role↔null coupling: the virtual root (role='root') is the only row with a
+    // null parent, and every content row must have a parent. Makes "content always has a
+    // parent" and "root ⇔ parentId IS NULL" DB invariants, not service-layer discipline.
+    check('message_root_parent_check', sql`(${t.role} = 'root') = (${t.parentId} is null)`)
   ]
 )
 
@@ -80,8 +91,44 @@ export type InsertMessageRow = typeof messageTable.$inferInsert
  * Custom SQL statements that Drizzle cannot manage
  * These are executed after every migration via DbService.runCustomMigrations()
  *
- * All statements should use IF NOT EXISTS to be idempotent.
+ * All statements should be idempotent (IF NOT EXISTS / DROP IF EXISTS / rebuild-safe).
  */
+const searchableTextExpression = (dataExpression: string) => `COALESCE((
+  SELECT group_concat(text, ' ')
+  FROM (
+    SELECT json_extract(value, '$.text') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') = 'text'
+      AND json_extract(value, '$.text') IS NOT NULL
+      AND trim(json_extract(value, '$.text')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.data.content') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') IN ('data-code', 'data-translation', 'data-compact')
+      AND json_extract(value, '$.data.content') IS NOT NULL
+      AND trim(json_extract(value, '$.data.content')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.data.compactedContent') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') = 'data-compact'
+      AND json_extract(value, '$.data.compactedContent') IS NOT NULL
+      AND trim(json_extract(value, '$.data.compactedContent')) != ''
+
+    UNION ALL
+
+    SELECT json_extract(value, '$.data.message') AS text
+    FROM json_each(json_extract(${dataExpression}, '$.parts'))
+    WHERE json_extract(value, '$.type') = 'data-error'
+      AND json_extract(value, '$.data.message') IS NOT NULL
+      AND trim(json_extract(value, '$.data.message')) != ''
+
+  )
+), '')`
+
 export const MESSAGE_FTS_STATEMENTS: string[] = [
   // FTS5 virtual table, Links to message table's searchable_text column
   `CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
@@ -91,35 +138,32 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     tokenize='trigram'
   )`,
 
+  // Replace old trigger bodies when the searchable-text expression changes.
+  `DROP TRIGGER IF EXISTS message_ai`,
+  `DROP TRIGGER IF EXISTS message_ad`,
+  `DROP TRIGGER IF EXISTS message_au`,
+
   // Trigger: populate searchable_text and sync FTS on INSERT.
   // COALESCE wraps group_concat because group_concat returns NULL when no text
-  // parts match (e.g. tool-only or empty messages); searchable_text is NOT NULL.
+  // parts match (e.g. tool-only or empty messages).
   `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
-    UPDATE message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.text'), ' ')
-      FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') = 'text'
-    ), '') WHERE id = NEW.id;
+    UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
   END`,
 
   // Trigger: sync FTS on DELETE
-  `CREATE TRIGGER IF NOT EXISTS message_ad AFTER DELETE ON message BEGIN
+  `CREATE TRIGGER message_ad AFTER DELETE ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
   END`,
 
   // Trigger: update searchable_text and sync FTS on UPDATE OF data.
   // COALESCE: see message_ai above for rationale.
-  `CREATE TRIGGER IF NOT EXISTS message_au AFTER UPDATE OF data ON message BEGIN
+  `CREATE TRIGGER message_au AFTER UPDATE OF data ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
-    UPDATE message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.text'), ' ')
-      FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') = 'text'
-    ), '') WHERE id = NEW.id;
+    UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
   END`
@@ -128,13 +172,10 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
 /** Examples */
 
 /**
- * SQL expression to extract searchable text from data.blocks
- * Concatenates content from all main_text type blocks
+ * SQL expression to extract searchable text from data.parts.
  */
 // export const SEARCHABLE_TEXT_EXPRESSION = `
-//   (SELECT group_concat(json_extract(value, '$.content'), ' ')
-//    FROM json_each(json_extract(NEW.data, '$.blocks'))
-//    WHERE json_extract(value, '$.type') = 'main_text')
+//   ${searchableTextExpression('NEW.data')}
 // `
 
 /**
