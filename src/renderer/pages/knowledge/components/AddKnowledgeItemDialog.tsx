@@ -81,13 +81,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   }, [])
 
   const handleFileDrop = useCallback<DropzoneOnDrop>(
-    (acceptedFiles, fileRejections) => {
+    (acceptedFiles) => {
       setSubmitErrorMessage('')
       const supportedFiles = filterSupportedKnowledgeFiles(acceptedFiles)
-      // Files the dropzone's `accept` rejected never reach `acceptedFiles`; count them
-      // alongside any that slip past it but fail our extension allow-list, so the user
-      // learns nothing was silently dropped.
-      const skippedCount = fileRejections.length + (acceptedFiles.length - supportedFiles.length)
+      // The dropzone has no `accept` filter, so every dropped/picked file reaches us here and the
+      // extension allow-list is the single gate. Surface the dropped-minus-kept delta so the user
+      // learns nothing was silently skipped (matching the page-level pending-files entry point).
+      const skippedCount = acceptedFiles.length - supportedFiles.length
       if (skippedCount > 0) {
         window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }

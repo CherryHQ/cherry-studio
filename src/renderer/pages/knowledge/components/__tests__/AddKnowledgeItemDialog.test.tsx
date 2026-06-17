@@ -5,9 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AddKnowledgeItemDialog from '../AddKnowledgeItemDialog'
 
 let mockAcceptedFiles: File[] = []
-// Files the dropzone's `accept` rejected (its onDrop second argument). The real
-// component reads these to report how many unsupported files were skipped.
-let mockFileRejections: Array<{ file: File }> = []
 const mockSubmitKnowledgeItems = vi.fn()
 const mockUseKnowledgePage = vi.fn()
 const mockUseAddKnowledgeItems = vi.fn()
@@ -29,10 +26,6 @@ const createNoteNode = (name: string, externalPath: string) => ({
 
 const setMockAcceptedFiles = (files: File[]) => {
   mockAcceptedFiles = files
-}
-
-const setMockFileRejections = (files: File[]) => {
-  mockFileRejections = files.map((file) => ({ file }))
 }
 
 const createMockFile = (name: string, size: number) =>
@@ -87,20 +80,15 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     Dropzone: ({
       children,
-      accept,
       onDrop,
       ...props
     }: {
-      accept?: Record<string, readonly string[]>
       children: React.ReactNode
       maxFiles?: number
-      onDrop?: (files: File[], rejections: Array<{ file: File }>) => void
+      onDrop?: (files: File[]) => void
     }) => (
-      <div data-testid="file-dropzone" data-accept={JSON.stringify(accept)} {...props}>
-        <button
-          type="button"
-          data-testid="mock-file-dropzone-trigger"
-          onClick={() => onDrop?.(mockAcceptedFiles, mockFileRejections)}>
+      <div data-testid="file-dropzone" {...props}>
+        <button type="button" data-testid="mock-file-dropzone-trigger" onClick={() => onDrop?.(mockAcceptedFiles)}>
           触发选择
         </button>
         {children}
@@ -241,7 +229,6 @@ describe('AddKnowledgeItemDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setMockAcceptedFiles([])
-    setMockFileRejections([])
     mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1' })
     mockUseAddKnowledgeItems.mockReturnValue({
       submit: mockSubmitKnowledgeItems,
@@ -299,26 +286,7 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByRole('heading', { name: '添加数据源' })).toBeInTheDocument()
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
     expect(screen.getByText('拖拽文件到这里')).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        '支持 TXT, MARKDOWN, MD, MDX, PDF, HTML, HTM, XLSX, XLS, DOCX, CSV, DOC, PPTX, EPUB, DRAFTSEXPORT 格式'
-      )
-    ).toBeInTheDocument()
-    expect(screen.getByTestId('file-dropzone')).toHaveAttribute(
-      'data-accept',
-      JSON.stringify({
-        'text/plain': ['.txt', '.markdown', '.md', '.mdx', '.csv'],
-        'text/html': ['.html', '.htm'],
-        'application/pdf': ['.pdf'],
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-        'application/vnd.ms-excel': ['.xls'],
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-        'application/msword': ['.doc'],
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-        'application/epub+zip': ['.epub'],
-        'application/json': ['.draftsexport']
-      })
-    )
+    expect(screen.getByText('支持 PDF, DOCX, DOC, PPTX, XLSX, XLS, MD, TXT, CSV, HTML, EPUB 格式')).toBeInTheDocument()
     expect(screen.getByTestId('file-dropzone').querySelectorAll('img')).toHaveLength(0)
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
@@ -363,18 +331,18 @@ describe('AddKnowledgeItemDialog', () => {
     expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
   })
 
-  it('counts dropzone-rejected files toward the skipped-files warning', () => {
+  it('appends supported files and warns when a drop mixes in unsupported types', () => {
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    // The dropzone's `accept` filter routes unsupported files to its rejection list, so
-    // they never reach `acceptedFiles` — they must still be counted in the warning.
-    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
-    setMockFileRejections([createMockFile('photo.png', 2048), createMockFile('clip.mov', 4096)])
+    // The dropzone has no `accept` filter, so a mixed drop (alpha.pdf + photo.png) delivers every
+    // file here; the supported one must still be added and the skipped one counted.
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024), createMockFile('photo.png', 2048)])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
 
     expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('photo.png')).not.toBeInTheDocument()
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
-    expect(window.toast.warning).toHaveBeenCalledWith('已跳过 2 个不支持的文件')
+    expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
   })
 
   it('does not warn when every dropped file is supported', () => {

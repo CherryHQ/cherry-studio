@@ -1,15 +1,13 @@
-import { knowledgeFileDropzoneAccept, knowledgeSupportedFileExts } from '@shared/config/constant'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 
 import type { SourceTabDefinition } from './types'
 
 export const DEFAULT_SOURCE_TYPE: KnowledgeItemType = 'file'
 
-export const KNOWLEDGE_SUPPORTED_FILE_TYPES = knowledgeSupportedFileExts
-  .map((ext) => ext.slice(1).toUpperCase())
-  .join(', ')
-
-export const KNOWLEDGE_FILE_DROPZONE_ACCEPT = knowledgeFileDropzoneAccept
+// Curated, user-facing format list for the upload hint. Deliberately not derived from
+// `knowledgeSupportedFileExts`: that list carries the internal `.draftsexport` identifier and
+// redundant synonyms (markdown/md/mdx, html/htm) that read as noise in the UI.
+export const KNOWLEDGE_SUPPORTED_FILE_TYPES = 'PDF, DOCX, DOC, PPTX, XLSX, XLS, MD, TXT, CSV, HTML, EPUB'
 
 export const KNOWLEDGE_DATA_SOURCE_TYPES: ReadonlyArray<SourceTabDefinition> = [
   { value: 'file', labelKey: 'knowledge.data_source.add_dialog.sources.file' },
