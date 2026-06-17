@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
+import { pickInlinePasteContent } from './helpers/markdownPaste'
 
 const logger = loggerService.withContext('useRichEditor')
 
@@ -301,9 +302,17 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const hasMultipleLines = text.includes('\n')
 
           if (!atStartOfLine && !inEmptyParagraph && !hasMultipleLines) {
-            // Inline paste inside a non-empty block: keep it as plain text to avoid block wrapping
-            const tr = view.state.tr.insertText(text, selection.from, selection.to)
-            view.dispatch(tr)
+            // Inline paste inside a non-empty block: parse the markdown so markers like **bold** /
+            // [text](url) become real marks (otherwise getMarkdown would later escape the literal
+            // text), but splice in only the inline content so the paste isn't wrapped in a new block.
+            // Fall back to verbatim text for block-y lines (heading/list/etc.) that have no inline form.
+            const inline = pickInlinePasteContent(editor.markdown?.parse(text))
+            if (inline) {
+              editor.commands.insertContent(inline)
+            } else {
+              const tr = view.state.tr.insertText(text, selection.from, selection.to)
+              view.dispatch(tr)
+            }
           } else {
             editor.commands.insertContent(text, { contentType: 'markdown' })
           }
