@@ -244,11 +244,7 @@ export const messageTable = sqliteTable("message", {
 
 ## Migrations
 
-Generate migrations after schema changes:
-
-```bash
-pnpm agents:generate
-```
+The migration workflow — `pnpm db:migrations:generate` after schema changes, regenerate-never-rename, CI gates, and additive-vs-rebuild — is consolidated in **[Database Construction](./database-construction.md)**.
 
 ## Field Generation Rules
 
@@ -342,13 +338,9 @@ silently.
 Reference implementations: `MessageService.getTree` / `getBranchMessages` /
 `getPathToNode`, `KnowledgeItemService.getCascadeIdsInBase`.
 
-## Custom SQL
+## Custom SQL & FTS5
 
-Drizzle cannot manage triggers and virtual tables (e.g., FTS5). These are defined in `customSql.ts` and run automatically after every migration.
-
-**Why**: SQLite's `DROP TABLE` removes associated triggers. When Drizzle modifies a table schema, it drops and recreates the table, losing triggers in the process.
-
-**Adding new custom SQL**: Define statements as `string[]` in the relevant schema file, then spread into `CUSTOM_SQL_STATEMENTS` in `customSql.ts`. All statements must use `IF NOT EXISTS` to be idempotent.
+Triggers, FTS5 virtual tables, the `CUSTOM_SQL_STATEMENTS` every-boot replay (and why it's ~0.1 ms O(1)), the `fts_rowid` rowid-stability rule, and the idempotency rules (vtables `IF NOT EXISTS`, triggers `DROP+CREATE`) are consolidated in **[Database Construction](./database-construction.md)** (§3 Custom SQL, §4 FTS5).
 
 ## Seeding
 
