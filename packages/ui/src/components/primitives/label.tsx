@@ -9,7 +9,7 @@ import * as React from 'react'
  */
 function RequiredMark({ className, ...props }: React.ComponentProps<'span'>) {
   return (
-    <span className={cn('text-destructive', className)} {...props}>
+    <span aria-hidden="true" className={cn('text-destructive', className)} {...props}>
       *
     </span>
   )
