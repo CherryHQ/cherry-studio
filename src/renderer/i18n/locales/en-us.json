@@ -6054,6 +6054,7 @@
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
       "empty": "Click the hide icon on an app on the left and it will move here",
+      "hide_app": "Hide {{name}}",
       "open_link_external": {
         "title": "Open new-window links in browser"
       },
@@ -6065,6 +6066,7 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
+      "show_app": "Show {{name}}",
       "sidebar_description": "Show active mini apps in the sidebar",
       "sidebar_title": "Sidebar Active Mini Apps Display",
       "title": "Mini Apps Settings",
@@ -6843,10 +6845,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Document Processing"
+            "title": "Document Processing",
+            "tooltip": "Used to parse documents for knowledge bases"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "Used to recognize text in images"
           }
         },
         "fields": {

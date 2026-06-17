@@ -6054,6 +6054,7 @@
       "disabled": "隱藏的小程式",
       "display_title": "小程式顯示設定",
       "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
+      "hide_app": "隱藏 {{name}}",
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },
@@ -6065,6 +6066,7 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
+      "show_app": "顯示 {{name}}",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
       "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
@@ -6843,10 +6845,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文件處理"
+            "title": "文件處理",
+            "tooltip": "用於知識庫解析文件"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用於識別圖片內文字內容"
           }
         },
         "fields": {
