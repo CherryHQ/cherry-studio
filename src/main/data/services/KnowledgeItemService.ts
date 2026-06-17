@@ -32,13 +32,9 @@ type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
   data: KnowledgeItemData | string
 }
 
-/** Error payload required by status updates that carry a non-empty `error` (`failed`). */
-type KnowledgeItemErrorUpdate = {
+type FailedKnowledgeItemStatusUpdate = {
   error: string
 }
-
-/** Statuses whose DB invariant requires a non-empty `error` string (see knowledge_item_status_error_check). */
-const STATUSES_REQUIRING_ERROR = new Set<KnowledgeItemStatus>(['failed'])
 
 type KnowledgeItemsByBaseOptions = {
   groupId?: string | null
@@ -287,13 +283,13 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'failed',
-    update: KnowledgeItemErrorUpdate
+    update: FailedKnowledgeItemStatusUpdate
   ): Promise<string[]>
   async setSubtreeStatus(
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: KnowledgeItemErrorUpdate | undefined = undefined
+    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): Promise<string[]> {
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -436,16 +432,16 @@ export class KnowledgeItemService {
   }
 
   async updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): Promise<KnowledgeItem>
-  async updateStatus(id: string, status: 'failed', update: KnowledgeItemErrorUpdate): Promise<KnowledgeItem>
+  async updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): Promise<KnowledgeItem>
   async updateStatus(
     id: string,
     status: KnowledgeItemStatus,
-    update: KnowledgeItemErrorUpdate | undefined = undefined
+    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): Promise<KnowledgeItem> {
     // Per-type status legality is enforced by the DB CHECK constraint.
-    const error = STATUSES_REQUIRING_ERROR.has(status) ? update?.error.trim() : null
+    const error = status === 'failed' ? update?.error.trim() : null
 
-    if (STATUSES_REQUIRING_ERROR.has(status) && !error) {
+    if (status === 'failed' && !error) {
       throw DataApiErrorFactory.validation({
         error: ['Failed knowledge items must include a non-empty error']
       })
@@ -482,7 +478,7 @@ export class KnowledgeItemService {
       return {
         item: rowToKnowledgeItem(updatedRow),
         startContainerIds:
-          STATUSES_REQUIRING_ERROR.has(status) && updatedRow.type === 'directory'
+          status === 'failed' && updatedRow.type === 'directory'
             ? [existingRow.groupId]
             : [updatedRow.id, existingRow.groupId]
       }
@@ -634,13 +630,10 @@ export class KnowledgeItemService {
           continue
         }
 
-        // Roll the child severities up by precedence: a failed child fails the
-        // container; otherwise it is complete.
         const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
-        const nextError = nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null
         await tx
           .update(knowledgeItemTable)
-          .set({ status: nextStatus, error: nextError })
+          .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
 
         if (containerRow.groupId) {

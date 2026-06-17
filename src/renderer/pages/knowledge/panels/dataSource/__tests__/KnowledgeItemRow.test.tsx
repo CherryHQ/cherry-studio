@@ -152,7 +152,7 @@ vi.mock('react-i18next', () => ({
         ({
           'knowledge.data_source.status.ready': '就绪',
           'knowledge.data_source.status.error': '失败',
-          'knowledge.error.directory_not_migrated': '该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。',
+          'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
           'knowledge.data_source.status.embedding': '向量化中',
           'knowledge.data_source.status.chunking': '分块中',
           'knowledge.data_source.status.pending': '等待中',
@@ -245,9 +245,9 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    // Red failure label with the localized re-embed tooltip.
+    // Red failure label with the localized migration-failed tooltip.
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容未自动迁移')
+    expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
 
     // Re-indexing restores the index, but there are no chunks to view yet.
     fireEvent.click(screen.getByRole('button', { name: '更多' }))

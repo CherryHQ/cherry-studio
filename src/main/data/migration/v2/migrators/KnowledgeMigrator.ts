@@ -611,7 +611,7 @@ export class KnowledgeMigrator extends BaseMigrator {
             : { kind: 'empty', sources: new Map<string, string>() }
 
         // A read failure (e.g. a transient DB lock) is recoverable, unlike a genuinely empty
-        // store: warn that this base's folders fell back to re-embed tombstones and a re-run
+        // store: warn that this base's folders fell back to migration-failed tombstones and a re-run
         // may still recover them. Gate on an actually-expandable (`completed`) folder — an
         // interrupted/idle folder never expands regardless of the read, so the "re-run can
         // recover" message would be inaccurate for a base with no completed folder. An `empty`
@@ -630,7 +630,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         )
         if (directoryLoaderResult.kind === 'read_error' && hasCompletedDirectory) {
           this.recordWarning(
-            `Knowledge base ${validBase.id}: legacy vector sources were unreadable, so its v1 folders were kept as re-embed tombstones; re-running migration once the legacy vector DB is readable can recover them without re-embedding`
+            `Knowledge base ${validBase.id}: legacy vector sources were unreadable, so its v1 folders were kept as migration-failed tombstones; re-running migration once the legacy vector DB is readable can recover them without re-embedding`
           )
         }
 

@@ -46,7 +46,7 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * - `completed`: indexing or container reconciliation finished successfully.
  * - `failed`: workflow failed; `error` must be a non-empty string — either a code the
  *   UI localizes (e.g. `directory_not_migrated`, set when a v1-indexed folder's vectors
- *   could not be migrated and it must be re-indexed) or a free-form message.
+ *   could not be migrated, so the folder must be deleted and re-uploaded) or a free-form message.
  * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
  */
 export const KNOWLEDGE_ITEM_STATUSES = [
@@ -85,7 +85,7 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCod
  * migration: v1 embedded a folder's files under the directory item's loader ids
  * without per-file items, so those container-level vectors have no v2 home and
  * are dropped. The migrator marks such items with status `failed` and this code;
- * the renderer maps the code to a localized re-embed message (same code → i18n
+ * the renderer maps the code to a localized migration-failed message (same code → i18n
  * pattern as the base error codes above).
  */
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED = 'directory_not_migrated'

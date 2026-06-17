@@ -632,7 +632,7 @@ describe('KnowledgeMappings', () => {
     // V1 embedded the folder's files under the directory item's loader ids; the
     // vector migrator drops those container-level vectors, so a `completed`
     // directory would be an empty shell that never re-indexes. It must surface
-    // as `failed` with the code the UI renders as a re-embed prompt.
+    // as `failed` with the code the UI renders as a delete-and-re-upload prompt.
     const result = transformKnowledgeItem(
       'kb-1',
       {

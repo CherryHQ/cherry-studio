@@ -8,7 +8,7 @@ date: 2026-06-11
 
 ## What changed
 
-Folders added to a v1 knowledge base now carry their search index through the v1 → v2 migration: the folder and its files stay searchable immediately, with no re-embedding. (Revised 2026-06-13 — this reverses the earlier behavior where every migrated folder showed a "Re-embed needed" badge.) A folder only falls back to the amber "Re-embed needed" badge when its v1 vectors cannot be read.
+Folders added to a v1 knowledge base now carry their search index through the v1 → v2 migration: the folder and its files stay searchable immediately, with no re-embedding. (Revised 2026-06-13 — this reverses the earlier behavior where every migrated folder showed a "Re-embed needed" badge. Revised 2026-06-17 — the unreadable-vectors fallback is now a red "migration failed" status that asks the user to delete and re-upload the folder, replacing the amber "Re-embed needed" badge.) A folder only falls back to a red "migration failed" status when its v1 vectors cannot be read.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ In v1, a folder's files were embedded under the folder entry itself with no per-
 
 ## What the user should do
 
-Nothing in the normal case — folders are searchable right after migration. Only folders that show the amber "Re-embed needed" badge (their v1 vectors could not be read) need action: re-index them, or re-add the folder if the original path moved or was deleted.
+Nothing in the normal case — folders are searchable right after migration. Only folders that show the red "migration failed" status (their v1 vectors could not be read) need action: delete the folder and re-upload it.
 
 ## Notes for release manager
 

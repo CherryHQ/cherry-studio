@@ -930,7 +930,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
   it('prepare falls back to the directory tombstone when the legacy vectors are unreadable', async () => {
     // No loader source resolves (vector DB missing/empty), so the folder cannot expand;
     // it falls through to the shared directory mapping: `warning` + the not-migrated code
-    // the UI renders as a re-embed prompt, rather than a silently empty completed folder.
+    // the UI renders as a delete-and-re-upload prompt, rather than a silently empty completed folder.
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({ kind: 'empty', sources: new Map<string, string>() })
@@ -990,7 +990,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
   it('prepare keeps an interrupted directory as a failed item instead of expanding it', async () => {
     // A v1 directory left in `processing`/`pending`/`failed` had only some files embedded before
     // it was interrupted. Even with resolvable loader sources it must NOT expand into a fully
-    // `completed` container (that would bury the interruption and hide the re-embed need); the
+    // `completed` container (that would bury the interruption and hide the need to delete and re-upload); the
     // status gate makes it fall through to the shared mapping and stay `failed` with the retry message.
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
@@ -1109,7 +1109,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('prepare keeps a directory tombstone and never reads legacy vectors when the embedding model is unresolved', async () => {
     // No vectors migrate for a base with an unresolved embedding model, so re-attribution is
-    // skipped entirely (loadLoaderSourceMap is never read) and the folder keeps its re-embed
+    // skipped entirely (loadLoaderSourceMap is never read) and the folder keeps its migration-failed
     // tombstone instead of synthesizing children that would claim `completed` with nothing behind them.
     const migrator = new KnowledgeMigrator() as any
     const loadLoaderSourceMap = vi.spyOn(migrator, 'loadLoaderSourceMap')

@@ -401,7 +401,7 @@ export const transformKnowledgeItem = (
   // loader ids; the vector migrator drops those container-level vectors (no v2
   // home), so letting the directory claim `completed` would leave an empty shell
   // that never re-indexes. Mark it `failed` with a code the UI renders as a
-  // re-embed prompt (it migrated as a record but is not searchable until re-indexed).
+  // delete-and-re-upload prompt (it migrated as a record but its vectors were dropped).
   // Interrupted (failed) and never-indexed (idle) directories keep the shared mapping.
   const directoryIndexDropped = type === 'directory' && inferredStatus === 'completed'
   const status = directoryIndexDropped ? 'failed' : inferredStatus

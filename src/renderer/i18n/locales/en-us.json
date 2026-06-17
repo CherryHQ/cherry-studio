@@ -2253,7 +2253,7 @@
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
     "error": {
-      "directory_not_migrated": "Folder contents were not migrated automatically. Re-index this folder to re-scan and re-embed its files from the source folder.",
+      "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "Failed to create knowledge base",
       "failed_to_delete": "Failed to delete knowledge base",
