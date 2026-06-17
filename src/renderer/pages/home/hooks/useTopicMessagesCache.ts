@@ -86,7 +86,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
 
   /** Replace the branch cache with a single empty page. */
   const clearBranchCache = useCallback(async () => {
-    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }], { revalidate: false })
+    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }], {
+      revalidate: false
+    })
   }, [mutate])
 
   // `useInvalidateCache`'s `invalidatePathPatterns` walks both scalar and

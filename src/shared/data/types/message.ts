@@ -535,6 +535,8 @@ export interface TreeResponse {
   siblingsGroups: SiblingsGroup[]
   /** Current active node ID */
   activeNodeId: string | null
+  /** The topic's virtual-root id */
+  rootId: string | null
 }
 
 // ============================================================================
@@ -558,6 +560,8 @@ export interface BranchMessage {
 export interface BranchMessagesResponse extends CursorPaginationResponse<BranchMessage> {
   /** Current active node ID */
   activeNodeId: string | null
+  /** The topic's virtual-root id */
+  rootId: string | null
   /**
    * Topic's `assistantId` — embedded in the response so renderers don't
    * need a separate `/topics/:id` round-trip just to enrich each message

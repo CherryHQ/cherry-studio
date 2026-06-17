@@ -156,6 +156,8 @@ export interface UseTopicMessagesV2Result {
   isLoading: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  /** The topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
+  rootId: string | null
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
   /** Whether older pages remain on the server. */
@@ -183,6 +185,7 @@ export function useTopicMessagesV2(topicId: string, options?: { enabled?: boolea
   // response — page 0 is the freshest fetch, so its value is authoritative.
   const branchItems = useInfiniteFlatItems(pages, { reversePages: true })
   const activeNodeId = pages[0]?.activeNodeId ?? null
+  const rootId = pages[0]?.rootId ?? null
 
   // On remount with stale SWR cache, isLoading=false but data is stale.
   // Force a fresh fetch and track readiness so the loading gate blocks until fresh.
@@ -225,6 +228,7 @@ export function useTopicMessagesV2(topicId: string, options?: { enabled?: boolea
     isLoading: enabled && (isLoading || !isReady),
     refresh,
     activeNodeId,
+    rootId,
     loadOlder: loadNext,
     hasOlder: hasNext,
     mutate: mutate

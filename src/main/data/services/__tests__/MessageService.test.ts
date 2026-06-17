@@ -1458,6 +1458,25 @@ describe('MessageService', () => {
     })
   })
 
+  describe('rootId — authoritative first-turn signal', () => {
+    it('getBranchMessages returns the virtual-root id; first turn = parentId === rootId', async () => {
+      await seedMultiModelTree()
+      const res = await messageService.getBranchMessages('topic-1', { nodeId: 'm-follow' })
+      expect(res.rootId).toBe('vroot-topic-1')
+      // m-root is the first turn — its parentId equals rootId; m-follow (deeper) does not.
+      const root = res.items.find((i) => i.message.id === 'm-root')
+      const follow = res.items.find((i) => i.message.id === 'm-follow')
+      expect(root?.message.parentId).toBe(res.rootId)
+      expect(follow?.message.parentId).not.toBe(res.rootId)
+    })
+
+    it('getTree returns the virtual-root id', async () => {
+      await seedMultiModelTree()
+      const tree = await messageService.getTree('topic-1', { depth: -1 })
+      expect(tree.rootId).toBe('vroot-topic-1')
+    })
+  })
+
   describe('sentinel-boundary guards', () => {
     const virtualRootId = 'vroot-topic-1'
 

@@ -37,6 +37,8 @@ interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
   projectedMessages: Message[]
+  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
+  rootId: string | null
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
@@ -52,7 +54,7 @@ interface Result {
 }
 
 export function useV2ChatOverrides(params: Params): Result {
-  const { topic, uiMessages, projectedMessages, regenerate, setMessages, stop, refresh, cache } = params
+  const { topic, uiMessages, projectedMessages, rootId, regenerate, setMessages, stop, refresh, cache } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
@@ -66,12 +68,8 @@ export function useV2ChatOverrides(params: Params): Result {
     clearTopicMessagesTrigger
   } = cache
 
-  // A message is a "first turn" when its parent is the topic's content-less virtual root,
-  // which is never in the displayed list — so its askId resolves to no visible message.
-  const isFirstTurnId = useCallback(
-    (parentId?: string) => !parentId || !projectedMessages.some((m: Message) => m.id === parentId),
-    [projectedMessages]
-  )
+  // A message is a "first turn" ff its parent IS the topic's virtual root.
+  const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
 
   const handleClearTopicMessages = useCallback(async () => {
     await clearBranchCache()
