@@ -22,7 +22,6 @@ export interface ToastConfig {
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
   onError?: (error: unknown) => void
   promise: Promise<T>
-  successTitle?: React.ReactNode
 }
 
 export interface ToastRecord extends ToastConfig {
@@ -172,7 +171,7 @@ const createLoadingToast =
   (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
   <T,>(args: LoadingToastConfig<T>): string => {
     const toastLabels = getToastLabels(labels)
-    const { title, description, icon, onError, promise, successTitle, timeout, ...restConfig } = args
+    const { title, description, icon, onError, promise, timeout, ...restConfig } = args
     const key = getToastKey(args.key)
     const token = Symbol(key)
 
@@ -201,7 +200,7 @@ const createLoadingToast =
             ...restConfig,
             description,
             key,
-            title: successTitle || title || toastLabels.success,
+            title: title || toastLabels.success,
             timeout: timeout ?? 2000,
             type: 'success'
           },

@@ -158,24 +158,6 @@ describe('Toast', () => {
     expect(screen.queryByText('Success')).not.toBeInTheDocument()
   })
 
-  it('uses successTitle when a loading toast resolves', async () => {
-    const promise = Promise.resolve()
-    render(<ToastViewport />)
-
-    await act(async () => {
-      toast.loading({
-        key: 'ocr-task',
-        promise,
-        successTitle: 'OCR processing complete',
-        title: 'OCR processing...'
-      })
-      await promise
-    })
-
-    expect(screen.getByText('OCR processing complete')).toBeInTheDocument()
-    expect(screen.queryByText('OCR processing...')).not.toBeInTheDocument()
-  })
-
   it('does not revive a loading toast after it was closed', async () => {
     let resolvePromise: () => void = () => {}
     const promise = new Promise<void>((resolve) => {
