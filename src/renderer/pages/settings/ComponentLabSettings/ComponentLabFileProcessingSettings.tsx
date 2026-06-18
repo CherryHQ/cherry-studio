@@ -1,6 +1,7 @@
 import { Badge, Button } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useJob, useJobProgress } from '@renderer/hooks/useJob'
+import { ipcApi } from '@renderer/ipc'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
@@ -342,7 +343,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
                   path: (await window.api.file.createTempFile(`lab-${processor.id}.md`)) as FilePath
                 }
               : undefined
-          const job = await window.api.fileProcessing.startJob({
+          const job = await ipcApi.request('file_processing.start_job', {
             feature: section.feature,
             file: createFilePathHandle(filePath),
             ...(output ? { output } : {}),
