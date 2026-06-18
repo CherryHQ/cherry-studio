@@ -15,8 +15,8 @@ const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
-const mockCreateRetryableWrap = vi.fn((..._args: unknown[]) => undefined)
-const mockBuildFallbackModels = vi.fn((..._args: unknown[]) => [] as unknown[])
+const mockCreateRetryableWrap = vi.fn(() => undefined)
+const mockBuildFallbackModels = vi.fn(() => [] as unknown[])
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -57,11 +57,11 @@ vi.mock('@cherrystudio/ai-core', () => ({
 }))
 
 vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
-  createRetryableWrap: (...args: unknown[]) => mockCreateRetryableWrap(...args)
+  createRetryableWrap: () => mockCreateRetryableWrap()
 }))
 
 vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
-  buildFallbackModels: (...args: unknown[]) => mockBuildFallbackModels(...args)
+  buildFallbackModels: () => mockBuildFallbackModels()
 }))
 
 const { AiService } = await import('../AiService')
