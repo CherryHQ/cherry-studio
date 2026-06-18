@@ -39,4 +39,10 @@ describe('setCompactionSummary', () => {
     const row = await messageService.getById('m1')
     expect(row.compactionSummary).toBe('second')
   })
+
+  it('round-trips compactionSummary through getPathToNode (real read path)', async () => {
+    await messageService.setCompactionSummary('m1', 'path-readback')
+    const path = await messageService.getPathToNode('m1')
+    expect(path.at(-1)?.compactionSummary).toBe('path-readback')
+  })
 })
