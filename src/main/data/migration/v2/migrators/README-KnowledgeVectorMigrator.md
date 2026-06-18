@@ -34,7 +34,8 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 2. Indexable item filtering
    - Only vectors mapped to indexable V2 item types are migrated.
    - Indexable types are `file`, `url`, and `note`.
-   - Vectors mapped to container items, currently `directory`, are skipped with warnings.
+   - A v1-indexed `directory`'s container-level vectors are normally **re-attributed** to synthesized per-file children (one `file` child per embedded loader id; see `KnowledgeMigrator.expandLegacyDirectoryItem`), so the folder stays searchable with no re-embedding.
+   - Container-level vectors are skipped with warnings only as a **fallback** — when the legacy vector sources are unreadable, or an embedded file has no migratable vectors — and the folder is then kept as a migration-failed (`directory_not_migrated`) tombstone.
    - This does not remove the `directory` rows from `knowledge_item`; it only prevents container-level vectors from being written into the V2 store.
 
 3. Material assembly (Route A — preserve the v1 split)
@@ -93,10 +94,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
   empty store there) is removed; that unlink retries on `EBUSY` so a transient
   Windows file lock does not abort the migration.
 - Retry is naturally idempotent: the legacy source is still in place, so a retry
-  re-reads the original legacy DB directly. `.embedjs.bak` is no longer written by
-  this flow; `KnowledgeVectorSourceReader` keeps a read-only `.embedjs.bak`
-  fallback solely for installs that already ran the previous migration (which
-  renamed the original aside).
+  re-reads the original legacy DB directly via `KnowledgeVectorSourceReader`.
 
 ## IMPORTANT: Current Limitations
 
@@ -124,7 +122,7 @@ Per successful base, the rebuilt store's row counts must match what was prepared
 - Bases with invalid `dimensions`
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
-- Vector rows mapped to non-indexable container item types such as `directory`
+- Vector rows mapped to non-indexable container item types such as `directory`, **only in the fallback path** (unreadable legacy sources, or an embedded file with no migratable vectors); the normal path re-attributes them to per-file children instead
 - Vector rows with missing or empty `vector` payloads
 - Vector rows whose `vector` payload exists but is exposed through an unsupported runtime encoding
 - Vector rows whose `vector` length disagrees with the base's recorded `dimensions`

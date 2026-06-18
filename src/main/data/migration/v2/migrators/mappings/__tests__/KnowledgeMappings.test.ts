@@ -1,9 +1,17 @@
 import { FILE_TYPE } from '@shared/data/types/file'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+} from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
-import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
+import {
+  expandLegacyDirectoryItem,
+  inferKnowledgeItemStatus,
+  transformKnowledgeBase,
+  transformKnowledgeItem
+} from '../KnowledgeMappings'
 
 const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -618,5 +626,200 @@ describe('KnowledgeMappings', () => {
         updatedAt: expect.any(Number)
       }
     })
+  })
+
+  it('transformKnowledgeItem marks a v1-indexed directory `failed` with the not-migrated code', () => {
+    // V1 embedded the folder's files under the directory item's loader ids; the
+    // vector migrator drops those container-level vectors, so a `completed`
+    // directory would be an empty shell that never re-indexes. It must surface
+    // as `failed` with the code the UI renders as a delete-and-re-upload prompt.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueId: 'DirectoryLoader_1'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.status).toBe('failed')
+      expect(result.value.error).toBe(KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED)
+    }
+  })
+
+  it('transformKnowledgeItem keeps the shared failed mapping for an interrupted directory', () => {
+    // Only the lying `completed` state is overridden; a v1-interrupted directory
+    // stays on the shared transient-state mapping and its retry message.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        processingStatus: 'processing'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.status).toBe('failed')
+      expect(result.value.error).toBe('Legacy knowledge item indexing was interrupted and needs to be retried.')
+    }
+  })
+})
+
+describe('expandLegacyDirectoryItem', () => {
+  it('expands a v1-indexed directory into a completed container plus one completed file child per embedded file', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueIds: ['LocalPathLoader_a', 'LocalPathLoader_b'],
+        created_at: 1735689600000, // 2025-01-01T00:00:00.000Z
+        updated_at: 1738454400000 // 2025-02-02T00:00:00.000Z
+      },
+      new Map([
+        ['LocalPathLoader_a', '/tmp/docs/a.md'],
+        ['LocalPathLoader_b', '/tmp/docs/b.md']
+      ])
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    // Container: a completed `directory` rooted at the folder path, no parent. It is
+    // `completed` (not the tombstone `failed`) precisely because its children carry
+    // migrated vectors — the folder is searchable, not an empty shell.
+    expect(result.container).toStrictEqual({
+      id: expect.stringMatching(UUIDV7_PATTERN),
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'directory',
+      data: { source: '/tmp/docs', path: '/tmp/docs' },
+      status: 'completed',
+      error: null,
+      createdAt: 1735689600000,
+      updatedAt: 1738454400000
+    })
+
+    // One completed `file` child per loader id, parented to the container, each
+    // carrying its external source and a virtual relativePath equal to its own id.
+    const [childA, childB] = result.children
+    expect(childA).toStrictEqual({
+      id: expect.stringMatching(UUIDV7_PATTERN),
+      baseId: 'kb-1',
+      groupId: result.container.id,
+      type: 'file',
+      data: { source: '/tmp/docs/a.md', relativePath: childA.id },
+      status: 'completed',
+      error: null,
+      createdAt: 1735689600000,
+      updatedAt: 1738454400000
+    })
+    expect(childB).toStrictEqual({
+      id: expect.stringMatching(UUIDV7_PATTERN),
+      baseId: 'kb-1',
+      groupId: result.container.id,
+      type: 'file',
+      data: { source: '/tmp/docs/b.md', relativePath: childB.id },
+      status: 'completed',
+      error: null,
+      createdAt: 1735689600000,
+      updatedAt: 1738454400000
+    })
+
+    // childLoaderRemap routes each v1 loader id to the synthesized child id so the
+    // vector migrator can re-attribute the folder's chunks per file.
+    expect(result.childLoaderRemap.get('LocalPathLoader_a')).toBe(childA.id)
+    expect(result.childLoaderRemap.get('LocalPathLoader_b')).toBe(childB.id)
+  })
+
+  it('keeps same-named files in different folders collision-free via the virtual per-id relativePath', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/project',
+        uniqueIds: ['L1', 'L2']
+      },
+      new Map([
+        ['L1', '/tmp/project/api/README.md'],
+        ['L2', '/tmp/project/web/README.md']
+      ])
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    // Two same-named README.md sources expand without collision: the relativePath is
+    // each child's own id (no copy into the base, so no shared raw/ path to clash on).
+    const [childA, childB] = result.children
+    expect(childA.id).not.toBe(childB.id)
+    expect(childA.data).toStrictEqual({ source: '/tmp/project/api/README.md', relativePath: childA.id })
+    expect(childB.data).toStrictEqual({ source: '/tmp/project/web/README.md', relativePath: childB.id })
+  })
+
+  it('skips loader ids whose source cannot be resolved and keeps the rest', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueIds: ['known', 'orphan']
+      },
+      new Map([['known', '/tmp/docs/known.md']])
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    expect(result.children).toHaveLength(1)
+    expect(result.childLoaderRemap.has('orphan')).toBe(false)
+    expect(result.childLoaderRemap.get('known')).toBe(result.children[0].id)
+  })
+
+  it('returns null when no loader id resolves to a source so the caller keeps the tombstone', () => {
+    // Every loader id is orphaned (vector DB unreadable/empty) → no children → null.
+    expect(
+      expandLegacyDirectoryItem(
+        'kb-1',
+        { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['orphan'] },
+        new Map()
+      )
+    ).toBeNull()
+
+    // No loader ids at all (v1 never indexed the folder) → null.
+    expect(
+      expandLegacyDirectoryItem(
+        'kb-1',
+        { id: 'dir-1', type: 'directory', content: '/tmp/docs' },
+        new Map([['x', '/tmp/docs/x.md']])
+      )
+    ).toBeNull()
+  })
+
+  it('returns null for a directory with blank content', () => {
+    expect(
+      expandLegacyDirectoryItem(
+        'kb-1',
+        { id: 'dir-1', type: 'directory', content: '   ', uniqueIds: ['L1'] },
+        new Map([['L1', '/tmp/docs/a.md']])
+      )
+    ).toBeNull()
   })
 })
