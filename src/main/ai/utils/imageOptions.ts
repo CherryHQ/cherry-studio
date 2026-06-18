@@ -141,7 +141,13 @@ const aihubmix: Emitter = (id, p, seed) => dualOpenAI(id, openaiImageBody(p, { s
 // under `parameters.*`, plus `style` for wanx-v1. The transport reads these
 // off `providerParams.*` since AI SDK doesn't forward them to `input.*`.
 const dashscope: Emitter = (_id, p, seed) =>
-  under('dashscope', compact({ negative_prompt: p.negativePrompt, seed, style: p.style }))
+  // Forward the registry vendor bag (modelDescriptor, sourceLang/targetLang, …) the
+  // DashScope submit/poll transport reads, then overlay the mapped canonical fields.
+  // Without the bag, `dashscopeTransport.submit` throws "Missing modelDescriptor".
+  under('dashscope', {
+    ...jsonBagFields(p.providerOptions?.dashscope),
+    ...compact({ negative_prompt: p.negativePrompt, seed, style: p.style })
+  })
 
 // Google native image — `imageConfig` (aspectRatio + imageSize) plus the
 // Imagen-only top-level `personGeneration`. The registry stores the option
