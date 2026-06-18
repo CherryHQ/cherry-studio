@@ -1,13 +1,21 @@
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { EXTERNAL_APPS } from '@shared/externalApp/config'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('ExternalAppsService')
 
-class ExternalAppsService {
+@Injectable('ExternalAppsService')
+@ServicePhase(Phase.WhenReady)
+export class ExternalAppsService extends BaseService {
   private cache: { apps: ExternalAppInfo[]; timestamp: number } | null = null
   private readonly CACHE_DURATION = 1000 * 60 * 5 // 5 minutes
+
+  protected async onInit() {
+    this.ipcHandle(IpcChannel.ExternalApps_DetectInstalled, () => this.detectInstalledApps())
+  }
 
   async detectInstalledApps(): Promise<ExternalAppInfo[]> {
     if (this.cache && Date.now() - this.cache.timestamp < this.CACHE_DURATION) {
@@ -41,5 +49,3 @@ class ExternalAppsService {
     return results
   }
 }
-
-export const externalAppsService = new ExternalAppsService()

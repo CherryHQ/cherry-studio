@@ -19,7 +19,6 @@ import {
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
-import type { Notification } from '@types'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
@@ -28,11 +27,9 @@ import { appService } from './services/AppService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
-import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import LegacyBackupManager from './services/LegacyBackupManager'
-import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { vertexAiService } from './services/VertexAiService'
@@ -50,8 +47,6 @@ const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
 
 export async function registerIpc() {
-  const notificationService = new NotificationService()
-
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerMonitorService = application.get('PowerMonitorService')
   // powerMonitorService.registerShutdownHandler(() => {
@@ -288,10 +283,6 @@ export async function registerIpc() {
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
 
-  // notification
-  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
-    await notificationService.sendNotification(notification)
-  })
   // Notification_OnClick handler moved into MainWindowService (uses wm.broadcastToType).
 
   // zip
@@ -509,9 +500,6 @@ export async function registerIpc() {
   // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
   //   configManager.setUseSystemTitleBar(isActive)
   // })
-  // ExternalApps
-  ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
-
   // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
   // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
   ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))

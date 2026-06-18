@@ -28,10 +28,12 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { CommandService } from '@main/services/CommandService'
+import { ExternalAppsService } from '@main/services/ExternalAppsService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
+import { NotificationService } from '@main/services/NotificationService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -89,6 +91,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  ExternalAppsService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,
@@ -112,6 +115,7 @@ export const services = {
   WebviewService,
   CherryInOauthService,
   MainWindowService,
+  NotificationService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,
