@@ -537,10 +537,12 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('does not autofocus the search input when opened', () => {
+  it('autofocuses the search input when opened', async () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    expect(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')).not.toHaveFocus()
+    await waitFor(() => {
+      expect(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')).toHaveFocus()
+    })
   })
 
   it('renders recent results before search and search results after typing', async () => {

@@ -18,9 +18,21 @@ vi.mock('../../TopView', () => ({
   }
 }))
 
-vi.mock('@renderer/components/GlobalSearch/GlobalSearchPanel', () => ({
-  GlobalSearchPanel: () => <input aria-label="Search input" />
-}))
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPanel', async () => {
+  const React = await vi.importActual<typeof ReactModule>('react')
+
+  return {
+    GlobalSearchPanel: () => {
+      const inputRef = React.useRef<HTMLInputElement>(null)
+
+      React.useEffect(() => {
+        inputRef.current?.focus()
+      }, [])
+
+      return <input ref={inputRef} aria-label="Search input" />
+    }
+  }
+})
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await vi.importActual<typeof ReactModule>('react')
@@ -79,7 +91,7 @@ afterEach(() => {
 })
 
 describe('SearchPopup', () => {
-  it('does not autofocus the search input when opened', async () => {
+  it('allows the search panel to autofocus the search input when opened', async () => {
     mocks.show.mockImplementation((element: ReactElement) => {
       render(element)
     })
@@ -87,7 +99,7 @@ describe('SearchPopup', () => {
     void SearchPopup.show()
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Search input')).not.toHaveFocus()
+      expect(screen.getByLabelText('Search input')).toHaveFocus()
     })
   })
 

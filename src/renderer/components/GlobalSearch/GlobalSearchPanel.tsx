@@ -242,6 +242,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   }, [hasMoreMessageResults, messageVirtualGroups])
 
   useEffect(() => {
+    inputRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  useEffect(() => {
     setExpandedSearchGroupIds(new Set())
     setExpandedMessageParentIds(new Set())
     setMessagePreviewTarget(null)
