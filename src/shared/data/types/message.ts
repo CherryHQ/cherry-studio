@@ -449,6 +449,8 @@ export const MessageSchema = z.strictObject({
   modelSnapshot: ModelSnapshotSchema.nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
+  /** Durable compaction marker: rolling summary covering the conversation up to & incl. this row. */
+  compactionSummary: z.string().nullable().optional(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
