@@ -9,6 +9,7 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { budgetStopFeature } from './budgetStop'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
@@ -48,5 +49,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
-  steerYieldFeature
+  steerYieldFeature,
+  // Stop condition only — stops the turn when the live prompt exceeds 80% of the context window.
+  budgetStopFeature
 ]
