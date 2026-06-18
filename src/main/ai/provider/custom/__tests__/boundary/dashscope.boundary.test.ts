@@ -216,3 +216,39 @@ describe('DashScope request boundary', () => {
     }
   )
 })
+
+describe('DashScope poll resume (restart-safe response family)', () => {
+  const succeeded = (output: Record<string, unknown>) =>
+    new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', ...output } }), { status: 200 })
+
+  it('uses providerParams.modelDescriptor to pick the response family when pendingDescriptors is empty', async () => {
+    // A fresh transport == post-restart: the submit-time pendingDescriptors entry is gone.
+    const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(succeeded({ image_url: 'https://img.example/x.png' }))
+    try {
+      // qwen-mt-image → 'image_url' family. Without the descriptor it would fall back
+      // to 'results' and return [] even though the remote task succeeded.
+      const urls = await transport.poll('task-resumed', {
+        providerParams: { modelDescriptor: descriptor('qwen-mt-image', 'generate') }
+      })
+      expect(urls).toEqual(['https://img.example/x.png'])
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('defaults to the results family when no descriptor is available', async () => {
+    const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(succeeded({ results: [{ url: 'https://img.example/r.png' }] }))
+    try {
+      const urls = await transport.poll('task-resumed', {})
+      expect(urls).toEqual(['https://img.example/r.png'])
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+})

@@ -128,7 +128,10 @@ async function pollUntilDone(
   try {
     return await transport.poll(taskId, {
       signal: ctx.signal,
-      onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' })
+      onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
+      // Carry the submit-time vendor bag so a restart-resumed poll can rebuild
+      // per-task state (e.g. DashScope's response-family descriptor).
+      providerParams: ctx.input.providerParams
     })
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)

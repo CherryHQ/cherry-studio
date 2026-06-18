@@ -18,7 +18,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Base64String } from '@shared/file/types/common'
+import type { Base64String, URLString } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import {
@@ -104,6 +104,20 @@ export interface AiImageRequest extends AiBaseRequest {
 /** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
   files: FileEntry[]
+}
+
+/**
+ * Map a painting input-image / mask string to FileManager create params. Preserves
+ * the `AiImageRequest.inputImages` contract ("base64 data URLs or URLs") when routing
+ * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
+ * become downloaded url entries. Either way the handler later reads the bytes by id.
+ */
+export function imageInputEntryParams(
+  value: string
+): { source: 'base64'; data: Base64String } | { source: 'url'; url: URLString } {
+  return value.startsWith('data:')
+    ? { source: 'base64', data: value as Base64String }
+    : { source: 'url', url: value as URLString }
 }
 
 /** Embedding request. */
@@ -546,18 +560,11 @@ export class AiService extends BaseService {
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
 
     const fileManager = application.get('FileManager')
+    const persistInputImage = (value: string) => fileManager.createInternalEntry(imageInputEntryParams(value))
     const inputFileIds = request.inputImages?.length
-      ? (
-          await Promise.all(
-            request.inputImages.map((data) =>
-              fileManager.createInternalEntry({ source: 'base64', data: data as Base64String })
-            )
-          )
-        ).map((entry) => entry.id)
+      ? (await Promise.all(request.inputImages.map(persistInputImage))).map((entry) => entry.id)
       : undefined
-    const maskFileId = request.mask
-      ? (await fileManager.createInternalEntry({ source: 'base64', data: request.mask as Base64String })).id
-      : undefined
+    const maskFileId = request.mask ? (await persistInputImage(request.mask)).id : undefined
 
     const payload: ImageGenerationJobPayload = {
       uniqueModelId,

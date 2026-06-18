@@ -122,7 +122,10 @@ describe('imageGenerationJobHandler.execute', () => {
 
     expect(result.files).toEqual([{ id: 'file-1' }])
     expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
-    expect(pollMock).toHaveBeenCalledWith('task-xyz', expect.objectContaining({ signal: ctx.signal }))
+    expect(pollMock).toHaveBeenCalledWith(
+      'task-xyz',
+      expect.objectContaining({ signal: ctx.signal, providerParams: ctx.input.providerParams })
+    )
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
     expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/a.png')
@@ -136,7 +139,12 @@ describe('imageGenerationJobHandler.execute', () => {
 
     expect(submitMock).not.toHaveBeenCalled()
     expect(ctx.patchMetadata).not.toHaveBeenCalled()
-    expect(pollMock).toHaveBeenCalledWith('resumed-task', expect.objectContaining({ signal: ctx.signal }))
+    // Resume must re-supply the submit-time vendor bag so a stateful transport
+    // (DashScope) can rebuild its response-family descriptor.
+    expect(pollMock).toHaveBeenCalledWith(
+      'resumed-task',
+      expect.objectContaining({ signal: ctx.signal, providerParams: ctx.input.providerParams })
+    )
   })
 
   it('sync: submit(imageUrls) → no poll, no patchMetadata', async () => {

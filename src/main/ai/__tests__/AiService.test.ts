@@ -53,7 +53,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
-const { AiService } = await import('../AiService')
+const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
 /**
@@ -655,5 +655,21 @@ describe('AiService tool approval', () => {
         uniqueModelId: 'test-provider::test-reranker'
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
+  })
+})
+
+describe('imageInputEntryParams', () => {
+  it('maps a base64 data URL to a base64 entry', () => {
+    expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
+      source: 'base64',
+      data: 'data:image/png;base64,AAAA'
+    })
+  })
+
+  it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
+    expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
+      source: 'url',
+      url: 'https://cdn.example.com/in.png'
+    })
   })
 })
