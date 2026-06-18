@@ -171,15 +171,6 @@ export enum IpcChannel {
   // Sub-window (detached tab window)
   SubWindow_SetAlwaysOnTop = 'sub-window:set-always-on-top',
 
-  Knowledge_CreateBase = 'knowledge:create-base',
-  Knowledge_RestoreBase = 'knowledge:restore-base',
-  Knowledge_DeleteBase = 'knowledge:delete-base',
-  Knowledge_AddItems = 'knowledge:add-items',
-  Knowledge_DeleteItems = 'knowledge:delete-items',
-  Knowledge_ReindexItems = 'knowledge:reindex-items',
-  Knowledge_Search = 'knowledge:search',
-  Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
-
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',

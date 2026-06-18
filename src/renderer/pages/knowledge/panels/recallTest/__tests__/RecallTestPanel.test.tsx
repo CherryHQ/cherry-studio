@@ -4,8 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RecallTestPanel from '../RecallTestPanel'
 
-const mockKnowledgeSearch = vi.fn()
+const mockIpcRequest = vi.fn()
 const mockPerformanceNow = vi.spyOn(performance, 'now')
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => mockIpcRequest(...args)
+  }
+}))
 const mockToastError = vi.fn()
 const mockClipboardWriteText = vi.fn()
 const mockLogger = vi.hoisted(() => ({
@@ -142,15 +148,7 @@ describe('RecallTestPanel', () => {
       'base-2': ['其他知识库查询']
     }
     mockPerformanceNow.mockReturnValue(100)
-    mockKnowledgeSearch.mockResolvedValue(realSearchResults)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        knowledge: {
-          search: mockKnowledgeSearch
-        }
-      }
-    })
+    mockIpcRequest.mockResolvedValue(realSearchResults)
     Object.assign(window, {
       toast: {
         error: mockToastError
@@ -216,7 +214,7 @@ describe('RecallTestPanel', () => {
 
     expect(screen.getByText('搜索历史')).toBeInTheDocument()
     expect(screen.getByText('RAG 检索增强生成原理')).toBeInTheDocument()
-    expect(mockKnowledgeSearch).not.toHaveBeenCalled()
+    expect(mockIpcRequest).not.toHaveBeenCalled()
   })
 
   it('closes search history when input loses focus outside the history popover', async () => {
@@ -249,7 +247,7 @@ describe('RecallTestPanel', () => {
   })
 
   it('calls runtime IPC, logs the returned data, and renders real result cards after searching', async () => {
-    mockKnowledgeSearch.mockImplementation(async () => {
+    mockIpcRequest.mockImplementation(async () => {
       mockPerformanceNow.mockReturnValue(223)
       return realSearchResults
     })
@@ -262,7 +260,10 @@ describe('RecallTestPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '检索' }))
 
     await waitFor(() => {
-      expect(mockKnowledgeSearch).toHaveBeenCalledWith('base-1', 'RAG 检索增强生成原理')
+      expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.search', {
+        baseId: 'base-1',
+        query: 'RAG 检索增强生成原理'
+      })
     })
     expect(mockLogger.info).toHaveBeenCalledWith('Knowledge recall search IPC result', {
       baseId: 'base-1',
@@ -287,7 +288,7 @@ describe('RecallTestPanel', () => {
 
   it('keeps recall results from causing outer horizontal overflow', async () => {
     const longContent = 'x'.repeat(400)
-    mockKnowledgeSearch.mockResolvedValueOnce([
+    mockIpcRequest.mockResolvedValueOnce([
       {
         ...realSearchResults[0],
         pageContent: longContent
@@ -349,7 +350,7 @@ describe('RecallTestPanel', () => {
 
   it('shows a searching state while runtime IPC is pending', async () => {
     let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
-    mockKnowledgeSearch.mockReturnValue(
+    mockIpcRequest.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
       })
@@ -376,7 +377,7 @@ describe('RecallTestPanel', () => {
 
   it('does not apply pending search results after switching selected bases', async () => {
     let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
-    mockKnowledgeSearch.mockReturnValue(
+    mockIpcRequest.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
       })
@@ -471,7 +472,7 @@ describe('RecallTestPanel', () => {
 
   it('logs runtime IPC failures without throwing', async () => {
     const error = new Error('search failed')
-    mockKnowledgeSearch.mockRejectedValue(error)
+    mockIpcRequest.mockRejectedValue(error)
 
     render(<RecallTestPanel baseId="base-1" />)
 
@@ -494,7 +495,7 @@ describe('RecallTestPanel', () => {
   })
 
   it('renders ranking-only recall results without percentage scores', async () => {
-    mockKnowledgeSearch.mockResolvedValueOnce([
+    mockIpcRequest.mockResolvedValueOnce([
       {
         ...realSearchResults[0],
         score: 12.345,
