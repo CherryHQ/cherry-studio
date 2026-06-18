@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-17T00:00:00Z",
-  "snapshot_date": "2026-06-17",
+  "generated_at": "2026-06-18T18:00:00Z",
+  "snapshot_date": "2026-06-18",
   "v2_status": "In Progress — v2 merged into main; coexistence phase",
   "open_v2_prs": {
     "total": 15,
@@ -114,7 +114,7 @@
   },
   "stacked_chat_migration": {
     "description": "v1->v2 chat renderer migration, split into 10 stacked PRs by DeJeune",
-    "status": "layer 9/10 opened 2026-06-17",
+    "status": "layer 9/10 opened 2026-06-17; layer 10 pending",
     "latest_pr": {
       "number": 16152,
       "title": "feat(renderer): v2 history & app-shell chat surfaces (9/10)",
@@ -125,6 +125,27 @@
     },
     "total_files": 1193,
     "note": "Series reviews in order; merge as unit"
+  },
+  "prd_burst_today": {
+    "date": "2026-06-18",
+    "count": 13,
+    "note": "13 new internal PRD issues filed in one day — largest single-day planning burst observed",
+    "themes": ["Agent UX", "MCP Security", "Knowledge Base", "Usage Analytics", "Auth/Privacy"],
+    "issues": [
+      {"number": 16186, "title": "[Feature]: Default Sidebar Leads with Agent for New Users", "area": "Agent/UX"},
+      {"number": 16173, "title": "[Feature]: Knowledge base — hide inline reference/citation markers", "area": "RAG/UX"},
+      {"number": 16172, "title": "[Feature]: Improve knowledge base retrieval recall (hybrid search / reranking)", "area": "RAG"},
+      {"number": 16170, "title": "[Feature]: Usage dashboard — view daily / weekly / total token usage", "area": "Analytics"},
+      {"number": 16167, "title": "[Feature]: App startup password / lock to protect local data", "area": "Privacy"},
+      {"number": 16165, "title": "[Feature]: Allow users to manage and delete tools that Agents create at runtime", "area": "Agent"},
+      {"number": 16159, "title": "[Feature]: MCP Apps — Interactive UI Components Returned by Tools", "area": "MCP"},
+      {"number": 16134, "title": "[Feature]: Interactive Scheduled-Task Card with Inline View & Edit", "area": "Agent/UX"},
+      {"number": 16131, "title": "[Feature]: Preflight Delivery Review", "area": "Agent"},
+      {"number": 16129, "title": "[Feature]: Agent Usage, Cost & Audit Console", "area": "Agent/Analytics"},
+      {"number": 16128, "title": "[Feature]: MCP Security Inspector & Tool Description Lock", "area": "MCP/Security"},
+      {"number": 16124, "title": "[Feature]: Built-In Browser Pane (Open & Browse Web Pages In-App)", "area": "Browser/Agent"},
+      {"number": 16090, "title": "[Feature]: Anthropic OAuth Sign-In for Claude Pro / Max Subscribers", "area": "Auth/Models"}
+    ]
   },
   "v2_areas_coverage": {
     "data-api": {"prs": 2, "status": "active"},
@@ -143,8 +164,8 @@
   "adopting": ["Cache/Preference/DataApi", "@cherrystudio/ui", "Tailwind CSS", "Shadcn UI"],
   "blocked_issues": {
     "label": "Blocked: v2",
-    "count": 1,
-    "example": "#10087 - [Feature]: support multimodal embedding model"
+    "prs_blocked": 7,
+    "oldest_blocked_pr": {"number": 10662, "title": "feat: new shortcut 'resend'", "since": "2025-10-12"}
   },
   "milestone": {
     "name": "temp-siin",
@@ -157,6 +178,7 @@
     "10-part stacked chat PR series has CI failures on intermediate layers by design — needs coordinated review+merge",
     "15 v2-labeled PRs open simultaneously — potential review bottleneck",
     "133 open issues in temp-siin milestone with only 25 closed (16% completion)",
-    "Blocked: v2 issues accumulating (users waiting on v2 for features)"
+    "13 new PRD issues today may expand milestone scope significantly",
+    "Blocked: v2 PRs accumulating (oldest since Oct 2025)"
   ]
 }

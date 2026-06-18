@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-06-17T00:00:00Z",
-  "snapshot_date": "2026-06-17",
-  "data_source": "GitHub Issues API (discussion-labeled issues) + known top discussions",
+  "generated_at": "2026-06-18T18:00:00Z",
+  "snapshot_date": "2026-06-18",
+  "data_source": "GitHub Issues API (discussion-labeled issues) + known high-engagement threads",
   "note": "Full Discussion GraphQL data unavailable in this environment; data derived from issues with 'discussion' label and known high-engagement threads",
   "discussion_labeled_issues": {
-    "open_count": 5,
-    "closed_30d_count": 6
+    "open_count": 4,
+    "closed_30d_count": 7
   },
   "top_discussions_by_engagement": [
     {
@@ -15,7 +15,7 @@
       "comments": 26,
       "type": "feature_discussion",
       "created_at": "2025-05-03",
-      "age_days": 410,
+      "age_days": 411,
       "status": "open",
       "note": "Oldest active issue, highest comment count — multi-year roadmap discussion"
     },
@@ -34,38 +34,65 @@
       "comments": 8,
       "type": "feature_discussion",
       "status": "open"
+    },
+    {
+      "number": 16142,
+      "title": "[Bug] 日志文件占用17GB+，日志目录硬编码无法修改位置",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142",
+      "comments": 6,
+      "type": "critical_bug_discussion",
+      "status": "open",
+      "created_at": "2026-06-17"
     }
   ],
   "hot_topics": [
     {
-      "topic": "Gemini CLI / Antigravity CLI Migration",
-      "urgency": "HIGH",
-      "deadline": "2026-06-18",
-      "issue": 16136,
-      "note": "Gemini CLI stops serving unpaid tier 2026-06-18; user requesting migration support"
+      "topic": "QQ Channel Bot Reply Broken",
+      "urgency": "CRITICAL",
+      "issue": 16166,
+      "created": "2026-06-18",
+      "note": "Internal team flagged: bot sends active push instead of passive reply (msgId required). Zero-day."
+    },
+    {
+      "topic": "Agent Session Data Loss",
+      "urgency": "CRITICAL",
+      "issue": 16082,
+      "note": "29 sessions hard-deleted via internal API (soft:false). No recovery path."
     },
     {
       "topic": "Log file disk space explosion",
       "urgency": "CRITICAL",
-      "issue": 16142,
-      "note": "17GB+ logs due to HTTP 418 error loop and hardcoded log path on Windows"
+      "issues": [16142, 15947],
+      "note": "Two separate reports: 17GB+ and 26GB+ log growth in one day. HTTP 418 retry loop + hardcoded Windows path."
+    },
+    {
+      "topic": "13 new PRD issues filed today",
+      "urgency": "HIGH",
+      "note": "Largest single-day PRD burst observed. Topics: Agent UX, MCP Security, Knowledge Base, Usage Analytics, Browser Pane, OAuth. Signals major v2 feature planning cycle."
     },
     {
       "topic": "V2 chat page migration (stacked PRs)",
       "urgency": "HIGH",
       "pr": 16152,
-      "note": "10-part stacked PR series for v1->v2 chat migration; layer 9/10 opened today by DeJeune"
+      "note": "10-part stacked PR series for v1->v2 chat migration; layer 9/10 opened yesterday by DeJeune. Layer 10 pending."
     },
     {
-      "topic": "Agent model selection regression",
-      "urgency": "HIGH",
-      "issue": 15051,
-      "note": "Cannot select model when creating new Agent; 6 comments"
+      "topic": "Gemini CLI deprecation",
+      "urgency": "RESOLVED",
+      "issue": 16136,
+      "note": "Deadline was TODAY (2026-06-18). Gemini CLI stops serving unpaid tiers. Migration path to Antigravity CLI requested."
+    },
+    {
+      "topic": "anthropic-beta header expired",
+      "urgency": "MEDIUM",
+      "issue": 16135,
+      "note": "[Bug]: advisor-tool-2026-03-01 beta header causing 400 rejections — header should be removed."
     }
   ],
   "community_sentiment": {
-    "observation": "High volume (936 open issues) with 80% of closed issues marked not_planned suggests aggressive triage. Community active — 394 issues closed in 30 days. V2 refactor is a major ongoing discussion.",
+    "observation": "Open issues rose +8 today (936→944). 13 new PRD issues signals active v2 roadmap planning. Two critical disk-exhaustion bugs (#16142, #15947) need immediate attention. Community active — 409 issues closed in 30 days.",
     "engagement_health": "moderate",
-    "top_contributor": "DeJeune (18 open PRs, leading v2 chat migration stacked series)"
+    "top_contributor": "DeJeune (18 open PRs, leading v2 chat migration stacked series)",
+    "alert": "Three CRITICAL bugs filed in last 48h (data loss, disk exhaustion x2, QQ integration broken)"
   }
 }

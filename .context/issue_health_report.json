@@ -1,67 +1,68 @@
 {
-  "generated_at": "2026-06-17T00:00:00Z",
-  "snapshot_date": "2026-06-17",
+  "generated_at": "2026-06-18T18:00:00Z",
+  "snapshot_date": "2026-06-18",
   "methodology": "Active=updated<30d; Aging=updated 30-90d; Stale=not updated in 90-180d; Zombie=not updated in 180d+",
   "health_distribution": {
-    "total_open": 936,
+    "total_open": 944,
     "active": {
-      "count": 582,
-      "pct": 62.2,
-      "definition": "Updated in last 30 days (since 2026-05-17)"
+      "count": 585,
+      "pct": 62.0,
+      "definition": "Updated in last 30 days (since 2026-05-19)"
     },
     "not_updated_30d": {
-      "count": 354,
-      "pct": 37.8,
+      "count": 359,
+      "pct": 38.0,
       "note": "Includes aging, stale, and zombie"
     },
     "zombie_proxy": {
       "count": 134,
-      "pct": 14.3,
-      "definition": "Created before 2025-12-17 (>6 months ago)"
+      "pct": 14.2,
+      "definition": "Created before 2025-12-18 (>6 months ago)"
     },
     "very_old_proxy": {
       "count": 22,
-      "pct": 2.4,
-      "definition": "Created before 2025-09-17 (>9 months ago)"
+      "pct": 2.3,
+      "definition": "Created before 2025-09-18 (>9 months ago)"
     }
   },
   "closure_health": {
-    "last_30d_closed": 394,
-    "completion_rate_pct": 20.0,
-    "not_planned_rate_pct": 80.0,
-    "avg_time_to_close_days": 38.6,
-    "median_time_to_close_days": 40.9,
+    "last_30d_closed": 409,
+    "completion_rate_pct": 19.3,
+    "not_planned_rate_pct": 80.7,
+    "avg_time_to_close_hours": 926,
+    "median_time_to_close_hours": 981,
     "note": "Tight p25-p75 range (969-1000h) indicates batch auto-close after ~40d inactivity window"
   },
   "label_health": {
     "no_label_open": 92,
     "needs_triage": 6,
-    "needs_repro": 4,
+    "needs_repro": 6,
     "needs_more_info": 2,
     "inactive_labeled": 37,
     "unactionable_total": 98,
-    "unactionable_pct": 10.5
+    "unactionable_pct": 10.4
   },
   "high_engagement_open_bugs": [
-    {"number": 16142, "title": "日志文件占用17GB+，日志目录硬编码无法修改位置", "comments": 1, "created": "2026-06-17", "severity": "CRITICAL"},
+    {"number": 16142, "title": "日志文件占用17GB+，日志目录硬编码无法修改位置", "comments": 6, "created": "2026-06-17", "severity": "CRITICAL"},
+    {"number": 16166, "title": "[Bug]: QQ channel bot cannot reply in group chats", "comments": 0, "created": "2026-06-18", "severity": "CRITICAL", "labels": ["BUG", "internal_team"]},
+    {"number": 16082, "title": "[Bug]: Agent auto-deleted — 29 sessions permanently lost", "comments": 0, "created": "2026-06-16", "severity": "CRITICAL"},
+    {"number": 15947, "title": "[Bug]: Auto-updater loop produces 26GB+ logs", "comments": 0, "created": "2026-06-10", "severity": "CRITICAL"},
     {"number": 15416, "title": "[Bug]: Taskbar icon becomes blank after merging", "comments": 6, "severity": "HIGH"},
     {"number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6, "severity": "HIGH"},
     {"number": 15293, "title": "[Bug]: deepseek-v4-pro only displays the last token", "comments": 5, "severity": "HIGH"},
     {"number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models", "comments": 5, "severity": "HIGH"},
     {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "severity": "HIGH"},
-    {"number": 15072, "title": "[Bug]: Xiaomi MiMo cannot disable deep thinking in agent mode", "comments": 4, "severity": "MEDIUM"},
-    {"number": 14217, "title": "[Bug]: knowledge-base:search fails with TypeError", "comments": 3, "severity": "MEDIUM"},
-    {"number": 14602, "title": "[Bug]: API response parsing failed", "comments": 3, "severity": "MEDIUM"}
+    {"number": 16016, "title": "[Bug]: Agent fails with ECONNREFUSED when stale system proxy is set", "comments": 0, "created": "2026-06-12", "severity": "HIGH", "labels": ["BUG", "Connectivity", "internal_team"]}
   ],
   "recently_closed_notable": [
     {"number": 13629, "title": "[Bug]: Cannot select models when adding agent", "comments": 15, "closed": "2026-06-12", "resolution": "completed"},
+    {"number": 16142, "title": "[Bug] 日志文件占用17GB+", "comments": 6, "closed": "N/A — still open", "note": "Monitoring"},
     {"number": 14699, "title": "[Bug]: Agent tool no response for a long time", "comments": 8, "closed": "2026-06-10", "resolution": "not_planned"},
     {"number": 13418, "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "comments": 5, "closed": "2026-06-17", "resolution": "not_planned"},
     {"number": 14517, "title": "[Bug]: v1.9.2 Data Backup Failed", "comments": 5, "closed": "2026-06-12", "resolution": "not_planned"}
   ],
   "trend": {
     "daily_close_recent": {
-      "2026-06-09": 8,
       "2026-06-10": 15,
       "2026-06-11": 4,
       "2026-06-12": 18,
@@ -69,18 +70,27 @@
       "2026-06-14": 7,
       "2026-06-15": 22,
       "2026-06-16": 12,
-      "2026-06-17": 13
+      "2026-06-17": 13,
+      "2026-06-18": "TBD"
     },
     "weekly_close": {
       "2026-W24": 53,
-      "2026-W25": 47
+      "2026-W25": 47,
+      "2026-W26_partial": 25
+    },
+    "delta_from_yesterday": {
+      "open_issues": "+8 (936→944)",
+      "closed_30d": "+15 (394→409)"
     }
   },
   "action_items": [
-    "URGENT: Triage #16142 (log files 17GB+) — critical disk space issue reported today",
+    "CRITICAL: Triage #16166 (QQ bot broken — internal_team flagged today)",
+    "CRITICAL: Triage #16082 (agent auto-delete lost 29 sessions — data loss)",
+    "CRITICAL: Fix #15947 + #16142 (disk exhaustion via log loops — C drive filling up)",
     "Review 6 open needs-triage issues for classification",
-    "Clear 92 unlabeled open issues (10.5% of backlog)",
+    "Clear 92 unlabeled open issues (9.7% of backlog)",
     "Address 134 zombie issues (created >6mo ago) — consider batch close or milestone planning",
-    "Fix regression: #15051 agent model selection broken, #15416 taskbar icon blank"
+    "Fix regression: #15051 agent model selection broken, #15416 taskbar icon blank",
+    "Review 13 new PRD issues filed today for v2 roadmap prioritization"
   ]
 }

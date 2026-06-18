@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-06-17T00:00:00Z",
-  "snapshot_date": "2026-06-17",
+  "generated_at": "2026-06-18T18:00:00Z",
+  "snapshot_date": "2026-06-18",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 936,
+    "total": 944,
     "by_title_type": {
-      "bug": 376,
-      "feature": 432,
+      "bug": 380,
+      "feature": 436,
       "other": 128
     },
     "by_label": {
       "inactive": 37,
       "UI/UX": 31,
-      "Models": 20,
-      "Assistant": 13,
-      "internal_team": 10,
-      "feature": 8,
-      "MCP": 8,
-      "prd": 7,
+      "Models": 21,
+      "Assistant": 17,
+      "internal_team": 26,
+      "feature": 15,
+      "MCP": 5,
+      "prd": 14,
       "Agent": 5,
-      "help_wanted": 5,
-      "discussion": 5,
-      "RAG": 5,
-      "needs-repro": 4,
-      "Data": 3,
-      "Connectivity": 3,
+      "help_wanted": 4,
+      "discussion": 4,
+      "RAG": 7,
+      "needs-repro": 6,
+      "Data": 2,
+      "Connectivity": 1,
       "needs-more-info": 2,
       "needs-triage": 6,
-      "Performance": 1,
-      "Dev_Team": 1
+      "Performance": 3,
+      "BUG": 104
     },
     "no_label_count": 92,
-    "no_label_pct": 9.8,
+    "no_label_pct": 9.7,
     "needs_triage_count": 6,
     "health": {
-      "active_updated_30d": 582,
-      "not_updated_30d": 354,
+      "active_updated_30d": 585,
+      "not_updated_30d": 359,
       "created_before_6mo": 134,
       "created_before_9mo": 22,
       "note": "Active = updated in last 30d; zombie proxy = created >6 months ago (134 issues)"
@@ -44,9 +44,9 @@
   "open_prs": {
     "total": 255,
     "v2_labeled": 15,
-    "v1_base": 12,
+    "blocked_on_v2": 7,
     "draft": 6,
-    "stale_over_30d": 12,
+    "stale_over_30d": 46,
     "updated_last_7d": 63,
     "top_authors": [
       {"login": "DeJeune", "count": 18},
@@ -58,30 +58,62 @@
     ]
   },
   "last_30_days": {
-    "issues_closed": 394,
+    "issues_closed": 409,
     "issues_closed_resolution": {
-      "not_planned": 318,
+      "not_planned": 330,
       "completed": 79
     },
     "issues_closed_by_type": {
       "bug": 49,
       "feature": 24,
-      "no_type": 26
+      "no_type": 28
     },
     "avg_time_to_close_hours": 926,
     "median_time_to_close_hours": 981,
     "prs_merged": 126,
-    "busiest_close_day": {"date": "2026-06-15", "count": 22}
+    "busiest_close_day": {"date": "2026-06-15", "count": 22},
+    "weekly_close": {
+      "2026-W25": 73,
+      "2026-W24": 26,
+      "2026-W23": 1
+    }
   },
   "p1_candidates": [
+    {
+      "number": 16166,
+      "title": "[Bug]: QQ channel bot cannot reply in group chats — adapter sends active push instead of reply",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16166",
+      "comments": 0,
+      "created_at": "2026-06-18",
+      "severity_reason": "Critical: QQ channel integration broken, internal_team flagged",
+      "labels": ["BUG", "internal_team"]
+    },
+    {
+      "number": 16082,
+      "title": "[Bug]: Agent auto-deleted via internal API with all 29 sessions lost (hard delete, soft:false)",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16082",
+      "comments": 0,
+      "created_at": "2026-06-16",
+      "severity_reason": "Critical: data loss — 29 user sessions permanently deleted",
+      "labels": []
+    },
+    {
+      "number": 15947,
+      "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files in one day",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947",
+      "comments": 0,
+      "created_at": "2026-06-10",
+      "severity_reason": "Critical: disk exhaustion; 26GB+ logs in one day on C drive",
+      "labels": []
+    },
     {
       "number": 16142,
       "title": "[Bug] 日志文件占用17GB+，日志目录硬编码无法修改位置",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16142",
-      "comments": 1,
+      "comments": 6,
       "created_at": "2026-06-17",
-      "severity_reason": "Critical: log files consuming 17GB+ on C drive, created today, blocked users",
-      "label": "needs-triage"
+      "severity_reason": "Critical: log files consuming 17GB+ on C drive, hardcoded path blocks workaround",
+      "labels": ["needs-triage"]
     },
     {
       "number": 15416,
@@ -98,20 +130,6 @@
       "severity_reason": "Blocks core Agent creation flow"
     },
     {
-      "number": 15293,
-      "title": "[Bug]: deepseek-v4-pro only displays the last token",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15293",
-      "comments": 5,
-      "severity_reason": "Rendering regression for popular model"
-    },
-    {
-      "number": 14800,
-      "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14800",
-      "comments": 5,
-      "severity_reason": "Breaks local model integration"
-    },
-    {
       "number": 16112,
       "title": "[Bug]: 上下文太大导致死机且无法恢复",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16112",
@@ -121,24 +139,33 @@
   ],
   "notable_today": [
     {
-      "number": 16142,
-      "title": "日志文件占用17GB+，日志目录硬编码无法修改位置",
+      "number": 16166,
+      "title": "[Bug]: QQ channel bot cannot reply in group chats",
       "type": "critical_bug",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16166"
     },
     {
-      "number": 16152,
-      "title": "feat(renderer): v2 history & app-shell chat surfaces (9/10)",
-      "type": "v2_pr",
-      "url": "https://github.com/CherryHQ/cherry-studio/pull/16152",
-      "author": "DeJeune"
-    },
-    {
-      "number": 16136,
-      "title": "[Feature]: Migrate from Gemini CLI to Antigravity CLI",
+      "number": 16197,
+      "title": "[Feature]: Context-driven feature/plugin resolution to avoid per-fallback recompute in multi-model requests",
       "type": "feature_request",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16136",
-      "note": "Gemini CLI stops serving unpaid tiers 2026-06-18"
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16197"
+    },
+    {
+      "type": "prd_burst",
+      "note": "13 new PRD + internal_team issues created today — major feature planning wave",
+      "issues": [16186, 16173, 16172, 16170, 16167, 16165, 16159, 16134, 16131, 16129, 16128, 16124, 16090]
+    },
+    {
+      "number": 16171,
+      "title": "[Feature]: 添加UA仿真 (User-Agent spoofing)",
+      "type": "feature_request",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16171"
+    },
+    {
+      "number": 16135,
+      "title": "[Bug]: 请求被拒绝 400 — anthropic-beta header contains expired advisor-tool-2026-03-01",
+      "type": "bug",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16135"
     }
   ]
 }
