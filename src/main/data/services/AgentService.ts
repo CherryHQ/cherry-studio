@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -59,10 +60,11 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
-function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity {
+function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string[]): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    mcps,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
@@ -72,6 +74,30 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
     updatedAt: timestampToISO(row.updatedAt),
     modelName
   }
+}
+
+/**
+ * Fetch mcps for a set of agent IDs from the junction table.
+ * Returns a Map<agentId, string[]>.
+ * Accepts both a database instance and a transaction (DbOrTx).
+ */
+async function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Promise<Map<string, string[]>> {
+  if (agentIds.length === 0) return new Map()
+  const rows = await tx
+    .select({ agentId: agentMcpServerTable.agentId, mcpServerId: agentMcpServerTable.mcpServerId })
+    .from(agentMcpServerTable)
+    .where(inArray(agentMcpServerTable.agentId, agentIds))
+    .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt))
+  const map = new Map<string, string[]>()
+  for (const row of rows) {
+    const list = map.get(row.agentId)
+    if (list) {
+      list.push(row.mcpServerId)
+    } else {
+      map.set(row.agentId, [row.mcpServerId])
+    }
+  }
+  return map
 }
 
 export class AgentService {
@@ -86,6 +112,7 @@ export class AgentService {
 
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
+    const mcps = req.mcps ?? []
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -99,20 +126,27 @@ export class AgentService {
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
-      mcps: req.mcps,
       disabledTools: req.disabledTools,
       configuration: req.configuration
     }
 
     const row = await withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.createAgentTx(tx, id, insertData)),
+      () =>
+        application.get('DbService').withWriteTx(async (tx) => {
+          const result = await this.createAgentTx(tx, id, insertData)
+          // Insert junction rows for MCP associations
+          if (mcps.length > 0) {
+            await tx.insert(agentMcpServerTable).values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+          }
+          return result
+        }),
       defaultHandlersFor('Agent', id)
     )
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null)
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -152,7 +186,8 @@ export class AgentService {
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
     if (!row) return null
-    return rowToAgent(row.agent, row.modelName || null)
+    const mcpsMap = await fetchMcpsForAgents(database, [id])
+    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [])
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
@@ -219,7 +254,11 @@ export class AgentService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null))
+    // Batch-fetch mcps for all returned agents
+    const agentIds = result.map((row) => row.agent.id)
+    const mcpsMap = await fetchMcpsForAgents(database, agentIds)
+
+    const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? []))
 
     return { agents, total: totalResult[0].count }
   }
@@ -268,11 +307,15 @@ export class AgentService {
       updatedAt: Date.now()
     }
 
+    // Handle mcps separately — it lives in the junction table, not the agent row.
+    const newMcps = updates.mcps
+
     // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, mcps, disabledTools, configuration). Writing
+    // (description, instructions, disabledTools, configuration). Writing
     // literal NULL when the DTO omits a field would violate the constraint.
     // Skip undefined values so Drizzle preserves the column's current value.
     for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
+      if (field === 'mcps') continue // handled via junction table
       if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
       const value = updates[field as keyof typeof updates]
       if (value === undefined) continue
@@ -280,7 +323,17 @@ export class AgentService {
     }
 
     await withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.updateAgentTx(tx, id, updateData)),
+      () =>
+        application.get('DbService').withWriteTx(async (tx) => {
+          await this.updateAgentTx(tx, id, updateData)
+          // Replace MCP associations if provided
+          if (newMcps !== undefined) {
+            await tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id))
+            if (newMcps.length > 0) {
+              await tx.insert(agentMcpServerTable).values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+            }
+          }
+        }),
       defaultHandlersFor('Agent', id)
     )
 
@@ -306,7 +359,7 @@ export class AgentService {
     // and pins survive the agent. Wrap pin purge + agent delete in one
     // transaction so a partial delete cannot leave dangling cross-entity
     // rows behind. `pin` has no FK back here, so this is the only purge
-    // needed up-front.
+    // needed up-front. Junction table rows are cascade-deleted by FK.
     const result = await withSqliteErrors(
       async () => application.get('DbService').withWriteTx((tx) => this.deleteAgentTx(tx, id)),
       defaultHandlersFor('Agent', id)
@@ -367,6 +420,47 @@ export class AgentService {
     }
 
     await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
+  }
+
+  /**
+   * Fire onAgentUpdated for each agent ID, re-fetching the agent from DB
+   * so subscribers get the current entity state (including mcps from junction table).
+   */
+  async emitAgentUpdatedForIds(agentIds: string[]): Promise<void> {
+    if (agentIds.length === 0) return
+    const database = application.get('DbService').getDb()
+    const rows = await database
+      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .from(agentsTable)
+      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
+    const mcpsMap = await fetchMcpsForAgents(database, agentIds)
+    for (const row of rows) {
+      const agent = rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? [])
+      this._onAgentUpdated.fire({ agentId: agent.id, updates: { mcps: agent.mcps }, agent })
+    }
+  }
+
+  /**
+   * Transactional variant for use within an outer tx (e.g. McpServerService.delete()).
+   * Queries which agents reference the given MCP server, then explicitly deletes
+   * the junction rows. The subsequent MCP server DELETE will cascade-delete the
+   * same rows again (no-op on empty set). Returns affected agent IDs so the
+   * caller can emit onAgentUpdated events after commit.
+   */
+  async removeMcpFromAllAgentsTx(tx: DbOrTx, mcpServerId: string): Promise<string[]> {
+    // Find which agents reference this MCP server before deleting
+    const referenced = await tx
+      .select({ agentId: agentMcpServerTable.agentId })
+      .from(agentMcpServerTable)
+      .where(eq(agentMcpServerTable.mcpServerId, mcpServerId))
+    const affectedIds = [...new Set(referenced.map((r) => r.agentId))]
+
+    // Delete junction rows explicitly so we can identify affected agent IDs
+    // before the cascade from MCP server DELETE removes them.
+    await tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId))
+
+    return affectedIds
   }
 }
 

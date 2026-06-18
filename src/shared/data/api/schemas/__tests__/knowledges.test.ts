@@ -454,7 +454,7 @@ describe('Knowledge base schemas', () => {
       baseId: KNOWLEDGE_BASE_ID,
       groupId: null,
       type: 'directory' as const,
-      data: { source: '/docs', path: '/docs' },
+      data: { source: '/docs', relativePath: '/docs' },
       status: 'processing' as const,
       error: null,
       createdAt: '2026-04-10T00:00:00.000Z',

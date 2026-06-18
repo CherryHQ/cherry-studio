@@ -61,7 +61,7 @@ describe('expandDirectoryOwnerToTree', () => {
         type: 'directory',
         data: {
           source: rootDir,
-          path: rootDir
+          relativePath: rootDir
         },
         status: 'idle',
         error: null,
@@ -75,11 +75,11 @@ describe('expandDirectoryOwnerToTree', () => {
     expect(nodes).toEqual([
       {
         type: 'directory',
-        data: { source: path.join(rootDir, 'agents'), path: path.join(rootDir, 'agents') },
+        data: { source: path.join(rootDir, 'agents'), relativePath: path.join(rootDir, 'agents') },
         children: [
           {
             type: 'directory',
-            data: { source: nestedDir, path: nestedDir },
+            data: { source: nestedDir, relativePath: nestedDir },
             children: [
               {
                 type: 'file',
@@ -113,7 +113,7 @@ describe('expandDirectoryOwnerToTree', () => {
         type: 'directory',
         data: {
           source: rootDir,
-          path: rootDir
+          relativePath: rootDir
         },
         status: 'idle',
         error: null,
@@ -137,11 +137,11 @@ describe('expandDirectoryOwnerToTree', () => {
     expect(nodes).toContainEqual(
       expect.objectContaining({
         type: 'directory',
-        data: expect.objectContaining({ path: path.join(rootDir, 'guides') }),
+        data: expect.objectContaining({ relativePath: path.join(rootDir, 'guides') }),
         children: [
           expect.objectContaining({
             type: 'directory',
-            data: expect.objectContaining({ path: nestedDir }),
+            data: expect.objectContaining({ relativePath: nestedDir }),
             children: [
               expect.objectContaining({
                 type: 'file',
@@ -178,7 +178,7 @@ describe('expandDirectoryOwnerToTree', () => {
         type: 'directory',
         data: {
           source: rootDir,
-          path: rootDir
+          relativePath: rootDir
         },
         status: 'idle',
         error: null,
@@ -225,7 +225,7 @@ describe('expandDirectoryOwnerToTree', () => {
         type: 'directory',
         data: {
           source: rootDir,
-          path: rootDir
+          relativePath: rootDir
         },
         status: 'idle',
         error: null,
@@ -259,7 +259,7 @@ describe('expandDirectoryOwnerToTree', () => {
           type: 'directory',
           data: {
             source: tempRoot,
-            path: tempRoot
+            relativePath: tempRoot
           },
           status: 'idle',
           error: null,

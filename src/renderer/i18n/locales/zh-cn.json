@@ -6368,7 +6368,8 @@
       "add": {
         "name": {
           "label": "提供商名称",
-          "placeholder": "例如 OpenAI"
+          "placeholder": "例如 OpenAI",
+          "required": "请输入提供商名称"
         },
         "title": "添加提供商",
         "type": "提供商类型"
@@ -6479,7 +6480,8 @@
       "balance": "余额",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "请输入 Base URL"
       },
       "basic_auth": {
         "label": "HTTP 认证",

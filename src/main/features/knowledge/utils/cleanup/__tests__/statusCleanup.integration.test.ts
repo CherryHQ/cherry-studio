@@ -71,7 +71,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
         baseId: BASE_ID,
         groupId: null,
         type: 'directory',
-        data: { source: 'root', path: '/docs' },
+        data: { source: 'root', relativePath: '/docs' },
         status: 'processing',
         error: null
       },
@@ -100,7 +100,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
             baseId: BASE_ID,
             groupId: null,
             type: 'directory',
-            data: { source: 'root', path: '/docs' },
+            data: { source: 'root', relativePath: '/docs' },
             status: 'processing',
             error: null,
             createdAt: '2026-04-08T00:00:00.000Z',

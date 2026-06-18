@@ -6368,7 +6368,8 @@
       "add": {
         "name": {
           "label": "提供者名稱",
-          "placeholder": "例如：OpenAI"
+          "placeholder": "例如：OpenAI",
+          "required": "請輸入提供者名稱"
         },
         "title": "新增提供者",
         "type": "供應商類型"
@@ -6479,7 +6480,8 @@
       "balance": "餘額",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "請輸入 Base URL"
       },
       "basic_auth": {
         "label": "HTTP 認證",
