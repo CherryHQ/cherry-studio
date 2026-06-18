@@ -402,13 +402,6 @@ export class AiStreamManager extends BaseService {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
-      // Reset budget state for a genuinely new turn (submit-message / regenerate-message) so
-      // `resumesUsed` starts at 0. Continuation triggers (steer-continuation, continue-conversation)
-      // carry over the existing budget state — their turn is a continuation of the same user intent,
-      // not an independent new attempt.
-      if (request.trigger === 'submit-message' || request.trigger === 'regenerate-message') {
-        this.clearBudgetTripped(input.topicId, modelId)
-      }
       const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId, rootSpan)
       executions.set(modelId, exec)
     }

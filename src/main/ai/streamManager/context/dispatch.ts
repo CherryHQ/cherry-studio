@@ -134,6 +134,18 @@ export async function dispatchStreamRequest(
     )
   }
 
+  // Reset budget state for a genuinely new user turn so `resumesUsed` starts at 0.
+  // Keyed on the OUTER dispatch trigger, not the flattened inner AiStreamRequest trigger
+  // (buildStreamRequest hard-codes 'submit-message' for every dispatch, including budget-continue,
+  // so the inner trigger cannot distinguish a real new turn from a resume).
+  // Continuation triggers (budget-continue, steer-continuation, continue-conversation) carry over
+  // budget state — their turn is a continuation of the same user intent, not a fresh attempt.
+  if (req.trigger === 'submit-message' || req.trigger === 'regenerate-message') {
+    for (const { modelId } of prepared.models) {
+      manager.clearBudgetTripped(prepared.topicId, modelId)
+    }
+  }
+
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,

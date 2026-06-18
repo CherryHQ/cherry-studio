@@ -1767,7 +1767,12 @@ describe('AiStreamManager', () => {
       expect(mgr.isBudgetContinuable('topic-x', 'prov::model')).toBe(false)
     })
 
-    it('a submit-message send resets the budget state so the new turn starts fresh', () => {
+    it('clearBudgetTripped resets the budget state so a new turn starts fresh', () => {
+      // The reset for a genuinely new user turn (submit-message / regenerate-message) is now
+      // performed by dispatchStreamRequest, not send(), so that budget-continue resumes — whose
+      // inner AiStreamRequest hardcodes 'submit-message' — no longer accidentally defeat the cap.
+      // This test verifies clearBudgetTripped (the underlying primitive) works correctly;
+      // the outer-trigger gating that calls it is tested in dispatch.test.ts.
       mgr.setBudgetTripped('topic-a', 'prov::model')
       for (let i = 0; i < 3; i++) {
         mgr.consumeBudgetTrip('topic-a', 'prov::model')
@@ -1776,38 +1781,8 @@ describe('AiStreamManager', () => {
       // Cap reached — not continuable
       expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
 
-      // A fresh submit-message turn must reset the budget state.
-      mgr.send({
-        topicId: 'topic-a',
-        models: [{ modelId: 'prov::model', request: { ...req('topic-a'), trigger: 'submit-message' } }],
-        listeners: [new FakeListener('l:budget')]
-      })
-
-      // After the reset, the new turn can trip the budget and be continued again.
-      mgr.setBudgetTripped('topic-a', 'prov::model')
-      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
-    })
-
-    it('a regenerate-message send also resets the budget state for the specific model', () => {
-      mgr.setBudgetTripped('topic-a', 'prov::model')
-      for (let i = 0; i < 3; i++) {
-        mgr.consumeBudgetTrip('topic-a', 'prov::model')
-        if (i < 2) mgr.setBudgetTripped('topic-a', 'prov::model')
-      }
-      // Cap reached — not continuable
-      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
-
-      // A fresh regenerate-message turn must also reset the budget state.
-      mgr.send({
-        topicId: 'topic-a',
-        models: [
-          {
-            modelId: 'prov::model',
-            request: { ...req('topic-a'), trigger: 'regenerate-message', parentAnchorId: 'anchor-1' } as any
-          }
-        ],
-        listeners: [new FakeListener('l:budget')]
-      })
+      // Clearing (as dispatchStreamRequest does for submit-message / regenerate-message) resets.
+      mgr.clearBudgetTripped('topic-a', 'prov::model')
 
       // After the reset, the new turn can trip the budget and be continued again.
       mgr.setBudgetTripped('topic-a', 'prov::model')
