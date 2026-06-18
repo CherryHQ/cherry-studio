@@ -17,7 +17,6 @@ import {
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
-import { IpcChannel } from '@shared/IpcChannel'
 import { estimateTokenCount } from 'tokenx'
 
 import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
@@ -38,15 +37,6 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
-import {
-  KnowledgeAddItemsPayloadSchema,
-  KnowledgeBasePayloadSchema,
-  KnowledgeCreateBasePayloadSchema,
-  KnowledgeItemChunksPayloadSchema,
-  KnowledgeItemsPayloadSchema,
-  KnowledgeRestoreBasePayloadSchema,
-  KnowledgeSearchPayloadSchema
-} from './types/ipc'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { classifyKnowledgeItemSource } from './utils/items'
@@ -93,7 +83,6 @@ export class KnowledgeService extends BaseService {
       'knowledge.reindex-subtree',
       createReindexSubtreeJobHandler(this.knowledgeLockManager, this.workflowService)
     )
-    this.registerIpcHandlers()
   }
 
   protected async onAllReady(): Promise<void> {
@@ -682,40 +671,5 @@ export class KnowledgeService extends BaseService {
         }`
       )
     }
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Knowledge_CreateBase, async (_, payload: unknown) => {
-      const { base } = KnowledgeCreateBasePayloadSchema.parse(payload)
-      return await this.createBase(base)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_RestoreBase, async (_, payload: unknown) => {
-      const dto = KnowledgeRestoreBasePayloadSchema.parse(payload)
-      return await this.restoreBase(dto)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_DeleteBase, async (_, payload: unknown) => {
-      const { baseId } = KnowledgeBasePayloadSchema.parse(payload)
-      return await this.deleteBase(baseId)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_AddItems, async (_, payload: unknown) => {
-      const { baseId, items } = KnowledgeAddItemsPayloadSchema.parse(payload)
-      return await this.addItems(baseId, items)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_DeleteItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeItemsPayloadSchema.parse(payload)
-      return await this.deleteItems(baseId, itemIds)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_ReindexItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeItemsPayloadSchema.parse(payload)
-      return await this.reindexItems(baseId, itemIds)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_Search, async (_, payload: unknown) => {
-      const { baseId, query } = KnowledgeSearchPayloadSchema.parse(payload)
-      return await this.search(baseId, query)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_ListItemChunks, async (_, payload: unknown) => {
-      const { baseId, itemId } = KnowledgeItemChunksPayloadSchema.parse(payload)
-      return await this.listItemChunks(baseId, itemId)
-    })
   }
 }

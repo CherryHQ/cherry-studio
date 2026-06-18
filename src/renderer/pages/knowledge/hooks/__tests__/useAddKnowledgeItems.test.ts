@@ -5,11 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()
-const mockAddItems = vi.fn()
+const mockIpcRequest = vi.fn()
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => mockUseInvalidateCache()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => mockIpcRequest(...args)
+  }
 }))
 
 describe('useAddKnowledgeItems', () => {
@@ -18,12 +24,7 @@ describe('useAddKnowledgeItems', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
-    mockAddItems.mockResolvedValue(undefined)
-    ;(window as any).api = {
-      knowledge: {
-        addItems: mockAddItems
-      }
-    }
+    mockIpcRequest.mockResolvedValue(undefined)
   })
 
   it('submits knowledge sources through orchestration IPC and refreshes the list', async () => {
@@ -50,7 +51,7 @@ describe('useAddKnowledgeItems', () => {
       await expect(result.current.submit(items)).resolves.toBeUndefined()
     })
 
-    expect(mockAddItems).toHaveBeenCalledWith('base-1', items)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', { baseId: 'base-1', items })
     expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(result.current.error).toBeUndefined()
     expect(result.current.isSubmitting).toBe(false)
@@ -58,7 +59,7 @@ describe('useAddKnowledgeItems', () => {
 
   it('keeps submit rejected, refreshes items, and exposes inline error when orchestration rejects', async () => {
     const submitError = new Error('create failed')
-    mockAddItems.mockRejectedValueOnce(submitError)
+    mockIpcRequest.mockRejectedValueOnce(submitError)
 
     const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
 
@@ -88,7 +89,7 @@ describe('useAddKnowledgeItems', () => {
   it('preserves the submit rejection when post-failure refresh also fails', async () => {
     const submitError = new Error('create failed')
     const invalidateError = new Error('refresh failed')
-    mockAddItems.mockRejectedValueOnce(submitError)
+    mockIpcRequest.mockRejectedValueOnce(submitError)
     mockInvalidateCache.mockRejectedValueOnce(invalidateError)
 
     const { result } = renderHook(() => useAddKnowledgeItems('base-1'))

@@ -7,7 +7,6 @@ import {
   type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
-import { IpcChannel } from '@shared/IpcChannel'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../utils/storage/pathStorage'
@@ -126,7 +125,6 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
 
   class MockBaseService {
-    ipcHandle = vi.fn()
     registerDisposable = vi.fn((disposableOrFn: { dispose: () => void } | (() => void)) => {
       return typeof disposableOrFn === 'function' ? { dispose: disposableOrFn } : disposableOrFn
     })
@@ -372,7 +370,7 @@ describe('KnowledgeService', () => {
     ])
   })
 
-  it('registers formal knowledge job handlers and caller-facing IPC handlers', () => {
+  it('registers formal knowledge job handlers', () => {
     const service = new KnowledgeService()
 
     ;(service as unknown as { onInit: () => void }).onInit()
@@ -383,18 +381,6 @@ describe('KnowledgeService', () => {
       'knowledge.check-file-processing-result',
       'knowledge.delete-subtree',
       'knowledge.reindex-subtree'
-    ])
-    expect(
-      (service as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle.mock.calls.map((call) => call[0])
-    ).toEqual([
-      IpcChannel.Knowledge_CreateBase,
-      IpcChannel.Knowledge_RestoreBase,
-      IpcChannel.Knowledge_DeleteBase,
-      IpcChannel.Knowledge_AddItems,
-      IpcChannel.Knowledge_DeleteItems,
-      IpcChannel.Knowledge_ReindexItems,
-      IpcChannel.Knowledge_Search,
-      IpcChannel.Knowledge_ListItemChunks
     ])
   })
 

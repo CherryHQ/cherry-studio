@@ -15,6 +15,13 @@ type InheritedVirtualizerOptions = Partial<
   >
 >
 
+type DynamicVirtualListScrollerProps = Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  'children' | 'className' | 'onScroll' | 'ref' | 'role' | 'style'
+> & {
+  [key: `data-${string}`]: string | number | boolean | undefined
+}
+
 export interface DynamicVirtualListRef {
   /** Resets any prev item measurements. */
   measure: () => void
@@ -84,6 +91,21 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   scrollerStyle?: React.CSSProperties
 
   /**
+   * Scroll container role
+   */
+  role?: React.AriaRole
+
+  /**
+   * Exposes the internal scroll container DOM node.
+   */
+  scrollElementRef?: React.Ref<HTMLDivElement>
+
+  /**
+   * Additional attributes for the internal scroll container.
+   */
+  scrollerProps?: DynamicVirtualListScrollerProps
+
+  /**
    * Hide the scrollbar automatically when scrolling is stopped
    */
   autoHideScrollbar?: boolean
@@ -104,6 +126,15 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   onScroll?: React.UIEventHandler<HTMLDivElement>
 }
 
+function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
+  if (!ref) return
+  if (typeof ref === 'function') {
+    ref(value)
+    return
+  }
+  ref.current = value
+}
+
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const {
     ref,
@@ -116,6 +147,9 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     rangeExtractor: customRangeExtractor,
     itemContainerStyle,
     scrollerStyle,
+    role = 'region',
+    scrollElementRef,
+    scrollerProps,
     autoHideScrollbar = false,
     header,
     className,
@@ -126,7 +160,13 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const [showScrollbar, setShowScrollbar] = useState(!autoHideScrollbar)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const internalScrollerRef = useRef<HTMLDivElement>(null)
-  const scrollerRef = internalScrollerRef
+  const setScrollerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      internalScrollerRef.current = node
+      assignRef(scrollElementRef, node)
+    },
+    [scrollElementRef]
+  )
 
   const activeStickyIndexesRef = useRef<number[]>([])
 
@@ -208,7 +248,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const virtualizer = useVirtualizer({
     ...restOptions,
     count: list.length,
-    getScrollElement: () => scrollerRef.current,
+    getScrollElement: () => internalScrollerRef.current,
     estimateSize,
     rangeExtractor,
     onChange: (instance, sync) => {
@@ -243,10 +283,15 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
   const { horizontal } = restOptions
+  const hasFixedItemSize = horizontal
+    ? itemContainerStyle?.width !== undefined
+    : itemContainerStyle?.height !== undefined
+  const measureItemElement = hasFixedItemSize ? undefined : virtualizer.measureElement
 
   return (
     <div
-      ref={scrollerRef}
+      {...scrollerProps}
+      ref={setScrollerRef}
       className={cn(
         'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
         autoHideScrollbar && !showScrollbar
@@ -254,8 +299,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           : '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]',
         className
       )}
-      role="region"
-      aria-hidden={!showScrollbar}
+      role={role}
       onScroll={onScroll}
       style={{
         overflow: 'auto',
@@ -326,7 +370,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           }
 
           return (
-            <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement} style={style}>
+            <div key={virtualItem.key} data-index={virtualItem.index} ref={measureItemElement} style={style}>
               {children(list[virtualItem.index], virtualItem.index)}
             </div>
           )
