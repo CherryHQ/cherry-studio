@@ -1,13 +1,28 @@
 import '@renderer/databases'
 
-import { AppShellTabBar } from '@renderer/components/layout/AppShellTabBar'
+import { SubWindowControls } from '@renderer/components/layout/SubWindowControls'
+import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
+import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
+import { type WindowFrame, WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 import { Activity, useEffect, useRef } from 'react'
+
+import { SubWindowTitleBar } from './SubWindowTitleBar'
+
+// The sub-window owns its title-bar chrome (it's the only layer that knows what a detached
+// window's title + controls are) and injects it into the hosted page's ConversationShell.
+const WINDOW_FRAME: WindowFrame = {
+  mode: 'window',
+  chrome: {
+    titleLeading: <SubWindowTitle className="shrink" />,
+    titleTrailing: <SubWindowControls />
+  }
+}
 
 // Mock Webview component (TODO: Replace with actual MinApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
@@ -20,8 +35,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const SubWindowAppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, openTab, pinTab, unpinTab } =
-    useTabs()
+  const { tabs, activeTabId, updateTab, openTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
 
@@ -32,82 +46,77 @@ export const SubWindowAppShell = () => {
     if (!init || initialized.current) return
     initialized.current = true
 
-    if (init.isPinned) {
-      // Pinned Tab is already loaded via usePersistCache across windows; just activate.
-      setActiveTab(init.tabId)
-    } else {
-      openTab(init.url, {
-        id: init.tabId,
-        title: init.title,
-        type: init.type || 'route',
-        forceNew: true
-      })
-    }
-  }, [init, openTab, setActiveTab])
-
-  // Close tab in sub window. closeTab handles both pinned and normal tabs correctly.
-  // Do NOT call unpinTab before closeTab — unpinTab moves the tab to normalTabs,
-  // then closeTab's closure still sees isPinned=true and filters the wrong list.
-  const handleCloseTab = (id: string) => {
-    closeTab(id)
-
-    // tabs is the pre-update snapshot (React state updates are async).
-    // Compute remaining count excluding both the closed tab and the always-present home tab.
-    const remainingUserTabs = tabs.filter((t) => t.id !== id && t.id !== 'home')
-    if (remainingUserTabs.length === 0) {
-      window.close()
-    }
-  }
+    openTab(init.url, {
+      id: init.tabId,
+      title: init.title,
+      icon: init.icon,
+      type: init.type || 'route',
+      metadata: init.metadata,
+      forceNew: true
+    })
+  }, [init, openTab])
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
   // an unrelated route after navigation inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    // Chat / agent tabs are page-titled (topic / session name + emoji set by
+    // their page); only sync the url so navigating topics doesn't wipe them.
+    if (isPageTitledRoute(url)) {
+      updateTab(tabId, { url })
+      return
+    }
+    updateTab(tabId, {
+      url,
+      title: getDefaultRouteTitle(url),
+      icon: undefined,
+      metadata: clearTabInstanceMetadata(tab?.metadata)
+    })
   }
 
+  // Chat / agent pages merge the window chrome into their own navbar (ConversationShell,
+  // gated on isPageTitledRoute). Every OTHER page (mini-app, settings, files, …) has no
+  // such navbar, so without a standalone title bar the window would be undraggable — give
+  // those a fallback title bar here.
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+  const showFallbackTitleBar = !!activeTab && !isPageTitledRoute(activeTab.url)
+
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      {/* Zone 1: Tab Bar (Full width, no sidebar gap) */}
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        setActiveTab={setActiveTab}
-        closeTab={handleCloseTab}
-        addTab={addTab}
-        reorderTabs={reorderTabs}
-        pinTab={pinTab}
-        unpinTab={unpinTab}
-        isDetached={true}
-      />
+    // The window frame tells the hosted page (HomePage / AgentPage) it owns the whole
+    // window: hide the in-page list + sidebar toggle (lock to one conversation) and turn
+    // the page navbar into the window title bar via the injected chrome. See ConversationShell.
+    <WindowFrameProvider value={WINDOW_FRAME}>
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+        {showFallbackTitleBar && <SubWindowTitleBar />}
+        {/* Content Area - Multi MemoryRouter Architecture */}
+        <main className="relative flex-1 overflow-hidden bg-background">
+          {/* Route Tabs: Only render non-dormant tabs */}
+          {tabs
+            .filter((t) => t.type === 'route' && !t.isDormant)
+            .map((tab) => (
+              <TabRouter
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                onUrlChange={(url) => handleUrlChange(tab.id, url)}
+              />
+            ))}
 
-      {/* Zone 2: Content Area - Multi MemoryRouter Architecture */}
-      <main className="relative flex-1 overflow-hidden bg-background">
-        {/* Route Tabs: Only render non-dormant tabs */}
-        {tabs
-          .filter((t) => t.type === 'route' && !t.isDormant)
-          .map((tab) => (
-            <TabRouter
-              key={tab.id}
-              tab={tab}
-              isActive={tab.id === activeTabId}
-              onUrlChange={(url) => handleUrlChange(tab.id, url)}
-            />
-          ))}
+          {/* Webview Tabs: Only render non-dormant tabs */}
+          {tabs
+            .filter((t) => t.type === 'webview' && !t.isDormant)
+            .map((tab) => (
+              <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
+            ))}
 
-        {/* Webview Tabs: Only render non-dormant tabs */}
-        {tabs
-          .filter((t) => t.type === 'webview' && !t.isDormant)
-          .map((tab) => (
-            <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
-          ))}
-
-        {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
-            route tabs, same as the main AppShell. The cache backing the pool
-            is per-window (Memory tier) so this sub-window manages its own
-            list independently of the main window. */}
-        <MiniAppTabsPool />
-      </main>
-    </div>
+          {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
+              route tabs, same as the main AppShell. The cache backing the pool
+              is per-window (Memory tier) so this sub-window manages its own
+              list independently of the main window. */}
+          <MiniAppTabsPool />
+        </main>
+      </div>
+    </WindowFrameProvider>
   )
 }

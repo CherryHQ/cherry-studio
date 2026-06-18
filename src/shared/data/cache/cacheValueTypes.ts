@@ -88,3 +88,26 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
+
+export type GlobalSearchRecentEntry =
+  | {
+      kind: 'route'
+      url: string
+      title: string
+      icon?: string
+      lastAccessTime: number
+    }
+  | {
+      kind: 'topic'
+      topicId: string
+      title: string
+      assistantId?: string | null
+      lastAccessTime: number
+    }
+  | {
+      kind: 'session'
+      sessionId: string
+      title: string
+      agentId?: string | null
+      lastAccessTime: number
+    }
