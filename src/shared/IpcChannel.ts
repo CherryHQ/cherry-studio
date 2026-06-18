@@ -308,11 +308,6 @@ export enum IpcChannel {
   // Provider
   Provider_AddKey = 'provider:add-key',
 
-  // Web Search
-  WebSearch_SearchKeywords = 'web-search:search-keywords',
-  WebSearch_FetchUrls = 'web-search:fetch-urls',
-  WebSearch_CheckProvider = 'web-search:check-provider',
-
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',

@@ -2,6 +2,7 @@ import type { RouteDef } from '../define'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -15,6 +16,7 @@ export const ipcRequestSchemas = {
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...selectionRequestSchemas,
+  ...webSearchRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 

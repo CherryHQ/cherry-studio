@@ -392,7 +392,7 @@ export default defineConfig([
       'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
-  // Schema key naming convention (cache & preferences)
+  // Schema key naming convention (cache, preferences, paths & IPC route/event keys)
   // Supports both fixed keys and template keys:
   // - Fixed: 'app.user.avatar', 'chat.multi_select_mode'
   // - Template: 'scroll.position.${topicId}', 'entity.cache.${type}_${id}'
@@ -402,7 +402,9 @@ export default defineConfig([
     files: [
       'src/shared/data/cache/cacheSchemas.ts',
       'src/shared/data/preference/preferenceSchemas.ts',
-      'src/main/core/paths/pathRegistry.ts'
+      'src/main/core/paths/pathRegistry.ts',
+      // IPC route/event keys — whole dir so future domains are auto-enforced (see ipc-schema-guide.md).
+      'src/shared/ipc/schemas/**/*.ts'
     ],
     plugins: {
       'data-schema-key': {
@@ -492,6 +494,20 @@ export default defineConfig([
                 },
                 Property(node) {
                   if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    // Keys inside a `z.*(...)` object literal are zod data-field names
+                    // (e.g. z.object({ 'content-type': ... })), not route/schema keys, so the
+                    // namespace.action convention does not apply — skip them. Anchored on the
+                    // zod namespace `z`, this covers z.object/z.strictObject/etc. while leaving
+                    // Object.freeze(...) registries (pathRegistry.ts) still validated.
+                    const enclosing = node.parent
+                    if (
+                      enclosing?.parent?.type === 'CallExpression' &&
+                      enclosing.parent.callee?.type === 'MemberExpression' &&
+                      enclosing.parent.callee.object?.type === 'Identifier' &&
+                      enclosing.parent.callee.object.name === 'z'
+                    ) {
+                      return
+                    }
                     const key = node.key.value
                     const result = validateKey(key)
                     if (!result.valid) {
