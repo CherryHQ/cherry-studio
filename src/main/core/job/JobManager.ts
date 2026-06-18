@@ -712,33 +712,21 @@ export class JobManager extends BaseService {
   }
 
   /**
-   * Fire a schedule immediately (extra one-shot — does not affect the natural
-   * fire calendar). For cron triggers calls croner's `.trigger()` (the armed
-   * callback handles `markFired`). For interval / once triggers or when the
-   * SchedulerService entry is missing (e.g. not yet re-armed after restart),
-   * enqueues directly using `jobInputTemplate` and writes `markFired`
-   * synchronously to keep `lastRun` consistent with the cron path.
+   * Run a schedule immediately as a Test Run: an extra execution that does
+   * not consume, re-order, or otherwise affect the natural fire calendar.
+   * Test Runs enqueue from the persisted template directly and intentionally
+   * do not call SchedulerService.triggerNow or markFired, so `lastRun` and
+   * `nextRun` remain owned by natural schedule fires.
    *
    * @param id - Schedule row id
-   * @returns `true` if fired; `false` if no schedule exists for `id`
+   * @returns `true` if enqueued; `false` if no schedule exists for `id`
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
     const schedule = await jobScheduleService.getById(id)
     if (!schedule) return false
-    const triggered = await application.get('SchedulerService').triggerNow(`schedule:${id}`)
-    if (triggered) return true
-    // Fallback path (non-cron OR cron not currently armed in this process).
     await this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
       scheduleId: schedule.id
     })
-    try {
-      await jobScheduleService.markFired(schedule.id, Date.now(), null)
-    } catch (err) {
-      logger.warn('markFired failed after manual trigger — lastRun may be stale', {
-        scheduleId: schedule.id,
-        err: (err as Error).message
-      })
-    }
     return true
   }
 

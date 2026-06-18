@@ -172,6 +172,50 @@ describe('JobManager schedule control APIs', () => {
       expect(await jobManager.unregisterJobScheduleById(snap.id)).toBe(true)
       expect(await jobManager.unregisterJobScheduleById('does-not-exist')).toBe(false)
     })
+
+    it('triggerJobScheduleNowById enqueues an interval test run without changing lastRun or nextRun', async () => {
+      const snap = await jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        trigger: baseTrigger,
+        jobInputTemplate: { source: 'interval-test-run' },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const before = await jobScheduleService.getById(snap.id)
+      const markFiredSpy = vi.spyOn(jobScheduleService, 'markFired')
+
+      expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
+
+      const after = await jobScheduleService.getById(snap.id)
+      expect(await jobService.count({ scheduleId: snap.id })).toBe(1)
+      expect(markFiredSpy).not.toHaveBeenCalled()
+      expect(after?.lastRun).toBe(before?.lastRun)
+      expect(after?.nextRun).toBe(before?.nextRun)
+      markFiredSpy.mockRestore()
+    })
+
+    it('triggerJobScheduleNowById enqueues an armed cron test run without calling SchedulerService.triggerNow', async () => {
+      const snap = await jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        trigger: { kind: 'cron', expr: '0 0 1 1 *' },
+        jobInputTemplate: { source: 'cron-test-run' },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const before = await jobScheduleService.getById(snap.id)
+      const triggerNowSpy = vi.spyOn(scheduler, 'triggerNow')
+      const markFiredSpy = vi.spyOn(jobScheduleService, 'markFired')
+
+      expect(scheduler.has(`schedule:${snap.id}`)).toBe(true)
+      expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
+
+      const after = await jobScheduleService.getById(snap.id)
+      expect(triggerNowSpy).not.toHaveBeenCalled()
+      expect(markFiredSpy).not.toHaveBeenCalled()
+      expect(await jobService.count({ scheduleId: snap.id })).toBe(1)
+      expect(after?.lastRun).toBe(before?.lastRun)
+      expect(after?.nextRun).toBe(before?.nextRun)
+      triggerNowSpy.mockRestore()
+      markFiredSpy.mockRestore()
+    })
   })
 
   // ----------------------------------------------------------------------
