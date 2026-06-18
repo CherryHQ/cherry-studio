@@ -1,3 +1,4 @@
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -192,6 +193,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.embedding': '向量化中',
             'knowledge.data_source.status.chunking': '分块中',
             'knowledge.data_source.status.pending': '等待中',
+            'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
             'knowledge.rag.file_processing': '文件处理'
@@ -353,6 +355,32 @@ describe('DataSourcePanel', () => {
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
     expect(screen.getByText('处理中')).toBeInTheDocument()
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
+  })
+
+  it('renders a migrated v1 directory as a red failure with a migration-failed tooltip', () => {
+    // The v2 migration drops a v1 folder's container-level vectors and marks the
+    // item `failed` with this code; the row must render it with the localized
+    // migration-failed tooltip so the user knows to delete and re-upload.
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createDirectoryItem({
+            id: 'directory-1',
+            source: '/Users/eeee/本地资料夹',
+            status: 'failed',
+            error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+          })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.getByLabelText('该文件夹内容迁移失败，请删除后重新上传。')).toBeInTheDocument()
   })
 
   it('does not open the add source dialog from the header button before a source is selected', () => {

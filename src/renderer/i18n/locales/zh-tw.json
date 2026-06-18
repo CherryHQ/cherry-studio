@@ -2251,6 +2251,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
       "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知識庫刪除失敗",

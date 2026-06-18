@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
-import { createFileItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createFileItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
 
@@ -151,6 +152,7 @@ vi.mock('react-i18next', () => ({
         ({
           'knowledge.data_source.status.ready': '就绪',
           'knowledge.data_source.status.error': '失败',
+          'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
           'knowledge.data_source.status.embedding': '向量化中',
           'knowledge.data_source.status.chunking': '分块中',
           'knowledge.data_source.status.pending': '等待中',
@@ -227,6 +229,28 @@ describe('KnowledgeItemRow', () => {
 
     expect(screen.getByText('失败')).toBeInTheDocument()
     expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
+  })
+
+  it('renders a not-migrated directory as a red failure, reindexable but not chunk-viewable', () => {
+    render(
+      <KnowledgeItemRow
+        item={createDirectoryItem({
+          id: 'directory-1',
+          status: 'failed',
+          error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+        })}
+        {...defaultHandlers}
+      />
+    )
+
+    // Red failure label with the localized migration-failed tooltip.
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
+
+    // Re-indexing restores the index, but there are no chunks to view yet.
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
   })
 
   it('renders the processing status label for in-flight items', () => {
