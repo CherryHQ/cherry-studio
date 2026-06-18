@@ -141,8 +141,8 @@ export class CodeCliService extends BaseService {
         return '@openai/codex'
       case codeCLI.qwenCode:
         return '@qwen-code/qwen-code'
-      case codeCLI.iFlowCli:
-        return '@iflow-ai/iflow-cli'
+      case codeCLI.qoderCli:
+        return '@qodercn-ai/qoderclicn'
       case codeCLI.githubCopilotCli:
         return '@github/copilot'
       case codeCLI.kimiCli:
@@ -164,8 +164,8 @@ export class CodeCliService extends BaseService {
         return 'codex'
       case codeCLI.qwenCode:
         return 'qwen'
-      case codeCLI.iFlowCli:
-        return 'iflow'
+      case codeCLI.qoderCli:
+        return 'qoderclicn'
       case codeCLI.githubCopilotCli:
         return 'copilot'
       case codeCLI.kimiCli:
@@ -1044,6 +1044,10 @@ export class CodeCliService extends BaseService {
       baseCommand = await this.getClaudeCodeCommand(bunPath)
     } else if (cliTool === codeCLI.openCode) {
       baseCommand = await this.getOpenCodeCommand()
+    } else if (cliTool === codeCLI.qoderCli) {
+      // Qoder's ESM bundle fails under Bun; run the bin shim directly so its
+      // `#!/usr/bin/env node` shebang launches it with Node.
+      baseCommand = `"${executablePath}"`
     } else if (isWin) {
       baseCommand = `"${executablePath}"`
     } else {

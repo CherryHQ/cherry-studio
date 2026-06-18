@@ -105,6 +105,14 @@ describe('useCodeCli', () => {
       expect(result.current.canLaunch).toBe(true)
     })
 
+    it('should be true for qoder-cli without model', () => {
+      setupOverridesMock({
+        'qoder-cli': { enabled: true, currentDirectory: '/tmp/project' }
+      })
+      const { result } = renderHook(() => useCodeCli())
+      expect(result.current.canLaunch).toBe(true)
+    })
+
     it('should be false when no directory is set', () => {
       setupOverridesMock({
         'qwen-code': { enabled: true, modelId: 'openai::gpt-4' }
