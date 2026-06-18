@@ -8,7 +8,6 @@ import { knowledgeDataSourceCheckboxClassName } from './styles'
 
 export interface KnowledgeItemListProps {
   items: KnowledgeItem[]
-  allItemsCount: number
   isLoading: boolean
   selectedIds: Set<string>
   onToggleOne: (itemId: string, next: boolean) => void
@@ -22,7 +21,6 @@ export interface KnowledgeItemListProps {
 
 const KnowledgeItemList = ({
   items,
-  allItemsCount,
   isLoading,
   selectedIds,
   onToggleOne,
@@ -43,23 +41,15 @@ const KnowledgeItemList = ({
     )
   }
 
-  if (allItemsCount === 0) {
-    return null
-  }
-
   if (items.length === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-3 text-center text-foreground-muted text-sm">
-        {t('knowledge.data_source.toolbar.no_search_results')}
-      </div>
-    )
+    return null
   }
 
   const allSelected = items.every((item) => selectedIds.has(item.id))
   const someSelected = !allSelected && items.some((item) => selectedIds.has(item.id))
 
   return (
-    <Scrollbar className={cn('min-h-0 flex-1 px-3 pt-3 pb-6', '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden')}>
+    <Scrollbar className={cn('min-h-0 flex-1 px-3 pb-6', '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden')}>
       <Table className="table-fixed border-separate border-spacing-x-0 border-spacing-y-1.5 text-sm">
         <colgroup>
           <col className="w-10" />
@@ -83,8 +73,7 @@ const KnowledgeItemList = ({
               </div>
             </TableHead>
             <TableHead className="font-medium text-foreground-muted text-xs">
-              <div className="flex h-10 min-w-0 items-center gap-2">
-                <span className="size-6 shrink-0" aria-hidden="true" />
+              <div className="flex h-10 min-w-0 items-center">
                 <span>{t('knowledge.data_source.table.columns.name')}</span>
               </div>
             </TableHead>

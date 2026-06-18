@@ -158,11 +158,11 @@ const CodeCliPage: FC = () => {
         return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.githubCopilotCli) {
+      if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
         return false
       }
 
-      if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
+      if (selectedCliTool === codeCLI.qwenCode) {
         if (eps.length) {
           return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
@@ -312,14 +312,16 @@ const CodeCliPage: FC = () => {
   }
 
   const validateLaunch = (): { isValid: boolean; message?: string } => {
-    if (!canLaunch || !isBunInstalled) {
+    // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
+    const needsBun = selectedCliTool !== codeCLI.qoderCli
+    if (!canLaunch || (needsBun && !isBunInstalled)) {
       return {
         isValid: false,
-        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
+        message: needsBun && !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
       }
     }
 
-    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli) {
+    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -329,7 +331,7 @@ const CodeCliPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
   } | null> => {
-    if (selectedCliTool === codeCLI.githubCopilotCli) {
+    if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
       return { env: userEnv }
     }
@@ -390,13 +392,13 @@ const CodeCliPage: FC = () => {
 
   const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
-    if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
+    if (selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && !resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
       window.toast.error(t('code.model_required'))
       return false
     }
     const modelId =
-      selectedCliTool === codeCLI.githubCopilotCli || !resolvedModel
+      selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || !resolvedModel
         ? ''
         : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
 
@@ -544,7 +546,7 @@ const CodeCliPage: FC = () => {
                 </DialogHeader>
 
                 <div className="flex flex-col gap-4">
-                  {selectedCliTool !== codeCLI.githubCopilotCli && (
+                  {selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && (
                     <div>
                       <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
                       <ModelSelector
@@ -669,7 +671,7 @@ const CodeCliPage: FC = () => {
                     variant="emphasis"
                     onClick={handleLaunch}
                     loading={isLaunching}
-                    disabled={!canLaunch || !isBunInstalled || isLaunching}>
+                    disabled={!canLaunch || (selectedCliTool !== codeCLI.qoderCli && !isBunInstalled) || isLaunching}>
                     {launchSuccess ? (
                       <>
                         <Check size={14} />

@@ -1971,10 +1971,10 @@
       "claude_code": "Anthropic 官方 CLI 编程助手",
       "gemini_cli": "Google Gemini 命令行助手",
       "github_copilot_cli": "GitHub Copilot 命令行版本",
-      "iflow_cli": "iFlow 推出的多模型 CLI 助手",
       "kimi_cli": "Moonshot Kimi 命令行助手",
       "openai_codex": "OpenAI 官方代码生成 CLI",
       "opencode": "开源社区的多模型代码 Agent",
+      "qoder_cli": "阿里 Qoder 的智能体命令行编程工具",
       "qwen_code": "阿里通义出品的开源 CLI 编程工具"
     },
     "update_options": "更新选项",
@@ -2640,6 +2640,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2649,7 +2650,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
@@ -2707,9 +2707,7 @@
         "select_row": "选择行"
       },
       "toolbar": {
-        "add": "添加数据源",
-        "no_search_results": "未找到匹配的数据源",
-        "search_placeholder": "搜索数据源"
+        "add": "添加数据源"
       }
     },
     "dimensions_auto_set": "自动设置嵌入维度",
@@ -2719,6 +2717,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知识库删除失败",

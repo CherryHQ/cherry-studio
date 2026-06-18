@@ -554,6 +554,7 @@ type SortableItemRowProps<TGroup, TItem> = {
   disabled: boolean
   dropIndicatorPosition?: DropIndicatorPosition | null
   freezeTransform?: boolean
+  draggableDisabled: boolean
   overDropState: OverDropState | null
   sourcePlaceholder?: boolean
 }
@@ -565,6 +566,7 @@ function SortableItemRow<TGroup, TItem>({
   disabled,
   dropIndicatorPosition,
   freezeTransform = false,
+  draggableDisabled,
   overDropState,
   sourcePlaceholder = false
 }: SortableItemRowProps<TGroup, TItem>) {
@@ -582,7 +584,10 @@ function SortableItemRow<TGroup, TItem>({
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: toItemSortableId(data.itemId),
     data,
-    disabled: disabled || (dropTargetRowState.isBlocked && !isActiveItem)
+    disabled: {
+      draggable: draggableDisabled,
+      droppable: disabled || (dropTargetRowState.isBlocked && !isActiveItem)
+    }
   })
 
   return (
@@ -1223,8 +1228,9 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         <SortableItemRow
           activeDragState={activeDragState}
           data={data}
-          disabled={itemDisabled}
+          disabled={disabled}
           dropIndicatorPosition={getDropIndicatorPosition(row)}
+          draggableDisabled={itemDisabled}
           freezeTransform={isDragProjectionFrozen}
           overDropState={overDropState}
           sourcePlaceholder={sourcePlaceholder}>

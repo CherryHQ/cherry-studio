@@ -102,6 +102,11 @@ type CreateModelRegistryData = ModelLookupResult & {
   defaultChatEndpoint?: EndpointType
 }
 
+type ReconcileRemovalFilterResult = {
+  toRemove: string[]
+  presetBackedRemovalIds: Set<string>
+}
+
 /**
  * Subset of user-row fields that can override registry-derived baseline values.
  *
@@ -338,42 +343,33 @@ class ModelService {
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
   }
 
-  private async filterReconcileRemovals(providerId: string, toRemove: string[], db: DbType): Promise<string[]> {
-    if (toRemove.length === 0) return toRemove
+  private async filterReconcileRemovals(
+    providerId: string,
+    toRemove: string[],
+    db: DbType
+  ): Promise<ReconcileRemovalFilterResult> {
+    if (toRemove.length === 0) {
+      return { toRemove, presetBackedRemovalIds: new Set() }
+    }
 
     const rows = await db
       .select({
         id: userModelTable.id,
-        modelId: userModelTable.modelId,
-        presetModelId: userModelTable.presetModelId,
-        isDeprecated: userModelTable.isDeprecated
+        presetModelId: userModelTable.presetModelId
       })
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
 
     const managedDefaultIds = new Set<string>()
-    const protectedIds = new Set<string>()
+    const presetBackedRemovalIds = new Set<string>()
     for (const row of rows) {
       if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
         managedDefaultIds.add(row.id)
-        continue
-      }
-
-      if (row.presetModelId == null || row.presetModelId === '' || row.isDeprecated) {
-        continue
-      }
-      if (await providerRegistryService.isActiveProviderRegistryModel(providerId, row.presetModelId)) {
-        protectedIds.add(row.id)
+      } else if (row.presetModelId != null && row.presetModelId !== '') {
+        presetBackedRemovalIds.add(row.id)
       }
     }
 
-    if (protectedIds.size > 0) {
-      logger.warn('Skipped active registry model removal during reconcile', {
-        providerId,
-        skippedCount: protectedIds.size,
-        skippedIds: [...protectedIds]
-      })
-    }
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
         providerId,
@@ -382,7 +378,10 @@ class ModelService {
       })
     }
 
-    return toRemove.filter((id) => !managedDefaultIds.has(id) && !protectedIds.has(id))
+    return {
+      toRemove: toRemove.filter((id) => !managedDefaultIds.has(id)),
+      presetBackedRemovalIds
+    }
   }
 
   /**
@@ -762,9 +761,11 @@ class ModelService {
 
     const db = application.get('DbService').getDb()
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
-    const toRemove = await this.filterReconcileRemovals(providerId, payload.toRemove, db)
+    const removalFilter = await this.filterReconcileRemovals(providerId, payload.toRemove, db)
+    const toRemove = removalFilter.toRemove
 
     let actuallyDeleted = 0
+    let deletedIds: string[] = []
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
@@ -774,6 +775,7 @@ class ModelService {
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
               .returning({ id: userModelTable.id })
             actuallyDeleted = deletedRows.length
+            deletedIds = deletedRows.map((row) => row.id)
 
             if (deletedRows.length > 0) {
               await pinService.purgeForEntitiesTx(
@@ -814,6 +816,15 @@ class ModelService {
         providerId,
         requestedRemove: toRemove.length,
         actuallyDeleted
+      })
+    }
+
+    const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+    if (deletedPresetBackedIds.length > 0) {
+      logger.info('Deleted preset-backed models during reconcile', {
+        providerId,
+        deletedCount: deletedPresetBackedIds.length,
+        deletedIds: deletedPresetBackedIds
       })
     }
 

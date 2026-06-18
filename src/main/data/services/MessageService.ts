@@ -727,7 +727,7 @@ export class MessageService {
             message.searchable_text AS "searchableText",
             message.created_at AS "createdAt"
           FROM message
-          JOIN message_fts fts ON message.rowid = fts.rowid
+          JOIN message_fts fts ON message.fts_rowid = fts.rowid
           JOIN topic t ON t.id = message.topic_id
           WHERE message.deleted_at IS NULL
             AND t.deleted_at IS NULL

@@ -31,7 +31,7 @@ const dndMocks = vi.hoisted(() => ({
   onDragOver: undefined as undefined | ((event: any) => void),
   onDragStart: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>(),
-  sortableDisabled: new Map<string, boolean | undefined>(),
+  sortableDisabled: new Map<string, boolean | { draggable?: boolean; droppable?: boolean } | undefined>(),
   sortableStrategy: undefined as undefined | ((args: any) => unknown),
   useSensor: vi.fn((sensor, options) => ({ sensor, options })),
   verticalListSortingStrategy: vi.fn(() => ({ scaleX: 1, scaleY: 1, x: 0, y: 12 }))
@@ -87,7 +87,15 @@ vi.mock('@dnd-kit/sortable', () => {
       dndMocks.sortableStrategy = strategy
       return React.createElement('div', { 'data-testid': 'sortable-context' }, children)
     },
-    useSortable: ({ data, disabled, id }: { data: unknown; disabled?: boolean; id: string }) => {
+    useSortable: ({
+      data,
+      disabled,
+      id
+    }: {
+      data: unknown
+      disabled?: boolean | { draggable?: boolean; droppable?: boolean }
+      id: string
+    }) => {
       dndMocks.sortableData.set(id, data)
       dndMocks.sortableDisabled.set(id, disabled)
       return {
@@ -112,6 +120,8 @@ vi.mock('@dnd-kit/utilities', () => ({
 }))
 
 import { GroupedSortableVirtualList } from '..'
+
+type SortableDisabledState = boolean | { draggable?: boolean; droppable?: boolean } | undefined
 
 type TestGroup = {
   id: string
@@ -174,6 +184,10 @@ function dataFor(kind: 'droppable' | 'sortable', id: string) {
     throw new Error(`Expected ${kind} data for ${id}`)
   }
   return { current: data }
+}
+
+function expectSortableDisabled(id: string, expected: SortableDisabledState) {
+  expect(dndMocks.sortableDisabled.get(id)).toEqual(expected)
 }
 
 function dragEvent(activeId: string, overId: string, overKind: 'droppable' | 'sortable' = 'sortable') {
@@ -655,8 +669,8 @@ describe('GroupedSortableVirtualList', () => {
     expect(dndMocks.droppableDisabled.get('group-footer:second')).toBe(true)
     expect(dndMocks.droppableDisabled.get('group:first')).toBe(false)
     expect(dndMocks.droppableDisabled.get('group-footer:first')).toBe(false)
-    expect(dndMocks.sortableDisabled.get('item:c')).toBe(true)
-    expect(dndMocks.sortableDisabled.get('item:b')).toBe(false)
+    expectSortableDisabled('item:c', { draggable: false, droppable: true })
+    expectSortableDisabled('item:b', { draggable: false, droppable: false })
 
     act(() => {
       dndMocks.onDragOver?.({
@@ -677,7 +691,7 @@ describe('GroupedSortableVirtualList', () => {
     }
     expect(dndMocks.droppableDisabled.get('group:second')).toBe(true)
     expect(dndMocks.droppableDisabled.get('group-footer:second')).toBe(true)
-    expect(dndMocks.sortableDisabled.get('item:c')).toBe(true)
+    expectSortableDisabled('item:c', { draggable: false, droppable: true })
 
     act(() => {
       dndMocks.onDragCancel?.({})
@@ -689,7 +703,26 @@ describe('GroupedSortableVirtualList', () => {
     }
     expect(dndMocks.droppableDisabled.get('group:second')).toBe(false)
     expect(dndMocks.droppableDisabled.get('group-footer:second')).toBe(false)
-    expect(dndMocks.sortableDisabled.get('item:c')).toBe(false)
+    expectSortableDisabled('item:c', { draggable: false, droppable: false })
+  })
+
+  it('keeps non-draggable items available as drop targets', () => {
+    renderList(vi.fn(), {
+      canDragItem: (item: TestItem) => item.id !== 'b',
+      canDropItem: ({ overId }: { overId: unknown }) => overId === 'b'
+    })
+
+    expectSortableDisabled('item:b', { draggable: true, droppable: false })
+
+    startDragging('item:a')
+
+    act(() => {
+      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
+    })
+
+    expect(
+      screen.getByText('Item Beta').parentElement?.querySelector('[data-drop-indicator="after"]')
+    ).toBeInTheDocument()
   })
 
   it('uses the dragged row center to resolve before or after item drops', () => {

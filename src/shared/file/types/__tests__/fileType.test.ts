@@ -29,4 +29,9 @@ describe('getFileTypeByExt', () => {
     expect(getFileTypeByExt('pdf')).toBe('document')
     expect(getFileTypeByExt('jpg')).toBe('image')
   })
+
+  it('classifies both legacy .xls and modern .xlsx as document', () => {
+    expect(getFileTypeByExt('xls')).toBe('document')
+    expect(getFileTypeByExt('xlsx')).toBe('document')
+  })
 })

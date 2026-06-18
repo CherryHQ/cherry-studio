@@ -744,7 +744,7 @@ describe('KnowledgeVectorMigrator', () => {
       ).toBe(true)
     })
 
-    it('flushes skipped warning buckets when prepare fails after partial progress', async () => {
+    it('keeps an unreadable legacy vector DB as a recoverable per-base skip', async () => {
       const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
       const migrationCtx = createMigrationCtx({
         migratedBases: [
@@ -774,7 +774,9 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator()
       const result = await migrator.prepare(migrationCtx as any)
 
-      expect(result.success).toBe(false)
+      // An unreadable legacy DB is a per-base skip (mirrors KnowledgeMigrator's failed tombstone),
+      // not a fatal failure — re-running once the DB is readable recovers it without re-embedding.
+      expect(result.success).toBe(true)
       expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
       expect(
         result.warnings?.some((warning) =>
@@ -783,7 +785,13 @@ describe('KnowledgeVectorMigrator', () => {
           )
         )
       ).toBe(true)
-      expect(result.warnings).toContain('loadBase failed')
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (read_error): count=1') &&
+            warning.includes('loadBase failed')
+        )
+      ).toBe(true)
     })
   })
 
@@ -871,6 +879,215 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
       expect(fs.existsSync(dbPath)).toBe(true)
       expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
+    })
+
+    it('re-attributes a v1-indexed directory vectors to file children instead of dropping the folder', async () => {
+      // Regression for the empty-index bug: v1 booked the folder files under the directory
+      // item loader ids, so on migration those vectors were skipped as a non-indexable
+      // container and the v2 store came up empty. KnowledgeMigrator now synthesizes a file
+      // child per embedded file and publishes a loader -> child remap; the vector migrator
+      // must route the folder chunks onto those children so the folder stays searchable, no
+      // re-embedding, with same-named files staying collision-free.
+      const MIGRATED_DIR_CHILD_A_ID = '0198f3f2-7d20-7abc-8def-123456789abc'
+      const MIGRATED_DIR_CHILD_B_ID = '0198f3f2-7d21-7abc-8def-123456789abc'
+
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-dir-a-0',
+          pageContent: 'api readme',
+          uniqueLoaderId: 'loader-dir-a',
+          source: '/docs/api/README.md',
+          vector: [1, 2]
+        },
+        {
+          id: 'legacy-dir-b-0',
+          pageContent: 'web readme',
+          uniqueLoaderId: 'loader-dir-b',
+          source: '/docs/web/README.md',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            data: { source: '/docs', path: '/docs' }
+          }),
+          createMigratedItem(MIGRATED_DIR_CHILD_A_ID, {
+            data: { source: '/docs/api/README.md', relativePath: MIGRATED_DIR_CHILD_A_ID }
+          }),
+          createMigratedItem(MIGRATED_DIR_CHILD_B_ID, {
+            data: { source: '/docs/web/README.md', relativePath: MIGRATED_DIR_CHILD_B_ID }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  {
+                    id: 'item-directory',
+                    type: 'directory',
+                    uniqueId: 'DirectoryLoader_ignore',
+                    uniqueIds: ['loader-dir-a', 'loader-dir-b']
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      })
+
+      // KnowledgeMigrator publishes this after expanding the directory into children, scoped
+      // by migrated base id. Key kept in sync with KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY.
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', MIGRATED_DIR_CHILD_A_ID],
+              ['loader-dir-b', MIGRATED_DIR_CHILD_B_ID]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+
+      // The folder vectors land on the file children, not skipped as a container.
+      expect(materialItemIds(migrator).sort()).toEqual([MIGRATED_DIR_CHILD_A_ID, MIGRATED_DIR_CHILD_B_ID].sort())
+      expect(migrator.skippedCount).toBe(0)
+      expect(prepareResult.warnings?.some((warning) => warning.includes('non_indexable_container'))).toBeFalsy()
+
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // The runtime store is no longer empty: one material per child, same-named README.md
+      // files collision-free (relative_path = each child own id), vectors reused verbatim.
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material.map((m) => m.material_id).sort()).toEqual(
+        [MIGRATED_DIR_CHILD_A_ID, MIGRATED_DIR_CHILD_B_ID].sort()
+      )
+      expect(store.material.map((m) => m.relative_path).sort()).toEqual(
+        [MIGRATED_DIR_CHILD_A_ID, MIGRATED_DIR_CHILD_B_ID].sort()
+      )
+      expect(store.embedding).toHaveLength(2)
+      expect(store.content.map((c) => String(c.text)).sort()).toEqual(['api readme', 'web readme'])
+    })
+
+    it('scopes the directory-child loader remap per base so a shared loader id never clobbers across bases', async () => {
+      // v1 LocalPathLoader ids are content/path hashes with no base component, so the SAME loader id
+      // can legitimately appear under two different bases. The remap must be keyed by migrated base
+      // id: a flat/all-bases map would let base B's entry overwrite base A's, routing A's vectors to
+      // B's child (or skipping them as a container). This drives both bases end-to-end and asserts
+      // each base's vector lands only on its own child, in its own store.
+      const SHARED_LOADER_ID = 'loader-dir-shared'
+      const MIGRATED_BASE_B_ID = '22222222-2222-4222-8222-222222222222'
+      const MIGRATED_DIRECTORY_B_ITEM_ID = '0198f3f2-7e30-7abc-8def-123456789abc'
+      const DIR_A_CHILD_ID = '0198f3f2-7e10-7abc-8def-123456789abc'
+      const DIR_B_CHILD_ID = '0198f3f2-7e20-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-a-0',
+          pageContent: 'base a shared',
+          uniqueLoaderId: SHARED_LOADER_ID,
+          source: '/docs-a/shared.md',
+          vector: [1, 2]
+        }
+      ])
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-2'), [
+        {
+          id: 'legacy-b-0',
+          pageContent: 'base b shared',
+          uniqueLoaderId: SHARED_LOADER_ID,
+          source: '/docs-b/shared.md',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeBaseIdRemap: new Map([
+          [LEGACY_KNOWLEDGE_BASE_ID, MIGRATED_KNOWLEDGE_BASE_ID],
+          ['kb-2', MIGRATED_BASE_B_ID]
+        ]),
+        knowledgeItemIdRemap: new Map([
+          ['item-dir-a', MIGRATED_DIRECTORY_ITEM_ID],
+          ['item-dir-b', MIGRATED_DIRECTORY_B_ITEM_ID]
+        ]),
+        migratedBases: [createMigratedBase(), createMigratedBase({ id: MIGRATED_BASE_B_ID })],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            data: { source: '/docs-a', path: '/docs-a' }
+          }),
+          createMigratedItem(DIR_A_CHILD_ID, {
+            data: { source: '/docs-a/shared.md', relativePath: DIR_A_CHILD_ID }
+          }),
+          createMigratedItem(MIGRATED_DIRECTORY_B_ITEM_ID, {
+            baseId: MIGRATED_BASE_B_ID,
+            type: 'directory',
+            data: { source: '/docs-b', path: '/docs-b' }
+          }),
+          createMigratedItem(DIR_B_CHILD_ID, {
+            baseId: MIGRATED_BASE_B_ID,
+            data: { source: '/docs-b/shared.md', relativePath: DIR_B_CHILD_ID }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base A',
+                items: [
+                  { id: 'item-dir-a', type: 'directory', uniqueId: 'DirectoryLoader_a', uniqueIds: [SHARED_LOADER_ID] }
+                ]
+              },
+              {
+                id: 'kb-2',
+                name: 'Base B',
+                items: [
+                  { id: 'item-dir-b', type: 'directory', uniqueId: 'DirectoryLoader_b', uniqueIds: [SHARED_LOADER_ID] }
+                ]
+              }
+            ]
+          }
+        }
+      })
+
+      // The same loader id is mapped to a DIFFERENT child under each migrated base.
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [MIGRATED_KNOWLEDGE_BASE_ID, new Map([[SHARED_LOADER_ID, DIR_A_CHILD_ID]])],
+          [MIGRATED_BASE_B_ID, new Map([[SHARED_LOADER_ID, DIR_B_CHILD_ID]])]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      expect(migrator.skippedCount).toBe(0)
+      expect(prepareResult.warnings?.some((warning) => warning.includes('non_indexable_container'))).toBeFalsy()
+
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // Base A's legacy vector landed only on A's child, in A's store; base B's only on B's child.
+      const storeA = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(storeA.material.map((m) => m.material_id)).toEqual([DIR_A_CHILD_ID])
+      expect(storeA.content.map((c) => String(c.text))).toEqual(['base a shared'])
+
+      const storeB = await readStore(MIGRATED_BASE_B_ID)
+      expect(storeB.material.map((m) => m.material_id)).toEqual([DIR_B_CHILD_ID])
+      expect(storeB.content.map((c) => String(c.text))).toEqual(['base b shared'])
     })
 
     it('concatenates an item’s chunks in order with separator-aware offsets', async () => {

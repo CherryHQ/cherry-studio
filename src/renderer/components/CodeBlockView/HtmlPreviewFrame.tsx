@@ -1,6 +1,10 @@
 import { memo, type Ref } from 'react'
 
 export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'
+// `allow-same-origin` is required so the parent can read the iframe's `contentDocument`
+// for HTML-artifact screenshot capture (save / copy PNG). Without it the sandbox is an
+// opaque origin, `contentDocument` is null, and capture silently no-ops.
+// eslint-disable-next-line no-restricted-syntax -- intentional same-origin preview frame for capture
 export const HTML_PREVIEW_IFRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms'
 
 interface HtmlPreviewFrameProps {
@@ -39,9 +43,6 @@ export function injectHtmlPreviewBase(html: string, baseUrl = HTML_PREVIEW_DEFAU
   return `<head>${base}</head>${html}`
 }
 
-// Html artifact previews need scripts/forms for interaction, and same-origin
-// keeps local preview behavior aligned across popup and ArtifactPane surfaces.
-/* eslint-disable @eslint-react/dom/no-unsafe-iframe-sandbox */
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
   ({ html, title, baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL, emptyText, iframeRef }) => {
     return (
@@ -63,6 +64,5 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     )
   }
 )
-/* eslint-enable @eslint-react/dom/no-unsafe-iframe-sandbox */
 
 export default HtmlPreviewFrame

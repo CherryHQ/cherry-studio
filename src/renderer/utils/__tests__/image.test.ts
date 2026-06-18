@@ -1,3 +1,4 @@
+import * as htmlToImage from 'html-to-image'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -26,6 +27,14 @@ vi.mock('html-to-image', () => ({
 
 // mock window.toast
 beforeEach(() => {
+  vi.mocked(htmlToImage.toCanvas).mockReset()
+  vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
+    Promise.resolve({
+      toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
+      toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
+    } as unknown as HTMLCanvasElement)
+  )
+
   window.toast = {
     error: vi.fn()
   } as any
@@ -89,6 +98,43 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
       expect(result).toBeTruthy()
       expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
+    })
+
+    it('should warm up html-to-image before returning the final canvas', async () => {
+      const warmupCanvas = { toDataURL: vi.fn(() => 'warmup') } as unknown as HTMLCanvasElement
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockResolvedValueOnce(warmupCanvas).mockResolvedValueOnce(finalCanvas)
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      const result = await captureScrollable(ref)
+
+      expect(htmlToImage.toCanvas).toHaveBeenCalledTimes(2)
+      expect(result).toBe(finalCanvas)
+    })
+
+    it('should release the warm-up canvas before the final capture', async () => {
+      const warmupCanvas = { width: 100, height: 100 } as HTMLCanvasElement
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas)
+        .mockResolvedValueOnce(warmupCanvas)
+        .mockImplementationOnce(() => {
+          expect(warmupCanvas.width).toBe(0)
+          expect(warmupCanvas.height).toBe(0)
+          return Promise.resolve(finalCanvas)
+        })
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      const result = await captureScrollable(ref)
+
+      expect(result).toBe(finalCanvas)
     })
 
     it('should return undefined when elRef.current is null', async () => {
