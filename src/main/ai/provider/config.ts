@@ -13,6 +13,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
+import { isGenerateImageModel } from '@shared/utils/model'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@types'
 import { isEmpty } from 'lodash'
@@ -22,6 +23,7 @@ import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from 
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
 interface BaseConfig {
@@ -107,6 +109,29 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     {
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: buildDashScopeConfig
+    },
+    // modelscope / ppio / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // generation needs the bespoke submit/poll transport inside the extension provider
+    // (createXProvider().imageModel()). Override the resolved `openai-compatible` id to
+    // the extension id for image models only — chat/embedding fall through to the generic
+    // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
+    // id here, since the match requires it.
+    {
+      match: (p, id) =>
+        id === 'openai-compatible' &&
+        isGenerateImageModel(model) &&
+        (p.id === SystemProviderIds.modelscope ||
+          p.id === SystemProviderIds.ppio ||
+          (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
+      // provider.id is guaranteed to be one of these by the match above.
+      build: (ctx) => ({
+        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'dmxapi',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      })
     },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here

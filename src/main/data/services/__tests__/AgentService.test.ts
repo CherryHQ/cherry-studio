@@ -1,7 +1,10 @@
 import { agentTable } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
@@ -61,8 +64,11 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   })
 
-  async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
+  async function insertAgent(
+    overrides: Partial<typeof agentTable.$inferInsert> & { mcps?: string[] } = {}
+  ): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const { mcps, ...rest } = overrides
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
@@ -70,10 +76,14 @@ describe('AgentService', () => {
       // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
       model: null,
       orderKey: 'a0',
-      ...overrides,
+      ...rest,
       id
     }
     await dbh.db.insert(agentTable).values(base)
+    // Insert junction rows for MCP associations
+    if (mcps && mcps.length > 0) {
+      await dbh.db.insert(agentMcpServerTable).values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+    }
     return { id }
   }
 
@@ -98,6 +108,13 @@ describe('AgentService', () => {
         isHidden: false,
         orderKey: generateOrderKeyBetween(null, null)
       })
+      .onConflictDoNothing()
+  }
+
+  async function insertMcpServer(id: string, name?: string): Promise<void> {
+    await dbh.db
+      .insert(mcpServerTable)
+      .values({ id, name: name ?? id, sortOrder: 0, isActive: false })
       .onConflictDoNothing()
   }
 
@@ -171,6 +188,79 @@ describe('AgentService', () => {
     })
   })
 
+  describe('mcps round-trip', () => {
+    it('persists mcps on create through the service', async () => {
+      await insertMcpServer('mcp_a')
+      await insertMcpServer('mcp_b')
+
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Create',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a', 'mcp_b']
+      })
+      expect([...(created.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect([...(reloaded?.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
+    })
+
+    it('replaces mcps when update provides a new array', async () => {
+      await insertMcpServer('mcp_a')
+      await insertMcpServer('mcp_b')
+      await insertMcpServer('mcp_c')
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Replace',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a', 'mcp_b']
+      })
+
+      const updated = await agentService.updateAgent(created.id, { mcps: ['mcp_c'] })
+      expect(updated?.mcps).toEqual(['mcp_c'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['mcp_c'])
+    })
+
+    // Load-bearing: the `if (newMcps !== undefined)` guard in updateAgent. If it
+    // ever regressed to an unconditional delete, every unrelated update (e.g. a
+    // rename) would wipe an agent's MCP servers — the exact data-loss class this
+    // PR fixes.
+    it('preserves existing mcps when update omits the field', async () => {
+      await insertMcpServer('mcp_a')
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Preserve',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a']
+      })
+
+      const updated = await agentService.updateAgent(created.id, { name: 'Renamed' })
+      expect(updated?.name).toBe('Renamed')
+      expect(updated?.mcps).toEqual(['mcp_a'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['mcp_a'])
+    })
+
+    it('clears mcps when update passes an empty array', async () => {
+      await insertMcpServer('mcp_a')
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Clear',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a']
+      })
+
+      const updated = await agentService.updateAgent(created.id, { mcps: [] })
+      expect(updated?.mcps).toEqual([])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual([])
+    })
+  })
+
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
@@ -192,6 +282,81 @@ describe('AgentService', () => {
 
       const remaining = await pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+  })
+
+  describe('McpServerService.delete() cascade', () => {
+    it('removes a deleted MCP server and cascade-removes references from all agents', async () => {
+      const mcpId = 'mcp_to_delete'
+      await insertMcpServer(mcpId)
+      await insertMcpServer('mcp_keep')
+      await insertAgent({ id: 'agent_with_mcp_1', mcps: [mcpId, 'mcp_keep'] })
+      await insertAgent({ id: 'agent_with_mcp_2', mcps: [mcpId] })
+      await insertAgent({ id: 'agent_without_mcp', mcps: ['mcp_keep'] })
+
+      const events: Array<{ agentId: string; mcps: string[] }> = []
+      const disposable = agentService.onAgentUpdated((e) => {
+        if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
+      })
+
+      await mcpServerService.delete(mcpId)
+
+      // MCP server row should be deleted
+      const remainingMcps = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, mcpId))
+      expect(remainingMcps).toHaveLength(0)
+
+      const agent1 = await agentService.getAgent('agent_with_mcp_1')
+      const agent2 = await agentService.getAgent('agent_with_mcp_2')
+      const agent3 = await agentService.getAgent('agent_without_mcp')
+
+      expect(agent1?.mcps).toEqual(['mcp_keep'])
+      expect(agent2?.mcps).toEqual([])
+      expect(agent3?.mcps).toEqual(['mcp_keep'])
+
+      expect(events).toHaveLength(2)
+      expect(events.find((e) => e.agentId === 'agent_with_mcp_1')?.mcps).toEqual(['mcp_keep'])
+      expect(events.find((e) => e.agentId === 'agent_with_mcp_2')?.mcps).toEqual([])
+
+      disposable.dispose()
+    })
+
+    it('emits no events when no agents reference the deleted MCP', async () => {
+      await insertMcpServer('mcp_alone')
+      await insertMcpServer('mcp_other')
+      await insertAgent({ id: 'agent_no_ref', mcps: ['mcp_other'] })
+
+      const events: Array<{ agentId: string; mcps: string[] }> = []
+      const disposable = agentService.onAgentUpdated((e) => {
+        if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
+      })
+
+      await mcpServerService.delete('mcp_alone')
+
+      const agent = await agentService.getAgent('agent_no_ref')
+      expect(agent?.mcps).toEqual(['mcp_other'])
+
+      expect(events).toHaveLength(0)
+
+      disposable.dispose()
+    })
+
+    it('handles agents with empty mcps arrays gracefully', async () => {
+      await insertMcpServer('mcp_standalone')
+      await insertAgent({ id: 'agent_empty_mcps' })
+
+      const events: Array<{ agentId: string; mcps: string[] }> = []
+      const disposable = agentService.onAgentUpdated((e) => {
+        if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
+      })
+
+      await mcpServerService.delete('mcp_standalone')
+
+      const agent = await agentService.getAgent('agent_empty_mcps')
+      expect(agent?.mcps).toEqual([])
+
+      expect(events).toHaveLength(0)
+
+      disposable.dispose()
     })
   })
 

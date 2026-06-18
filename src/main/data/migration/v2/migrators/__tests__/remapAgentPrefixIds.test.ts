@@ -2,6 +2,8 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -63,6 +65,25 @@ describe('remapAgentPrefixIds', () => {
 
     const sessions = await dbh.db.select().from(agentSessionTable)
     expect(sessions[0].agentId).toBe(agents[0].id)
+  })
+
+  it('rewrites agent_mcp_server.agentId when the agent id is remapped', async () => {
+    const agentId = 'agent_mcp01_abc'
+    await insertAgent(dbh.db, agentId)
+    await dbh.db.insert(mcpServerTable).values({ id: 'mcp-server-1', name: 'Test MCP' })
+    await dbh.db.insert(agentMcpServerTable).values({ agentId, mcpServerId: 'mcp-server-1' })
+
+    await remapAgentPrefixIds(dbh.db)
+
+    const agents = await dbh.db.select().from(agentTable)
+    const junction = await dbh.db.select().from(agentMcpServerTable)
+    expect(junction).toHaveLength(1)
+    expect(junction[0].agentId).toMatch(UUID_PATTERN)
+    expect(junction[0].agentId).toBe(agents[0].id)
+    expect(junction[0].mcpServerId).toBe('mcp-server-1')
+
+    const violations = await dbh.db.all(sql`PRAGMA foreign_key_check`)
+    expect(violations).toHaveLength(0)
   })
 
   it('migrates session_* prefix IDs and updates child FK references', async () => {
