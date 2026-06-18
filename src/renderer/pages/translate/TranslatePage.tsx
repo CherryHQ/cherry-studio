@@ -801,6 +801,7 @@ const TranslatePage: FC = () => {
               onDrop={onDrop}
               onSelectFile={handleSelectFile}
               onCopy={onCopyInput}
+              onCancelOcr={clearOcrJob}
               disabled={translatingState.isTranslating || isDetecting || isProcessing || isOcrRunning}
               ocrProcessing={isOcrRunning}
               selecting={selecting}

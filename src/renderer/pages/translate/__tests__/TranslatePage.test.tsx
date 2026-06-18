@@ -200,6 +200,7 @@ vi.mock('../components/TranslateInputPane', () => ({
     onKeyDown,
     onSelectFile,
     onDrop,
+    onCancelOcr,
     disabled,
     ocrProcessing
   }: {
@@ -208,6 +209,7 @@ vi.mock('../components/TranslateInputPane', () => ({
     onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
+    onCancelOcr: () => void
     disabled?: boolean
     ocrProcessing?: boolean
   }) => (
@@ -220,7 +222,14 @@ vi.mock('../components/TranslateInputPane', () => ({
         onKeyDown={onKeyDown}
       />
       <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
-      {ocrProcessing && <div data-testid="translate-input-ocr-processing">ocr.processing</div>}
+      {ocrProcessing && (
+        <div data-testid="translate-input-ocr-processing">
+          ocr.processing
+          <button type="button" onClick={() => onCancelOcr()}>
+            common.cancel
+          </button>
+        </div>
+      )}
     </div>
   )
 }))
@@ -429,6 +438,38 @@ describe('TranslatePage', () => {
     expect(toastCloseToastMock).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+  })
+
+  it('locally cancels OCR from the overlay and ignores a later completed snapshot', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(fileMock.startJob).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeDisabled())
+    expect(screen.getByTestId('translate-input-ocr-processing')).toHaveTextContent('ocr.processing')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+
+    useJobMock.mockReturnValue({
+      data: {
+        id: 'job-ocr-1',
+        type: 'file-processing.background',
+        status: 'completed',
+        output: { artifact: { kind: 'text', format: 'plain', text: 'late recognized text' } },
+        error: null
+      },
+      isTerminal: true
+    })
+    rerender(<TranslatePage />)
+
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect((window as any).toast.success).not.toHaveBeenCalled()
   })
 
   it('uses readExternal for selected document files', async () => {

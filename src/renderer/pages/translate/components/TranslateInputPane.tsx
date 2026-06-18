@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
 import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
@@ -22,6 +23,7 @@ type Props = {
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
   onCopy: () => void
+  onCancelOcr: () => void
   disabled: boolean
   ocrProcessing: boolean
   selecting: boolean
@@ -37,6 +39,7 @@ const TranslateInputPane = ({
   onDrop,
   onSelectFile,
   onCopy,
+  onCancelOcr,
   disabled,
   ocrProcessing,
   selecting
@@ -135,10 +138,15 @@ const TranslateInputPane = ({
         </div>
       )}
       {ocrProcessing && (
-        <div className="fade-in-0 pointer-events-none absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
-          <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-muted text-sm">
-            <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
-            <span>{t('ocr.processing')}</span>
+        <div className="fade-in-0 absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
+          <div className="flex flex-col items-center gap-3">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-muted text-sm">
+              <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+              <span>{t('ocr.processing')}</span>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => onCancelOcr()}>
+              {t('common.cancel')}
+            </Button>
           </div>
         </div>
       )}
