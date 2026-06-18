@@ -76,6 +76,35 @@ describe('attachUsageObserver', () => {
     expect(meta?.contextTokens).toBe(28)
   })
 
+  it('emits contextTokens as undefined when inputTokens is absent (output-only provider shape)', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+
+    // Final step with output-only usage: provider omits inputTokens.
+    // AI SDK derives totalTokens = addTokenCounts(undefined, 200) === 200.
+    // That tiny value must NOT be recorded as contextTokens anchor.
+    agent.fire(
+      'onStepFinish',
+      makeStep({
+        inputTokens: undefined,
+        outputTokens: 200,
+        totalTokens: 200,
+        outputTokenDetails: {}
+      } as unknown as LanguageModelUsage)
+    )
+
+    expect(written).toHaveLength(1)
+    const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+
+    // completionTokens must still be summed (200)
+    expect(meta?.completionTokens).toBe(200)
+    // contextTokens must be undefined — no bogus output-only anchor
+    expect(meta?.contextTokens).toBeUndefined()
+  })
+
   it('resets contextTokens on onStart so a new turn does not carry forward the previous value', () => {
     const { agent, written } = makeFakeAgent()
 
