@@ -1653,10 +1653,10 @@
       "claude_code": "Anthropic's official command-line AI coding assistant",
       "gemini_cli": "Google's official Gemini command-line assistant",
       "github_copilot_cli": "GitHub's official Copilot command-line companion",
-      "iflow_cli": "iFlow's multi-model command-line assistant",
       "kimi_cli": "Moonshot's Kimi command-line assistant",
       "openai_codex": "OpenAI's official code generation CLI",
       "opencode": "Open-source multi-model coding agent",
+      "qoder_cli": "Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Alibaba Tongyi's open-source CLI coding tool"
     },
     "update_options": "Update Options",
@@ -2174,6 +2174,7 @@
           "success": "Data source added to knowledge base"
         },
         "title": "Add Data Source",
+        "unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Enter a webpage URL:",
           "help": "Page text will be fetched, chunked, and indexed automatically",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "Cancel",
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
         "delete_confirm_title": "Delete Selected Data Sources?",
@@ -2241,9 +2241,7 @@
         "select_row": "Select row"
       },
       "toolbar": {
-        "add": "Add Data Source",
-        "no_search_results": "No matching data sources",
-        "search_placeholder": "Search data sources"
+        "add": "Add Data Source"
       }
     },
     "dimensions_auto_set": "Auto-set embedding dimensions",
@@ -2253,6 +2251,7 @@
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
     "error": {
+      "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "Failed to create knowledge base",
       "failed_to_delete": "Failed to delete knowledge base",
@@ -6056,6 +6055,7 @@
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
       "empty": "Click the hide icon on an app on the left and it will move here",
+      "hide_app": "Hide {{name}}",
       "open_link_external": {
         "title": "Open new-window links in browser"
       },
@@ -6067,6 +6067,7 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
+      "show_app": "Show {{name}}",
       "sidebar_description": "Show active mini apps in the sidebar",
       "sidebar_title": "Sidebar Active Mini Apps Display",
       "title": "Mini Apps Settings",
@@ -6845,10 +6846,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Document Processing"
+            "title": "Document Processing",
+            "tooltip": "Used to parse documents for knowledge bases"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "Used to recognize text in images"
           }
         },
         "fields": {

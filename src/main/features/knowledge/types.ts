@@ -27,6 +27,12 @@ export type KnowledgeProgressDetail =
       stage: 'deleting' | 'done' | 'item-gone'
       currentFile?: number
       totalFiles?: number
+      // Count of reindex roots skipped because their source could not be read — missing OR
+      // unverifiable — at mutation-lock time (a TOCTOU between admission and the lock); their
+      // existing vectors are kept untouched. Recorded on the job's completion snapshot (and
+      // warn-logged) so the partial no-op is observable rather than silently rolled into a plain
+      // "done"; it is not (yet) surfaced in the renderer. Present only when non-zero.
+      skippedMissingSource?: number
     }
   | {
       stage: 'waiting'

@@ -639,14 +639,6 @@ class ProviderRegistryService {
     return results
   }
 
-  async isActiveProviderRegistryModel(providerId: string, modelId: string): Promise<boolean> {
-    const loader = this.getLoader()
-    const override = loader.findOverride(providerId, modelId)
-    // Vendor-exclusive override-only models (no models.json entry) are also
-    // active — the override carries the full model definition itself.
-    return override !== null && !(override.disabled ?? false)
-  }
-
   /**
    * Read the painting-page metadata block the registry exposes for a
    * (provider, model) pair. Drives the generic painting form: providers

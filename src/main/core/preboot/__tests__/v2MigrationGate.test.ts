@@ -233,6 +233,7 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
+      stubPlatform(false)
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -241,8 +242,11 @@ describe('runV2MigrationGate', () => {
       expect(whenReadyMock).toHaveBeenCalledTimes(1)
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
       const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Status Check Failed')
+      expect(title).toContain('Migration Failed')
+      expect(title).not.toContain('(Dev)')
       expect(message).toContain('DB unavailable')
+      // Regression: the old fallback mislabeled every failure as a DB "connectivity issue".
+      expect(message).not.toContain('connectivity')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       // Migration path was never taken, so handlers stay un-touched.
       expect(registerMigrationIpcHandlersMock).not.toHaveBeenCalled()
@@ -285,7 +289,7 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
-    it('falls back to the generic dialog when the schema is out of sync but not in dev', async () => {
+    it('falls back to the neutral production dialog when the schema is out of sync but not in dev', async () => {
       initializeMock.mockRejectedValue(schemaOutOfSyncError())
       stubMigrationV2()
       stubElectron()
@@ -296,12 +300,15 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const [title] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Status Check Failed')
+      const [title, message] = showErrorBoxMock.mock.calls[0]
+      expect(title).toContain('Migration Failed')
+      // Production must NOT get the dev variant nor any "delete the DB" instruction.
+      expect(title).not.toContain('(Dev)')
+      expect(message).not.toContain('rm -f')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
-    it('falls back to the generic dialog for non-schema errors even in dev', async () => {
+    it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
       initializeMock.mockRejectedValue(new Error('DB unavailable'))
       stubMigrationV2()
       stubElectron()
@@ -312,8 +319,13 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const [title] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Status Check Failed')
+      const [title, message] = showErrorBoxMock.mock.calls[0]
+      expect(title).toContain('Migration Failed (Dev)')
+      expect(message).toContain('DB unavailable')
+      // Dev surfaces BOTH possibilities (incompatible data vs migration bug) + the DB path,
+      // and explicitly does NOT assert "just delete the DB".
+      expect(message).toContain('/mock/userData/cherrystudio.sqlite')
+      expect(message).toContain('Do NOT just delete the DB')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })

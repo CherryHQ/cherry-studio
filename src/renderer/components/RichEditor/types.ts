@@ -1,5 +1,5 @@
 export interface RichEditorProps {
-  /** Initial content for the editor (can be markdown or HTML) */
+  /** Initial markdown content for the editor */
   initialContent?: string
   /** Placeholder text when editor is empty */
   placeholder?: string
@@ -31,8 +31,6 @@ export interface RichEditorProps {
   maxHeight?: number
   /** Available toolbar tools */
   toolbarItems?: ToolbarItem[]
-  /** Whether initial content is markdown (default: auto-detect) */
-  isMarkdown?: boolean
   /** Initial commands to register on mount */
   initialCommands?: Command[]
   /** Command configuration callback called after editor initialization */
@@ -89,14 +87,8 @@ export interface ToolbarDropdownOption {
 export interface RichEditorRef {
   /** Get current editor content as plain text */
   getContent: () => string
-  /** Get current editor content as HTML */
-  getHtml: () => string
   /** Get current editor content as Markdown */
   getMarkdown: () => string
-  /** Set editor content (plain text) */
-  setContent: (content: string) => void
-  /** Set editor HTML content */
-  setHtml: (html: string) => void
   /** Set editor Markdown content */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
@@ -107,8 +99,6 @@ export interface RichEditorRef {
   insertText: (text: string) => void
   /** Execute a formatting command */
   executeCommand: (command: string, value?: any) => void
-  /** Get preview text from current content */
-  getPreviewText: (maxLength?: number) => string
   /** Get scrollTop of the editor scroll container */
   getScrollTop: () => number
   /** Set scrollTop of the editor scroll container */

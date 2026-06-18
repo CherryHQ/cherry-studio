@@ -130,16 +130,15 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <RowFlex className="items-center justify-between">
-            <RowFlex className="items-center gap-2.5">
+          <SettingRow className="min-h-8.5 flex-nowrap gap-3">
+            <SettingRowTitle className="gap-2.5">
               {t('settings.models.quick_assistant_model')}
               <InfoTooltip
                 content={t('selection.settings.user_modal.model.tooltip')}
                 showArrow
                 iconProps={{ className: 'cursor-pointer' }}
               />
-              <Spacer />
-            </RowFlex>
+            </SettingRowTitle>
             <RowFlex className="items-center gap-2.5">
               {!quickAssistantId ? null : (
                 <RowFlex className="items-center">
@@ -211,7 +210,7 @@ const QuickAssistantSettings: FC = () => {
                 </Button>
               </ButtonGroup>
             </RowFlex>
-          </RowFlex>
+          </SettingRow>
         </SettingGroup>
       )}
       {enableQuickAssistant && (

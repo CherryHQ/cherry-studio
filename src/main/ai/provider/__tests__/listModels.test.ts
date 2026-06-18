@@ -10,12 +10,14 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // HTTP call through @ai-sdk/provider-utils' getFromApi. Mock all of them at the
 // module boundary: ProviderService / VertexAiService to avoid the DB and signing,
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
-const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, aiSdkGetFromApiMock } = vi.hoisted(() => ({
-  getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
-  getAuthConfigMock: vi.fn(),
-  getAuthHeadersMock: vi.fn(),
-  aiSdkGetFromApiMock: vi.fn()
-}))
+const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, getCopilotTokenMock, aiSdkGetFromApiMock } =
+  vi.hoisted(() => ({
+    getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
+    getAuthConfigMock: vi.fn(),
+    getAuthHeadersMock: vi.fn(),
+    getCopilotTokenMock: vi.fn(),
+    aiSdkGetFromApiMock: vi.fn()
+  }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
@@ -27,6 +29,12 @@ vi.mock('@main/data/services/ProviderService', () => ({
 vi.mock('@main/services/VertexAiService', () => ({
   vertexAiService: {
     getAuthHeaders: getAuthHeadersMock
+  }
+}))
+
+vi.mock('@main/services/CopilotService', () => ({
+  copilotService: {
+    getToken: getCopilotTokenMock
   }
 }))
 
@@ -44,6 +52,7 @@ const { listModels } = await import('../listModels')
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockResolvedValue('AIza-secret-key')
+  getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
     value: {
@@ -109,6 +118,147 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('gemini-2.0-flash')
     expect(models[0].name).toBe('Gemini 2.0 Flash')
+  })
+
+  it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          {
+            name: 'models/gemini-2.0-flash',
+            displayName: 'Gemini 2.0 Flash',
+            supportedGenerationMethods: ['generateContent', 'countTokens']
+          },
+          {
+            name: 'models/gemini-2.5-flash-image',
+            displayName: 'Gemini 2.5 Flash Image',
+            supportedGenerationMethods: ['generateContent', 'countTokens']
+          },
+          {
+            name: 'models/imagen-4.0-generate-001',
+            displayName: 'Imagen 4',
+            supportedGenerationMethods: ['predict']
+          },
+          {
+            name: 'models/gemini-embedding-001',
+            displayName: 'Gemini Embedding 001',
+            supportedGenerationMethods: ['embedContent', 'countTokens']
+          },
+          {
+            name: 'models/veo-3.1-generate-preview',
+            displayName: 'Veo 3.1',
+            supportedGenerationMethods: ['predictLongRunning']
+          },
+          {
+            name: 'models/gemini-2.5-flash-preview-tts',
+            displayName: 'Gemini 2.5 Flash TTS',
+            supportedGenerationMethods: ['countTokens', 'generateContent']
+          },
+          {
+            name: 'models/gemini-2.5-flash-native-audio-dialog',
+            displayName: 'Gemini Native Audio',
+            supportedGenerationMethods: ['countTokens', 'bidiGenerateContent']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeGeminiProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'gemini-2.0-flash',
+      'gemini-2.5-flash-image',
+      'imagen-4.0-generate-001',
+      'gemini-embedding-001'
+    ])
+  })
+})
+
+describe('listModels — openAIFetcher (official OpenAI provider, audio/video filtering)', () => {
+  function makeOpenAIProvider() {
+    return makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+      }
+    })
+  }
+
+  it('drops audio/video models (tts/whisper/transcribe/audio/realtime/sora), keeping chat, image, embedding, and moderation', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'gpt-4o' },
+          { id: 'o3' },
+          { id: 'gpt-image-1' },
+          { id: 'dall-e-3' },
+          { id: 'text-embedding-3-large' },
+          { id: 'omni-moderation-latest' },
+          { id: 'tts-1' },
+          { id: 'gpt-4o-mini-tts' },
+          { id: 'whisper-1' },
+          { id: 'gpt-4o-transcribe' },
+          { id: 'gpt-4o-realtime-preview' },
+          { id: 'gpt-4o-audio-preview' },
+          { id: 'sora-2' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeOpenAIProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'gpt-4o',
+      'o3',
+      'gpt-image-1',
+      'dall-e-3',
+      'text-embedding-3-large',
+      'omni-moderation-latest'
+    ])
+  })
+
+  it('applies the audio/video filter to copied OpenAI providers that keep presetProviderId but get a uuid id (REGRESSION)', async () => {
+    const copiedOpenAIProvider = makeProvider({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'gpt-4o' }, { id: 'tts-1' }, { id: 'whisper-1' }, { id: 'sora-2' }]
+      }
+    })
+
+    const models = await listModels(copiedOpenAIProvider)
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
+  })
+})
+
+describe('listModels — copilotFetcher (preset-aware routing)', () => {
+  it('routes copied Copilot providers (uuid id + presetProviderId) through the Copilot fetcher and its audio filter (REGRESSION)', async () => {
+    const copiedCopilotProvider = makeProvider({
+      id: 'c1a2b3c4-d5e6-7f80-9012-3456789abcde',
+      presetProviderId: 'copilot',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.githubcopilot.com' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'gpt-4o' }, { id: 'tts-1' }, { id: 'whisper-1' }]
+      }
+    })
+
+    const models = await listModels(copiedCopilotProvider)
+
+    expect(getCopilotTokenMock).toHaveBeenCalledTimes(1)
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
   })
 })
 
