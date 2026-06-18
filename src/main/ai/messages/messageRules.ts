@@ -1,14 +1,14 @@
 /**
- * UIMessage-level normalization, applied right before `convertToModelMessages`.
+ * Message normalization rules.
+ *
+ * - UIMessage-level rules (`normalizeUIMessages`) run before `convertToModelMessages`.
+ * - The ModelMessage-level `coalesceConsecutiveSameRole` runs after it.
  *
  * Rules are pure, named, and return the same array reference when they change
- * nothing. Keep them capability-agnostic — universal shape invariants only.
- * Provider-specific shaping is the provider adapter's job (e.g. `@ai-sdk/anthropic`
- * already merges consecutive same-role turns), so we deliberately do NOT coalesce
- * adjacent turns or enforce alternation here.
+ * nothing.
  */
 
-import type { UIMessage } from 'ai'
+import type { ModelMessage, UIMessage } from 'ai'
 
 type MessageRule = <T extends UIMessage>(messages: T[]) => T[]
 
@@ -41,4 +41,46 @@ const RULES: readonly MessageRule[] = [ensureNonEmptyAssistantParts]
 /** Apply every normalization rule in order. */
 export function normalizeUIMessages<T extends UIMessage = UIMessage>(messages: T[]): T[] {
   return RULES.reduce<T[]>((acc, rule) => rule(acc), messages)
+}
+
+/** A string/array `content` → a flat parts array (`[]` for an empty string). */
+function contentToParts(content: unknown): unknown[] {
+  if (typeof content === 'string') return content.length > 0 ? [{ type: 'text', text: content }] : []
+  return Array.isArray(content) ? content : []
+}
+
+/**
+ * Merge adjacent same-role messages into one (concatenate content). Apply AFTER
+ * `convertToModelMessages`.
+ *
+ * Any rule that deletes a whole message — capability gating, or future context
+ * pruning — can leave two adjacent same-role turns. Merging yields the
+ * lowest-common-denominator shape every provider accepts: some require strict
+ * alternation (Anthropic), the rest tolerate adjacency or merge it themselves
+ * (`@ai-sdk/anthropic` does, so this is idempotent there; `@ai-sdk/google` does
+ * not, so this is what makes it safe). It is a normalization, not a validation —
+ * it never throws, and never merges across different roles (so assistant↔tool
+ * stays intact).
+ */
+export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMessage[] {
+  const out: ModelMessage[] = []
+  for (const message of messages) {
+    const prev = out.at(-1)
+    if (!prev || prev.role !== message.role) {
+      out.push(message)
+      continue
+    }
+    if (prev.role === 'system') {
+      out[out.length - 1] = { ...prev, content: `${prev.content}\n\n${(message as typeof prev).content}` }
+      continue
+    }
+    out[out.length - 1] = {
+      ...prev,
+      content: [
+        ...contentToParts((prev as { content: unknown }).content),
+        ...contentToParts((message as { content: unknown }).content)
+      ]
+    } as ModelMessage
+  }
+  return out
 }
