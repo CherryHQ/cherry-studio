@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,9 +28,12 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
 
     const runCheck = async () => {
       if (capability === 'fetchUrls') {
-        await window.api.webSearch.fetchUrls({ providerId: provider.id, urls: [WEB_SEARCH_CHECK_URL] })
+        await ipcApi.request('web_search.fetch_urls', { providerId: provider.id, urls: [WEB_SEARCH_CHECK_URL] })
       } else {
-        await window.api.webSearch.searchKeywords({ providerId: provider.id, keywords: [WEB_SEARCH_CHECK_KEYWORD] })
+        await ipcApi.request('web_search.search_keywords', {
+          providerId: provider.id,
+          keywords: [WEB_SEARCH_CHECK_KEYWORD]
+        })
       }
     }
 

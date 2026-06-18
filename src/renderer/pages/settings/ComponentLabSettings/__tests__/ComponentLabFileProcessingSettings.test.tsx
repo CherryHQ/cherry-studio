@@ -10,7 +10,7 @@ import ComponentLabFileProcessingSettings from '../ComponentLabFileProcessingSet
 
 const selectFileMock = vi.hoisted(() => vi.fn())
 const createTempFileMock = vi.hoisted(() => vi.fn())
-const startJobMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const useJobMock = vi.hoisted(() => vi.fn())
 const useJobProgressMock = vi.hoisted(() => vi.fn())
 
@@ -42,6 +42,12 @@ vi.mock('@data/hooks/usePreference', () => ({
 vi.mock('@renderer/hooks/useJob', () => ({
   useJob: useJobMock,
   useJobProgress: useJobProgressMock
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
 }))
 
 vi.mock('../../FileProcessingSettings/hooks/useAvailableFileProcessors', () => ({
@@ -88,7 +94,7 @@ describe('ComponentLabFileProcessingSettings', () => {
     useJobProgressMock.mockReturnValue({ progress: 0 })
     selectFileMock.mockResolvedValue([selectedImage])
     createTempFileMock.mockResolvedValue('/tmp/lab-tesseract.md')
-    startJobMock.mockResolvedValue({
+    ipcRequestMock.mockResolvedValue({
       id: 'job-1',
       type: 'file-processing.background',
       status: 'pending'
@@ -99,9 +105,6 @@ describe('ComponentLabFileProcessingSettings', () => {
         file: {
           select: selectFileMock,
           createTempFile: createTempFileMock
-        },
-        fileProcessing: {
-          startJob: startJobMock
         }
       }
     })
@@ -119,15 +122,15 @@ describe('ComponentLabFileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings\.componentLab\.fileProcessing\.ocr\.start/ }))
 
     await waitFor(() => {
-      expect(startJobMock).toHaveBeenCalledWith({
+      expect(ipcRequestMock).toHaveBeenCalledWith('file_processing.start_job', {
         feature: 'image_to_text',
         file: { kind: 'path', path: '/tmp/scan.png' },
         processorId: 'tesseract'
       })
     })
     // OCR is a text feature: no output target is required.
-    expect(startJobMock.mock.calls[0][0]).not.toHaveProperty('output')
-    expect(startJobMock.mock.calls[0][0]).not.toHaveProperty('fileEntryId')
+    expect(ipcRequestMock.mock.calls[0][1]).not.toHaveProperty('output')
+    expect(ipcRequestMock.mock.calls[0][1]).not.toHaveProperty('fileEntryId')
   })
 
   it('renders active job status labels instead of raw i18n keys', async () => {

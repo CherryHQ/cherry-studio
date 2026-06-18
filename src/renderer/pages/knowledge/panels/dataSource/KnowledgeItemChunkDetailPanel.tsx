@@ -2,6 +2,7 @@ import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import { ArrowLeft } from 'lucide-react'
@@ -80,7 +81,7 @@ const KnowledgeItemChunkDetailPanel = ({
       setError(null)
 
       try {
-        const itemChunks = await window.api.knowledge.listItemChunks(baseId, itemId)
+        const itemChunks = await ipcApi.request('knowledge.list_item_chunks', { baseId, itemId })
         if (isActive) {
           setChunks(itemChunks)
         }
