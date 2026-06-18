@@ -6,7 +6,7 @@ import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@rende
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('TabsContext')
@@ -86,9 +86,6 @@ export interface TabsContextValue {
 
   // Detach
   detachTab: (tabId: string) => void
-
-  // Attach (from detached window)
-  attachTab: (tabData: Tab) => void
 }
 
 const TabsContext = createContext<TabsContextValue | null>(null)
@@ -421,52 +418,6 @@ export function TabsProvider({
   )
 
   /**
-   * Attach a tab from detached window
-   */
-  const attachTab = useCallback(
-    (tabData: Tab) => {
-      // Check if tab already exists
-      const exists = tabs.find((t) => t.id === tabData.id)
-      if (exists) {
-        setActiveTab(tabData.id)
-        logger.info('Tab already exists, activating', { tabId: tabData.id })
-        return
-      }
-
-      // Restore tab with updated timestamp
-      const restoredTab: Tab = {
-        ...tabData,
-        lastAccessTime: Date.now(),
-        isDormant: false
-      }
-
-      // Add to appropriate storage
-      if (restoredTab.isPinned) {
-        setPinnedTabs((prev) => [...prev, restoredTab])
-      } else {
-        setNormalTabs((prev) => [...prev, restoredTab])
-      }
-
-      setActiveTabIdState(restoredTab.id)
-      logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
-    },
-    [tabs, setActiveTab, setPinnedTabs]
-  )
-
-  // Listen for tab attach requests (from Main Process)
-  useEffect(() => {
-    if (!window.electron?.ipcRenderer) return
-
-    const handleAttachRequest = (_event: any, tabData: Tab) => {
-      attachTab(tabData)
-    }
-
-    const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
-
-    return removeAttachRequest
-  }, [attachTab])
-
-  /**
    * Get the currently active tab
    */
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId), [tabs, activeTabId])
@@ -496,9 +447,6 @@ export function TabsProvider({
 
     // Detach
     detachTab,
-
-    // Attach
-    attachTab,
 
     // Drag and drop
     reorderTabs

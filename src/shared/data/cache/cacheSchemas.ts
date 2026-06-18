@@ -315,8 +315,6 @@ export type RendererPersistCacheSchema = {
   'ui.assistant.multi_model_ids': Record<string, string[]>
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
-  // Recent global-search entries (routes/topics/sessions) shown when the palette opens
-  'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -328,8 +326,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
   'ui.assistant.multi_model_ids': {},
-  'ui.emoji.recently_used': [],
-  'ui.global_search.recent_items': []
+  'ui.emoji.recently_used': []
 }
 
 // ============================================================================

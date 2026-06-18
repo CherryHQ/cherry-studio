@@ -58,11 +58,6 @@ vi.mock('../../app/Sidebar', () => ({
   default: () => <aside data-testid="sidebar" />
 }))
 
-vi.mock('../../GlobalSearch/globalSearchGroups', () => ({
-  createRecentRouteEntryFromTab: () => null,
-  upsertGlobalSearchRecentEntry: (items: unknown[]) => items
-}))
-
 vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
   default: () => null
 }))
