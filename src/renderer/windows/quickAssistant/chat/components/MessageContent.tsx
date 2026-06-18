@@ -14,18 +14,7 @@ const MessageContent: React.FC<Props> = ({ block }) => {
     status: String(block.status).toLowerCase()
   }
 
-  return (
-    <>
-      {/* <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
-        {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
-      </Flex> */}
-      <ChatMarkdown block={markdownSource} />
-    </>
-  )
+  return <ChatMarkdown block={markdownSource} />
 }
-
-// const MentionTag = styled.span`
-//   color: var(--color-link);
-// `
 
 export default React.memo(MessageContent)

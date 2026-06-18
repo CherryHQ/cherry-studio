@@ -1,5 +1,4 @@
-import { LoadingOutlined } from '@ant-design/icons'
-import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { MessageContentProvider } from '@renderer/components/chat/messages'
@@ -11,17 +10,17 @@ import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/trans
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import type { TranslateLanguage } from '@renderer/types'
+import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
+import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import WindowFooter from './WindowFooter'
 interface Props {
@@ -264,11 +263,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const settingsContent = useMemo(
     () => (
       <div className="flex flex-col gap-2">
-        <SettingsMenuItem>
-          <SettingsLabel>{t('translate.preferred_target')}</SettingsLabel>
+        <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
+          <span className="text-foreground-secondary text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
-            style={{ width: '100%' }}
+            className="w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
@@ -278,12 +277,12 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             }}
             disabled={isTranslating}
           />
-        </SettingsMenuItem>
-        <SettingsMenuItem>
-          <SettingsLabel>{t('translate.alter_language')}</SettingsLabel>
+        </div>
+        <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
+          <span className="text-foreground-secondary text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
-            style={{ width: '100%' }}
+            className="w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
@@ -293,7 +292,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             }}
             disabled={isTranslating}
           />
-        </SettingsMenuItem>
+        </div>
       </div>
     ),
     [t, targetLanguage, alterLanguage, isTranslating, getLanguage, handleChangeLanguage]
@@ -310,27 +309,29 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
-      <Container>
-        <MenuContainer>
-          <LeftGroup>
+      <div className="flex w-full flex-1 flex-col items-center">
+        <div className="flex w-full flex-row items-center justify-between">
+          <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
-            <DetectedLanguageTag>
+            <div className="flex shrink-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
               {isPreparing ? (
                 <span>{t('translate.detecting')}</span>
               ) : (
                 <>
-                  <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
+                  <span className="mr-1">
+                    {detectedLanguage?.emoji || <Globe2 className="inline size-3.5 align-[-2px]" />}
+                  </span>
                   <span>{detectedLanguage?.value || t('translate.detected_source')}</span>
                 </>
               )}
-            </DetectedLanguageTag>
+            </div>
 
-            <ArrowRight size={16} color="var(--color-text-3)" style={{ flexShrink: 0 }} />
+            <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
 
             {/* Target language selector */}
             <LanguageSelect
               value={actualTargetLanguage.langCode}
-              style={{ minWidth: 100, maxWidth: 160 }}
+              className="min-w-[100px] max-w-[160px]"
               listHeight={160}
               size="small"
               optionFilterProp="label"
@@ -341,9 +342,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <Tooltip content={t('translate.language_settings')} placement="bottom">
                 <PopoverTrigger asChild>
-                  <SettingsButton>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7 shrink-0 rounded text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
                     <Settings2 size={14} />
-                  </SettingsButton>
+                  </Button>
                 </PopoverTrigger>
               </Tooltip>
               <PopoverContent align="end" className="w-[220px] p-2">
@@ -352,31 +357,34 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </Popover>
 
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
-              <HelpIcon size={14} />
+              <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-muted-foreground" />
             </Tooltip>
-          </LeftGroup>
+          </div>
 
-          <OriginalHeader onClick={() => setShowOriginal(!showOriginal)}>
+          <button
+            type="button"
+            onClick={() => setShowOriginal(!showOriginal)}
+            className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-foreground-secondary text-xs transition-colors hover:text-primary">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>
-            <ChevronDown size={14} className={showOriginal ? 'expanded' : ''} />
-          </OriginalHeader>
-        </MenuContainer>
+            <ChevronDown size={14} className={cn('transition-transform', showOriginal && 'rotate-180')} />
+          </button>
+        </div>
         {showOriginal && (
-          <OriginalContent>
+          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
             {action.selectedText}{' '}
-            <OriginalContentCopyWrapper>
+            <div className="flex justify-end">
               <CopyButton
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
               />
-            </OriginalContentCopyWrapper>
-          </OriginalContent>
+            </div>
+          </div>
         )}
-        <Result>
-          {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+        <div className="mt-4 w-full whitespace-pre-wrap break-words">
+          {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <MessageContentProvider
               messages={[latestAssistantMessage]}
@@ -386,147 +394,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
             </MessageContentProvider>
           )}
-        </Result>
-        {(detectError || error) && <ErrorMsg>{detectError || error}</ErrorMsg>}
-      </Container>
-      <FooterPadding />
+        </div>
+        {(detectError || error) && (
+          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+            {detectError || error}
+          </div>
+        )}
+      </div>
+      <div className="min-h-3" />
       <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  width: 100%;
-`
-
-const Result = styled.div`
-  margin-top: 16px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  width: 100%;
-`
-
-const MenuContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-`
-
-const OriginalHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  padding: 4px 0;
-  white-space: nowrap;
-
-  &:hover {
-    color: var(--color-primary);
-  }
-
-  .lucide {
-    transition: transform 0.2s ease;
-    &.expanded {
-      transform: rotate(180deg);
-    }
-  }
-`
-
-const OriginalContent = styled.div`
-  margin-top: 8px;
-  padding: 8px;
-  background-color: var(--color-background-soft);
-  border-radius: 4px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  width: 100%;
-`
-
-const OriginalContentCopyWrapper = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`
-
-const FooterPadding = styled.div`
-  min-height: 12px;
-`
-
-const ErrorMsg = styled.div`
-  color: var(--color-error);
-  background: rgba(255, 0, 0, 0.15);
-  border: 1px solid var(--color-error);
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  word-break: break-all;
-`
-
-const LeftGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 1;
-  min-width: 0;
-`
-
-const DetectedLanguageTag = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  background-color: var(--color-background-soft);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-`
-
-const SettingsButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--color-text-3);
-  flex-shrink: 0;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
-  }
-`
-
-const SettingsMenuItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 0;
-  min-width: 180px;
-  cursor: default;
-`
-
-const SettingsLabel = styled.span`
-  font-size: 12px;
-  color: var(--color-text-secondary);
-`
-
-const HelpIcon = styled(CircleHelp)`
-  cursor: pointer;
-  color: var(--color-text-3);
-  flex-shrink: 0;
-`
 
 export default ActionTranslate

@@ -1,16 +1,14 @@
-import { SwapOutlined } from '@ant-design/icons'
+import { Scrollbar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import { Select } from 'antd'
 import { isEmpty } from 'lodash'
+import { ArrowLeftRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   text: string
@@ -42,83 +40,33 @@ const Translate: FC<Props> = ({ text }) => {
   })
 
   return (
-    <Container>
-      <MenuContainer>
-        <Select
-          showSearch
-          value="any"
-          style={{ maxWidth: 200, minWidth: 100, flex: 1 }}
-          optionFilterProp="label"
-          disabled
-          options={[{ label: t('translate.any.language'), value: 'any' }]}
-        />
-        <SwapOutlined />
+    <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
+      <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
+        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-muted text-sm opacity-70">
+          <span className="truncate">{t('translate.any.language')}</span>
+        </div>
+        <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
         <LanguageSelect
           showSearch
           value={targetLanguage}
-          style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
+          className="min-w-32.5 flex-1"
           optionFilterProp="label"
           onChange={async (value) => {
             return await setTargetLanguage(value)
           }}
         />
-      </MenuContainer>
-      <Main>
+      </div>
+      <div className="flex w-full flex-1 overflow-hidden">
         {isEmpty(result) ? (
-          <LoadingText>{t('translate.output.placeholder')}...</LoadingText>
+          <div className="text-foreground-muted italic">{t('translate.output.placeholder')}...</div>
         ) : (
-          <OutputContainer>
-            <ResultText>{result}</ResultText>
-          </OutputContainer>
+          <Scrollbar className="flex flex-1 flex-col gap-2.5">
+            <div className="w-full whitespace-pre-wrap break-words">{result}</div>
+          </Scrollbar>
         )}
-      </Main>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  padding: 12px;
-  /* padding-right: 0; */
-  overflow: hidden;
-  -webkit-app-region: none;
-`
-
-const Main = styled.div`
-  display: flex;
-  flex: 1;
-  width: 100%;
-  overflow: hidden;
-`
-
-const ResultText = styled.div`
-  white-space: pre-wrap;
-  word-break: break-word;
-  width: 100%;
-`
-
-const LoadingText = styled.div`
-  color: var(--color-text-2);
-  font-style: italic;
-`
-
-const MenuContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 15px;
-  gap: 20px;
-`
-
-const OutputContainer = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  gap: 10px;
-`
 
 export default Translate

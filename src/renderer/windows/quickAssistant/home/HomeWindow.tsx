@@ -1,4 +1,5 @@
 import { useChat } from '@ai-sdk/react'
+import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -12,17 +13,16 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { cn } from '@renderer/utils/style'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Divider } from 'antd'
 import { isEmpty } from 'lodash'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
@@ -444,7 +444,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'summary':
     case 'explanation':
       return (
-        <Container style={{ backgroundColor }} $draggable={draggable}>
+        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
           {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
@@ -457,11 +457,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 handleChange={handleChange}
                 ref={inputBarRef}
               />
-              <Divider style={{ margin: '10px 0' }} />
+              <Separator className="my-2.5" />
             </>
           )}
           {['summary', 'explanation'].includes(route) && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
@@ -472,25 +472,29 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             messages={messageItems}
             partsByMessageId={partsByMessageId}
           />
-          {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
+          {flowError && (
+            <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+              {flowError}
+            </div>
+          )}
 
-          <Divider style={{ margin: '10px 0' }} />
+          <Separator className="my-2.5" />
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
-        </Container>
+        </div>
       )
 
     case 'translate':
       return (
-        <Container style={{ backgroundColor }} $draggable={draggable}>
+        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
           <TranslateWindow text={referenceText} />
-          <Divider style={{ margin: '10px 0' }} />
+          <Separator className="my-2.5" />
           <Footer key="footer" {...baseFooterProps} />
-        </Container>
+        </div>
       )
 
     default:
       return (
-        <Container style={{ backgroundColor }} $draggable={draggable}>
+        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
           {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}
@@ -503,54 +507,32 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               ref={inputBarRef}
             />
           )}
-          <Divider style={{ margin: '10px 0' }} />
+          <Separator className="my-2.5" />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
-          <Main>
+          <main className="flex flex-1 flex-col overflow-hidden">
             <FeatureMenus
               setRoute={setRoute}
               onSendMessage={handleSendMessage}
               text={userContent}
               ref={featureMenusRef}
             />
-          </Main>
-          <Divider style={{ margin: '10px 0' }} />
+          </main>
+          <Separator className="my-2.5" />
           <Footer
             key="footer"
             {...baseFooterProps}
             canUseBackspace={userInputText.length > 0 || clipboardText.length === 0}
             clearClipboard={clearClipboard}
           />
-        </Container>
+        </div>
       )
   }
 }
 
-const Container = styled.div<{ $draggable: boolean }>`
-  display: flex;
-  flex: 1;
-  height: 100%;
-  width: 100%;
-  flex-direction: column;
-  -webkit-app-region: ${({ $draggable }) => ($draggable ? 'drag' : 'no-drag')};
-  padding: 8px 10px;
-`
-
-const Main = styled.main`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-`
-
-const ErrorMsg = styled.div`
-  color: var(--color-error);
-  background: rgba(255, 0, 0, 0.15);
-  border: 1px solid var(--color-error);
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  word-break: break-all;
-`
+const containerClassName = (draggable: boolean) =>
+  cn(
+    'flex h-full w-full flex-1 flex-col px-2.5 py-2',
+    draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
+  )
 
 export default HomeWindow
