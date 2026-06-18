@@ -4,9 +4,10 @@
 
 User-configurable retry for model calls, built on
 [`ai-retry`](https://github.com/zirkelc/ai-retry) (v1.x, AI SDK v6). When a
-call fails, the wrapper first retries the **same model** for transient errors
-(429 / 503 / 529 / timeout, honoring `Retry-After` headers with optional
-exponential backoff), then **falls back** to the user's configured fallback
+call fails, the wrapper first retries the **same model** on retryable API
+errors (429 / 503 / 529 and other `isRetryable` errors, honoring `Retry-After`
+headers with optional exponential backoff — `TimeoutError`s are deliberately
+not retried, see below), then **falls back** to the user's configured fallback
 models in order. Retry happens at the model layer — below the agent loop, so
 tool state and hook composition are untouched.
 
@@ -83,12 +84,13 @@ createRetryable({
 `Agent.buildAiSdkAgent` forwards it to `createAgent`, which applies it to the
 resolved model right before constructing the `ToolLoopAgent`.
 
-> **Limitation:** the primary's **tools + system** are kept for fallbacks (the
-> agent loop is built around them and ai-retry can't re-shape them mid-call) —
-> the capability gate compensates by skipping fallbacks that can't handle the
-> request shape. Giving fallbacks fully model-specific resolution without a
-> per-fallback `buildAgentParams` recompute would require the context-driven
-> feature refactor tracked in #16197.
+> **Limitation:** fallbacks get their own middleware and their own
+> sampling / `providerOptions` / `headers`, but reuse the **primary's tools +
+> system** (the agent loop is built around them and ai-retry can't re-shape them
+> mid-call) — the capability gate compensates by skipping fallbacks that can't
+> handle the request shape. Per-fallback tools/system without a separate
+> `buildAgentParams` recompute would need the context-driven feature refactor
+> tracked in #16197.
 
 The `wrapModel` hook input is typed `LanguageModelV3` on purpose: the value
 has already been resolved by the plugin pipeline (`executor.resolveModel`
@@ -98,9 +100,12 @@ wide `LanguageModel` union.
 ### Retry events → renderer
 
 `onRetryEvent` is wired by `AiService.streamText` to
-`agent.write({ type: 'data-retry', transient: true, data: { modelId, attempt, reason } })`,
-so the renderer can show a "retrying…" status line. The chunk is transient —
-nothing is persisted. All logging goes through
+`agent.write({ type: 'data-retry', id: 'retry', data: { modelId, attempt, reason } })`
+— a **stable-id, non-transient** data part, so it rides `message.parts` and the
+renderer renders it as a "retrying…" status line (`RetryStatusBlock`). The
+stable `id` makes repeated retries reconcile into one part (latest wins), and
+`PersistenceListener.stripTransientStatusParts` removes it before the message is
+saved (live-only, never persisted). All logging goes through
 `loggerService.withContext('ModelRetry')`.
 
 ### Embeddings & Rerank — no ai-retry
@@ -110,9 +115,10 @@ embeddings (vectors from different models live in incompatible spaces and would
 corrupt the index) or rerank (`ai-retry` has no `RerankingModelV3` support), so
 the wrapper adds no value — and AI SDK's built-in retry already does the right
 thing per batch (respects `Retry-After` + exponential backoff). Both
-`AiService.embedMany` and `AiService.rerank` therefore default the SDK's
-`maxRetries` from the retry preference (0 when disabled; an explicit
-`requestOptions.maxRetries` still wins).
+`AiService.embedMany` and `AiService.rerank` therefore derive the SDK's
+`maxRetries` from the retry preference, preserving each path's pre-feature
+default when retry is off (embedMany `2` = the SDK default, rerank `0`); an
+explicit `requestOptions.maxRetries` still wins.
 
 Embeddings additionally cap fan-out. `embedMany` splits a long document into
 many `doEmbed` batches and defaults to **unbounded** parallelism
@@ -126,6 +132,10 @@ handles the residual 429s. The degrade-to-vector-results fallback in
 
 - **AI SDK `maxRetries`** stays `0` for chat calls (`buildAgentParams`) —
   ai-retry owns retries; enabling both would multiply attempts.
+- **Per-request opt-out:** an explicit `requestOptions.maxRetries === 0` on a
+  chat request disables the ai-retry wrapper for that request (no same-model
+  retry, no fallback), so the per-request contract stays authoritative — the
+  same way embedding/rerank honor an explicit override.
 - **`AgentLoopHooks.onError`** is a notification hook only; the loop always
   aborts after it. There is no turn-level retry in the agent loop — call-level
   retry/fallback is this model wrapper, and restarting a whole turn is the

@@ -386,24 +386,27 @@ export class AiService extends BaseService {
 
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
-    const fallbacks = buildFallbackModels({
-      request,
-      assistant,
-      signal,
-      primaryUniqueModelId: model.id,
-      primaryHasTools: !!tools && Object.keys(tools).length > 0,
-      requestHasImages: requestHasImageInput(request.messages),
-      extraFeatures
-    })
-
+    // An explicit per-request `maxRetries: 0` means "no retries for this request"
+    // — honor it (like embedding/rerank), overriding the global retry preference.
+    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
-    const wrapModel = createRetryableWrap({
-      fallbacks,
-      // Stable `id` so repeated retries reconcile into one live status part (latest wins).
-      // Not transient: it rides message.parts so the renderer can show it; the
-      // PersistenceListener strips it before the message is saved.
-      onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
-    })
+    const wrapModel = retryDisabledForRequest
+      ? undefined
+      : createRetryableWrap({
+          fallbacks: buildFallbackModels({
+            request,
+            assistant,
+            signal,
+            primaryUniqueModelId: model.id,
+            primaryHasTools: !!tools && Object.keys(tools).length > 0,
+            requestHasImages: requestHasImageInput(request.messages),
+            extraFeatures
+          }),
+          // Stable `id` so repeated retries reconcile into one live status part (latest wins).
+          // Not transient: it rides message.parts so the renderer can show it; the
+          // PersistenceListener strips it before the message is saved.
+          onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -447,22 +450,28 @@ export class AiService extends BaseService {
       extraFeatures
     )
 
-    const fallbacks = buildFallbackModels({
-      request,
-      assistant,
-      signal,
-      primaryUniqueModelId: model.id,
-      primaryHasTools: !!tools && Object.keys(tools).length > 0,
-      requestHasImages: requestHasImageInput(request.messages),
-      extraFeatures
-    })
+    // An explicit per-request `maxRetries: 0` disables retry for this request.
+    const wrapModel =
+      request.requestOptions?.maxRetries === 0
+        ? undefined
+        : createRetryableWrap({
+            fallbacks: buildFallbackModels({
+              request,
+              assistant,
+              signal,
+              primaryUniqueModelId: model.id,
+              primaryHasTools: !!tools && Object.keys(tools).length > 0,
+              requestHasImages: requestHasImageInput(request.messages),
+              extraFeatures
+            })
+          })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins,
-      wrapModel: createRetryableWrap({ fallbacks }),
+      wrapModel,
       tools,
       system: request.system ?? system,
       options,

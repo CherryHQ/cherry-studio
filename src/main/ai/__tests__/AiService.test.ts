@@ -15,6 +15,8 @@ const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
+const mockCreateRetryableWrap = vi.fn((..._args: unknown[]) => undefined)
+const mockBuildFallbackModels = vi.fn((..._args: unknown[]) => [] as unknown[])
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -52,6 +54,14 @@ vi.mock('@cherrystudio/ai-core', () => ({
   embedMany: (...args: unknown[]) => mockEmbedMany(...args),
   generateImage: (...args: unknown[]) => mockGenerateImage(...args),
   rerank: (...args: unknown[]) => mockRerank(...args)
+}))
+
+vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
+  createRetryableWrap: (...args: unknown[]) => mockCreateRetryableWrap(...args)
+}))
+
+vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
+  buildFallbackModels: (...args: unknown[]) => mockBuildFallbackModels(...args)
 }))
 
 const { AiService } = await import('../AiService')
@@ -678,6 +688,54 @@ describe('AiService tool approval', () => {
     await service.rerank({ uniqueModelId: 'test-provider::test-reranker', query: 'q', documents: ['a'] })
 
     expect(mockRerank.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 4 }))
+  })
+
+  it('disables the chat retry wrapper when requestOptions.maxRetries is 0', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      model: { id: 'test-provider::test-model' },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined
+    } as never)
+
+    await service.streamText({
+      chatId: 'topic-1',
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { maxRetries: 0, signal: new AbortController().signal }
+    } as never)
+
+    // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
+    expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
+  it('builds the chat retry wrapper when no explicit maxRetries override is given', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      model: { id: 'test-provider::test-model' },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined
+    } as never)
+
+    await service.streamText({
+      chatId: 'topic-1',
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(1)
   })
 
   it('checks rerank models with rerank before embedding or text generation', async () => {
