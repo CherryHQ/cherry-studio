@@ -35,6 +35,20 @@ import viVN from './translate/vi-vn.json'
 
 const logger = loggerService.withContext('I18N')
 
+// RTL language codes - languages that require right-to-left text direction
+const rtlLanguages = ['ar-YE', 'ar', 'fa', 'fa-IR', 'he', 'he-IL', 'ur', 'ur-PK']
+
+/**
+ * Set document direction based on language
+ * @param language - The language code (e.g., 'ar-YE', 'en-US')
+ */
+export const setDocumentDirection = (language: string) => {
+  const dir = rtlLanguages.includes(language) || rtlLanguages.includes(language.split('-')[0]) ? 'rtl' : 'ltr'
+  document.documentElement.setAttribute('dir', dir)
+  document.documentElement.setAttribute('lang', language)
+  logger.debug(`Document direction set to ${dir} for language ${language}`)
+}
+
 const resources = Object.fromEntries(
   [
     ['ar-YE', arYE],
@@ -82,6 +96,19 @@ export const setDayjsLocale = (language: string) => {
   const dayjsLocale = dayjsLocaleMap[language] || 'en'
   dayjs.locale(dayjsLocale)
 }
+
+// Initialize document direction on startup
+void (async () => {
+  const language = await getLanguage()
+  setDocumentDirection(language)
+  setDayjsLocale(language)
+})()
+
+// Watch for language changes and update document direction
+i18n.on('languageChanged', (lng) => {
+  setDocumentDirection(lng)
+  setDayjsLocale(lng)
+})
 
 void i18n.use(initReactI18next).init({
   resources,
