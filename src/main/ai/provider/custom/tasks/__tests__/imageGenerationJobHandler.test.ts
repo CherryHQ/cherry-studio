@@ -234,6 +234,45 @@ describe('imageGenerationJobHandler.execute', () => {
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
   })
 
+  it('returns the subset (does not throw) when only some downloads fail', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
+    downloadMock.mockImplementation(async (url: string) =>
+      url.endsWith('a.png') ? { data: 'AAAA', media_type: 'image/png' } : null
+    )
+    createInternalEntryMock.mockResolvedValueOnce({ id: 'file-a' })
+
+    const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
+    expect(result.files).toEqual([{ id: 'file-a' }])
+  })
+
+  it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
+    submitMock.mockResolvedValue({ imageUrls: [] })
+    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+  })
+
+  it('fails when poll returns an empty array (paid no-op guard)', async () => {
+    submitMock.mockResolvedValue({ taskId: 'task-empty' })
+    pollMock.mockResolvedValue([])
+    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+  })
+
+  it('cancels the remote task when the signal aborts mid-poll', async () => {
+    const controller = new AbortController()
+    submitMock.mockResolvedValue({ taskId: 'task-mid' })
+    // Abort while transport.poll is in flight → the abort listener registered in
+    // pollUntilDone fires cancelRemote (the realistic mid-poll path, distinct from
+    // the pre-aborted early-return). The post-poll download then sees the aborted
+    // signal and throws, so execute rejects.
+    pollMock.mockImplementation(async () => {
+      controller.abort()
+      return ['https://cdn.example.com/a.png']
+    })
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
+    expect(pollMock).toHaveBeenCalled()
+    expect(cancelMock).toHaveBeenCalledWith('task-mid')
+  })
+
   it('throws when transport resolution yields nothing', async () => {
     resolveImageTransportMock.mockReturnValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/no async transport/i)

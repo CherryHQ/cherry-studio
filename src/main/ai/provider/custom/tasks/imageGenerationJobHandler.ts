@@ -77,6 +77,14 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         }
       }
 
+      // An empty URL list from a *successful* submit/poll (e.g. content moderation
+      // or a degraded vendor response that still charged) must fail rather than
+      // complete as a silent zero-image "success". Covers both submit.imageUrls === []
+      // and poll() === []; the malformed-submit (neither field) case threw above.
+      if (urls.length === 0) {
+        throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
+      }
+
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
       ctx.reportProgress(100, { stage: 'done' })
       return { files } satisfies ImageGenerationJobOutput
@@ -148,9 +156,8 @@ async function pollUntilDone(
   }
 }
 
-/** Download result URLs and persist each as an internal FileEntry. */
+/** Download result URLs (always non-empty — the caller guards) and persist each as an internal FileEntry. */
 async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal): Promise<FileEntry[]> {
-  if (urls.length === 0) return []
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
   for (const url of urls) {
