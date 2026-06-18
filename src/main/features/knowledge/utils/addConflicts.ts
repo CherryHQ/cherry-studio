@@ -39,8 +39,10 @@ export function resolveKnowledgeAddConflicts(
   inputs: KnowledgeAddItemInput[],
   existingRoots: KnowledgeItem[]
 ): KnowledgeAddConflictResolution {
-  // All existing roots per key — keep-all routinely produces several sharing one
-  // key (e.g. `report.pdf` from two folders), and `replace` must purge every one.
+  // Existing roots grouped by detection key. With relativePath-based keys each
+  // kept copy has a unique key (`test.md` / `test_2.md` / ...), so a group normally
+  // holds exactly one root and `replace` targets only the matching copy; the array
+  // still lets `replace` purge every root under a key should data ever duplicate one.
   const existingByKey = new Map<string, KnowledgeItem[]>()
   for (const item of existingRoots) {
     const detectionKey = getKnowledgeItemConflictKey(item)

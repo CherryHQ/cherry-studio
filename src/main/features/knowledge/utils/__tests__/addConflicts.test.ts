@@ -97,20 +97,21 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
   })
 
-  it('purges EVERY existing root sharing a conflict key on replace, not just the first', () => {
-    // A prior keep-all routinely leaves several roots under one name (e.g. report.pdf
-    // imported from two folders, stored as report.pdf and report_1.pdf). `replace`
-    // must target the whole group, otherwise the stale copies survive the overwrite.
-    const inputs = [fileInput('/incoming/report.pdf')]
+  it('on replace, targets only the existing copy whose deduped relativePath matches the incoming source', () => {
+    // Three test.md kept side by side are stored as test.md / test_2.md / test_3.md
+    // (deduped relativePath). A new test.md must overwrite ONLY relativePath `test.md`,
+    // leaving test_2.md / test_3.md intact — they are distinct, deliberately-kept copies.
+    const inputs = [fileInput('/incoming/test.md')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/a/report.pdf', relativePath: 'report.pdf' } }),
-      existingItem('e2', { type: 'file', data: { source: '/b/report.pdf', relativePath: 'report_1.pdf' } })
+      existingItem('e1', { type: 'file', data: { source: '/a/test.md', relativePath: 'test.md' } }),
+      existingItem('e2', { type: 'file', data: { source: '/b/test.md', relativePath: 'test_2.md' } }),
+      existingItem('e3', { type: 'file', data: { source: '/c/test.md', relativePath: 'test_3.md' } })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
 
-    expect(result.conflicts).toEqual([{ type: 'file', title: 'report.pdf' }])
-    expect([...result.conflictingExistingRootIds].sort()).toEqual(['e1', 'e2'])
+    expect(result.conflicts).toEqual([{ type: 'file', title: 'test.md' }])
+    expect(result.conflictingExistingRootIds).toEqual(['e1'])
   })
 
   it('never collides blank-content notes (empty detection key) and keeps them all', () => {

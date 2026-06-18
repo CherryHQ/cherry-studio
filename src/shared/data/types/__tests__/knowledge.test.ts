@@ -98,9 +98,18 @@ describe('getKnowledgeItemDisplayTitle', () => {
 })
 
 describe('getKnowledgeItemConflictKey', () => {
-  it('keys file and directory off the source basename', () => {
+  it('keys file and directory off the deduped relativePath, falling back to the source basename', () => {
+    // An add-input has no relativePath yet → source basename, so detection still fires.
     expect(getKnowledgeItemConflictKey({ type: 'file', data: { source: '/a/report.pdf' } })).toBe('report.pdf')
     expect(getKnowledgeItemConflictKey({ type: 'directory', data: { source: '/a/docs' } })).toBe('docs')
+    // An existing item keys off its deduped relativePath, so `replace` can target a
+    // single copy among same-source-basename siblings (test.md vs test_2.md).
+    expect(
+      getKnowledgeItemConflictKey({ type: 'file', data: { source: '/a/test.md', relativePath: 'test_2.md' } })
+    ).toBe('test_2.md')
+    expect(
+      getKnowledgeItemConflictKey({ type: 'directory', data: { source: '/a/docs', relativePath: 'docs_2' } })
+    ).toBe('docs_2')
   })
 
   it('keys note off the first line', () => {

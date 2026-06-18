@@ -761,18 +761,23 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
 }
 
 /**
- * Per-type same-name detection key. Separate from the display title on purpose:
- * url keys off the raw `data.url` (exact, no normalization) because the display
- * title prefers a post-index snapshot name that is absent at add-time and would
- * miss real duplicate urls. file/directory key off the source basename and note
- * off its first line, which coincide with their display titles.
+ * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
+ * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
+ * `test_2.md`) when present, else the source basename. An add-input has no
+ * relativePath yet, so it keys off the source basename and detection still fires;
+ * an existing item keys off its deduped relativePath, so `replace` targets only
+ * the one colliding copy (relativePath `test.md`) instead of every item sharing a
+ * source basename (`test.md`, `test_2.md`, `test_3.md`). url/note stay separate
+ * from the display title: url keys off the raw `data.url` (exact, no normalization)
+ * and note off its first line, because their deduped name is a post-index snapshot
+ * name absent at add-time — keying off it would miss real duplicate urls/notes.
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
   switch (item.type) {
     case 'file':
     case 'directory':
-      return getKnowledgePathBasename(data.source || '')
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
     case 'note':
       return getKnowledgeNoteFirstLine(data.content || '')
     case 'url':
