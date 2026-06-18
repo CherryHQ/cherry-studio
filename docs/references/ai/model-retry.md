@@ -37,34 +37,55 @@ These keys are generated from `v2-refactor-temp/tools/data-classify/data/target-
 
 ## How it plugs in
 
-### Chat models (`createRetryableWrap`)
+### Chat models — two pieces
 
-`src/main/ai/runtime/aiSdk/retry/createRetryableWrap.ts`:
+**Fallbacks are rebuilt per-model** (`src/main/ai/runtime/aiSdk/retry/buildFallbackModels.ts`).
+A fallback must carry **its own** feature middleware and params, not the
+primary's — ai-retry swaps the model but replays one set of call options, and
+the feature plugins are model-specific (built per `(assistant, model, provider)`
+in `buildAgentParams`, closed over that model). So for each configured fallback
+`UniqueModelId`, `AiService.buildFallbackModels`:
 
-1. Reads the four preferences; returns `undefined` when disabled.
-2. Resolves each fallback `UniqueModelId` → provider/model entities →
-   `providerToAiSdkConfig` → `resolveLanguageModel` (exported by
-   `@cherrystudio/ai-core`). A fallback equal to the primary model is
-   skipped; an unresolvable one (deleted provider/model) is logged and
-   skipped — fallback config never fails the request.
-3. Returns a `wrapModel` closure:
+1. Returns `[]` when retry is disabled / unconfigured; skips a fallback equal to
+   the **stored** primary `UniqueModelId` (not `sdkConfig.modelId` = apiModelId).
+2. **Capability-gates**: skips a non-vision fallback when the request has image
+   input, or a non-function-calling fallback when the request has active tools
+   (the fallback reuses the primary's tools/system, so it must be able to handle
+   them). Logged + skipped, never failing the request.
+3. Runs the **same `buildAgentParams` pipeline** as the primary for that model →
+   `{ sdkConfig, plugins, options }`, resolves it via
+   `resolveLanguageModel(providerId, settings, modelId, plugins)` (the `plugins`
+   arg applies the fallback's own middleware), and lifts its own
+   sampling/`providerOptions`/`headers` as a per-fallback call-option override.
+4. An unresolvable fallback (deleted provider/model) is logged + skipped.
+
+**`createRetryableWrap`** (`createRetryableWrap.ts`) then just assembles the
+ai-retry policy from the pre-built fallbacks (no provider/model loading in this
+leaf): returns `undefined` when disabled, else a `wrapModel` closure:
 
 ```ts
 createRetryable({
   model: base,
   retries: [
     retryAfterDelay({ maxAttempts, delay: 1_000, backoffFactor: 2 }), // same model
-    ...fallbackModels                                                  // one attempt each
+    ...fallbacks.map((f) => (f.options ? { model: f.model, options: f.options } : f.model))
   ],
   onRetry,   // logs + onRetryEvent callback
   onFailure  // logs terminal failure
 })
 ```
 
-`AiService.streamText` / `generateText` build the wrap after
-`buildAgentParamsFor` and pass it as `AgentLoopParams.wrapModel`;
+`AiService.streamText` / `generateText` build the fallbacks + wrap after
+`buildAgentParamsFor` and pass the wrap as `AgentLoopParams.wrapModel`;
 `Agent.buildAiSdkAgent` forwards it to `createAgent`, which applies it to the
 resolved model right before constructing the `ToolLoopAgent`.
+
+> **Limitation:** the primary's **tools + system** are kept for fallbacks (the
+> agent loop is built around them and ai-retry can't re-shape them mid-call) —
+> the capability gate compensates by skipping fallbacks that can't handle the
+> request shape. Giving fallbacks fully model-specific resolution without a
+> per-fallback `buildAgentParams` recompute would require the context-driven
+> feature refactor tracked in #16197.
 
 The `wrapModel` hook input is typed `LanguageModelV3` on purpose: the value
 has already been resolved by the plugin pipeline (`executor.resolveModel`

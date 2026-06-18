@@ -3,31 +3,12 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { APICallError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import type { RetryFallback } from '../createRetryableWrap'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
-
-const getByProviderId = vi.fn()
-const getByKey = vi.fn()
-vi.mock('@main/data/services/ProviderService', () => ({
-  providerService: { getByProviderId: (...args: unknown[]) => getByProviderId(...args) }
-}))
-vi.mock('@main/data/services/ModelService', () => ({
-  modelService: { getByKey: (...args: unknown[]) => getByKey(...args) }
-}))
-
-const providerToAiSdkConfig = vi.fn()
-vi.mock('../../../../provider/config', () => ({
-  providerToAiSdkConfig: (...args: unknown[]) => providerToAiSdkConfig(...args)
-}))
-
-const resolveLanguageModel = vi.fn()
-vi.mock('@cherrystudio/ai-core', () => ({
-  resolveLanguageModel: (...args: unknown[]) => resolveLanguageModel(...args)
-}))
 
 const { createRetryableWrap } = await import('../createRetryableWrap')
 
@@ -64,7 +45,6 @@ function setRetryPreferences(overrides: Partial<Record<string, unknown>> = {}) {
     'chat.retry.enabled': true,
     'chat.retry.max_attempts': 2,
     'chat.retry.backoff_enabled': false,
-    'chat.retry.fallback_model_ids': [],
     ...overrides
   }
   for (const [key, value] of Object.entries(values)) {
@@ -74,38 +54,22 @@ function setRetryPreferences(overrides: Partial<Record<string, unknown>> = {}) {
 
 describe('createRetryableWrap', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
-  it('returns undefined when retry is disabled', async () => {
+  it('returns undefined when retry is disabled', () => {
     setRetryPreferences({ 'chat.retry.enabled': false })
-    const wrap = await createRetryableWrap({ primaryProviderId: 'openai', primaryModelId: 'gpt-4' })
-    expect(wrap).toBeUndefined()
+    expect(createRetryableWrap({ fallbacks: [] })).toBeUndefined()
   })
 
-  it('skips fallbacks equal to the primary model and unresolvable fallbacks', async () => {
-    setRetryPreferences({
-      'chat.retry.fallback_model_ids': ['openai::gpt-4', 'gone::deleted-model', 'anthropic::claude-x']
-    })
-
-    getByProviderId.mockImplementation(async (providerId: string) => {
-      if (providerId === 'gone') throw new Error('provider deleted')
-      return makeProvider({ id: providerId })
-    })
-    getByKey.mockImplementation(async (providerId: string, modelId: string) =>
-      makeModel({ id: `${providerId}::${modelId}` as never, apiModelId: modelId })
-    )
-    providerToAiSdkConfig.mockResolvedValue({ providerId: 'anthropic', providerSettings: {} })
+  it('falls back to the first pre-built fallback when the primary fails non-retryably', async () => {
+    setRetryPreferences()
     const fallbackGenerate = vi.fn().mockResolvedValue(okResult)
-    resolveLanguageModel.mockResolvedValue(makeFakeLanguageModel('claude-x', fallbackGenerate))
+    const fallbacks: RetryFallback[] = [{ model: makeFakeLanguageModel('claude-x', fallbackGenerate) }]
 
-    const wrap = await createRetryableWrap({ primaryProviderId: 'openai', primaryModelId: 'gpt-4' })
+    const wrap = createRetryableWrap({ fallbacks })
     expect(wrap).toBeDefined()
-    // primary skipped, 'gone' unresolvable → only claude-x resolved
-    expect(resolveLanguageModel).toHaveBeenCalledTimes(1)
 
-    // primary fails non-retryably → falls back to claude-x
     const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
     const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
     const result = await wrapped.doGenerate({ prompt: [] } as never)
@@ -115,16 +79,31 @@ describe('createRetryableWrap', () => {
     expect(result.content).toEqual(okResult.content)
   })
 
+  it("applies a fallback's per-model option overrides to its call", async () => {
+    setRetryPreferences()
+    const fallbackGenerate = vi.fn().mockResolvedValue(okResult)
+    const fallbacks: RetryFallback[] = [
+      {
+        model: makeFakeLanguageModel('claude-x', fallbackGenerate),
+        options: { temperature: 0.1, maxOutputTokens: 256 }
+      }
+    ]
+
+    const wrap = createRetryableWrap({ fallbacks })
+    const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
+    const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
+    await wrapped.doGenerate({ prompt: [], temperature: 0.9 } as never)
+
+    // ai-retry merges the fallback's options into the call options it replays.
+    expect(fallbackGenerate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.1, maxOutputTokens: 256 }))
+  })
+
   it('retries the same model on transient errors and emits retry events', async () => {
     vi.useFakeTimers()
     try {
       setRetryPreferences()
       const onRetryEvent = vi.fn()
-      const wrap = await createRetryableWrap({
-        primaryProviderId: 'openai',
-        primaryModelId: 'gpt-4',
-        onRetryEvent
-      })
+      const wrap = createRetryableWrap({ fallbacks: [], onRetryEvent })
 
       const primaryGenerate = vi.fn().mockRejectedValueOnce(makeApiError(429)).mockResolvedValue(okResult)
       const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
@@ -145,7 +124,7 @@ describe('createRetryableWrap', () => {
     vi.useFakeTimers()
     try {
       setRetryPreferences({ 'chat.retry.max_attempts': 3, 'chat.retry.backoff_enabled': true })
-      const wrap = await createRetryableWrap({ primaryProviderId: 'openai', primaryModelId: 'gpt-4' })
+      const wrap = createRetryableWrap({ fallbacks: [] })
 
       const primaryGenerate = vi
         .fn()

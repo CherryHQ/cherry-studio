@@ -37,6 +37,7 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { buildFallbackModels } from './runtime/aiSdk/retry/buildFallbackModels'
 import { createRetryableWrap } from './runtime/aiSdk/retry/createRetryableWrap'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
@@ -53,6 +54,21 @@ const logger = loggerService.withContext('AiService')
  * throughput for far fewer 429s.
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
+
+/** True when any message carries image input (UIMessage `file` part or ModelMessage `image` part). */
+function requestHasImageInput(messages: ReadonlyArray<unknown> | undefined): boolean {
+  if (!messages) return false
+  for (const message of messages) {
+    const m = message as { parts?: unknown[]; content?: unknown }
+    const parts = Array.isArray(m.parts) ? m.parts : Array.isArray(m.content) ? m.content : []
+    for (const part of parts) {
+      const p = part as { type?: string; mediaType?: string }
+      if (p.type === 'image') return true
+      if (p.type === 'file' && typeof p.mediaType === 'string' && p.mediaType.startsWith('image/')) return true
+    }
+  }
+  return false
+}
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -362,7 +378,7 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts } = await this.buildAgentParamsFor(
       request,
       signal,
       extraFeatures
@@ -370,10 +386,19 @@ export class AiService extends BaseService {
 
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
+    const fallbacks = await buildFallbackModels({
+      request,
+      assistant,
+      signal,
+      primaryUniqueModelId: model.id,
+      primaryHasTools: !!tools && Object.keys(tools).length > 0,
+      requestHasImages: requestHasImageInput(request.messages),
+      extraFeatures
+    })
+
     const agentRef: { current?: Agent } = {}
-    const wrapModel = await createRetryableWrap({
-      primaryProviderId: sdkConfig.providerId,
-      primaryModelId: sdkConfig.modelId,
+    const wrapModel = createRetryableWrap({
+      fallbacks,
       // Stable `id` so repeated retries reconcile into one live status part (latest wins).
       // Not transient: it rides message.parts so the renderer can show it; the
       // PersistenceListener strips it before the message is saved.
@@ -416,21 +441,28 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts } = await this.buildAgentParamsFor(
       request,
       signal,
       extraFeatures
     )
+
+    const fallbacks = await buildFallbackModels({
+      request,
+      assistant,
+      signal,
+      primaryUniqueModelId: model.id,
+      primaryHasTools: !!tools && Object.keys(tools).length > 0,
+      requestHasImages: requestHasImageInput(request.messages),
+      extraFeatures
+    })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins,
-      wrapModel: await createRetryableWrap({
-        primaryProviderId: sdkConfig.providerId,
-        primaryModelId: sdkConfig.modelId
-      }),
+      wrapModel: createRetryableWrap({ fallbacks }),
       tools,
       system: request.system ?? system,
       options,

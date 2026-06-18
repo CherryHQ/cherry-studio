@@ -1,25 +1,37 @@
 /**
  * Builds the `wrapModel` closure that wraps a resolved chat model with
- * ai-retry: same-model transient retry (429/5xx/timeout with backoff)
- * first, then cross-model fallback to the user-configured retry models.
+ * ai-retry: same-model transient retry on retryable API errors (429/503/529
+ * and other `isRetryable` `APICallError`s, with backoff) first, then
+ * cross-model fallback to the user-configured retry models.
+ *
+ * Fallbacks are built by the caller (`AiService.buildFallbackModels`) through
+ * the same `buildAgentParams` pipeline as the primary, so each fallback model
+ * already carries its own feature middleware and its own call-option overrides
+ * (sampling / providerOptions / headers). This leaf only assembles the
+ * ai-retry policy — it does not load providers/models itself.
+ *
+ * Note: `retryAfterDelay` covers retryable API errors only — it does not
+ * handle `AbortSignal.timeout()` style `TimeoutError`s (that would need a
+ * separate `requestTimeout` retryable). Cherry's abort signal is the user's
+ * cancel/request scope, so timeouts are deliberately not retried here.
  *
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { application } from '@application'
-import { resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { modelService } from '@main/data/services/ModelService'
-import { providerService } from '@main/data/services/ProviderService'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { APICallError } from 'ai'
-import { createRetryable, isErrorAttempt, type RetryContext } from 'ai-retry'
+import {
+  createRetryable,
+  isErrorAttempt,
+  type LanguageModel,
+  type LanguageModelRetryCallOptions,
+  type Retries,
+  type RetryContext
+} from 'ai-retry'
 import { retryAfterDelay } from 'ai-retry/retryables'
-
-import { providerToAiSdkConfig } from '../../../provider/config'
-import type { AppProviderSettingsMap } from '../../../types'
 
 const logger = loggerService.withContext('ModelRetry')
 
@@ -28,10 +40,24 @@ export type RetryEventPayload = RetryPartData
 
 export type WrapLanguageModel = (model: LanguageModelV3) => LanguageModelV3
 
+/**
+ * Per-fallback call-option overrides ai-retry merges into the request when it
+ * switches to that fallback (sampling / `providerOptions` / `headers`).
+ */
+export type FallbackCallOptions = LanguageModelRetryCallOptions
+
+/** A pre-built fallback: a fully-resolved (middleware-applied) model + its own params. */
+export interface RetryFallback {
+  model: LanguageModelV3
+  options?: FallbackCallOptions
+}
+
 export interface CreateRetryableWrapOptions {
-  /** Primary model identity, used to skip a fallback equal to the primary. */
-  primaryProviderId: string
-  primaryModelId: string
+  /**
+   * Fallback models in user-configured order, each already resolved with its
+   * own middleware and call-option overrides (see `AiService.buildFallbackModels`).
+   */
+  fallbacks: RetryFallback[]
   /** Invoked on each retry/fallback attempt (e.g. to surface a transient UI chunk). */
   onRetryEvent?: (event: RetryEventPayload) => void
 }
@@ -54,62 +80,34 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): RetryEventPayl
   return { modelId: current.model.modelId, attempt: attempts.length, reason }
 }
 
-/** Resolve one fallback UniqueModelId into a model instance; null on failure (logged, skipped). */
-async function resolveFallbackModel(uniqueModelId: UniqueModelId): Promise<LanguageModelV3 | null> {
-  try {
-    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    const provider = await providerService.getByProviderId(providerId)
-    const model = await modelService.getByKey(providerId, modelId)
-    const cfg = await providerToAiSdkConfig(provider, model)
-    const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
-      cfg.providerId,
-      cfg.providerSettings,
-      model.apiModelId ?? model.id
-    )
-    return resolved as LanguageModelV3
-  } catch (error) {
-    logger.warn('skipping unresolvable fallback model', { uniqueModelId, error })
-    return null
-  }
-}
-
 /**
  * Returns a `wrapModel` closure when retry is enabled, otherwise `undefined`.
- * Fallback models that fail to resolve are skipped without failing the request.
  */
-export async function createRetryableWrap(options: CreateRetryableWrapOptions): Promise<WrapLanguageModel | undefined> {
+export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
   const preferences = application.get('PreferenceService')
   if (!preferences.get('chat.retry.enabled')) return undefined
 
   const maxAttempts = Math.max(1, preferences.get('chat.retry.max_attempts'))
   const backoffEnabled = preferences.get('chat.retry.backoff_enabled')
-  const fallbackIds = preferences.get('chat.retry.fallback_model_ids').filter(isUniqueModelId)
 
-  // Resolve fallbacks concurrently (this runs on the request path); Promise.all
-  // preserves the user-configured order. Primary-equal entries are dropped.
-  const fallbackModels = (
-    await Promise.all(
-      fallbackIds.map((uniqueModelId) => {
-        const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-        if (providerId === options.primaryProviderId && modelId === options.primaryModelId) return null
-        return resolveFallbackModel(uniqueModelId)
-      })
+  const retries: Retries<LanguageModel> = [
+    // Same-model transient retry: honors Retry-After headers, otherwise delay + backoff.
+    retryAfterDelay<LanguageModel>({
+      maxAttempts,
+      delay: RETRY_BASE_DELAY_MS,
+      ...(backoffEnabled && { backoffFactor: 2 })
+    }),
+    // Cross-model fallback, tried in user-configured order (one attempt each).
+    // Each entry carries the fallback's own params as a per-retry option override.
+    ...options.fallbacks.map((fallback) =>
+      fallback.options ? { model: fallback.model, options: fallback.options } : fallback.model
     )
-  ).filter((model): model is LanguageModelV3 => model !== null)
+  ]
 
   return (base) =>
     createRetryable({
       model: base,
-      retries: [
-        // Same-model transient retry: honors Retry-After headers, otherwise delay + backoff.
-        retryAfterDelay({
-          maxAttempts,
-          delay: RETRY_BASE_DELAY_MS,
-          ...(backoffEnabled && { backoffFactor: 2 })
-        }),
-        // Cross-model fallback, tried in user-configured order (one attempt each).
-        ...fallbackModels
-      ],
+      retries,
       onRetry: (context) => {
         const event = describeAttempt(context)
         logger.info('retrying model call', { ...event })
