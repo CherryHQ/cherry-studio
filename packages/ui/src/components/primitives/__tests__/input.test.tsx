@@ -54,10 +54,13 @@ describe('Input', () => {
 
     render(<Input aria-label="Time" type="time" defaultValue="09:00" onChange={onChange} />)
 
+    expect(screen.getByLabelText('Time')).not.toHaveClass('ring-[3px]')
+
     fireEvent.click(screen.getByLabelText('Open time picker'))
 
     const selectedHour = screen.getByRole('button', { name: 'Hour 09' })
 
+    expect(screen.getByLabelText('Time')).toHaveClass('ring-ring/50', 'ring-[3px]')
     expect(screen.getByRole('dialog')).toHaveClass('w-75')
     expect(selectedHour).toHaveClass('bg-primary', 'text-white', 'rounded-md', 'w-full')
     expect(selectedHour.parentElement).toHaveClass('pr-2')

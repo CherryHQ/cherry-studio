@@ -40,7 +40,13 @@ describe('DateTimePicker', () => {
 
     const trigger = screen.getByRole('button', { name: '2026-06-17 09:00:00' })
 
-    expect(trigger).toHaveClass('border-input', 'bg-background', 'focus-visible:border-input')
+    expect(trigger).toHaveClass(
+      'border-input',
+      'bg-background',
+      'focus-visible:border-input',
+      'data-[state=open]:ring-ring/50',
+      'data-[state=open]:ring-[3px]'
+    )
     expect(screen.getAllByRole('combobox')[0]).toHaveClass(
       'border-input',
       'bg-background',

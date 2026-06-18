@@ -162,7 +162,7 @@ function DateTimePicker({
           disabled={disabled}
           data-empty={!formattedValue}
           className={cn(
-            'border-input bg-background h-9 w-60 justify-start text-left font-normal hover:bg-background focus-visible:border-input data-[empty=true]:text-foreground-muted',
+            'border-input bg-background h-9 w-60 justify-start text-left font-normal hover:bg-background focus-visible:border-input data-[state=open]:border-input data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px] data-[empty=true]:text-foreground-muted',
             triggerClassName
           )}>
           <CalendarIcon className="size-4" />

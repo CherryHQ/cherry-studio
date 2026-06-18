@@ -89,6 +89,7 @@ function TimeInput({
             className={cn(
               inputClassName,
               'pr-9 [&::-webkit-calendar-picker-indicator]:hidden',
+              open && !disabled && !readOnly && 'ring-ring/50 ring-[3px]',
               dateTimeEditClassName,
               className
             )}
