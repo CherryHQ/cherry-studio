@@ -171,9 +171,6 @@ export enum IpcChannel {
   // Sub-window (detached tab window)
   SubWindow_SetAlwaysOnTop = 'sub-window:set-always-on-top',
 
-  FileProcessing_StartJob = 'file-processing:start-job',
-  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
-
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',
