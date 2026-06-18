@@ -1677,4 +1677,160 @@ describe('AiStreamManager', () => {
       expect(deltas().length).toBe(deltasBeforeCleanup + 1)
     })
   })
+
+  // ── budgetTripped state ─────────────────────────────────────────────
+  // Per-(topic,model) budget-stop state: set when THIS round trips the budget;
+  // consumeBudgetTrip increments resumesUsed AND clears the per-round tripped flag
+  // so the NEXT round only continues if it RE-trips; resumesUsed bounds the loop.
+
+  describe('budgetTripped', () => {
+    it('setBudgetTripped + isBudgetContinuable returns true', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+    })
+
+    it('isBudgetContinuable is false before setBudgetTripped', () => {
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
+    })
+
+    it('consumeBudgetTrip after setBudgetTripped → isBudgetContinuable is false (trip consumed, not re-tripped)', () => {
+      // KEY correctness case: model finishes normally after a budget-continue (no re-trip).
+      // The consumed flag must prevent onExecutionDone from wrongly re-dispatching.
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+      mgr.consumeBudgetTrip('topic-a', 'prov::model')
+      // resumesUsed=1 < MAX but tripped=false → NOT continuable
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
+    })
+
+    it('re-trip after consume → isBudgetContinuable true again (resumesUsed=1 < MAX)', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      mgr.consumeBudgetTrip('topic-a', 'prov::model') // resumesUsed=1, tripped=false
+      mgr.setBudgetTripped('topic-a', 'prov::model') // tripped=true again
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+    })
+
+    it('cap: after 3 {setBudgetTripped + consumeBudgetTrip} cycles a 4th setBudgetTripped still returns false', () => {
+      for (let i = 0; i < 3; i++) {
+        mgr.setBudgetTripped('topic-a', 'prov::model')
+        mgr.consumeBudgetTrip('topic-a', 'prov::model')
+      }
+      // resumesUsed=3 — at cap
+      mgr.setBudgetTripped('topic-a', 'prov::model') // tripped=true but resumesUsed=3
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
+    })
+
+    it('setBudgetTripped is idempotent on tripped flag — resumesUsed unaffected by repeat trips', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      // Still continuable (0 resumes used, tripped=true)
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+    })
+
+    it('clearBudgetTripped makes isBudgetContinuable false', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+      mgr.clearBudgetTripped('topic-a', 'prov::model')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
+    })
+
+    it('different (topic,model) keys are independent', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model-1')
+      mgr.setBudgetTripped('topic-b', 'prov::model-2')
+      // Exhaust topic-a via 3 consume cycles
+      for (let i = 0; i < 3; i++) {
+        mgr.consumeBudgetTrip('topic-a', 'prov::model-1')
+        if (i < 2) mgr.setBudgetTripped('topic-a', 'prov::model-1')
+      }
+
+      // topic-a cap reached (resumesUsed=3, tripped=false after last consume)
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-1')).toBe(false)
+      // topic-b untouched — still continuable
+      expect(mgr.isBudgetContinuable('topic-b', 'prov::model-2')).toBe(true)
+
+      mgr.clearBudgetTripped('topic-a', 'prov::model-1')
+      // topic-b still continuable after clearing an unrelated entry
+      expect(mgr.isBudgetContinuable('topic-b', 'prov::model-2')).toBe(true)
+    })
+
+    it('same topic, different model keys are independent', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model-1')
+      // model-2 on the same topic is unaffected
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-2')).toBe(false)
+      mgr.clearBudgetTripped('topic-a', 'prov::model-1')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-1')).toBe(false)
+    })
+
+    it('consumeBudgetTrip is a no-op when the key was never set', () => {
+      // Should not throw
+      expect(() => mgr.consumeBudgetTrip('topic-x', 'prov::model')).not.toThrow()
+      expect(mgr.isBudgetContinuable('topic-x', 'prov::model')).toBe(false)
+    })
+
+    it('a submit-message send resets the budget state so the new turn starts fresh', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      for (let i = 0; i < 3; i++) {
+        mgr.consumeBudgetTrip('topic-a', 'prov::model')
+        if (i < 2) mgr.setBudgetTripped('topic-a', 'prov::model')
+      }
+      // Cap reached — not continuable
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
+
+      // A fresh submit-message turn must reset the budget state.
+      mgr.send({
+        topicId: 'topic-a',
+        models: [{ modelId: 'prov::model', request: { ...req('topic-a'), trigger: 'submit-message' } }],
+        listeners: [new FakeListener('l:budget')]
+      })
+
+      // After the reset, the new turn can trip the budget and be continued again.
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+    })
+
+    it('a regenerate-message send also resets the budget state for the specific model', () => {
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      for (let i = 0; i < 3; i++) {
+        mgr.consumeBudgetTrip('topic-a', 'prov::model')
+        if (i < 2) mgr.setBudgetTripped('topic-a', 'prov::model')
+      }
+      // Cap reached — not continuable
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(false)
+
+      // A fresh regenerate-message turn must also reset the budget state.
+      mgr.send({
+        topicId: 'topic-a',
+        models: [
+          {
+            modelId: 'prov::model',
+            request: { ...req('topic-a'), trigger: 'regenerate-message', parentAnchorId: 'anchor-1' } as any
+          }
+        ],
+        listeners: [new FakeListener('l:budget')]
+      })
+
+      // After the reset, the new turn can trip the budget and be continued again.
+      mgr.setBudgetTripped('topic-a', 'prov::model')
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model')).toBe(true)
+    })
+
+    it('clearAllBudgetTripped clears every model key for the topic, leaving other topics untouched', () => {
+      // Trip two models on topic-a and one on topic-b
+      mgr.setBudgetTripped('topic-a', 'prov::model-A')
+      mgr.setBudgetTripped('topic-a', 'prov::model-B')
+      mgr.setBudgetTripped('topic-b', 'prov::model-C')
+
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-A')).toBe(true)
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-B')).toBe(true)
+      expect(mgr.isBudgetContinuable('topic-b', 'prov::model-C')).toBe(true)
+
+      // Clearing topic-a must sweep both its keys and leave topic-b intact.
+      mgr.clearAllBudgetTripped('topic-a')
+
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-A')).toBe(false)
+      expect(mgr.isBudgetContinuable('topic-a', 'prov::model-B')).toBe(false)
+      // topic-b key is untouched
+      expect(mgr.isBudgetContinuable('topic-b', 'prov::model-C')).toBe(true)
+    })
+  })
 })
