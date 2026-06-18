@@ -1,5 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ReactNode } from 'react'
@@ -81,7 +82,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     const startTime = performance.now()
 
     try {
-      const searchResults = await window.api.knowledge.search(searchBaseId, trimmedQuery)
+      const searchResults = await ipcApi.request('knowledge.search', { baseId: searchBaseId, query: trimmedQuery })
       logger.info('Knowledge recall search IPC result', {
         baseId: searchBaseId,
         query: trimmedQuery,

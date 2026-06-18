@@ -28,35 +28,16 @@ import type {
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  FileProcessorFeature,
-  FileProcessorId,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
-import type {
-  CreateKnowledgeBaseDto,
-  KnowledgeAddItemInput,
-  KnowledgeBase,
-  KnowledgeItemChunk,
-  KnowledgeSearchResult as KnowledgeVectorSearchResult,
-  RestoreKnowledgeBaseDto
-} from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
-import type {
-  WebSearchCheckProviderRequest,
-  WebSearchCheckProviderResponse,
-  WebSearchFetchUrlsRequest,
-  WebSearchResponse,
-  WebSearchSearchKeywordsRequest
-} from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
 import type { FileHandle } from '@shared/file/types/handle'
@@ -338,23 +319,6 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  knowledge: {
-    createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_CreateBase, { base }),
-    restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_RestoreBase, dto),
-    deleteBase: (baseId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Knowledge_DeleteBase, { baseId }),
-    addItems: (baseId: string, items: KnowledgeAddItemInput[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_AddItems, { baseId, items }),
-    deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItems, { baseId, itemIds }),
-    reindexItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ReindexItems, { baseId, itemIds }),
-    search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_Search, { baseId, query }),
-    listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId })
-  },
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
@@ -685,30 +649,9 @@ const api = {
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
     listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
-  fileProcessing: {
-    startJob: (payload: {
-      feature: FileProcessorFeature
-      file: FileHandle
-      output?: FileProcessingOutputTarget
-      context?: {
-        dataId?: string
-      }
-      processorId?: FileProcessorId
-    }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
-    listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
-  },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
-  },
-  webSearch: {
-    searchKeywords: (request: WebSearchSearchKeywordsRequest): Promise<WebSearchResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_SearchKeywords, request),
-    fetchUrls: (request: WebSearchFetchUrlsRequest): Promise<WebSearchResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request),
-    checkProvider: (request: WebSearchCheckProviderRequest): Promise<WebSearchCheckProviderResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_CheckProvider, request)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {

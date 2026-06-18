@@ -7,6 +7,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
@@ -14,10 +15,11 @@ import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Base64String } from '@shared/file/types/common'
+import type { Base64String, URLString } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import {
@@ -31,6 +33,9 @@ import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
+import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
+import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
+import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
@@ -102,6 +107,20 @@ export interface AiImageResult {
   files: FileEntry[]
 }
 
+/**
+ * Map a painting input-image / mask string to FileManager create params. Preserves
+ * the `AiImageRequest.inputImages` contract ("base64 data URLs or URLs") when routing
+ * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
+ * become downloaded url entries. Either way the handler later reads the bytes by id.
+ */
+export function imageInputEntryParams(
+  value: string
+): { source: 'base64'; data: Base64String } | { source: 'url'; url: URLString } {
+  return value.startsWith('data:')
+    ? { source: 'base64', data: value as Base64String }
+    : { source: 'url', url: value as URLString }
+}
+
 /** Embedding request. */
 export interface AiEmbedRequest extends AiBaseRequest {
   values: string[]
@@ -147,7 +166,7 @@ export interface AiRerankResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager'])
+@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
   // Per-request AbortControllers for `Ai_GenerateImage`, paired with the
   // `Ai_AbortImage` channel. Key is the renderer-generated requestId
@@ -160,6 +179,7 @@ export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
+    application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
     logger.info('AiService initialized')
   }
 
@@ -447,6 +467,18 @@ export class AiService extends BaseService {
       moderation: request.moderation,
       style: request.style
     })
+    // Async custom-provider transports (ppio / dashscope / modelscope /
+    // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
+    // a restart (resumes the same remote task instead of re-submitting). Other
+    // providers/models keep the in-SDK path below. The vendor params bag handed
+    // to the transport is identical to what the SDK path forwards.
+    if (
+      request.uniqueModelId &&
+      resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+    ) {
+      return await this.generateImageViaJob(request, imageProviderOptions[sdkConfig.providerId] ?? {}, signal)
+    }
+
     const aspectRatio = normalizeAspectRatio(request.aspectRatio)
 
     const imageParams = {
@@ -511,6 +543,87 @@ export class AiService extends BaseService {
     const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
 
     return { files }
+  }
+
+  /**
+   * Run an async custom-provider image generation through the job system. The
+   * handler owns submit/poll/download/persist and survives a restart; here we
+   * enqueue, bridge the existing IPC abort signal to job cancellation, and
+   * await the terminal snapshot. Input images / mask are persisted as
+   * FileEntries up front and referenced by id so the payload stays small.
+   */
+  private async generateImageViaJob(
+    request: AsInProcess<AiImageRequest>,
+    providerParams: Record<string, unknown>,
+    signal: AbortSignal | undefined
+  ): Promise<AiImageResult> {
+    const uniqueModelId = request.uniqueModelId
+    if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
+
+    const fileManager = application.get('FileManager')
+    const jobManager = application.get('JobManager')
+
+    // Track every temp entry as it is created so a failure anywhere in setup
+    // (a later input download, the mask create, or enqueue itself) cleans up the
+    // entries already made — they aren't in any payload yet, so no handler would.
+    const createdEntryIds: string[] = []
+    const persistInputImage = async (value: string): Promise<string> => {
+      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
+      createdEntryIds.push(entry.id)
+      return entry.id
+    }
+
+    let handle: JobHandle
+    try {
+      // allSettled (not all) so every create resolves before we decide: a partial
+      // failure still leaves `createdEntryIds` complete for the catch to clean up.
+      const settled = await Promise.allSettled((request.inputImages ?? []).map(persistInputImage))
+      const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+      if (rejected) throw rejected.reason
+      const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
+      const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
+
+      const payload: ImageGenerationJobPayload = {
+        uniqueModelId,
+        prompt: request.prompt,
+        n: request.n ?? 1,
+        size: request.size ?? '1024x1024',
+        seed: request.seed,
+        ...(inputFileIds && { inputFileIds }),
+        ...(maskFileId && { maskFileId }),
+        providerParams
+      }
+      handle = await jobManager.enqueue('image-generation.generate', payload)
+    } catch (error) {
+      // Setup failed before the job owns the payload — clean up what we created.
+      await deleteImageInputEntries(createdEntryIds)
+      throw error
+    }
+
+    // Reuse the existing IPC AbortController (Ai_AbortImage): when it fires,
+    // cancel the job (which aborts the handler + remote task).
+    const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+
+    let snapshot: JobSnapshot
+    try {
+      snapshot = await handle.finished
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      // Backstop cleanup (the handler is the primary owner once it runs); also
+      // covers the in-process case where the job is cancelled while still pending.
+      await deleteImageInputEntries(createdEntryIds)
+    }
+
+    if (snapshot.status === 'completed') {
+      const output = snapshot.output as ImageGenerationJobOutput | null
+      return { files: output?.files ?? [] }
+    }
+    if (snapshot.status === 'cancelled') {
+      throw new DOMException('Image generation aborted', 'AbortError')
+    }
+    throw new Error(snapshot.error?.message ?? 'Image generation failed')
   }
 
   // ── Embedding ──

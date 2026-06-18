@@ -5,7 +5,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -473,6 +473,112 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.includeUsage).toBe(true)
       expect(settings.apiKey).toBe('sk-test-key')
       expect(settings.name).toBeUndefined()
+    })
+
+    it('routes ModelScope IMAGE models through ModelScope config (so the async submit/poll transport is used)', async () => {
+      // modelscope chat declares adapterFamily 'openai-compatible', and an image model
+      // resolves to that same fallback id — the override must force providerId 'modelscope'
+      // so createModelscopeProvider().imageModel() (the X-ModelScope-Async-Mode submit/poll
+      // transport) is used instead of the generic OpenAICompatibleImageModel (which would
+      // hit the non-existent /v1/images/edits → 404).
+      const provider = makeProvider({
+        id: 'modelscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api-inference.modelscope.cn/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'modelscope', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('modelscope')
+      expect(settings.apiKey).toBe('sk-test-key')
+    })
+
+    it('leaves ModelScope CHAT models on openai-compatible (image-only override; keeps includeUsage)', async () => {
+      const provider = makeProvider({
+        id: 'modelscope',
+        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api-inference.modelscope.cn/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      // No image-generation capability → a chat model.
+      const model = makeModel({ providerId: 'modelscope', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(settings.includeUsage).toBe(true)
+    })
+
+    it('routes PPIO IMAGE models through PPIO config', async () => {
+      const provider = makeProvider({
+        id: 'ppio',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.ppinfra.com/v3/openai/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'ppio', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('ppio')
+    })
+
+    it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {
+      const provider = makeProvider({
+        id: 'dmxapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://www.dmxapi.cn',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'dmxapi',
+        apiModelId: 'qwen-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('dmxapi')
+    })
+
+    it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {
+      const provider = makeProvider({
+        id: 'dmxapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://www.dmxapi.cn',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'dmxapi',
+        apiModelId: 'gpt-image-1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
     })
 
     it('falls back to buildOpenAICompatibleConfig for an unknown openai-compatible provider', async () => {

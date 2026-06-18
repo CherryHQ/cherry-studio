@@ -23,7 +23,7 @@ vi.mock('@application', async () => {
 })
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
-import { AgentsMigrator, backfillAgentOrderKeys } from '../AgentsMigrator'
+import { AgentsMigrator, backfillAgentOrderKeys, migrateAgentMcps } from '../AgentsMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
 
 function createCounts() {
@@ -59,6 +59,7 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
     paths: {
       legacyAgentDbFile: '/mock/Data/agents.db'
     },
+    sharedData: new Map(),
     ...overrides
   } as never
 }
@@ -376,5 +377,74 @@ describe('AgentsMigrator', () => {
 
     expect(getExecutedSql(run)[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(getExecutedSql(run).at(-1)).toBe('DETACH DATABASE agents_legacy')
+  })
+
+  describe('migrateAgentMcps', () => {
+    it('remaps legacy mcp ids to new ids and inserts junction rows', async () => {
+      const all = vi.fn().mockResolvedValue([
+        { agentId: 'agent-1', oldMcpId: 'mcp-a' },
+        { agentId: 'agent-1', oldMcpId: 'mcp-b' },
+        { agentId: 'agent-2', oldMcpId: 'mcp-a' }
+      ])
+      const valuesFn = vi.fn().mockResolvedValue(undefined)
+      const insert = vi.fn().mockReturnValue({ values: valuesFn })
+      const mapping = new Map([
+        ['mcp-a', 'new-a'],
+        ['mcp-b', 'new-b']
+      ])
+
+      await migrateAgentMcps({ all, insert } as never, mapping)
+
+      expect(all).toHaveBeenCalledTimes(1)
+      // Batch insert — single values() call with 3 remapped rows
+      expect(insert).toHaveBeenCalledTimes(1)
+      expect(valuesFn).toHaveBeenCalledTimes(1)
+      const valuesCall = valuesFn.mock.calls[0][0]
+      expect(valuesCall).toHaveLength(3)
+      expect(valuesCall).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'new-a' }),
+          expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'new-b' }),
+          expect.objectContaining({ agentId: 'agent-2', mcpServerId: 'new-a' })
+        ])
+      )
+    })
+
+    it('drops legacy refs whose id is missing from the mapping', async () => {
+      const all = vi.fn().mockResolvedValue([
+        { agentId: 'agent-1', oldMcpId: 'mcp-a' },
+        { agentId: 'agent-1', oldMcpId: 'mcp-gone' }
+      ])
+      const valuesFn = vi.fn().mockResolvedValue(undefined)
+      const insert = vi.fn().mockReturnValue({ values: valuesFn })
+      const mapping = new Map([['mcp-a', 'new-a']])
+
+      await migrateAgentMcps({ all, insert } as never, mapping)
+
+      expect(insert).toHaveBeenCalledTimes(1)
+      const valuesCall = valuesFn.mock.calls[0][0]
+      expect(valuesCall).toHaveLength(1)
+      expect(valuesCall[0]).toEqual(expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'new-a' }))
+    })
+
+    it('skips insert when no rows match the query', async () => {
+      const all = vi.fn().mockResolvedValue([])
+      const insert = vi.fn()
+
+      await migrateAgentMcps({ all, insert } as never, new Map())
+
+      expect(all).toHaveBeenCalledTimes(1)
+      expect(insert).not.toHaveBeenCalled()
+    })
+
+    it('throws when rows need remapping but the mapping is absent', async () => {
+      const all = vi.fn().mockResolvedValue([{ agentId: 'agent-1', oldMcpId: 'mcp-a' }])
+      const insert = vi.fn()
+
+      await expect(migrateAgentMcps({ all, insert } as never, undefined)).rejects.toThrow(
+        /mcpServerIdMapping not found/
+      )
+      expect(insert).not.toHaveBeenCalled()
+    })
   })
 })
