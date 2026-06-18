@@ -4,15 +4,11 @@ import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import {
-  FileProcessingOutputTargetSchema,
-  ListAvailableFileProcessorsResultSchema
+  ListAvailableFileProcessorsResultSchema,
+  StartFileProcessingJobInputSchema
 } from '@shared/data/types/fileProcessing'
-import type { FileHandle } from '@shared/file/types'
-import { FileHandleSchema } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import * as z from 'zod'
 
 import { resolveDefaultImageToTextProcessor } from './config/defaultImageToTextProcessor'
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
@@ -24,24 +20,6 @@ import type { FileProcessingJobPayload } from './tasks/shared'
 import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
 
 const logger = loggerService.withContext('FileProcessingService')
-
-const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
-const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
-
-const StartJobPayloadSchema = z
-  .object({
-    feature: FileProcessorFeatureSchema,
-    file: FileHandleSchema,
-    output: FileProcessingOutputTargetSchema.optional(),
-    context: z
-      .object({
-        dataId: z.string().trim().min(1).optional()
-      })
-      .strict()
-      .optional(),
-    processorId: FileProcessorIdSchema.optional()
-  })
-  .strict()
 
 @Injectable('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
@@ -141,8 +119,7 @@ export class FileProcessingService extends BaseService {
 
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
-      const parsed = StartJobPayloadSchema.parse(payload)
-      return await this.startJob({ ...parsed, file: parsed.file as FileHandle })
+      return await this.startJob(StartFileProcessingJobInputSchema.parse(payload))
     })
     this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
       return this.listAvailableProcessors()

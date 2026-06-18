@@ -3573,28 +3573,7 @@
     "tip": "Dacă răspunsul este de succes, atunci doar mesajele care depășesc 30 de secunde vor declanșa un memento"
   },
   "ocr": {
-    "builtin": {
-      "system": "OCR de sistem"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Nu se poate șterge furnizorul integrat",
-        "existing": "Furnizorul există deja",
-        "get_providers": "Nu s-au putut obține furnizorii disponibili",
-        "not_found": "Furnizorul OCR nu există",
-        "update_failed": "Nu s-a putut actualiza configurația"
-      },
-      "unknown": "A apărut o eroare în timpul procesului OCR"
-    },
-    "file": {
-      "not_supported": "Tip de fișier neacceptat {{type}}"
-    },
-    "processing": "Procesare OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "S-a recurs la {{name}}, ceea ce poate cauza probleme"
-      }
-    }
+    "processing": "Procesare OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -7190,7 +7169,6 @@
         "check_type": "A apărut o eroare la verificarea tipului de fișier",
         "multiple": "Încărcarea mai multor fișiere nu este permisă",
         "ocr": "Nu s-a reușit recunoașterea textului din imagine",
-        "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
         "too_large": "Fișier prea mare",
         "unknown": "Citirea conținutului fișierului a eșuat"
       },

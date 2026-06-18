@@ -3573,28 +3573,7 @@
     "tip": "Bei erfolgreicher Antwort wird nur für Nachrichten über 30 Sekunden eine Benachrichtigung angezeigt"
   },
   "ocr": {
-    "builtin": {
-      "system": "System-OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
-        "existing": "Anbieter existiert bereits",
-        "get_providers": "Failed to obtain available providers",
-        "not_found": "OCR-Anbieter nicht gefunden",
-        "update_failed": "Konfiguration aktualisieren fehlgeschlagen"
-      },
-      "unknown": "Fehler während OCR-Prozess"
-    },
-    "file": {
-      "not_supported": "Nicht unterstützter Dateityp {{type}}"
-    },
-    "processing": "OCR wird verarbeitet...",
-    "warning": {
-      "provider": {
-        "fallback": "Auf {{name}} zurückgefallen, dies kann zu Problemen führen"
-      }
-    }
+    "processing": "OCR wird verarbeitet..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -7190,7 +7169,6 @@
         "check_type": "Fehler beim Überprüfen des Dateityps",
         "multiple": "Mehrfach-Upload nicht erlaubt",
         "ocr": "Erkennung des Bildtextes fehlgeschlagen",
-        "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },

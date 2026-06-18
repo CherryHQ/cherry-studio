@@ -28,9 +28,8 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import { documentExts, imageExts, MB, textExts } from '@shared/config/constant'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
+import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
   isUniqueModelId,
   type Model as SelectorModel,
@@ -64,27 +63,18 @@ const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUn
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
-/**
- * Active image OCR job tracked by the translate page. `resolve`/`reject` settle
- * the loading toast's promise (so it flips to the completion / dismisses copy);
- * the recognized text itself is read from the job snapshot, not the promise.
- */
 type OcrJob = {
   jobId: string
-  toastKey: string
-  resolve: () => void
-  reject: (error: unknown) => void
 }
 
 /**
  * Observes a single image OCR job via `useJob` and reports its terminal result.
- * Mounted only while a job is active, so closing the loading toast (which clears
- * the job) unmounts it and the late result is ignored — no backend cancel.
+ * Mounted only while the translate page tracks an active job.
  */
 const OcrJobWatcher: FC<{
   job: OcrJob
   onCompleted: (text: string) => void
-  onSettled: () => void
+  onSettled: (jobId: string) => void
 }> = ({ job, onCompleted, onSettled }) => {
   const { t } = useTranslation()
   const { data: snapshot, isTerminal } = useJob(job.jobId)
@@ -94,22 +84,37 @@ const OcrJobWatcher: FC<{
     if (!isTerminal || !snapshot || handledRef.current) return
     handledRef.current = true
 
-    if (snapshot.status === 'completed') {
-      const artifact = (snapshot.output as FileProcessingJobOutput | undefined)?.artifact
-      if (artifact?.kind === 'text') {
-        onCompleted(artifact.text)
-      } else {
-        logger.warn('Image OCR job completed without a text artifact.', { jobId: job.jobId })
+    const normalizeError = (error: unknown, fallbackMessage: string) => {
+      if (error instanceof Error) return error
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as { message?: unknown }).message
+        if (typeof message === 'string' && message) return new Error(message)
       }
-      job.resolve()
-    } else {
-      const prefix = t('translate.files.error.ocr')
-      window.toast.closeToast(job.toastKey)
-      window.toast.error(formatErrorMessageWithPrefix(snapshot.error?.message, prefix))
-      job.reject(snapshot.error ?? new Error('Image OCR failed'))
+      return new Error(fallbackMessage)
     }
 
-    onSettled()
+    const rejectJob = (error: unknown, fallbackMessage: string) => {
+      const normalizedError = normalizeError(error, fallbackMessage)
+      const prefix = t('translate.files.error.ocr')
+      window.toast.error(formatErrorMessageWithPrefix(normalizedError, prefix))
+    }
+
+    if (snapshot.status === 'completed') {
+      const parsedOutput = FileProcessingJobOutputSchema.safeParse(snapshot.output)
+      const artifact = parsedOutput.success ? parsedOutput.data.artifact : undefined
+      if (artifact?.kind === 'text') {
+        onCompleted(artifact.text)
+        window.toast.success(t('translate.files.ocr_completed'))
+      } else {
+        const error = new Error('Image OCR completed without a text artifact')
+        logger.warn('Image OCR job completed without a text artifact.', { jobId: job.jobId })
+        rejectJob(error, error.message)
+      }
+    } else {
+      rejectJob(snapshot.error, 'Image OCR failed')
+    }
+
+    onSettled(job.jobId)
   }, [isTerminal, snapshot, job, onCompleted, onSettled, t])
 
   return null
@@ -493,49 +498,28 @@ const TranslatePage: FC = () => {
     [appendTranslateInput, t]
   )
 
-  const clearOcrJob = useCallback(() => {
-    setOcrJob(null)
+  const clearOcrJob = useCallback((jobId?: string) => {
+    setOcrJob((current) => (jobId && current?.jobId !== jobId ? current : null))
   }, [])
 
   const startOcr = useCallback(
     async (file: FileMetadata) => {
-      const toastKey = `translate-ocr-${uuid()}`
-      let snapshot: JobSnapshot
+      let jobId: string
       try {
-        snapshot = await window.api.fileProcessing.startJob({
+        const snapshot = await window.api.fileProcessing.startJob({
           feature: 'image_to_text',
           file: createFilePathHandle(file.path as FilePath)
         })
+        jobId = snapshot.id
       } catch (error) {
-        // Config / availability errors (no default configured, processor not
-        // available on this platform) reject startJob synchronously, before a
-        // job exists. They share one remedy: pick a working processor.
         logger.error('Failed to start image OCR.', error as Error)
-        window.toast.error(t('translate.files.error.ocr_default_unavailable'))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
         return
       }
 
-      // The promise only drives the loading toast (→ successTitle on resolve);
-      // the recognized text is read from the job snapshot by OcrJobWatcher.
-      let resolveOcr: () => void = () => {}
-      let rejectOcr: (error: unknown) => void = () => {}
-      const promise = new Promise<void>((resolve, reject) => {
-        resolveOcr = resolve
-        rejectOcr = reject
-      })
-      promise.catch(() => undefined)
-
-      window.toast.loading({
-        key: toastKey,
-        onClose: clearOcrJob,
-        promise,
-        successTitle: t('translate.files.ocr_completed'),
-        title: t('ocr.processing')
-      })
-
-      setOcrJob({ jobId: snapshot.id, toastKey, resolve: resolveOcr, reject: rejectOcr })
+      setOcrJob({ jobId })
     },
-    [clearOcrJob, t]
+    [t]
   )
 
   const processFile = useCallback(
@@ -818,6 +802,7 @@ const TranslatePage: FC = () => {
               onSelectFile={handleSelectFile}
               onCopy={onCopyInput}
               disabled={translatingState.isTranslating || isDetecting || isProcessing || isOcrRunning}
+              ocrProcessing={isOcrRunning}
               selecting={selecting}
             />
           </section>

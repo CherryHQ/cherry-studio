@@ -1,4 +1,4 @@
-export const TESSERACT_LANG_MAP: Partial<Record<string, string>> = {
+const TESSERACT_LANG_MAP_DATA = {
   'af-za': 'afr',
   'am-et': 'amh',
   'ar-sa': 'ara',
@@ -101,4 +101,8 @@ export const TESSERACT_LANG_MAP: Partial<Record<string, string>> = {
   'uz-cyrl-uz': 'uzb_cyrl',
   'vi-vn': 'vie',
   'yi-us': 'yid'
-}
+} as const
+
+export type TesseractLangCode = (typeof TESSERACT_LANG_MAP_DATA)[keyof typeof TESSERACT_LANG_MAP_DATA]
+
+export const TESSERACT_LANG_MAP: Partial<Record<string, TesseractLangCode>> = TESSERACT_LANG_MAP_DATA

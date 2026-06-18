@@ -31,15 +31,13 @@ import type {
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  FileProcessorFeature,
-  FileProcessorId,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
+import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddItemInput,
@@ -672,15 +670,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   fileProcessing: {
-    startJob: (payload: {
-      feature: FileProcessorFeature
-      file: FileHandle
-      output?: FileProcessingOutputTarget
-      context?: {
-        dataId?: string
-      }
-      processorId?: FileProcessorId
-    }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
+    startJob: (payload: StartFileProcessingJobInput): Promise<JobSnapshot> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },

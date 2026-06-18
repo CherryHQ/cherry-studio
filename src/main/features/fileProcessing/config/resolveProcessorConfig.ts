@@ -40,21 +40,23 @@ export function getFileProcessorConfigById(processorId: FileProcessorId): FilePr
   }
 }
 
+function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcessorFeature): void {
+  if (!config.capabilities.some((capability) => capability.feature === feature)) {
+    throw new Error(`File processor ${config.id} does not support ${feature}`)
+  }
+
+  if (!processorRegistry[config.id].isAvailable()) {
+    throw new Error(`File processor ${config.id} is not available on this platform`)
+  }
+}
+
 export function resolveProcessorConfigByFeature(
   feature: FileProcessorFeature,
   processorId?: FileProcessorId
 ): FileProcessorMerged {
   if (processorId) {
     const config = getFileProcessorConfigById(processorId)
-
-    if (!config.capabilities.some((capability) => capability.feature === feature)) {
-      throw new Error(`File processor ${processorId} does not support ${feature}`)
-    }
-
-    if (!processorRegistry[config.id].isAvailable()) {
-      throw new Error(`File processor ${config.id} is not available on this platform`)
-    }
-
+    assertProcessorUsable(config, feature)
     return config
   }
 
@@ -62,15 +64,7 @@ export function resolveProcessorConfigByFeature(
 
   if (defaultProcessorId) {
     const config = getFileProcessorConfigById(defaultProcessorId)
-
-    if (!config.capabilities.some((capability) => capability.feature === feature)) {
-      throw new Error(`File processor ${defaultProcessorId} does not support ${feature}`)
-    }
-
-    if (!processorRegistry[config.id].isAvailable()) {
-      throw new Error(`File processor ${config.id} is not available on this platform`)
-    }
-
+    assertProcessorUsable(config, feature)
     return config
   }
 

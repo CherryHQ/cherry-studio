@@ -37,6 +37,7 @@ const baseProps = () => ({
   onSelectFile: vi.fn(),
   onCopy: vi.fn(),
   disabled: false,
+  ocrProcessing: false,
   selecting: false
 })
 
@@ -93,5 +94,21 @@ describe('TranslateInputPane', () => {
     render(<TranslateInputPane {...baseProps()} />)
 
     expect(screen.getByText('translate.files.drag_text')).toBeInTheDocument()
+  })
+
+  it('does not show the OCR processing overlay by default', () => {
+    render(<TranslateInputPane {...baseProps()} />)
+
+    expect(screen.queryByText('ocr.processing')).not.toBeInTheDocument()
+  })
+
+  it('shows the OCR processing overlay while OCR is running', () => {
+    const props = { ...baseProps(), ocrProcessing: true }
+
+    render(<TranslateInputPane {...props} />)
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('ocr.processing')
+    expect(status.querySelector('svg')).toBeInTheDocument()
   })
 })

@@ -3573,28 +3573,7 @@
     "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
   },
   "ocr": {
-    "builtin": {
-      "system": "OCR système"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
-        "existing": "Le fournisseur existe déjà",
-        "get_providers": "Échec de l'obtention des fournisseurs disponibles",
-        "not_found": "Le fournisseur OCR n'existe pas",
-        "update_failed": "Échec de la mise à jour de la configuration"
-      },
-      "unknown": "Une erreur s'est produite lors du processus OCR"
-    },
-    "file": {
-      "not_supported": "Type de fichier non pris en charge {{type}}"
-    },
-    "processing": "Traitement OCR en cours...",
-    "warning": {
-      "provider": {
-        "fallback": "Revenu à {{name}}, ce qui pourrait entraîner des problèmes"
-      }
-    }
+    "processing": "Traitement OCR en cours..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -7190,7 +7169,6 @@
         "check_type": "Une erreur s'est produite lors de la vérification du type de fichier",
         "multiple": "Impossible de téléverser plusieurs fichiers",
         "ocr": "Échec de la reconnaissance du texte de l'image",
-        "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
       },

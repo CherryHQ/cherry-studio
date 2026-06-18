@@ -3573,28 +3573,7 @@
     "tip": "Nếu phản hồi thành công, chỉ những tin nhắn vượt quá 30 giây mới kích hoạt lời nhắc"
   },
   "ocr": {
-    "builtin": {
-      "system": "Hệ thống OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Không thể xóa nhà cung cấp tích hợp sẵn",
-        "existing": "Nhà cung cấp đã tồn tại",
-        "get_providers": "Không lấy được các nhà cung cấp khả dụng",
-        "not_found": "Nhà cung cấp OCR không tồn tại",
-        "update_failed": "Không thể cập nhật cấu hình"
-      },
-      "unknown": "Đã xảy ra lỗi trong quá trình OCR"
-    },
-    "file": {
-      "not_supported": "Loại tệp không được hỗ trợ {{type}}"
-    },
-    "processing": "Đang xử lý OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "Đã hoàn nguyên về {{name}}, điều này có thể gây ra sự cố"
-      }
-    }
+    "processing": "Đang xử lý OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -7190,7 +7169,6 @@
         "check_type": "Đã xảy ra lỗi khi kiểm tra loại tệp",
         "multiple": "No se permiten múltiples cargas de archivos.",
         "ocr": "Không thể nhận dạng văn bản trong hình ảnh",
-        "ocr_default_unavailable": "[to be translated]:The current default OCR processor is unavailable. Choose another one in File Processing settings.",
         "too_large": "Tập tin quá lớn",
         "unknown": "Không đọc được nội dung tệp"
       },

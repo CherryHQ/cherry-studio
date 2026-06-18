@@ -247,6 +247,19 @@ describe('FileProcessingService.onInit', () => {
     expect(preferenceSetMock).toHaveBeenCalledWith('feature.file_processing.default_image_to_text', 'system')
   })
 
+  it('initializes the default image OCR processor before registering IPC handlers', async () => {
+    preferenceGetMock.mockReturnValue(null)
+    resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
+
+    const svc = new FileProcessingService()
+    await (svc as unknown as { onInit(): Promise<void> }).onInit()
+
+    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
+    expect(preferenceSetMock).toHaveBeenCalled()
+    expect(ipcHandle).toHaveBeenCalled()
+    expect(preferenceSetMock.mock.invocationCallOrder[0]).toBeLessThan(ipcHandle.mock.invocationCallOrder[0])
+  })
+
   it('does not overwrite an existing default image OCR processor', async () => {
     preferenceGetMock.mockReturnValue('paddleocr')
 
