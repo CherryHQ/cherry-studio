@@ -11,8 +11,9 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * (contrast window.ts).
  *
  * `start_job` casts the parsed `file` to `FileHandle`: `FileHandleSchema` validates the
- * shape at runtime but infers `path: string`, whereas `FileHandle.path` is the branded
- * `FilePath`. The cast bridges that brand gap (the repo convention — see FileManager.ts).
+ * shape at runtime but infers `path: string`, whereas `FileHandle.path` is the
+ * template-literal `FilePath`. The cast bridges that template-literal-vs-`string` gap
+ * (the repo convention — see FileManager.ts).
  */
 export const fileProcessingHandlers: IpcHandlersFor<typeof fileProcessingRequestSchemas> = {
   'file_processing.start_job': async (input) =>

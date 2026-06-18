@@ -14,15 +14,17 @@ import { defineRoute } from '../define'
  * the stateful FileProcessingService in main.
  *
  * Only a Request block: these are zod *values* (renderer→main, untrusted → always
- * parsed). The file-processing domain pushes nothing main→renderer — job progress
- * reaches the renderer through DataApi polling of the job snapshot, not IPC events —
- * so there is no Event block (unlike window.ts/selection.ts).
+ * parsed). The file-processing domain pushes nothing main→renderer — job state/progress
+ * reaches the renderer via the shared Cache (`jobs.state.*` / `jobs.progress.*`,
+ * cross-window-synced by CacheService; DataApi `/jobs/:id` is only a cold-cache fallback),
+ * not IPC events — so there is no Event block (unlike window.ts/selection.ts).
  *
  * Inputs reuse the canonical file/job zod schemas. `start_job` is not annotated with
- * `z.ZodType<StartFileProcessingJobInput>`: that type's `file` is the branded
- * `FileHandle` (`path: FilePath`), but `FileHandleSchema` infers `path: string`, so an
- * exact-equality binding is impossible. The handler bridges the brand with the repo's
- * `FileHandleSchema.parse(...) as FileHandle` convention (see FileManager.ts).
+ * `z.ZodType<StartFileProcessingJobInput>`: that type's `file` is a `FileHandle` whose
+ * `path` is the template-literal `FilePath`, but `FileHandleSchema` infers `path: string`,
+ * so an exact-equality binding is impossible. The handler bridges that
+ * template-literal-vs-`string` gap with the repo's `FileHandleSchema.parse(...) as FileHandle`
+ * convention (see FileManager.ts).
  */
 
 const startJobInputSchema = z
