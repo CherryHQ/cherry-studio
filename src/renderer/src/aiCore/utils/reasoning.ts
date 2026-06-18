@@ -19,6 +19,8 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isKimiK27CodeModel,
+  isMiniMaxM3Model,
   isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
@@ -56,7 +58,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 const logger = loggerService.withContext('reasoning')
 
 type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: OpenAIReasoningEffort
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -100,13 +102,15 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {}
   }
 
-  // MiniMax models: always enable thinking to ensure <think> tags in response
-  // This must be before the reasoningEffort check because MiniMax needs thinking
-  // to be explicitly enabled regardless of the user's reasoning effort setting
+  // MiniMax models need explicit thinking control. M3 only accepts 'adaptive' | 'disabled'
+  // on the OpenAI-compatible endpoint; M1/M2.x use 'enabled'. Without this, M3 cannot be turned off.
   if (isMiniMaxReasoningModel(model)) {
     const reasoningEffort = assistant?.settings?.reasoning_effort
     if (reasoningEffort === 'none') {
       return { thinking: { type: 'disabled' } }
+    }
+    if (isMiniMaxM3Model(model)) {
+      return { thinking: { type: 'adaptive' } }
     }
     return { thinking: { type: 'enabled' } }
   }
@@ -144,6 +148,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       } else if (isDeepSeekHybridInferenceModel(model)) {
         return { chat_template_kwargs: { thinking: false } }
       } else if (isSupportedThinkingTokenKimiModel(model)) {
+        // kimi-k2.7-code is always-think: skipping the disable branch keeps the
+        // upstream call's default thinking on, which the model requires.
+        if (isKimiK27CodeModel(model)) return {}
         return { chat_template_kwargs: { thinking: false } }
       } else if (isSupportedThinkingTokenZhipuModel(model)) {
         return { chat_template_kwargs: { enable_thinking: false } }
@@ -157,7 +164,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (provider.id === SystemProviderIds.dashscope &&
         (isDeepSeekHybridInferenceModel(model) ||
           isSupportedThinkingTokenZhipuModel(model) ||
-          isSupportedThinkingTokenKimiModel(model))) ||
+          // kimi-k2.7-code is always-think: never emit enable_thinking: false for it.
+          (isSupportedThinkingTokenKimiModel(model) && !isKimiK27CodeModel(model)))) ||
       // SiliconFlow uses enable_thinking for DeepSeek and Zhipu models, same as positive path
       (provider.id === SystemProviderIds.silicon &&
         (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
@@ -193,7 +201,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       isSupportedThinkingTokenDoubaoModel(model) ||
       isSupportedThinkingTokenZhipuModel(model) ||
       isSupportedThinkingTokenMiMoModel(model) ||
-      isSupportedThinkingTokenKimiModel(model)
+      // kimi-k2.7-code is always-think: cannot be disabled, so skip the
+      // "send {type:'disabled'}" branch. Same rationale as the k2.7-code
+      // exclusion in the nvidia / dashscope / anthropic paths below.
+      (isSupportedThinkingTokenKimiModel(model) && !isKimiK27CodeModel(model))
     ) {
       if (provider.id === SystemProviderIds.cerebras) {
         return {
@@ -473,6 +484,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       isSupportedThinkingTokenZhipuModel(model) ||
       isSupportedThinkingTokenKimiModel(model)
     ) {
+      // kimi-k2.7-code is always-think: skip enable_thinking/thinking_budget shape,
+      // which Moonshot's upstream does not accept. Falls through to the
+      // generic positive branch at line ~630 which emits {thinking:{type:'enabled'}}.
+      if (isKimiK27CodeModel(model)) return {}
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens
@@ -753,6 +768,9 @@ export function getAnthropicReasoningParams(
   }
 
   if (reasoningEffort === 'none') {
+    // kimi-k2.7-code is always-think: cannot be disabled, so skip the generic
+    // {type:'disabled'} early-return and let the default-on branch below handle it.
+    if (isKimiK27CodeModel(model)) return {}
     return {
       thinking: {
         type: 'disabled'
@@ -813,8 +831,22 @@ export function getAnthropicReasoningParams(
       }
     }
   } else {
-    // 其他使用claude端點的模型，比如Kimi,Minimax等等
+    // MiniMax M3 via Anthropic endpoint: adaptive / disabled, no budgetTokens.
+    // reasoningEffort === 'none' is already handled by the early return above.
+    if (isMiniMaxM3Model(model)) {
+      return { thinking: { type: 'adaptive' }, sendReasoning: true }
+    }
+    if (isMiniMaxReasoningModel(model)) {
+      // M2.x: thinking cannot be turned off per official docs.
+      return {}
+    }
+    // 其他使用claude端點的模型，比如Kimi等等
     const { maxTokens } = getAssistantSettings(assistant)
+    // kimi-k2.7-code is always-think: per official docs, only `{type:'enabled'}`
+    // is accepted — no `budget_tokens`. Skip the budget-emitting path.
+    if (isKimiK27CodeModel(model)) {
+      return { thinking: { type: 'enabled' }, sendReasoning: true }
+    }
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
       thinking: {

@@ -42,7 +42,7 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
-import { withoutTrailingApiVersion } from '@shared/utils'
+import { defaultAppHeaders, withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -72,9 +72,14 @@ const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
-const getAnthropicCustomHeaders = (headers?: Record<string, string>) => {
-  const lines = Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`)
-  return lines.length > 0 ? lines.join('\n') : undefined
+const getAnthropicCustomHeaders = (headers?: Record<string, string>): string => {
+  const merged = {
+    ...defaultAppHeaders(),
+    ...headers
+  }
+  return Object.entries(merged)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('\n')
 }
 
 const getLanguageInstruction = () => {

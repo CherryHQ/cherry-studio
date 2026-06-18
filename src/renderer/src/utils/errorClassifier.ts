@@ -27,6 +27,23 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
   }
 
+  // Abnormal stream finish reasons surfaced as errors (see FinishReasonError, #16072).
+  // The finishReason is a definitive signal from the stream's finish metadata, so map it
+  // before the status-code / message heuristics below. This also keeps these errors out of
+  // the 'unknown' bucket, which would otherwise trigger a redundant AI diagnosis call.
+  const finishReason = (error as Record<string, unknown>).finishReason
+  if (typeof finishReason === 'string') {
+    switch (finishReason) {
+      case 'content-filter':
+        return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
+      case 'length':
+        return { category: 'context_length', i18nKey: 'error.diagnosis.output_truncated', navTarget: null }
+      case 'error':
+      case 'other':
+        return { category: 'server', i18nKey: 'error.diagnosis.abnormal_finish', navTarget: null }
+    }
+  }
+
   const status = (error as Record<string, unknown>).statusCode ?? (error as Record<string, unknown>).status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   const msg = ((error.message as string) || '').toLowerCase()

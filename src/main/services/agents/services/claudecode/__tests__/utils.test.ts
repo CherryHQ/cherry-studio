@@ -55,7 +55,6 @@ describe('isMiMoOfficialHost', () => {
 
 describe('isCherryInOfficialHost', () => {
   it('matches CherryIN official endpoints', () => {
-    expect(isCherryInOfficialHost('https://open.cherryin.cc')).toBe(true)
     expect(isCherryInOfficialHost('https://open.cherryin.net/anthropic')).toBe(true)
     expect(isCherryInOfficialHost('  https://open.cherryin.ai/v1  ')).toBe(true)
     expect(isCherryInOfficialHost('https://open.cherryin.dev')).toBe(true)
@@ -76,7 +75,7 @@ describe('isCherryInOfficialHost', () => {
 
 describe('with1mContextSuffix', () => {
   const deepSeekHost = 'https://api.deepseek.com/anthropic'
-  const cherryInHost = 'https://open.cherryin.cc'
+  const cherryInHost = 'https://open.cherryin.net'
   const mimoHost = 'https://api.xiaomimimo.com/anthropic'
   const thirdPartyHost = 'https://openrouter.ai/api/v1'
 
