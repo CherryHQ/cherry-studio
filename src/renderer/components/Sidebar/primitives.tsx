@@ -1,4 +1,6 @@
+import { EmojiIcon } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
+import { isEmoji } from '@renderer/utils/naming'
 import type { LucideProps } from 'lucide-react'
 
 import type { SidebarMiniAppTab, SidebarTab, SidebarUser } from './types'
@@ -85,12 +87,16 @@ export function UserAvatar({
   className?: string
   ring?: boolean
 }) {
+  const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
+
   return (
     <div className={`overflow-hidden rounded-full ${ring ? 'ring-1 ring-border' : ''} ${className ?? ''}`}>
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+      ) : isEmojiAvatar ? (
+        <EmojiIcon emoji={user.avatar!} fluid fontSize={10} />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
+        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}
         </div>
       )}

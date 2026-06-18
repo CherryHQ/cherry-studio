@@ -69,9 +69,9 @@ export async function probeKnowledgeFile(baseId: string, relativePath: string): 
 
 /**
  * Probe an absolute on-disk source path (e.g. a directory item's original folder, stored in
- * `data.path`), distinguishing a genuinely missing source from one that could not be verified.
+ * `data.relativePath`), distinguishing a genuinely missing source from one that could not be verified.
  * Reindex rescans a directory from this path, so a missing source means there is nothing to rebuild
- * from; an unverifiable one (transient/permission error) may still exist. The stored `data.path` is
+ * from; an unverifiable one (transient/permission error) may still exist. The stored `data.relativePath` is
  * already absolute, so it is probed as-is.
  */
 export async function probeKnowledgeSourcePath(absolutePath: string): Promise<PathReadability> {

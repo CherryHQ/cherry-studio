@@ -13,7 +13,7 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 export type ExpandedDirectoryNode =
   | {
       type: 'directory'
-      data: Pick<DirectoryItemData, 'source' | 'path'>
+      data: Pick<DirectoryItemData, 'source' | 'relativePath'>
       children: ExpandedDirectoryNode[]
     }
   | {
@@ -123,7 +123,7 @@ async function expandDirectoryNode(
     type: 'directory',
     data: {
       source: node.externalPath,
-      path: node.externalPath
+      relativePath: node.externalPath
     },
     children
   }
@@ -138,7 +138,7 @@ export async function expandDirectoryOwnerToTree(
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
   }
 
-  const resolvedPath = path.resolve(owner.data.path)
+  const resolvedPath = path.resolve(owner.data.relativePath)
   const children = await readDirectoryTree(resolvedPath, signal)
   const expandedChildren: ExpandedDirectoryNode[] = []
 
