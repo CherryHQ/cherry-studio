@@ -182,14 +182,12 @@ vi.mock('../components/navigator', () => ({
 vi.mock('../components/DetailHeader', () => ({
   default: ({
     base,
-    itemCount,
     onOpenRagConfig,
     onOpenRecallTest,
     onRenameBase,
     onDeleteBase
   }: {
     base: KnowledgeBase
-    itemCount: number
     onOpenRagConfig: () => void
     onOpenRecallTest: () => void
     onRenameBase: (base: { id: string; name: string }) => void
@@ -197,7 +195,6 @@ vi.mock('../components/DetailHeader', () => ({
   }) => (
     <div>
       <div data-testid="detail-header">{base.name}</div>
-      <div data-testid="detail-header-item-count">{itemCount}</div>
       <button type="button" onClick={onOpenRagConfig}>
         OpenRagConfig
       </button>
@@ -611,7 +608,6 @@ describe('KnowledgePage', () => {
     })
     expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
-    expect(screen.getByTestId('detail-header-item-count')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
   })
 

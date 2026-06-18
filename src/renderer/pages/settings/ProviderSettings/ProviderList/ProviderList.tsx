@@ -267,7 +267,14 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       <PageHeader
         title={t('settings.provider.title')}
         action={
-          <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
+          <button
+            type="button"
+            aria-label={t('settings.provider.add.title')}
+            disabled={dragging}
+            onClick={startAdd}
+            className={providerListClasses.headerAddButton}>
+            <Plus size={16} strokeWidth={2.5} />
+          </button>
         }
       />
       <ProviderListSearchField
@@ -275,14 +282,13 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         disabled={dragging}
         onValueChange={setSearchText}
         trailing={
-          <button
-            type="button"
-            aria-label={t('settings.provider.add.title')}
+          <ProviderListHeaderFilterMenu
+            filterMode={filterMode}
             disabled={dragging}
-            onClick={startAdd}
-            className={providerListClasses.searchInlineAddButton}>
-            <Plus size={14} />
-          </button>
+            triggerClassName={providerListClasses.searchInlineAddButton}
+            triggerIconSize={13}
+            onFilterChange={setFilterMode}
+          />
         }
       />
       <ProviderListContent

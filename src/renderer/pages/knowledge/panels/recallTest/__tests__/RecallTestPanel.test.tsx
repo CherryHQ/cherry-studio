@@ -173,6 +173,15 @@ describe('RecallTestPanel', () => {
     expect(screen.getByRole('button', { name: '检索' })).toBeDisabled()
   })
 
+  it('draws the search input focus ring inset so the panel overflow cannot clip it', () => {
+    render(<RecallTestPanel baseId="base-1" />)
+
+    // The wrapper sits inside an `overflow-x-hidden` ancestor; an outset ring would be
+    // clipped on the lower/right edge, so the focus border must be drawn inset.
+    const inputWrapper = screen.getByPlaceholderText('输入测试 Query...').parentElement
+    expect(inputWrapper).toHaveClass('focus-within:ring-1', 'focus-within:ring-inset')
+  })
+
   it('hides the history button and dropdown when the selected base has no search history', () => {
     mockCache.initial = {
       'base-2': ['其他知识库查询']

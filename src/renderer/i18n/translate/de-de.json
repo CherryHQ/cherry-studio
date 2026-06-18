@@ -6851,10 +6851,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Dokumentenverarbeitung"
+            "title": "Dokumentenverarbeitung",
+            "tooltip": "Zum Parsen von Dokumenten in Wissensdatenbanken"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "Zum Erkennen von Text in Bildern für die Übersetzungsfunktion"
           }
         },
         "fields": {
