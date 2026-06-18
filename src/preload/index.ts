@@ -28,18 +28,14 @@ import type {
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  FileProcessorFeature,
-  FileProcessorId,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddItemInput,
@@ -684,19 +680,6 @@ const api = {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
     listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
-  },
-  fileProcessing: {
-    startJob: (payload: {
-      feature: FileProcessorFeature
-      file: FileHandle
-      output?: FileProcessingOutputTarget
-      context?: {
-        dataId?: string
-      }
-      processorId?: FileProcessorId
-    }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
-    listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

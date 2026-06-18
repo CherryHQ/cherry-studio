@@ -10,7 +10,7 @@ import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
-const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const topViewShowMock = vi.hoisted(() => vi.fn())
 const topViewHideMock = vi.hoisted(() => vi.fn())
 const comboboxMockState = vi.hoisted(() => ({
@@ -40,6 +40,12 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
 }))
 
 vi.mock('@renderer/config/constant', async (importOriginal) => {
@@ -247,17 +253,9 @@ describe('FileProcessingSettings', () => {
     loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     topViewShowMock.mockReset()
     topViewHideMock.mockReset()
-    listAvailableProcessorsMock.mockReset()
-    listAvailableProcessorsMock.mockResolvedValue({
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
-    })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        fileProcessing: {
-          listAvailableProcessors: listAvailableProcessorsMock
-        }
-      }
     })
     Object.defineProperty(window, 'modal', {
       configurable: true,
@@ -334,7 +332,7 @@ describe('FileProcessingSettings', () => {
       screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
     ).not.toBeInTheDocument()
 
-    listAvailableProcessorsMock.mockResolvedValueOnce({
+    ipcRequestMock.mockResolvedValueOnce({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru', 'ovocr']
     })
 
@@ -348,7 +346,7 @@ describe('FileProcessingSettings', () => {
   })
 
   it('keeps OV OCR hidden and logs when available processor lookup fails', async () => {
-    listAvailableProcessorsMock.mockRejectedValueOnce(new Error('IPC failed'))
+    ipcRequestMock.mockRejectedValueOnce(new Error('IPC failed'))
 
     render(<FileProcessingSettings />)
 

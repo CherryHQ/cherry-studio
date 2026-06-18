@@ -84,8 +84,10 @@ describe('IpcHandlersFor exhaustiveness', () => {
 
 describe('global registry reflects migrated domains', () => {
   // Extend these unions as each new domain is migrated onto IpcApi.
-  it('exposes the migrated selection + window request routes', () => {
+  it('exposes the migrated file-processing + selection + window request routes', () => {
     expectTypeOf<IpcRoute>().toEqualTypeOf<
+      | 'file_processing.start_job'
+      | 'file_processing.list_available_processors'
       | 'selection.hide_toolbar'
       | 'selection.write_to_clipboard'
       | 'selection.determine_toolbar_size'

@@ -180,9 +180,6 @@ export enum IpcChannel {
   Knowledge_Search = 'knowledge:search',
   Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
 
-  FileProcessing_StartJob = 'file-processing:start-job',
-  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
-
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',

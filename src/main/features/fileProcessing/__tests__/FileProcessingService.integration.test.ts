@@ -205,18 +205,6 @@ describe('FileProcessingService.onInit', () => {
     expect(types).toContain('file-processing.background')
     expect(types).toContain('file-processing.remote-poll')
   })
-
-  it('registers IPC handlers for start + listAvailableProcessors only', () => {
-    const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
-
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    const channels = ipcHandle.mock.calls.map((c) => c[0])
-    expect(channels).toEqual([
-      expect.stringContaining('start-job'),
-      expect.stringContaining('list-available-processors')
-    ])
-  })
 })
 
 describe('FileProcessingService.startJob — routing', () => {
