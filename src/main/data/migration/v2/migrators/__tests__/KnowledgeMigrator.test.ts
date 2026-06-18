@@ -859,7 +859,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     // Stub the legacy vector-DB read so the test needs no embedjs store on disk.
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
-      kind: 'ok',
+      kind: 'loaded',
       sources: new Map([
         ['loader-dir-a', '/docs/api/README.md'],
         ['loader-dir-b', '/docs/web/README.md']
@@ -939,7 +939,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
-      kind: 'ok',
+      kind: 'loaded',
       sources: new Map([['loader-shared', '/docs/shared/README.md']])
     })
 
@@ -999,7 +999,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     // the UI renders as a delete-and-re-upload prompt, rather than a silently empty completed folder.
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
-    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({ kind: 'empty', sources: new Map<string, string>() })
+    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({ kind: 'loaded', sources: new Map<string, string>() })
 
     const ctx = {
       paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
@@ -1061,7 +1061,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
-      kind: 'ok',
+      kind: 'loaded',
       sources: new Map([['loader-dir-a', '/docs/a.md']])
     })
 
@@ -1119,7 +1119,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
-      kind: 'ok',
+      kind: 'loaded',
       sources: new Map([
         ['loader-dir-a', '/docs/a.md'],
         ['loader-dir-b', '/docs/b.md']
@@ -1393,7 +1393,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
-      kind: 'ok',
+      kind: 'loaded',
       sources: new Map([['loader-dir-a', '/docs/a.md']])
     })
 
@@ -1440,7 +1440,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.directoryChildLoaderRemap.size).toBe(0)
   })
 
-  it('loadLoaderSourceMap returns kind=ok with the loader→source map when the legacy vectors are readable', async () => {
+  it('loadLoaderSourceMap returns kind=loaded with the loader→source map when the legacy vectors are readable', async () => {
     const migrator = new KnowledgeMigrator() as any
     // Delegates to the shared KnowledgeVectorSourceReader so directory expansion and vector
     // migration consume the exact same load result and path resolution.
@@ -1459,7 +1459,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
     const result = await migrator.loadLoaderSourceMap('kb-ok', vectorSource)
     // Blank-source and empty-loader rows are dropped; only the two usable pairs survive.
-    expect(result.kind).toBe('ok')
+    expect(result.kind).toBe('loaded')
     expect([...result.sources.entries()]).toEqual([
       ['loader-a', '/docs/a.md'],
       ['loader-b', '/docs/b.md']
@@ -1467,21 +1467,21 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(vectorSource.loadBase).toHaveBeenCalledWith('kb-ok')
   })
 
-  it('loadLoaderSourceMap returns kind=empty when the legacy vector DB is missing or not embedjs', async () => {
+  it('loadLoaderSourceMap returns kind=loaded with an empty map when the legacy vector DB is missing or not embedjs', async () => {
     const migrator = new KnowledgeMigrator() as any
     for (const status of ['missing', 'invalid_path', 'directory', 'not_embedjs'] as const) {
       const vectorSource = { loadBase: vi.fn().mockResolvedValue({ status, dbPath: '/x' }) }
       const result = await migrator.loadLoaderSourceMap('kb-x', vectorSource)
-      expect(result).toEqual({ kind: 'empty', sources: new Map() })
+      expect(result).toEqual({ kind: 'loaded', sources: new Map() })
     }
   })
 
-  it('loadLoaderSourceMap returns kind=empty when the legacy vectors table has no usable rows', async () => {
+  it('loadLoaderSourceMap returns kind=loaded with an empty map when the legacy vectors table has no usable rows', async () => {
     const migrator = new KnowledgeMigrator() as any
     const vectorSource = { loadBase: vi.fn().mockResolvedValue({ status: 'ok', dbPath: '/x', rows: [] }) }
 
     const result = await migrator.loadLoaderSourceMap('kb-empty', vectorSource)
-    expect(result.kind).toBe('empty')
+    expect(result.kind).toBe('loaded')
     expect(result.sources.size).toBe(0)
   })
 
@@ -1888,7 +1888,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
-      kind: 'ok',
+      kind: 'loaded',
       sources: new Map([
         ['loader-dir-a', '/docs/a.md'],
         ['loader-dir-b', '/docs/b.md']

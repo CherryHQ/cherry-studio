@@ -402,7 +402,8 @@ export const transformKnowledgeItem = (
   // home), so letting the directory claim `completed` would leave an empty shell
   // that never re-indexes. Mark it `failed` with a code the UI renders as a
   // delete-and-re-upload prompt (it migrated as a record but its vectors were dropped).
-  // Interrupted (failed) and never-indexed (idle) directories keep the shared mapping.
+  // Interrupted (failed) and never-indexed (idle) directories keep their inferred status
+  // (only a `completed` directory is overridden to `failed`).
   const directoryIndexDropped = type === 'directory' && inferredStatus === 'completed'
   const status = directoryIndexDropped ? 'failed' : inferredStatus
 
