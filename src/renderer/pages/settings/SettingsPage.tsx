@@ -193,7 +193,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border-border/40 border-s bg-white text-foreground dark:bg-background">
             <Outlet />
           </div>
         </div>

@@ -151,7 +151,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
       value: fullPath,
       isLeaf: true,
       selectable: true,
-      icon: <span style={{ marginRight: 4 }}>📄</span>
+      icon: <span style={{ marginInlineEnd: 4 }}>📄</span>
     }
 
     // 添加到父节点

@@ -258,13 +258,13 @@ describe('PageSidePanel', () => {
       const dialog = screen.getByRole('dialog')
       expect(dialog.className).toContain('top-3')
       expect(dialog.className).toContain('bottom-3')
-      expect(dialog.className).toContain('right-3')
+      expect(dialog.className).toContain('end-3')
     })
 
-    it('applies left-3 class when side=left', () => {
+    it('applies start-3 class when side=left', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} side="left" />)
       const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('left-3')
+      expect(dialog.className).toContain('start-3')
     })
   })
 

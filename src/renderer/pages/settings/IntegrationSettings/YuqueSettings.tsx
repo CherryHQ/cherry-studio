@@ -104,7 +104,7 @@ const YuqueSettings: FC = () => {
             content={t('settings.data.yuque.help')}
             placement="left"
             iconProps={{
-              className: 'text-text-2 cursor-pointer ml-1'
+              className: 'text-text-2 cursor-pointer ms-1'
             }}
             onClick={handleYuqueHelpClick}
           />

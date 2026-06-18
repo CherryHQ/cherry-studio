@@ -142,9 +142,9 @@ export const InComponents: Story = {
             <input
               type="text"
               placeholder="搜索..."
-              className="w-full px-4 py-2 pr-32 border border-gray-300 rounded-lg"
+              className="w-full px-4 py-2 pe-32 border border-gray-300 rounded-lg"
             />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+            <div className="absolute end-2 top-1/2 transform -translate-y-1/2">
               <Spinner text="搜索中" />
             </div>
           </div>

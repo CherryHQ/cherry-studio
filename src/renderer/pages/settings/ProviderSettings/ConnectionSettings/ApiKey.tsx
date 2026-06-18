@@ -71,7 +71,7 @@ export default function ApiKey({
                 disabled={provider.id === 'copilot'}
               />
               {provider.id !== 'copilot' && (
-                <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
+                <InputGroupAddon align="inline-end" className="-me-0.5 pe-0">
                   <Tooltip
                     content={
                       showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')

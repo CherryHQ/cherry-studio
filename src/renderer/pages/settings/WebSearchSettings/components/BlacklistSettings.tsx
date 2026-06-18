@@ -64,7 +64,7 @@ const BlacklistSettings: FC = () => {
             value={blacklistInput}
             onChange={(e) => setBlacklistInput(e.target.value)}
             placeholder={t('settings.tool.websearch.blacklist_tooltip')}
-            className="max-h-40 min-h-28 rounded-lg pr-20 text-sm leading-5 shadow-none"
+            className="max-h-40 min-h-28 rounded-lg pe-20 text-sm leading-5 shadow-none"
             rows={4}
           />
           {blacklistDirty && (
@@ -72,7 +72,7 @@ const BlacklistSettings: FC = () => {
               type="button"
               size="sm"
               variant="outline"
-              className="absolute right-2 bottom-2 h-7 px-2.5"
+              className="absolute end-2 bottom-2 h-7 px-2.5"
               onClick={() => void updateManualBlacklist(blacklistInput)}>
               {t('common.save')}
             </Button>

@@ -52,7 +52,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           <span className="shrink-0 text-foreground-muted text-xs leading-3">#{item.chunkIndex}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-16 text-right text-foreground-muted text-xs tabular-nums leading-4">{scoreLabel}</span>
+          <span className="w-16 text-end text-foreground-muted text-xs tabular-nums leading-4">{scoreLabel}</span>
         </div>
         <Button
           type="button"

@@ -21,7 +21,7 @@ const buttonGroupVariants = cva(
         orientation: 'horizontal',
         attached: true,
         className:
-          '[&>*:not(:first-child)]:-ml-px [&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-l-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:border-l-0 [&>[data-slot=button-group-item]:not(:last-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-r-none'
+          '[&>*:not(:first-child)]:-ms-px [&>*:not(:first-child)]:rounded-start-none [&>*:not(:first-child)]:border-inline-start-0 [&>*:not(:last-child)]:rounded-end-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-start-none [&>[data-slot=button-group-item]:not(:first-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:border-inline-start-0 [&>[data-slot=button-group-item]:not(:last-child)>:is([data-slot=button],[data-slot=input],[data-slot=select-trigger])]:rounded-end-none'
       },
       {
         orientation: 'vertical',

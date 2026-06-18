@@ -432,7 +432,7 @@ const CodeViewer = ({
     <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <div
         ref={scrollerRef}
-        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
+        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] ps-[1em] pe-0"
         onScroll={handleScroll}
         style={
           {
@@ -552,14 +552,14 @@ const VirtualizedRow = memo(
         }}>
         {showLineNumbers && (
           <span
-            className="line-number mr-4 shrink-0 select-none overflow-hidden text-right font-[inherit] tabular-nums opacity-[0.35]"
+            className="line-number me-4 shrink-0 select-none overflow-hidden text-end font-[inherit] tabular-nums opacity-[0.35]"
             style={{ width: 'var(--gutter-width, 1.2ch)' }}>
             {index + 1}
           </span>
         )}
         <span
           className={cn(
-            'line-content flex-1 whitespace-pre pr-[1em]',
+            'line-content flex-1 whitespace-pre pe-[1em]',
             wrapped ? '[&_*]:whitespace-pre-wrap [&_*]:break-words' : '[&_*]:whitespace-pre [&_*]:break-normal'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (

@@ -85,7 +85,7 @@ export const RagInlineField = ({
           className={cn('shadow-none', suffix ? 'pr-14' : undefined)}
         />
         {suffix ? (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-muted text-xs leading-4">
+          <span className="-translate-y-1/2 pointer-events-none absolute end-3 top-1/2 text-foreground-muted text-xs leading-4">
             {suffix}
           </span>
         ) : null}

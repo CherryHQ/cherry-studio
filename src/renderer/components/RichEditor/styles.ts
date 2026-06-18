@@ -212,7 +212,7 @@ const STYLE_CONTENT = `
 
 .TableOfContentsWrapper .table-of-contents > div {
   border-radius: 0.25rem;
-  padding-left: calc(0.4rem * (var(--level, 1) - 1));
+  padding-inline-start: calc(0.4rem * (var(--level, 1) - 1));
   transition: all 0.2s cubic-bezier(0.65, 0.05, 0.36, 1);
 }
 
@@ -245,8 +245,8 @@ const STYLE_CONTENT = `
 }
 
 .TableOfContentsWrapper .toc-item {
-  margin-left: 0.25rem;
-  margin-bottom: 0.25rem;
+  margin-inline-start: 0.25rem;
+  margin-block-end: 0.25rem;
 }
 
 .TableOfContentsWrapper .toc-item a {
@@ -288,14 +288,14 @@ const STYLE_CONTENT = `
 
 .ToCDock {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  inset-block-end: 0;
   width: 26px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 4px;
+  padding-inline-end: 4px;
   pointer-events: auto;
 }
 
@@ -386,9 +386,9 @@ const STYLE_CONTENT = `
 .ToCDock .toc-panel {
   pointer-events: none;
   position: absolute;
-  right: 8px;
-  top: 55px;
-  bottom: 8px;
+  inset-inline-end: 8px;
+  inset-block-start: 55px;
+  inset-block-end: 8px;
   width: auto;
   max-width: 360px;
   min-width: 220px;
@@ -397,7 +397,7 @@ const STYLE_CONTENT = `
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   padding: 8px 8px 0;
-  padding-left: 0;
+  padding-inline-start: 0;
   overflow: auto;
   opacity: 0;
   visibility: hidden;
@@ -408,6 +408,7 @@ const STYLE_CONTENT = `
     visibility 0.15s ease;
   backdrop-filter: blur(6px);
   z-index: 40;
+  padding-inline-start: 0;
 }
 `
 

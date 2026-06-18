@@ -92,9 +92,9 @@
 }
 
 .tiptap blockquote {
-  border-left: 4px solid var(--color-primary);
+  border-inline-start: 4px solid var(--color-primary);
   margin: 1.5rem 0;
-  padding-left: 1rem;
+  padding-inline-start: 1rem;
 }
 
 .tiptap code {
@@ -126,7 +126,7 @@
 
 .tiptap hr {
   border: none;
-  border-top: 1px solid var(--color-gray-2);
+  border-block-start: 1px solid var(--color-gray-2);
   margin: 2rem 0;
 }
 
@@ -154,8 +154,8 @@
   opacity: 0.6;
   pointer-events: none;
   font-style: var(--editor-placeholder-font-style, italic);
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
 }
 
 /* Ensure drag handles and plus buttons remain interactive */
@@ -235,7 +235,7 @@
 .tiptap th * {
   background-color: var(--color-gray-3);
   font-weight: bold;
-  text-align: left;
+  text-align: start;
 }
 
 .tiptap .selectedCell {
@@ -251,29 +251,29 @@
   border-radius: 0;
 }
 
-.tiptap .selectedCell.selection-top::after {
-  border-top-width: 2px;
+.tiptap .selectedCell.selection-block-start::after {
+  border-block-start-width: 2px;
 }
 
-.tiptap .selectedCell.selection-bottom::after {
-  border-bottom-width: 2px;
+.tiptap .selectedCell.selection-block-end::after {
+  border-block-end-width: 2px;
 }
 
-.tiptap .selectedCell.selection-left::after {
-  border-left-width: 2px;
+.tiptap .selectedCell.selection-inline-end::after {
+  border-inline-end-width: 2px;
 }
 
-.tiptap .selectedCell.selection-right::after {
-  border-right-width: 2px;
+.tiptap .selectedCell.selection-inline-start::after {
+  border-inline-start-width: 2px;
 }
 
 .tiptap .column-resize-handle {
   background-color: var(--color-primary);
-  bottom: -2px;
+  inset-block-end: -2px;
   pointer-events: none;
   position: absolute;
-  right: -2px;
-  top: 0;
+  inset-inline-end: -2px;
+  inset-block-start: 0;
   width: 4px;
 }
 
@@ -466,7 +466,7 @@
 
 .tiptap ul[data-type='taskList'] {
   list-style: none;
-  margin-left: 0;
+  margin-inline-start: 0;
   padding: 0;
 }
 
@@ -477,7 +477,7 @@
 
 .tiptap ul[data-type='taskList'] li > label {
   flex: 0 0 auto;
-  margin-right: 0.5rem;
+  margin-inline-end: 0.5rem;
   user-select: none;
   display: flex;
   align-items: center;
@@ -538,8 +538,8 @@
   align-items: center;
   gap: 6px;
   position: absolute;
-  top: 4px;
-  right: 6px;
+  inset-block-start: 4px;
+  inset-inline-end: 6px;
   opacity: 0;
   transition: opacity 0.2s;
 }

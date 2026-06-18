@@ -73,7 +73,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
           <button
             key={item.key}
             type="button"
-            className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors hover:bg-accent focus:bg-accent ${
+            className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm outline-hidden transition-colors hover:bg-accent focus:bg-accent ${
               item.danger ? 'text-destructive' : 'text-foreground'
             }`}
             onClick={() => onMenuClick(item.key)}>

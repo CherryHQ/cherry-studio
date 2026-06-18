@@ -90,8 +90,8 @@ export const WrappedInputWithButton: Story = {
   render: () => (
     <ButtonGroup className="w-80">
       <ButtonGroupItem className="flex-1">
-        <Input placeholder="Wrapped input..." className="pr-14" />
-        <span className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground text-xs">Ctrl K</span>
+        <Input placeholder="Wrapped input..." className="pe-14" />
+        <span className="-translate-y-1/2 absolute top-1/2 end-3 text-muted-foreground text-xs">Ctrl K</span>
       </ButtonGroupItem>
       <Button>Search</Button>
     </ButtonGroup>

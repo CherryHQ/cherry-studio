@@ -51,11 +51,11 @@ export const actionClasses = {
 } as const
 
 const providerListItemFrame =
-  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0'
+  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pe-2.5 ps-0.5 text-start shadow-none outline-none transition-colors focus-visible:ring-0'
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-border border-r-[0.5px]',
+  shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-e border-[color:var(--section-border)]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   headerAddButton:
@@ -63,14 +63,15 @@ export const providerListClasses = {
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
-  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
+  searchWrap:
+    'flex h-8 items-center gap-1 rounded-[10px] border border-[color:var(--section-border)] bg-background py-1 ps-2.5 pe-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
   scroller: 'min-h-0 flex-1 px-2.5 pb-2',
   sectionStack: 'space-y-3',
   section: 'space-y-2',
-  sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',
+  sectionHeader: 'pb-0.5 ps-2 pe-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
   emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-[14px]',
@@ -88,7 +89,7 @@ export const providerListClasses = {
   itemAvatar:
     'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel: 'min-w-0 truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
-  itemTrailingSlot: 'relative -mr-1 ml-1 flex shrink-0 items-center justify-center',
+  itemTrailingSlot: 'relative -me-1 ms-1 flex shrink-0 items-center justify-center',
   itemTrailingSlotAction: 'size-5',
   itemTrailingSlotIndicatorOnly: 'size-2',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
@@ -97,20 +98,20 @@ export const providerListClasses = {
   groupHeaderHasSelected: 'bg-muted',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
-  groupCount: 'shrink-0 text-xs leading-none text-muted-foreground/60 tabular-nums',
-  groupBody: 'mt-1 flex flex-col gap-2 pl-3.5',
+  groupCount: 'shrink-0 text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/60 tabular-nums',
+  groupBody: 'mt-1 flex flex-col gap-[var(--provider-list-row-gap)] ps-3.5',
   itemMoreActions:
-    'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
+    'absolute top-1/2 end-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute top-1/2 right-0.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute top-1/2 end-0.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-muted bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
-    'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-xs leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
+    'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-start text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
   disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
   disclosureChevronOpen: 'rotate-90',
-  disclosureBody: 'mt-2 flex flex-col gap-3 pl-1'
+  disclosureBody: 'mt-2 flex flex-col gap-3 ps-1'
 } as const
 
 /**
@@ -230,7 +231,7 @@ export const modelListClasses = {
   capabilityTabIcon: 'size-3 shrink-0',
   subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'ml-1 flex shrink-0 items-center gap-2',
+  subsectionActions: 'ms-1 flex shrink-0 items-center gap-2',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
@@ -246,8 +247,8 @@ export const modelListClasses = {
   subsectionTitleDisabled: 'text-sm leading-5 text-foreground font-semibold',
   subsectionCountDisabled: 'text-sm leading-5 text-foreground-muted tabular-nums font-medium',
   emptyState:
-    'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-muted',
-  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',
+    'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-[var(--color-surface-fg-sunken)] px-4 text-center text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground-muted',
+  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pe-1',
   /**
    * — grouped catalog inside manage drawer (flat headers, no collapse).
    */
@@ -268,7 +269,7 @@ export const modelListClasses = {
     'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-xs text-muted-foreground/60 tabular-nums',
   /** Trailing close in manage drawer title row (paired with bulk actions); matches `hover:bg-accent`. */
   manageDrawerCloseInTitle:
-    "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-lg p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
+    "ms-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-[length:var(--radius-control)] p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
   manageDrawerBulkGhost:
     'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs font-medium tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
   /** Enable-all hover — primary action color. */
@@ -278,9 +279,9 @@ export const modelListClasses = {
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
   groupCard: 'group/modelGroup min-w-0 w-full rounded-md border border-border-subtle bg-transparent px-2 py-1',
   groupHeader:
-    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-start outline-none focus-visible:outline-none',
   groupToggleButton:
-    'flex min-w-0 max-w-full items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
+    'flex min-w-0 max-w-full items-center gap-1 bg-transparent text-start outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
   groupHeaderIconTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
   groupSwitchTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
@@ -290,7 +291,7 @@ export const modelListClasses = {
   groupChevronOpen: 'rotate-90',
   groupBody: 'mt-0.5 flex flex-col gap-0.5',
   groupOverflowHint:
-    'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-tight text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground',
+    'mt-1 rounded-lg px-3 py-2 text-start text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   row: 'group flex min-h-11 items-center gap-3 py-2 text-foreground leading-none',
   rowMain: 'min-w-0 flex-1 items-center gap-3 self-center',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
@@ -432,8 +433,8 @@ export const oauthCardClasses = {
   badge:
     'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-medium leading-tight text-[color:var(--warning)]',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
-  inlineBalanceBlock: 'text-right',
-  inlineBalanceLabel: 'text-xs text-muted-foreground/40',
+  inlineBalanceBlock: 'text-end',
+  inlineBalanceLabel: 'text-[length:var(--font-size-body-xs)] text-muted-foreground/40',
   inlineBalanceValue: 'text-sm font-semibold leading-tight text-foreground tabular-nums',
   balanceValueSkeleton: 'inline-block w-20',
   /** CherryIN top-up CTA — solid primary background, white label (compact inline size). */

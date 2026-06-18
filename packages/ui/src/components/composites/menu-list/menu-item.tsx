@@ -90,7 +90,7 @@ function MenuItem({
       className={cn(menuItemVariants({ variant, size }), className)}
       {...props}>
       {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
-      <span className={cn('min-w-0 text-left', suffix && 'flex-1')}>
+      <span className={cn('min-w-0  text-start', suffix && 'flex-1')}>
         <span className={cn('block truncate', labelClassName)}>{label}</span>
         {description && (
           <span
@@ -104,7 +104,7 @@ function MenuItem({
           </span>
         )}
       </span>
-      {suffix && <span className="ml-auto flex shrink-0 items-center">{suffix}</span>}
+      {suffix && <span className="ms-auto flex shrink-0 items-center">{suffix}</span>}
     </Comp>
   )
 }

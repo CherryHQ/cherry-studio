@@ -44,7 +44,7 @@ export const RequiredField: Story = {
   render: () => (
     <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px]">
-        <span className="text-destructive mr-1">*</span>Bio
+        <span className="text-destructive me-1">*</span>Bio
       </div>
       <Textarea.Input placeholder="This field is required..." />
     </div>
@@ -288,7 +288,7 @@ export const RealWorldExamples: Story = {
           <h3 className="mb-3 text-sm font-semibold">User Feedback</h3>
           <div className="flex w-full flex-col gap-2 w-[500px]">
             <div className="text-lg font-bold leading-[22px]">
-              <span className="text-destructive mr-1">*</span>Feedback
+              <span className="text-destructive me-1">*</span>Feedback
             </div>
             <Textarea.Input
               value={feedback}
@@ -307,7 +307,7 @@ export const RealWorldExamples: Story = {
           <h3 className="mb-3 text-sm font-semibold">Contact Us</h3>
           <div className="flex w-full flex-col gap-2 w-[500px]">
             <div className="text-lg font-bold leading-[22px]">
-              <span className="text-destructive mr-1">*</span>Message
+              <span className="text-destructive me-1">*</span>Message
             </div>
             <Textarea.Input
               value={message}
@@ -402,7 +402,7 @@ export const CompositionExample: Story = {
     return (
       <div className="flex w-full flex-col gap-2 w-[500px]">
         <div className="text-lg font-bold leading-[22px]">
-          <span className="text-destructive mr-1">*</span>Profile Bio
+          <span className="text-destructive me-1">*</span>Profile Bio
         </div>
         <div className="relative">
           <Textarea.Input value={bio} onValueChange={setBio} placeholder="Tell us about yourself..." maxLength={500} />

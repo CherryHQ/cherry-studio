@@ -290,7 +290,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       </ProviderSettingsSubtitle>
       <div className="relative mt-1.5 w-full">
         <Input
-          className="w-full pr-10"
+          className="w-full pe-10"
           type={showClientEmail ? 'text' : 'password'}
           value={localClientEmail}
           placeholder={t('settings.provider.vertex_ai.service_account.client_email_placeholder')}
@@ -303,7 +303,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         <button
           type="button"
           onClick={() => setShowClientEmail(!showClientEmail)}
-          className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+          className="-translate-y-1/2 absolute end-3 top-1/2 text-muted-foreground hover:text-foreground"
           aria-label={t('settings.provider.vertex_ai.service_account.toggle_client_email_visibility')}>
           {showClientEmail ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </button>
@@ -317,7 +317,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       </ProviderSettingsSubtitle>
       <div className="relative mt-1.5 w-full">
         <Textarea.Input
-          className="min-h-10 w-full resize-none overflow-y-auto px-3 py-1.5 pr-10 text-sm"
+          className="min-h-10 w-full resize-none overflow-y-auto px-3 py-1.5 pe-10 text-sm"
           style={
             {
               WebkitTextSecurity: showPrivateKey ? 'none' : 'disc',
@@ -337,7 +337,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         <button
           type="button"
           onClick={() => setShowPrivateKey(!showPrivateKey)}
-          className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+          className="-translate-y-1/2 absolute end-3 top-1/2 text-muted-foreground hover:text-foreground"
           aria-label={t('settings.provider.vertex_ai.service_account.toggle_private_key_visibility')}>
           {showPrivateKey ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </button>
@@ -351,7 +351,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         </ProviderSettingsSubtitle>
         <div className="relative mt-1.5 w-full">
           <Input
-            className="w-full pr-10"
+            className="w-full pe-10"
             type={showProjectId ? 'text' : 'password'}
             value={localProjectId}
             placeholder={t('settings.provider.vertex_ai.project_id_placeholder')}
@@ -364,7 +364,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           <button
             type="button"
             onClick={() => setShowProjectId(!showProjectId)}
-            className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+            className="-translate-y-1/2 absolute end-3 top-1/2 text-muted-foreground hover:text-foreground"
             aria-label={t('settings.provider.vertex_ai.service_account.toggle_project_id_visibility')}>
             {showProjectId ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
           </button>
@@ -381,7 +381,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           <PopoverAnchor asChild>
             <div className="relative mt-1.5 w-full">
               <Input
-                className="w-full pr-10"
+                className="w-full pe-10"
                 aria-invalid={!localLocation.trim()}
                 value={localLocation}
                 placeholder={t('settings.provider.vertex_ai.location_placeholder')}
@@ -401,7 +401,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+                  className="-translate-y-1/2 absolute end-3 top-1/2 text-muted-foreground hover:text-foreground"
                   aria-label={t('settings.provider.vertex_ai.select_location')}
                   aria-haspopup="listbox">
                   <ChevronDown className="size-4" />
@@ -423,7 +423,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
                       isSelectingLocationRef.current = true
                     }}
                     onClick={() => handleLocationSelect(loc.value)}
-                    className="w-full cursor-pointer rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground">
+                    className="w-full cursor-pointer rounded px-2 py-1.5 text-start text-sm hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground">
                     {loc.label}
                   </button>
                 )

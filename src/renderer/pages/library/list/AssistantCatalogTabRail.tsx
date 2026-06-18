@@ -32,7 +32,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
       <div className="relative min-w-0 flex-1">
         <div ref={railRef} className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Tabs variant="line" value={activeTab} onValueChange={onTabChange} className="block">
-            <TabsList className="h-auto gap-6 px-1 pr-8">
+            <TabsList className="h-auto gap-6 px-1 pe-8">
               {tabs.map((tab) => {
                 const groupIconName = tab.id === ASSISTANT_CATALOG_MY_TAB ? '我的' : tab.id
                 return (
@@ -48,7 +48,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
             </TabsList>
           </Tabs>
         </div>
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-linear-to-l from-background to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 end-0 w-10 bg-linear-to-l from-background to-transparent" />
       </div>
       <Button
         variant="ghost"

@@ -18,7 +18,7 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className, size = 26, fontSize =
   return (
     <div
       className={cn(
-        'relative mr-[3px] flex shrink-0 items-center justify-center overflow-hidden rounded-full',
+        'relative me-[3px] flex shrink-0 items-center justify-center overflow-hidden rounded-full',
         className
       )}
       style={containerStyle}>

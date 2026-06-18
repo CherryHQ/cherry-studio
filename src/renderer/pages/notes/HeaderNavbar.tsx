@@ -171,7 +171,7 @@ const HeaderNavbar = ({
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
           </div>
-          <div className="pl-3">{item.children.map(renderMenuItem)}</div>
+          <div className="ps-3">{item.children.map(renderMenuItem)}</div>
         </div>
       )
     }
@@ -293,7 +293,7 @@ const HeaderNavbar = ({
           </Breadcrumb>
         </div>
       </NavbarCenter>
-      <NavbarRight className="pr-0">
+      <NavbarRight className="pe-0">
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div

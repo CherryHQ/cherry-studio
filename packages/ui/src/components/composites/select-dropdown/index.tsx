@@ -108,7 +108,7 @@ function VirtualRows<T extends { id: string }>({
           return (
             <div
               key={item.id}
-              className="absolute top-0 left-0 w-full"
+              className="absolute top-0 start-0 w-full"
               style={{ height: vItem.size, transform: `translateY(${vItem.start}px)` }}>
               {renderRow(item)}
             </div>
@@ -145,7 +145,7 @@ export function SelectDropdown<T extends { id: string }>({
       return (
         <div
           className={cn(
-            'flex items-center gap-1 rounded-md pr-1 transition-colors',
+            'flex items-center gap-1 rounded-md pe-1 transition-colors',
             isSelected && 'bg-primary/10 text-primary'
           )}>
           <button
@@ -154,7 +154,7 @@ export function SelectDropdown<T extends { id: string }>({
               onSelect(item.id)
               setOpen(false)
             }}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted">
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm transition-colors hover:bg-muted">
             {renderItem(item, isSelected)}
           </button>
           <button
@@ -175,7 +175,7 @@ export function SelectDropdown<T extends { id: string }>({
           setOpen(false)
         }}
         className={cn(
-          'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+          'w-full rounded-md px-2.5 py-1.5 text-start text-sm transition-colors',
           isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}
@@ -193,7 +193,7 @@ export function SelectDropdown<T extends { id: string }>({
             open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-muted',
             triggerClassName
           )}>
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <div className="flex min-w-0 flex-1 items-center gap-2  text-start">
             {renderTriggerLeading}
             {selected ? (
               renderSelected(selected)
@@ -203,7 +203,7 @@ export function SelectDropdown<T extends { id: string }>({
           </div>
           <ChevronDown
             size={12}
-            className={cn('ml-2 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+            className={cn('ms-2 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>

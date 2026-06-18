@@ -323,7 +323,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   return (
     <div
-      className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
+      className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-start-lg border-border border-inline-end bg-background"
       onDragOver={(e) => {
         e.preventDefault()
         setIsDragOverSidebar(true)
@@ -352,7 +352,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             <span>{t('notes.search.searching')}</span>
             <button
               type="button"
-              className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
+              className="ms-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
               onClick={cancel}
               title={t('common.cancel')}>
               <X size={14} />

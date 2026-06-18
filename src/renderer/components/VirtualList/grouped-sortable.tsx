@@ -255,7 +255,7 @@ function DropIndicator({ position }: { position: DropIndicatorPosition }) {
     <div
       aria-hidden="true"
       className={joinClassNames(
-        'pointer-events-none absolute right-2 left-2 z-10 h-0.5 rounded-full bg-sidebar-ring',
+        'pointer-events-none absolute start-2 end-2 z-10 h-0.5 rounded-full bg-sidebar-ring',
         position === 'before' ? 'top-0' : 'bottom-0'
       )}
       data-drop-indicator={position}

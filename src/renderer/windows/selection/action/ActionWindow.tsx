@@ -229,7 +229,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           'flex h-8 flex-row items-center px-2 transition-colors duration-300 [-webkit-app-region:drag]',
           isWindowFocus ? 'bg-muted' : 'bg-secondary'
         )}
-        style={isMac ? { paddingLeft: '70px' } : {}}>
+        style={isMac ? { paddingInlineStart: '70px' } : {}}>
         {action.icon && (
           <div className="ml-1 flex items-center justify-center">
             <SelectionActionIcon name={action.icon} size={16} className="text-foreground" fallback={() => null} />
@@ -262,7 +262,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             </WindowButton>
           </Tooltip>
           {showOpacitySlider && (
-            <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
+            <div className="absolute top-full start-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
                 orientation="vertical"
                 min={20}

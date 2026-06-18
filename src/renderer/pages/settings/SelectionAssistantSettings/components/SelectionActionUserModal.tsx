@@ -121,7 +121,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
         <div className="flex w-full flex-col gap-4">
           <ModalSection>
             <div className="flex flex-row">
-              <div className="w-[70%] flex-auto pr-4">
+              <div className="w-[70%] flex-auto pe-4">
                 <ModalSectionTitle>
                   <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
                 </ModalSectionTitle>
@@ -181,7 +181,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
           </ModalSection>
           <ModalSection>
             <div className="flex">
-              <div className="flex-auto pr-4">
+              <div className="flex-auto pe-4">
                 <ModalSectionTitle>
                   <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
                   <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
@@ -326,7 +326,7 @@ const CurrentTag = ({
 const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-primary',
+      'ms-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-primary',
       className
     )}
     {...props}

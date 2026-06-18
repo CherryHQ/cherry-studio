@@ -114,7 +114,7 @@ const tabsTriggerVariants = cva(
           'data-[state=active]:text-foreground data-[state=active]:font-semibold',
           'data-[state=active]:underline data-[state=active]:underline-offset-4 data-[state=active]:decoration-1',
           "[&:not(:first-child)]:before:content-['›']",
-          '[&:not(:first-child)]:before:mr-3 [&:not(:first-child)]:before:text-base',
+          '[&:not(:first-child)]:before:me-3 [&:not(:first-child)]:before:text-base',
           '[&:not(:first-child)]:before:font-normal [&:not(:first-child)]:before:no-underline',
           '[&:not(:first-child)]:before:text-foreground-muted'
         ]
@@ -128,20 +128,20 @@ const tabsTriggerVariants = cva(
       {
         variant: 'line',
         orientation: 'horizontal',
-        class: 'after:bottom-0 after:left-0 after:h-[2px] after:w-full data-[state=active]:after:h-[4px]'
+        class: 'after:bottom-0 after:start-0 after:h-[2px] after:w-full data-[state=active]:after:h-[4px]'
       },
       {
         variant: 'line',
         orientation: 'vertical',
         class: [
-          'justify-center after:bottom-0 after:left-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
+          'justify-center after:bottom-0 after:start-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
           'hover:text-primary hover:bg-primary/10'
         ]
       },
       {
         variant: 'underline',
         orientation: 'horizontal',
-        class: 'after:bottom-0 after:left-0 after:h-0.5 after:w-full'
+        class: 'after:bottom-0 after:start-0 after:h-0.5 after:w-full'
       }
     ],
     defaultVariants: {

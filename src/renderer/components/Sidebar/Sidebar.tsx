@@ -100,7 +100,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'slide-in-from-start-2 fixed start-0 top-0 bottom-0 flex w-43.5 animate-in select-none flex-col rounded-be-2xl rounded-end-sm bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -150,7 +150,7 @@ export function Sidebar({
     return (
       <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
         <div
-          className="absolute inset-y-0 left-0 z-50 w-4 [-webkit-app-region:no-drag]"
+          className="absolute inset-y-0 start-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
             hoverTimeout.current = setTimeout(() => onHoverChange?.(true), 200)
@@ -164,7 +164,7 @@ export function Sidebar({
               startResizing(event)
             }}
             className="group/handle h-full w-full cursor-col-resize">
-            <div className="ml-0.5 h-full w-0.5 rounded-full bg-primary/30 opacity-0 transition-opacity group-hover/handle:opacity-100" />
+            <div className="ms-0.5 h-full w-0.5 rounded-full bg-primary/30 opacity-0 transition-opacity group-hover/handle:opacity-100" />
           </div>
         </div>
       </div>
@@ -229,7 +229,7 @@ export function Sidebar({
       {/* Resize handle */}
       <div
         onMouseDown={startResizing}
-        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
+        className="group/handle absolute end-0 top-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
         <div className="h-full w-full bg-primary/20 opacity-0 transition-opacity group-hover/handle:opacity-100" />
       </div>
     </div>

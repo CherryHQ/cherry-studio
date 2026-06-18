@@ -78,14 +78,14 @@ const TranslateInputPane = ({
           disabled={disabled}
           spellCheck={false}
           placeholder={t('translate.input.placeholder')}
-          className="h-full w-full resize-none bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-foreground-muted"
+          className="h-full w-full resize-none bg-transparent p-4 pe-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-foreground-muted"
         />
         <IconButton
           size="sm"
           onClick={onCopy}
           disabled={!text}
           aria-label={t('common.copy')}
-          className="absolute top-4 right-3">
+          className="absolute end-3 top-4">
           <Copy size={14} />
         </IconButton>
       </div>

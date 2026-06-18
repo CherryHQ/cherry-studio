@@ -91,7 +91,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
                   setOpen(false)
                 }}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm transition-colors',
                   isSelected
                     ? 'bg-accent text-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'

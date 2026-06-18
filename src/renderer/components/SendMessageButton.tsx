@@ -45,7 +45,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
         fontSize: 22,
         transition: 'all 0.2s',
         marginTop: 1,
-        marginRight: 2
+        marginInlineEnd: 2
       }}
     />
   )

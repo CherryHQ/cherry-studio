@@ -205,7 +205,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                       disabled={isAlreadyAdded}
                       variant="ghost"
                       size="icon-sm"
-                      className="ml-2.5 size-7 min-h-7 shadow-none"
+                      className="ms-2.5 size-7 min-h-7 shadow-none"
                       onClick={async () => {
                         if (!isAlreadyAdded) {
                           try {

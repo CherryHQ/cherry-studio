@@ -84,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[720px]">
-        <DialogHeader className="pr-8">
+        <DialogHeader className="pe-8">
           <DialogTitle>{t('update.title')}</DialogTitle>
           <p className="text-muted-foreground text-sm">
             {t('update.message').replace('{{version}}', releaseInfo?.version || '')}

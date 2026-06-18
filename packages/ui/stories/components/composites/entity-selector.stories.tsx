@@ -187,7 +187,7 @@ function WithFilterPanelSlotDemo() {
             })}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="mr-1 text-xs text-muted-foreground/60">Sort</span>
+            <span className="me-1 text-xs text-muted-foreground/60">Sort</span>
             {[
               { id: 'asc', label: 'Asc', icon: <ArrowUp className="size-3" /> },
               { id: 'desc', label: 'Desc', icon: <ArrowDown className="size-3" /> }
@@ -283,7 +283,7 @@ function WithContextMenuSlotDemo() {
               alert(`Edit ${item.id}`)
               close()
             }}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent">
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent">
             <Pencil className="size-3.5" />
             Edit
           </button>
@@ -321,7 +321,7 @@ function WithFooterSlotDemo() {
           onClick={() => alert('Create')}
           className="flex w-full items-center gap-2 border-t border-border/40 px-3 py-2.5 text-sm text-foreground hover:bg-accent/50">
           <Plus className="size-4 text-muted-foreground/80" />
-          <span className="flex-1 text-left">Create new</span>
+          <span className="flex-1  text-start">Create new</span>
           <ChevronRight className="size-4 text-muted-foreground/60" />
         </button>
       }
@@ -417,7 +417,7 @@ function FullFeaturedDemo() {
             })}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="mr-1 text-xs text-muted-foreground/60">Sort</span>
+            <span className="me-1 text-xs text-muted-foreground/60">Sort</span>
             {[
               { id: 'desc', label: 'Desc', icon: <ArrowDown className="size-3" /> },
               { id: 'asc', label: 'Asc', icon: <ArrowUp className="size-3" /> }
@@ -457,7 +457,7 @@ function FullFeaturedDemo() {
                 alert(`Edit ${item.id}`)
                 close()
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent">
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent">
               <Pencil className="size-3.5" />
               Edit
             </button>
@@ -470,7 +470,7 @@ function FullFeaturedDemo() {
                 )
                 close()
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50">
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50">
               {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
               {isPinned ? 'Unpin' : 'Pin'}
             </button>
@@ -483,7 +483,7 @@ function FullFeaturedDemo() {
           onClick={() => alert('Create')}
           className="flex w-full items-center gap-2 border-t border-border/40 px-3 py-2.5 text-sm text-foreground hover:bg-accent/50">
           <Plus className="size-4 text-muted-foreground/80" />
-          <span className="flex-1 text-left">Create new</span>
+          <span className="flex-1  text-start">Create new</span>
           <ChevronRight className="size-4 text-muted-foreground/60" />
         </button>
       }
@@ -534,7 +534,7 @@ function ConsumerManagedSortDemo() {
                 )
                 close()
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent">
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent">
               {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
               {isPinned ? 'Unpin' : 'Pin'}
             </button>
@@ -595,7 +595,7 @@ function WithSectionsDemo() {
                 )
                 close()
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent">
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent">
               {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
               {isPinned ? 'Unpin' : 'Pin'}
             </button>

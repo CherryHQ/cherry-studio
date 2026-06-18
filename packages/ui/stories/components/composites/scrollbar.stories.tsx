@@ -204,7 +204,7 @@ export const LongArticle: Story = {
         </p>
 
         <h2 className="mb-3 text-xl font-semibold">Types of Scrolling</h2>
-        <ul className="mb-4 ml-6 list-disc">
+        <ul className="mb-4 ms-6 list-disc">
           <li className="mb-2">Vertical Scrolling - The most common type</li>
           <li className="mb-2">Horizontal Scrolling - Often used for timelines and galleries</li>
           <li className="mb-2">Infinite Scrolling - Continuously loads new content</li>
@@ -214,7 +214,7 @@ export const LongArticle: Story = {
         <h2 className="mb-3 text-xl font-semibold">Best Practices</h2>
         <p className="mb-4">When implementing scrolling in your applications, consider the following best practices:</p>
 
-        <ol className="mb-4 ml-6 list-decimal">
+        <ol className="mb-4 ms-6 list-decimal">
           <li className="mb-2">Always provide visual feedback for scrollable areas</li>
           <li className="mb-2">Ensure scroll performance is smooth and responsive</li>
           <li className="mb-2">Consider keyboard navigation for accessibility</li>
@@ -234,7 +234,7 @@ export const LongArticle: Story = {
           sluggish and unresponsive. Key factors affecting scroll performance include:
         </p>
 
-        <ul className="mb-4 ml-6 list-disc">
+        <ul className="mb-4 ms-6 list-disc">
           <li className="mb-2">DOM complexity and size</li>
           <li className="mb-2">CSS animations and transforms</li>
           <li className="mb-2">JavaScript event handlers</li>

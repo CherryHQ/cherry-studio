@@ -283,7 +283,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         <Button
           type="button"
           variant="ghost"
-          className="mr-auto px-2.5 text-destructive shadow-none hover:bg-error-bg hover:text-error-text"
+          className="me-auto px-2.5 text-destructive shadow-none hover:bg-error-bg hover:text-error-text"
           onClick={() => void handleDeleteModel()}>
           {t('common.delete')}
         </Button>

@@ -166,7 +166,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
           <TabsContent value="url" className="pt-2">
             <div className="flex items-center justify-center gap-3">
               <div className="relative flex-1">
-                <Link className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                <Link className="-translate-y-1/2 absolute start-3 top-1/2 size-4 text-muted-foreground" />
                 <Input
                   placeholder={t('richEditor.imageUploader.urlPlaceholder')}
                   value={urlInput}
@@ -176,7 +176,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                       handleUrlSubmit()
                     }
                   }}
-                  className="pl-9"
+                  className="ps-9"
                 />
               </div>
               <Button variant="outline" onClick={() => setUrlInput('')}>

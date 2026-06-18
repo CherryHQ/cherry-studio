@@ -137,7 +137,7 @@ const NpxSearch: FC = () => {
         </Center>
       )}
       {!searchLoading && (
-        <div className="mx-auto flex w-full max-w-300 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+        <div className="mx-auto flex w-full max-w-300 flex-1 flex-col gap-2 overflow-y-auto pe-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (

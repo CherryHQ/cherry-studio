@@ -169,7 +169,7 @@ describe('Sidebar resize handle', () => {
     const hotZone = resizeHandle.parentElement
 
     expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
-    expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
+    expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'start-0', 'z-50', 'w-4')
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
   })
 

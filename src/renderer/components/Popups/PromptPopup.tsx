@@ -136,7 +136,7 @@ const PromptPopupContainer: React.FC<Props> = ({
             onKeyDown={handleKeyDown}
             rows={rows}
             style={{ maxHeight: '80vh', ...styles?.textarea, ...style }}
-            className={[className, allowClear ? 'pr-10' : undefined].filter(Boolean).join(' ')}
+            className={[className, allowClear ? 'pe-10' : undefined].filter(Boolean).join(' ')}
           />
           {allowClear && value && (
             <Button
@@ -145,7 +145,7 @@ const PromptPopupContainer: React.FC<Props> = ({
               size="icon-sm"
               disabled={textareaProps.disabled || textareaProps.readOnly}
               aria-label={t('common.clear')}
-              className="absolute top-2 right-2"
+              className="absolute end-2 top-2"
               onClick={() => setValue('')}>
               <X size={14} />
             </Button>

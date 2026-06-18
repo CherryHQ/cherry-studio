@@ -38,7 +38,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-[var(--color-border)]" style={{ height }}>
       <textarea
-        className="flex-1 resize-none border-0 border-[var(--color-border)] border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-foreground-muted focus:outline-none"
+        className="flex-1 resize-none border-0 border-[var(--color-border)] border-e bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-foreground-muted focus:outline-none"
         value={inputValue}
         onChange={handleChange}
         placeholder={placeholder}

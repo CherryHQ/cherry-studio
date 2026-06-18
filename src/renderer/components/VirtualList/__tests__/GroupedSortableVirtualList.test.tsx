@@ -445,7 +445,7 @@ describe('GroupedSortableVirtualList', () => {
     expect(targetRow).toHaveStyle({ transform: '', transition: '' })
     const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
     expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).toHaveClass('end-2', 'start-2', 'h-0.5', 'bg-sidebar-ring')
     expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
     expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
   })
@@ -469,7 +469,7 @@ describe('GroupedSortableVirtualList', () => {
     expect(otherGroupRow).toHaveStyle({ transform: '', transition: '' })
     const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
     expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).toHaveClass('end-2', 'start-2', 'h-0.5', 'bg-sidebar-ring')
     expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
     expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
   })
@@ -515,7 +515,7 @@ describe('GroupedSortableVirtualList', () => {
     expect(targetItem?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
     const indicator = targetFooter?.querySelector('[data-drop-indicator="before"]')
     expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).toHaveClass('end-2', 'start-2', 'h-0.5', 'bg-sidebar-ring')
     expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
   })
 
@@ -574,7 +574,7 @@ describe('GroupedSortableVirtualList', () => {
     const targetRow = screen.getByText('Item Gamma').parentElement
     const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
     expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).toHaveClass('end-2', 'start-2', 'h-0.5', 'bg-sidebar-ring')
     expect(screen.getAllByText('Header First')[0].parentElement).toHaveStyle({ opacity: '0.5' })
     expect(screen.getByText('Item Alpha').parentElement).toHaveStyle({ opacity: '0.5' })
     expect(screen.getByText('Item Beta').parentElement).toHaveStyle({ opacity: '0.5' })
@@ -592,7 +592,7 @@ describe('GroupedSortableVirtualList', () => {
     const targetHeader = screen.getByText('Header First').parentElement
     const indicator = targetHeader?.querySelector('[data-drop-indicator="before"]')
     expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
+    expect(indicator).toHaveClass('end-2', 'start-2', 'h-0.5', 'bg-sidebar-ring')
   })
 
   it('keeps same-group item drops enabled independently from cross-group drops', () => {

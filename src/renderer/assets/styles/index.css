@@ -156,7 +156,7 @@ ul {
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .message-user .message-header {
   flex-direction: row-reverse;
-  text-align: right;
+  text-align: end;
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
@@ -164,14 +164,14 @@ ul {
   .message-header
   .message-header-info-wrap {
   flex-direction: row-reverse;
-  text-align: right;
+  text-align: end;
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
   .message-user
   .message-content-container {
   border-radius: 10px;
-  padding: 10px 16px 10px 16px;
+  padding: 10px 16px;
   background-color: var(--chat-background-user);
   align-self: self-end;
 }
@@ -184,11 +184,11 @@ ul {
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
   .message-assistant
   .message-content-container {
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .message-assistant .MessageFooter {
-  margin-left: 0;
+  margin-inline-start: 0;
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) code {

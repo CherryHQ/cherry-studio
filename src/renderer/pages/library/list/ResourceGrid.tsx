@@ -1,32 +1,15 @@
-import {
-  Button,
-  ConfirmDialog,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  EmptyState,
-  Input,
-  Skeleton
-} from '@cherrystudio/ui'
+import { Button, EmptyState, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
-import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
-import type { FC, RefObject } from 'react'
+import { Plus, Search, Tag, Upload, X } from 'lucide-react'
+import type { FC, MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '../constants'
+import { RESOURCE_TYPE_META } from '../constants'
 import type { ResourceItem, ResourceType, TagItem } from '../types'
 import { AssistantCatalogTabRail } from './AssistantCatalogTabRail'
+import { FixedCardMenu } from './ResourceCardMenu'
 import { AssistantCatalogPresetContent, ResourceCard } from './ResourceCards'
 import {
   ASSISTANT_CATALOG_MY_TAB,
@@ -38,23 +21,20 @@ import {
 const logger = loggerService.withContext('ResourceGrid')
 
 const GRID_GAP_PX = 12
-const RESOURCE_CARD_ROW_ESTIMATE_PX = 92
-const ASSISTANT_PRESET_ROW_ESTIMATE_PX = 144
+const RESOURCE_CARD_ROW_ESTIMATE_PX = 164
+const ASSISTANT_PRESET_ROW_ESTIMATE_PX = 190
 
 interface AssistantCatalogGridState {
   activeTab: string
   tabs: AssistantCatalogTab[]
   presets: AssistantCatalogPreset[]
-  addedAssistantPresets: Readonly<Record<string, string>>
   onTabChange: (tabId: string) => void
   onAddPreset: (preset: AssistantCatalogPreset) => Promise<void> | void
-  onOpenPresetChat: (assistantId: string) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
 interface Props {
   resources: ResourceItem[]
-  isLoading?: boolean
   activeResourceType: ResourceType
   search: string
   onSearchChange: (v: string) => void
@@ -72,8 +52,6 @@ interface Props {
   /** Replace the tag-name set for a single resource. Caller handles ensure-tag + bind. */
   onUpdateResourceTags: (resourceId: string, tags: string[]) => Promise<void> | void
   allTagNames: string[]
-  /** Full backend tag records (id + name + color). Distinct from `allTagNames` (names only). */
-  allTags: BackendTag[]
   assistantCatalog?: AssistantCatalogGridState
 }
 
@@ -114,7 +92,6 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 
 export const ResourceGrid: FC<Props> = ({
   resources,
-  isLoading = false,
   activeResourceType,
   search,
   onSearchChange,
@@ -130,45 +107,30 @@ export const ResourceGrid: FC<Props> = ({
   onAddTag,
   onUpdateResourceTags,
   allTagNames,
-  allTags,
   assistantCatalog
 }) => {
   const { t } = useTranslation()
-  const { renameTag } = useRenameTag()
-  const { deleteTag } = useDeleteTag()
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)
+  const [menuState, setMenuState] = useState<{ id: string; x: number; y: number } | null>(null)
   const [showAddTag, setShowAddTag] = useState(false)
-  const [showAllTags, setShowAllTags] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [addingTag, setAddingTag] = useState(false)
   const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
-  const [renamingTag, setRenamingTag] = useState<TagItem | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const [renaming, setRenaming] = useState(false)
-  const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
-  const [deleting, setDeleting] = useState(false)
   const showingAssistantCatalogPresets =
     Boolean(assistantCatalog) && assistantCatalog?.activeTab !== ASSISTANT_CATALOG_MY_TAB
   const showTagToolbar =
     activeResourceType === 'assistant' && (!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB)
-  // This "unused" set is scoped to the assistant library: today user-managed
-  // resource tags are only bound to assistants. If other entity types start
-  // sharing `/tags`, replace this client-side difference with server-provided
-  // global usage/unused data before exposing destructive actions.
-  const unusedTags = useMemo(() => {
-    const usedNames = new Set(tags.map((tag) => tag.name))
-    return allTags
-      .filter((tag) => !usedNames.has(tag.name))
-      .map((tag) => ({
-        id: tag.id,
-        name: tag.name,
-        color: tag.color ?? DEFAULT_TAG_COLOR,
-        count: 0
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
-  }, [allTags, tags])
-  const visibleTags = showAllTags ? [...tags, ...unusedTags] : tags
+
+  const openMenu = useCallback((id: string, e: MouseEvent) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setMenuState({ id, x: rect.left, y: rect.bottom + 4 })
+  }, [])
+
+  const closeMenu = useCallback(() => {
+    setMenuState(null)
+  }, [])
 
   const handleAddTag = async () => {
     const trimmed = newTagName.trim()
@@ -188,60 +150,6 @@ export const ResourceGrid: FC<Props> = ({
       setAddingTag(false)
     }
   }
-
-  const handleOpenRenameTag = useCallback((tag: TagItem) => {
-    setRenamingTag(tag)
-    setRenameValue(tag.name)
-  }, [])
-
-  const handleRenameTag = useCallback(async () => {
-    const tag = renamingTag
-    const nextName = renameValue.trim()
-    if (!tag || renaming || !nextName) return
-
-    if (nextName === tag.name) {
-      setRenamingTag(null)
-      return
-    }
-
-    setRenaming(true)
-    try {
-      const updated = await renameTag(tag.id, nextName)
-      if (activeTag === tag.name) onTagFilter(updated.name)
-      setRenamingTag(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
-      logger.error('Failed to rename tag', error instanceof Error ? error : new Error(String(error)), {
-        id: tag.id,
-        name: tag.name,
-        nextName
-      })
-    } finally {
-      setRenaming(false)
-    }
-  }, [activeTag, onTagFilter, renameTag, renameValue, renaming, renamingTag, t])
-
-  const handleConfirmDeleteTag = useCallback(async () => {
-    const tag = deletingTag
-    if (!tag || deleting) return
-
-    setDeleting(true)
-    try {
-      await deleteTag(tag.id)
-      if (activeTag === tag.name) onTagFilter(null)
-      setDeletingTag(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
-      logger.error('Failed to delete tag', error instanceof Error ? error : new Error(String(error)), {
-        id: tag.id,
-        name: tag.name
-      })
-    } finally {
-      setDeleting(false)
-    }
-  }, [activeTag, deleteTag, deleting, deletingTag, onTagFilter, t])
 
   const handleAddPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
@@ -266,24 +174,22 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col border-border-muted border-b">
+      <div className="flex shrink-0 flex-col border-border/50 border-b">
         <div className="flex items-center gap-2 px-5 py-3">
-          <div className="relative max-w-64 flex-1">
-            <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
+          <div className="relative max-w-[260px] flex-1">
+            <Search size={13} className="-translate-y-1/2 absolute start-2.5 top-1/2 text-muted-foreground/50" />
             <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('library.toolbar.search_placeholder')}
-              className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-foreground-muted"
+              className="h-auto w-full rounded-lg border border-border/40 bg-accent/25 py-1.5 ps-7 pe-7 text-foreground text-sm shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0"
             />
             {search && (
               <Button
                 variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.clear')}
                 onClick={() => onSearchChange('')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
-                <X size={12} />
+                className="-translate-y-1/2 absolute end-2 top-1/2 h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0">
+                <X size={10} />
               </Button>
             )}
           </div>
@@ -292,8 +198,11 @@ export const ResourceGrid: FC<Props> = ({
 
           <div className="flex shrink-0 items-center gap-2">
             {activeResourceType !== 'skill' && (
-              <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
-                <Plus size={12} className="lucide-custom" />
+              <Button
+                variant="default"
+                onClick={() => onCreate(activeResourceType)}
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-lg px-3 py-1.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 active:scale-[0.97]">
+                <Plus size={11} className="lucide-custom" />
                 <span>
                   {t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}
                 </span>
@@ -301,15 +210,21 @@ export const ResourceGrid: FC<Props> = ({
             )}
 
             {activeResourceType === 'assistant' && (
-              <Button variant="outline" size="sm" onClick={onImportAssistant} className="shrink-0">
-                <Upload size={12} />
+              <Button
+                variant="ghost"
+                onClick={onImportAssistant}
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-lg border border-border/40 px-3 py-1.5 font-normal text-muted-foreground/70 text-xs shadow-none transition-colors hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 active:scale-[0.97]">
+                <Upload size={11} />
                 <span>{t('assistants.presets.import.action')}</span>
               </Button>
             )}
 
             {activeResourceType === 'skill' && (
-              <Button variant="default" size="sm" onClick={() => onCreate('skill')} className="shrink-0">
-                <Upload size={12} className="lucide-custom" />
+              <Button
+                variant="default"
+                onClick={() => onCreate('skill')}
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-lg px-3 py-1.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 active:scale-[0.97]">
+                <Upload size={11} className="lucide-custom" />
                 <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
               </Button>
             )}
@@ -326,53 +241,27 @@ export const ResourceGrid: FC<Props> = ({
 
         {showTagToolbar && (
           <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
-            <Tag size={12} className="mr-0.5 shrink-0 text-foreground-muted" />
-            {visibleTags.map((tag) => (
-              <ContextMenu key={tag.id}>
-                <ContextMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
-                    className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
-                      activeTag === tag.name
-                        ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
-                        : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
-                    }`}>
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                    <span>{tag.name}</span>
-                    <span className="text-foreground-muted text-xs tabular-nums">{tag.count}</span>
-                  </Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent className="min-w-32">
-                  <ContextMenuItem onSelect={() => handleOpenRenameTag(tag)}>
-                    <ContextMenuItemContent icon={<Pencil size={12} />}>{t('common.rename')}</ContextMenuItemContent>
-                  </ContextMenuItem>
-                  <ContextMenuItem variant="destructive" onSelect={() => setDeletingTag(tag)}>
-                    <ContextMenuItemContent icon={<Trash2 size={12} />}>
-                      {t('assistants.tags.delete')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            ))}
-
-            {unusedTags.length > 0 && (
+            <Tag size={11} className="me-0.5 shrink-0 text-muted-foreground/40" />
+            {tags.map((tag) => (
               <Button
                 variant="ghost"
-                size="icon-sm"
-                aria-label={t('library.toolbar.all_tags')}
-                title={t('library.toolbar.all_tags')}
-                onClick={() => setShowAllTags((value) => !value)}
-                className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
-                {showAllTags ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
+                key={tag.id}
+                onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
+                className={`flex h-auto min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
+                  activeTag === tag.name
+                    ? 'border-foreground/30 bg-foreground/[0.06] text-foreground hover:border-foreground/40 hover:bg-foreground/[0.08] hover:text-foreground'
+                    : 'border-border/30 text-muted-foreground/50 hover:border-border/50 hover:bg-accent/50 hover:text-foreground'
+                }`}>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                <span>{tag.name}</span>
+                <span className="text-muted-foreground/40 text-xs tabular-nums">{tag.count}</span>
               </Button>
-            )}
+            ))}
 
             {showAddTag ? (
               <div className="flex shrink-0 items-center gap-1">
                 <Input
                   autoFocus
-                  maxLength={64}
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
                   onKeyDown={(e) => {
@@ -387,82 +276,31 @@ export const ResourceGrid: FC<Props> = ({
                   }}
                   disabled={addingTag}
                   placeholder={t('library.toolbar.add_tag_placeholder')}
-                  className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
+                  className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/25 px-2 py-[3px] text-foreground text-xs shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-foreground/40 focus-visible:ring-0 disabled:opacity-50"
                 />
                 <Button
                   variant="ghost"
-                  size="icon-sm"
                   onClick={() => void handleAddTag()}
                   disabled={addingTag || !newTagName.trim()}
-                  className="size-6 text-foreground-muted hover:text-foreground">
-                  <Plus size={12} />
+                  className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0 disabled:opacity-40">
+                  <Plus size={10} />
                 </Button>
               </div>
             ) : (
               <Button
                 variant="ghost"
                 onClick={() => setShowAddTag(true)}
-                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
-                <Plus size={11} /> {t('library.toolbar.tag_button')}
+                className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-muted-foreground/40 text-xs shadow-none transition-all hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+                <Plus size={9} /> {t('library.toolbar.tag_button')}
               </Button>
             )}
           </div>
         )}
-        <Dialog
-          open={Boolean(renamingTag)}
-          onOpenChange={(open) => {
-            if (!open && !renaming) setRenamingTag(null)
-          }}>
-          <DialogContent className="max-w-sm rounded-xl">
-            <DialogHeader>
-              <DialogTitle>{t('common.rename')}</DialogTitle>
-            </DialogHeader>
-            <Input
-              autoFocus
-              maxLength={64}
-              aria-label={t('common.rename')}
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void handleRenameTag()
-                if (event.key === 'Escape' && !renaming) setRenamingTag(null)
-              }}
-              disabled={renaming}
-              className="h-9 rounded-md border-input bg-background"
-            />
-            <DialogFooter>
-              <Button variant="outline" size="sm" disabled={renaming} onClick={() => setRenamingTag(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                size="sm"
-                loading={renaming}
-                disabled={!renameValue.trim()}
-                onClick={() => void handleRenameTag()}>
-                {t('common.save')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <ConfirmDialog
-          open={Boolean(deletingTag)}
-          onOpenChange={(open) => {
-            if (!open && !deleting) setDeletingTag(null)
-          }}
-          title={t('assistants.tags.delete')}
-          description={t('assistants.tags.deleteConfirm')}
-          confirmText={t('common.delete')}
-          cancelText={t('common.cancel')}
-          destructive
-          confirmLoading={deleting}
-          onConfirm={handleConfirmDeleteTag}
-        />
       </div>
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
         {showingAssistantCatalogPresets && assistantCatalog ? (
           <VirtualizedAssistantPresetGrid
             scrollRef={scrollRef}
@@ -470,13 +308,9 @@ export const ResourceGrid: FC<Props> = ({
             presets={assistantCatalog.presets}
             search={search}
             addingPresetKeys={addingPresetKeys}
-            addedAssistantPresets={assistantCatalog.addedAssistantPresets}
             onAddPreset={(preset) => void handleAddPreset(preset)}
-            onOpenPresetChat={assistantCatalog.onOpenPresetChat}
             onPreviewPreset={assistantCatalog.onPreviewPreset}
           />
-        ) : isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} />
         ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
@@ -489,38 +323,32 @@ export const ResourceGrid: FC<Props> = ({
             scrollRef={scrollRef}
             columnCount={columnCount}
             resources={resources}
-            allTagNames={allTagNames}
-            onDelete={onDelete}
-            onDuplicate={onDuplicate}
             onEdit={onEdit}
-            onExport={onExport}
-            onUpdateResourceTags={onUpdateResourceTags}
+            onOpenMenu={openMenu}
           />
         )}
       </div>
-    </div>
-  )
-}
 
-function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
-  const count = Math.max(columnCount, 1) * 4
-
-  return (
-    <div
-      className="grid gap-3"
-      data-testid="resource-grid-loading"
-      style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}>
-      {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
-          <div className="flex items-center gap-3">
-            <Skeleton className="size-10 rounded-lg" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-full" />
-            </div>
-          </div>
-        </div>
-      ))}
+      {menuState &&
+        (() => {
+          const resource = resources.find((item) => item.id === menuState.id)
+          if (!resource) return null
+          return (
+            <FixedCardMenu
+              key={menuState.id}
+              x={menuState.x}
+              y={menuState.y}
+              resource={resource}
+              onClose={closeMenu}
+              onEdit={onEdit}
+              onDuplicate={onDuplicate}
+              onDelete={onDelete}
+              onExport={onExport}
+              onUpdateResourceTags={onUpdateResourceTags}
+              allTagNames={allTagNames}
+            />
+          )
+        })()}
     </div>
   )
 }
@@ -529,24 +357,16 @@ interface VirtualizedResourceGridProps {
   scrollRef: RefObject<HTMLDivElement | null>
   columnCount: number
   resources: ResourceItem[]
-  allTagNames: string[]
-  onDelete: (r: ResourceItem) => void
-  onDuplicate: (r: ResourceItem) => void
   onEdit: (r: ResourceItem) => void
-  onExport: (r: ResourceItem) => void
-  onUpdateResourceTags: (resourceId: string, tags: string[]) => void
+  onOpenMenu: (id: string, event: MouseEvent) => void
 }
 
 function VirtualizedResourceGrid({
   scrollRef,
   columnCount,
   resources,
-  allTagNames,
-  onDelete,
-  onDuplicate,
   onEdit,
-  onExport,
-  onUpdateResourceTags
+  onOpenMenu
 }: VirtualizedResourceGridProps) {
   const rows = useMemo(() => {
     const nextRows: ResourceItem[][] = []
@@ -582,16 +402,7 @@ function VirtualizedResourceGrid({
               transform: `translateY(${virtualRow.start}px)`
             }}>
             {row.map((resource) => (
-              <ResourceCard
-                key={resource.id}
-                resource={resource}
-                allTagNames={allTagNames}
-                onDelete={onDelete}
-                onDuplicate={onDuplicate}
-                onEdit={onEdit}
-                onExport={onExport}
-                onUpdateResourceTags={onUpdateResourceTags}
-              />
+              <ResourceCard key={resource.id} resource={resource} onEdit={onEdit} onOpenMenu={onOpenMenu} />
             ))}
           </div>
         )
@@ -606,9 +417,7 @@ interface VirtualizedAssistantPresetGridProps {
   presets: AssistantCatalogPreset[]
   search: string
   addingPresetKeys: ReadonlySet<string>
-  addedAssistantPresets: Readonly<Record<string, string>>
   onAddPreset: (preset: AssistantCatalogPreset) => void
-  onOpenPresetChat: (assistantId: string) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
@@ -618,9 +427,7 @@ function VirtualizedAssistantPresetGrid({
   presets,
   search,
   addingPresetKeys,
-  addedAssistantPresets,
   onAddPreset,
-  onOpenPresetChat,
   onPreviewPreset
 }: VirtualizedAssistantPresetGridProps) {
   const rows = useMemo(() => {
@@ -643,9 +450,7 @@ function VirtualizedAssistantPresetGrid({
       presets={presets}
       search={search}
       addingPresetKeys={addingPresetKeys}
-      addedAssistantPresets={addedAssistantPresets}
       onAddPreset={onAddPreset}
-      onOpenPresetChat={onOpenPresetChat}
       onPreviewPreset={onPreviewPreset}
       virtualRows={rowVirtualizer.getVirtualItems()}
       totalHeight={rowVirtualizer.getTotalSize()}

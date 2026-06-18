@@ -82,7 +82,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
 
     return (
       <div data-testid="knowledge-source-note-list" className="min-h-0 flex-1 overflow-y-auto">
-        <div role="list" className="space-y-1.5 pr-1">
+        <div role="list" className="space-y-1.5 pe-1">
           {noteFiles.map((note) => (
             <label
               key={note.externalPath}

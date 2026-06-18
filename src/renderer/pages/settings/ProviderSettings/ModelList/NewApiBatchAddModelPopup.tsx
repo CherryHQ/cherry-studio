@@ -113,10 +113,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           onCancel()
         }
       }}>
-      <DialogContent className="gap-5 rounded-2xl border-border-muted bg-popover p-5 sm:max-w-md">
-        <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-foreground/90 text-sm leading-5">{title}</DialogTitle>
-          <DialogDescription className="text-muted-foreground/80 text-sm leading-5">
+      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-(--color-border-fg-muted) bg-popover p-5 sm:max-w-md">
+        <DialogHeader className="gap-1.5 pe-6">
+          <DialogTitle className="text-(length:--font-size-body-md) text-foreground/90 leading-(--line-height-body-md)">
+            {title}
+          </DialogTitle>
+          <DialogDescription className="text-(length:--font-size-body-sm) text-muted-foreground/80 leading-(--line-height-body-sm)">
             {t('settings.models.add.endpoint_type.tooltip')}
           </DialogDescription>
         </DialogHeader>

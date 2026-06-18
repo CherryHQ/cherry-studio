@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from 'react'
 
 export const KnowledgeDialogHeader = ({ children, className }: { children: ReactNode; className?: string }) => {
   return (
-    <DialogHeader className={cn('pr-8 text-left', className)}>
+    <DialogHeader className={cn('pe-8 text-start', className)}>
       <DialogTitle>{children}</DialogTitle>
     </DialogHeader>
   )

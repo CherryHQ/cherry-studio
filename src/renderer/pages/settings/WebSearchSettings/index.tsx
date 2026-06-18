@@ -92,7 +92,7 @@ const WebSearchSettings: FC = () => {
                         labelClassName={settingsSubmenuItemLabelClassName}
                         suffix={
                           isDefault ? (
-                            <Badge className="mr-0 ml-auto rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                            <Badge className="ms-auto me-0 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
                               {t('common.default')}
                             </Badge>
                           ) : undefined

@@ -113,7 +113,7 @@ function Alert({
         )}
       </div>
       {action && (
-        <div data-slot="alert-action" className="ml-2 flex shrink-0 items-center">
+        <div data-slot="alert-action" className="ms-2 flex shrink-0 items-center">
           {action}
         </div>
       )}

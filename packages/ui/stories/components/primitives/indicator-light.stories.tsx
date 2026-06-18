@@ -293,19 +293,19 @@ export const NotificationDot: Story = {
       <div className="flex gap-6">
         <div className="relative">
           <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">📧</div>
-          <div className="absolute -top-1 -right-1">
+          <div className="absolute -top-1 -end-1">
             <IndicatorLight color="#ef4444" size={8} />
           </div>
         </div>
         <div className="relative">
           <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">🔔</div>
-          <div className="absolute -top-1 -right-1">
+          <div className="absolute -top-1 -end-1">
             <IndicatorLight color="#ef4444" size={10} />
           </div>
         </div>
         <div className="relative">
           <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">💬</div>
-          <div className="absolute -top-1 -right-1">
+          <div className="absolute -top-1 -end-1">
             <IndicatorLight color="#22c55e" size={8} />
           </div>
         </div>

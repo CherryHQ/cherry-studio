@@ -262,7 +262,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent"
         onClick={() => {
           setEditingProperty(property.key)
           setOpenDropdown(null)
@@ -277,7 +277,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           key={option.type}
           type="button"
           disabled={property.type === option.type}
-          className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+          className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
           onClick={() => {
             handleChangePropertyType(property.key, option.type)
             setOpenDropdown(null)
@@ -289,7 +289,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       <div className="-mx-1 my-1 h-px bg-border" />
       <button
         type="button"
-        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive text-sm hover:bg-destructive/10"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-start text-destructive text-sm hover:bg-destructive/10"
         onClick={() => {
           handleDeleteProperty(property.key)
           setOpenDropdown(null)
@@ -362,7 +362,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     if (property.type === 'boolean') {
       return (
         <Checkbox
-          className="ml-2"
+          className="ms-2"
           checked={!!property.value}
           onCheckedChange={(checked) => handlePropertyChange(property.key, checked === true)}
         />
@@ -398,7 +398,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     return (
       <button
         type="button"
-        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-left text-foreground text-sm"
+        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-start text-foreground text-sm"
         onClick={() => setEditingProperty(property.key)}>
         {property.value ? (
           String(property.value)
@@ -473,7 +473,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
 
         {showAddProperty ? (
           <div className="flex min-h-8 items-center rounded-md px-2 py-1.5 hover:bg-accent">
-            <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+            <div className="me-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               <Plus size={16} />
             </div>
             <Input
@@ -502,11 +502,11 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           <button
             type="button"
             className={cn(
-              'flex min-h-8 w-full items-center rounded-md px-2 py-1.5 text-left transition-opacity hover:bg-accent',
+              'flex min-h-8 w-full items-center rounded-md px-2 py-1.5 text-start transition-opacity hover:bg-accent',
               hasContent ? 'opacity-0 group-hover/frontmatter:opacity-100' : 'opacity-100'
             )}
             onClick={() => setShowAddProperty(true)}>
-            <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+            <div className="me-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               <Plus size={16} />
             </div>
             <div className="text-muted-foreground text-sm">{t('richEditor.frontMatter.addProperty')}</div>

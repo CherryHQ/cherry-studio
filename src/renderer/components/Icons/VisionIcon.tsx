@@ -12,7 +12,7 @@ const VisionIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, 
   return (
     <div className="flex items-center justify-center">
       <Tooltip content={t('models.type.vision')}>
-        <ImageIcon size={15} {...(iconProps as any)} className={cn('mr-[6px] text-primary', className)} />
+        <ImageIcon size={15} {...(iconProps as any)} className={cn('me-[6px] text-primary', className)} />
       </Tooltip>
     </div>
   )

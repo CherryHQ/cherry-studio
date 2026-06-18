@@ -23,7 +23,7 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
       onClick={onClick}
       style={style}>
       <div className="flex items-center gap-[2px] overflow-hidden text-[13px]">
-        {icon && <span className="mr-2 flex items-center justify-center">{icon}</span>}
+        {icon && <span className="me-2 flex items-center justify-center">{icon}</span>}
         <div className="flex flex-1 flex-col overflow-hidden">
           <Tooltip content={title} classNames={{ placeholder: 'block min-w-0' }}>
             <span className="block min-w-0 truncate" style={titleStyle}>
@@ -32,7 +32,7 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
           </Tooltip>
           {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-muted">{subtitle}</div>}
         </div>
-        {rightContent && <div className="ml-auto">{rightContent}</div>}
+        {rightContent && <div className="ms-auto">{rightContent}</div>}
       </div>
     </div>
   )

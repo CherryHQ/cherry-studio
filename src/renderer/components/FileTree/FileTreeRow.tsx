@@ -71,7 +71,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     if (isFolder) toggleExpanded()
   }
 
-  const indent = { paddingLeft: `${depth * INDENT_STEP_PX + INDENT_BASE_PX}px` }
+  const indent = { paddingInlineStart: `${depth * INDENT_STEP_PX + INDENT_BASE_PX}px` }
 
   const row = (
     <div
@@ -83,7 +83,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
       title={node.name}
       style={indent}
       className={cn(
-        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
+        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pe-2 text-start text-sm',
         'transition-colors',
         isFolder
           ? 'text-foreground/75 hover:bg-accent/50 hover:text-foreground'

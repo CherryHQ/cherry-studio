@@ -627,7 +627,7 @@ const CommonSettings: FC = () => {
             <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
               <Plus size="14" />
             </Button>
-            <Button onClick={() => handleZoomFactor(0, true)} className="ml-2" variant="ghost" size="icon">
+            <Button onClick={() => handleZoomFactor(0, true)} className="ms-2" variant="ghost" size="icon">
               <ResetIcon size="14" />
             </Button>
           </ZoomButtonGroup>

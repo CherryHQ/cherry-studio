@@ -76,7 +76,7 @@ const CodePanel = memo<CodePanelProps>(
             keymap: true
           }}
         />
-        <div className="absolute right-4 bottom-4 z-10 flex flex-col items-center gap-1">
+        <div className="absolute end-4 bottom-4 z-10 flex flex-col items-center gap-1">
           <Tooltip content={saveLabel}>
             <Button
               variant="secondary"
@@ -242,7 +242,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         className={cn(
           'grid gap-0 overflow-hidden p-0',
           isFullscreen
-            ? 'top-0! left-0! z-10000 h-screen w-screen max-w-none translate-x-0! translate-y-0! rounded-none border-0 shadow-none sm:max-w-none'
+            ? 'start-0! top-0! z-10000 h-screen w-screen max-w-none translate-x-0! translate-y-0! rounded-none border-0 shadow-none sm:max-w-none'
             : 'h-[80vh] w-[90vw] max-w-350 sm:max-w-350'
         )}>
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
@@ -252,7 +252,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
-            <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
+            <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'ps-20' : 'ps-3')}>
               <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
             </div>
 

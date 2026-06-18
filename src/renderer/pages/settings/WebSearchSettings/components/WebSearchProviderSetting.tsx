@@ -413,7 +413,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   iconProps={{
                     size: 16,
                     color: 'var(--color-icon)',
-                    className: 'ml-1 cursor-pointer'
+                    className: 'ms-1 cursor-pointer'
                   }}
                 />
               </SettingSubtitle>

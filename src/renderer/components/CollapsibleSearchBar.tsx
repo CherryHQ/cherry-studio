@@ -83,7 +83,7 @@ const CollapsibleSearchBar = ({
             placeholder={placeholder}
             value={searchText}
             autoFocus
-            className="h-8 rounded-full pr-8 text-sm shadow-none"
+            className="h-8 rounded-full pe-8 text-sm shadow-none"
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -100,7 +100,7 @@ const CollapsibleSearchBar = ({
           <button
             type="button"
             aria-label={searchText ? i18n.t('common.clear') : tooltip}
-            className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            className="absolute end-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
             onMouseDown={(e) => e.preventDefault()}
             onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
             {searchText ? <X size={14} /> : icon}

@@ -445,9 +445,9 @@ const Container = ({
     className={classNames('z-[999] flex flex-row', className)}
     style={{
       position: overlayPosition,
-      top: overlayPosition === 'absolute' ? '0' : 'auto',
-      left: overlayPosition === 'absolute' ? '0' : 'auto',
-      right: overlayPosition === 'absolute' ? '0' : 'auto',
+      insetBlockStart: overlayPosition === 'absolute' ? '0' : 'auto',
+      insetInlineStart: overlayPosition === 'absolute' ? '0' : 'auto',
+      insetInlineEnd: overlayPosition === 'absolute' ? '0' : 'auto',
       ...style
     }}
     {...props}
@@ -467,7 +467,7 @@ const SearchBarContainer = ({
       'bg-[var(--color-background)] px-[15px] py-[5px] transition-all duration-200 ease-in-out',
       className
     )}
-    style={{ position, top: '15px', left: '20px', right: '20px', ...style }}
+    style={{ position, insetBlockStart: '15px', insetInlineStart: '20px', insetInlineEnd: '20px', ...style }}
     {...props}
   />
 )

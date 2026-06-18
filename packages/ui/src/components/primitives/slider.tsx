@@ -161,7 +161,7 @@ function Slider({
       {sliderElement}
       <div
         data-slot="slider-marks"
-        className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
+        className={cn('relative', isVertical ? 'ms-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
         {marks.map((mark) => {
           const range = max - min
           if (range === 0) return null

@@ -129,7 +129,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
           <Tooltip content={t('common.copy')} delay={500}>
             <button
               type="button"
-              className="min-w-0 cursor-help truncate text-left text-foreground/70 text-xs leading-tight"
+              className="min-w-0 cursor-help truncate text-start text-foreground/70 text-xs leading-tight"
               onClick={handleCopy}>
               {maskApiKey(item.key)}
             </button>

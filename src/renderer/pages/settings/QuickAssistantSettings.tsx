@@ -171,8 +171,8 @@ const QuickAssistantSettings: FC = () => {
                                   firstAssistantId={firstAssistantId}
                                   defaultModel={defaultModel}
                                 />
-                                {assistant.id === quickAssistantId && (
-                                  <Check size={14} className="ml-auto text-primary" />
+                                {assistant.id === selectedAssistantId && (
+                                  <Check size={14} className="ms-auto text-primary" />
                                 )}
                               </CommandItem>
                             ))}

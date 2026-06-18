@@ -78,7 +78,7 @@ export const LongTitle: Story = {
 export const SideBySide: Story = {
   render: () => (
     <div className="flex gap-0 rounded-xl border border-border bg-background">
-      <div className="w-[220px] border-border border-r">
+      <div className="w-[220px] border-border border-e">
         <PageHeader title="设置" />
       </div>
       <div className="w-[260px]">
@@ -148,7 +148,7 @@ export const SectionTitleStyle: Story = {
   },
   render: () => (
     <div className="flex gap-0 rounded-xl border border-border bg-background">
-      <div className="w-[220px] border-border border-r">
+      <div className="w-[220px] border-border border-e">
         <PageHeader title="模型" titleClassName="font-normal text-foreground-muted text-xs leading-4" />
       </div>
       <div className="w-[260px]">

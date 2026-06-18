@@ -164,7 +164,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             type="button"
             variant="ghost"
             size="sm"
-            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-foreground/70 text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground/80"
+            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-start text-foreground/70 text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground/80"
             onClick={handleCopy}>
             <span className="min-w-0 truncate">{maskFileProcessingApiKey(item.key)}</span>
           </Button>

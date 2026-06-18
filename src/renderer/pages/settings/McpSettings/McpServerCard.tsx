@@ -173,7 +173,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
                 textWrap: 'pretty',
                 fontFamily: 'monospace',
                 userSelect: 'text',
-                marginRight: 20,
+                marginInlineEnd: 20,
                 color: 'var(--color-error-base)'
               }}>
               {errorDetails}
@@ -312,7 +312,7 @@ const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('ml-auto flex shrink-0 items-center justify-end gap-2', className)} {...props} />
+  <div className={cn('ms-auto flex shrink-0 items-center justify-end gap-2', className)} {...props} />
 )
 
 const ActiveDot = ({

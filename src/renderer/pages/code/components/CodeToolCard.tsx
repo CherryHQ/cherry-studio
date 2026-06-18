@@ -20,7 +20,7 @@ export function CodeToolCard({ icon: Icon, title, subtitle, selected = false, on
       data-selected={selected || undefined}
       onClick={onClick}
       className={cn(
-        'group flex flex-col items-start rounded-2xl border border-border/70 bg-card p-4 text-left transition-[background-color,border-color] duration-200 ease-out',
+        'group flex flex-col items-start rounded-2xl border border-border/70 bg-card p-4 text-start transition-[background-color,border-color] duration-200 ease-out',
         'hover:border-border hover:bg-background-subtle',
         selected && 'border-border-active ring-1 ring-ring/30'
       )}>

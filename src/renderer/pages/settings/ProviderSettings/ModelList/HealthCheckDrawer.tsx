@@ -220,7 +220,7 @@ export default function HealthCheckDrawer({
                   </span>
                 </div>
               ) : null}
-              <span className="ml-auto shrink-0 text-muted-foreground/60 text-xs">
+              <span className="ms-auto shrink-0 text-muted-foreground/60 text-xs">
                 {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
               </span>
             </div>
@@ -242,7 +242,7 @@ export default function HealthCheckDrawer({
                   rightCell = (
                     <Tooltip
                       content={
-                        <span className="block max-w-full whitespace-pre-wrap text-left text-[12px] leading-snug">
+                        <span className="block max-w-full whitespace-pre-wrap text-start text-[12px] leading-snug">
                           {skipReasonText}
                         </span>
                       }
@@ -286,7 +286,7 @@ export default function HealthCheckDrawer({
                     errText !== '' ? (
                       <Tooltip
                         content={
-                          <span className="block max-w-full whitespace-pre-wrap break-all text-left text-[12px] leading-snug">
+                          <span className="block max-w-full whitespace-pre-wrap break-all text-start text-[12px] leading-snug">
                             {errText}
                           </span>
                         }

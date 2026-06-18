@@ -322,7 +322,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
         <button
           type="button"
           title={t('settings.provider.api_key.copy')}
-          className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground`}
+          className={`${apiKeyListClasses.keyValue} block cursor-pointer text-start transition-colors hover:text-foreground`}
           onClick={handleCopy}>
           {maskApiKey(entry.key)}
         </button>

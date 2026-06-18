@@ -75,10 +75,10 @@ function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selec
   const decorations: Decoration[] = []
   for (const { pos, node, rect } of items) {
     const classes: string[] = ['selectedCell']
-    if (rect.top === minRow) classes.push('selection-top')
-    if (rect.bottom - 1 === maxRow) classes.push('selection-bottom')
-    if (rect.left === minCol) classes.push('selection-left')
-    if (rect.right - 1 === maxCol) classes.push('selection-right')
+    if (rect.top === minRow) classes.push('selection-block-start')
+    if (rect.bottom - 1 === maxRow) classes.push('selection-block-end')
+    if (rect.left === minCol) classes.push('selection-inline-start')
+    if (rect.right - 1 === maxCol) classes.push('selection-inline-end')
 
     decorations.push(
       Decoration.node(pos, pos + node.nodeSize, {

@@ -342,7 +342,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     const iconName = getFileIconName(`file${ext}`)
     return (
       <div className="flex h-8 items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
-        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
+        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginInlineEnd: 6 }} />
         {language.toUpperCase()}
       </div>
     )

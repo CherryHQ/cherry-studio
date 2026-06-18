@@ -123,7 +123,7 @@ export function ImagePreviewDialog({
       <DialogContent
         aria-describedby={undefined}
         className={cn(
-          'pointer-events-none fixed top-0 left-0 z-50 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 text-foreground shadow-none sm:max-w-none',
+          'pointer-events-none fixed top-0 start-0 z-50 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 text-foreground shadow-none sm:max-w-none',
           className
         )}
         data-testid="image-preview-dialog"
@@ -155,7 +155,7 @@ export function ImagePreviewDialog({
           {hasMultipleItems && (
             <Button
               aria-label={mergedLabels.previous}
-              className="pointer-events-auto absolute left-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
+              className="pointer-events-auto absolute start-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={showPrevious}
               size="icon"
               type="button"
@@ -177,7 +177,7 @@ export function ImagePreviewDialog({
           {hasMultipleItems && (
             <Button
               aria-label={mergedLabels.next}
-              className="pointer-events-auto absolute right-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
+              className="pointer-events-auto absolute end-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={showNext}
               size="icon"
               type="button"

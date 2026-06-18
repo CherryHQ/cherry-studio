@@ -251,7 +251,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
         ) : null}
 
         {isLoading && (
-          <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 z-30">
+          <div className="-translate-x-1/2 -translate-y-1/2 absolute start-1/2 top-1/2 z-30">
             <LoadingStateCard text={loadingText} onCancel={onCancel} cancelLabel={t('common.cancel')} />
           </div>
         )}

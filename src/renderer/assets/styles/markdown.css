@@ -28,14 +28,14 @@
 .markdown h1 {
   margin-top: 0;
   font-size: 2em;
-  border-bottom: 0.5px solid var(--color-border);
-  padding-bottom: 0.3em;
+  border-block-end: 0.5px solid var(--color-border);
+  padding-block-end: 0.3em;
 }
 
 .markdown h2 {
   font-size: 1.5em;
-  border-bottom: 0.5px solid var(--color-border);
-  padding-bottom: 0.3em;
+  border-block-end: 0.5px solid var(--color-border);
+  padding-block-end: 0.3em;
 }
 
 .markdown h3 {
@@ -86,7 +86,7 @@
 
 .markdown ul,
 .markdown ol {
-  padding-left: 1.5em;
+  padding-inline-start: 1.5em;
   margin: 1em 0;
 }
 
@@ -109,7 +109,7 @@
 
 .markdown hr {
   border: none;
-  border-top: 0.5px solid var(--color-border);
+  border-block-start: 0.5px solid var(--color-border);
   margin: 20px 0;
 }
 
@@ -176,8 +176,11 @@
   margin: 1.5em 0;
   padding: 1em 1.5em;
   background-color: var(--color-background-soft);
-  border-left: 4px solid var(--color-primary);
-  border-radius: 0 8px 8px 0;
+  border-inline-start: 4px solid var(--color-primary);
+  border-start-end-radius: 0;
+  border-end-end-radius: 8px;
+  border-end-start-radius: 0;
+  border-start-start-radius: 0;
   font-style: italic;
   position: relative;
 }
@@ -196,24 +199,24 @@
 
 .markdown th,
 .markdown td {
-  border-right: 0.5px solid var(--color-border);
-  border-bottom: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
+  border-block-end: 0.5px solid var(--color-border);
   padding: 0.5em;
 }
 
 .markdown th:last-child,
 .markdown td:last-child {
-  border-right: none;
+  border-inline-end: none;
 }
 
 .markdown tr:last-child td {
-  border-bottom: none;
+  border-block-end: none;
 }
 
 .markdown th {
   background-color: var(--color-background-mute);
   font-weight: 600;
-  text-align: left;
+  text-align: start;
 }
 
 .markdown tr:hover {
@@ -274,7 +277,7 @@
 }
 
 .markdown sup {
-  top: -0.5em;
+  inset-block-start: -0.5em;
   border-radius: 50%;
   background-color: var(--color-reference);
   color: var(--color-reference-text);
@@ -287,7 +290,7 @@
 }
 
 .markdown sub {
-  bottom: -0.25em;
+  inset-block-end: -0.25em;
 }
 
 .markdown .footnote-ref {
@@ -323,7 +326,7 @@
 }
 
 .footnotes ol {
-  padding-left: 1em;
+  padding-inline-start: 1em;
   margin: 0;
 }
 
@@ -346,7 +349,7 @@
   font-size: 0.8em;
   vertical-align: super;
   line-height: 0;
-  margin-left: 5px;
+  margin-inline-start: 5px;
   color: var(--color-primary);
   text-decoration: none;
 }
@@ -398,12 +401,12 @@ mjx-container {
 
 .cm-editor .cm-scroller .cm-gutters {
   line-height: 1.6;
-  border-right: none;
+  border-inline-end: none;
 }
 
 .cm-editor .cm-scroller .cm-content {
   line-height: 1.6;
-  padding-left: 0.25em;
+  padding-inline-start: 0.25em;
 }
 
 .cm-editor .cm-scroller .cm-lineWrapping * {

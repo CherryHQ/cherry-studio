@@ -95,7 +95,7 @@ const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: 
       type="button"
       variant="outline"
       size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
+      className={cn('min-w-0 flex-1 justify-between px-2.5 text-start font-normal', compact ? 'h-9' : 'h-7.5')}>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {model && icon ? (
           <icon.Avatar size={20} />
