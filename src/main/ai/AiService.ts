@@ -7,6 +7,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
@@ -560,25 +561,44 @@ export class AiService extends BaseService {
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
 
     const fileManager = application.get('FileManager')
-    const persistInputImage = (value: string) => fileManager.createInternalEntry(imageInputEntryParams(value))
-    const inputFileIds = request.inputImages?.length
-      ? (await Promise.all(request.inputImages.map(persistInputImage))).map((entry) => entry.id)
-      : undefined
-    const maskFileId = request.mask ? (await persistInputImage(request.mask)).id : undefined
+    const jobManager = application.get('JobManager')
 
-    const payload: ImageGenerationJobPayload = {
-      uniqueModelId,
-      prompt: request.prompt,
-      n: request.n ?? 1,
-      size: request.size ?? '1024x1024',
-      seed: request.seed,
-      ...(inputFileIds && { inputFileIds }),
-      ...(maskFileId && { maskFileId }),
-      providerParams
+    // Track every temp entry as it is created so a failure anywhere in setup
+    // (a later input download, the mask create, or enqueue itself) cleans up the
+    // entries already made — they aren't in any payload yet, so no handler would.
+    const createdEntryIds: string[] = []
+    const persistInputImage = async (value: string): Promise<string> => {
+      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
+      createdEntryIds.push(entry.id)
+      return entry.id
     }
 
-    const jobManager = application.get('JobManager')
-    const handle = await jobManager.enqueue('image-generation.generate', payload)
+    let handle: JobHandle
+    try {
+      // allSettled (not all) so every create resolves before we decide: a partial
+      // failure still leaves `createdEntryIds` complete for the catch to clean up.
+      const settled = await Promise.allSettled((request.inputImages ?? []).map(persistInputImage))
+      const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+      if (rejected) throw rejected.reason
+      const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
+      const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
+
+      const payload: ImageGenerationJobPayload = {
+        uniqueModelId,
+        prompt: request.prompt,
+        n: request.n ?? 1,
+        size: request.size ?? '1024x1024',
+        seed: request.seed,
+        ...(inputFileIds && { inputFileIds }),
+        ...(maskFileId && { maskFileId }),
+        providerParams
+      }
+      handle = await jobManager.enqueue('image-generation.generate', payload)
+    } catch (error) {
+      // Setup failed before the job owns the payload — clean up what we created.
+      await deleteImageInputEntries(createdEntryIds)
+      throw error
+    }
 
     // Reuse the existing IPC AbortController (Ai_AbortImage): when it fires,
     // cancel the job (which aborts the handler + remote task).
@@ -591,7 +611,9 @@ export class AiService extends BaseService {
       snapshot = await handle.finished
     } finally {
       signal?.removeEventListener('abort', onAbort)
-      await deleteImageInputEntries([...(inputFileIds ?? []), maskFileId])
+      // Backstop cleanup (the handler is the primary owner once it runs); also
+      // covers the in-process case where the job is cancelled while still pending.
+      await deleteImageInputEntries(createdEntryIds)
     }
 
     if (snapshot.status === 'completed') {

@@ -772,4 +772,29 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     ).rejects.toThrow(/abort/i)
     expect(cancel).toHaveBeenCalledWith('job-1', expect.any(String))
   })
+
+  it('cleans up already-created temp input entries when setup fails before enqueue', async () => {
+    const service = createService()
+    stubResolution(service)
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') {
+        return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
+      }
+      // enqueue fails after the temp input entry was already created → the entry is in
+      // no payload, so generateImageViaJob's setup catch must delete it.
+      if (name === 'JobManager')
+        return { enqueue: vi.fn().mockRejectedValue(new Error('enqueue boom')), cancel: vi.fn() }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'edit',
+        inputImages: ['data:image/png;base64,AAAA']
+      })
+    ).rejects.toThrow('enqueue boom')
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
 })
