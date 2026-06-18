@@ -19,6 +19,7 @@ import {
   mkdir as fsMkdir,
   move as fsMove,
   PathStaleVersionError,
+  probeReadable,
   read,
   remove as fsRemove,
   removeDir,
@@ -79,6 +80,34 @@ describe('exists', () => {
 
   it('returns false for a missing path', async () => {
     expect(await exists(path.join(tmp, 'nope') as FilePath)).toBe(false)
+  })
+})
+
+describe('probeReadable', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it("returns 'readable' for an existing readable path", async () => {
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'x')
+    expect(await probeReadable(f as FilePath)).toBe('readable')
+  })
+
+  it("returns 'missing' for a genuinely absent path (ENOENT)", async () => {
+    expect(await probeReadable(path.join(tmp, 'nope') as FilePath)).toBe('missing')
+  })
+
+  it("returns 'unverifiable' for a non-ENOENT failure", async () => {
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'x')
+    // Treating a regular file as a directory parent yields ENOTDIR, not ENOENT, so the probe must
+    // report it as unverifiable rather than missing.
+    expect(await probeReadable(path.join(f, 'child') as FilePath)).toBe('unverifiable')
   })
 })
 
