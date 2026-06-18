@@ -49,7 +49,6 @@ const dialogContentSizeClass: Record<DialogContentSize, string> = {
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
   closeOnOverlayClick?: boolean
   overlayClassName?: string
-  overlayProps?: React.ComponentProps<typeof DialogPrimitive.Overlay>
   showCloseButton?: boolean
   size?: DialogContentSize
 }
@@ -60,7 +59,6 @@ function DialogContent({
   closeOnOverlayClick = true,
   showCloseButton = true,
   overlayClassName,
-  overlayProps,
   onPointerDown,
   size = 'default',
   ref,
@@ -83,10 +81,10 @@ function DialogContent({
     <DialogPortal data-slot="dialog-portal">
       {closeOnOverlayClick ? (
         <DialogPrimitive.Close asChild>
-          <DialogOverlay {...overlayProps} className={cn(overlayClassName, overlayProps?.className)} />
+          <DialogOverlay className={overlayClassName} />
         </DialogPrimitive.Close>
       ) : (
-        <DialogOverlay {...overlayProps} className={cn(overlayClassName, overlayProps?.className)} />
+        <DialogOverlay className={overlayClassName} />
       )}
       <PortalContainerProvider container={contentElement}>
         <DialogPrimitive.Content

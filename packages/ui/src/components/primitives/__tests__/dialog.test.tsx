@@ -90,25 +90,6 @@ describe('Dialog primitive', () => {
     expect(handleAncestorPointerDown).not.toHaveBeenCalled()
   })
 
-  it('passes custom props to the overlay', () => {
-    const handleOverlayClick = vi.fn()
-
-    render(
-      <Dialog open>
-        <DialogContent aria-describedby={undefined} overlayProps={{ onClick: handleOverlayClick }}>
-          <DialogTitle>Rename item</DialogTitle>
-        </DialogContent>
-      </Dialog>
-    )
-
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
-    expect(overlay).toBeInTheDocument()
-
-    fireEvent.click(overlay!)
-
-    expect(handleOverlayClick).toHaveBeenCalledTimes(1)
-  })
-
   it('closes when the overlay is clicked by default', () => {
     const handleOpenChange = vi.fn()
 
