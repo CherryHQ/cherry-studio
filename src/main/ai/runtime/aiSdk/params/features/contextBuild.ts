@@ -9,12 +9,13 @@
  *   resolved user setting. `truncatable: false` entries are exempt.
  * - compact: mechanical, zero-LLM pruning (drop reasoning before the last
  *   message; drop empty messages).
- * - compress: LLM history summarization when over the model's context
- *   budget — only when enabled AND a compression model resolved. This is
- *   the IN-FLIGHT path; P2-B stage 2 adds durable cherry-driven compaction
- *   on top, after which this becomes the safety-net.
- * - onBeforeCompress: no-LLM sliding-window fallback (drop oldest) used when
- *   the budget is exceeded but no compression model is available.
+ * - onBeforeCompress: no-LLM sliding-window fallback (drop oldest) — the only
+ *   remaining budget guard; active when compress is enabled but no compression
+ *   model is configured. In-flight LLM compress was removed in P2-B stage 2:
+ *   durable cherry-driven compaction (turn-start) + the mid-loop budget-stop/
+ *   continue path now own LLM summarization; running chef's in-flight compress
+ *   too would double-compress. `options.compress` and `options.onCompress` are
+ *   never set any more.
  * - logger: routes chef degradation warnings to loggerService.
  *
  * Ordering invariant: registered before anthropicCacheFeature so truncation
@@ -68,28 +69,14 @@ export function buildChefOptions(scope: RequestScope): ContextChefOptions | null
     logger: { warn: (message, ...args) => logger.warn(message, { args }) }
   }
 
-  // Compression machinery (and chef's budget Janitor) only when the user
-  // wants it. When compress is off, NONE of compress/onCompress/
-  // onBeforeCompress is set, so chef builds no Janitor — truncate + compact
-  // only, and no spurious "no tokenizer / no compressionModel" warnings.
-  if (settings.compress.enabled) {
-    options.onCompress = (summary, count) => {
-      logger.info('chef compressed history (in-flight)', {
-        truncatedCount: count,
-        summaryPreview: summary.slice(0, 120)
-      })
-    }
-
-    if (scope.compressionModel) {
-      // LLM summarization on budget overflow (chef's default budget path).
-      options.compress = { model: scope.compressionModel }
-    } else {
-      // Wanted compression but no model resolved → no-LLM sliding-window guard.
-      // (No tokenizer is wired yet, so this can only fire once reported usage
-      // exists; wiring tokenx here is the planned follow-up — see plan notes.)
-      logger.debug('compress enabled but no model resolved — sliding-window fallback only')
-      options.onBeforeCompress = (history, tokenInfo) => dropOldestUntilUnderBudget(history, tokenInfo)
-    }
+  // In-flight LLM compress was removed in P2-B stage 2: durable cherry-driven compaction
+  // (turn-start) + the mid-loop budget-stop/continue path now own LLM summarization, and
+  // running chef's in-flight compress too would double-compress. The no-LLM sliding-window
+  // remains as the only guard when compression is enabled but no model is configured
+  // (the durable path also needs a model).
+  if (settings.compress.enabled && !scope.compressionModel) {
+    logger.debug('compress enabled but no model resolved — sliding-window fallback only')
+    options.onBeforeCompress = (history, tokenInfo) => dropOldestUntilUnderBudget(history, tokenInfo)
   }
 
   return options

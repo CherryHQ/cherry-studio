@@ -229,20 +229,24 @@ describe('buildChefOptions — compression wiring', () => {
     expect(opts.logger).toBeDefined()
   })
 
-  it('attaches compress only when enabled AND a model resolved', () => {
+  it('durable+mid-loop owns LLM compress: options.compress and onCompress are never set', () => {
+    // compress.enabled + model present: durable path owns it — chef gets NO Janitor.
     const withModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: {} as never })
     const withModelOpts = buildChefOptions(withModel)!
-    expect(withModelOpts.compress).toEqual({ model: {} })
-    // Model present → chef LLM-compresses on budget; no sliding-window fallback.
+    expect(withModelOpts.compress).toBeUndefined()
+    expect(withModelOpts.onCompress).toBeUndefined()
+    // Model present → durable path handles it; no sliding-window fallback needed.
     expect(withModelOpts.onBeforeCompress).toBeUndefined()
-    expect(withModelOpts.onCompress).toBeTypeOf('function')
 
+    // compress.enabled + no model: no-LLM sliding-window fallback still active.
     const noModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
     const noModelOpts = buildChefOptions(noModel)!
     expect(noModelOpts.compress).toBeUndefined()
+    expect(noModelOpts.onCompress).toBeUndefined()
     // Wanted but unavailable → no-LLM sliding-window guard.
     expect(noModelOpts.onBeforeCompress).toBeTypeOf('function')
 
+    // compress.enabled: false → nothing set regardless of model.
     const compressOff = makeScope({
       contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
       compressionModel: {} as never
