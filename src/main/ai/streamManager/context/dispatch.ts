@@ -40,7 +40,19 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
 }
 
-export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
+/** Main-synthesized (never on the renderer↔main IPC contract): resume an assistant row
+ *  after a mid-loop budget stop, letting the model continue on a compacted history. */
+export interface MainBudgetContinueRequest {
+  trigger: 'budget-continue'
+  topicId: string
+  parentAnchorId: string // the assistant row to resume into
+}
+
+export type MainDispatchRequest =
+  | AiStreamOpenRequest
+  | MainContinueConversationRequest
+  | MainSteerContinuationRequest
+  | MainBudgetContinueRequest
 
 const logger = loggerService.withContext('chatContextDispatch')
 

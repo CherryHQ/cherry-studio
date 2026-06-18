@@ -37,7 +37,12 @@ import {
   planKeepBoundary,
   summaryRow
 } from './compaction'
-import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
+import type {
+  MainBudgetContinueRequest,
+  MainContinueConversationRequest,
+  MainDispatchRequest,
+  MainSteerContinuationRequest
+} from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 /** Recompact when the served history exceeds this fraction of the context window. */
@@ -154,6 +159,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
       return this.prepareSteerContinuation(subscriber, req, assistantId, defaultModelId)
+    }
+
+    // budget-continue resumes the same assistant row after a mid-loop budget stop — same-row write,
+    // no approval decisions applied.
+    if (req.trigger === 'budget-continue') {
+      return this.prepareBudgetContinue(subscriber, req, assistantId, defaultModelId)
     }
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
@@ -351,6 +362,79 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     try {
       await messageService.update(req.parentAnchorId, {
         data: { parts: updatedParts },
+        status: 'pending'
+      })
+
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({
+            assistantMessageId: anchor.id,
+            modelSnapshot: anchor.modelSnapshot ?? {
+              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+              name: model.name,
+              provider: model.providerId
+            }
+          }),
+          onPersistFailed: (error) =>
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      const history = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: model.id,
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+            rootSpan
+          }
+        ],
+        listeners,
+        siblingsGroupId: undefined,
+        isMultiModel: false
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  /**
+   * Resume an assistant row after a mid-loop budget stop. Reuses the existing row (no new
+   * placeholder, no sibling group) and re-opens it as `pending` so the model continues writing
+   * into the same DB entry. No approval decisions are applied — the row's parts are left as-is.
+   * Backend's `assistantMessageId === anchor.id` makes the terminal write an update.
+   */
+  private async prepareBudgetContinue(
+    subscriber: StreamListener,
+    req: MainBudgetContinueRequest,
+    assistantId: string | undefined,
+    defaultModelId: UniqueModelId
+  ): Promise<PreparedDispatch> {
+    const anchor = await messageService.getById(req.parentAnchorId)
+    if (anchor.role !== 'assistant') {
+      throw new Error(`'budget-continue' anchor must be an assistant message (got '${anchor.role}')`)
+    }
+    if (anchor.topicId !== req.topicId) {
+      throw new Error(`'budget-continue' anchor does not belong to topic ${req.topicId}`)
+    }
+
+    // Continue uses the original assistant's model — switching mid-budget-continue is unsupported.
+    // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
+    const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
+    const [model] = await resolveModels([continueModelId], defaultModelId)
+
+    // Created before the DB write; end it explicitly if anything below throws or it leaks.
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model])
+    const [{ span: rootSpan }] = turnRootSpans
+    try {
+      // Re-open the row as pending — no parts rewrite, no approval decisions.
+      await messageService.update(req.parentAnchorId, {
         status: 'pending'
       })
 
