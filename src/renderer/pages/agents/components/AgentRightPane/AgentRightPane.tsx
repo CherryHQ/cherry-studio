@@ -13,6 +13,7 @@ import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalA
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import NavbarIcon from '@renderer/components/NavbarIcon'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -753,7 +754,7 @@ function AgentRightPaneInfoCardBody() {
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
-    <div className="max-h-[70vh] space-y-3 overflow-auto">
+    <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
       <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
@@ -761,7 +762,7 @@ function AgentRightPaneInfoCardBody() {
         isCompacting={isCompacting}
       />
       <AgentRightPaneHighlights compact />
-    </div>
+    </Scrollbar>
   )
 }
 
@@ -778,7 +779,7 @@ function AgentRightPaneInfoCard({ disabled }: { disabled?: boolean }) {
           <Info />
         </NavbarIcon>
       </HoverCardTrigger>
-      <HoverCardContent align="end" sideOffset={8} className="w-80 p-3">
+      <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
         <AgentRightPaneInfoCardBody />
       </HoverCardContent>
     </HoverCard>
