@@ -1,17 +1,14 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { type EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
 
-import { resolveCompressionModel } from '../../../contextBuild/resolveCompressionModel'
-import { resolveContextSettings } from '../../../contextBuild/resolveContextSettings'
+import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
@@ -122,38 +119,6 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
     ...(await providerToAiSdkConfig(provider, model)),
     modelId: model.apiModelId ?? model.id
   }
-}
-
-/**
- * Resolve the effective context-build settings + the compression model for
- * this request. Globals come from `chat.context_settings.*` prefs;
- * assistant/topic overrides are deferred to P2-D (passed undefined). The
- * compression model is the explicit pick, else the CURRENT request model
- * (`model.id` is already a UniqueModelId).
- */
-async function resolveRequestContextSettings(
-  model: Model
-): Promise<{ contextSettings: EffectiveContextSettings; compressionModel: LanguageModelV3 | null }> {
-  const prefs = application.get('PreferenceService')
-  const globals: EffectiveContextSettings = {
-    enabled: prefs.get('chat.context_settings.enabled'),
-    truncateThreshold: prefs.get('chat.context_settings.truncate_threshold'),
-    compress: {
-      enabled: prefs.get('chat.context_settings.compress.enabled'),
-      modelId: prefs.get('chat.context_settings.compress.model_id')
-    }
-  }
-
-  const contextSettings = resolveContextSettings({ globals })
-
-  let compressionModel: LanguageModelV3 | null = null
-  if (contextSettings.enabled && contextSettings.compress.enabled) {
-    // Explicit pick, else fall back to the current request model.
-    const compressId = contextSettings.compress.modelId ?? model.id
-    compressionModel = await resolveCompressionModel(compressId)
-  }
-
-  return { contextSettings, compressionModel }
 }
 
 export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
