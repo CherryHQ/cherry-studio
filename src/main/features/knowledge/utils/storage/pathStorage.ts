@@ -69,10 +69,10 @@ export async function probeKnowledgeFile(baseId: string, relativePath: string): 
 
 /**
  * Probe an absolute on-disk source path (e.g. a directory item's original folder, stored in
- * `data.relativePath`), distinguishing a genuinely missing source from one that could not be verified.
+ * `data.source`), distinguishing a genuinely missing source from one that could not be verified.
  * Reindex rescans a directory from this path, so a missing source means there is nothing to rebuild
- * from; an unverifiable one (transient/permission error) may still exist. The stored `data.relativePath` is
- * already absolute, so it is probed as-is.
+ * from; an unverifiable one (transient/permission error) may still exist. The stored `data.source`
+ * is already absolute, so it is probed as-is.
  */
 export async function probeKnowledgeSourcePath(absolutePath: string): Promise<PathReadability> {
   return probeReadable(absolutePath as FilePath)
@@ -217,12 +217,60 @@ export async function deleteKnowledgeItemFiles(
   baseId: string,
   items: Array<{ id?: string; type: string; data: unknown }>
 ): Promise<void> {
-  // url/note snapshots persist a `raw/{relativePath}` file too, so remove every
-  // item's stored path (mirroring collectKnowledgeReservedRelativePaths). Skipping
-  // non-file items here would leak the snapshot on item delete and let a later
-  // same-titled re-add collide on the orphaned file.
+  // A directory container owns a whole `raw/<prefix>` subtree (its files plus nested
+  // dirs) under its `relativePath`; remove it recursively in one shot.
+  const directoryPrefixes = items
+    .filter((item) => item.type === 'directory')
+    .map((item) => (item.data as { relativePath?: unknown }).relativePath)
+    .filter((relativePath): relativePath is string => typeof relativePath === 'string')
+  await Promise.all(directoryPrefixes.map((prefix) => removeDir(getKnowledgeBaseFilePath(baseId, prefix))))
+
+  // url/note snapshots and file leaves persist a `raw/{relativePath}` file too, so unlink
+  // every stored path (mirroring collectKnowledgeReservedRelativePaths). Directory prefixes
+  // are excluded here — `remove` is unlink-only and would EISDIR on a directory; the
+  // removeDir above already took their files with them.
+  const directoryPrefixSet = new Set(directoryPrefixes)
   const paths = collectKnowledgeReservedRelativePaths(items)
-  await Promise.all([...paths].map((relativePath) => remove(getKnowledgeBaseFilePath(baseId, relativePath))))
+  await Promise.all(
+    [...paths]
+      .filter((relativePath) => !directoryPrefixSet.has(relativePath))
+      .map((relativePath) => remove(getKnowledgeBaseFilePath(baseId, relativePath)))
+  )
+  // Backstop: prune any now-empty ancestor directories left behind — a migrated/legacy
+  // directory predating the stored relativePath, or nested empties — deepest-first.
+  await pruneEmptyKnowledgeMaterialDirs(baseId, paths)
+}
+
+/**
+ * Delete every now-empty ancestor directory of `relativePaths`, deepest-first, up to —
+ * but not including — the material root. `fs.rmdir` removes only an empty directory (a
+ * still-populated one throws ENOTEMPTY, an already-gone one ENOENT — both ignored), so a
+ * directory still holding another item's files is left untouched.
+ */
+async function pruneEmptyKnowledgeMaterialDirs(baseId: string, relativePaths: Set<string>): Promise<void> {
+  const dirs = new Set<string>()
+  for (const relativePath of relativePaths) {
+    let dir = path.posix.dirname(relativePath)
+    while (dir && dir !== '.' && dir !== '/') {
+      dirs.add(dir)
+      dir = path.posix.dirname(dir)
+    }
+  }
+  // Deepest-first so a parent is only tested after its children were removed.
+  const deepestFirst = [...dirs].sort((a, b) => b.split('/').length - a.split('/').length)
+  for (const dir of deepestFirst) {
+    try {
+      await fs.rmdir(getKnowledgeBaseFilePath(baseId, dir))
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      // ENOTEMPTY (another item still lives here) and ENOENT (already gone) are the
+      // expected, benign outcomes. Surface anything else (EACCES/EBUSY/…) as a warning
+      // but never throw, so a stray husk can't abort the surrounding best-effort delete.
+      if (code !== 'ENOTEMPTY' && code !== 'ENOENT') {
+        logger.warn('Failed to prune empty knowledge material directory', { baseId, dir, code, err })
+      }
+    }
+  }
 }
 
 /**

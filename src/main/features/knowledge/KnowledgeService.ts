@@ -8,8 +8,10 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
+  type KnowledgeAddItemsResult,
   type KnowledgeBase,
   type KnowledgeItem,
   type KnowledgeItemChunk,
@@ -203,9 +205,13 @@ export class KnowledgeService extends BaseService {
     return restoredBase
   }
 
-  async addItems(baseId: string, items: KnowledgeAddItemInput[]): Promise<void> {
+  async addItems(
+    baseId: string,
+    items: KnowledgeAddItemInput[],
+    conflictStrategy?: KnowledgeAddConflictStrategy
+  ): Promise<KnowledgeAddItemsResult> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
-    await this.workflowService.addItems(baseId, items)
+    return await this.workflowService.addItems(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -556,7 +562,7 @@ export class KnowledgeService extends BaseService {
 
       // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
       // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-      // front. Only the root's own source matters: a directory is rescanned from data.relativePath and its
+      // front. Only the root's own source matters: a directory is rescanned from data.source and its
       // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
       // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
       // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely

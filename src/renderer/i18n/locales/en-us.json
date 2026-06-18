@@ -2144,13 +2144,13 @@
         "view_chunks": "View Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Recursively import supported files from a folder",
-          "title": "Click to select a folder"
+        "conflict_dialog": {
+          "description": "{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
+          "keep_all": "Keep All",
+          "replace": "Replace",
+          "title": "Sources already exist"
         },
         "footer": {
-          "selected_directories": "{{count}} directories selected",
-          "selected_files": "{{count}} files selected",
           "selected_notes": "{{count}} notes selected"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "Auto-set embedding dimensions",
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
-    "drag_file": "Drag file here",
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
       "model_invalid": "No model selected"
     },
-    "file_hint": "Support {{file_types}}",
     "groups": {
       "add": "New Group",
       "create_base_here": "Create here",

@@ -2,7 +2,13 @@ import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { KNOWLEDGE_ITEMS_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeAddItemInput, KnowledgeItem, KnowledgeItemStatus } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeAddConflictStrategy,
+  KnowledgeAddItemInput,
+  KnowledgeAddItemsResult,
+  KnowledgeItem,
+  KnowledgeItemStatus
+} from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'
 
 const KNOWLEDGE_V2_ITEMS_QUERY = {
@@ -69,7 +75,10 @@ export const useAddKnowledgeItems = (baseId: string) => {
   const invalidateCache = useInvalidateCache()
 
   const submit = useCallback(
-    async (items: KnowledgeAddItemInput[]): Promise<void> => {
+    async (
+      items: KnowledgeAddItemInput[],
+      conflictStrategy?: KnowledgeAddConflictStrategy
+    ): Promise<KnowledgeAddItemsResult> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -82,8 +91,9 @@ export const useAddKnowledgeItems = (baseId: string) => {
       setIsSubmitting(true)
 
       let submitError: Error | undefined
+      let result: KnowledgeAddItemsResult | undefined
       try {
-        await ipcApi.request('knowledge.add_items', { baseId, items })
+        result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
       } catch (error) {
         submitError = normalizeKnowledgeError(error)
 
@@ -94,13 +104,17 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
         setError(submitError)
       } finally {
-        await refreshKnowledgeItemsCaches(
-          invalidateCache,
-          baseId,
-          addLogger,
-          'Failed to refresh knowledge source list after submit',
-          { baseId }
-        )
+        // A 'conflicts' result added nothing, so skip the cache refresh; refresh
+        // on success (rows added) or on error (a partial add may have landed).
+        if (submitError || result?.status === 'added') {
+          await refreshKnowledgeItemsCaches(
+            invalidateCache,
+            baseId,
+            addLogger,
+            'Failed to refresh knowledge source list after submit',
+            { baseId }
+          )
+        }
 
         setIsSubmitting(false)
       }
@@ -108,6 +122,8 @@ export const useAddKnowledgeItems = (baseId: string) => {
       if (submitError) {
         throw submitError
       }
+
+      return result as KnowledgeAddItemsResult
     },
     [baseId, invalidateCache]
   )
