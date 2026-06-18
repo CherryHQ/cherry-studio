@@ -94,7 +94,6 @@ describe('global registry reflects migrated domains', () => {
       | 'selection.get_linux_env_info'
       | 'web_search.search_keywords'
       | 'web_search.fetch_urls'
-      | 'web_search.check_provider'
       | 'window.close'
       | 'window.minimize'
       | 'window.maximize'
