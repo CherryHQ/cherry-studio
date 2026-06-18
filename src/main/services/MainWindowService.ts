@@ -284,9 +284,11 @@ export class MainWindowService extends BaseService {
   private setupContextMenu(mainWindow: BrowserWindow) {
     contextMenu.contextMenu(mainWindow.webContents)
     // setup context menu for all webviews like miniapp
-    app.on('web-contents-created', (_, webContents) => {
+    const handler = (_: Electron.Event, webContents: Electron.WebContents) => {
       contextMenu.contextMenu(webContents)
-    })
+    }
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
 
     // Dangerous API
     if (isDev) {
