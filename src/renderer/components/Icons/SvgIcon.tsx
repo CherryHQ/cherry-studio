@@ -24,62 +24,6 @@ export const StreamlineGoodHealthAndWellBeing = (
   )
 }
 
-type CherryMarkProps = SVGProps<SVGSVGElement> & { size?: number | string }
-
-export function CherryShimmer({ size = 16, ...props }: CherryMarkProps) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 100 100"
-      width={size}
-      height={size}
-      role="img"
-      aria-label="Cherry Studio loading"
-      {...props}>
-      <g className="cs-shimmer-bob">
-        <g className="cs-shimmer-mark">
-          <path className="cs-mark-stroke" d="M51 30 C46 42 41 52 39 58" />
-          <path className="cs-mark-stroke" d="M53 30 C58 44 64 56 65 63" />
-          <path
-            className="cs-mark-fill"
-            d="M52 31 C49 26 43 25 43 20.5 C43 17.5 46 16.5 48.5 18 C50 19 51.2 20.5 52 21.8 C52.8 20.5 54 19 55.5 18 C58 16.5 61 17.5 61 20.5 C61 25 55 26 52 31 Z"
-          />
-          <circle className="cs-mark-fill" cx="39" cy="73" r="15" />
-          <circle className="cs-mark-fill" cx="65" cy="77" r="13" />
-          <ellipse className="cs-mark-gloss" cx="33" cy="67" rx="4" ry="6" transform="rotate(-35 33 67)" />
-          <ellipse className="cs-mark-gloss" cx="60" cy="72" rx="3.5" ry="5" transform="rotate(-35 60 72)" />
-        </g>
-      </g>
-    </svg>
-  )
-}
-
-export function CherryPulse({ size = 16, ...props }: CherryMarkProps) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 100 100"
-      width={size}
-      height={size}
-      role="img"
-      aria-label="Cherry Studio loading"
-      {...props}>
-      <g className="cs-pulse-mark">
-        <path className="cs-mark-stroke" d="M51 30 C46 42 41 52 39 58" />
-        <path className="cs-mark-stroke" d="M53 30 C58 44 64 56 65 63" />
-        <path
-          className="cs-mark-fill"
-          d="M52 31 C49 26 43 25 43 20.5 C43 17.5 46 16.5 48.5 18 C50 19 51.2 20.5 52 21.8 C52.8 20.5 54 19 55.5 18 C58 16.5 61 17.5 61 20.5 C61 25 55 26 52 31 Z"
-        />
-        <circle className="cs-mark-fill" cx="39" cy="73" r="15" />
-        <circle className="cs-mark-fill" cx="65" cy="77" r="13" />
-        <ellipse className="cs-mark-gloss" cx="33" cy="67" rx="4" ry="6" transform="rotate(-35 33 67)" />
-        <ellipse className="cs-mark-gloss" cx="60" cy="72" rx="3.5" ry="5" transform="rotate(-35 60 72)" />
-      </g>
-    </svg>
-  )
-}
-
 export function MdiLightbulbOffOutline(props: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>

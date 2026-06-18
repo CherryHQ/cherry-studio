@@ -90,12 +90,12 @@ describe('Dialog primitive', () => {
     expect(handleAncestorPointerDown).not.toHaveBeenCalled()
   })
 
-  it('passes custom props to the overlay', () => {
-    const handleOverlayClick = vi.fn()
+  it('does not close on overlay click by default', () => {
+    const handleOpenChange = vi.fn()
 
     render(
-      <Dialog open>
-        <DialogContent aria-describedby={undefined} overlayProps={{ onClick: handleOverlayClick }}>
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined}>
           <DialogTitle>Rename item</DialogTitle>
         </DialogContent>
       </Dialog>
@@ -106,15 +106,15 @@ describe('Dialog primitive', () => {
 
     fireEvent.click(overlay!)
 
-    expect(handleOverlayClick).toHaveBeenCalledTimes(1)
+    expect(handleOpenChange).not.toHaveBeenCalled()
   })
 
-  it('closes when the overlay is clicked by default', () => {
+  it('closes when overlay click close is explicitly enabled', () => {
     const handleOpenChange = vi.fn()
 
     render(
       <Dialog open onOpenChange={handleOpenChange}>
-        <DialogContent aria-describedby={undefined}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
           <DialogTitle>Rename item</DialogTitle>
         </DialogContent>
       </Dialog>

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { HTML_PREVIEW_IFRAME_SANDBOX, HtmlPreviewFrame, injectHtmlPreviewBase } from '../HtmlPreviewFrame'
+import { HtmlPreviewFrame, injectHtmlPreviewBase } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
   it('renders non-empty HTML in an iframe with the shared sandbox and default srcdoc base', () => {
@@ -12,7 +12,7 @@ describe('HtmlPreviewFrame', () => {
     const iframe = container.querySelector('iframe')
 
     expect(iframe).not.toBeNull()
-    expect(iframe).toHaveAttribute('sandbox', HTML_PREVIEW_IFRAME_SANDBOX)
+    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'common.html_preview')
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
   })

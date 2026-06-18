@@ -1,5 +1,3 @@
 export { FileTree } from './FileTree'
 export { FileTreeRow } from './FileTreeRow'
 export type { FileTreeNode, FileTreeNodeKind, FileTreeProps, FileTreeRenameSlot } from './types'
-export type { FileTreeModel } from './useFileTreeModel'
-export { buildFileTreeModel, useFileTreeModel } from './useFileTreeModel'

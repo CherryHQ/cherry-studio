@@ -60,8 +60,6 @@ export interface FileTreeProps {
 
   /** Override the virtualizer slot. Default uses DynamicVirtualList. */
   renderList?: (args: TreeListSlotArgs<FileTreeNode>) => React.ReactNode
-  /** Set when node paths are already in the final tree order. */
-  presorted?: boolean
   /** When true, folder rows are treated as sticky headers by the default virtualizer. Default: true. */
   stickyFolders?: boolean
 

@@ -12,7 +12,6 @@ import { useCallback, useMemo } from 'react'
 
 import { FileTreeRow } from './FileTreeRow'
 import type { FileTreeNode, FileTreeProps } from './types'
-import { useFileTreeModel } from './useFileTreeModel'
 
 const DEFAULT_ITEM_SIZE = 28
 const VIRTUAL_OVERSCAN = 10
@@ -45,7 +44,6 @@ export function FileTree(props: FileTreeProps) {
     fileIcon,
     folderIcon,
     renderList,
-    presorted,
     stickyFolders = true,
     showSearch = false,
     searchKeyword = '',
@@ -53,8 +51,6 @@ export function FileTree(props: FileTreeProps) {
     searchPlaceholder,
     emptyState
   } = props
-
-  const model = useFileTreeModel(nodes, { presorted })
 
   const adapter = useMemo<TreeNodeAdapter<FileTreeNode>>(
     () => ({
@@ -97,7 +93,7 @@ export function FileTree(props: FileTreeProps) {
 
   const tree = (
     <TreeView<FileTreeNode>
-      data={model.nodes}
+      data={nodes}
       adapter={adapter}
       expandedIds={expandedIds}
       defaultExpandedIds={defaultExpandedIds}

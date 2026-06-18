@@ -1,3 +1,5 @@
+import '@cherrystudio/ui/composites/markdown/styles'
+
 import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
 import { Markdown } from '@cherrystudio/ui/composites/markdown'
 import { usePreference } from '@data/hooks/usePreference'
