@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
-import ToolBlockGroup, { ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
+import { ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
@@ -76,20 +76,6 @@ const items = [
 ] as ToolRenderItem[]
 
 describe('ToolBlockGroup', () => {
-  it('keeps running tool groups collapsed by default while showing the active tool in the header', () => {
-    render(<ToolBlockGroup items={items} />)
-
-    const button = screen.getByRole('button')
-    expect(button).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Read:invoking')
-    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
-
-    fireEvent.click(button)
-
-    expect(button).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.textContent)).toEqual(['Read', 'Write'])
-  })
-
   it('shows live progress instead of the summary while any tool is still running', () => {
     render(<ToolBlockGroupHeaderContent items={items} summary="2 tool calls" />)
 

@@ -192,8 +192,7 @@ vi.mock('../ToolBlockGroup', () => ({
   ),
   ToolBlockGroupHeaderContent: ({ activityLabel, summary, items, isLiveProgress }: any) => (
     <span data-live={String(!!isLiveProgress)}>{activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}</span>
-  ),
-  default: ({ items }: any) => <div data-testid="mock-tool-group" data-count={items?.length ?? 0} />
+  )
 }))
 
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
@@ -457,14 +456,19 @@ describe('MessagePartsRenderer', () => {
     expect(screen.queryByText('child text')).toBeNull()
   })
 
-  // -- tool group (bare runs at the top level, no surrounding answer) --
-  it('renders a bare multi-tool run as a collapsible tool group', () => {
+  // -- tool runs (bare runs at the top level, no surrounding answer) --
+  it('renders a bare multi-tool run inline', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 't1', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolCallId: 'b', toolName: 't2', state: 'output-available', output: {} }
     ] as unknown as CherryMessagePart[])
 
-    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      't1',
+      't2'
+    ])
   })
 
   it('renders a lone tool call inline without a fold', () => {
@@ -496,16 +500,20 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('renders a bare multi-tool run without persisted toolCallId as a tool group', () => {
+  it('renders a bare multi-tool run without persisted toolCallId inline', () => {
     renderParts([
       { type: 'dynamic-tool', toolName: 'TodoWrite', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolName: 'WebSearch', state: 'output-available', output: {} }
     ] as unknown as CherryMessagePart[])
 
-    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'TodoWrite',
+      'WebSearch'
+    ])
   })
 
-  it('counts only renderable tools in a bare tool group (hidden tools excluded)', () => {
+  it('counts only renderable tools in a bare tool run (hidden tools excluded)', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'visible-tool', state: 'output-available', output: {} },
       {
@@ -519,7 +527,11 @@ describe('MessagePartsRenderer', () => {
       { type: 'dynamic-tool', toolCallId: 'b', toolName: 'another-visible-tool', state: 'output-available', output: {} }
     ] as unknown as CherryMessagePart[])
 
-    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'visible-tool',
+      'another-visible-tool'
+    ])
   })
 
   it('renders report_artifacts at the end of the full message instead of inline', () => {
@@ -581,16 +593,22 @@ describe('MessagePartsRenderer', () => {
 
     fireEvent.click(outerButton)
 
-    // Expanding reveals the narration text and the per-run inner folds, in order.
+    // Expanding reveals the narration text and tool cards directly, in order.
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'checking project files',
       'rewriting renderer',
       'final answer'
     ])
-    expect(screen.getAllByRole('button', { name: '2 tool calls' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: '2 tool calls' })).toBeNull()
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read',
+      'edit',
+      'bash'
+    ])
   })
 
-  it('drills into an inner per-run fold to reveal the tool cards', () => {
+  it('reveals per-run tool cards directly when the outer fold expands', () => {
     renderParts([
       { type: 'text', text: 'checking project files' },
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
@@ -602,16 +620,12 @@ describe('MessagePartsRenderer', () => {
     ] as unknown as CherryMessagePart[])
 
     fireEvent.click(screen.getByRole('button', { name: '4 tool calls' }))
-    const innerButtons = screen.getAllByRole('button', { name: '2 tool calls' })
-    expect(innerButtons).toHaveLength(2)
-    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
 
-    fireEvent.click(innerButtons[0])
-
-    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
-      'read'
+      'read',
+      'edit',
+      'bash'
     ])
   })
 
@@ -634,7 +648,7 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-markdown').textContent).toBe('rewriting renderer')
   })
 
-  it('renders bare tool runs as collapsible groups when there is no final answer', () => {
+  it('renders bare tool runs inline when there is no final answer', () => {
     renderParts([
       { type: 'text', text: 'first narration' },
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
@@ -644,9 +658,13 @@ describe('MessagePartsRenderer', () => {
       { type: 'dynamic-tool', toolCallId: 'd', toolName: 'bash', state: 'output-available', output: {} }
     ] as unknown as CherryMessagePart[])
 
-    // No final answer → no outer history fold; each run is its own tool group,
+    // No final answer → no outer history fold; each run renders inline and
     // narration shows directly between them.
-    expect(screen.getAllByTestId('mock-tool-group').map((node) => node.getAttribute('data-count'))).toEqual(['2', '2'])
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getAllByTestId('mock-tool-group-content').map((node) => node.getAttribute('data-count'))).toEqual([
+      '2',
+      '2'
+    ])
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'first narration',
       'second narration'
@@ -868,6 +886,7 @@ describe('MessagePartsRenderer', () => {
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
     // Header is in live mode (it tracks the current tool, not a static count).
     expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('svg')).toBeNull()
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
 
@@ -879,7 +898,7 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('marks the active run with a running label inside the expanded fold while streaming', () => {
+  it('renders active tool runs directly inside the expanded fold while streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
     renderParts(
@@ -894,9 +913,16 @@ describe('MessagePartsRenderer', () => {
     )
 
     fireEvent.click(screen.getByRole('button')) // expand the outer fold
-    // Completed first run shows a static count; the active last run shows "running".
-    expect(screen.getByRole('button', { name: '2 tool calls' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Working…' })).toBeInTheDocument()
+
+    expect(screen.queryByRole('button', { name: '2 tool calls' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Working…' })).toBeNull()
+    expect(screen.getByText('now editing')).toBeInTheDocument()
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read',
+      'edit',
+      'bash'
+    ])
   })
 
   it('folds the tool history and shows the final answer below while the message is pending', () => {

@@ -1,7 +1,7 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { Brain, ChevronDown } from 'lucide-react'
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Brain } from 'lucide-react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getEffectiveStatus, type ToolStatus } from '../tools/agent/GenericTools'
@@ -12,10 +12,6 @@ import BlockErrorFallback from './BlockErrorFallback'
 import { usePartsMap } from './MessagePartsContext'
 
 // ============ Types & Helpers ============
-
-interface Props {
-  items: ToolRenderItem[]
-}
 
 function isToolGroupItemCompleted(status: ToolResponseLike['status'] | undefined): boolean {
   return status === 'done' || status === 'error' || status === 'cancelled'
@@ -155,46 +151,3 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
   </div>
 ))
 ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
-
-// ============ Main Component ============
-
-const ToolBlockGroup: React.FC<Props> = ({ items }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const contentId = useId()
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  const currentRunningBlock = useMemo(() => {
-    return items.find((item) => !isToolGroupItemCompleted(item.toolResponse.status))
-  }, [items])
-
-  useEffect(() => {
-    if (isExpanded && currentRunningBlock && scrollRef.current) {
-      const element = scrollRef.current.querySelector(`[data-block-id="${currentRunningBlock.id}"]`)
-      element?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-    }
-  }, [isExpanded, currentRunningBlock])
-
-  return (
-    <div className={`group/tool-group max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        aria-controls={contentId}
-        className="flex min-h-7 min-w-0 max-w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        onClick={() => setIsExpanded((expanded) => !expanded)}>
-        <ToolBlockGroupHeaderContent items={items} />
-        <ChevronDown
-          size={16}
-          className={`shrink-0 text-foreground-muted opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {isExpanded && (
-        <div id={contentId} className="mt-1.5">
-          <ToolBlockGroupContent items={items} scrollRef={scrollRef} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default React.memo(ToolBlockGroup)
