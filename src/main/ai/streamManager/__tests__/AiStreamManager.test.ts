@@ -1962,5 +1962,90 @@ describe('AiStreamManager', () => {
       const cacheEntry = sharedCacheStore.get('topic.stream.statuses.a') as { status: string } | undefined
       expect(cacheEntry?.status).toBe('done')
     })
+
+    // ── Fix F: clearAllBudgetTripped on clean topic-done ──────────────
+
+    it('Fix F: clean topic-done (tripped but at cap → no budget-continue) clears budget state via clearAllBudgetTripped', async () => {
+      // Before Fix F, clearAllBudgetTripped was only called inside the error/aborted guard, so a
+      // trip that hit the resume cap and fell through to the normal terminal leaked its map entry.
+      // Fix F moves clearAllBudgetTripped outside the guard so it runs on ANY topic terminal.
+      vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const clearSpy = vi.spyOn(mgr, 'clearAllBudgetTripped')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), messageId: 'assistant-row-1' },
+        listeners: [new FakeListener('wc:1:a')]
+      })
+
+      // Exhaust the 3-resume cap then trip once more — NOT continuable.
+      for (let i = 0; i < 3; i++) {
+        mgr.setBudgetTripped('a', 'provider-a::model-a')
+        mgr.consumeBudgetTrip('a', 'provider-a::model-a')
+      }
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(false)
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // clearAllBudgetTripped must have been called — the terminal arm ran (no budget-continue, no steer).
+      expect(clearSpy).toHaveBeenCalledWith('a')
+      // The trip entry is cleared — confirms no stale map entries.
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(false)
+      expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    // ── Fix E: budget-continue is gated to single-model turns ─────────
+
+    it('Fix E: multi-model turn where a model tripped → NO budget-continue dispatched; trips cleared at terminal', async () => {
+      // Before Fix E, the budgetContinuing gate had no single-model guard — in a multi-model turn
+      // only the last-settling exec's modelId was evaluated (because stream.status === 'done' is true
+      // only after ALL execs settle). Fix E adds !stream.isMultiModel so multi-model turns always fall
+      // through to the terminal arm (where Fix F's clearAllBudgetTripped now runs).
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const clearSpy = vi.spyOn(mgr, 'clearAllBudgetTripped')
+      const listener = new FakeListener('wc:1:a')
+
+      mgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'provider-a::model-a', request: { ...req('a'), messageId: 'anchor-a' } },
+          { modelId: 'provider-b::model-b', request: { ...req('a'), messageId: 'anchor-b' } }
+        ],
+        listeners: [listener]
+      })
+
+      // Trip both models — a real multi-model over-budget scenario.
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      mgr.setBudgetTripped('a', 'provider-b::model-b')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(true)
+      expect(mgr.isBudgetContinuable('a', 'provider-b::model-b')).toBe(true)
+
+      // Set finalMessage so anchorId would be non-empty (anchor check alone would not block).
+      // biome-ignore lint/suspicious/noExplicitAny: reach private exec to set finalMessage for test
+      const execA = (mgr as any).activeStreams.get('a').executions.get('provider-a::model-a')
+      // biome-ignore lint/suspicious/noExplicitAny: reach private exec to set finalMessage for test
+      const execB = (mgr as any).activeStreams.get('a').executions.get('provider-b::model-b')
+      execA.finalMessage = { id: 'anchor-a', role: 'assistant', parts: [] }
+      execB.finalMessage = { id: 'anchor-b', role: 'assistant', parts: [] }
+
+      // Settle both executions — topic reaches done.
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      await flush()
+
+      // No budget-continue dispatched — multi-model turn is excluded by the !isMultiModel gate.
+      expect(dispatchSpy).not.toHaveBeenCalled()
+
+      // Both trip entries are cleared at the terminal arm (Fix F).
+      expect(clearSpy).toHaveBeenCalledWith('a')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(false)
+      expect(mgr.isBudgetContinuable('a', 'provider-b::model-b')).toBe(false)
+
+      // Topic settled cleanly.
+      expect(mgr.inspect('a')!.status).toBe('done')
+    })
   })
 })

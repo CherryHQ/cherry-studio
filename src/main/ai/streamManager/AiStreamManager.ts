@@ -724,7 +724,11 @@ export class AiStreamManager extends BaseService {
     // no dispatch and no terminal settled).
     const anchorId = exec.finalMessage?.id ?? exec.anchorMessageId
     const budgetContinuing =
-      stream.status === 'done' && !chatChaining && Boolean(anchorId) && this.isBudgetContinuable(topicId, modelId)
+      stream.status === 'done' &&
+      !chatChaining &&
+      Boolean(anchorId) &&
+      !stream.isMultiModel &&
+      this.isBudgetContinuable(topicId, modelId)
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining && !budgetContinuing)
 
@@ -735,8 +739,11 @@ export class AiStreamManager extends BaseService {
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') {
         this.dropPendingSteers(topicId, stream.status)
-        this.clearAllBudgetTripped(topicId)
       }
+      // Clear budget-stop state on ANY topic terminal — clean done or error/aborted. This branch is
+      // only reached when NOT chatChaining and NOT budgetContinuing, so it never clears a pending
+      // budget-continue resume (those two arms are mutually exclusive with this one).
+      this.clearAllBudgetTripped(topicId)
       this.runTerminalLifecycle(stream)
     }
   }
