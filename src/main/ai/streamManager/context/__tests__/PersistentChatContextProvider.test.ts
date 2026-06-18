@@ -3,13 +3,14 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiTurnTrace } from '../../../observability'
+import { startAiChildTurnSpan } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -26,7 +27,9 @@ vi.mock('../modelResolution', () => ({
 }))
 
 vi.mock('../../../observability', () => ({
-  startAiTurnTrace: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' }))
+  startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' })),
+  deriveRootSpanId: vi.fn(() => '1'.repeat(16)),
+  applyTurnInputAttributes: vi.fn()
 }))
 
 const { PersistentChatContextProvider } = await import('../PersistentChatContextProvider')
@@ -69,31 +72,33 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     })
 
     await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'a1', orderKey: 'a0' })
-    await dbh.db.insert(messageTable).values([
-      {
-        id: 'u1',
-        parentId: null,
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'first question' }] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      },
-      {
-        id: 'a1',
-        parentId: 'u1',
-        topicId: 'topic-1',
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: PARTIAL }] },
-        status: 'paused',
-        siblingsGroupId: 1,
-        modelId: MODEL_ID,
-        createdAt: 200,
-        updatedAt: 200
-      }
-    ])
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-1', [
+        {
+          id: 'u1',
+          parentId: null,
+          topicId: 'topic-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'first question' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a1',
+          parentId: 'u1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: PARTIAL }] },
+          status: 'paused',
+          siblingsGroupId: 1,
+          modelId: MODEL_ID,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+    )
   })
 
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
@@ -184,7 +189,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
-    // Assert the per-model row and span line up so a fan-out never crosses streams.
+    // All placeholders share the container traceId now; assert the per-model row and span
+    // line up by index (keyed on modelId) so a fan-out never crosses streams.
     const MODEL_A = createUniqueModelId('openai', 'gpt-4o') // already seeded in beforeEach
     const MODEL_B = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     // Placeholder rows FK to user_model(id) — seed the second @-mentioned model.
@@ -210,9 +216,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
-    vi.mocked(startAiTurnTrace)
-      .mockReturnValueOnce({ rootSpan: spanA, traceId: 'trace-a' } as unknown as ReturnType<typeof startAiTurnTrace>)
-      .mockReturnValueOnce({ rootSpan: spanB, traceId: 'trace-b' } as unknown as ReturnType<typeof startAiTurnTrace>)
+    vi.mocked(startAiChildTurnSpan)
+      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
+      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -259,6 +265,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       `persistence:sqlite:topic-1:${MODEL_A}`,
       `persistence:sqlite:topic-1:${MODEL_B}`
     ])
+
+    // One trace tree per topic: both models' `ai.turn` spans are parented under the
+    // same container trace, and that id is the topic's persisted ensureTraceId.
+    const containerTraceId = await topicService.ensureTraceId('topic-1')
+    const [callA, callB] = vi.mocked(startAiChildTurnSpan).mock.calls.slice(-2)
+    expect(callA[3]).toBe(containerTraceId)
+    expect(callB[3]).toBe(containerTraceId)
   })
 })
 
@@ -304,44 +317,46 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       { id: 'topic-1', activeNodeId: 'a1', orderKey: 'a0' },
       { id: 'topic-2', activeNodeId: null, orderKey: 'a1' }
     ])
-    await dbh.db.insert(messageTable).values([
-      {
-        id: 'u1',
-        parentId: null,
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'run the tool' }] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      },
-      {
-        // Assistant turn paused on a tool-approval-request — the renderer's decision arrives here.
-        id: 'a1',
-        parentId: 'u1',
-        topicId: 'topic-1',
-        role: 'assistant',
-        data: {
-          parts: [
-            { type: 'text', text: 'let me call a tool' },
-            {
-              type: 'tool-fetch_url',
-              toolCallId: 'call-1',
-              state: 'approval-requested',
-              input: { url: 'https://example.com' },
-              approval: { id: APPROVAL_ID }
-            }
-          ]
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-1', [
+        {
+          id: 'u1',
+          parentId: null,
+          topicId: 'topic-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'run the tool' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
         },
-        status: 'success',
-        siblingsGroupId: 1,
-        modelId: ANCHOR_MODEL_ID,
-        modelSnapshot: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' },
-        createdAt: 200,
-        updatedAt: 200
-      }
-    ])
+        {
+          // Assistant turn paused on a tool-approval-request — the renderer's decision arrives here.
+          id: 'a1',
+          parentId: 'u1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'text', text: 'let me call a tool' },
+              {
+                type: 'tool-fetch_url',
+                toolCallId: 'call-1',
+                state: 'approval-requested',
+                input: { url: 'https://example.com' },
+                approval: { id: APPROVAL_ID }
+              }
+            ]
+          },
+          status: 'success',
+          siblingsGroupId: 1,
+          modelId: ANCHOR_MODEL_ID,
+          modelSnapshot: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' },
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+    )
   })
 
   it('rejects when the anchor is not an assistant message (anchor guard)', async () => {

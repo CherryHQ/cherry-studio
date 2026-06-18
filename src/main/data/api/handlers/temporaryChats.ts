@@ -1,7 +1,7 @@
 /**
  * Temporary Chat API Handlers
  *
- * Implements the 5 endpoints backing in-memory temporary chat sessions:
+ * Implements the endpoints backing in-memory temporary chat sessions:
  * - POST   /temporary/topics
  * - DELETE /temporary/topics/:id
  * - POST   /temporary/topics/:topicId/messages

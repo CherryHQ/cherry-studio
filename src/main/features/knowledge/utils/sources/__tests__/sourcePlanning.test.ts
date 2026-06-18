@@ -39,7 +39,7 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
 }
 
 describe('planKnowledgeItemSource', () => {
-  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods'])(
+  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'xls'])(
     'routes supported document .%s files to file processing when a processor is configured',
     (ext) => {
       expect(planKnowledgeItemSource(createBase(), createFileItem(`/docs/source.${ext}`))).toEqual({
@@ -52,5 +52,11 @@ describe('planKnowledgeItemSource', () => {
     expect(planKnowledgeItemSource(createBase(null), createFileItem('/docs/source.pdf'))).toEqual({
       kind: 'index-documents'
     })
+  })
+
+  it('indexes a file that already carries a processed artifact directly, skipping the processor', () => {
+    const item = createFileItem('/docs/source.pdf')
+    item.data.indexedRelativePath = 'source.md'
+    expect(planKnowledgeItemSource(createBase(), item)).toEqual({ kind: 'index-documents' })
   })
 })

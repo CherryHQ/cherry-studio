@@ -1,7 +1,9 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData } from '@renderer/utils/knowledgeFileEntry'
+import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +12,7 @@ import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeI
 import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeItemDialogHeader'
 import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowledgeItemDialogSourceTabs'
 import { DEFAULT_SOURCE_TYPE } from './addKnowledgeItemDialog/constants'
-import type { DirectoryItem, DropzoneOnDrop } from './addKnowledgeItemDialog/types'
+import type { DirectoryItem, DropzoneOnDrop, NoteItem } from './addKnowledgeItemDialog/types'
 
 interface AddKnowledgeItemDialogProps {
   open: boolean
@@ -44,12 +46,25 @@ const resolveSelectedFileEntryData = async (file: File) => {
   return resolveKnowledgeFileData(filePath, file.name)
 }
 
+const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
+
+const filterSupportedKnowledgeFiles = (files: File[]) =>
+  files.filter((file) => knowledgeSupportedFileExtSet.has(getFileExtension(file.name)))
+
+// Dedupe the in-dialog selection by each file's on-disk path. Two files that share a name
+// but live in different folders are distinct sources and must both be addable (the backend
+// auto-renames same-named files on disk via reserveImportedFileRelativePath); only the exact
+// same file dropped twice collapses to one. Keying by name+size+lastModified instead wrongly
+// dropped a copy of the same file living in another folder.
+const getSelectedFileKey = (file: File) => window.api.file.getPathForFile(file)
+
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
   const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
   const [activeSource, setActiveSource] = useState(DEFAULT_SOURCE_TYPE)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
+  const [selectedNotes, setSelectedNotes] = useState<NoteItem[]>([])
   const [urlValue, setUrlValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
@@ -59,15 +74,31 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setActiveSource(DEFAULT_SOURCE_TYPE)
     setSelectedFiles([])
     setSelectedDirectories([])
+    setSelectedNotes([])
     setUrlValue('')
     setSubmitErrorMessage('')
     setIsResolvingSubmit(false)
   }, [])
 
-  const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
-    setSubmitErrorMessage('')
-    setSelectedFiles(acceptedFiles)
-  }, [])
+  const handleFileDrop = useCallback<DropzoneOnDrop>(
+    (acceptedFiles) => {
+      setSubmitErrorMessage('')
+      const supportedFiles = filterSupportedKnowledgeFiles(acceptedFiles)
+      // The dropzone has no `accept` filter, so every dropped/picked file reaches us here and the
+      // extension allow-list is the single gate. Surface the dropped-minus-kept delta so the user
+      // learns nothing was silently skipped (matching the page-level pending-files entry point).
+      const skippedCount = acceptedFiles.length - supportedFiles.length
+      if (skippedCount > 0) {
+        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      }
+      setSelectedFiles((currentFiles) => {
+        const existingKeys = new Set(currentFiles.map(getSelectedFileKey))
+        const newFiles = supportedFiles.filter((file) => !existingKeys.has(getSelectedFileKey(file)))
+        return [...currentFiles, ...newFiles]
+      })
+    },
+    [t]
+  )
 
   const handleDirectorySelect = useCallback(async () => {
     setSubmitErrorMessage('')
@@ -104,6 +135,15 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     )
   }, [])
 
+  const handleNoteToggle = useCallback((note: NoteItem) => {
+    setSubmitErrorMessage('')
+    setSelectedNotes((currentNotes) =>
+      currentNotes.some((selected) => selected.externalPath === note.externalPath)
+        ? currentNotes.filter((selected) => selected.externalPath !== note.externalPath)
+        : [...currentNotes, note]
+    )
+  }, [])
+
   useEffect(() => {
     if (!open) {
       resetDialogState()
@@ -112,14 +152,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     if (pendingAddFiles?.length) {
       setActiveSource('file')
-      setSelectedFiles(pendingAddFiles)
+      const supportedFiles = filterSupportedKnowledgeFiles(pendingAddFiles)
+      const skippedCount = pendingAddFiles.length - supportedFiles.length
+      if (skippedCount > 0) {
+        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      }
+      setSelectedFiles(supportedFiles)
       return
     }
 
     if (pendingAddSource) {
       setActiveSource(pendingAddSource)
     }
-  }, [open, pendingAddFiles, pendingAddSource, resetDialogState])
+  }, [open, pendingAddFiles, pendingAddSource, resetDialogState, t])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -145,9 +190,9 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       case 'url':
         return urlValue.trim().length > 0
       case 'note':
-        return false
+        return selectedNotes.length > 0
     }
-  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, urlValue])
+  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, selectedNotes.length, urlValue])
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit || isResolvingSubmit) {
@@ -194,6 +239,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         ])
       }
 
+      if (activeSource === 'note') {
+        return Promise.all(
+          selectedNotes.map(async (note) => {
+            // Name the note in the failure so a read error (e.g. it was moved or
+            // deleted while the dialog was open) points at the specific source.
+            const content = await window.api.file.readExternal(note.externalPath).catch((cause) => {
+              throw new Error(`${note.name}: ${cause instanceof Error ? cause.message : String(cause)}`)
+            })
+            return { type: 'note' as const, data: { source: note.name, content } }
+          })
+        ).then((items) => submitKnowledgeItems(items))
+      }
+
       return Promise.resolve()
     })()
 
@@ -214,6 +272,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     isResolvingSubmit,
     selectedDirectories,
     selectedFiles,
+    selectedNotes,
     submitKnowledgeItems,
     t,
     urlValue
@@ -230,11 +289,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             activeSource={activeSource}
             selectedDirectories={selectedDirectories}
             selectedFiles={selectedFiles}
+            selectedNotes={selectedNotes}
             urlValue={urlValue}
             onDirectoryRemove={handleDirectoryRemove}
             onDirectorySelect={handleDirectorySelect}
             onFileDrop={handleFileDrop}
             onFileRemove={handleFileRemove}
+            onNoteToggle={handleNoteToggle}
             onUrlValueChange={(value) => {
               setSubmitErrorMessage('')
               setUrlValue(value)
@@ -248,6 +309,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           isSubmitting={isSubmitting}
           selectedDirectoryCount={selectedDirectories.length}
           selectedFileCount={selectedFiles.length}
+          selectedNoteCount={selectedNotes.length}
           onSubmit={handleSubmit}
         />
       </DialogContent>

@@ -42,7 +42,9 @@ const {
   fsLstatMock,
   fsStatMock,
   listMaterialUnitsMock,
-  storeSearchMock
+  storeSearchMock,
+  probeKnowledgeFileMock,
+  probeKnowledgeSourcePathMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -73,7 +75,9 @@ const {
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
-  storeSearchMock: vi.fn()
+  storeSearchMock: vi.fn(),
+  probeKnowledgeFileMock: vi.fn(),
+  probeKnowledgeSourcePathMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -166,7 +170,9 @@ vi.mock('../utils/storage/pathStorage', async () => {
   return {
     ...actual,
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
-    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock
+    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
+    probeKnowledgeFile: probeKnowledgeFileMock,
+    probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
   }
 })
 
@@ -303,6 +309,10 @@ describe('KnowledgeService', () => {
       birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
     fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    // Reindex source-existence gate: default every source readable so existing reindex tests are
+    // unaffected; the missing/unverifiable-source tests override these per case.
+    probeKnowledgeFileMock.mockResolvedValue('readable')
+    probeKnowledgeSourcePathMock.mockResolvedValue('readable')
     copyFileIntoKnowledgeBaseAtMock.mockImplementation(
       async (_baseId: string, _sourcePath: string, relativePath: string) => relativePath
     )
@@ -670,6 +680,122 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('restores a processed file by copying its source and artifact, then indexes without reprocessing', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb', fileProcessorId: 'doc2x' })
+    const restoredBase = createBase({ id: 'restored-kb', fileProcessorId: 'doc2x' })
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase).mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+
+    const processedSourceFile = {
+      ...createFileItem('src-file', 'source-kb', '/docs/report.pdf'),
+      data: { source: '/docs/report.pdf', relativePath: 'report.pdf', indexedRelativePath: 'report.md' }
+    }
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([processedSourceFile])
+
+    const restoredFile = {
+      ...createFileItem('restored-file', 'restored-kb', '/docs/report.pdf', 'processing'),
+      data: { source: '/docs/report.pdf', relativePath: 'report.pdf', indexedRelativePath: 'report.md' }
+    }
+    knowledgeItemCreateMock.mockResolvedValueOnce(restoredFile)
+    knowledgeItemUpdateStatusMock.mockResolvedValueOnce(restoredFile)
+    knowledgeItemGetByIdMock.mockResolvedValue(restoredFile)
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    // Both the source file and its already-processed artifact are copied into the restored base.
+    expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([
+      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.pdf', 'report.pdf'],
+      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.md', 'report.md']
+    ])
+    // The created item carries the artifact path.
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.objectContaining({
+        type: 'file',
+        data: { source: '/docs/report.pdf', relativePath: 'report.pdf', indexedRelativePath: 'report.md' }
+      })
+    )
+    // The file processor is skipped and indexing runs straight from the artifact (re-embedding still happens).
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.index-documents',
+      expect.objectContaining({ baseId: 'restored-kb', itemId: 'restored-file' }),
+      expect.anything()
+    )
+  })
+
+  it('restores a url with a captured snapshot by copying it in so the first index reads it offline', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase).mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+
+    const sourceUrl = {
+      ...createNoteItem('source-url', 'source-kb'),
+      type: 'url' as const,
+      data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example-page.md' }
+    }
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([sourceUrl])
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    // The snapshot markdown is copied into the restored base under the same name.
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'restored-kb',
+      '/mock/feature.knowledgebase.data/source-kb/raw/example-page.md',
+      'example-page.md'
+    )
+    // The created url item is pinned to the copied snapshot so first index reads it offline.
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.objectContaining({
+        type: 'url',
+        data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example-page.md' }
+      })
+    )
+  })
+
+  it('restores a url without a captured snapshot by re-fetching on first index', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase).mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+
+    const sourceUrl = {
+      ...createNoteItem('source-url', 'source-kb'),
+      type: 'url' as const,
+      data: { source: 'https://example.com', url: 'https://example.com' }
+    }
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([sourceUrl])
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    // No snapshot to carry: the restored url has no relativePath so first index re-captures it.
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.objectContaining({ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } })
+    )
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+  })
+
   it('schedules add, delete, and reindex through the new workflow jobs', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
@@ -734,6 +860,15 @@ describe('KnowledgeService', () => {
   it('auto-renames a duplicate uploaded file name instead of rejecting the import', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+    knowledgeItemCreateMock
+      .mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/notes.md'))
+      .mockResolvedValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md'))
+    knowledgeItemUpdateStatusMock
+      .mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/notes.md', 'processing'))
+      .mockResolvedValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md', 'processing'))
+    knowledgeItemGetByIdMock
+      .mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/notes.md', 'processing'))
+      .mockResolvedValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md', 'processing'))
 
     await service.addItems('kb-1', [
       { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
@@ -749,6 +884,15 @@ describe('KnowledgeService', () => {
   it('auto-renames a file whose processed-markdown name would collide', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemCreateMock
+      .mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf'))
+      .mockResolvedValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx'))
+    knowledgeItemUpdateStatusMock
+      .mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf', 'processing'))
+      .mockResolvedValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
+    knowledgeItemGetByIdMock
+      .mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf', 'processing'))
+      .mockResolvedValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
 
     await service.addItems('kb-1', [
       { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
@@ -760,6 +904,146 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemCreateMock).toHaveBeenCalledTimes(2)
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/brief.pdf', 'brief.pdf')
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.docx', 'brief_1.docx')
+  })
+
+  it('auto-renames a restored url snapshot whose name collides with an existing url snapshot', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+    // The base already holds a url whose captured snapshot occupies `example-page.md` under `raw/`.
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+      {
+        ...createNoteItem('existing-url', 'kb-1'),
+        type: 'url' as const,
+        data: { source: 'https://example.com/old', url: 'https://example.com/old', relativePath: 'example-page.md' }
+      }
+    ])
+
+    await service.addItems('kb-1', [
+      {
+        type: 'url',
+        data: {
+          source: 'https://example.com/new',
+          url: 'https://example.com/new',
+          snapshotPath: '/captured/example-page.md'
+        }
+      }
+    ])
+
+    // The restored snapshot's name collides with the existing url's reserved path, so it is
+    // deduped to `_N` instead of hard-failing the on-disk copy — the bug was that existing url
+    // snapshots were never added to the reserved set, so reservation could not see the collision.
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'kb-1',
+      '/captured/example-page.md',
+      'example-page_1.md'
+    )
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+      'kb-1',
+      expect.objectContaining({
+        type: 'url',
+        data: { source: 'https://example.com/new', url: 'https://example.com/new', relativePath: 'example-page_1.md' }
+      })
+    )
+  })
+
+  it('cleans up a restored url snapshot when a mid-batch create fails, so the url stays re-restorable', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
+    // The url restore copies its snapshot to raw/ before the row is created; that create fails.
+    knowledgeItemCreateMock.mockRejectedValueOnce(new Error('db down'))
+
+    await expect(
+      service.addItems('kb-1', [
+        {
+          type: 'url',
+          data: {
+            source: 'https://example.com/p',
+            url: 'https://example.com/p',
+            snapshotPath: '/captured/example-page.md'
+          }
+        }
+      ])
+    ).rejects.toThrow('db down')
+
+    // The copied url snapshot must be in the rollback cleanup list (the W1 fix); before it,
+    // only file-type copies were tracked, so the snapshot leaked and a same-titled re-restore
+    // later hard-failed on the orphan.
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith(
+      'kb-1',
+      [expect.objectContaining({ type: 'url', data: expect.objectContaining({ relativePath: 'example-page.md' }) })],
+      expect.anything()
+    )
+  })
+
+  it('auto-renames a file whose name collides with an existing note snapshot', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+    // The base already holds a note whose captured snapshot occupies `Meeting notes.md` under `raw/`.
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+      {
+        ...createNoteItem('existing-note', 'kb-1'),
+        type: 'note' as const,
+        data: { source: 'Meeting notes', content: 'hello', relativePath: 'Meeting notes.md' }
+      }
+    ])
+    knowledgeItemCreateMock.mockResolvedValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/Meeting notes.md'))
+    knowledgeItemUpdateStatusMock.mockResolvedValueOnce(
+      createFileItem('file-1', 'kb-1', '/Users/me/Meeting notes.md', 'processing')
+    )
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(
+      createFileItem('file-1', 'kb-1', '/Users/me/Meeting notes.md', 'processing')
+    )
+
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' } }
+    ])
+
+    // The new file's name collides with the existing note's reserved snapshot path, so it is
+    // deduped to `_N` instead of hard-failing the on-disk copy — note snapshots must enter the
+    // reserved set just like url snapshots (they too live as base files under `raw/`).
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'kb-1',
+      '/Users/me/Meeting notes.md',
+      'Meeting notes_1.md'
+    )
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+      'kb-1',
+      expect.objectContaining({
+        type: 'file',
+        data: { source: '/Users/me/Meeting notes.md', relativePath: 'Meeting notes_1.md' }
+      })
+    )
+  })
+
+  it('throws when a file’s processed-markdown name collides with an existing note snapshot', async () => {
+    const service = new KnowledgeService()
+    const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
+    // An existing note already occupies the `source.md` path the processor would write its output to.
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+      {
+        ...createNoteItem('existing-note', 'kb-1'),
+        type: 'note' as const,
+        data: { source: 'Source', content: 'hello', relativePath: 'source.md' }
+      }
+    ])
+
+    const workflowService = (
+      service as unknown as {
+        workflowService: {
+          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
+        }
+      }
+    ).workflowService
+
+    // The processed-artifact reservation guard must treat the note snapshot as occupied (it lives
+    // under `raw/` too), so it refuses the colliding `.md` output instead of overwriting it on disk.
+    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
+      'Knowledge file already exists: source.md'
+    )
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
   it('auto-renames against a file imported in an earlier addItems call, not just within one call', async () => {
@@ -790,6 +1074,19 @@ describe('KnowledgeService', () => {
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/brief.md', 'brief_1.md')
+  })
+
+  it('rejects unsupported uploaded file extensions before copying files', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' } }])
+    ).rejects.toThrow('Unsupported knowledge file type: /Users/me/app.exe')
+
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
   it('passes the parent job when starting file processing during reindex', async () => {
@@ -1099,6 +1396,76 @@ describe('KnowledgeService', () => {
 
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects reindex of a directory whose source folder no longer exists, without deleting its vectors', async () => {
+    const service = new KnowledgeService()
+    // A v1-migrated folder: completed, but its original folder path is gone (untrustworthy v1 path)
+    // and its child carries a virtual relativePath with no raw/ file behind it.
+    const root = createDirectoryItem('dir-1', null, 'completed')
+    const migratedChild: KnowledgeItemOf<'file'> = {
+      ...createFileItem('file-1', 'kb-1', '/legacy/abs/x.md', 'completed'),
+      groupId: 'dir-1',
+      data: { source: '/legacy/abs/x.md', relativePath: 'file-1' }
+    }
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root, migratedChild] : [migratedChild]
+    )
+
+    await expect(service.reindexItems('kb-1', ['dir-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+    })
+
+    // The reindex-subtree job — which deletes vectors before re-reading — is never enqueued,
+    // so the migrated vectors survive.
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects reindex with a retry hint when a directory source cannot be verified (transient error)', async () => {
+    const service = new KnowledgeService()
+    const root = createDirectoryItem('dir-1', null, 'completed')
+    // A transient/permission error (not ENOENT): the folder may still exist, so the user must be
+    // told to retry — never to delete and re-add a source that is probably still there.
+    probeKnowledgeSourcePathMock.mockResolvedValue('unverifiable')
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root] : []
+    )
+
+    await expect(service.reindexItems('kb-1', ['dir-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
+    })
+
+    // No destructive action: the existing vectors are kept and nothing is enqueued.
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects reindex of a file whose source file no longer exists on disk', async () => {
+    const service = new KnowledgeService()
+    const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
+    probeKnowledgeFileMock.mockResolvedValue('missing')
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root] : []
+    )
+
+    await expect(service.reindexItems('kb-1', ['file-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+    })
+
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('rejects a whole reindex batch when one root subtree is still active', async () => {
