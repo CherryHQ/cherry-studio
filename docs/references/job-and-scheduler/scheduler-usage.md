@@ -25,7 +25,7 @@ You get: persistent schedule row in `jobScheduleTable`; recovery on next process
 
 Yes → **SchedulerService**. Call `scheduler.registerSchedule(id, trigger, callback)`. Returns a `Disposable`.
 
-You get: cron / interval / once triggers in one API; croner's pause/resume/triggerNow for cron schedules; correct timezone via Intl; auto-unrefed timers; no SQLite touches; no persistence.
+You get: cron / period / interval / once triggers in one API; croner's pause/resume/triggerNow for cron and period triggers; correct timezone via Intl; auto-unrefed timers; no SQLite touches; no persistence.
 
 Re-register in your service's `onReady` — SchedulerService does not persist anything.
 
@@ -39,7 +39,7 @@ Why not SchedulerService here? `registerInterval` is the project convention for 
 
 Use raw `setInterval` / `setTimeout` inside the owning module. The classic example is a protocol heartbeat whose interval is dictated by the server's `hello` frame and may change on reconnect. SchedulerService's `Trigger` type is deliberately closed to keep its surface small — heartbeats stay outside it.
 
-This is a **conscious design boundary**, not a deficiency. The rationale: SchedulerService accepts only declarative triggers (`cron` / `interval` / `once`); a heartbeat whose cadence is dictated by the peer is fundamentally a state-machine concern that belongs to the owning module. Forcing it through SchedulerService would require imperative reschedule APIs that pollute the simple surface.
+This is a **conscious design boundary**, not a deficiency. The rationale: SchedulerService accepts only declarative triggers (`cron` / `period` / `interval` / `once`); a heartbeat whose cadence is dictated by the peer is fundamentally a state-machine concern that belongs to the owning module. Forcing it through SchedulerService would require imperative reschedule APIs that pollute the simple surface.
 
 ## Common mistakes
 
@@ -50,7 +50,7 @@ This is a **conscious design boundary**, not a deficiency. The rationale: Schedu
 
 ## Trigger lifetime semantics
 
-The three triggers (`cron` / `interval` / `once`) differ in how their entry survives across a callback. Both subtleties are observable from inside the callback.
+The triggers (`cron` / `period` / `interval` / `once`) differ in how their entry survives across a callback. Both subtleties are observable from inside the callback.
 
 ### `once`: self-clean *before* invoke
 

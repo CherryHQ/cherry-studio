@@ -111,6 +111,20 @@ describe('computeCatchUpAction — cron trigger', () => {
   })
 })
 
+describe('computeCatchUpAction — period trigger', () => {
+  it('uses nextRun as the overdue anchor like cron', () => {
+    const schedule = makeSchedule({
+      trigger: { kind: 'period', period: 'daily', time: '09:00' },
+      catchUpPolicy: { kind: 'after-startup', minutes: 2 },
+      nextRun: new Date(NOW - 1000).toISOString()
+    })
+    const result = computeCatchUpAction(schedule, handlerWithMissed(), NOW)
+    expect(result.shouldEnqueue).toBe(true)
+    expect(result.enqueueDelayMs).toBe(2 * 60_000)
+    expect(result.missEvent).not.toBeNull()
+  })
+})
+
 describe('computeCatchUpAction — interval trigger', () => {
   it('uses lastRun + ms as the overdue anchor when lastRun present', () => {
     const schedule = makeSchedule({

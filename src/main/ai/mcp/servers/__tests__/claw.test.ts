@@ -203,12 +203,161 @@ describe('ClawServer', () => {
       )
     })
 
+    it('should create a daily period task', async () => {
+      mockCreateTask.mockResolvedValue({ id: 'task_period_daily' })
+
+      const server = createServer()
+      await callTool(server, {
+        action: 'add',
+        name: 'Daily report',
+        message: 'Send daily report',
+        period: 'daily',
+        time: '09:30'
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_test',
+        expect.objectContaining({
+          trigger: { kind: 'period', period: 'daily', time: '09:30' }
+        })
+      )
+    })
+
+    it('should create a weekly period task with weekday', async () => {
+      mockCreateTask.mockResolvedValue({ id: 'task_period_weekly' })
+
+      const server = createServer()
+      await callTool(server, {
+        action: 'add',
+        name: 'Weekly report',
+        message: 'Send weekly report',
+        period: 'weekly',
+        time: '10:15',
+        weekday: 1
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_test',
+        expect.objectContaining({
+          trigger: { kind: 'period', period: 'weekly', time: '10:15', weekday: 1 }
+        })
+      )
+    })
+
+    it('should create a monthly period task with month_day mapped to monthDay', async () => {
+      mockCreateTask.mockResolvedValue({ id: 'task_period_monthly' })
+
+      const server = createServer()
+      await callTool(server, {
+        action: 'add',
+        name: 'Monthly report',
+        message: 'Send monthly report',
+        period: 'monthly',
+        time: '08:00',
+        month_day: 15
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_test',
+        expect.objectContaining({
+          trigger: { kind: 'period', period: 'monthly', time: '08:00', monthDay: 15 }
+        })
+      )
+    })
+
     it('should reject when no schedule is provided', async () => {
       const server = createServer()
       const result = await callTool(server, {
         action: 'add',
         name: 'test',
         message: 'test'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should reject when weekly period is missing weekday', async () => {
+      const server = createServer()
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        period: 'weekly',
+        time: '09:30'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should reject when monthly period is missing month_day', async () => {
+      const server = createServer()
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        period: 'monthly',
+        time: '09:30'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should reject when weekly period weekday is out of range', async () => {
+      const server = createServer()
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        period: 'weekly',
+        time: '09:30',
+        weekday: 7
+      })
+
+      expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should reject when monthly period month_day is out of range', async () => {
+      const server = createServer()
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        period: 'monthly',
+        time: '09:30',
+        month_day: 32
+      })
+
+      expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should reject period task with invalid time', async () => {
+      const server = createServer()
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        period: 'daily',
+        time: '24:00'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should reject when period and cron are both provided', async () => {
+      const server = createServer()
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        period: 'daily',
+        time: '09:30',
+        cron: '* * * * *'
       })
 
       expect(result.isError).toBe(true)

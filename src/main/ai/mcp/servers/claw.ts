@@ -15,6 +15,8 @@ import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('McpServer:Claw')
 
+const TIME_OF_DAY_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+
 /**
  * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
  */
@@ -38,7 +40,7 @@ function parseDurationToMinutes(duration: string): number {
 const CRON_TOOL: Tool = {
   name: 'cron',
   description:
-    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
+    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For daily/weekly/monthly jobs, use period + time. Only use cron when the user explicitly provides a Cron expression.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -57,16 +59,36 @@ const CRON_TOOL: Tool = {
       },
       cron: {
         type: 'string',
-        description: "Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am (use cron OR every, not both)"
+        description:
+          "Explicit user-provided Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am (use cron OR period OR every OR at, not combined)"
+      },
+      period: {
+        type: 'string',
+        enum: ['daily', 'weekly', 'monthly'],
+        description:
+          'Calendar period for recurring jobs (use with time; use period OR cron OR every OR at, not combined)'
+      },
+      time: {
+        type: 'string',
+        description: "Local time of day for period jobs in HH:mm format, e.g. '09:30'"
+      },
+      weekday: {
+        type: 'number',
+        description: 'Required when period is weekly. Integer 0..6.'
+      },
+      month_day: {
+        type: 'number',
+        description:
+          'Required when period is monthly. Integer 1..31. Days 29-31 are skipped in months without that date.'
       },
       every: {
         type: 'string',
-        description: "Duration, e.g. '30m', '2h', '24h' (use every OR cron, not both)"
+        description: "Duration, e.g. '30m', '2h', '24h' (use every OR period OR cron OR at, not combined)"
       },
       at: {
         type: 'string',
         description:
-          "RFC3339 timestamp for a one-time job, e.g. '2024-01-15T14:30:00+08:00' (use at OR cron OR every, not combined)"
+          "RFC3339 timestamp for a one-time job, e.g. '2024-01-15T14:30:00+08:00' (use at OR period OR cron OR every, not combined)"
       },
       channel_ids: {
         type: 'array',
@@ -304,21 +326,52 @@ class ClawServer {
     const name = args.name as string | undefined
     const message = args.message as string | undefined
     const cronExpr = args.cron as string | undefined
+    const period = args.period as string | undefined
+    const time = args.time as string | undefined
     const every = args.every as string | undefined
     const at = args.at as string | undefined
+    const weekday = args.weekday as number | undefined
+    const monthDay = args.month_day as number | undefined
     const rawChannelIds = args.channel_ids as string[] | undefined
     const timeoutMinutes = args.timeout_minutes as number | undefined
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
 
-    // Determine trigger shape (cron expression / interval ms / one-shot timestamp)
-    const scheduleCount = [cronExpr, every, at].filter(Boolean).length
-    if (scheduleCount === 0) throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
-    if (scheduleCount > 1) throw new McpError(ErrorCode.InvalidParams, "Use only one of 'cron', 'every', or 'at'")
+    // Determine trigger shape (period / cron expression / interval ms / one-shot timestamp)
+    const scheduleCount = [period, cronExpr, every, at].filter(Boolean).length
+    if (scheduleCount === 0) {
+      throw new McpError(ErrorCode.InvalidParams, "One of 'period', 'cron', 'every', or 'at' is required")
+    }
+    if (scheduleCount > 1) {
+      throw new McpError(ErrorCode.InvalidParams, "Use only one of 'period', 'cron', 'every', or 'at'")
+    }
 
     let trigger: Trigger
 
-    if (cronExpr) {
+    if (period) {
+      if (!time || !TIME_OF_DAY_RE.test(time)) {
+        throw new McpError(ErrorCode.InvalidParams, "'time' is required for period jobs and must use HH:mm format")
+      }
+
+      if (period === 'daily') {
+        trigger = { kind: 'period', period: 'daily', time }
+      } else if (period === 'weekly') {
+        if (weekday === undefined || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+          throw new McpError(ErrorCode.InvalidParams, "'weekday' is required for weekly period jobs and must be 0..6")
+        }
+        trigger = { kind: 'period', period: 'weekly', time, weekday }
+      } else if (period === 'monthly') {
+        if (monthDay === undefined || !Number.isInteger(monthDay) || monthDay < 1 || monthDay > 31) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            "'month_day' is required for monthly period jobs and must be 1..31"
+          )
+        }
+        trigger = { kind: 'period', period: 'monthly', time, monthDay }
+      } else {
+        throw new McpError(ErrorCode.InvalidParams, "'period' must be daily, weekly, or monthly")
+      }
+    } else if (cronExpr) {
       trigger = { kind: 'cron', expr: cronExpr }
     } else if (every) {
       const minutes = parseDurationToMinutes(every)

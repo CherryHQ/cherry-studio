@@ -33,17 +33,24 @@ Manages agent scheduled tasks. The agent can autonomously create, view, and dele
 |---|---|---|---|
 | `name` | string | Yes | Task name |
 | `message` | string | Yes | Prompt/instruction to execute |
-| `cron` | string | One of three | Cron expression, e.g., `0 9 * * 1-5` |
-| `every` | string | One of three | Duration, e.g., `30m`, `2h`, `1h30m` |
-| `at` | string | One of three | RFC3339 timestamp for one-time tasks |
+| `period` | string | One of four | Calendar period: `daily`, `weekly`, or `monthly` |
+| `time` | string | With `period` | Local time in `HH:mm`, e.g., `09:30` |
+| `weekday` | number | With `period: weekly` | Weekly day integer `0..6` |
+| `month_day` | number | With `period: monthly` | Monthly day integer `1..31` |
+| `cron` | string | One of four | Explicit user-provided Cron expression, e.g., `0 9 * * 1-5` |
+| `every` | string | One of four | Duration, e.g., `30m`, `2h`, `1h30m` |
+| `at` | string | One of four | RFC3339 timestamp for one-time tasks |
 | `session_mode` | string | No | `reuse` (default, preserve conversation history) or `new` (new session each time) |
 
-Only one of `cron`, `every`, `at` can be specified. `every` supports human-friendly duration formats, internally converted to minutes.
+Only one of `period`, `cron`, `every`, `at` can be specified. For daily, weekly, and monthly tasks, use `period` + `time`. Only use `cron` when the user explicitly provides a Cron expression. `every` supports human-friendly duration formats, internally converted to minutes.
 
 Schedule type mapping:
-- `cron` → `schedule_type: 'cron'`
-- `every` → `schedule_type: 'interval'` (value in minutes)
-- `at` → `schedule_type: 'once'` (value as ISO timestamp)
+- `period: daily` + `time` → `trigger: { kind: 'period', period: 'daily', time }`
+- `period: weekly` + `time` + `weekday` → `trigger: { kind: 'period', period: 'weekly', time, weekday }`
+- `period: monthly` + `time` + `month_day` → `trigger: { kind: 'period', period: 'monthly', time, monthDay }`
+- `cron` → `trigger: { kind: 'cron', expr }`
+- `every` → `trigger: { kind: 'interval', ms }`
+- `at` → `trigger: { kind: 'once', at }`
 
 Session mode mapping:
 - `reuse` → `context_mode: 'session'`

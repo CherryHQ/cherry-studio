@@ -17,15 +17,15 @@ interface IntervalEntry {
 /**
  * General-purpose stateless scheduler. Knows about "when" to fire a callback,
  * nothing about what the callback does. JobManager is its primary consumer but
- * any business module can use it directly for simple cron/interval/once needs.
+ * any business module can use it directly for cron/period/interval/once needs.
  *
  * See `docs/references/job-and-scheduler/scheduler-usage.md` for the decision
  * tree on when to use this vs `BaseService.registerInterval` vs raw setInterval.
  *
  * Internals:
- *   - `cron` Triggers are backed by croner instances (pause/resume, timezone
- *     via Intl API, .trigger() for manual fire, `protect: true` blocks
- *     overlapping fires when async callbacks run long).
+ *   - `cron` and `period` Triggers are backed by croner instances
+ *     (pause/resume, timezone via Intl API, .trigger() for manual fire,
+ *     `protect: true` blocks overlapping fires when async callbacks run long).
  *   - `once` Triggers use a single setTimeout that self-removes from the map
  *     before invoking the callback (re-entrant-safe).
  *   - `interval` Triggers use a chained setTimeout — handles slow callbacks
@@ -58,7 +58,7 @@ export class SchedulerService extends BaseService {
    * stopped first).
    *
    * @param id - Unique identifier for this schedule; reused for `pause` / `resume` / `unregister` / `triggerNow`
-   * @param trigger - Cron expression, repeating interval, or one-shot delay
+   * @param trigger - Cron expression, calendar period, repeating interval, or one-shot delay
    * @param callback - Function invoked on each fire; async callbacks are awaited (cron uses `protect: true` to block overlap)
    * @returns Disposable that unregisters when disposed; the service also auto-cleans on `onStop`
    */
@@ -67,6 +67,8 @@ export class SchedulerService extends BaseService {
 
     if (trigger.kind === 'cron') {
       this.scheduleCron(id, trigger, callback)
+    } else if (trigger.kind === 'period') {
+      this.schedulePeriod(id, trigger, callback)
     } else if (trigger.kind === 'once') {
       this.scheduleOnce(id, trigger.at, callback)
     } else {
@@ -144,18 +146,18 @@ export class SchedulerService extends BaseService {
   }
 
   /**
-   * Fire a cron schedule immediately as an extra one-shot — does not affect
+   * Fire a cron/period schedule immediately as an extra one-shot — does not affect
    * the natural fire calendar. Awaits croner's `.trigger()` so the caller
    * observes the callback completing. Not supported for `interval` / `once`
    * schedules (they have no croner backing).
    *
    * @param id - Schedule identifier passed to `registerSchedule`
-   * @returns `true` if a cron schedule was triggered; `false` if `id` is unknown or not a cron
+   * @returns `true` if a cron/period schedule was triggered; `false` if `id` is unknown or not backed by croner
    */
   async triggerNow(id: string): Promise<boolean> {
     const cron = this.cronJobs.get(id)
     if (!cron) {
-      logger.warn('triggerNow only supported for cron schedules', { id })
+      logger.warn('triggerNow only supported for cron/period schedules', { id })
       return false
     }
     await cron.trigger()
@@ -163,10 +165,10 @@ export class SchedulerService extends BaseService {
   }
 
   /**
-   * Next scheduled fire time for a cron schedule.
+   * Next scheduled fire time for a cron/period schedule.
    *
    * @param id - Schedule identifier passed to `registerSchedule`
-   * @returns The next fire `Date`, or `null` for unknown id or non-cron triggers
+   * @returns The next fire `Date`, or `null` for unknown id or non-croner triggers
    */
   getNextRun(id: string): Date | null {
     const cron = this.cronJobs.get(id)
@@ -185,17 +187,37 @@ export class SchedulerService extends BaseService {
   // ---------------- Private ----------------
 
   private scheduleCron(id: string, trigger: Extract<Trigger, { kind: 'cron' }>, callback: ScheduleCallback): void {
+    this.scheduleCronExpression(id, trigger.expr, trigger, callback)
+  }
+
+  private schedulePeriod(id: string, trigger: Extract<Trigger, { kind: 'period' }>, callback: ScheduleCallback): void {
+    this.scheduleCronExpression(id, this.periodTriggerToCronExpression(trigger), trigger, callback)
+  }
+
+  private scheduleCronExpression(
+    id: string,
+    expr: string,
+    options: { limit?: number; timezone?: string },
+    callback: ScheduleCallback
+  ): void {
     const job = new Cron(
-      trigger.expr,
+      expr,
       {
         protect: true,
-        maxRuns: trigger.limit,
-        timezone: trigger.timezone,
+        maxRuns: options.limit,
+        timezone: options.timezone,
         catch: (err) => logger.error('cron callback error', { id, error: err })
       },
       callback
     )
     this.cronJobs.set(id, job)
+  }
+
+  private periodTriggerToCronExpression(trigger: Extract<Trigger, { kind: 'period' }>): string {
+    const [hour, minute] = trigger.time.split(':')
+    if (trigger.period === 'daily') return `${minute} ${hour} * * *`
+    if (trigger.period === 'weekly') return `${minute} ${hour} * * ${trigger.weekday}`
+    return `${minute} ${hour} ${trigger.monthDay} * *`
   }
 
   private scheduleOnce(id: string, atMs: number, callback: ScheduleCallback): void {

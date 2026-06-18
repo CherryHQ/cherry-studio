@@ -40,8 +40,10 @@ export const JobErrorSchema = z.strictObject({
 export type JobError = z.infer<typeof JobErrorSchema>
 
 // ============================================================================
-// Trigger (discriminated union: cron / interval / once)
+// Trigger (union: cron / period / interval / once)
 // ============================================================================
+
+const TimeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'time must use HH:mm format')
 
 export const CronTriggerSchema = z.strictObject({
   kind: z.literal('cron'),
@@ -50,6 +52,31 @@ export const CronTriggerSchema = z.strictObject({
   /** Stop after N firings (croner maxRuns). For trial/test windows. */
   limit: z.number().int().min(1).optional()
 })
+
+const PeriodTriggerBaseSchema = {
+  kind: z.literal('period'),
+  time: TimeOfDaySchema,
+  timezone: z.string().optional(),
+  /** Stop after N firings (croner maxRuns). For trial/test windows. */
+  limit: z.number().int().min(1).optional()
+} as const
+
+export const PeriodTriggerSchema = z.discriminatedUnion('period', [
+  z.strictObject({
+    ...PeriodTriggerBaseSchema,
+    period: z.literal('daily')
+  }),
+  z.strictObject({
+    ...PeriodTriggerBaseSchema,
+    period: z.literal('weekly'),
+    weekday: z.number().int().min(0).max(6)
+  }),
+  z.strictObject({
+    ...PeriodTriggerBaseSchema,
+    period: z.literal('monthly'),
+    monthDay: z.number().int().min(1).max(31)
+  })
+])
 
 export const IntervalTriggerSchema = z.strictObject({
   kind: z.literal('interval'),
@@ -63,7 +90,7 @@ export const OnceTriggerSchema = z.strictObject({
   at: z.number().int().min(0)
 })
 
-export const TriggerSchema = z.discriminatedUnion('kind', [CronTriggerSchema, IntervalTriggerSchema, OnceTriggerSchema])
+export const TriggerSchema = z.union([CronTriggerSchema, PeriodTriggerSchema, IntervalTriggerSchema, OnceTriggerSchema])
 export type Trigger = z.infer<typeof TriggerSchema>
 
 // ============================================================================

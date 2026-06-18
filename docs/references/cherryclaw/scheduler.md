@@ -96,14 +96,14 @@ Error: error message
 
 Notifications are sent fire-and-forget, not blocking the scheduling loop.
 
-## Manual Triggering
+## Test Runs
 
-Besides automatic scheduling, each task can be manually triggered via API or UI:
+Besides automatic scheduling, each task supports a test run via API or UI. A test run executes the task without consuming or rescheduling its trigger:
 
 - API: `POST /v1/agents/:agentId/tasks/:taskId/run`
-- UI: "Run" button in the task settings list
+- UI: "Test Run" action in the task settings list
 
-`runTaskNow()` validates the task exists and isn't already running (returns 409 for duplicates), then triggers execution in the background.
+`runTaskNow()` validates the task exists and isn't already running (returns 409 for duplicates), then enqueues a background Test Run from the persisted task template.
 
 ## Backward Compatibility
 

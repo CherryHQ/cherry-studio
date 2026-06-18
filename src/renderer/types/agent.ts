@@ -68,7 +68,7 @@ export { type AgentConfiguration, AgentConfigurationSchema }
 // Re-exports from @shared/data/api/schemas/agents: ScheduledTaskEntity, TaskRunLogEntity,
 // CreateTaskRequest (=CreateTaskDto), UpdateTaskRequest (=UpdateTaskDto).
 // The v1-era TaskScheduleType / TaskStatus enums no longer exist as standalone atoms —
-// task.trigger is now a discriminated union (cron / interval / once), and status is derived
+// task.trigger is now a Trigger union (cron / period / interval / once), and status is derived
 // on the read side from `enabled + trigger + nextRun`.
 export { ScheduledTaskEntitySchema, TaskRunLogEntitySchema }
 export type { ScheduledTaskEntity, TaskRunLogEntity }

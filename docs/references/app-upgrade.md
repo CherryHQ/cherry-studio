@@ -44,7 +44,7 @@ The `x-files/app-upgrade-config/app-upgrade-config.json` file is synchronized by
    - After updating the relevant channel entry, the script rewrites the config with semver-sort order and a new `lastUpdated` timestamp.
 5. **Detect changes + create PR** – if `cs/app-upgrade-config.json` changed, the workflow opens a PR `chore/update-app-upgrade-config/<safe_tag>` against `x-files/app-upgrade-config` with a commit message `🤖 chore: sync app-upgrade-config for <tag>`. Otherwise it logs that no update is required.
 
-### Manual Trigger Guide
+### Manual Dispatch Guide
 
 1. Open the Cherry Studio repository on GitHub → **Actions** tab → select **Update App Upgrade Config**.
 2. Click **Run workflow**, choose the default branch (usually `main`), and fill in the `tag` input (e.g., `v2.1.0`).  

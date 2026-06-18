@@ -4,7 +4,7 @@ Two independent main-process lifecycle services:
 
 | Service | Role | Persistence | Direct consumer |
 |---|---|---|---|
-| **SchedulerService** | "When to fire a callback" — cron / interval / once. Stateless. | None | JobManager + any module needing simple time scheduling |
+| **SchedulerService** | "When to fire a callback" — cron / period / interval / once. Stateless. | None | JobManager + any module needing simple time scheduling |
 | **JobManager** | "Job lifecycle" — registry, persistence, 6-state machine, dispatch, recovery | `jobTable` + `jobScheduleTable` | All background work |
 
 **Layering rule**: SchedulerService is unaware of Jobs. JobManager uses SchedulerService to arm schedules. Business modules pick one based on need:

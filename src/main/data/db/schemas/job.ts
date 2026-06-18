@@ -9,7 +9,7 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
  * Persistent schedule registry for recurring/once jobs.
  *
  * Each row maps a logical `type` (+ optional `name` for multi-instance types)
- * to a `Trigger` (cron / interval / once) and a `jobInputTemplate` that becomes
+ * to a `Trigger` (cron / period / interval / once) and a `jobInputTemplate` that becomes
  * the `input` of every job spawned by this schedule. JobManager.registerJobSchedule
  * owns the lifecycle; SchedulerService receives a `() => jobManager.enqueue(...)`
  * callback and does not look at this table.

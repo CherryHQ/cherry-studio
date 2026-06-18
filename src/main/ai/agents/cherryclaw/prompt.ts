@@ -68,13 +68,14 @@ You have exclusive access to these tools for interacting with CherryStudio's aut
 
 | Tool | Purpose | When to use |
 |---|---|---|
-| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`period\` + \`time\` for daily/weekly/monthly jobs and \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
 | \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
 - These are your primary interface to CherryStudio's autonomous features. Do not attempt workarounds or alternative approaches.
 - When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
+- For daily, weekly, or monthly schedules, use \`period\` + \`time\`; include \`weekday\` for weekly and \`month_day\` for monthly. Only use \`cron\` when the user explicitly provides a Cron expression.
 - When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
 - When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
 - Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.`

@@ -27,9 +27,9 @@ export interface CatchUpAction {
  * iteration and the actual side-effect dispatch.
  *
  * "Overdue" depends on trigger kind:
- *   - cron: `schedule.nextRun <= now` (Scheduler / JobManager keep this updated)
+ *   - cron/period: `schedule.nextRun <= now` (Scheduler / JobManager keep this updated)
  *   - interval: `(lastRun ?? createdAt) + ms <= now` — Scheduler does not
- *     compute a nextRun for non-cron triggers, so the catch-up branch falls
+ *     compute a nextRun for interval triggers, so the catch-up branch falls
  *     back to lastRun + interval. Without this, an interval schedule with
  *     `after-startup` would never enqueue a make-up job.
  *   - once: never overdue here. A `once` trigger that already fired
@@ -77,13 +77,13 @@ export function computeCatchUpAction(schedule: JobScheduleSnapshot, handler: Job
  */
 function isScheduleOverdue(schedule: JobScheduleSnapshot, lastRunMs: number | null, nowMs: number): boolean {
   const trigger = schedule.trigger
-  if (trigger.kind === 'cron') {
+  if (trigger.kind === 'cron' || trigger.kind === 'period') {
     const nextRunMs = schedule.nextRun ? Date.parse(schedule.nextRun) : null
     return nextRunMs !== null && nextRunMs <= nowMs
   }
   if (trigger.kind === 'interval') {
     // Anchor: lastRun (if ever fired) else createdAt. Scheduler does not write
-    // nextRun for non-cron triggers, so the anchor + ms math is the authority.
+    // nextRun for interval triggers, so the anchor + ms math is the authority.
     const anchorMs = lastRunMs ?? Date.parse(schedule.createdAt)
     return anchorMs + trigger.ms <= nowMs
   }

@@ -1,6 +1,6 @@
 # Scheduler
 
-General-purpose stateless time scheduler: cron expressions, intervals, one-shot delays. Knows "when to fire a callback" — nothing about what the callback does.
+General-purpose stateless time scheduler: cron expressions, period triggers, intervals, one-shot delays. Knows "when to fire a callback" — nothing about what the callback does.
 
 > **Full documentation** is at [docs/references/job-and-scheduler/](../../../../docs/references/job-and-scheduler/).
 > This file is a quick-reference pointer.
@@ -32,6 +32,9 @@ const disp = scheduler.registerSchedule(
   { kind: 'cron', expr: '0 3 * * *', timezone: 'Asia/Shanghai' },
   () => runCleanup()
 )
+
+// Period — user-facing calendar cadence, also backed by croner
+scheduler.registerSchedule('my.weekly', { kind: 'period', period: 'weekly', weekday: 1, time: '09:00' }, () => fire())
 
 // Interval — chained setTimeout (handles slow callbacks without overlap)
 scheduler.registerSchedule('my.poll', { kind: 'interval', ms: 30_000 }, async () => poll())

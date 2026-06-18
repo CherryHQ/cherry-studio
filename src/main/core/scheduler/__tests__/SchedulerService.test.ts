@@ -1,6 +1,6 @@
 /**
- * SchedulerService unit tests — covers cron / interval / once register,
- * pause/resume (cron-only), triggerNow, getNextRun, unregister idempotency,
+ * SchedulerService unit tests — covers cron / period / interval / once register,
+ * pause/resume (croner-backed), triggerNow, getNextRun, unregister idempotency,
  * has, and the re-entrancy guards in `scheduleInterval`/`scheduleOnce`.
  *
  * Uses real croner for cron tests with a far-future expression so callbacks
@@ -123,7 +123,7 @@ describe('once trigger', () => {
 })
 
 describe('cron trigger', () => {
-  it('triggerNow returns true for cron and false for non-cron', async () => {
+  it('triggerNow returns true for cron/period and false for interval', async () => {
     let fired = 0
     scheduler.registerSchedule('c1', { kind: 'cron', expr: '0 0 1 1 *' }, () => {
       fired++
@@ -174,9 +174,22 @@ describe('cron trigger', () => {
     expect(next).toBeInstanceOf(Date)
   })
 
-  it('getNextRun returns null for non-cron and unknown ids', () => {
+  it('getNextRun returns null for interval and unknown ids', () => {
     scheduler.registerSchedule('i-only', { kind: 'interval', ms: 60_000 }, () => undefined)
     expect(scheduler.getNextRun('i-only')).toBeNull()
     expect(scheduler.getNextRun('nope')).toBeNull()
+  })
+})
+
+describe('period trigger', () => {
+  it('uses Croner semantics for triggerNow and nextRun', async () => {
+    let fired = 0
+    scheduler.registerSchedule('p1', { kind: 'period', period: 'daily', time: '09:00' }, () => {
+      fired++
+    })
+
+    expect(scheduler.getNextRun('p1')).toBeInstanceOf(Date)
+    expect(await scheduler.triggerNow('p1')).toBe(true)
+    expect(fired).toBe(1)
   })
 })
