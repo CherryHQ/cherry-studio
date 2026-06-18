@@ -278,10 +278,12 @@ const CodeCliPage: FC = () => {
   }
 
   const validateLaunch = (): { isValid: boolean; message?: string } => {
-    if (!canLaunch || !isBunInstalled) {
+    // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
+    const needsBun = selectedCliTool !== codeCLI.qoderCli
+    if (!canLaunch || (needsBun && !isBunInstalled)) {
       return {
         isValid: false,
-        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
+        message: needsBun && !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
       }
     }
 
@@ -650,7 +652,7 @@ const CodeCliPage: FC = () => {
                   variant="emphasis"
                   onClick={handleLaunch}
                   loading={isLaunching}
-                  disabled={!canLaunch || !isBunInstalled || isLaunching}>
+                  disabled={!canLaunch || (selectedCliTool !== codeCLI.qoderCli && !isBunInstalled) || isLaunching}>
                   {launchSuccess ? (
                     <>
                       <Check size={14} />
