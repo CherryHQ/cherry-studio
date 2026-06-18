@@ -347,6 +347,107 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  describe('applyPolicyUpdate — permission mode', () => {
+    function makeSnapshot(initialMode: string | undefined) {
+      let mode = initialMode
+      return {
+        getPermissionMode: vi.fn(() => mode),
+        setPermissionMode: vi.fn((next: string | undefined) => {
+          mode = next
+        })
+      }
+    }
+
+    it('awaits the SDK call before mutating the snapshot', async () => {
+      const snapshot = makeSnapshot('default')
+      mocks.buildRequest.mockResolvedValueOnce({
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      const queryQueue = createAsyncQueue<any>()
+      // Assert the snapshot is untouched at the moment the SDK call runs — the driver must mutate it
+      // only AFTER awaiting the SDK round-trip.
+      const setPermissionMode = vi.fn().mockImplementation(async () => {
+        expect(snapshot.setPermissionMode).not.toHaveBeenCalled()
+      })
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet' as any
+      })
+
+      const ok = await connection.applyPolicyUpdate?.({ type: 'permission-mode', permissionMode: 'acceptEdits' })
+
+      expect(ok).toBe(true)
+      expect(setPermissionMode).toHaveBeenCalledWith('acceptEdits')
+      expect(snapshot.setPermissionMode).toHaveBeenCalledWith('acceptEdits')
+
+      void connection.close()
+    })
+
+    it('does NOT mutate the snapshot when the SDK setPermissionMode rejects', async () => {
+      const snapshot = makeSnapshot('default')
+      mocks.buildRequest.mockResolvedValueOnce({
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      const queryQueue = createAsyncQueue<any>()
+      const setPermissionMode = vi.fn().mockRejectedValue(new Error('SDK refused'))
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet' as any
+      })
+
+      await expect(
+        connection.applyPolicyUpdate?.({ type: 'permission-mode', permissionMode: 'acceptEdits' })
+      ).rejects.toThrow('SDK refused')
+      // Fail-closed: the snapshot (which gates canUseTool) keeps the old mode the running query
+      // never moved off of — it must NOT be advanced to the unconfirmed tighten/loosen.
+      expect(snapshot.setPermissionMode).not.toHaveBeenCalled()
+
+      void connection.close()
+    })
+
+    it('short-circuits an unchanged permission mode without an SDK round-trip', async () => {
+      const snapshot = makeSnapshot('acceptEdits')
+      mocks.buildRequest.mockResolvedValueOnce({
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      const queryQueue = createAsyncQueue<any>()
+      const setPermissionMode = vi.fn().mockResolvedValue(undefined)
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet' as any
+      })
+
+      const ok = await connection.applyPolicyUpdate?.({ type: 'permission-mode', permissionMode: 'acceptEdits' })
+
+      expect(ok).toBe(true)
+      expect(setPermissionMode).not.toHaveBeenCalled()
+      expect(snapshot.setPermissionMode).not.toHaveBeenCalled()
+
+      void connection.close()
+    })
+  })
+
   it('salvages a truncated SDK stream into a completed turn instead of erroring', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -567,99 +668,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen.some((e) => e?.type === 'steer-boundary')).toBe(false)
     expect(seen.some((e) => e?.type === 'turn-complete')).toBe(true)
 
-    void connection.close()
-  })
-
-  it('updates the permission snapshot only after the SDK permission mode update succeeds', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
-    const toolPolicySnapshot = { getPermissionMode: vi.fn(), setPermissionMode: vi.fn(), update: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValue(query)
-    mocks.buildRequest.mockResolvedValue({
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: { toolPolicySnapshot },
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-
-    await expect(
-      connection.applyPolicyUpdate?.({ type: 'permission-mode', permissionMode: 'acceptEdits' })
-    ).resolves.toBe(true)
-
-    expect(query.setPermissionMode).toHaveBeenCalledWith('acceptEdits')
-    expect(toolPolicySnapshot.setPermissionMode).toHaveBeenCalledWith('acceptEdits')
-    expect(query.setPermissionMode.mock.invocationCallOrder[0]).toBeLessThan(
-      toolPolicySnapshot.setPermissionMode.mock.invocationCallOrder[0]
-    )
-    void connection.close()
-  })
-
-  it('skips the SDK permission mode round-trip when the mode is unchanged', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
-    const toolPolicySnapshot = {
-      getPermissionMode: vi.fn(() => 'acceptEdits'),
-      setPermissionMode: vi.fn(),
-      update: vi.fn()
-    }
-    mocks.createClaudeQuery.mockReturnValue(query)
-    mocks.buildRequest.mockResolvedValue({
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: { toolPolicySnapshot },
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-
-    await expect(
-      connection.applyPolicyUpdate?.({ type: 'permission-mode', permissionMode: 'acceptEdits' })
-    ).resolves.toBe(true)
-
-    expect(query.setPermissionMode).not.toHaveBeenCalled()
-    expect(toolPolicySnapshot.setPermissionMode).not.toHaveBeenCalled()
-    void connection.close()
-  })
-
-  it('does not mutate the permission snapshot when the SDK permission mode update fails', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const failure = new Error('setPermissionMode failed')
-    const query = {
-      ...queryQueue.iterable,
-      interrupt: vi.fn(),
-      close: vi.fn(),
-      setPermissionMode: vi.fn().mockRejectedValue(failure)
-    }
-    const toolPolicySnapshot = { getPermissionMode: vi.fn(), setPermissionMode: vi.fn(), update: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValue(query)
-    mocks.buildRequest.mockResolvedValue({
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: { toolPolicySnapshot },
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-
-    await expect(
-      connection.applyPolicyUpdate?.({ type: 'permission-mode', permissionMode: 'acceptEdits' })
-    ).rejects.toBe(failure)
-
-    expect(toolPolicySnapshot.setPermissionMode).not.toHaveBeenCalled()
     void connection.close()
   })
 

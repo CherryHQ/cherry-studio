@@ -20,7 +20,7 @@
         "website": {
           "official": "https://open.cherryin.ai",
           "apiKey": "https://open.cherryin.ai/console/token",
-          "docs": "https://open.cherryin.ai",
+          "docs": "https://docs.cherryin.ai/zh/docs",
           "models": "https://open.cherryin.ai/pricing"
         }
       }
@@ -43,7 +43,7 @@
       "metadata": {
         "website": {
           "official": "https://www.siliconflow.cn",
-          "apiKey": "https://cloud.siliconflow.cn/",
+          "apiKey": "https://cloud.siliconflow.cn/me/account/ak",
           "docs": "https://docs.siliconflow.cn/",
           "models": "https://cloud.siliconflow.cn/models"
         }
@@ -848,6 +848,9 @@
       "name": "Groq",
       "description": "Groq - AI model provider",
       "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "serviceTier": true
+      },
       "endpointConfigs": {
         "openai-chat-completions": {
           "baseUrl": "https://api.groq.com/openai",

@@ -395,9 +395,6 @@
           "failed": "会话排序失败"
         }
       },
-      "tool": {
-        "disabled": "{{toolName}} 工具已被此智能体禁用。"
-      },
       "update": {
         "error": {
           "failed": "更新会话失败"
@@ -1656,10 +1653,10 @@
       "claude_code": "Anthropic 官方 CLI 编程助手",
       "gemini_cli": "Google Gemini 命令行助手",
       "github_copilot_cli": "GitHub Copilot 命令行版本",
-      "iflow_cli": "iFlow 推出的多模型 CLI 助手",
       "kimi_cli": "Moonshot Kimi 命令行助手",
       "openai_codex": "OpenAI 官方代码生成 CLI",
       "opencode": "开源社区的多模型代码 Agent",
+      "qoder_cli": "阿里 Qoder 的智能体命令行编程工具",
       "qwen_code": "阿里通义出品的开源 CLI 编程工具"
     },
     "update_options": "更新选项",
@@ -2158,8 +2155,9 @@
         },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录或链接。",
-          "empty_title": "暂未接入笔记数据源"
+          "empty_description": "请先在「笔记」功能中创建笔记，再回到这里选择。",
+          "empty_title": "未找到笔记",
+          "loading": "正在加载笔记…"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2174,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2185,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
@@ -2243,9 +2241,7 @@
         "select_row": "选择行"
       },
       "toolbar": {
-        "add": "添加数据源",
-        "no_search_results": "未找到匹配的数据源",
-        "search_placeholder": "搜索数据源"
+        "add": "添加数据源"
       }
     },
     "dimensions_auto_set": "自动设置嵌入维度",
@@ -2255,6 +2251,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知识库删除失败",
@@ -6058,6 +6055,7 @@
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
       "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
+      "hide_app": "隐藏 {{name}}",
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
@@ -6069,6 +6067,7 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "show_app": "显示 {{name}}",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",
       "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
@@ -6744,6 +6743,7 @@
       },
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
+      "close_tab": "关闭标签页",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "复制上一条消息",
       "edit_last_user_message": "编辑最后一条用户消息",
@@ -6751,8 +6751,11 @@
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
+      "move_tab_to_first": "将标签页移到最左",
       "new_topic": "新建话题",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
+      "open_tab_in_new_window": "在新窗口中打开标签页",
+      "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
@@ -6843,10 +6846,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文档处理"
+            "title": "文档处理",
+            "tooltip": "用于知识库解析文档"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用于识别图片内文字内容"
           }
         },
         "fields": {

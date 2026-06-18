@@ -25,6 +25,7 @@ import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
+import { getDataService, registerDataService } from './dataServiceRegistry'
 import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -153,10 +154,11 @@ export class TopicService {
 
   async create(dto: CreateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
+    const messageService = getDataService('MessageService')
     const groupId = dto.groupId ?? null
 
-    const row = (await dbService.withWriteTx((tx) => {
-      return insertWithOrderKey(
+    const row = await dbService.withWriteTx(async (tx) => {
+      const topicRow = (await insertWithOrderKey(
         tx,
         topicTable,
         {
@@ -169,8 +171,10 @@ export class TopicService {
           pkColumn: topicTable.id,
           scope: topicScopePredicate(groupId)
         }
-      )
-    })) as TopicRow
+      )) as TopicRow
+      await messageService.createRootMessageTx(tx, topicRow.id)
+      return topicRow
+    })
 
     logger.info('Created empty topic', { id: row.id })
 
@@ -179,8 +183,7 @@ export class TopicService {
 
   async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
-    // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
-    const { messageService } = await import('./MessageService')
+    const messageService = getDataService('MessageService')
 
     const copiedTopic = await dbService.withWriteTx(async (tx) => {
       const [sourceTopic] = await tx
@@ -191,9 +194,6 @@ export class TopicService {
       if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
 
       const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
-      if (sourcePathRows[0]?.parentId !== null) {
-        throw DataApiErrorFactory.invalidOperation('duplicate topic', 'Source path does not start at root message')
-      }
 
       const newTopicRow = (await insertWithOrderKey(
         tx,
@@ -212,6 +212,10 @@ export class TopicService {
           scope: topicScopePredicate(sourceTopic.groupId ?? null)
         }
       )) as TopicRow
+
+      // New topic is a creation path → create its virtual root before copying the path
+      // (copyPathRowsTx reparents the copied head onto it).
+      await messageService.createRootMessageTx(tx, newTopicRow.id)
 
       const { copiedMessageIds, copiedActiveNodeId } = await messageService.copyPathRowsTx(tx, sourcePathRows, {
         topicId: newTopicRow.id
@@ -313,7 +317,7 @@ export class TopicService {
     }
     if (deletedIds.length === 0) return []
 
-    const { messageService } = await import('./MessageService')
+    const messageService = getDataService('MessageService')
     await messageService.purgeByTopicIdsTx(tx, deletedIds)
     await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
@@ -349,12 +353,20 @@ export class TopicService {
       if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
 
       const [message] = await tx
-        .select({ topicId: messageTable.topicId })
+        .select({ topicId: messageTable.topicId, role: messageTable.role })
         .from(messageTable)
         .where(and(eq(messageTable.id, nodeId), isNull(messageTable.deletedAt)))
         .limit(1)
       if (!message || message.topicId !== topicId) {
         throw DataApiErrorFactory.notFound('Message', nodeId)
+      }
+      // The virtual root is structural and never the active node — pointing activeNodeId
+      // at it would make the branch/tree reads resolve to an empty conversation.
+      if (message.role === 'root') {
+        throw DataApiErrorFactory.invalidOperation(
+          'set active node to the virtual root',
+          'the virtual root cannot be the active node'
+        )
       }
     }
 
@@ -546,6 +558,34 @@ export class TopicService {
       })
     })
   }
+
+  async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const [assistant] = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+        .limit(1)
+      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+
+      const rows = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+
+      return await this.deleteManyByIdsTx(
+        tx,
+        rows.map((row) => row.id)
+      )
+    })
+
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
 }
 
 export const topicService = new TopicService()
+
+registerDataService('TopicService', topicService)

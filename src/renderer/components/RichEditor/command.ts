@@ -594,7 +594,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
           props,
           editor: props.editor
         })
-        const element = component.element as HTMLElement
+        const element = component.element
         // element.style.position = 'absolute'
         element.style.zIndex = '1001'
 
@@ -622,7 +622,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
         // Update position when items change (might affect size)
         if (component.element) {
           setTimeout(() => {
-            updatePosition(props.editor, component.element as HTMLElement)
+            updatePosition(props.editor, component.element)
           }, 0)
         }
       },
@@ -660,7 +660,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
 
       onExit: () => {
         if (cleanup) cleanup()
-        const element = component.element as HTMLElement
+        const element = component.element
         element.remove()
         component.destroy()
       }

@@ -10,6 +10,19 @@ const mockUseKnowledgePage = vi.fn()
 const mockUseAddKnowledgeItems = vi.fn()
 const mockSelectFolder = vi.fn()
 const mockGetPathForFile = vi.fn()
+const mockReadExternal = vi.fn()
+const mockUseDirectoryTree = vi.fn()
+const mockProjectNotesTree = vi.fn()
+
+const createNoteNode = (name: string, externalPath: string) => ({
+  id: externalPath,
+  name,
+  type: 'file' as const,
+  treePath: `/${name}`,
+  externalPath,
+  createdAt: '',
+  updatedAt: ''
+})
 
 const setMockAcceptedFiles = (files: File[]) => {
   mockAcceptedFiles = files
@@ -24,6 +37,22 @@ vi.mock('../../KnowledgePageProvider', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
+}))
+
+// The note picker's real data layer (useNotesSettings → NotesService → @renderer/utils)
+// pulls in the i18n bootstrap at module load, which throws under the react-i18next mock.
+// Stub the three note modules so the dialog graph stays bootstrap-free and the note list
+// is fully controllable from each test.
+vi.mock('@renderer/hooks/useNotesSettings', () => ({
+  useNotesSettings: () => ({ notesPath: '/notes' })
+}))
+
+vi.mock('@renderer/hooks/useDirectoryTree', () => ({
+  useDirectoryTree: () => mockUseDirectoryTree()
+}))
+
+vi.mock('@renderer/services/NotesService', () => ({
+  projectNotesTree: () => mockProjectNotesTree()
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -69,6 +98,22 @@ vi.mock('@cherrystudio/ui', async () => {
       <div {...props}>{children}</div>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Checkbox: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+      [key: string]: unknown
+    }) => (
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+        {...props}
+      />
+    ),
     Dialog: ({
       children,
       open,
@@ -138,42 +183,47 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { count?: number; defaultValue?: string; file_types?: string }) => {
-      const translations = {
-        'common.add': '添加',
-        'common.cancel': '取消',
-        'common.close': '关闭',
-        'common.delete': '删除',
-        'knowledge.drag_file': '拖拽文件到这里',
-        'knowledge.data_source.add_dialog.directory.description': '将递归导入文件夹中的支持文件',
-        'knowledge.data_source.add_dialog.directory.title': '点击选择文件夹',
-        'knowledge.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
-        'knowledge.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
-        'knowledge.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
-        'knowledge.data_source.add_dialog.note.empty_description':
-          '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录或链接。',
-        'knowledge.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
-        'knowledge.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
-        'knowledge.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
-        'knowledge.data_source.add_dialog.sources.directory': '目录',
-        'knowledge.data_source.add_dialog.sources.file': '文件',
-        'knowledge.data_source.add_dialog.sources.note': '笔记',
-        'knowledge.data_source.add_dialog.sources.url': '链接',
-        'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
-        'knowledge.data_source.add_dialog.submit.success': '数据源已添加到知识库',
-        'knowledge.data_source.add_dialog.title': '添加数据源',
-        'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
-        'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
-        'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
-        'knowledge.file_hint': `支持 ${options?.file_types} 格式`
-      } satisfies Record<string, string>
+vi.mock('react-i18next', () => {
+  // A single stable `t` reference (like the real react-i18next), so effects that depend
+  // on `t` are not re-triggered every render.
+  const t = (key: string, options?: { count?: number; defaultValue?: string; file_types?: string }) => {
+    const translations = {
+      'common.add': '添加',
+      'common.cancel': '取消',
+      'common.close': '关闭',
+      'common.delete': '删除',
+      'knowledge.drag_file': '拖拽文件到这里',
+      'knowledge.data_source.add_dialog.directory.description': '将递归导入文件夹中的支持文件',
+      'knowledge.data_source.add_dialog.directory.title': '点击选择文件夹',
+      'knowledge.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
+      'knowledge.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
+      'knowledge.data_source.add_dialog.footer.selected_notes': `已选 ${options?.count ?? 0} 个笔记`,
+      'knowledge.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
+      'knowledge.data_source.add_dialog.note.empty_description': '请先在「笔记」功能中创建笔记，再回到这里选择。',
+      'knowledge.data_source.add_dialog.note.empty_title': '未找到笔记',
+      'knowledge.data_source.add_dialog.note.loading': '正在加载笔记…',
+      'notes.tree_load_failed': '加载笔记目录失败',
+      'knowledge.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
+      'knowledge.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
+      'knowledge.data_source.add_dialog.sources.directory': '目录',
+      'knowledge.data_source.add_dialog.sources.file': '文件',
+      'knowledge.data_source.add_dialog.sources.note': '笔记',
+      'knowledge.data_source.add_dialog.sources.url': '链接',
+      'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
+      'knowledge.data_source.add_dialog.submit.success': '数据源已添加到知识库',
+      'knowledge.data_source.add_dialog.title': '添加数据源',
+      'knowledge.data_source.add_dialog.unsupported_files_skipped': `已跳过 ${options?.count ?? 0} 个不支持的文件`,
+      'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
+      'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
+      'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
+      'knowledge.file_hint': `支持 ${options?.file_types} 格式`
+    } satisfies Record<string, string>
 
-      return translations[key] ?? options?.defaultValue ?? key
-    }
-  })
-}))
+    return translations[key] ?? options?.defaultValue ?? key
+  }
+
+  return { useTranslation: () => ({ t }) }
+})
 
 describe('AddKnowledgeItemDialog', () => {
   beforeEach(() => {
@@ -186,13 +236,16 @@ describe('AddKnowledgeItemDialog', () => {
       error: undefined
     })
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
+    mockUseDirectoryTree.mockReturnValue({ root: {}, isLoading: false, error: null })
+    mockProjectNotesTree.mockReturnValue([])
     ;(window as any).api = {
       file: {
         getPathForFile: mockGetPathForFile,
-        selectFolder: mockSelectFolder
+        selectFolder: mockSelectFolder,
+        readExternal: mockReadExternal
       }
     }
-    ;(window as any).toast = { success: vi.fn(), error: vi.fn() }
+    ;(window as any).toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() }
   })
 
   const setPendingAddSource = (pendingAddSource: 'file' | 'note' | 'directory' | 'url') => {
@@ -233,7 +286,7 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByRole('heading', { name: '添加数据源' })).toBeInTheDocument()
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
     expect(screen.getByText('拖拽文件到这里')).toBeInTheDocument()
-    expect(screen.getByText('支持 PDF, DOCX, MD, XLSX, TXT, CSV, EPUB 格式')).toBeInTheDocument()
+    expect(screen.getByText('支持 PDF, DOCX, DOC, PPTX, XLSX, XLS, MD, TXT, CSV, HTML, EPUB 格式')).toBeInTheDocument()
     expect(screen.getByTestId('file-dropzone').querySelectorAll('img')).toHaveLength(0)
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
@@ -261,22 +314,192 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
   })
 
-  it('renders files passed from the external footer dropzone', () => {
-    setPendingAddFiles([createMockFile('external.pdf', 1024)])
+  it('keeps only supported files selected when files are dropped and warns about the skipped one', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([
+      createMockFile('alpha.pdf', 1024),
+      createMockFile('notes.draftsExport', 1024),
+      createMockFile('beta.exe', 2048)
+    ])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.getByText('notes.draftsExport')).toBeInTheDocument()
+    expect(screen.queryByText('beta.exe')).not.toBeInTheDocument()
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+    expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+  })
+
+  it('appends supported files and warns when a drop mixes in unsupported types', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    // The dropzone has no `accept` filter, so a mixed drop (alpha.pdf + photo.png) delivers every
+    // file here; the supported one must still be added and the skipped one counted.
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024), createMockFile('photo.png', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('photo.png')).not.toBeInTheDocument()
+    expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
+    expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+  })
+
+  it('does not warn when every dropped file is supported', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024), createMockFile('beta.md', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(window.toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('appends newly dropped files instead of overwriting the existing selection', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
+
+    // A second drop of a different file must keep the previously selected file
+    // (regression: it used to overwrite the whole selection).
+    setMockAcceptedFiles([createMockFile('beta.md', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.getByText('beta.md')).toBeInTheDocument()
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+  })
+
+  it('skips files already present in the selection when dropped again without warning about them', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    const duplicate = createMockFile('alpha.pdf', 1024)
+    setMockAcceptedFiles([duplicate])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    setMockAcceptedFiles([duplicate, createMockFile('beta.md', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+    // A re-dropped, already-selected file is deduplicated — not "unsupported" — so it
+    // must never be counted in the skipped-files warning.
+    expect(window.toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('keeps two same-named files from different folders, deduping by path rather than name', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    // Identical name and size — only the on-disk path differs. Keying dedup off
+    // name+size+lastModified used to silently drop the second file; path keying keeps both,
+    // matching the backend, which auto-renames same-named files on disk.
+    const fromFolderA = createMockFile('report.pdf', 1024)
+    const fromFolderB = createMockFile('report.pdf', 1024)
+    mockGetPathForFile.mockImplementation((file: File) =>
+      file === fromFolderA ? '/folderA/report.pdf' : '/folderB/report.pdf'
+    )
+    setMockAcceptedFiles([fromFolderA, fromFolderB])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getAllByText('report.pdf')).toHaveLength(2)
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+    expect(window.toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('renders files passed from the external footer dropzone and warns about skipped ones', () => {
+    setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
 
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
     expect(screen.getByText('external.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('external.exe')).not.toBeInTheDocument()
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+  })
+
+  it('renders the note picker and reflects selection in the footer', () => {
+    setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([
+      createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+      createNoteNode('Ideas', '/notes/Ideas.md')
+    ])
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText('Meeting notes')).toBeInTheDocument()
+    expect(screen.getByText('Ideas')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+
+    expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
   })
 
-  it('keeps note disabled', () => {
+  it('submits note source body through generic hook', async () => {
     setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+    mockReadExternal.mockResolvedValueOnce('# Meeting\n\nbody')
+    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByText('暂未接入笔记数据源')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
+        {
+          type: 'note',
+          data: {
+            source: 'Meeting notes',
+            content: '# Meeting\n\nbody'
+          }
+        }
+      ])
+    })
+    expect(mockReadExternal).toHaveBeenCalledWith('/notes/Meeting notes.md')
+  })
+
+  it('surfaces a note tree load error instead of the empty state', () => {
+    setPendingAddSource('note')
+    mockUseDirectoryTree.mockReturnValue({ root: null, isLoading: false, error: new Error('read failed') })
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText('加载笔记目录失败')).toBeInTheDocument()
+    expect(screen.queryByText('未找到笔记')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+  })
+
+  it('toggles multiple notes and deselects keyed by note path', () => {
+    setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([
+      createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+      createNoteNode('Ideas', '/notes/Ideas.md')
+    ])
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getAllByRole('checkbox')[1])
+    expect(screen.getByText('已选 2 个笔记')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+  })
+
+  it('shows an inline error naming the note when its content cannot be read', async () => {
+    setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+    mockReadExternal.mockRejectedValueOnce(new Error('ENOENT'))
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('添加数据源失败: Meeting notes: ENOENT')
+    expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
   })
 
   it('selects directories through folder picker, deduplicates paths, and removes selections', async () => {
@@ -443,6 +666,9 @@ describe('AddKnowledgeItemDialog', () => {
 
     setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+    // Drop-time dedup now resolves each file's path too; reset so the count below
+    // measures only submit-time path resolution (proving the second click is debounced).
+    mockGetPathForFile.mockClear()
 
     const addButton = screen.getByRole('button', { name: '添加' })
     fireEvent.click(addButton)

@@ -22,6 +22,7 @@ import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
+import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -62,14 +63,16 @@ const StreamOpenRequestSchema = z.intersection(
 )
 
 /**
- * Finalize the turn's root span. Idempotent — subsequent calls no-op because
- * `exec.rootSpan` is cleared.
+ * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
+ * count, translation delegated to the obs module), set status, end. Idempotent — subsequent
+ * calls no-op because `exec.rootSpan` is cleared.
  */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
   const span = exec.rootSpan
   if (!span) return
   exec.rootSpan = undefined
   try {
+    if (exec.finalMessage) applyTurnOutputAttributes(span, exec.finalMessage)
     if (outcome === 'ok') {
       span.setStatus({ code: SpanStatusCode.OK })
     } else if (outcome === 'aborted') {
@@ -202,6 +205,7 @@ export class AiStreamManager extends BaseService {
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
+  private nextStreamTurnSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<string, string[]>()
@@ -397,6 +401,9 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
+      // Surfaced into the topic status snapshot for per-window turn de-dup. Not yet read by any
+      // consumer on any branch — the renderer reader lands in the renderer split (keep it).
+      turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
@@ -659,10 +666,6 @@ export class AiStreamManager extends BaseService {
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.resolveTerminalStatus(stream)
     const topicDone = !isLiveStatus(stream.status)
-    const agentChaining =
-      topicDone &&
-      isAgentSessionTopic(topicId) &&
-      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
 
     // Chain the next chat turn only on a CLEAN topic-done. Keying off the resolved status (not
     // `topicDone`, which is also true for error/aborted/awaiting-approval) makes the decision
@@ -671,13 +674,22 @@ export class AiStreamManager extends BaseService {
     // steer stays queued for the continuation the user's Approve dispatches. Broadcast this exec's
     // done with isTopicDone=false when chaining (the bubble finalises, the topic stays busy), skip the
     // terminal lifecycle, and start the continuation with the carried renderer listeners.
+    // Agent sessions chain their own follow-ups (terminal listener -> markTurnTerminal -> startNextTurn):
+    // when the runtime will continue this topic, keep the stream alive so the next turn reaches the
+    // carried renderer listeners, but let the runtime drive the continuation.
     const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
-    const chaining = agentChaining || chatChaining
+    const agentChaining =
+      topicDone &&
+      !chatChaining &&
+      stream.status === 'done' &&
+      isAgentSessionTopic(topicId) &&
+      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
+    const chaining = chatChaining || agentChaining
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
     if (chatChaining) this.scheduleNextChatTurn(topicId)
-    else if (topicDone && !agentChaining) {
+    else if (topicDone && !chaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)

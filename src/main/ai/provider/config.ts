@@ -7,6 +7,7 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -22,8 +23,6 @@ import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
-
-const CHERRYAI_PROVIDER_ID = 'cherryai'
 
 interface BaseConfig {
   baseURL: string

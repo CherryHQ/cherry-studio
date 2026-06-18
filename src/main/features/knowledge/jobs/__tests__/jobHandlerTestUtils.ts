@@ -14,15 +14,22 @@ const mocks = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
+  probeKnowledgeFileMock: vi.fn(),
+  probeKnowledgeSourcePathMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   knowledgeItemUpdateIndexedRelativePathMock: vi.fn(),
+  knowledgeItemGetItemsByBaseIdMock: vi.fn(),
+  knowledgeItemUpdateSnapshotRelativePathMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
+  fetchKnowledgeWebPageMock: vi.fn(),
+  captureUrlSnapshotFileMock: vi.fn(),
+  captureNoteSnapshotFileMock: vi.fn(),
   rebuildMaterialMock: vi.fn(),
   deleteMaterialMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
@@ -39,15 +46,22 @@ export const {
   getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
+  probeKnowledgeFileMock,
+  probeKnowledgeSourcePathMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
   knowledgeItemUpdateIndexedRelativePathMock,
+  knowledgeItemGetItemsByBaseIdMock,
+  knowledgeItemUpdateSnapshotRelativePathMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
+  fetchKnowledgeWebPageMock,
+  captureUrlSnapshotFileMock,
+  captureNoteSnapshotFileMock,
   rebuildMaterialMock,
   deleteMaterialMock,
   listExistingEmbeddingHashesMock,
@@ -106,9 +120,11 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
+    getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
     deleteItemsByIds: deleteItemsByIdsMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateIndexedRelativePath: knowledgeItemUpdateIndexedRelativePathMock,
+    updateSnapshotRelativePath: knowledgeItemUpdateSnapshotRelativePathMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
@@ -121,6 +137,18 @@ vi.mock('../../utils/sources/prepare', () => ({
   prepareKnowledgeItem: prepareKnowledgeItemMock
 }))
 
+vi.mock('../../utils/sources/url', () => ({
+  fetchKnowledgeWebPage: fetchKnowledgeWebPageMock
+}))
+
+vi.mock('../../utils/sources/urlSnapshot', () => ({
+  captureUrlSnapshotFile: captureUrlSnapshotFileMock
+}))
+
+vi.mock('../../utils/sources/noteSnapshot', () => ({
+  captureNoteSnapshotFile: captureNoteSnapshotFileMock
+}))
+
 vi.mock('../../utils/storage/pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../../utils/storage/pathStorage')
   return {
@@ -128,7 +156,12 @@ vi.mock('../../utils/storage/pathStorage', async () => {
     // Stub the best-effort cleanup the handlers call. Its swallow-on-failure
     // contract is unit-tested directly in pathStorage's own test; here we only
     // need handlers to route cleanup through it and still delete rows.
-    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock
+    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
+    // Stub the on-disk source probes (used by classifyKnowledgeItemSource /
+    // canKnowledgeItemRebuildSource in the reindex source guard) so tests control
+    // rebuildability without touching the real filesystem; default to 'readable' in beforeEach.
+    probeKnowledgeFile: probeKnowledgeFileMock,
+    probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
   }
 })
 
@@ -172,14 +205,36 @@ export function createBase(): KnowledgeBase {
 export function createNoteItem(
   id = 'note-1',
   groupId: string | null = null,
-  status: Exclude<KnowledgeItemOf<'note'>['status'], 'failed'> = 'processing'
+  status: Exclude<KnowledgeItemOf<'note'>['status'], 'failed'> = 'processing',
+  // Default to an already-captured snapshot so the item is a valid indexable
+  // leaf that passes straight through ensureNoteSnapshot; pass undefined (or
+  // override `data`) to exercise the first-index capture path.
+  relativePath: string | undefined = `${id}.md`
 ): KnowledgeItemOf<'note'> {
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'note',
-    data: { source: id, content: `hello ${id}` },
+    data: { source: id, content: `hello ${id}`, ...(relativePath ? { relativePath } : {}) },
+    status,
+    error: null,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+export function createUrlItem(
+  id = 'url-1',
+  relativePath?: string,
+  status: Exclude<KnowledgeItemOf<'url'>['status'], 'failed'> = 'processing'
+): KnowledgeItemOf<'url'> {
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId: null,
+    type: 'url',
+    data: { source: 'https://example.com', url: 'https://example.com', ...(relativePath ? { relativePath } : {}) },
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -292,8 +347,16 @@ beforeEach(() => {
   knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
   knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem())
   knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
+  knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
   knowledgeItemSetSubtreeStatusMock.mockResolvedValue([])
   knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem())
+  fetchKnowledgeWebPageMock.mockResolvedValue('# Example page\n\nbody text')
+  captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
+  captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
+  knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
+    async (id: string, type: 'url' | 'note', relativePath: string) =>
+      type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)
+  )
   loadKnowledgeItemDocumentsMock.mockResolvedValue([
     {
       text: 'hello world',
@@ -321,6 +384,8 @@ beforeEach(() => {
   knowledgeItemUpdateIndexedRelativePathMock.mockResolvedValue(createFileItem())
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
+  probeKnowledgeFileMock.mockResolvedValue('readable')
+  probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   workflowService.scheduleIndexing.mockResolvedValue(undefined)

@@ -20,7 +20,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { compressImage, isEmoji } from '@renderer/utils'
+import { fileToAvatarDataUrl, isEmoji } from '@renderer/utils'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -84,13 +84,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleUploadAvatar = async (file: File) => {
     try {
-      if (file.type === 'image/gif') {
-        await ImageStorage.set('avatar', file)
-      } else {
-        const compressedFile = await compressImage(file)
-        await ImageStorage.set('avatar', compressedFile)
-      }
-      cacheService.set('app.user.avatar', await ImageStorage.get('avatar'))
+      const dataUrl = await fileToAvatarDataUrl(file)
+      await ImageStorage.set('avatar', dataUrl)
+      cacheService.set('app.user.avatar', dataUrl)
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

@@ -49,6 +49,7 @@ import {
 } from './types/ipc'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
+import { classifyKnowledgeItemSource } from './utils/items'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
@@ -558,9 +559,30 @@ export class KnowledgeService extends BaseService {
 
   private async assertSubtreesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
     const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    const missingSourceItemIds: string[] = []
+    const unverifiableSourceItemIds: string[] = []
 
     for (const rootItemId of rootItemIds) {
       const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
+
+      // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
+      // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
+      // front. Only the root's own source matters: a directory is rescanned from data.path and its
+      // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
+      // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
+      // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
+      // missing source (delete-and-re-add) from one we could not verify (transient/permission error,
+      // which should retry rather than be destroyed).
+      const root = subtreeItems.find((item) => item.id === rootItemId)
+      if (root) {
+        const sourceState = await classifyKnowledgeItemSource(baseId, root)
+        if (sourceState === 'missing') {
+          missingSourceItemIds.push(rootItemId)
+        } else if (sourceState === 'unverifiable') {
+          unverifiableSourceItemIds.push(rootItemId)
+        }
+      }
+
       for (const item of subtreeItems) {
         if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
           continue
@@ -568,6 +590,24 @@ export class KnowledgeService extends BaseService {
 
         blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
       }
+    }
+
+    if (missingSourceItemIds.length > 0) {
+      throw DataApiErrorFactory.validation(
+        {
+          item: [`Knowledge item source no longer exists on disk for ${missingSourceItemIds.length} item(s)`]
+        },
+        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+      )
+    }
+
+    if (unverifiableSourceItemIds.length > 0) {
+      throw DataApiErrorFactory.validation(
+        {
+          item: [`Could not verify the knowledge item source on disk for ${unverifiableSourceItemIds.length} item(s)`]
+        },
+        'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
+      )
     }
 
     if (blockingStatusCounts.size === 0) {
@@ -594,8 +634,39 @@ export class KnowledgeService extends BaseService {
           type: 'file',
           data: {
             source: item.data.source,
-            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath)
+            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
+            // Carry the processed artifact across so the new base indexes from it
+            // instead of re-running the (slow, paid) file processor.
+            ...(item.data.indexedRelativePath
+              ? { indexedPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.indexedRelativePath) }
+              : {})
           }
+        })
+      }
+
+      if (item.type === 'url') {
+        return KnowledgeAddItemInputSchema.parse({
+          type: 'url',
+          data: {
+            source: item.data.source,
+            url: item.data.url,
+            // Carry the captured snapshot across so the restored URL indexes offline
+            // instead of re-fetching the live page (which may have changed or died).
+            // If the source never captured one, omit it and let the first index capture.
+            ...(item.data.relativePath
+              ? { snapshotPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath) }
+              : {})
+          }
+        })
+      }
+
+      if (item.type === 'note') {
+        return KnowledgeAddItemInputSchema.parse({
+          type: 'note',
+          // The snapshot relativePath is intentionally dropped: the content is the
+          // source of truth and re-capturing it into the new base on first index is
+          // free and deterministic, so there is no snapshot file to carry across.
+          data: { source: item.data.source, content: item.data.content }
         })
       }
 
