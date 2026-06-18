@@ -17,6 +17,7 @@ const {
   appGetMock,
   readMock,
   createInternalEntryMock,
+  permanentDeleteMock,
   resolveImageTransportMock,
   submitMock,
   pollMock,
@@ -29,6 +30,7 @@ const {
   appGetMock: vi.fn(),
   readMock: vi.fn(),
   createInternalEntryMock: vi.fn(),
+  permanentDeleteMock: vi.fn(),
   resolveImageTransportMock: vi.fn(),
   submitMock: vi.fn(),
   pollMock: vi.fn(),
@@ -46,7 +48,7 @@ vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getBy
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 
-const { imageGenerationJobHandler } = await import('../ImageGenerationJobHandler')
+const { imageGenerationJobHandler } = await import('../imageGenerationJobHandler')
 
 function createCtx(
   overrides: Partial<JobContext<ImageGenerationJobPayload>> = {}
@@ -75,7 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'FileManager') {
-      return { read: readMock, createInternalEntry: createInternalEntryMock }
+      return { read: readMock, createInternalEntry: createInternalEntryMock, permanentDelete: permanentDeleteMock }
     }
     throw new Error(`Unexpected application.get(${name})`)
   })
@@ -83,6 +85,7 @@ beforeEach(() => {
   getByKeyMock.mockResolvedValue({ id: 'qwen-image', apiModelId: 'qwen-image' })
   providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'ppio', providerSettings: { apiKey: 'k' } })
   cancelMock.mockResolvedValue(undefined)
+  permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
   downloadMock.mockResolvedValue({ data: 'AAAA', media_type: 'image/png' })
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
@@ -187,6 +190,48 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(readMock).toHaveBeenCalledWith('in-1', { encoding: 'base64' })
     const submitArg = submitMock.mock.calls[0][0]
     expect(submitArg.files).toEqual([{ type: 'file', mediaType: 'image/jpeg', data: 'BBBB' }])
+  })
+
+  it('deletes the temp input/mask entries after completion (no storage leak)', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/edit.png'] })
+    readMock.mockResolvedValue({ content: 'BBBB', mime: 'image/jpeg' })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'edit',
+        n: 1,
+        providerParams: {},
+        inputFileIds: ['in-1', 'in-2'],
+        maskFileId: 'mask-1'
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(permanentDeleteMock).toHaveBeenCalledWith('in-1')
+    expect(permanentDeleteMock).toHaveBeenCalledWith('in-2')
+    expect(permanentDeleteMock).toHaveBeenCalledWith('mask-1')
+  })
+
+  it('deletes the temp input entries even when the job fails', async () => {
+    submitMock.mockRejectedValue(new Error('vendor 500'))
+
+    const ctx = createCtx({
+      input: { uniqueModelId: 'ppio::qwen-image', prompt: 'x', n: 1, providerParams: {}, inputFileIds: ['in-1'] }
+    })
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow('vendor 500')
+    expect(permanentDeleteMock).toHaveBeenCalledWith('in-1')
+  })
+
+  it('fails (not silently completes) when submit returns neither imageUrls nor a taskId', async () => {
+    submitMock.mockResolvedValue({})
+    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/neither imageUrls nor a taskId/i)
+  })
+
+  it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    downloadMock.mockResolvedValue(null)
+    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
   })
 
   it('throws when transport resolution yields nothing', async () => {

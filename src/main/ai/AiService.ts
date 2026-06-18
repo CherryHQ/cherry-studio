@@ -33,7 +33,7 @@ import * as z from 'zod'
 import { isAgentSessionTopic } from './agentSession/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
-import { imageGenerationJobHandler } from './provider/custom/tasks/ImageGenerationJobHandler'
+import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
@@ -591,6 +591,7 @@ export class AiService extends BaseService {
       snapshot = await handle.finished
     } finally {
       signal?.removeEventListener('abort', onAbort)
+      await deleteImageInputEntries([...(inputFileIds ?? []), maskFileId])
     }
 
     if (snapshot.status === 'completed') {

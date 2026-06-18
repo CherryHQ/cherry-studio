@@ -23,6 +23,7 @@ import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from 
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
 interface BaseConfig {
@@ -119,7 +120,9 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
       match: (p, id) =>
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
-        (p.id === SystemProviderIds.modelscope || p.id === SystemProviderIds.ppio || p.id === SystemProviderIds.dmxapi),
+        (p.id === SystemProviderIds.modelscope ||
+          p.id === SystemProviderIds.ppio ||
+          (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: (ctx) => ({
         providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'dmxapi',

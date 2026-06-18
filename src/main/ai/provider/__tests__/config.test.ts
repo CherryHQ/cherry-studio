@@ -539,7 +539,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
-    it('routes DMXAPI IMAGE models through DMXAPI config', async () => {
+    it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {
       const provider = makeProvider({
         id: 'dmxapi',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -550,10 +550,35 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           }
         }
       })
-      const model = makeModel({ providerId: 'dmxapi', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+      const model = makeModel({
+        providerId: 'dmxapi',
+        apiModelId: 'qwen-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
 
       const config = await providerToAiSdkConfig(provider, model)
       expect(config.providerId).toBe('dmxapi')
+    })
+
+    it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {
+      const provider = makeProvider({
+        id: 'dmxapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://www.dmxapi.cn',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'dmxapi',
+        apiModelId: 'gpt-image-1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
     })
 
     it('falls back to buildOpenAICompatibleConfig for an unknown openai-compatible provider', async () => {

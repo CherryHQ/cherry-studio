@@ -40,43 +40,53 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   defaultTimeoutMs: 30 * 60_000,
   async execute(ctx) {
     const input = ctx.input
-    const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
-    const provider = await providerService.getByProviderId(providerId)
-    if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
-    const model = await modelService.getByKey(providerId, modelId)
-    if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
+    try {
+      const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
+      const provider = await providerService.getByProviderId(providerId)
+      if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
+      const model = await modelService.getByKey(providerId, modelId)
+      if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
-    const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
-    if (!transport) {
-      throw new Error(
-        `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
-      )
-    }
-
-    let urls: string[]
-    const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
-    if (persistedTaskId) {
-      // Restart-resume: skip submit, continue polling the persisted remote task.
-      logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
-      urls = await pollUntilDone(transport, persistedTaskId, ctx)
-    } else {
-      const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
-      if (submit.imageUrls) {
-        urls = submit.imageUrls
-      } else if (submit.taskId) {
-        // CRITICAL: persist before polling — without this, restart-recovery
-        // re-submits, wasting the user's vendor quota.
-        await ctx.patchMetadata({ taskId: submit.taskId })
-        urls = await pollUntilDone(transport, submit.taskId, ctx)
-      } else {
-        urls = []
+      const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
+      const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+      if (!transport) {
+        throw new Error(
+          `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
+        )
       }
-    }
 
-    const files = await downloadAndPersistImageUrls(urls, ctx.signal)
-    ctx.reportProgress(100, { stage: 'done' })
-    return { files } satisfies ImageGenerationJobOutput
+      let urls: string[]
+      const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
+      if (persistedTaskId) {
+        // Restart-resume: skip submit, continue polling the persisted remote task.
+        logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
+        urls = await pollUntilDone(transport, persistedTaskId, ctx)
+      } else {
+        const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+        if (submit.imageUrls) {
+          urls = submit.imageUrls
+        } else if (submit.taskId) {
+          // CRITICAL: persist before polling — without this, restart-recovery
+          // re-submits, wasting the user's vendor quota.
+          await ctx.patchMetadata({ taskId: submit.taskId })
+          urls = await pollUntilDone(transport, submit.taskId, ctx)
+        } else {
+          // A malformed submit response (neither URLs nor a task id) must fail the
+          // job rather than silently complete with zero files (a paid no-op).
+          throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
+        }
+      }
+
+      const files = await downloadAndPersistImageUrls(urls, ctx.signal)
+      ctx.reportProgress(100, { stage: 'done' })
+      return { files } satisfies ImageGenerationJobOutput
+    } finally {
+      // Best-effort cleanup of the per-job temp input/mask copies. Owned by the
+      // handler so it also covers the restart-resume path (the original IPC
+      // `finally` is gone after a restart). Safe: resume polls from the persisted
+      // taskId and never re-reads these ids.
+      await deleteImageInputEntries([...(input.inputFileIds ?? []), input.maskFileId])
+    }
   }
 }
 
@@ -154,5 +164,31 @@ async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal):
       })
     )
   }
+  // The remote generation succeeded (it returned URLs); surfacing a hard failure
+  // when none could be downloaded avoids reporting a paid generation as an empty,
+  // silent success. A partial failure still returns what we have, with a warning.
+  if (files.length === 0) {
+    throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
+  }
+  if (files.length < urls.length) {
+    logger.warn('Some generated image downloads failed', { requested: urls.length, persisted: files.length })
+  }
   return files
+}
+
+/**
+ * Best-effort delete the per-job temp input/mask FileEntries created by
+ * `generateImageViaJob`. They carry no `file_ref`, so without this they would
+ * leak permanently (the orphan scan only reports, never deletes). Idempotent and
+ * non-throwing so it is safe to call from both the handler and the IPC `finally`.
+ */
+export async function deleteImageInputEntries(ids: ReadonlyArray<string | undefined>): Promise<void> {
+  const present = ids.filter((id): id is string => Boolean(id))
+  if (present.length === 0) return
+  const fileManager = application.get('FileManager')
+  await Promise.all(
+    present.map((id) =>
+      fileManager.permanentDelete(id).catch((error) => logger.warn('Failed to delete image input entry', { id, error }))
+    )
+  )
 }
