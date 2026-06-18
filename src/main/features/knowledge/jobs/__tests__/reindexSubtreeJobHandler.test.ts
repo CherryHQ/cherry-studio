@@ -17,9 +17,9 @@ import {
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
-  knowledgeSourcePathExistsMock,
   listMock,
   loggerWarnMock,
+  probeKnowledgeSourcePathMock,
   scheduleItemMock,
   workflowService
 } from './jobHandlerTestUtils'
@@ -37,12 +37,15 @@ describe('reindex-subtree job handler', () => {
       }
     )
 
-    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
+    const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
+    await handler.execute(ctx)
 
     expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
+    // A clean rebuild with nothing skipped omits skippedMissingSource entirely (exact-object match).
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 1 })
   })
 
   it('routes container descendant cleanup through best-effort delete before deleting rows', async () => {
@@ -119,7 +122,7 @@ describe('reindex-subtree job handler', () => {
     )
     // The directory's on-disk source is gone, so the in-lock re-check must keep its
     // existing vectors instead of wiping them with nothing left to rebuild from.
-    knowledgeSourcePathExistsMock.mockResolvedValue(false)
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
 
     await handler.execute(ctx)
 
@@ -128,10 +131,11 @@ describe('reindex-subtree job handler', () => {
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
     expect(loggerWarnMock).toHaveBeenCalledWith(
-      'Skipping reindex for roots whose source vanished before the mutation lock',
+      'Skipping reindex for roots whose source could not be read before the mutation lock',
       expect.objectContaining({ baseId: 'kb-1', missingSourceRootIds: ['dir-1'], jobId: 'reindex-job' })
     )
-    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 0 })
+    // The skipped-source count is threaded into the done detail so the partial no-op is visible.
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 0, skippedMissingSource: 1 })
   })
 
   it('reindexes only the roots whose source still exists', async () => {
@@ -147,9 +151,12 @@ describe('reindex-subtree job handler', () => {
         return rootIds.includes('dir-1') ? [presentChild] : []
       }
     )
-    knowledgeSourcePathExistsMock.mockImplementation(async (absolutePath: string) => absolutePath === '/docs/dir-1')
+    probeKnowledgeSourcePathMock.mockImplementation(async (absolutePath: string) =>
+      absolutePath === '/docs/dir-1' ? 'readable' : 'missing'
+    )
 
-    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1', 'dir-2'] }, 'reindex-job'))
+    const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1', 'dir-2'] }, 'reindex-job')
+    await handler.execute(ctx)
 
     // Only the surviving root's subtree is wiped and rescheduled; the vanished root keeps its vectors.
     expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
@@ -160,9 +167,11 @@ describe('reindex-subtree job handler', () => {
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
     expect(scheduleItemMock).not.toHaveBeenCalledWith('kb-1', 'dir-2', 'reindex-job')
     expect(loggerWarnMock).toHaveBeenCalledWith(
-      'Skipping reindex for roots whose source vanished before the mutation lock',
+      'Skipping reindex for roots whose source could not be read before the mutation lock',
       expect.objectContaining({ baseId: 'kb-1', missingSourceRootIds: ['dir-2'], jobId: 'reindex-job' })
     )
+    // One root rebuilt, one skipped — the done detail surfaces the skip alongside the rebuilt count.
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 1, skippedMissingSource: 1 })
   })
 
   it('clears old artifacts for selected leaf roots', async () => {
@@ -222,7 +231,9 @@ describe('reindex-subtree job handler', () => {
         return rootIds.includes('dir-1') ? [presentChild] : []
       }
     )
-    knowledgeSourcePathExistsMock.mockImplementation(async (absolutePath: string) => absolutePath === '/docs/dir-1')
+    probeKnowledgeSourcePathMock.mockImplementation(async (absolutePath: string) =>
+      absolutePath === '/docs/dir-1' ? 'readable' : 'missing'
+    )
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
 
     await expect(

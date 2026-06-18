@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
-  knowledgeFileExistsMock: vi.fn(),
-  knowledgeSourcePathExistsMock: vi.fn(),
+  probeKnowledgeFileMock: vi.fn(),
+  probeKnowledgeSourcePathMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
@@ -46,8 +46,8 @@ export const {
   getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
-  knowledgeFileExistsMock,
-  knowledgeSourcePathExistsMock,
+  probeKnowledgeFileMock,
+  probeKnowledgeSourcePathMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -157,11 +157,11 @@ vi.mock('../../utils/storage/pathStorage', async () => {
     // contract is unit-tested directly in pathStorage's own test; here we only
     // need handlers to route cleanup through it and still delete rows.
     deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
-    // Stub the on-disk source existence checks (used by canKnowledgeItemRebuildSource
-    // in the reindex source guard) so tests control rebuildability without touching
-    // the real filesystem; default to true in beforeEach.
-    knowledgeFileExists: knowledgeFileExistsMock,
-    knowledgeSourcePathExists: knowledgeSourcePathExistsMock
+    // Stub the on-disk source probes (used by classifyKnowledgeItemSource /
+    // canKnowledgeItemRebuildSource in the reindex source guard) so tests control
+    // rebuildability without touching the real filesystem; default to 'readable' in beforeEach.
+    probeKnowledgeFile: probeKnowledgeFileMock,
+    probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
   }
 })
 
@@ -384,8 +384,8 @@ beforeEach(() => {
   knowledgeItemUpdateIndexedRelativePathMock.mockResolvedValue(createFileItem())
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
-  knowledgeFileExistsMock.mockResolvedValue(true)
-  knowledgeSourcePathExistsMock.mockResolvedValue(true)
+  probeKnowledgeFileMock.mockResolvedValue('readable')
+  probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   workflowService.scheduleIndexing.mockResolvedValue(undefined)

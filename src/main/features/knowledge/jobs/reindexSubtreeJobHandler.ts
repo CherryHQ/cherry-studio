@@ -63,7 +63,7 @@ export function createReindexSubtreeJobHandler(
         // subtree back into preparing/processing during cleanup/reset.
         if (rootItems.some((item) => item.status === 'deleting')) {
           logger.info('Skipping reindex-subtree reset for deleting subtree', { baseId, rootItemIds, jobId: ctx.jobId })
-          return { roots: [], skippedDeleting: true }
+          return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
 
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
@@ -81,14 +81,14 @@ export function createReindexSubtreeJobHandler(
           }
         }
         if (missingSourceRootIds.length > 0) {
-          logger.warn('Skipping reindex for roots whose source vanished before the mutation lock', {
+          logger.warn('Skipping reindex for roots whose source could not be read before the mutation lock', {
             baseId,
             missingSourceRootIds,
             jobId: ctx.jobId
           })
         }
         if (rebuildableRoots.length === 0) {
-          return { roots: [], skippedDeleting: false }
+          return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
         }
 
         const rebuildableRootIds = rebuildableRoots.map((item) => item.id)
@@ -115,12 +115,13 @@ export function createReindexSubtreeJobHandler(
         for (const item of rebuildableRoots) {
           await knowledgeItemService.updateStatus(item.id, item.type === 'directory' ? 'preparing' : 'processing')
         }
-        return { roots: rebuildableRoots, skippedDeleting: false }
+        return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
       })
       if (resetResult.roots.length === 0) {
         reportKnowledgeProgress(ctx, 100, {
           stage: resetResult.skippedDeleting ? 'deleting' : 'done',
-          totalFiles: 0
+          totalFiles: 0,
+          ...(resetResult.skippedMissingSource > 0 ? { skippedMissingSource: resetResult.skippedMissingSource } : {})
         })
         return
       }
@@ -150,7 +151,11 @@ export function createReindexSubtreeJobHandler(
         throw error
       }
 
-      reportKnowledgeProgress(ctx, 100, { stage: 'done', totalFiles: resetResult.roots.length })
+      reportKnowledgeProgress(ctx, 100, {
+        stage: 'done',
+        totalFiles: resetResult.roots.length,
+        ...(resetResult.skippedMissingSource > 0 ? { skippedMissingSource: resetResult.skippedMissingSource } : {})
+      })
     },
 
     async onSettled(event) {

@@ -43,8 +43,8 @@ const {
   fsStatMock,
   listMaterialUnitsMock,
   storeSearchMock,
-  knowledgeFileExistsMock,
-  knowledgeSourcePathExistsMock
+  probeKnowledgeFileMock,
+  probeKnowledgeSourcePathMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -76,8 +76,8 @@ const {
   fsStatMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
   storeSearchMock: vi.fn(),
-  knowledgeFileExistsMock: vi.fn(),
-  knowledgeSourcePathExistsMock: vi.fn()
+  probeKnowledgeFileMock: vi.fn(),
+  probeKnowledgeSourcePathMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -171,8 +171,8 @@ vi.mock('../utils/storage/pathStorage', async () => {
     ...actual,
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
     deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
-    knowledgeFileExists: knowledgeFileExistsMock,
-    knowledgeSourcePathExists: knowledgeSourcePathExistsMock
+    probeKnowledgeFile: probeKnowledgeFileMock,
+    probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
   }
 })
 
@@ -309,10 +309,10 @@ describe('KnowledgeService', () => {
       birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
     fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
-    // Reindex source-existence gate: default every source present so existing reindex tests are
-    // unaffected; the missing-source tests override these per case.
-    knowledgeFileExistsMock.mockResolvedValue(true)
-    knowledgeSourcePathExistsMock.mockResolvedValue(true)
+    // Reindex source-existence gate: default every source readable so existing reindex tests are
+    // unaffected; the missing/unverifiable-source tests override these per case.
+    probeKnowledgeFileMock.mockResolvedValue('readable')
+    probeKnowledgeSourcePathMock.mockResolvedValue('readable')
     copyFileIntoKnowledgeBaseAtMock.mockImplementation(
       async (_baseId: string, _sourcePath: string, relativePath: string) => relativePath
     )
@@ -1408,7 +1408,7 @@ describe('KnowledgeService', () => {
       groupId: 'dir-1',
       data: { source: '/legacy/abs/x.md', relativePath: 'file-1' }
     }
-    knowledgeSourcePathExistsMock.mockResolvedValue(false)
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
     knowledgeItemGetByIdMock.mockResolvedValue(root)
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
@@ -1427,10 +1427,32 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
   })
 
+  it('rejects reindex with a retry hint when a directory source cannot be verified (transient error)', async () => {
+    const service = new KnowledgeService()
+    const root = createDirectoryItem('dir-1', null, 'completed')
+    // A transient/permission error (not ENOENT): the folder may still exist, so the user must be
+    // told to retry — never to delete and re-add a source that is probably still there.
+    probeKnowledgeSourcePathMock.mockResolvedValue('unverifiable')
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root] : []
+    )
+
+    await expect(service.reindexItems('kb-1', ['dir-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
+    })
+
+    // No destructive action: the existing vectors are kept and nothing is enqueued.
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
   it('rejects reindex of a file whose source file no longer exists on disk', async () => {
     const service = new KnowledgeService()
     const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
-    knowledgeFileExistsMock.mockResolvedValue(false)
+    probeKnowledgeFileMock.mockResolvedValue('missing')
     knowledgeItemGetByIdMock.mockResolvedValue(root)
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>

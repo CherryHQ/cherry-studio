@@ -4,7 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { copy, ensureDir, exists, remove, removeDir, write } from '@main/utils/file/fs'
+import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { knowledgeFileProcessingExts } from '@shared/config/constant'
 import type { FilePath } from '@shared/file/types'
@@ -59,18 +59,23 @@ export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): 
   return path.join(getKnowledgeMaterialDir(baseId), relativePath) as FilePath
 }
 
-/** Whether a base-relative material file currently exists on disk (`{baseDir}/raw/{relativePath}`). */
-export async function knowledgeFileExists(baseId: string, relativePath: string): Promise<boolean> {
-  return exists(getKnowledgeBaseFilePath(baseId, relativePath))
+/**
+ * Probe a base-relative material file (`{baseDir}/raw/{relativePath}`), distinguishing a genuinely
+ * absent file from one that could not be verified (see {@link probeReadable}).
+ */
+export async function probeKnowledgeFile(baseId: string, relativePath: string): Promise<PathReadability> {
+  return probeReadable(getKnowledgeBaseFilePath(baseId, relativePath))
 }
 
 /**
- * Whether an absolute on-disk path (e.g. a directory item's original folder, stored in `data.path`)
- * currently exists and is readable. Reindex rescans a directory from this path, so if it is gone
- * there is nothing to rebuild from.
+ * Probe an absolute on-disk source path (e.g. a directory item's original folder, stored in
+ * `data.path`), distinguishing a genuinely missing source from one that could not be verified.
+ * Reindex rescans a directory from this path, so a missing source means there is nothing to rebuild
+ * from; an unverifiable one (transient/permission error) may still exist. The stored `data.path` is
+ * already absolute, so it is probed as-is.
  */
-export async function knowledgeSourcePathExists(absolutePath: string): Promise<boolean> {
-  return exists(path.resolve(absolutePath) as FilePath)
+export async function probeKnowledgeSourcePath(absolutePath: string): Promise<PathReadability> {
+  return probeReadable(absolutePath as FilePath)
 }
 
 export function getKnowledgeSourceRelativePath(sourcePath: string): string {
