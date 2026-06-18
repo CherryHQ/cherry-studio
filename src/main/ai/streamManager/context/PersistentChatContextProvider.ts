@@ -472,7 +472,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       id: m.id,
       role: m.role,
       parts: (m.data?.parts ?? []) as CompactionRow['parts'],
-      compactionSummary: m.compactionSummary ?? undefined
+      compactionSummary: m.compactionSummary ?? undefined,
+      contextTokens: m.stats?.contextTokens ?? undefined
     }
   }
 
@@ -482,6 +483,26 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
   private estimateTotal(rows: CompactionRow[]): number {
     return rows.reduce((s, r) => s + estimateRowTokens(r), 0)
+  }
+
+  /**
+   * Trigger estimate for the served history. Anchors on the most recent assistant
+   * row in the served view that carries a real contextTokens (prior turn's last-step
+   * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
+   * full tokenx estimate when no anchor exists or it was folded out by the marker.
+   */
+  private estimateContext(effective: CompactionRow[]): number {
+    let anchorIdx = -1
+    for (let i = effective.length - 1; i >= 0; i--) {
+      if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
+        anchorIdx = i
+        break
+      }
+    }
+    if (anchorIdx < 0) return this.estimateTotal(effective)
+    const base = effective[anchorIdx].contextTokens as number
+    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r), 0)
+    return base + tail
   }
 
   /**
@@ -509,7 +530,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (!compressionModel) return effective.map((r) => this.toServed(r))
 
     const minContextWindow = Math.min(...models.map((m) => m.contextWindow ?? FALLBACK_CONTEXT_WINDOW))
-    if (this.estimateTotal(effective) <= Math.floor(minContextWindow * COMPACT_TRIGGER_RATIO)) {
+    if (this.estimateContext(effective) <= Math.floor(minContextWindow * COMPACT_TRIGGER_RATIO)) {
       return effective.map((r) => this.toServed(r))
     }
 
