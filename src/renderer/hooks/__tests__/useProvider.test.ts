@@ -98,6 +98,12 @@ describe('useProviders', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: false } })
   })
 
+  it('should pass enabled API key query option when provided', () => {
+    renderHook(() => useProviders({ enabled: true, hasEnabledApiKey: true }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: true, hasEnabledApiKey: true } })
+  })
+
   it('should filter undefined query fields before passing to useQuery', () => {
     renderHook(() => useProviders({ enabled: undefined as any }))
 

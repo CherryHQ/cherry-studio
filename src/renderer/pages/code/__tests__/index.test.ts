@@ -1,7 +1,8 @@
 import { codeCLI } from '@shared/config/constant'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
 
 // Mock CodeCliPage which is default export
 vi.mock('../CodeCliPage', () => ({ default: () => null }))
@@ -154,5 +155,85 @@ describe('CLI_TOOLS', () => {
     for (const tool of CLI_TOOLS) {
       expect(typeof tool.icon).toBe('function')
     }
+  })
+})
+
+describe('CLI_TOOL_PROVIDER_MAP', () => {
+  const enabledKey = { id: 'k1', isEnabled: true }
+
+  function makeProvider(overrides: Partial<Provider> & Pick<Provider, 'id'>): Provider {
+    return {
+      name: overrides.id,
+      authType: 'api-key',
+      apiKeys: [enabledKey],
+      apiFeatures: {},
+      settings: {},
+      isEnabled: true,
+      ...overrides
+    } as Provider
+  }
+
+  describe('includes compatible providers', () => {
+    it('claudeCode includes anthropic provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.claudeCode]
+      const provider = makeProvider({
+        id: 'anthropic',
+        presetProviderId: 'anthropic'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('claudeCode includes provider with anthropic-messages endpoint', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.claudeCode]
+      const provider = makeProvider({
+        id: 'custom-provider',
+        endpointConfigs: {
+          'anthropic-messages': { baseUrl: 'https://example.com/anthropic' }
+        }
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('qwenCode includes openai-compatible provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.qwenCode]
+      const provider = makeProvider({
+        id: 'test-provider',
+        defaultChatEndpoint: 'openai-chat-completions'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('openaiCodex includes openai provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.openaiCodex]
+      const provider = makeProvider({
+        id: 'openai',
+        defaultChatEndpoint: 'openai-responses'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('openCode includes anthropic provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.openCode]
+      const provider = makeProvider({
+        id: 'anthropic',
+        presetProviderId: 'anthropic'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('geminiCli includes gemini provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.geminiCli]
+      const provider = makeProvider({
+        id: 'gemini',
+        defaultChatEndpoint: 'google-generate-content'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
   })
 })

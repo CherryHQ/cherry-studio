@@ -56,6 +56,18 @@ describe('providerHandlers', () => {
   })
 
   describe('/providers', () => {
+    it('forwards list query filters to the service', async () => {
+      const providers = [{ id: 'openai', isEnabled: true, apiKeys: [{ id: 'key-a', isEnabled: true }] }]
+      listMock.mockResolvedValueOnce(providers)
+
+      const result = await providerHandlers['/providers'].GET({
+        query: { enabled: true, hasEnabledApiKey: true }
+      } as never)
+
+      expect(listMock).toHaveBeenCalledWith({ enabled: true, hasEnabledApiKey: true })
+      expect(result).toBe(providers)
+    })
+
     it('accepts a minimal create payload without DB-managed fields', async () => {
       createMock.mockResolvedValueOnce({
         id: 'custom-provider',

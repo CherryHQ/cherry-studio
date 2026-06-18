@@ -10,7 +10,8 @@ const testState = vi.hoisted(() => ({
   selectedCliTool: 'github-copilot-cli',
   canLaunch: true,
   codeCliRun: vi.fn(),
-  setTimeoutTimer: vi.fn()
+  setTimeoutTimer: vi.fn(),
+  useProviders: vi.fn()
 }))
 
 import CodeCliPage from '../CodeCliPage'
@@ -95,7 +96,7 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] }),
+  useProviders: (...args: unknown[]) => testState.useProviders(...args),
   getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
 }))
 
@@ -154,6 +155,7 @@ beforeEach(() => {
   testState.selectedCliTool = codeCLI.githubCopilotCli
   testState.canLaunch = true
   testState.codeCliRun.mockResolvedValue({ success: true })
+  testState.useProviders.mockReturnValue({ providers: [] })
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
@@ -177,6 +179,12 @@ async function openCodeToolDialog() {
 }
 
 describe('CodeCliPage', () => {
+  it('requests providers that are enabled and have an enabled API key', () => {
+    render(<CodeCliPage />)
+
+    expect(testState.useProviders).toHaveBeenCalledWith({ enabled: true, hasEnabledApiKey: true })
+  })
+
   it('constrains the page height so the gallery can scroll', () => {
     const { container } = render(<CodeCliPage />)
 

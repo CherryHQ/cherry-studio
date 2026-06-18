@@ -99,6 +99,8 @@ export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 export const ListProvidersQuerySchema = z.strictObject({
   /** Filter by enabled status */
   enabled: z.boolean().optional(),
+  /** Filter providers by whether they have at least one enabled API key */
+  hasEnabledApiKey: z.boolean().optional(),
   /** Filter by endpoint type (kebab-case `EndpointType` value) */
   endpointType: z.string().optional() as z.ZodOptional<z.ZodType<EndpointType>>
 })

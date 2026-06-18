@@ -79,7 +79,7 @@ interface TerminalItem {
 
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
+  const { providers } = useProviders({ enabled: true, hasEnabledApiKey: true })
   const { models } = useModels()
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
   const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
@@ -140,6 +140,9 @@ const CodeCliPage: FC = () => {
           return isSiliconAnthropicCompatibleModel(id)
         }
         if (isAnthropicProvider(provider)) {
+          return true
+        }
+        if (provider.endpointConfigs?.['anthropic-messages']?.baseUrl) {
           return true
         }
         return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
