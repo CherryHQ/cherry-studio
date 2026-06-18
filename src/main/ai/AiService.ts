@@ -374,7 +374,10 @@ export class AiService extends BaseService {
     const wrapModel = await createRetryableWrap({
       primaryProviderId: sdkConfig.providerId,
       primaryModelId: sdkConfig.modelId,
-      onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', data: event, transient: true })
+      // Stable `id` so repeated retries reconcile into one live status part (latest wins).
+      // Not transient: it rides message.parts so the renderer can show it; the
+      // PersistenceListener strips it before the message is saved.
+      onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
     })
 
     const agent = new Agent({

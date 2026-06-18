@@ -3079,6 +3079,9 @@
       "failed": "Restore failed",
       "success": "Restored successfully"
     },
+    "retry": {
+      "status": "Retrying with {{model}} · attempt {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Saved successfully"

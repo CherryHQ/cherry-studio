@@ -13,6 +13,7 @@ import { loggerService } from '@logger'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { APICallError } from 'ai'
 import { createRetryable, isErrorAttempt, type RetryContext } from 'ai-retry'
 import { retryAfterDelay } from 'ai-retry/retryables'
@@ -22,11 +23,8 @@ import type { AppProviderSettingsMap } from '../../../types'
 
 const logger = loggerService.withContext('ModelRetry')
 
-export interface RetryEventPayload {
-  modelId: string
-  attempt: number
-  reason: string
-}
+/** Wire shape for the renderer-facing `data-retry` part. */
+export type RetryEventPayload = RetryPartData
 
 export type WrapLanguageModel = (model: LanguageModelV3) => LanguageModelV3
 

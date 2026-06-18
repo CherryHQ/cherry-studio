@@ -3079,6 +3079,9 @@
       "failed": "還原失敗",
       "success": "還原成功"
     },
+    "retry": {
+      "status": "正在用 {{model}} 重試 · 第 {{attempt}} 次"
+    },
     "save": {
       "success": {
         "title": "儲存成功"

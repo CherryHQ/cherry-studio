@@ -3079,6 +3079,9 @@
       "failed": "恢复失败",
       "success": "恢复成功"
     },
+    "retry": {
+      "status": "正在用 {{model}} 重试 · 第 {{attempt}} 次"
+    },
     "save": {
       "success": {
         "title": "保存成功"
