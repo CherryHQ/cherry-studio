@@ -2,7 +2,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { describe, expect, it } from 'vitest'
 
-import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../transfer'
+import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
 
 function createTag(id: string, name: string, color: string | null = '#3b82f6'): Tag {
   return {
@@ -37,13 +37,13 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
       customParameters: []
     },
     modelId: 'openai::gpt-4o',
+    orderKey: 'a0',
     mcpServerIds: ['mcp-1'],
     knowledgeBaseIds: ['kb-1'],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
     tags: [createTag('tag-1', '写作')],
     modelName: 'GPT-4o',
-    orderKey: 'a0',
     ...overrides
   }
 }
