@@ -17,6 +17,7 @@ const existingItem = (id: string, partial: Pick<KnowledgeItem, 'type' | 'data'>)
 
 const fileInput = (source: string): KnowledgeAddItemInput => ({ type: 'file', data: { source, path: source } })
 const urlInput = (url: string): KnowledgeAddItemInput => ({ type: 'url', data: { source: url, url } })
+const noteInput = (content: string): KnowledgeAddItemInput => ({ type: 'note', data: { source: 'note', content } })
 
 describe('resolveKnowledgeAddConflicts', () => {
   it('reports no conflicts and keeps all inputs when nothing collides', () => {
@@ -94,5 +95,35 @@ describe('resolveKnowledgeAddConflicts', () => {
 
     expect(result.conflicts).toEqual([{ type: 'file', title: 'report.pdf' }])
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
+  })
+
+  it('purges EVERY existing root sharing a conflict key on replace, not just the first', () => {
+    // A prior keep-all routinely leaves several roots under one name (e.g. report.pdf
+    // imported from two folders, stored as report.pdf and report_1.pdf). `replace`
+    // must target the whole group, otherwise the stale copies survive the overwrite.
+    const inputs = [fileInput('/incoming/report.pdf')]
+    const existing = [
+      existingItem('e1', { type: 'file', data: { source: '/a/report.pdf', relativePath: 'report.pdf' } }),
+      existingItem('e2', { type: 'file', data: { source: '/b/report.pdf', relativePath: 'report_1.pdf' } })
+    ]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflicts).toEqual([{ type: 'file', title: 'report.pdf' }])
+    expect([...result.conflictingExistingRootIds].sort()).toEqual(['e1', 'e2'])
+  })
+
+  it('never collides blank-content notes (empty detection key) and keeps them all', () => {
+    // An empty note has no first line, so its detection key is '' — that is not a
+    // real name and must never alias other empty notes into a phantom conflict.
+    const inputs = [noteInput(''), noteInput('')]
+    const existing = [existingItem('e1', { type: 'note', data: { source: 'note', content: '' } })]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflicts).toEqual([])
+    expect(result.conflictingExistingRootIds).toEqual([])
+    // Both blank notes survive: empty keys never participate in in-batch dedup either.
+    expect(result.keptInputs).toEqual(inputs)
   })
 })

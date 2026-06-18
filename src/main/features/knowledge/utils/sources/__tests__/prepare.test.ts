@@ -183,6 +183,27 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childFile.id, 'processing')
   })
 
+  it('excludes the container itself from the reserved names so a reindex keeps its own prefix', () => {
+    // On reindex the directory already owns its `relativePath` prefix (`docs`). If it
+    // counted itself as reserved, expansion would dedupe it to `docs_1` every run.
+    const root = createDirectoryItem('dir-root')
+    // Pin the container's own prefix, as if it had already been indexed once.
+    root.data = { source: '/abs/docs', relativePath: 'docs' }
+    const sibling = createFileItem('file-sibling') // top-level relativePath `file-sibling.md`
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root, sibling])
+    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
+      pathPrefix: 'docs',
+      children: [{ type: 'file', data: { source: '/abs/docs/a.md', relativePath: 'docs/a.md' } }]
+    })
+
+    return prepareKnowledgeItem(createPrepareOptions(root)).then(() => {
+      const reserved = expandDirectoryOwnerToTreeMock.mock.calls[0][2] as Set<string>
+      expect(reserved.has('docs')).toBe(false)
+      // Sibling names are still reserved — only the container under reindex is exempt.
+      expect(reserved.has('file-sibling.md')).toBe(true)
+    })
+  })
+
   it('marks empty directory roots failed and returns no leaves', async () => {
     const root = createDirectoryItem('dir-root')
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({ pathPrefix: 'dir-root', children: [] })

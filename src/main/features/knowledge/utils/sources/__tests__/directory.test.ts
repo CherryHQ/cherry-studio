@@ -283,6 +283,46 @@ describe('expandDirectoryOwnerToTree', () => {
     ])
   })
 
+  it('dedupes a dotted directory name after the whole basename, not before a fake extension', async () => {
+    tempRoot = createTempRoot()
+    // A folder literally named `report.v2`: the trailing `.v2` is part of the name,
+    // not a file extension, so the suffix must land after it (`report.v2_1`).
+    const rootDir = path.join(tempRoot, 'report.v2')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'notes.md'), '# notes')
+
+    const { pathPrefix, children } = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: rootDir
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      // A prior `report.v2` directory already occupies that top-level name under raw/.
+      new Set(['report.v2']),
+      createSignal()
+    )
+
+    expect(pathPrefix).toBe('report.v2_1')
+    expect(children).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(rootDir, 'notes.md'),
+          relativePath: 'report.v2_1/notes.md'
+        }
+      }
+    ])
+  })
+
   it('stops before reading when the runtime signal is already aborted', async () => {
     tempRoot = createTempRoot()
     const controller = new AbortController()

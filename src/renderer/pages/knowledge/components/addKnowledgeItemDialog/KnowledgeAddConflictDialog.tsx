@@ -69,14 +69,14 @@ const KnowledgeAddConflictDialog = ({
         </ul>
         <DialogFooter>
           <Button
-            variant="outline"
+            variant="emphasis"
             onClick={() => onResolve('rename')}
             loading={pendingResolution === 'rename'}
             disabled={isResolving}>
             {t('knowledge.data_source.add_dialog.conflict_dialog.keep_all')}
           </Button>
           <Button
-            variant="outline"
+            variant="destructive"
             onClick={() => onResolve('replace')}
             loading={pendingResolution === 'replace'}
             disabled={isResolving}>

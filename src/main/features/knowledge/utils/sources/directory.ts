@@ -157,7 +157,8 @@ export async function expandDirectoryOwnerToTree(
   // the same strategy file imports use (see reserveImportedFileRelativePath).
   const pathPrefix = nextFreeKnowledgeRelativePath(
     path.basename(resolvedPath),
-    (candidate) => !reservedTopLevelNames.has(candidate)
+    (candidate) => !reservedTopLevelNames.has(candidate),
+    false // a directory basename is not a filename — keep any trailing ".ext" intact
   )
 
   const children = await readDirectoryTree(resolvedPath, signal)
