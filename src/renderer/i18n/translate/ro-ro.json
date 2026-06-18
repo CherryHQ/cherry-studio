@@ -1977,7 +1977,7 @@
       "kimi_cli": "Asistentul de linie de comandă Kimi de la Moonshot",
       "openai_codex": "CLI-ul oficial de generare de cod al OpenAI",
       "opencode": "Agent de codare multi-model cu sursă deschisă",
-      "qoder_cli": "Instrumentul de codare în linia de comandă cu agenți al Alibaba Qoder",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Instrumentul CLI de codare open-source al Alibaba Tongyi"
     },
     "update_options": "Opțiuni de actualizare",
@@ -2659,7 +2659,7 @@
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Notele selectabile vor apărea aici după ce lista reală de note va fi conectată. Deocamdată, folosiți fișiere, foldere, URL-uri sau hărți de site.",
           "empty_title": "Notele nu sunt încă conectate",
-          "loading": "Se încarcă notițele…"
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2759,7 +2759,7 @@
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
     "error": {
-      "directory_not_migrated": "Migrarea folderului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Această bază de cunoștințe a eșuat în timpul migrării. Reconstruiește-o și alege un nou model de încorporare.",
       "failed_to_create": "Nu s-a reușit crearea bazei de cunoștințe",
       "failed_to_delete": "Nu s-a reușit ștergerea bazei de cunoștințe",
@@ -2840,7 +2840,7 @@
         "bm25": "Căutare în text complet",
         "hybrid": "Căutare hibridă (recomandat)",
         "title": "Mod de căutare",
-        "vector": "Căutare Vectorială"
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Regula Separator",
       "smart_chunking": "Fragmentare inteligentă",
@@ -7216,7 +7216,7 @@
       },
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
-      "close_tab": "Închide fila",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
@@ -7224,11 +7224,11 @@
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
-      "move_tab_to_first": "Mută fila pe prima poziție",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Subiect nou",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
-      "open_tab_in_new_window": "Deschide fila într-o fereastră nouă",
-      "pin_tab": "Comutare fixare filă",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Apasă comanda rapidă",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",

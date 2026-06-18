@@ -1977,7 +1977,7 @@
       "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
       "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
       "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
-      "qoder_cli": "Το εργαλείο κωδικοποίησης γραμμής εντολών με δυνατότητες πρακτόρων της Alibaba Qoder",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Το εργαλείο κωδικοποίησης CLI ανοικτού κώδικα της Alibaba Tongyi"
     },
     "update_options": "Ενημέρωση επιλογών",
@@ -2659,7 +2659,7 @@
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
           "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
-          "loading": "Φόρτωση σημειώσεων…"
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2759,7 +2759,7 @@
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
     "error": {
-      "directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Αυτή η βάση γνώσεων απέτυχε κατά τη μετεγκατάσταση. Ανακατασκευάστε την και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
       "failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
       "failed_to_delete": "Αποτυχία διαγραφής της βάσης γνώσεων",
@@ -2840,7 +2840,7 @@
         "bm25": "Πλήρης αναζήτηση κειμένου",
         "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
         "title": "Λειτουργία Αναζήτησης",
-        "vector": "Αναζήτηση Διανυσμάτων"
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "smart_chunking": "Έξυπνη Τμηματοποίηση",
@@ -7216,7 +7216,7 @@
       },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
-      "close_tab": "Κλείσιμο Καρτέλας",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
@@ -7224,11 +7224,11 @@
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
-      "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Νέο θέμα",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
-      "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
-      "pin_tab": "Εναλλαγή Καρφίτσωμα Καρτέλας",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",

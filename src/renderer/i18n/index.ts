@@ -18,6 +18,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 // Original translation
+import arYE from './locales/ar-ye.json'
 import enUS from './locales/en-us.json'
 import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
@@ -36,6 +37,7 @@ const logger = loggerService.withContext('I18N')
 
 const resources = Object.fromEntries(
   [
+    ['ar-YE', arYE],
     ['en-US', enUS],
     ['ja-JP', jaJP],
     ['ru-RU', ruRU],
@@ -61,6 +63,7 @@ export const getLanguageCode = async () => {
 
 // Map i18n language codes to dayjs locale codes
 const dayjsLocaleMap: Record<string, string> = {
+  'ar-YE': 'ar',
   'en-US': 'en',
   'ja-JP': 'ja',
   'ru-RU': 'ru',

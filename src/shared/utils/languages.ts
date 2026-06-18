@@ -1,6 +1,7 @@
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 export const languageEnglishNameMap: Record<LanguageVarious, string> = {
+  'ar-YE': 'Arabic',
   'de-DE': 'German',
   'el-GR': 'Greek',
   'en-US': 'English',

@@ -1977,7 +1977,7 @@
       "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
       "openai_codex": "OpenAIの公式コード生成CLI",
       "opencode": "オープンソースのマルチモデルコーディングエージェント",
-      "qoder_cli": "Alibaba Qoderの自律型コマンドラインコーディングツール",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Alibaba TongyiのオープンソースCLIコーディングツール"
     },
     "update_options": "更新オプション",
@@ -2659,7 +2659,7 @@
           "description": "既存のノートをナレッジベースのソースとして選択",
           "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダ、URL、またはサイトマップを使用してください。",
           "empty_title": "ノートはまだ接続されていません",
-          "loading": "メモを読み込んでいます…"
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
@@ -2759,7 +2759,7 @@
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
     "error": {
-      "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_delete": "ナレッジベースの削除に失敗しました",
@@ -2840,7 +2840,7 @@
         "bm25": "全文検索",
         "hybrid": "ハイブリッド検索（推奨）",
         "title": "検索モード",
-        "vector": "ベクトル検索"
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "セパレータルール",
       "smart_chunking": "スマートチャンキング",
@@ -7216,7 +7216,7 @@
       },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
-      "close_tab": "タブを閉じる",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
@@ -7224,11 +7224,11 @@
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
-      "move_tab_to_first": "タブを最初に移動",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "新しいトピック",
       "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
-      "open_tab_in_new_window": "新しいウィンドウでタブを開く",
-      "pin_tab": "タブをピン留め/解除",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "ショートカットを押す",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
