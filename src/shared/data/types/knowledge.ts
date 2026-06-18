@@ -81,14 +81,17 @@ export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema
 export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
 
 /**
- * Item-level error code stored on v1-indexed `directory` items by the v2
- * migration: v1 embedded a folder's files under the directory item's loader ids
- * without per-file items, so those container-level vectors have no v2 home and
- * are dropped. The migrator marks such items with status `failed` and this code;
- * the renderer maps the code to a localized migration-failed message (same code → i18n
- * pattern as the base error codes above).
+ * Item-level error codes stored on `knowledge_item.error`. Currently only the v2
+ * migration sets one: a v1-indexed `directory` whose container-level vectors could not
+ * be re-attributed to per-file children (unreadable legacy sources, or no migratable
+ * vectors) is marked `failed` with `directory_not_migrated`. Modeled as a zod enum (the
+ * same shape as the base error codes above) so the renderer's code → i18n switch in
+ * `error.ts` stays exhaustive-checkable and the code ↔ translator-key triple is tied together.
  */
-export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED = 'directory_not_migrated'
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated'] as const
+export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
+export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
+export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
