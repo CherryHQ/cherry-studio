@@ -1,5 +1,4 @@
 import { useChat } from '@ai-sdk/react'
-import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { MessageContentProvider } from '@renderer/components/chat/messages'
@@ -14,13 +13,13 @@ import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hook
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import WindowFooter from './WindowFooter'
 
@@ -163,29 +162,32 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   return (
     <>
-      <Container>
-        <MenuContainer>
-          <OriginalHeader onClick={() => setShowOriginal(!showOriginal)}>
+      <div className="flex w-full flex-col items-center justify-center">
+        <div className="flex w-full flex-row items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setShowOriginal(!showOriginal)}
+            className="flex cursor-pointer items-center justify-between text-foreground-secondary text-xs transition-colors hover:text-primary">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>
-            <ChevronDown size={14} className={showOriginal ? 'expanded' : ''} />
-          </OriginalHeader>
-        </MenuContainer>
+            <ChevronDown size={14} className={cn('transition-transform', showOriginal && 'rotate-180')} />
+          </button>
+        </div>
         {showOriginal && (
-          <OriginalContent>
+          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
             {action.selectedText}
-            <OriginalContentCopyWrapper>
+            <div className="flex justify-end">
               <CopyButton
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
               />
-            </OriginalContentCopyWrapper>
-          </OriginalContent>
+            </div>
+          </div>
         )}
-        <Result>
-          {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+        <div className="mt-1 w-full">
+          {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {!isPreparing && latestAssistantMessage && (
             <MessageContentProvider
               messages={[latestAssistantMessage]}
@@ -195,87 +197,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
             </MessageContentProvider>
           )}
-        </Result>
-        {error && <ErrorMsg>{error}</ErrorMsg>}
-      </Container>
-      <FooterPadding />
+        </div>
+        {error && (
+          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+            {error}
+          </div>
+        )}
+      </div>
+      <div className="min-h-3" />
       <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 })
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-`
-
-const Result = styled.div`
-  margin-top: 4px;
-  width: 100%;
-`
-
-const MenuContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-`
-
-const OriginalHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-
-  &:hover {
-    color: var(--color-primary);
-  }
-
-  .lucide {
-    transition: transform 0.2s ease;
-    &.expanded {
-      transform: rotate(180deg);
-    }
-  }
-`
-
-const OriginalContent = styled.div`
-  padding: 8px;
-  margin-top: 8px;
-  margin-bottom: 12px;
-  background-color: var(--color-background-soft);
-  border-radius: 4px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  width: 100%;
-`
-
-const OriginalContentCopyWrapper = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`
-
-const FooterPadding = styled.div`
-  min-height: 12px;
-`
-
-const ErrorMsg = styled.div`
-  color: var(--color-error);
-  background: rgba(255, 0, 0, 0.15);
-  border: 1px solid var(--color-error);
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  word-break: break-all;
-`
 
 export default ActionGeneral
