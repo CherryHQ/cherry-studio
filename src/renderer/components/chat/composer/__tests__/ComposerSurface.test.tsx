@@ -480,7 +480,7 @@ describe('ComposerSurface', () => {
     expect(cornerLine).toHaveClass('opacity-0', 'scale-50')
   })
 
-  it('renders an editing mode bar with locate and cancel actions inside the inputbar', () => {
+  it('renders a compact editing mode badge attached to the inputbar edge', () => {
     const onCancel = vi.fn()
     const onLocate = vi.fn()
 
@@ -495,24 +495,54 @@ describe('ComposerSurface', () => {
       />
     )
 
-    const editingBar = screen.getByText('chat.input.editing_message').closest('[data-composer-editing-bar]')
+    const editingBadge = screen.getByText('chat.input.editing').closest('[data-composer-editing-badge]')
 
-    expect(editingBar?.closest('[data-composer-inputbar]')).not.toBeNull()
-    expect(editingBar).toHaveClass('border-border', 'bg-muted', 'text-foreground-secondary')
-    expect(editingBar).not.toHaveClass('border-info/40', 'bg-[var(--color-info-bg)]', 'text-info', 'mb-2')
+    expect(editingBadge?.closest('[data-composer-inputbar]')).not.toBeNull()
+    expect(editingBadge?.closest('[data-composer-toolbar]')).toBeNull()
+    expect(editingBadge).toHaveClass(
+      'absolute',
+      'top-0',
+      'left-3',
+      '-translate-y-1/2',
+      'rounded-full',
+      'border',
+      'border-border-subtle',
+      'bg-card'
+    )
+    expect(editingBadge).not.toHaveClass('w-full', 'border-b-0', 'bg-muted', 'bg-secondary', 'shadow-xs')
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
-    expect(locateButton).toHaveClass('text-foreground-secondary', 'hover:bg-accent')
+    expect(locateButton).toHaveClass('size-5', 'text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
-    expect(cancelButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(cancelButton).toHaveClass('size-5', 'text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
     expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
 
     fireEvent.click(cancelButton)
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses the editor when an editing session starts', async () => {
+    const { rerender } = render(<ComposerSurface {...baseProps} editingState={undefined} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    mocks.focus.mockClear()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        editingState={{
+          messageId: 'message-1',
+          highlightKey: 1,
+          onCancel: vi.fn()
+        }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.focus).toHaveBeenCalledTimes(1))
   })
 
   it('briefly highlights the inputbar border when editing starts', () => {

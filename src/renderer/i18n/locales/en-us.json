@@ -1452,6 +1452,7 @@
       "context_count": {
         "tip": "Context / Max Context"
       },
+      "editing": "Editing",
       "editing_message": "Editing sent message",
       "estimated_tokens": {
         "tip": "Estimated tokens"

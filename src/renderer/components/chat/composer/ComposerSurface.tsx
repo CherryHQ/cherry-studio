@@ -1239,6 +1239,11 @@ export default function ComposerSurface({
   }, [draftTokens, editor, text])
 
   useEffect(() => {
+    if (editingHighlightKey === undefined) return
+    focusEditor()
+  }, [editingHighlightKey, focusEditor])
+
+  useEffect(() => {
     if (!editor || editor.isDestroyed) return
     const draft = serializeComposerDocument(editor)
     const desiredTokenIds = getTokenIds(tokens)
@@ -1347,15 +1352,15 @@ export default function ComposerSurface({
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
   const ExpandIcon = isExpanded ? Minimize2 : Maximize2
-  const editingModeBar = editingState ? (
+  const editingModeBadge = editingState ? (
     <div
       role="status"
       aria-live="polite"
       aria-label={t('chat.input.editing_message')}
-      data-composer-editing-bar=""
-      className="mx-2 mb-1.5 flex min-h-8 items-center gap-2 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-foreground-secondary text-xs">
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-foreground-muted" />
-      <span className="min-w-0 flex-1 truncate font-medium">{t('chat.input.editing_message')}</span>
+      data-composer-editing-badge=""
+      className="absolute top-0 left-3 z-4 inline-flex h-6 max-w-[180px] -translate-y-1/2 items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />
+      <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
       {editingState.onLocate ? (
         <Tooltip content={t('chat.input.locate_editing_message')}>
           <Button
@@ -1363,7 +1368,7 @@ export default function ComposerSurface({
             onClick={editingState.onLocate}
             variant="ghost"
             size="icon-sm"
-            className="size-6 shrink-0 rounded-full text-foreground-secondary hover:bg-accent"
+            className="-mr-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
             aria-label={t('chat.input.locate_editing_message')}>
             <LocateFixed size={14} />
           </Button>
@@ -1375,7 +1380,7 @@ export default function ComposerSurface({
           onClick={editingState.onCancel}
           variant="ghost"
           size="icon-sm"
-          className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+          className="-mr-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
           aria-label={t('chat.input.cancel_editing')}>
           <X size={14} />
         </Button>
@@ -1418,7 +1423,7 @@ export default function ComposerSurface({
           <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
         </Button>
       </div>
-      {editingModeBar}
+      {editingModeBadge}
       <div
         ref={editorFrameRef}
         className="overflow-hidden transition-[height] ease-out"
@@ -1441,7 +1446,9 @@ export default function ComposerSurface({
         />
       </div>
 
-      <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
+      <div
+        data-composer-toolbar=""
+        className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
         <div className="flex flex-row items-center gap-1.5">
           {renderSendAccessory?.()}

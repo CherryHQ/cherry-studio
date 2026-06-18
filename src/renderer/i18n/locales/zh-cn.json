@@ -1452,6 +1452,7 @@
       "context_count": {
         "tip": "上下文数 / 最大上下文数"
       },
+      "editing": "编辑中",
       "editing_message": "正在编辑已发送消息",
       "estimated_tokens": {
         "tip": "预估 Token 数"

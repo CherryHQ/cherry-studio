@@ -1452,6 +1452,7 @@
       "context_count": {
         "tip": "上下文數 / 最大上下文數"
       },
+      "editing": "[to be translated]:Editing",
       "editing_message": "[to be translated]:Editing sent message",
       "estimated_tokens": {
         "tip": "預估 Token 數"
