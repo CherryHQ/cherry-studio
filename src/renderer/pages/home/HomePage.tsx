@@ -26,15 +26,15 @@ import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutat
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useLocation, useSearch } from '@tanstack/react-router'
-import type { FC, ReactNode } from 'react'
+import type { FC, HTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import Chat from './Chat'
 import ChatNavbar from './components/ChatNavBar'
@@ -618,7 +618,7 @@ type MessageOnlyStatusProps = {
 
 function MessageOnlyStatus({ loading, loadingLabel, missingTitle }: MessageOnlyStatusProps) {
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background">
+    <div className="flex h-[calc(100vh_-_var(--navbar-height)_-_6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background">
       <ChatAppShell
         centerContent={
           <div className="flex h-full min-h-0 flex-1 items-center justify-center px-6">
@@ -630,24 +630,25 @@ function MessageOnlyStatus({ loading, loadingLabel, missingTitle }: MessageOnlyS
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
-  max-width: 100vw;
-`
+function Container({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('relative flex max-w-[100vw] flex-1 flex-col overflow-hidden', className)} {...props} />
+}
 
-const ContentContainer = styled.div<{ $detached?: boolean }>`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  min-height: 0;
-  overflow: hidden;
-  /* The 12px inset is for the main window's rounded content edge; a detached
-     sub-window has no such inset, so it would just leave a dead right gap. */
-  max-width: ${({ $detached }) => ($detached ? '100vw' : 'calc(100vw - 12px)')};
-`
+function ContentContainer({
+  $detached,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { $detached?: boolean }) {
+  return (
+    <div
+      className={cn(
+        'flex min-h-0 flex-1 overflow-hidden',
+        $detached ? 'max-w-[100vw]' : 'max-w-[calc(100vw_-_12px)]',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
 export default HomePage

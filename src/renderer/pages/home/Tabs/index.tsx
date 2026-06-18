@@ -1,7 +1,7 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
-import type { FC } from 'react'
-import styled from 'styled-components'
+import { cn } from '@renderer/utils'
+import type { FC, HTMLAttributes } from 'react'
 
 import type { AddNewTopicPayload } from '../types'
 import { Topics } from './components/Topics'
@@ -31,28 +31,22 @@ const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, onOpenHistory, setActive
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: var(--assistants-width);
-  transition: width 0.3s;
-  height: calc(100vh - var(--navbar-height));
-  position: relative;
+function Container({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'relative flex h-[calc(100vh_-_var(--navbar-height))] w-[var(--assistants-width)] flex-col overflow-hidden transition-[width] duration-300 [&_.collapsed]:w-0 [&_.collapsed]:border-l-0',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
-  overflow: hidden;
-  .collapsed {
-    width: 0;
-    border-left: none;
-  }
-`
-
-const TabContent = styled.div`
-  display: flex;
-  transition: width 0.3s;
-  flex: 1;
-  flex-direction: column;
-  overflow-y: hidden;
-  overflow-x: hidden;
-`
+function TabContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('flex flex-1 flex-col overflow-hidden transition-[width] duration-300', className)} {...props} />
+  )
+}
 
 export default HomeTabs

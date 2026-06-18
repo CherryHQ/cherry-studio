@@ -50,7 +50,7 @@ vi.mock('@renderer/components/Buttons', () => ({
   }
 }))
 
-vi.mock('antd', () => ({
+vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
 }))
 

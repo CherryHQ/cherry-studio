@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -10,7 +11,6 @@ import type { WebSearchProviderId } from '@shared/data/preference/preferenceType
 import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebSearchModel } from '@shared/utils/model'
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
-import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
@@ -154,7 +154,7 @@ const WebSearchButton: FC<Props> = (props) => {
   const { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle } = useWebSearchToolController(props)
 
   return (
-    <Tooltip placement="top" title={tooltipTitle} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" content={tooltipTitle}>
       <ActionIconButton
         onClick={onClick}
         active={enableWebSearch}
