@@ -210,7 +210,7 @@
           "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
           "placeholder": "Select channels to receive results"
         },
-        "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "Advanced Cron, e.g. 0 9 * * * (every day at 9 AM)",
         "delete": {
           "confirm": "Are you sure you want to delete this task?",
           "label": "Delete"
@@ -219,6 +219,29 @@
         "empty": "No scheduled tasks. Add one to get started.",
         "error": {
           "loadFailed": "Failed to load tasks"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
@@ -244,6 +267,7 @@
           "placeholder": "e.g. Daily code review"
         },
         "nextRun": "Next Run",
+        "onceMustBeFuture": "Choose a future time.",
         "oncePlaceholder": "Select date and time",
         "pause": "Pause",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Resume",
         "run": "Run",
-        "runTriggered": "Task triggered",
         "save": "Save",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "Paused"
         },
         "tab": "Tasks",
+        "testRun": {
+          "description": "Runs once without consuming or rescheduling the trigger.",
+          "label": "Test Run",
+          "queued": "Test Run queued"
+        },
         "time": {
           "hoursAgo": "{{count}}h ago",
           "minutesAgo": "{{count}}m ago"
         },
         "timeout": {
-          "label": "Timeout",
-          "placeholder": "No limit"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Scheduled Tasks"
       },

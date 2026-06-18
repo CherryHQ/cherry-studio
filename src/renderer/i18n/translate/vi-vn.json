@@ -210,7 +210,7 @@
           "noActiveChatIds": "Các kênh được chọn không có người nhận khả dụng (Chat ID). Kết quả tác vụ có thể không được gửi đến. Vui lòng gửi tin nhắn đến Bot trên nền tảng trước.",
           "placeholder": "Chọn các kênh để nhận kết quả"
         },
-        "cronPlaceholder": "ví dụ: 0 9 * * * (mỗi ngày lúc 9 giờ sáng)",
+        "cronPlaceholder": "Advanced Cron, ví dụ: 0 9 * * * (mỗi ngày lúc 9 giờ sáng)",
         "delete": {
           "confirm": "Bạn có chắc chắn muốn xóa nhiệm vụ này không?",
           "label": "Xóa"
@@ -219,6 +219,29 @@
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
         "error": {
           "loadFailed": "Không tải được nhiệm vụ"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
@@ -244,6 +267,7 @@
           "placeholder": "ví dụ: Xem xét mã hàng ngày"
         },
         "nextRun": "Lần chạy tiếp theo",
+        "onceMustBeFuture": "Chọn một thời điểm trong tương lai.",
         "oncePlaceholder": "Chọn ngày và giờ",
         "pause": "Tạm dừng",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Sơ yếu lý lịch",
         "run": "Chạy",
-        "runTriggered": "Nhiệm vụ được kích hoạt",
         "save": "Lưu",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "Tạm dừng"
         },
         "tab": "Nhiệm vụ",
+        "testRun": {
+          "description": "Chạy một lần mà không tiêu thụ hoặc lên lịch lại trình kích hoạt.",
+          "label": "Chạy thử",
+          "queued": "Lượt chạy thử đã được thêm vào hàng đợi"
+        },
         "time": {
           "hoursAgo": "{{count}}h ago",
           "minutesAgo": "{{count}} m pli frue"
         },
         "timeout": {
-          "label": "Timeout",
-          "placeholder": "Keine Grenzen"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Các Tác Vụ Đã Lên Lịch"
       },

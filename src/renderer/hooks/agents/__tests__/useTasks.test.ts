@@ -159,7 +159,10 @@ describe('useRunTask', () => {
 
     expect(mockApi.ai.agent.runTask).toHaveBeenCalledWith('t-1')
     expect(ran).toBe(true)
-    expect(mockToast.success).toHaveBeenCalled()
+    expect(mockToast.success).toHaveBeenCalledWith({
+      key: 'run-task',
+      title: 'agent.cherryClaw.tasks.testRun.queued'
+    })
   })
 
   it('toasts error and returns false on failure', async () => {

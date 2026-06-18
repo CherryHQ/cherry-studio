@@ -210,7 +210,7 @@
           "noActiveChatIds": "Τα επιλεγμένα κανάλια δεν διαθέτουν διαθέσιμους παραλήπτες (Chat ID). Τα αποτελέσματα της εργασίας ενδέχεται να μην παραδοθούν. Παρακαλώ στείλτε πρώτα ένα μήνυμα στο Bot στην πλατφόρμα.",
           "placeholder": "Επιλέξτε κανάλια για να λαμβάνετε αποτελέσματα"
         },
-        "cronPlaceholder": "π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
+        "cronPlaceholder": "Advanced Cron, π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
         "delete": {
           "confirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εργασία;",
           "label": "Διαγραφή"
@@ -219,6 +219,29 @@
         "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
         "error": {
           "loadFailed": "Αποτυχία φόρτωσης εργασιών"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Διάστημα σε λεπτά",
         "intervalUnit": "λεπτά",
@@ -244,6 +267,7 @@
           "placeholder": "π.χ. Καθημερινή αναθεώρηση κώδικα"
         },
         "nextRun": "Επόμενη εκτέλεση",
+        "onceMustBeFuture": "Επιλέξτε μια μελλοντική ώρα.",
         "oncePlaceholder": "Επιλέξτε ημερομηνία και ώρα",
         "pause": "Παύση",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Συνέχιση",
         "run": "Εκτέλεση",
-        "runTriggered": "Η εργασία ενεργοποιήθηκε",
         "save": "Αποθήκευση",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "Σε παύση"
         },
         "tab": "Εργασίες",
+        "testRun": {
+          "description": "Εκτελείται μία φορά χωρίς να καταναλώνει ή να επαναπρογραμματίζει το έναυσμα.",
+          "label": "Δοκιμαστική εκτέλεση",
+          "queued": "Η δοκιμαστική εκτέλεση προστέθηκε στην ουρά"
+        },
         "time": {
           "hoursAgo": "{{count}}h πριν",
           "minutesAgo": "{{count}}μ πριν"
         },
         "timeout": {
-          "label": "Λήξη χρόνου",
-          "placeholder": "Χωρίς όριο"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Προγραμματισμένες εργασίες"
       },

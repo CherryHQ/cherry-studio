@@ -210,7 +210,7 @@
           "noActiveChatIds": "Die ausgewählten Kanäle verfügen über keine verfügbaren Empfänger (Chat-ID). Aufgabenergebnisse werden möglicherweise nicht zugestellt. Bitte senden Sie dem Bot zunächst eine Nachricht auf der Plattform.",
           "placeholder": "Wähle Kanäle, um Ergebnisse zu erhalten"
         },
-        "cronPlaceholder": "z.B. 0 9 * * * (täglich um 9 Uhr)",
+        "cronPlaceholder": "Advanced Cron, z.B. 0 9 * * * (täglich um 9 Uhr)",
         "delete": {
           "confirm": "Sind Sie sicher, dass Sie diese Aufgabe löschen möchten?",
           "label": "Löschen"
@@ -219,6 +219,29 @@
         "empty": "Keine geplanten Aufgaben. Fügen Sie eine hinzu, um zu beginnen.",
         "error": {
           "loadFailed": "Aufgaben konnten nicht geladen werden"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Intervall in Minuten",
         "intervalUnit": "Minuten",
@@ -244,6 +267,7 @@
           "placeholder": "z.B. Tägliche Code-Überprüfung"
         },
         "nextRun": "Nächste Ausführung",
+        "onceMustBeFuture": "Wählen Sie eine zukünftige Zeit.",
         "oncePlaceholder": "Datum und Uhrzeit auswählen",
         "pause": "Pausieren",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Fortsetzen",
         "run": "Ausführen",
-        "runTriggered": "Aufgabe ausgelöst",
         "save": "Speichern",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "Pausiert"
         },
         "tab": "Aufgaben",
+        "testRun": {
+          "description": "Einmal ausführen, ohne den Auslöser zu verbrauchen oder neu zu planen.",
+          "label": "Testausführung",
+          "queued": "Testausführung wurde in die Warteschlange gestellt"
+        },
         "time": {
           "hoursAgo": "vor {{count}} Stunden",
           "minutesAgo": "vor {{count}} m"
         },
         "timeout": {
-          "label": "Zeitlimit überschritten",
-          "placeholder": "Kein Limit"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Geplante Aufgaben"
       },

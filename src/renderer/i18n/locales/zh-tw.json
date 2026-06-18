@@ -210,7 +210,7 @@
           "noActiveChatIds": "所選頻道沒有可用的收件人（聊天 ID）。任務結果可能無法送達。請先在平台上向機器人發送一則訊息。",
           "placeholder": "選擇接收結果的頻道"
         },
-        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
+        "cronPlaceholder": "進階 Cron，例如 0 9 * * *（每天上午 9 點）",
         "delete": {
           "confirm": "確定要刪除此任務嗎？",
           "label": "刪除"
@@ -219,6 +219,29 @@
         "empty": "暫無排程任務。新增一個開始吧。",
         "error": {
           "loadFailed": ""
+        },
+        "frequency": {
+          "daily": "每天",
+          "everyPrefix": "每隔",
+          "everySuffix": "分鐘執行一次",
+          "interval": "間隔",
+          "label": "執行頻率",
+          "monthDay": "日期",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "每月",
+          "monthlyDay": "每月{{day}}日",
+          "once": "單次",
+          "period": "週期",
+          "weekdays": {
+            "fri": "週五",
+            "mon": "週一",
+            "sat": "週六",
+            "sun": "週日",
+            "thu": "週四",
+            "tue": "週二",
+            "wed": "週三"
+          },
+          "weekly": "每週"
         },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
@@ -244,6 +267,7 @@
           "placeholder": "例如：每日程式碼審查"
         },
         "nextRun": "下次執行",
+        "onceMustBeFuture": "請選擇未來時間。",
         "oncePlaceholder": "選擇日期和時間",
         "pause": "暫停",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "恢復",
         "run": "執行",
-        "runTriggered": "任務已觸發",
         "save": "儲存",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "已暫停"
         },
         "tab": "任務",
+        "testRun": {
+          "description": "額外執行一次，不會消耗或重排觸發器。",
+          "label": "測試執行",
+          "queued": "測試執行已加入佇列"
+        },
         "time": {
           "hoursAgo": "{{count}}小時前",
           "minutesAgo": "{{count}}分鐘前"
         },
         "timeout": {
-          "label": "逾時時間",
-          "placeholder": "無限制"
+          "label": "最長執行時間",
+          "limited": "限制時長",
+          "placeholder": "2",
+          "unlimited": "不限制"
         },
         "title": "排程任務"
       },

@@ -210,7 +210,7 @@
           "noActiveChatIds": "Les canaux sélectionnés ne possèdent aucun destinataire disponible (ID de chat). Les résultats de la tâche peuvent ne pas être livrés. Veuillez d'abord envoyer un message au Bot sur la plateforme.",
           "placeholder": "Sélectionnez les chaînes pour recevoir les résultats"
         },
-        "cronPlaceholder": "ex: 0 9 * * * (tous les jours à 9h)",
+        "cronPlaceholder": "Advanced Cron, ex: 0 9 * * * (tous les jours à 9h)",
         "delete": {
           "confirm": "Êtes-vous sûr de vouloir supprimer cette tâche ?",
           "label": "Supprimer"
@@ -219,6 +219,29 @@
         "empty": "Aucune tâche planifiée. Ajoutez-en une pour commencer.",
         "error": {
           "loadFailed": "Échec du chargement des tâches"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Intervalle en minutes",
         "intervalUnit": "minutes",
@@ -244,6 +267,7 @@
           "placeholder": "ex: Revue de code quotidienne"
         },
         "nextRun": "Prochaine exécution",
+        "onceMustBeFuture": "Choisissez une heure future.",
         "oncePlaceholder": "Sélectionner la date et l'heure",
         "pause": "Pause",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Reprendre",
         "run": "Exécuter",
-        "runTriggered": "Tâche déclenchée",
         "save": "Enregistrer",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "En pause"
         },
         "tab": "Tâches",
+        "testRun": {
+          "description": "S'exécute une fois sans consommer ni reprogrammer le déclencheur.",
+          "label": "Exécution test",
+          "queued": "Exécution test mise en file d'attente"
+        },
         "time": {
           "hoursAgo": "{{count}}h il y a",
           "minutesAgo": "{{count}}m il y a"
         },
         "timeout": {
-          "label": "Délai d'attente dépassé",
-          "placeholder": "Aucune limite"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Tâches planifiées"
       },

@@ -71,7 +71,7 @@ export const useRunTask = () => {
     async (taskId: string): Promise<boolean> => {
       try {
         await window.api.ai.agent.runTask(taskId)
-        window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
+        window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.testRun.queued') })
         return true
       } catch (error) {
         window.toast.error(

@@ -10,10 +10,27 @@ interface ListItemProps {
   titleStyle?: React.CSSProperties
   onClick?: () => void
   rightContent?: ReactNode
+  showTooltip?: boolean
   style?: React.CSSProperties
 }
 
-const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightContent, style }: ListItemProps) => {
+const ListItem = ({
+  active,
+  icon,
+  title,
+  subtitle,
+  titleStyle,
+  onClick,
+  rightContent,
+  showTooltip = true,
+  style
+}: ListItemProps) => {
+  const titleContent = (
+    <span className="block min-w-0 truncate" style={titleStyle}>
+      {title}
+    </span>
+  )
+
   return (
     <div
       className={cn(
@@ -25,11 +42,13 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
       <div className="flex items-center gap-[2px] overflow-hidden text-[13px]">
         {icon && <span className="mr-2 flex items-center justify-center">{icon}</span>}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Tooltip content={title} classNames={{ placeholder: 'block min-w-0' }}>
-            <span className="block min-w-0 truncate" style={titleStyle}>
-              {title}
-            </span>
-          </Tooltip>
+          {showTooltip ? (
+            <Tooltip content={title} classNames={{ placeholder: 'block min-w-0' }}>
+              {titleContent}
+            </Tooltip>
+          ) : (
+            titleContent
+          )}
           {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-muted">{subtitle}</div>}
         </div>
         {rightContent && <div className="ml-auto">{rightContent}</div>}

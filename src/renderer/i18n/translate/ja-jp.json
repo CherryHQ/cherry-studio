@@ -210,7 +210,7 @@
           "noActiveChatIds": "選択されたチャンネルには利用可能な受信者（チャットID）が存在しません。タスクの結果が配信されない可能性があります。まず、プラットフォーム上でボットにメッセージを送信してください。",
           "placeholder": "結果を受け取るチャンネルを選択してください"
         },
-        "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
+        "cronPlaceholder": "Advanced Cron, 例: 0 9 * * *（毎日午前 9 時）",
         "delete": {
           "confirm": "このタスクを削除してもよろしいですか？",
           "label": "削除"
@@ -219,6 +219,29 @@
         "empty": "スケジュールタスクがありません。追加して開始しましょう。",
         "error": {
           "loadFailed": "タスクの読み込みに失敗しました"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "間隔（分）",
         "intervalUnit": "議事録",
@@ -244,6 +267,7 @@
           "placeholder": "例: 毎日のコードレビュー"
         },
         "nextRun": "次回の実行",
+        "onceMustBeFuture": "未来の時刻を選択してください。",
         "oncePlaceholder": "日時を選択",
         "pause": "一時停止",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "再開",
         "run": "実行",
-        "runTriggered": "タスクがトリガーされました",
         "save": "保存",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "一時停止中"
         },
         "tab": "タスク",
+        "testRun": {
+          "description": "トリガーを消費したり再スケジュールしたりせずに1回実行します。",
+          "label": "テスト実行",
+          "queued": "テスト実行がキューに追加されました"
+        },
         "time": {
           "hoursAgo": "{{count}}時間前",
           "minutesAgo": "{{count}}分前"
         },
         "timeout": {
-          "label": "タイムアウト",
-          "placeholder": "制限なし"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "スケジュールタスク"
       },

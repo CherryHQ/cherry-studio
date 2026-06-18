@@ -210,7 +210,7 @@
           "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。",
           "placeholder": "选择接收结果的频道"
         },
-        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
+        "cronPlaceholder": "高级 Cron，例如 0 9 * * *（每天上午 9 点）",
         "delete": {
           "confirm": "确定要删除此任务吗？",
           "label": "删除"
@@ -219,6 +219,29 @@
         "empty": "暂无定时任务。添加一个开始吧。",
         "error": {
           "loadFailed": ""
+        },
+        "frequency": {
+          "daily": "每天",
+          "everyPrefix": "每隔",
+          "everySuffix": "分钟执行一次",
+          "interval": "间隔",
+          "label": "执行频率",
+          "monthDay": "日期",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "每月",
+          "monthlyDay": "每月{{day}}日",
+          "once": "单次",
+          "period": "周期",
+          "weekdays": {
+            "fri": "周五",
+            "mon": "周一",
+            "sat": "周六",
+            "sun": "周日",
+            "thu": "周四",
+            "tue": "周二",
+            "wed": "周三"
+          },
+          "weekly": "每周"
         },
         "intervalPlaceholder": "间隔（分钟）",
         "intervalUnit": "分钟",
@@ -244,6 +267,7 @@
           "placeholder": "例如：每日代码审查"
         },
         "nextRun": "下次运行",
+        "onceMustBeFuture": "请选择未来时间。",
         "oncePlaceholder": "选择日期和时间",
         "pause": "暂停",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "恢复",
         "run": "运行",
-        "runTriggered": "任务已触发",
         "save": "保存",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "已暂停"
         },
         "tab": "任务",
+        "testRun": {
+          "description": "额外执行一次，不会消耗或重排触发器。",
+          "label": "测试执行",
+          "queued": "测试执行已加入队列"
+        },
         "time": {
           "hoursAgo": "{{count}}小时前",
           "minutesAgo": "{{count}}分钟前"
         },
         "timeout": {
-          "label": "超时时间",
-          "placeholder": "无限制"
+          "label": "最长执行时间",
+          "limited": "限制时长",
+          "placeholder": "2",
+          "unlimited": "不限制"
         },
         "title": "定时任务"
       },

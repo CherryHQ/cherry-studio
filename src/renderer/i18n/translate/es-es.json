@@ -210,7 +210,7 @@
           "noActiveChatIds": "Los canales seleccionados no tienen destinatarios disponibles (ID de chat). Es posible que los resultados de la tarea no se entreguen. Primero, envíe un mensaje al Bot en la plataforma.",
           "placeholder": "Seleccionar canales para recibir resultados"
         },
-        "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
+        "cronPlaceholder": "Advanced Cron, ej: 0 9 * * * (todos los días a las 9 AM)",
         "delete": {
           "confirm": "¿Está seguro de que desea eliminar esta tarea?",
           "label": "Eliminar"
@@ -219,6 +219,29 @@
         "empty": "No hay tareas programadas. Agregue una para comenzar.",
         "error": {
           "loadFailed": "Error al cargar las tareas"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Intervalo en minutos",
         "intervalUnit": "minutos",
@@ -244,6 +267,7 @@
           "placeholder": "ej: Revisión de código diaria"
         },
         "nextRun": "Próxima ejecución",
+        "onceMustBeFuture": "Elige una hora futura.",
         "oncePlaceholder": "Seleccionar fecha y hora",
         "pause": "Pausar",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Reanudar",
         "run": "Ejecutar",
-        "runTriggered": "Tarea activada",
         "save": "Guardar",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "Pausado"
         },
         "tab": "Tareas",
+        "testRun": {
+          "description": "Se ejecuta una vez sin consumir ni reprogramar el disparador.",
+          "label": "Ejecución de prueba",
+          "queued": "Ejecución de prueba en cola"
+        },
         "time": {
           "hoursAgo": "hace {{count}}h",
           "minutesAgo": "{{count}}m hace"
         },
         "timeout": {
-          "label": "Tiempo de espera agotado",
-          "placeholder": "Sin límite"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Tareas programadas"
       },

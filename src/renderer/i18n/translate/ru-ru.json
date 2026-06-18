@@ -210,7 +210,7 @@
           "noActiveChatIds": "Выбранные каналы не имеют доступных получателей (Chat ID). Результаты задачи могут быть не доставлены. Пожалуйста, сначала отправьте сообщение боту на платформе.",
           "placeholder": "Выберите каналы для получения результатов"
         },
-        "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
+        "cronPlaceholder": "Advanced Cron, напр. 0 9 * * * (каждый день в 9 утра)",
         "delete": {
           "confirm": "Вы уверены, что хотите удалить эту задачу?",
           "label": "Удалить"
@@ -219,6 +219,29 @@
         "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
         "error": {
           "loadFailed": "Не удалось загрузить задачи"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Интервал в минутах",
         "intervalUnit": "минуты",
@@ -244,6 +267,7 @@
           "placeholder": "напр. Ежедневный обзор кода"
         },
         "nextRun": "Следующий запуск",
+        "onceMustBeFuture": "Выберите время в будущем.",
         "oncePlaceholder": "Выберите дату и время",
         "pause": "Пауза",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Возобновить",
         "run": "Запустить",
-        "runTriggered": "Задача запущена",
         "save": "Сохранить",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "Приостановлена"
         },
         "tab": "Задачи",
+        "testRun": {
+          "description": "Запускается один раз, не расходуя и не перепланируя триггер.",
+          "label": "Тестовый запуск",
+          "queued": "Тестовый запуск добавлен в очередь"
+        },
         "time": {
           "hoursAgo": "{{count}} ч назад",
           "minutesAgo": "{{count}} мин. назад"
         },
         "timeout": {
-          "label": "Тайм-аут",
-          "placeholder": "Без ограничений"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Запланированные задачи"
       },

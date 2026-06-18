@@ -210,7 +210,7 @@
           "noActiveChatIds": "Canalele selectate nu au destinatari disponibili (ID de chat). Este posibil ca rezultatele sarcinii să nu fie livrate. Vă rugăm să trimiteți mai întâi un mesaj botului pe platformă.",
           "placeholder": "Selectați canalele pentru a primi rezultatele"
         },
-        "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
+        "cronPlaceholder": "Advanced Cron, ex: 0 9 * * * (în fiecare zi la ora 9)",
         "delete": {
           "confirm": "Sunteți sigur că doriți să ștergeți această sarcină?",
           "label": "Șterge"
@@ -219,6 +219,29 @@
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
         "error": {
           "loadFailed": "Nu s-au putut încărca sarcinile"
+        },
+        "frequency": {
+          "daily": "Daily",
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "interval": "Interval",
+          "label": "Execution Frequency",
+          "monthDay": "Day of Month",
+          "monthDayPlaceholder": "1-31",
+          "monthly": "Monthly",
+          "monthlyDay": "Monthly on day {{day}}",
+          "once": "Once",
+          "period": "Schedule",
+          "weekdays": {
+            "fri": "Fri",
+            "mon": "Mon",
+            "sat": "Sat",
+            "sun": "Sun",
+            "thu": "Thu",
+            "tue": "Tue",
+            "wed": "Wed"
+          },
+          "weekly": "Weekly"
         },
         "intervalPlaceholder": "Interval în minute",
         "intervalUnit": "minute",
@@ -244,6 +267,7 @@
           "placeholder": "ex: Revizuire cod zilnică"
         },
         "nextRun": "Următoarea rulare",
+        "onceMustBeFuture": "Alegeți o oră viitoare.",
         "oncePlaceholder": "Selectați data și ora",
         "pause": "Pauză",
         "prompt": {
@@ -253,7 +277,6 @@
         },
         "resume": "Reia",
         "run": "Rulează",
-        "runTriggered": "Sarcină declanșată",
         "save": "Salvează",
         "scheduleType": {
           "cron": "Cron",
@@ -268,13 +291,20 @@
           "paused": "În pauză"
         },
         "tab": "Sarcini",
+        "testRun": {
+          "description": "Rulează o dată fără a consuma sau reprograma declanșatorul.",
+          "label": "Rulare de test",
+          "queued": "Rularea de test a fost adăugată în coadă"
+        },
         "time": {
           "hoursAgo": "acum {{count}}h",
           "minutesAgo": "acum {{count}}m"
         },
         "timeout": {
-          "label": "Timeout",
-          "placeholder": "Fără limită"
+          "label": "Maximum Runtime",
+          "limited": "Limited",
+          "placeholder": "2",
+          "unlimited": "No limit"
         },
         "title": "Sarcini programate"
       },
