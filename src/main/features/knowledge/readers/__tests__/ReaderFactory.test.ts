@@ -168,7 +168,7 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
       source: '/tmp/example-directory',
-      path: '/tmp/example-directory'
+      relativePath: '/tmp/example-directory'
     }
   }
 }

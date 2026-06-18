@@ -125,6 +125,6 @@ export const createDirectoryItem = ({
   type: 'directory',
   data: {
     source,
-    path: source
+    relativePath: source
   }
 })

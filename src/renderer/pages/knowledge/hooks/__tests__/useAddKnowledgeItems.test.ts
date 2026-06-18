@@ -32,7 +32,7 @@ describe('useAddKnowledgeItems', () => {
         type: 'directory' as const,
         data: {
           source: '/Users/me/docs',
-          path: '/Users/me/docs'
+          relativePath: '/Users/me/docs'
         }
       },
       {

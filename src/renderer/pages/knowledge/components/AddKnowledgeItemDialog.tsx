@@ -220,7 +220,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             type: 'directory' as const,
             data: {
               source: directory.path,
-              path: directory.path
+              relativePath: directory.path
             }
           }))
         )

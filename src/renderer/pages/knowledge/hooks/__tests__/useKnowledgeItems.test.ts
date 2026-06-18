@@ -33,7 +33,7 @@ describe('useKnowledgeItems', () => {
         type: 'directory',
         data: {
           source: '/tmp/example-directory',
-          path: '/tmp/example-directory'
+          relativePath: '/tmp/example-directory'
         },
         status: 'completed',
         error: null,
@@ -47,7 +47,7 @@ describe('useKnowledgeItems', () => {
         type: 'directory',
         data: {
           source: '/tmp/example-directory/nested',
-          path: '/tmp/example-directory/nested'
+          relativePath: '/tmp/example-directory/nested'
         },
         status: 'completed',
         error: null,
@@ -164,7 +164,7 @@ describe('useKnowledgeItems', () => {
             baseId: 'base-1',
             groupId: null,
             type: 'directory',
-            data: { source: '/docs', path: '/docs' },
+            data: { source: '/docs', relativePath: '/docs' },
             status: 'completed',
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',

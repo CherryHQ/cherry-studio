@@ -51,7 +51,7 @@ function createDirectoryItem(id = 'dir-1', groupId: string | null = null): Knowl
     baseId,
     groupId,
     type: 'directory',
-    data: { source: id, path: `/docs/${id}` },
+    data: { source: id, relativePath: `/docs/${id}` },
     status: 'processing',
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',

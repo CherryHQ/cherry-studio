@@ -282,7 +282,7 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
  * Directory item data.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
+  relativePath: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
