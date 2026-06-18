@@ -4,6 +4,8 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { getFileExt } from '@main/utils/file'
+import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 
@@ -40,6 +42,7 @@ import {
 const logger = loggerService.withContext('Knowledge:WorkflowService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
+const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
@@ -326,6 +329,7 @@ export class KnowledgeWorkflowService {
       return input
     }
 
+    assertSupportedKnowledgeFilePath(input.data.path)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.
@@ -394,5 +398,11 @@ export class KnowledgeWorkflowService {
       logMessage: 'Failed to mark unscheduled knowledge item after addItems scheduling failure',
       logContextKey: 'scheduleError'
     })
+  }
+}
+
+function assertSupportedKnowledgeFilePath(filePath: string): void {
+  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(getFileExt(filePath).toLowerCase())) {
+    throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }
 }

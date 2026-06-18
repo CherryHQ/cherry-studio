@@ -2174,6 +2174,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "unsupported_files_skipped": "已跳過 {{count}} 個不支援的檔案",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
         "delete_confirm_title": "確認批次刪除",
@@ -2241,9 +2241,7 @@
         "select_row": "選取列"
       },
       "toolbar": {
-        "add": "新增資料來源",
-        "no_search_results": "未找到符合的資料來源",
-        "search_placeholder": "搜尋資料來源"
+        "add": "新增資料來源"
       }
     },
     "dimensions_auto_set": "自動設定嵌入維度",

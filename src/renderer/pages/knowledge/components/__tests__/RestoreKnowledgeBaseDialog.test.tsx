@@ -6,10 +6,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
+const mockUseProviders = vi.fn()
 const mockEmbedMany = vi.fn()
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: (...args: unknown[]) => mockUseProviders(...args)
+}))
+
+vi.mock('../KnowledgeModelSelect', () => ({
+  isEmbeddingModel: () => true,
+  KnowledgeModelSelect: ({
+    value,
+    placeholder,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <input
+      aria-label={ariaLabel ?? placeholder}
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+    />
+  )
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -80,6 +106,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.embedding_model': '嵌入模型',
           'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.dimensions': '嵌入维度',
+          'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.not_set': '未设置',
           'knowledge.restore.default_name': `${options?.name}_副本`,
@@ -117,6 +144,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   status: 'failed',
   error: 'missing_embedding_model',
   searchMode: 'hybrid',
+  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -127,6 +155,9 @@ describe('RestoreKnowledgeBaseDialog', () => {
     vi.clearAllMocks()
     mockUseModels.mockReturnValue({
       models: [{ id: 'openai::text-embedding-3-small' }]
+    })
+    mockUseProviders.mockReturnValue({
+      providers: [{ id: 'openai', isEnabled: true }]
     })
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
     Object.assign(window, {
@@ -164,7 +195,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() =>
@@ -211,13 +242,13 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(mockEmbedMany).not.toHaveBeenCalled()
     expect(screen.getByText('知识库嵌入模型是必需的')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
   })
 
-  it('uses the embedding model supplied from the RAG config panel and probes its dimensions', async () => {
+  it('probes dimensions when the RAG config panel supplies a new embedding model without dimensions', async () => {
     mockEmbedMany.mockResolvedValueOnce({ embeddings: [new Array(2048).fill(0)] })
     const restoredBase = createKnowledgeBase({
       id: 'restored-base',
@@ -274,7 +305,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库重建失败: restore failed'))
@@ -284,7 +315,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
   it('shows an error and keeps the dialog open when embedding dimensions cannot be fetched', async () => {
     mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
-    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase({ dimensions: 2048 }))
+    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
     const onOpenChange = vi.fn()
     const onRestored = vi.fn()
 
@@ -299,7 +330,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('获取嵌入维度失败: probe failed'))
