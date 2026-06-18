@@ -129,24 +129,25 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return true
       }
 
-      const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
-        htmlToImage
-          .toCanvas(el, {
-            filter: filterHiddenElements,
-            backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
-            cacheBust: true,
-            pixelRatio: window.devicePixelRatio,
-            skipAutoScale: true,
-            canvasWidth: el.scrollWidth,
-            canvasHeight: el.scrollHeight,
-            style: {
-              backgroundColor: getComputedStyle(el).backgroundColor,
-              color: getComputedStyle(el).color
-            }
-          })
-          .then((canvas) => resolve(canvas))
-          .catch((error) => reject(error))
-      })
+      const captureOptions = {
+        filter: filterHiddenElements,
+        backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
+        cacheBust: true,
+        pixelRatio: window.devicePixelRatio,
+        skipAutoScale: true,
+        canvasWidth: el.scrollWidth,
+        canvasHeight: el.scrollHeight,
+        style: {
+          backgroundColor: getComputedStyle(el).backgroundColor,
+          color: getComputedStyle(el).color
+        }
+      }
+
+      // Warm up html-to-image resource caches before taking the final canvas.
+      const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
+      warmupCanvas.width = 0
+      warmupCanvas.height = 0
+      const canvas = await htmlToImage.toCanvas(el, captureOptions)
 
       // Restore original styles
       el.style.height = originalStyle.height
