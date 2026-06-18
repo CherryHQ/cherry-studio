@@ -2,6 +2,7 @@ import type { IpcRequestSchemas } from '@shared/ipc/schemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 import { selectionHandlers } from './selection'
+import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
 
 /**
@@ -15,5 +16,6 @@ import { windowHandlers } from './window'
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...selectionHandlers,
+  ...webSearchHandlers,
   ...windowHandlers
 }
