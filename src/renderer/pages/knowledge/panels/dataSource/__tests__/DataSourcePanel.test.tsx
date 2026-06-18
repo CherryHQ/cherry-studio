@@ -110,9 +110,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/utils/time', () => ({
-  formatRelativeTime: () => '刚刚'
-}))
+vi.mock('@renderer/pages/knowledge/utils', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    formatRelativeTime: () => '刚刚'
+  }
+})
 
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (error: unknown, prefix: string) =>

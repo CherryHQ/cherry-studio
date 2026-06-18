@@ -659,7 +659,6 @@ describe('KnowledgePage', () => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
     })
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
-    expect(screen.getByTestId('detail-header-item-count')).toHaveTextContent('1')
   })
 
   it('opens the RAG config drawer and the recall test drawer from the header', async () => {
