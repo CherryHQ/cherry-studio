@@ -386,7 +386,7 @@ export class AiService extends BaseService {
 
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
-    const fallbacks = await buildFallbackModels({
+    const fallbacks = buildFallbackModels({
       request,
       assistant,
       signal,
@@ -447,7 +447,7 @@ export class AiService extends BaseService {
       extraFeatures
     )
 
-    const fallbacks = await buildFallbackModels({
+    const fallbacks = buildFallbackModels({
       request,
       assistant,
       signal,
@@ -573,14 +573,21 @@ export class AiService extends BaseService {
   // ── Embedding ──
 
   /**
-   * AI SDK `maxRetries` derived from the retry preference (0 when retry is
-   * disabled). Embedding/rerank use the SDK's built-in per-batch retry
-   * (respects `Retry-After` + exponential backoff) rather than ai-retry —
-   * there is no cross-model fallback for these, so the model wrapper adds no value.
+   * AI SDK `maxRetries` (retries beyond the first attempt) derived from the
+   * retry preference. Embedding/rerank use the SDK's built-in per-batch retry
+   * (respects `Retry-After` + exponential backoff) rather than ai-retry — there
+   * is no cross-model fallback for these, so the model wrapper adds no value.
+   *
+   * When the retry feature is off, `disabledDefault` is returned so each caller
+   * keeps its pre-feature behavior (rerank already defaulted to 0; embedMany
+   * relied on the AI SDK default of 2) — i.e. behavior is unchanged unless the
+   * user opts in.
    */
-  private maxRetriesFromPreference(): number {
+  private maxRetriesFromPreference(disabledDefault: number): number {
     const preferences = application.get('PreferenceService')
-    return preferences.get('chat.retry.enabled') ? Math.max(0, preferences.get('chat.retry.max_attempts')) : 0
+    return preferences.get('chat.retry.enabled')
+      ? Math.max(0, preferences.get('chat.retry.max_attempts'))
+      : disabledDefault
   }
 
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
@@ -596,7 +603,9 @@ export class AiService extends BaseService {
       // unbounded parallelism — firing them all at once is the main rate-limit
       // trigger. Cap fan-out; the SDK's built-in retry handles transient 429s.
       maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS,
-      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(),
+      // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
+      // its prior transient-error resilience (this PR only adds, never removes).
+      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(2),
       ...(signal ? { abortSignal: signal } : {})
     })
 
@@ -625,8 +634,9 @@ export class AiService extends BaseService {
       ...(request.topN !== undefined ? { topN: request.topN } : {}),
       ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
       // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
-      // exponential-backoff retry, defaulted from the retry preference.
-      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(),
+      // exponential-backoff retry, defaulted from the retry preference. Rerank
+      // already defaulted to 0 retries pre-feature, so keep that when disabled.
+      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(0),
       ...(signal ? { abortSignal: signal } : {})
     }
 

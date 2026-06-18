@@ -29,6 +29,7 @@ import {
   type LanguageModel,
   type LanguageModelRetryCallOptions,
   type Retries,
+  type Retryable,
   type RetryContext
 } from 'ai-retry'
 import { retryAfterDelay } from 'ai-retry/retryables'
@@ -46,18 +47,26 @@ export type WrapLanguageModel = (model: LanguageModelV3) => LanguageModelV3
  */
 export type FallbackCallOptions = LanguageModelRetryCallOptions
 
-/** A pre-built fallback: a fully-resolved (middleware-applied) model + its own params. */
+/** A resolved fallback: a fully-resolved (middleware-applied) model + its own params. */
 export interface RetryFallback {
   model: LanguageModelV3
   options?: FallbackCallOptions
 }
 
+/**
+ * Lazily resolves a fallback on first failure. Building one is expensive
+ * (per-fallback `buildAgentParams` — which can sync MCP tools — plus model
+ * resolution), so the happy path must pay nothing. Resolves to `null` when the
+ * fallback is gated out or unresolvable.
+ */
+export type FallbackResolver = () => Promise<RetryFallback | null>
+
 export interface CreateRetryableWrapOptions {
   /**
-   * Fallback models in user-configured order, each already resolved with its
-   * own middleware and call-option overrides (see `AiService.buildFallbackModels`).
+   * Fallback resolvers in user-configured order. Each is invoked once (memoized)
+   * only when a retry is actually needed — see `AiService.buildFallbackModels`.
    */
-  fallbacks: RetryFallback[]
+  fallbacks: FallbackResolver[]
   /** Invoked on each retry/fallback attempt (e.g. to surface a transient UI chunk). */
   onRetryEvent?: (event: RetryEventPayload) => void
 }
@@ -87,21 +96,35 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   const preferences = application.get('PreferenceService')
   if (!preferences.get('chat.retry.enabled')) return undefined
 
-  const maxAttempts = Math.max(1, preferences.get('chat.retry.max_attempts'))
+  // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
+  // setting and the embedding/rerank AI SDK `maxRetries`). ai-retry counts the
+  // original call in `maxAttempts`, so +1 yields that many same-model retries.
+  const retryCount = Math.max(1, preferences.get('chat.retry.max_attempts'))
   const backoffEnabled = preferences.get('chat.retry.backoff_enabled')
 
   const retries: Retries<LanguageModel> = [
     // Same-model transient retry: honors Retry-After headers, otherwise delay + backoff.
     retryAfterDelay<LanguageModel>({
-      maxAttempts,
+      maxAttempts: retryCount + 1,
       delay: RETRY_BASE_DELAY_MS,
       ...(backoffEnabled && { backoffFactor: 2 })
     }),
     // Cross-model fallback, tried in user-configured order (one attempt each).
-    // Each entry carries the fallback's own params as a per-retry option override.
-    ...options.fallbacks.map((fallback) =>
-      fallback.options ? { model: fallback.model, options: fallback.options } : fallback.model
-    )
+    // Resolved lazily on first failure (memoized) so the happy path pays nothing;
+    // each fallback carries its own middleware + params (a per-retry override).
+    // Error-only (like a plain-model fallback): ai-retry also evaluates function
+    // retryables on *result* attempts (content-filter etc.), so guard on
+    // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
+    ...options.fallbacks.map((resolveFallback): Retryable<LanguageModel> => {
+      let cached: Promise<RetryFallback | null> | undefined
+      return async (context) => {
+        if (!isErrorAttempt(context.current)) return undefined
+        cached ??= resolveFallback()
+        const fallback = await cached
+        if (!fallback) return undefined
+        return fallback.options ? { model: fallback.model, options: fallback.options } : { model: fallback.model }
+      }
+    })
   ]
 
   return (base) =>

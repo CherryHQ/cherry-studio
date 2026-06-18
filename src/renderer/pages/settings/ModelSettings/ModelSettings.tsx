@@ -284,7 +284,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </>
             }
             description={showDescription ? t('settings.models.retry.description') : undefined}>
-            <Switch checked={retryEnabled} onCheckedChange={(checked) => void setRetryEnabled(checked)} />
+            <Switch
+              checked={retryEnabled}
+              onCheckedChange={(checked) => void setRetryEnabled(checked)}
+              aria-label={t('settings.models.retry.label')}
+            />
           </ModelSettingRow>
           {retryEnabled && (
             <>
@@ -295,11 +299,13 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   min={1}
                   max={10}
                   className="w-24"
+                  aria-label={t('settings.models.retry.max_attempts')}
                   value={retryMaxAttempts}
-                  onChange={(e) => {
-                    const value = Number(e.target.value)
-                    if (Number.isInteger(value) && value >= 1 && value <= 10) void setRetryMaxAttempts(value)
-                  }}
+                  // Clamp on change: an empty field gives Number('') === 0, which a
+                  // range guard would reject — trapping the edit. Clamp instead.
+                  onChange={(e) =>
+                    void setRetryMaxAttempts(Math.min(10, Math.max(1, Math.trunc(Number(e.target.value)) || 1)))
+                  }
                 />
               </ModelSettingRow>
               <SettingDivider />
@@ -307,6 +313,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 <Switch
                   checked={retryBackoffEnabled}
                   onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}
+                  aria-label={t('settings.models.retry.backoff')}
                 />
               </ModelSettingRow>
               <SettingDivider />

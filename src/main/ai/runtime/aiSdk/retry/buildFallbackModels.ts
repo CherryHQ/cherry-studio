@@ -27,7 +27,7 @@ import type { AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop'
 import { buildAgentParams, type BuildAgentParamsInput } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
-import type { FallbackCallOptions, RetryFallback } from './createRetryableWrap'
+import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 
 const logger = loggerService.withContext('ModelRetry')
 
@@ -62,49 +62,52 @@ function pickFallbackCallOptions(options: AgentOptions): FallbackCallOptions | u
   return Object.keys(o).length > 0 ? o : undefined
 }
 
-export async function buildFallbackModels(args: BuildFallbackModelsArgs): Promise<RetryFallback[]> {
+export function buildFallbackModels(args: BuildFallbackModelsArgs): FallbackResolver[] {
   const preferences = application.get('PreferenceService')
   if (!preferences.get('chat.retry.enabled')) return []
-  const fallbackIds = preferences.get('chat.retry.fallback_model_ids').filter(isUniqueModelId)
-  if (fallbackIds.length === 0) return []
 
-  const built = await Promise.all(
-    fallbackIds.map(async (uniqueModelId): Promise<RetryFallback | null> => {
-      if (uniqueModelId === args.primaryUniqueModelId) return null
-      try {
-        const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-        const provider = await providerService.getByProviderId(providerId)
-        const model = await modelService.getByKey(providerId, modelId)
+  return preferences
+    .get('chat.retry.fallback_model_ids')
+    .filter(isUniqueModelId)
+    .filter((uniqueModelId) => uniqueModelId !== args.primaryUniqueModelId)
+    .map((uniqueModelId) => () => resolveFallback(uniqueModelId, args))
+}
 
-        if (args.requestHasImages && !isVisionModel(model)) {
-          logger.info('skipping fallback without vision for an image request', { uniqueModelId })
-          return null
-        }
-        if (args.primaryHasTools && !isFunctionCallingModel(model)) {
-          logger.info('skipping non-function-calling fallback for a tool request', { uniqueModelId })
-          return null
-        }
+async function resolveFallback(
+  uniqueModelId: UniqueModelId,
+  args: BuildFallbackModelsArgs
+): Promise<RetryFallback | null> {
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    const provider = await providerService.getByProviderId(providerId)
+    const model = await modelService.getByKey(providerId, modelId)
 
-        const { sdkConfig, plugins, options } = await buildAgentParams({
-          request: args.request,
-          signal: args.signal,
-          provider,
-          model,
-          assistant: args.assistant,
-          extraFeatures: args.extraFeatures
-        })
-        const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
-          sdkConfig.providerId,
-          sdkConfig.providerSettings,
-          sdkConfig.modelId,
-          plugins
-        )
-        return { model: resolved as LanguageModelV3, options: pickFallbackCallOptions(options) }
-      } catch (error) {
-        logger.warn('skipping unresolvable fallback model', { uniqueModelId, error })
-        return null
-      }
+    if (args.requestHasImages && !isVisionModel(model)) {
+      logger.info('skipping fallback without vision for an image request', { uniqueModelId })
+      return null
+    }
+    if (args.primaryHasTools && !isFunctionCallingModel(model)) {
+      logger.info('skipping non-function-calling fallback for a tool request', { uniqueModelId })
+      return null
+    }
+
+    const { sdkConfig, plugins, options } = await buildAgentParams({
+      request: args.request,
+      signal: args.signal,
+      provider,
+      model,
+      assistant: args.assistant,
+      extraFeatures: args.extraFeatures
     })
-  )
-  return built.filter((fallback): fallback is RetryFallback => fallback !== null)
+    const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      sdkConfig.modelId,
+      plugins
+    )
+    return { model: resolved as LanguageModelV3, options: pickFallbackCallOptions(options) }
+  } catch (error) {
+    logger.warn('skipping unresolvable fallback model', { uniqueModelId, error })
+    return null
+  }
 }

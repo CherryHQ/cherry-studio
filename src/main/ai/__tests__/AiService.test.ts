@@ -637,7 +637,9 @@ describe('AiService tool approval', () => {
     expect(mockEmbedMany.mock.calls[0][2]).not.toHaveProperty('wrapModel')
   })
 
-  it('uses maxRetries 0 for embedMany when retry is disabled', async () => {
+  it('keeps embedMany at the AI SDK default (maxRetries 2) when retry is disabled', async () => {
+    // Regression: default-config embedding must NOT drop from the SDK's 2
+    // retries to 0 — this PR adds retry behavior, it never removes it.
     const service = createService()
     vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -653,7 +655,29 @@ describe('AiService tool approval', () => {
 
     await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a'] })
 
-    expect(mockEmbedMany.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 0, maxParallelCalls: 5 }))
+    expect(mockEmbedMany.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 2, maxParallelCalls: 5 }))
+  })
+
+  it('derives rerank maxRetries from the retry preference (0 when disabled)', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
+      options: {}
+    } as never)
+    // Retry enabled with 4 retries → rerank passes maxRetries: 4.
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService'
+        ? {
+            get: (key: string) =>
+              key === 'chat.retry.enabled' ? true : key === 'chat.retry.max_attempts' ? 4 : undefined
+          }
+        : undefined
+    )
+    mockRerank.mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
+
+    await service.rerank({ uniqueModelId: 'test-provider::test-reranker', query: 'q', documents: ['a'] })
+
+    expect(mockRerank.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 4 }))
   })
 
   it('checks rerank models with rerank before embedding or text generation', async () => {

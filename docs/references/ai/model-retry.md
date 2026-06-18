@@ -67,8 +67,11 @@ leaf): returns `undefined` when disabled, else a `wrapModel` closure:
 createRetryable({
   model: base,
   retries: [
-    retryAfterDelay({ maxAttempts, delay: 1_000, backoffFactor: 2 }), // same model
-    ...fallbacks.map((f) => (f.options ? { model: f.model, options: f.options } : f.model))
+    // maxAttempts = max_attempts + 1 (ai-retry counts the original call, so the
+    // pref reads as the number of RETRIES); backoffFactor only when backoff_enabled.
+    retryAfterDelay({ maxAttempts: max_attempts + 1, delay: 1_000, /* backoffFactor: 2 */ }),
+    // fallbacks are lazy, error-only Retryable fns (resolve on first failure, memoized)
+    ...fallbackResolvers.map((resolve) => errorOnlyLazyRetryable(resolve))
   ],
   onRetry,   // logs + onRetryEvent callback
   onFailure  // logs terminal failure
