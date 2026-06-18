@@ -1,7 +1,7 @@
 import { Button, Checkbox, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import { ChevronDown, Copy, Download, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { ChevronDown, Copy, Download, FolderOpen, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -98,6 +98,20 @@ export function FixedCardMenu({
     [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id, resource.type, t]
   )
 
+  const openSkillFolder = useCallback(async () => {
+    if (resource.type !== 'skill') return
+    try {
+      const { appDataPath } = await window.api.getAppInfo()
+      const skillFolder = await window.api.resolvePath(`${appDataPath}/Data/Skills/${resource.raw.folderName}`)
+      await window.api.file.showInFolder(skillFolder)
+    } catch (e) {
+      window.toast.error(t('library.action.open_folder_failed'))
+      logger.error('Failed to open skill folder', e instanceof Error ? e : new Error(String(e)), {
+        resourceId: resource.id
+      })
+    }
+  }, [resource, t])
+
   const toggleTag = (tag: string) => {
     if (bindingPendingRef.current) return
     const prev = localTags
@@ -140,6 +154,19 @@ export function FixedCardMenu({
             onClose()
           }}
         />
+
+        {resource.type === 'skill' && (
+          <MenuItem
+            variant="ghost"
+            size="sm"
+            icon={<FolderOpen size={10} />}
+            label={t('library.action.open_folder')}
+            onClick={() => {
+              void openSkillFolder()
+              onClose()
+            }}
+          />
+        )}
 
         {canBindTags && (
           <div className="relative">

@@ -2416,6 +2416,8 @@
       "edit": "Edit",
       "enable": "Enable",
       "manage_tags": "Manage tags",
+      "open_folder": "Open folder",
+      "open_folder_failed": "Failed to open skill folder",
       "uninstall": "Uninstall"
     },
     "assistant_catalog": {
