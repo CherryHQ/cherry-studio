@@ -53,21 +53,25 @@ export { ZERO_USAGE }
 
 export function attachUsageObserver(agent: Agent): void {
   let total: LanguageModelUsage = ZERO_USAGE
+  let lastStepTotalTokens: number | undefined
 
   agent.on('onStart', () => {
     total = ZERO_USAGE
+    lastStepTotalTokens = undefined
   })
 
   agent.on('onStepFinish', (step) => {
     if (!step.usage) return
     total = mergeUsage(total, step.usage)
+    lastStepTotalTokens = step.usage.totalTokens
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
         totalTokens: total.totalTokens,
         promptTokens: total.inputTokens,
         completionTokens: total.outputTokens,
-        thoughtsTokens: total.outputTokenDetails?.reasoningTokens
+        thoughtsTokens: total.outputTokenDetails?.reasoningTokens,
+        contextTokens: lastStepTotalTokens
       }
     })
   })

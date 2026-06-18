@@ -112,6 +112,7 @@ export function statsFromTerminal(
     if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
     if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
     if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
+    if (typeof meta.contextTokens === 'number') stats.contextTokens = meta.contextTokens
   }
 
   if (timings) {
