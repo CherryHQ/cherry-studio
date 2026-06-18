@@ -138,6 +138,7 @@ export { Sortable } from './composites/sortable'
 // TreeView
 export {
   type DragPosition,
+  flattenTree,
   type FlatTreeItem,
   type RenderRowArgs,
   type RenderRowFn,
@@ -145,7 +146,10 @@ export {
   type TreeListSlotArgs,
   type TreeNodeAdapter,
   TreeView,
-  type TreeViewProps
+  type TreeViewProps,
+  useExpandedState,
+  useSelectionState,
+  useTreeDragAndDrop
 } from './composites/tree-view'
 
 /* Shadcn Primitive Components */
