@@ -3,9 +3,27 @@ import { codeLanguages } from './code-languages'
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
-export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
+export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
+export const knowledgeSupportedFileExts = [
+  '.txt',
+  '.markdown',
+  '.md',
+  '.mdx',
+  '.pdf',
+  '.html',
+  '.htm',
+  '.xlsx',
+  '.xls',
+  '.docx',
+  '.csv',
+  '.doc',
+  '.pptx',
+  '.epub',
+  '.draftsexport'
+] as const
+export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls'] as const
 
 export const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',

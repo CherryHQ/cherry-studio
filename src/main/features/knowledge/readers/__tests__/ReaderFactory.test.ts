@@ -11,6 +11,7 @@ const customReaderSpies = vi.hoisted(() => ({
 const readerSpies = vi.hoisted(() => ({
   csv: vi.fn(async (filePath: string) => [{ metadata: { reader: 'csv', filePath } }]),
   docx: vi.fn(async (filePath: string) => [{ metadata: { reader: 'docx', filePath } }]),
+  html: vi.fn(async (filePath: string) => [{ metadata: { reader: 'html', filePath } }]),
   json: vi.fn(async (filePath: string) => [{ metadata: { reader: 'json', filePath } }]),
   markdown: vi.fn(async (filePath: string) => [{ metadata: { reader: 'markdown', filePath } }]),
   pdf: vi.fn(async (filePath: string) => [{ metadata: { reader: 'pdf', filePath } }]),
@@ -48,6 +49,12 @@ vi.mock('@vectorstores/readers/csv', () => ({
 vi.mock('@vectorstores/readers/docx', () => ({
   DocxReader: class {
     loadData = readerSpies.docx
+  }
+}))
+
+vi.mock('@vectorstores/readers/html', () => ({
+  HTMLReader: class {
+    loadData = readerSpies.html
   }
 }))
 
@@ -176,8 +183,12 @@ describe('loadKnowledgeItemDocuments', () => {
     ['.pdf', 'pdf'],
     ['.csv', 'csv'],
     ['.docx', 'docx'],
+    ['.html', 'html'],
+    ['.htm', 'html'],
     ['.json', 'json'],
-    ['.md', 'markdown']
+    ['.markdown', 'markdown'],
+    ['.md', 'markdown'],
+    ['.mdx', 'markdown']
   ])('maps %s files to the %s reader', async (ext, expectedReader) => {
     const item = createFileItem(ext)
     const docs = await loadKnowledgeItemDocuments(item)

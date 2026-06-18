@@ -34,8 +34,13 @@ import {
 import { eq } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { LegacyKnowledgeVectorLoadResult } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
-import { KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY } from './KnowledgeMigrator'
+import {
+  KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
+  KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY,
+  KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY
+} from './KnowledgeMigrator'
 
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
@@ -128,6 +133,11 @@ interface PreparedBasePlan {
 
 function isStringMap(value: unknown): value is Map<string, string> {
   return value instanceof Map
+}
+
+/** Narrow the per-base directory-child loader remap: migrated base id → (loaderId → childId). */
+function isNestedStringMap(value: unknown): value is Map<string, Map<string, string>> {
+  return value instanceof Map && [...value.values()].every((inner) => inner instanceof Map)
 }
 
 /** Narrow a migrated row to the indexable subset the material-field helpers expect. */
@@ -340,6 +350,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       )
       const sharedItemRemap = ctx.sharedData.get(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY)
       const legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
+      const sharedDirectoryChildLoaderRemap = ctx.sharedData.get(KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY)
+      const directoryChildLoaderRemapByBase = isNestedStringMap(sharedDirectoryChildLoaderRemap)
+        ? sharedDirectoryChildLoaderRemap
+        : new Map<string, Map<string, string>>()
 
       for (const base of migratedBases) {
         if (base.status === 'failed' || base.embeddingModelId === null) {
@@ -370,7 +384,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           continue
         }
 
-        const source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
+        // A legacy DB that exists but cannot be read (locked / corrupt) makes `loadBase` reject. That
+        // is a recoverable per-base failure, mirroring KnowledgeMigrator: its v1 folders are kept as
+        // failed tombstones and re-running migration once the DB is readable recovers them without
+        // re-embedding. Skip this base instead of letting the reject abort the whole migration.
+        let source: LegacyKnowledgeVectorLoadResult
+        try {
+          source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          this.recordSkippedWarning(
+            'read_error',
+            `Skipped knowledge vector base ${base.id}: legacy vector DB unreadable (${message})`
+          )
+          continue
+        }
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
@@ -402,6 +430,23 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>(),
           legacyItemIdRemap
         )
+
+        // A v1 folder's per-file vectors were booked under the directory item's loader ids;
+        // KnowledgeMigrator split that folder into per-file children and recorded each file's
+        // loader id → child item id, scoped to this migrated base. Point those loader ids at the
+        // child (not the directory container) so the vectors land on the child material instead
+        // of being dropped as a non-indexable container. The per-base scope keeps a loader id
+        // shared across bases (v1 ids are path/content hashes) pointing at the right base's child.
+        const baseMigratedItems = migratedItemsByBaseId.get(base.id)
+        const baseDirectoryChildLoaderRemap = directoryChildLoaderRemapByBase.get(base.id)
+        if (baseMigratedItems && baseDirectoryChildLoaderRemap) {
+          for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
+            const child = baseMigratedItems.get(childItemId)
+            if (child) {
+              loaderTargetMap.set(loaderId, child)
+            }
+          }
+        }
 
         // Group the surviving chunks by migrated item, preserving legacy read order
         // both across items (first appearance) and within an item (chunk order).

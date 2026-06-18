@@ -46,7 +46,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-2022, ubuntu-latest]
       fail-fast: false
 
     steps:
@@ -120,7 +120,7 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: |
           pnpm build:win
         env:
@@ -138,7 +138,7 @@ jobs:
           DATE=${{ steps.date.outputs.date }}
 
           # Windows artifacts - based on actual file naming pattern
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          if [ "${{ matrix.os }}" == "windows-2022" ]; then
             # Setup installer
             find dist -name "*-x64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64-setup.exe \;
             find dist -name "*-arm64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64-setup.exe \;
@@ -246,7 +246,7 @@ jobs:
           # Check each platform's artifacts and show checksums if available
 
           # Windows
-          WIN_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-latest"
+          WIN_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-2022"
           if [ -d "$WIN_ARTIFACT_DIR" ] && [ -f "$WIN_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
             echo "### Windows 安装包" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY

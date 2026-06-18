@@ -1,7 +1,9 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData } from '@renderer/utils/knowledgeFileEntry'
+import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,6 +46,18 @@ const resolveSelectedFileEntryData = async (file: File) => {
   return resolveKnowledgeFileData(filePath, file.name)
 }
 
+const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
+
+const filterSupportedKnowledgeFiles = (files: File[]) =>
+  files.filter((file) => knowledgeSupportedFileExtSet.has(getFileExtension(file.name)))
+
+// Dedupe the in-dialog selection by each file's on-disk path. Two files that share a name
+// but live in different folders are distinct sources and must both be addable (the backend
+// auto-renames same-named files on disk via reserveImportedFileRelativePath); only the exact
+// same file dropped twice collapses to one. Keying by name+size+lastModified instead wrongly
+// dropped a copy of the same file living in another folder.
+const getSelectedFileKey = (file: File) => window.api.file.getPathForFile(file)
+
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
   const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
@@ -66,10 +80,25 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setIsResolvingSubmit(false)
   }, [])
 
-  const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
-    setSubmitErrorMessage('')
-    setSelectedFiles(acceptedFiles)
-  }, [])
+  const handleFileDrop = useCallback<DropzoneOnDrop>(
+    (acceptedFiles) => {
+      setSubmitErrorMessage('')
+      const supportedFiles = filterSupportedKnowledgeFiles(acceptedFiles)
+      // The dropzone has no `accept` filter, so every dropped/picked file reaches us here and the
+      // extension allow-list is the single gate. Surface the dropped-minus-kept delta so the user
+      // learns nothing was silently skipped (matching the page-level pending-files entry point).
+      const skippedCount = acceptedFiles.length - supportedFiles.length
+      if (skippedCount > 0) {
+        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      }
+      setSelectedFiles((currentFiles) => {
+        const existingKeys = new Set(currentFiles.map(getSelectedFileKey))
+        const newFiles = supportedFiles.filter((file) => !existingKeys.has(getSelectedFileKey(file)))
+        return [...currentFiles, ...newFiles]
+      })
+    },
+    [t]
+  )
 
   const handleDirectorySelect = useCallback(async () => {
     setSubmitErrorMessage('')
@@ -123,14 +152,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     if (pendingAddFiles?.length) {
       setActiveSource('file')
-      setSelectedFiles(pendingAddFiles)
+      const supportedFiles = filterSupportedKnowledgeFiles(pendingAddFiles)
+      const skippedCount = pendingAddFiles.length - supportedFiles.length
+      if (skippedCount > 0) {
+        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      }
+      setSelectedFiles(supportedFiles)
       return
     }
 
     if (pendingAddSource) {
       setActiveSource(pendingAddSource)
     }
-  }, [open, pendingAddFiles, pendingAddSource, resetDialogState])
+  }, [open, pendingAddFiles, pendingAddSource, resetDialogState, t])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {

@@ -2174,6 +2174,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
@@ -2241,9 +2241,7 @@
         "select_row": "选择行"
       },
       "toolbar": {
-        "add": "添加数据源",
-        "no_search_results": "未找到匹配的数据源",
-        "search_placeholder": "搜索数据源"
+        "add": "添加数据源"
       }
     },
     "dimensions_auto_set": "自动设置嵌入维度",
@@ -2253,6 +2251,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知识库删除失败",
@@ -6056,6 +6055,7 @@
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
       "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
+      "hide_app": "隐藏 {{name}}",
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
@@ -6067,6 +6067,7 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "show_app": "显示 {{name}}",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",
       "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
@@ -6845,10 +6846,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文档处理"
+            "title": "文档处理",
+            "tooltip": "用于知识库解析文档"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用于识别图片内文字内容"
           }
         },
         "fields": {

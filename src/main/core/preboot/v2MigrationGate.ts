@@ -121,10 +121,32 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       return 'handled'
     }
 
-    dialog.showErrorBox(
-      'Migration Status Check Failed - Application Cannot Start',
-      `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
-    )
+    // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
+    // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
+    // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
+    // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
+    // in production we stay neutral and never tell a real user to delete their data.
+    if (isDev) {
+      dialog.showErrorBox(
+        'Migration Failed (Dev) - Application Cannot Start',
+        `Startup migration failed while applying schema changes:\n\n` +
+          `  ${(error as Error).message}\n\n` +
+          `In development this is usually one of:\n\n` +
+          `  1. Your local database predates a schema change (incompatible legacy data). ` +
+          `If this is throwaway dev data, reset it and restart:\n` +
+          `       rm -f "${paths.databaseFile}"\n\n` +
+          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
+          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
+          `with real data.\n\n` +
+          `The application will now exit.`
+      )
+    } else {
+      dialog.showErrorBox(
+        'Migration Failed - Application Cannot Start',
+        `Could not complete data migration:\n\n  ${(error as Error).message}\n\n` +
+          `The application will now exit. Please try again, and contact support if the problem persists.`
+      )
+    }
     logger.error('Exiting application due to migration status check failure')
     application.quit()
     return 'handled'

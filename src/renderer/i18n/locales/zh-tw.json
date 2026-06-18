@@ -2174,6 +2174,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "unsupported_files_skipped": "已跳過 {{count}} 個不支援的檔案",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
         "delete_confirm_title": "確認批次刪除",
@@ -2241,9 +2241,7 @@
         "select_row": "選取列"
       },
       "toolbar": {
-        "add": "新增資料來源",
-        "no_search_results": "未找到符合的資料來源",
-        "search_placeholder": "搜尋資料來源"
+        "add": "新增資料來源"
       }
     },
     "dimensions_auto_set": "自動設定嵌入維度",
@@ -2253,6 +2251,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
       "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知識庫刪除失敗",
@@ -6056,6 +6055,7 @@
       "disabled": "隱藏的小程式",
       "display_title": "小程式顯示設定",
       "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
+      "hide_app": "隱藏 {{name}}",
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },
@@ -6067,6 +6067,7 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
+      "show_app": "顯示 {{name}}",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
       "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
@@ -6845,10 +6846,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文件處理"
+            "title": "文件處理",
+            "tooltip": "用於知識庫解析文件"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用於識別圖片內文字內容"
           }
         },
         "fields": {
