@@ -109,7 +109,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       onClick={expandable ? handleContainerClick : undefined}>
       <Scrollbar
         ref={scrollRef}
-        className={cn('flex min-w-0 flex-1 overflow-y-hidden', classNames?.content)}
+        className={cn('relative z-0 flex min-w-0 flex-1 overflow-y-hidden', classNames?.content)}
         style={{
           gap,
           overflowX: expandable && isExpanded ? 'hidden' : 'auto',
@@ -123,7 +123,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         <div
           onClick={handleScrollRight}
           className={cn(
-            'scroll-right-button -translate-y-1/2 absolute top-1/2 right-2 z-[1] flex size-6 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity hover:bg-accent',
+            'scroll-right-button -translate-y-1/2 absolute top-1/2 right-2 z-10 flex size-6 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity hover:bg-accent',
             !isScrolledToEnd && 'group-hover/container:opacity-100'
           )}>
           <ChevronRight size={14} className="text-muted-foreground hover:text-foreground" />

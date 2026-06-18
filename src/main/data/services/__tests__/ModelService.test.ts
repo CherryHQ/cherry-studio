@@ -23,8 +23,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
-const { isActiveProviderRegistryModelMock, lookupModelMock } = vi.hoisted(() => ({
-  isActiveProviderRegistryModelMock: vi.fn(),
+const { lookupModelMock } = vi.hoisted(() => ({
   // `list()` enriches every row by calling `lookupModel`. Default to an
   // empty registry hit (no preset / override) so the enrichment is a no-op
   // unless a test opts in; individual tests override per (providerId, modelId).
@@ -47,7 +46,6 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   return {
     ...actual,
     providerRegistryService: {
-      isActiveProviderRegistryModel: isActiveProviderRegistryModelMock,
       lookupModel: lookupModelMock
     }
   }
@@ -1096,8 +1094,7 @@ describe('ModelService.reconcileForProvider', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
-    isActiveProviderRegistryModelMock.mockReset()
-    isActiveProviderRegistryModelMock.mockResolvedValue(false)
+    lookupModelMock.mockClear()
   })
 
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
@@ -1188,7 +1185,7 @@ describe('ModelService.reconcileForProvider', () => {
     warnSpy.mockRestore()
   })
 
-  it('does not remove active registry presets during reconcile', async () => {
+  it('removes preset-backed models during reconcile', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const gpt4o = createUniqueModelId('openai', 'gpt-4o')
     await dbh.db.insert(userModelTable).values(
@@ -1200,25 +1197,22 @@ describe('ModelService.reconcileForProvider', () => {
         isDeprecated: false
       })
     )
-    isActiveProviderRegistryModelMock.mockImplementation(async (providerId: string, modelId: string) => {
-      return providerId === 'openai' && modelId === 'gpt-4o'
-    })
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
     const result = await modelService.reconcileForProvider('openai', {
       toAdd: [],
       toRemove: [gpt4o]
     })
 
-    expect(result.map((model) => model.id)).toEqual([gpt4o])
+    expect(result.map((model) => model.id)).toEqual([])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, gpt4o))
-    expect(rows).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped active registry model removal during reconcile', {
+    expect(rows).toHaveLength(0)
+    expect(infoSpy).toHaveBeenCalledWith('Deleted preset-backed models during reconcile', {
       providerId: 'openai',
-      skippedCount: 1,
-      skippedIds: [gpt4o]
+      deletedCount: 1,
+      deletedIds: [gpt4o]
     })
-    warnSpy.mockRestore()
+    infoSpy.mockRestore()
   })
 
   it('does not remove the managed CherryAI default model during reconcile', async () => {

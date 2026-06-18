@@ -46,7 +46,9 @@ export const useCodeCli = () => {
   const currentDirectory = currentConfig.currentDirectory
 
   const canLaunch = Boolean(
-    selectedCliTool && currentDirectory && (selectedCliTool === codeCLI.githubCopilotCli || selectedModel)
+    selectedCliTool &&
+      currentDirectory &&
+      (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || selectedModel)
   )
 
   const updateCurrentTool = useCallback(

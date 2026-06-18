@@ -44,7 +44,6 @@ export const initialState: CodeToolsState = {
     [codeCLI.claudeCode]: null,
     [codeCLI.geminiCli]: null,
     [codeCLI.openaiCodex]: null,
-    [codeCLI.iFlowCli]: null,
     [codeCLI.githubCopilotCli]: null,
     [codeCLI.kimiCli]: null,
     [codeCLI.openCode]: null
@@ -54,7 +53,6 @@ export const initialState: CodeToolsState = {
     'claude-code': '',
     'gemini-cli': '',
     'openai-codex': '',
-    'iflow-cli': '',
     'github-copilot-cli': '',
     'kimi-cli': '',
     opencode: ''
@@ -91,7 +89,6 @@ const codeToolsSlice = createSlice({
           'claude-code': '',
           'gemini-cli': '',
           'openai-codex': '',
-          'iflow-cli': '',
           'github-copilot-cli': '',
           'kimi-cli': '',
           opencode: ''
