@@ -102,7 +102,7 @@ function makeJobSnapshot(scheduleId: string | null = 's1'): JobSnapshot {
 type TestAgentTaskInput = {
   agentId: string
   prompt: string
-  timeoutMinutes: number
+  timeoutMinutes: number | null
   workspace: AgentSessionWorkspaceSource
 }
 
@@ -404,6 +404,27 @@ describe('runAgentTask', () => {
 
       await assertion
       expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'Task timed out after 1 minute(s)')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not arm a per-task timeout when timeoutMinutes is null', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
+      vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockResolvedValueOnce(makeSession('/ws/a'))
+
+      const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: null } }))
+
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+
+      expect(mockAbort).not.toHaveBeenCalled()
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toEqual({ sessionId: 'sess-new', result: 'Completed' })
     } finally {
       vi.useRealTimers()
     }

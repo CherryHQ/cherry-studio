@@ -34,7 +34,7 @@ const HEARTBEAT_TASK_NAME = 'heartbeat'
 export type AgentTaskInput = {
   agentId: string
   prompt: string
-  timeoutMinutes: number
+  timeoutMinutes: number | null
   workspace: AgentSessionWorkspaceSource
 }
 
@@ -49,7 +49,7 @@ export type AgentTaskOutput = {
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
 function makeRunSignal(
   outerSignal: AbortSignal,
-  timeoutMinutes: number | undefined
+  timeoutMinutes: number | null | undefined
 ): { signal: AbortSignal; dispose: () => void } {
   if (!timeoutMinutes || timeoutMinutes <= 0) {
     return { signal: outerSignal, dispose: () => {} }

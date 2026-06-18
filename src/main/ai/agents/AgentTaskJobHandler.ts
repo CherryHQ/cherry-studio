@@ -24,7 +24,7 @@ declare module '@main/core/job/jobRegistry' {
       workspace: AgentTaskInput['workspace']
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
-      timeoutMinutes: number
+      timeoutMinutes: number | null
     }
   }
 }

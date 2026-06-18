@@ -140,9 +140,9 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   agentId: z.string(),
   name: z.string(),
   prompt: z.string(),
-  /** Discriminated union — see TriggerSchema for {cron|interval|once} shape. */
+  /** See TriggerSchema for {cron|period|interval|once} shape. */
   trigger: TriggerSchema,
-  timeoutMinutes: z.number(),
+  timeoutMinutes: z.number().nullable(),
   workspace: AgentSessionWorkspaceSourceSchema,
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),

@@ -30,11 +30,12 @@ const logger = loggerService.withContext('AgentTaskService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const HEARTBEAT_TASK_NAME = 'heartbeat'
+const ONCE_TRIGGER_VALIDATION_MESSAGE = 'Once trigger must be in the future'
 
 type AgentTaskJobInputTemplate = {
   agentId: string
   prompt: string
-  timeoutMinutes: number
+  timeoutMinutes: number | null
   workspace: AgentSessionWorkspaceSource
 }
 
@@ -45,18 +46,33 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') return null
 
   const parsedWorkspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+  const timeoutMinutes =
+    template.timeoutMinutes === null ? null : typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2
+
   return {
     agentId: template.agentId,
     prompt: template.prompt,
-    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
+    timeoutMinutes,
     workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
   }
 }
 
 function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
   if (!snapshot.enabled) return 'paused'
-  if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
+  if (snapshot.trigger.kind === 'once') {
+    const lastRunMs = snapshot.lastRun ? Date.parse(snapshot.lastRun) : NaN
+    if (Number.isFinite(lastRunMs) && lastRunMs >= snapshot.trigger.at) return 'completed'
+  }
   return 'active'
+}
+
+function assertOnceTriggerInFuture(trigger: JobScheduleSnapshot['trigger']): void {
+  if (trigger.kind === 'once' && trigger.at <= Date.now()) {
+    throw DataApiErrorFactory.validation(
+      { trigger: [ONCE_TRIGGER_VALIDATION_MESSAGE] },
+      ONCE_TRIGGER_VALIDATION_MESSAGE
+    )
+  }
 }
 
 export class AgentTaskService {
@@ -89,9 +105,10 @@ export class AgentTaskService {
   }
 
   async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
+    assertOnceTriggerInFuture(dto.trigger)
     await this.assertAutonomous(agentId)
 
-    const timeoutMinutes = dto.timeoutMinutes ?? 2
+    const timeoutMinutes = dto.timeoutMinutes === undefined ? 2 : dto.timeoutMinutes
     const jobInputTemplate: AgentTaskJobInputTemplate = {
       agentId,
       prompt: dto.prompt,
@@ -169,6 +186,8 @@ export class AgentTaskService {
   }
 
   async updateTask(agentId: string, taskId: string, patch: UpdateTaskDto): Promise<ScheduledTaskEntity | null> {
+    if (patch.trigger !== undefined) assertOnceTriggerInFuture(patch.trigger)
+
     const existing = await this.getTask(agentId, taskId)
     if (!existing) return null
 
@@ -178,7 +197,8 @@ export class AgentTaskService {
 
     // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
     const nextPrompt = patch.prompt ?? existingTemplate.prompt
-    const nextTimeoutMinutes = patch.timeoutMinutes ?? existingTemplate.timeoutMinutes
+    const nextTimeoutMinutes =
+      patch.timeoutMinutes !== undefined ? patch.timeoutMinutes : existingTemplate.timeoutMinutes
     const nextWorkspace = patch.workspace ?? existingTemplate.workspace
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existingTemplate.prompt) ||

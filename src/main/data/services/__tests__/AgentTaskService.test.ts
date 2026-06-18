@@ -6,6 +6,7 @@
  * the right calls with the right shapes.
  */
 
+import { ErrorCode } from '@shared/data/api'
 import type { CreateTaskDto } from '@shared/data/api/schemas/agents'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -51,6 +52,8 @@ const validDto: CreateTaskDto = {
   timeoutMinutes: 5,
   workspace: taskWorkspace
 }
+const ONCE_TRIGGER_VALIDATION_MESSAGE = 'Once trigger must be in the future'
+const FIXED_NOW = Date.parse('2026-05-20T00:00:00.000Z')
 
 function makeSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobScheduleSnapshot {
   return {
@@ -154,6 +157,7 @@ describe('AgentTaskService (thin facade)', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
   })
 
@@ -173,6 +177,47 @@ describe('AgentTaskService (thin facade)', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID, name: validDto.name, enabled: true })
+    })
+
+    it.each([
+      [
+        'uses the 2 minute default when timeoutMinutes is omitted',
+        {
+          name: validDto.name,
+          prompt: validDto.prompt,
+          trigger: validDto.trigger,
+          workspace: validDto.workspace
+        },
+        2
+      ],
+      ['preserves an explicit null timeout as unlimited', { ...validDto, timeoutMinutes: null }, null]
+    ] as const)('%s', async (_case, dto, expectedTimeoutMinutes) => {
+      setupApplicationMocks()
+      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
+        makeSnapshot({
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: expectedTimeoutMinutes,
+            workspace: taskWorkspace
+          }
+        })
+      )
+
+      const result = await agentTaskService.createTask(AGENT_ID, dto)
+
+      expect(registerJobScheduleMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: expectedTimeoutMinutes,
+            workspace: taskWorkspace
+          }
+        })
+      )
+      expect(result.timeoutMinutes).toBe(expectedTimeoutMinutes)
     })
 
     it('throws notFound when the agent does not exist', async () => {
@@ -199,6 +244,40 @@ describe('AgentTaskService (thin facade)', () => {
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
       await expect(agentTaskService.createTask(AGENT_ID, validDto)).resolves.toMatchObject({ id: TASK_ID })
+    })
+
+    it('rejects a once trigger in the past without registering a schedule', async () => {
+      setupApplicationMocks()
+      vi.useFakeTimers()
+      vi.setSystemTime(FIXED_NOW)
+      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
+
+      await expect(
+        agentTaskService.createTask(AGENT_ID, {
+          ...validDto,
+          trigger: { kind: 'once', at: Date.now() - 1 }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: ONCE_TRIGGER_VALIDATION_MESSAGE,
+        details: { fieldErrors: { trigger: [ONCE_TRIGGER_VALIDATION_MESSAGE] } }
+      })
+      expect(registerJobScheduleMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts a once trigger in the future', async () => {
+      setupApplicationMocks()
+      vi.useFakeTimers()
+      vi.setSystemTime(FIXED_NOW)
+      const onceTrigger = { kind: 'once' as const, at: Date.now() + 60_000 }
+      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot({ trigger: onceTrigger }))
+
+      const result = await agentTaskService.createTask(AGENT_ID, { ...validDto, trigger: onceTrigger })
+
+      expect(registerJobScheduleMock).toHaveBeenCalledWith(expect.objectContaining({ trigger: onceTrigger }))
+      expect(result).toMatchObject({ id: TASK_ID, trigger: onceTrigger })
     })
 
     it('delegates task channel subscriptions to AgentChannelService', async () => {
@@ -283,19 +362,34 @@ describe('AgentTaskService (thin facade)', () => {
       expect(result).toMatchObject({ enabled: false, status: 'paused' })
     })
 
-    it('derives status=completed for an exhausted once trigger', async () => {
+    it('derives status=completed when a once trigger last ran at or after its scheduled time', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
         makeSnapshot({
-          trigger: { kind: 'once', at: 0 },
+          trigger: { kind: 'once', at: Date.parse('2026-05-20T00:00:00.000Z') },
           enabled: true,
           nextRun: null,
-          lastRun: '2026-05-20T00:00:01.000Z'
+          lastRun: '2026-05-20T00:00:00.000Z'
         })
       )
 
       const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
       expect(result).toMatchObject({ status: 'completed' })
+    })
+
+    it('keeps a future once trigger active when only an old lastRun exists', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
+        makeSnapshot({
+          trigger: { kind: 'once', at: Date.parse('2026-05-20T01:00:00.000Z') },
+          enabled: true,
+          nextRun: null,
+          lastRun: '2026-05-20T00:00:00.000Z'
+        })
+      )
+
+      const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
+      expect(result).toMatchObject({ status: 'active' })
     })
   })
 
@@ -357,6 +451,39 @@ describe('AgentTaskService (thin facade)', () => {
       )
     })
 
+    it('rebuilds jobInputTemplate when timeoutMinutes is cleared to null', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById)
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(
+          makeSnapshot({
+            jobInputTemplate: {
+              agentId: AGENT_ID,
+              prompt: validDto.prompt,
+              timeoutMinutes: null,
+              workspace: taskWorkspace
+            }
+          })
+        )
+      updateJobScheduleMock.mockResolvedValueOnce(makeSnapshot())
+
+      const result = await agentTaskService.updateTask(AGENT_ID, TASK_ID, { timeoutMinutes: null })
+
+      expect(updateJobScheduleMock).toHaveBeenCalledWith(
+        TASK_ID,
+        expect.objectContaining({
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: null,
+            workspace: taskWorkspace
+          }
+        })
+      )
+      expect(result?.timeoutMinutes).toBeNull()
+    })
+
     it('does not touch jobInputTemplate when only enabled changed', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById)
@@ -384,6 +511,46 @@ describe('AgentTaskService (thin facade)', () => {
 
       expect(replaceTaskSubscriptionsMock).toHaveBeenCalledWith(TASK_ID, ['channel-3'])
       expect(dbDeleteMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a once trigger in the past without updating the schedule', async () => {
+      setupApplicationMocks()
+      vi.useFakeTimers()
+      vi.setSystemTime(FIXED_NOW)
+      vi.mocked(jobScheduleService.getById)
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot())
+      updateJobScheduleMock.mockResolvedValueOnce(makeSnapshot())
+
+      await expect(
+        agentTaskService.updateTask(AGENT_ID, TASK_ID, {
+          trigger: { kind: 'once', at: Date.now() - 1 }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: ONCE_TRIGGER_VALIDATION_MESSAGE,
+        details: { fieldErrors: { trigger: [ONCE_TRIGGER_VALIDATION_MESSAGE] } }
+      })
+      expect(vi.mocked(jobScheduleService.getById)).not.toHaveBeenCalled()
+      expect(updateJobScheduleMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts a once trigger in the future', async () => {
+      setupApplicationMocks()
+      vi.useFakeTimers()
+      vi.setSystemTime(FIXED_NOW)
+      const onceTrigger = { kind: 'once' as const, at: Date.now() + 60_000 }
+      vi.mocked(jobScheduleService.getById)
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot({ trigger: onceTrigger }))
+      updateJobScheduleMock.mockResolvedValueOnce(makeSnapshot({ trigger: onceTrigger }))
+
+      const result = await agentTaskService.updateTask(AGENT_ID, TASK_ID, { trigger: onceTrigger })
+
+      expect(updateJobScheduleMock).toHaveBeenCalledWith(TASK_ID, expect.objectContaining({ trigger: onceTrigger }))
+      expect(result).toMatchObject({ id: TASK_ID, trigger: onceTrigger })
     })
 
     it('returns null when the task does not exist', async () => {
