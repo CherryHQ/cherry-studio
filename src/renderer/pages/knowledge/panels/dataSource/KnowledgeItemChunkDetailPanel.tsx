@@ -27,7 +27,7 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
     <div className="rounded-lg border border-border-subtle transition-all hover:border-border-hover">
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
-          {chunk.metadata.chunkIndex}
+          {chunk.metadata.chunkIndex + 1}
         </span>
         <span className="flex-1 text-foreground-muted text-xs leading-4">
           {chunk.metadata.tokenCount} {t('knowledge.rag.tokens_unit')}
@@ -70,9 +70,7 @@ const KnowledgeItemChunkDetailPanel = ({
   const item = fetchedItem ?? initialItem
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
-  const typeMeta = item && viewModel ? viewModel.suffix || t(`knowledge.data_source.filters.${item.type}`) : ''
   const chunksCountMeta = t('knowledge.data_source.chunks_count', { count: chunks.length })
-  const metaParts = [typeMeta, chunksCountMeta].filter((part): part is string => Boolean(part))
 
   useEffect(() => {
     let isActive = true
@@ -124,24 +122,16 @@ const KnowledgeItemChunkDetailPanel = ({
           <ArrowLeft className="size-3.5" />
         </Button>
         {Icon && viewModel ? (
-          <div
-            className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded bg-accent',
-              viewModel.icon.iconClassName
-            )}>
-            <Icon className="size-3.5" strokeWidth={1.6} />
-          </div>
+          <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
+            <Icon className={cn('size-3.5', viewModel.icon.iconClassName)} />
+          </span>
         ) : null}
         <div className="min-w-0 flex-1">
           <span className="block truncate text-foreground text-sm leading-5">
             {viewModel?.title ?? t('common.loading')}
           </span>
           <div className="flex items-center gap-2 text-foreground-muted text-xs leading-4">
-            {metaParts.map((part) => (
-              <span key={part} className={viewModel && part === typeMeta && viewModel.suffix ? 'uppercase' : undefined}>
-                {part}
-              </span>
-            ))}
+            <span>{chunksCountMeta}</span>
           </div>
         </div>
       </div>

@@ -84,6 +84,13 @@
       "when": 1781644115862,
       "tag": "0011_parched_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1781694852258,
+      "tag": "0012_clean_pepper_potts",
+      "breakpoints": true
     }
   ],
   "version": "7"

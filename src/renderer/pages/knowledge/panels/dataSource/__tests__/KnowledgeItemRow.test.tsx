@@ -198,13 +198,12 @@ describe('KnowledgeItemRow', () => {
     })
   })
 
-  it('renders the file suffix and meta parts from the knowledge item path', () => {
+  it('renders the file title from the knowledge item path', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', originName: 'old-name.md' })} {...defaultHandlers} />)
 
     expect(screen.getByText('old-name.md')).toBeInTheDocument()
-    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('文件')).toBeInTheDocument()
-    expect(screen.getAllByText('刚刚')).toHaveLength(2)
+    expect(screen.getByText('刚刚')).toBeInTheDocument()
     expect(mockUseQuery).not.toHaveBeenCalledWith('/files/entries/:id', expect.anything())
   })
 
@@ -214,7 +213,6 @@ describe('KnowledgeItemRow', () => {
     )
 
     expect(screen.getByText('fallback.md')).toBeInTheDocument()
-    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('文件')).toBeInTheDocument()
   })
 

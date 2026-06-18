@@ -10,8 +10,9 @@ import { userModelTable } from './userModel'
  * Message table - stores chat messages with tree structure
  *
  * Uses adjacency list pattern (parentId) for tree navigation.
- * Block content is stored as JSON in the data field.
- * searchableText is a generated column for FTS5 indexing.
+ * Message content (AI SDK UIMessage parts) is stored as JSON in the data field.
+ * searchableText is a plain column populated by triggers for FTS5 indexing
+ * (NOT a SQLite GENERATED column); see MESSAGE_FTS_STATEMENTS below.
  */
 export const messageTable = sqliteTable(
   'message',
@@ -41,6 +42,12 @@ export const messageTable = sqliteTable(
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
 
+    // Stable integer surrogate for the FTS5 content_rowid. Local-only physical identity
+    // (like rowid): assigned by the AFTER INSERT trigger, never set by app code, never
+    // exported in backups. Nullable because the trigger fills it after the row is inserted
+    // (a NOT NULL column would reject the row before the trigger runs).
+    ftsRowid: integer(),
+
     ...createUpdateDeleteTimestamps
   },
   (t) => [
@@ -59,6 +66,10 @@ export const messageTable = sqliteTable(
     uniqueIndex('message_topic_root_uniq')
       .on(t.topicId)
       .where(sql`${t.parentId} is null and ${t.deletedAt} is null`),
+    // FTS5 content_rowid key (see the fts_rowid column). UNIQUE so its backing index makes the
+    // per-row `MAX(fts_rowid)+1` assignment in the FTS INSERT trigger an O(log N) lookup (a bare
+    // column would make a bulk migration O(N²)), and rejects any duplicate value loudly.
+    uniqueIndex('message_fts_rowid_uniq').on(t.ftsRowid),
     // Check constraints for enum fields
     check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system', 'root')`),
     check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`),
@@ -79,9 +90,10 @@ export type InsertMessageRow = typeof messageTable.$inferInsert
  * Drizzle does not auto-generate virtual tables or triggers.
  *
  * Architecture:
- * 1. message.searchable_text - regular column populated by trigger
- * 2. message_fts - FTS5 virtual table with external content
- * 3. Triggers sync both searchable_text and FTS5 index
+ * 1. message.fts_rowid - stable integer key for FTS (assigned by trigger; see the column)
+ * 2. message.searchable_text - regular column populated by trigger
+ * 3. message_fts - FTS5 external-content virtual table keyed on fts_rowid (NOT implicit rowid)
+ * 4. Triggers assign fts_rowid and sync both searchable_text and the FTS index
  *
  * Usage:
  * - Copy MESSAGE_FTS_MIGRATION_SQL to migration file when generating migrations
@@ -130,42 +142,51 @@ const searchableTextExpression = (dataExpression: string) => `COALESCE((
 ), '')`
 
 export const MESSAGE_FTS_STATEMENTS: string[] = [
-  // FTS5 virtual table, Links to message table's searchable_text column
+  // FTS5 external-content virtual table keyed on the stable `fts_rowid` column, NOT the implicit
+  // rowid: the implicit rowid is reshuffled by table rebuilds (drizzle's INSERT...SELECT drops it)
+  // and by VACUUM, which would silently desync this index. `fts_rowid` is a real column carried
+  // verbatim through rebuilds, so the index stays aligned by construction.
   `CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
     searchable_text,
     content='message',
-    content_rowid='rowid',
+    content_rowid='fts_rowid',
     tokenize='trigram'
   )`,
 
-  // Replace old trigger bodies when the searchable-text expression changes.
+  // Replace old trigger bodies when the searchable-text expression or fts_rowid wiring changes.
   `DROP TRIGGER IF EXISTS message_ai`,
   `DROP TRIGGER IF EXISTS message_ad`,
   `DROP TRIGGER IF EXISTS message_au`,
 
-  // Trigger: populate searchable_text and sync FTS on INSERT.
-  // COALESCE wraps group_concat because group_concat returns NULL when no text
+  // Trigger: assign fts_rowid, populate searchable_text, and sync FTS on INSERT.
+  // fts_rowid is assigned here (not by app code) so every insert path is covered and no caller can
+  // forget it; MAX+1 is race-free under withWriteTx serialization and O(log N) via the
+  // message_fts_rowid_uniq index. COALESCE wraps group_concat because it returns NULL when no text
   // parts match (e.g. tool-only or empty messages).
-  `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
-    UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
+  `CREATE TRIGGER message_ai AFTER INSERT ON message BEGIN
+    UPDATE message SET
+      fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM message),
+      searchable_text = ${searchableTextExpression('NEW.data')}
+    WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
-    SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
+    SELECT fts_rowid, searchable_text FROM message WHERE id = NEW.id;
   END`,
 
   // Trigger: sync FTS on DELETE
   `CREATE TRIGGER message_ad AFTER DELETE ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
-    VALUES ('delete', OLD.rowid, OLD.searchable_text);
+    VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
   END`,
 
-  // Trigger: update searchable_text and sync FTS on UPDATE OF data.
+  // Trigger: update searchable_text and sync FTS on UPDATE OF data. fts_rowid is stable across
+  // data edits, so it is not reassigned here — only re-keyed delete + re-insert by fts_rowid.
   // COALESCE: see message_ai above for rationale.
   `CREATE TRIGGER message_au AFTER UPDATE OF data ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
-    VALUES ('delete', OLD.rowid, OLD.searchable_text);
+    VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
     UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
-    SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
+    SELECT fts_rowid, searchable_text FROM message WHERE id = NEW.id;
   END`
 ]
 
@@ -189,7 +210,7 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
 // export const EXAMPLE_SEARCH_SQL = `
 // SELECT m.*
 // FROM message m
-// JOIN message_fts fts ON m.rowid = fts.rowid
+// JOIN message_fts fts ON m.fts_rowid = fts.rowid
 // WHERE message_fts MATCH ?
 // ORDER BY rank
 // `

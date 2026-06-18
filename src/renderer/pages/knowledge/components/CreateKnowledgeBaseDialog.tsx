@@ -11,13 +11,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { useModels } from '@renderer/hooks/useModel'
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
-import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +26,7 @@ import {
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
+import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -45,20 +43,14 @@ type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions'
   embeddingModelId: string | null
 }
 
+// Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
+const DEFAULT_GROUP_OPTION_VALUE = '__default__'
+
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
   groupId,
   embeddingModelId: null
 })
-
-export const formatKnowledgeModelOptionLabel = (uniqueModelId: string) => {
-  if (!isUniqueModelId(uniqueModelId)) {
-    return uniqueModelId
-  }
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return `${modelId} · ${providerId}`
-}
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
   return <KnowledgeDialogHeader>{title}</KnowledgeDialogHeader>
@@ -111,10 +103,6 @@ const CreateKnowledgeBaseDialogRoot = ({
   onCreated
 }: CreateKnowledgeBaseDialogProps) => {
   const { t } = useTranslation()
-  const { models: embeddingModels } = useModels({
-    capability: MODEL_CAPABILITY.EMBEDDING,
-    enabled: true
-  })
   const groupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups])
   const normalizedInitialGroupId = initialGroupId && groupIds.has(initialGroupId) ? initialGroupId : undefined
   const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() =>
@@ -142,11 +130,7 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
-  const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
-    value: model.id,
-    label: formatKnowledgeModelOptionLabel(model.id)
-  }))
-  const handleEmbeddingModelChange = (embeddingModelId: string) => {
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
     setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
     setSubmitError(null)
   }
@@ -217,17 +201,18 @@ const CreateKnowledgeBaseDialogRoot = ({
               <KnowledgeDialogField>
                 <Label>{t('knowledge.add.group')}</Label>
                 <Select
-                  value={values.groupId}
+                  value={values.groupId ?? DEFAULT_GROUP_OPTION_VALUE}
                   onValueChange={(groupId) =>
                     setValues((currentValues) => ({
                       ...currentValues,
-                      groupId
+                      groupId: groupId === DEFAULT_GROUP_OPTION_VALUE ? undefined : groupId
                     }))
                   }>
                   <SelectTrigger size="sm" className="w-full">
                     <SelectValue placeholder={t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={DEFAULT_GROUP_OPTION_VALUE}>{t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)}</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
@@ -240,25 +225,14 @@ const CreateKnowledgeBaseDialogRoot = ({
 
             <KnowledgeDialogField>
               <Label>{t('knowledge.embedding_model')}</Label>
-              <Select value={values.embeddingModelId ?? undefined} onValueChange={handleEmbeddingModelChange}>
-                <SelectTrigger
-                  size="sm"
-                  className="w-full"
-                  aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
-                  <SelectValue placeholder={t('knowledge.not_set')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {embeddingModelOptions.length > 0 ? (
-                    embeddingModelOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-2.5 py-2 text-foreground-muted text-sm">{t('knowledge.not_set')}</div>
-                  )}
-                </SelectContent>
-              </Select>
+              <KnowledgeModelSelect
+                aria-label={t('knowledge.embedding_model')}
+                value={values.embeddingModelId}
+                placeholder={t('knowledge.not_set')}
+                filter={isEmbeddingModel}
+                invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onChange={handleEmbeddingModelChange}
+              />
               {hasAttemptedSubmit && !values.embeddingModelId ? (
                 <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}

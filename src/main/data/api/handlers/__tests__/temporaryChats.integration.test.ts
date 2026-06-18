@@ -123,7 +123,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
 
     // And FTS full-text search actually works.
     const ftsMatches = await dbh.client.execute({
-      sql: `SELECT m.id FROM message m JOIN message_fts fts ON m.rowid = fts.rowid WHERE message_fts MATCH ?`,
+      sql: `SELECT m.id FROM message m JOIN message_fts fts ON m.fts_rowid = fts.rowid WHERE message_fts MATCH ?`,
       args: ['second']
     })
     const ftsIds = new Set(ftsMatches.rows.map((r) => String(r[0])))
