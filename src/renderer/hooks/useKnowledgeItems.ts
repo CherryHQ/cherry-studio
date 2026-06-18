@@ -1,5 +1,6 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { KNOWLEDGE_ITEMS_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeAddItemInput, KnowledgeItem, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'
@@ -82,7 +83,7 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
       let submitError: Error | undefined
       try {
-        await window.api.knowledge.addItems(baseId, items)
+        await ipcApi.request('knowledge.add_items', { baseId, items })
       } catch (error) {
         submitError = normalizeKnowledgeError(error)
 
@@ -134,7 +135,7 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
 
       let deleteError: Error | undefined
       try {
-        await window.api.knowledge.deleteItems(baseId, [item.id])
+        await ipcApi.request('knowledge.delete_items', { baseId, itemIds: [item.id] })
       } catch (error) {
         deleteError = normalizeKnowledgeError(error)
 
@@ -189,7 +190,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
 
       let reindexError: Error | undefined
       try {
-        await window.api.knowledge.reindexItems(baseId, [item.id])
+        await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: [item.id] })
       } catch (error) {
         reindexError = normalizeKnowledgeError(error)
 
