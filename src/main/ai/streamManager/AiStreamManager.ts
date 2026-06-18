@@ -217,6 +217,9 @@ export class AiStreamManager extends BaseService {
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
+  /** Per-(topic,model) budget-continue is mid-launch — dedups `scheduleBudgetContinue`. Keyed by
+   *  `budgetKey(topicId, modelId)` so different models on the same topic don't block each other. */
+  private readonly startingBudgetContinueKeys = new Set<string>()
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -721,10 +724,19 @@ export class AiStreamManager extends BaseService {
     // done with isTopicDone=false when chaining (the bubble finalises, the topic stays busy), skip the
     // terminal lifecycle, and start the continuation with the carried renderer listeners.
     const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
+    // Budget-continue: lower priority than steer — if a steer is queued, answer it first; the budget
+    // continue can run on the next turn if the budget trips again.
+    // Require anchorId here so a missing anchor → budgetContinuing=false → normal terminal lifecycle
+    // instead of dispatching into startBudgetContinue and hanging (the topic would be stuck live with
+    // no dispatch and no terminal settled).
+    const anchorId = exec.finalMessage?.id ?? exec.anchorMessageId
+    const budgetContinuing =
+      stream.status === 'done' && !chatChaining && Boolean(anchorId) && this.isBudgetContinuable(topicId, modelId)
 
-    await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining)
+    await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining && !budgetContinuing)
 
     if (chatChaining) this.scheduleNextChatTurn(topicId)
+    else if (budgetContinuing) this.scheduleBudgetContinue(topicId, modelId, anchorId as string)
     else if (topicDone) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
@@ -922,6 +934,46 @@ export class AiStreamManager extends BaseService {
     previous.status = 'error'
     previous.lifecycle.onTerminal(previous)
     this.dropPendingSteers(previous.topicId, 'error')
+  }
+
+  /** Drain-dedup + microtask defer for the budget-continue. Mirrors `scheduleNextChatTurn`. */
+  private scheduleBudgetContinue(topicId: string, modelId: UniqueModelId, anchorId: string): void {
+    const key = budgetKey(topicId, modelId)
+    if (this.startingBudgetContinueKeys.has(key)) return
+    this.startingBudgetContinueKeys.add(key)
+    queueMicrotask(() => {
+      void this.startBudgetContinue(topicId, modelId, anchorId)
+        .catch((error) => logger.error('Failed to start budget-continue', { topicId, modelId, error }))
+        .finally(() => this.startingBudgetContinueKeys.delete(key))
+    })
+  }
+
+  /**
+   * Open a fresh assistant turn resuming the same assistant row after a mid-loop budget stop.
+   * Carries the finished turn's renderer listeners forward. Mirrors `startNextChatTurn`.
+   */
+  private async startBudgetContinue(topicId: string, modelId: UniqueModelId, anchorId: string): Promise<void> {
+    const previous = this.activeStreams.get(topicId)
+    // Never evict a still-live/unsettled stream — let its terminal hook drive.
+    if (previous && isLiveStatus(previous.status)) return
+
+    const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
+    if (previous) this.evictStream(topicId)
+
+    // Consume the trip RIGHT before dispatching — increments resumesUsed and clears the per-round flag
+    // so the next round only continues if it RE-trips.
+    this.consumeBudgetTrip(topicId, modelId)
+
+    const req: MainDispatchRequest = { trigger: 'budget-continue', topicId, parentAnchorId: anchorId }
+    try {
+      await this.dispatch(carried[0] ?? nullStreamListener, req)
+    } catch (error) {
+      logger.error('Budget-continue failed to launch', { topicId, modelId, anchorId, error })
+      if (previous) this.failChatContinuation(previous, carried, serializeError(error))
+      return
+    }
+    // Re-attach any other windows that were on the prior turn.
+    for (const listener of carried.slice(1)) this.addListener(topicId, listener)
   }
 
   // ── Public: inspection snapshot ───────────────────────────────────

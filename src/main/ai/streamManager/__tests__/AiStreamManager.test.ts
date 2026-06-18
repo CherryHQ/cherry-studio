@@ -1833,4 +1833,159 @@ describe('AiStreamManager', () => {
       expect(mgr.isBudgetContinuable('topic-b', 'prov::model-C')).toBe(true)
     })
   })
+
+  // ── budget-continue chaining ────────────────────────────────────
+  // On a clean turn finish, if the budget was tripped this round and the resume cap has not been
+  // reached, re-dispatch a `'budget-continue'` that resumes the same assistant row. Steer takes
+  // priority over budget-continue. A missing anchorId bails without dispatch.
+
+  describe('budget-continue chaining', () => {
+    // Mirror the steer-chaining flush helper: drain the queueMicrotask + awaited dispatch.
+    const flush = async () => {
+      for (let i = 0; i < 6; i++) await Promise.resolve()
+    }
+
+    const budgetContinueReq = (topicId: string, parentAnchorId: string) => ({
+      trigger: 'budget-continue',
+      topicId,
+      parentAnchorId
+    })
+
+    it('clean done + tripped + under cap → dispatches budget-continue with the finalMessage id; consumeBudgetTrip observed', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const consumeSpy = vi.spyOn(mgr, 'consumeBudgetTrip')
+      const listener = new FakeListener('wc:1:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), messageId: 'assistant-row-1' },
+        listeners: [listener]
+      })
+
+      // Set the finalMessage so exec.finalMessage?.id is available.
+      // biome-ignore lint/suspicious/noExplicitAny: reach private exec to set finalMessage for test
+      const exec = (mgr as any).activeStreams.get('a').executions.get('provider-a::model-a')
+      exec.finalMessage = { id: 'assistant-row-1', role: 'assistant', parts: [] }
+
+      // Trip the budget mid-loop.
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(true)
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      // The assistant bubble finalises with isTopicDone=false (topic stays busy while resuming).
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+
+      await flush()
+
+      // dispatch called exactly once with the budget-continue trigger.
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), budgetContinueReq('a', 'assistant-row-1'))
+
+      // consumeBudgetTrip was called (increments resumesUsed + clears tripped).
+      expect(consumeSpy).toHaveBeenCalledWith('a', 'provider-a::model-a')
+      // After consume, the trip is cleared — a follow-up isBudgetContinuable is false until re-tripped.
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(false)
+    })
+
+    it('clean done + tripped but at cap (resumesUsed === MAX_BUDGET_RESUMES) → no budget-continue dispatch (normal terminal)', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1:a')]
+      })
+
+      // Exhaust the 3-resume cap.
+      for (let i = 0; i < 3; i++) {
+        mgr.setBudgetTripped('a', 'provider-a::model-a')
+        mgr.consumeBudgetTrip('a', 'provider-a::model-a')
+      }
+      // Trip once more — resumesUsed=3 at cap, so NOT continuable.
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(false)
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // No budget-continue dispatch — the topic settles normally.
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      // The topic reached a terminal state.
+      expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    it('clean done + pending steer + tripped → steer dispatched (steer wins), budget-continue NOT dispatched', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1:a')]
+      })
+
+      // Both a steer and a budget trip are pending when the turn finishes.
+      mgr.enqueuePendingSteer('a', 'steer-msg-1')
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // Only the steer is dispatched — budget-continue has lower priority.
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ trigger: 'steer-continuation', userMessageId: 'steer-msg-1' })
+      )
+      // No budget-continue was dispatched.
+      expect(dispatchSpy).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ trigger: 'budget-continue' })
+      )
+    })
+
+    it('clean done + tripped but exec.finalMessage?.id and anchorMessageId both undefined → NO budget-continue dispatch; topic settles normally (no hang)', async () => {
+      // Regression: before the fix, budgetContinuing was true even with no anchorId, then
+      // startBudgetContinue bailed via `if (!anchorId) return` WITHOUT calling runTerminalLifecycle.
+      // The topic stayed "streaming" in the status cache forever. Fix folds the anchor check into the
+      // gate so a missing anchor → budgetContinuing=false → normal terminal lifecycle runs.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const listener = new FakeListener('wc:1:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        // No messageId on the request — exec.anchorMessageId will be undefined.
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      // Ensure exec.finalMessage is NOT set (no chunks accumulated) and anchorMessageId is absent.
+      // biome-ignore lint/suspicious/noExplicitAny: verify finalMessage/anchorMessageId are absent
+      const exec = (mgr as any).activeStreams.get('a').executions.get('provider-a::model-a')
+      expect(exec.finalMessage).toBeUndefined()
+      expect(exec.anchorMessageId).toBeUndefined()
+
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // No budget-continue dispatch — without an anchor id we cannot resume the correct row.
+      expect(dispatchSpy).not.toHaveBeenCalled()
+
+      // The topic SETTLES normally via the terminal lifecycle (not hung).
+      // Assert renderer-visible settlement: the listener received isTopicDone=true on its done result.
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(true)
+
+      // Assert the cross-window status-cache broadcast wrote 'done' (the renderer-visible signal).
+      const cacheEntry = sharedCacheStore.get('topic.stream.statuses.a') as { status: string } | undefined
+      expect(cacheEntry?.status).toBe('done')
+    })
+  })
 })
