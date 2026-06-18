@@ -188,6 +188,79 @@ describe('AgentService', () => {
     })
   })
 
+  describe('mcps round-trip', () => {
+    it('persists mcps on create through the service', async () => {
+      await insertMcpServer('mcp_a')
+      await insertMcpServer('mcp_b')
+
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Create',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a', 'mcp_b']
+      })
+      expect([...(created.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect([...(reloaded?.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
+    })
+
+    it('replaces mcps when update provides a new array', async () => {
+      await insertMcpServer('mcp_a')
+      await insertMcpServer('mcp_b')
+      await insertMcpServer('mcp_c')
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Replace',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a', 'mcp_b']
+      })
+
+      const updated = await agentService.updateAgent(created.id, { mcps: ['mcp_c'] })
+      expect(updated?.mcps).toEqual(['mcp_c'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['mcp_c'])
+    })
+
+    // Load-bearing: the `if (newMcps !== undefined)` guard in updateAgent. If it
+    // ever regressed to an unconditional delete, every unrelated update (e.g. a
+    // rename) would wipe an agent's MCP servers — the exact data-loss class this
+    // PR fixes.
+    it('preserves existing mcps when update omits the field', async () => {
+      await insertMcpServer('mcp_a')
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Preserve',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a']
+      })
+
+      const updated = await agentService.updateAgent(created.id, { name: 'Renamed' })
+      expect(updated?.name).toBe('Renamed')
+      expect(updated?.mcps).toEqual(['mcp_a'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['mcp_a'])
+    })
+
+    it('clears mcps when update passes an empty array', async () => {
+      await insertMcpServer('mcp_a')
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'MCP Clear',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a']
+      })
+
+      const updated = await agentService.updateAgent(created.id, { mcps: [] })
+      expect(updated?.mcps).toEqual([])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual([])
+    })
+  })
+
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })

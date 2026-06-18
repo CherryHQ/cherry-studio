@@ -150,7 +150,20 @@ export class McpServerService {
       await tx.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
     })
 
-    await agentService.emitAgentUpdatedForIds(affectedAgentIds)
+    // The delete has already committed. `emitAgentUpdatedForIds` opens fresh
+    // reads that are not covered by the write-mutex busy-retry, so a transient
+    // failure (e.g. SQLITE_BUSY) must NOT reject delete() — the server row is
+    // already gone. Log the un-refreshed agents so warm sessions can be
+    // reconciled, then swallow.
+    try {
+      await agentService.emitAgentUpdatedForIds(affectedAgentIds)
+    } catch (error) {
+      logger.error('MCP server deleted but agent refresh failed; affected agents may retain stale tool policy', {
+        mcpServerId: id,
+        affectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Deleted MCP server', { id })
   }

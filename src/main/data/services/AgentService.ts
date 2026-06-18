@@ -60,7 +60,7 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
-function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string[] = []): AgentEntity {
+function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string[]): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
@@ -87,6 +87,7 @@ async function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Promise<Map<s
     .select({ agentId: agentMcpServerTable.agentId, mcpServerId: agentMcpServerTable.mcpServerId })
     .from(agentMcpServerTable)
     .where(inArray(agentMcpServerTable.agentId, agentIds))
+    .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt))
   const map = new Map<string, string[]>()
   for (const row of rows) {
     const list = map.get(row.agentId)

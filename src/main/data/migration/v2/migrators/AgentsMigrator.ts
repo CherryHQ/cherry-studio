@@ -978,10 +978,15 @@ export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<strin
 
   if (values.length === 0) return
   await db.insert(agentMcpServerTable).values(values)
-  logger.info('Migrated agent MCP associations to junction table', {
-    rows: values.length,
-    dropped: rows.length - values.length
-  })
+  const dropped = rows.length - values.length
+  const summary = { rows: values.length, dropped }
+  // A non-zero `dropped` count is FK-mandated data loss (legacy refs to MCP
+  // servers that no longer exist) — surface it at warn so it stands out.
+  if (dropped > 0) {
+    logger.warn('Migrated agent MCP associations to junction table; dropped dangling refs', summary)
+  } else {
+    logger.info('Migrated agent MCP associations to junction table', summary)
+  }
 }
 
 /**
