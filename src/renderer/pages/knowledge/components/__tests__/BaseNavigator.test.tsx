@@ -951,7 +951,7 @@ describe('BaseNavigator', () => {
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('forwards group creation from the search-row create menu on hover', () => {
+  it('forwards group creation from the search-row create menu on click', () => {
     const onCreateGroup = vi.fn()
     const onCreateBase = vi.fn()
 
@@ -973,7 +973,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '新建分组' }))
 
     expect(onCreateGroup).toHaveBeenCalledTimes(1)
@@ -981,7 +981,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByText('Research')).toBeInTheDocument()
   })
 
-  it('forwards knowledge base creation from the search-row create menu on hover', () => {
+  it('forwards knowledge base creation from the search-row create menu on click', () => {
     const onCreateBase = vi.fn()
 
     render(
@@ -1002,7 +1002,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '新建知识库' }))
 
     expect(onCreateBase).toHaveBeenCalledTimes(1)

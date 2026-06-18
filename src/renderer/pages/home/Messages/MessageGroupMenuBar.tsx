@@ -55,7 +55,14 @@ const MessageGroupMenuBar: FC<Props> = ({
         danger: true
       },
       okText: t('common.delete'),
-      onOk: () => v2Chat?.deleteMessageGroup(askId)
+      // Await + catch so a rejected delete surfaces a toast instead of an unhandled rejection.
+      onOk: async () => {
+        try {
+          await v2Chat?.deleteMessageGroup(askId)
+        } catch {
+          window.toast.error(t('common.delete_failed'))
+        }
+      }
     })
   }
 

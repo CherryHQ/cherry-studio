@@ -47,6 +47,7 @@ const {
   toKnowledgeRelativePath,
   getProcessedMarkdownRelativePath,
   reserveImportedFileRelativePath,
+  needsProcessedArtifactReservation,
   copyFileIntoKnowledgeBaseAt,
   writeFileIntoKnowledgeBaseAt,
   collectKnowledgeReservedRelativePaths,
@@ -144,6 +145,50 @@ describe('pathStorage relative-path safety', () => {
       expect(reserved.has('brief_1.docx')).toBe(true)
       expect(reserved.has('brief_1.md')).toBe(true)
     })
+
+    it('bumps an .xls import off an existing same-name .md so the processed artifact never overwrites it', () => {
+      // The reviewer's exact case: a base already holding `report.md`, importing `report.xls`.
+      // Derive the artifact flag from the real predicate (not a literal `true`) so this fails
+      // if `needsProcessedArtifactReservation` ever stops treating `.xls` as a processed source
+      // — that regression is what silently overwrote the existing `report.md` before the fix.
+      const reserved = new Set<string>(['report.md'])
+      const reserveArtifact = needsProcessedArtifactReservation('some-processor', 'report.xls')
+      expect(reserveArtifact).toBe(true)
+      expect(reserveImportedFileRelativePath('report.xls', reserveArtifact, reserved)).toBe('report_1.xls')
+      expect(reserved.has('report_1.xls')).toBe(true)
+      expect(reserved.has('report_1.md')).toBe(true)
+      expect(reserved.has('report.md')).toBe(true)
+    })
+  })
+
+  describe('needsProcessedArtifactReservation', () => {
+    it('returns false without a file processor regardless of extension', () => {
+      expect(needsProcessedArtifactReservation(null, 'report.pdf')).toBe(false)
+      expect(needsProcessedArtifactReservation(undefined, 'report.xls')).toBe(false)
+    })
+
+    it.each(['report.pdf', 'paper.doc', 'paper.docx', 'deck.pptx', 'sheet.xlsx', 'sheet.xls'])(
+      'reserves the processed artifact for processed source %s',
+      (relativePath) => {
+        expect(needsProcessedArtifactReservation('some-processor', relativePath)).toBe(true)
+      }
+    )
+
+    it.each(['notes.md', 'page.txt', 'data.csv', 'book.epub'])(
+      'does not reserve for non-processed knowledge source %s',
+      (relativePath) => {
+        expect(needsProcessedArtifactReservation('some-processor', relativePath)).toBe(false)
+      }
+    )
+
+    it.each(['legacy.odt', 'deck.odp', 'sheet.ods'])(
+      'does not reserve for %s — an OpenDocument format the knowledge base does not process',
+      (relativePath) => {
+        // These are in the app-wide `documentExts` but intentionally NOT a knowledge
+        // processing/supported ext, so no `.md` artifact is ever emitted for them.
+        expect(needsProcessedArtifactReservation('some-processor', relativePath)).toBe(false)
+      }
+    )
   })
 
   describe('copyFileIntoKnowledgeBaseAt', () => {
@@ -251,15 +296,35 @@ describe('pathStorage relative-path safety', () => {
       expect(noProcessor).toEqual(new Set(['paper.pdf']))
     })
 
-    it('does not reserve a prospective slot for a non-document source extension', () => {
+    it('does not reserve a prospective slot for a non-processed source extension', () => {
       const reserved = collectKnowledgeReservedRelativePaths(
         [{ id: 'i1', type: 'file', data: { relativePath: 'notes.md' } }],
         { fileProcessorId: 'some-processor' }
       )
 
-      // `.md` is not a documentExt → no processed artifact is ever emitted, so no
-      // prospective `.md` slot is reserved (only the source itself).
+      // `.md` is not a knowledge processing ext → no processed artifact is ever
+      // emitted, so no prospective `.md` slot is reserved (only the source itself).
       expect(reserved).toEqual(new Set(['notes.md']))
+    })
+
+    it('reserves the prospective processed-markdown slot for an .xls source', () => {
+      // `.xls` is processed into a `.md` (it is a knowledge processing ext) even though
+      // it is absent from the app-wide `documentExts` — the slot must be reserved.
+      const reserved = collectKnowledgeReservedRelativePaths(
+        [{ id: 'i1', type: 'file', data: { relativePath: 'report.xls' } }],
+        { fileProcessorId: 'some-processor' }
+      )
+
+      expect(reserved).toEqual(new Set(['report.xls', 'report.md']))
+    })
+
+    it('does not reserve a prospective slot for an OpenDocument source the base cannot process', () => {
+      const reserved = collectKnowledgeReservedRelativePaths(
+        [{ id: 'i1', type: 'file', data: { relativePath: 'legacy.odt' } }],
+        { fileProcessorId: 'some-processor' }
+      )
+
+      expect(reserved).toEqual(new Set(['legacy.odt']))
     })
 
     it('reserves the pinned artifact, not the prospective slot, once the file is indexed', () => {

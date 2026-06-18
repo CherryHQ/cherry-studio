@@ -24587,7 +24587,9 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "ownedBy": "baidu",
+      "family": "ernie"
     },
     {
       "capabilities": ["reasoning", "web-search"],
@@ -25553,7 +25555,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25571,7 +25575,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25589,7 +25595,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25607,7 +25615,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25625,7 +25635,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25643,7 +25655,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25661,7 +25675,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["embedding"],
@@ -26283,7 +26299,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -26301,7 +26319,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["computer-use"],
@@ -27130,7 +27150,9 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "ownedBy": "bfl",
+      "family": "flux"
     },
     {
       "capabilities": ["function-call", "image-recognition", "image-generation", "web-search"],
@@ -41884,11 +41906,36 @@
       "ownedBy": "Kwai-Kolors"
     },
     {
-      "capabilities": ["image-generation"],
-      "description": "OpenAI gpt-image-2 — text-to-image generation via aihubmix.",
+      "capabilities": ["image-recognition", "image-generation"],
+      "description": "OpenAI GPT Image 2 — text-to-image generation and image-to-image editing with text guidance.",
+      "family": "gpt-image",
       "id": "gpt-image-2",
       "imageGeneration": {
         "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
           "generate": {
             "supports": {
               "background": {
@@ -41917,11 +41964,32 @@
       },
       "inputModalities": ["text", "image"],
       "name": "GPT-Image-2",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "openai",
+      "contextWindow": 0,
+      "maxOutputTokens": 0,
+      "openWeights": false,
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      },
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        },
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      }
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Google Imagen 4.0 (preview) via aihubmix — text-to-image with aspect-ratio and person-generation controls.",
+      "description": "Google Imagen 4.0 (preview) — text-to-image with aspect-ratio and person-generation controls.",
       "id": "imagen-4.0-generate-preview-06-06",
       "imageGeneration": {
         "modes": {
@@ -41948,11 +42016,13 @@
       },
       "inputModalities": ["text"],
       "name": "Imagen 4.0 Preview",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "google",
+      "family": "imagen"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Google Imagen 4.0 Ultra (preview) via aihubmix — single-image generation with aspect-ratio and person-generation controls.",
+      "description": "Google Imagen 4.0 Ultra (preview) — single-image generation with aspect-ratio and person-generation controls.",
       "id": "imagen-4.0-ultra-generate-preview-06-06",
       "imageGeneration": {
         "modes": {
@@ -41973,11 +42043,13 @@
       },
       "inputModalities": ["text"],
       "name": "Imagen 4.0 Ultra Preview",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "google",
+      "family": "imagen"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Black Forest Labs FLUX.1 Kontext Pro via aihubmix.",
+      "description": "Black Forest Labs FLUX.1 Kontext Pro.",
       "id": "FLUX.1-Kontext-pro",
       "imageGeneration": {
         "modes": {
@@ -41995,11 +42067,13 @@
       },
       "inputModalities": ["text"],
       "name": "FLUX.1 Kontext Pro",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bfl",
+      "family": "flux"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_3 via aihubmix.",
+      "description": "Ideogram V_3.",
       "id": "V_3",
       "imageGeneration": {
         "modes": {
@@ -42133,11 +42207,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_3",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2 via aihubmix.",
+      "description": "Ideogram V_2.",
       "id": "V_2",
       "imageGeneration": {
         "modes": {
@@ -42267,11 +42343,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2 Turbo via aihubmix.",
+      "description": "Ideogram V_2 Turbo.",
       "id": "V_2_TURBO",
       "imageGeneration": {
         "modes": {
@@ -42401,11 +42479,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2 Turbo",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2A via aihubmix.",
+      "description": "Ideogram V_2A.",
       "id": "V_2A",
       "imageGeneration": {
         "modes": {
@@ -42535,11 +42615,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2A",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2A Turbo via aihubmix.",
+      "description": "Ideogram V_2A Turbo.",
       "id": "V_2A_TURBO",
       "imageGeneration": {
         "modes": {
@@ -42669,11 +42751,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2A Turbo",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_1 via aihubmix.",
+      "description": "Ideogram V_1.",
       "id": "V_1",
       "imageGeneration": {
         "modes": {
@@ -42803,11 +42887,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_1",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_1 Turbo via aihubmix.",
+      "description": "Ideogram V_1 Turbo.",
       "id": "V_1_TURBO",
       "imageGeneration": {
         "modes": {
@@ -42937,7 +43023,9 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_1 Turbo",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["function-call", "image-recognition", "web-search", "image-generation"],
@@ -43121,7 +43209,9 @@
       "id": "jimeng-txt2img-v3.1",
       "inputModalities": ["text"],
       "name": "即梦文生图 3.1",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "jimeng"
     },
     {
       "capabilities": ["image-generation"],
@@ -43129,7 +43219,9 @@
       "id": "jimeng-txt2img-v3.0",
       "inputModalities": ["text"],
       "name": "即梦文生图 3.0",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "jimeng"
     },
     {
       "capabilities": ["image-generation"],
@@ -43137,7 +43229,9 @@
       "id": "hunyuan-image-3",
       "inputModalities": ["text"],
       "name": "Hunyuan Image 3",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "tencent",
+      "family": "hunyuan"
     },
     {
       "capabilities": ["image-generation"],
@@ -43145,7 +43239,9 @@
       "id": "qwen-image-txt2img",
       "inputModalities": ["text"],
       "name": "Qwen-Image 文生图",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "family": "qwen"
     },
     {
       "capabilities": ["image-generation"],
@@ -43165,7 +43261,9 @@
       "id": "z-image-turbo-lora",
       "inputModalities": ["text"],
       "name": "Z Image Turbo LoRA",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "Tongyi-MAI",
+      "family": "Z-Image"
     },
     {
       "capabilities": ["image-generation"],
@@ -43173,7 +43271,9 @@
       "id": "seedream-5.0-lite",
       "inputModalities": ["text", "image"],
       "name": "Seedream 5.0 Lite",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "seedream"
     },
     {
       "capabilities": ["image-generation"],
@@ -43181,7 +43281,9 @@
       "id": "seedream-4.5",
       "inputModalities": ["text", "image"],
       "name": "Seedream 4.5",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "seedream"
     },
     {
       "capabilities": ["image-generation"],
@@ -43189,7 +43291,9 @@
       "id": "seedream-4.0",
       "inputModalities": ["text", "image"],
       "name": "Seedream 4.0",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "seedream"
     },
     {
       "capabilities": ["image-generation"],

@@ -183,7 +183,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-2022, ubuntu-latest]
       fail-fast: false
 
     steps:
@@ -311,7 +311,7 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: |
           pnpm build:win
         env:
@@ -339,7 +339,7 @@ jobs:
             fi
           }
 
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${{ matrix.os }}" = "windows-2022" ]; then
             copy_first "*-x64-setup.exe" "${PREFIX}-x64-setup.exe"
             copy_first "*-arm64-setup.exe" "${PREFIX}-arm64-setup.exe"
             copy_first "*-x64-portable.exe" "${PREFIX}-x64-portable.exe"
@@ -379,7 +379,7 @@ jobs:
           echo "Total: $(find renamed-artifacts -type f | wc -l) files"
 
       - name: Upload Windows x64 setup
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: actions/upload-artifact@v7
         with:
           name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-setup.exe
@@ -389,7 +389,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Windows arm64 setup
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: actions/upload-artifact@v7
         with:
           name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-setup.exe
@@ -399,7 +399,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Windows x64 portable
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: actions/upload-artifact@v7
         with:
           name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-portable.exe
@@ -409,7 +409,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Windows arm64 portable
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: actions/upload-artifact@v7
         with:
           name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-portable.exe

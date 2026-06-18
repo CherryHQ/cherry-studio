@@ -184,7 +184,7 @@ export const getThemeModeLabelKey = (key: string): string => {
   return getLabelKey(themeModeKeyMap, key)
 }
 
-const sidebarIconKeyMap = {
+const sidebarFavoriteKeyMap = {
   assistants: 'assistants.title',
   agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
@@ -198,8 +198,8 @@ const sidebarIconKeyMap = {
   openclaw: 'openclaw.title'
 } as const
 
-export const getSidebarIconLabelKey = (key: string): string => {
-  return getLabelKey(sidebarIconKeyMap, key)
+export const getSidebarFavoriteLabelKey = (key: string): string => {
+  return getLabelKey(sidebarFavoriteKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {

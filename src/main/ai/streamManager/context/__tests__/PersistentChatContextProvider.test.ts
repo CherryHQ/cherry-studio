@@ -7,7 +7,7 @@ import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
@@ -72,31 +72,33 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     })
 
     await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'a1', orderKey: 'a0' })
-    await dbh.db.insert(messageTable).values([
-      {
-        id: 'u1',
-        parentId: null,
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'first question' }] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      },
-      {
-        id: 'a1',
-        parentId: 'u1',
-        topicId: 'topic-1',
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: PARTIAL }] },
-        status: 'paused',
-        siblingsGroupId: 1,
-        modelId: MODEL_ID,
-        createdAt: 200,
-        updatedAt: 200
-      }
-    ])
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-1', [
+        {
+          id: 'u1',
+          parentId: null,
+          topicId: 'topic-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'first question' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a1',
+          parentId: 'u1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: PARTIAL }] },
+          status: 'paused',
+          siblingsGroupId: 1,
+          modelId: MODEL_ID,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+    )
   })
 
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
@@ -315,44 +317,46 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       { id: 'topic-1', activeNodeId: 'a1', orderKey: 'a0' },
       { id: 'topic-2', activeNodeId: null, orderKey: 'a1' }
     ])
-    await dbh.db.insert(messageTable).values([
-      {
-        id: 'u1',
-        parentId: null,
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'run the tool' }] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      },
-      {
-        // Assistant turn paused on a tool-approval-request — the renderer's decision arrives here.
-        id: 'a1',
-        parentId: 'u1',
-        topicId: 'topic-1',
-        role: 'assistant',
-        data: {
-          parts: [
-            { type: 'text', text: 'let me call a tool' },
-            {
-              type: 'tool-fetch_url',
-              toolCallId: 'call-1',
-              state: 'approval-requested',
-              input: { url: 'https://example.com' },
-              approval: { id: APPROVAL_ID }
-            }
-          ]
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-1', [
+        {
+          id: 'u1',
+          parentId: null,
+          topicId: 'topic-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'run the tool' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
         },
-        status: 'success',
-        siblingsGroupId: 1,
-        modelId: ANCHOR_MODEL_ID,
-        modelSnapshot: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' },
-        createdAt: 200,
-        updatedAt: 200
-      }
-    ])
+        {
+          // Assistant turn paused on a tool-approval-request — the renderer's decision arrives here.
+          id: 'a1',
+          parentId: 'u1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'text', text: 'let me call a tool' },
+              {
+                type: 'tool-fetch_url',
+                toolCallId: 'call-1',
+                state: 'approval-requested',
+                input: { url: 'https://example.com' },
+                approval: { id: APPROVAL_ID }
+              }
+            ]
+          },
+          status: 'success',
+          siblingsGroupId: 1,
+          modelId: ANCHOR_MODEL_ID,
+          modelSnapshot: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' },
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+    )
   })
 
   it('rejects when the anchor is not an assistant message (anchor guard)', async () => {

@@ -24,6 +24,7 @@ import type { Topic } from '@shared/data/types/topic'
 import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
+import { messageService } from './MessageService'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -199,8 +200,10 @@ export class TemporaryChatService {
           }
         )
 
-        // 3. Linearize: parentId[i] = msgs[i-1].id. First message's parent is null.
-        let prevId: string | null = null
+        // 3. Create the topic's virtual root, then linearize buffered messages under it:
+        // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
+        const rootId = await messageService.createRootMessageTx(tx, topic.id)
+        let prevId: string = rootId
         for (const m of msgs) {
           await tx.insert(messageTable).values({
             id: m.id,
@@ -217,8 +220,8 @@ export class TemporaryChatService {
           prevId = m.id
         }
 
-        // 4. Set activeNodeId to the last message (if any).
-        if (prevId) {
+        // 4. Set activeNodeId to the last real message (still the root → no messages, leave null).
+        if (prevId !== rootId) {
           await tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, topic.id))
         }
       })

@@ -47,7 +47,6 @@ export interface PersistTemporaryChatResponse {
  *
  * Endpoints deliberately NOT provided (and their rationale):
  * - GET /temporary/topics/:id                — create response already carries full Topic
- * - PATCH /temporary/topics/:id              — no rename / reassign in temporary chats
  * - PUT /temporary/topics/:id/active-node    — no activeNode concept
  * - GET /temporary/topics/:topicId/tree      — no tree structure
  * - GET /messages/:id, PATCH, DELETE         — messages are immutable once appended
