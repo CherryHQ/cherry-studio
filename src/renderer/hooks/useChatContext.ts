@@ -145,9 +145,11 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
             .join('\n\n---\n\n')
           if (contentToSave) {
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
-            await window.api.file.save(fileName, contentToSave)
-            window.toast.success(t('message.save.success.title'))
-            handleToggleMultiSelectMode(false)
+            const savedPath = await window.api.file.save(fileName, contentToSave)
+            if (savedPath) {
+              window.toast.success(t('message.save.success.title'))
+              handleToggleMultiSelectMode(false)
+            }
           }
           break
         }

@@ -44,7 +44,9 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
  * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
  * - `completed`: indexing or container reconciliation finished successfully.
- * - `failed`: workflow failed; `error` must be a non-empty string.
+ * - `failed`: workflow failed; `error` must be a non-empty string — either a code the
+ *   UI localizes (e.g. `directory_not_migrated`, set when a v1-indexed folder's vectors
+ *   could not be migrated, so the folder must be deleted and re-uploaded) or a free-form message.
  * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
  */
 export const KNOWLEDGE_ITEM_STATUSES = [
@@ -77,6 +79,19 @@ export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
 export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema>
 export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
+
+/**
+ * Item-level error codes stored on `knowledge_item.error`. Currently only the v2
+ * migration sets one: a v1-indexed `directory` whose container-level vectors could not
+ * be re-attributed to per-file children (unreadable legacy sources, or no migratable
+ * vectors) is marked `failed` with `directory_not_migrated`. Modeled as a zod enum (the
+ * same shape as the base error codes above) so the renderer's code → i18n switch in
+ * `error.ts` stays exhaustive-checkable and the code ↔ translator-key triple is tied together.
+ */
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated'] as const
+export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
+export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
+export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)

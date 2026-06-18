@@ -82,6 +82,24 @@ export async function exists(path: FilePath): Promise<boolean> {
   }
 }
 
+/** Outcome of a readability probe: present, genuinely absent, or could-not-be-checked. */
+export type PathReadability = 'readable' | 'missing' | 'unverifiable'
+
+/**
+ * Like {@link exists}, but distinguishes a path that is genuinely absent (`ENOENT` → `missing`)
+ * from one that could not be checked (`EACCES` / `EMFILE` / `EIO` / a network-drive timeout →
+ * `unverifiable`). Callers that drive a destructive remediation off "absent" — e.g. telling the
+ * user to delete and re-add a source — need this so a transient failure is not reported as deletion.
+ */
+export async function probeReadable(path: FilePath): Promise<PathReadability> {
+  try {
+    await access(path, constants.R_OK)
+    return 'readable'
+  } catch (error) {
+    return (error as NodeJS.ErrnoException)?.code === 'ENOENT' ? 'missing' : 'unverifiable'
+  }
+}
+
 /**
  * Whether two paths resolve to the same physical file. Compares POSIX
  * `(device, inode)` — does NOT follow symlinks (`stat`, not `realpath`).

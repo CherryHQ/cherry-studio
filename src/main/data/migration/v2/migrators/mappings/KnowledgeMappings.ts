@@ -7,6 +7,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
   type KnowledgeItemData,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
@@ -46,6 +47,10 @@ export interface LegacyKnowledgeItem {
   processingStatus?: LegacyProcessingStatus
   processingError?: string
   uniqueId?: string
+  // A v1 `directory` item collects every embedded child file's loader id here
+  // (KnowledgeService.directoryTask pushes each addFileLoader result); the v2
+  // migration reads these to re-attribute the folder's vectors to per-file items.
+  uniqueIds?: string[]
   sourceUrl?: string
 }
 
@@ -391,7 +396,16 @@ export const transformKnowledgeItem = (
     }
   }
 
-  const status = inferKnowledgeItemStatus(item)
+  const inferredStatus = inferKnowledgeItemStatus(item)
+  // A v1-indexed folder is one container item whose files were embedded under its
+  // loader ids; the vector migrator drops those container-level vectors (no v2
+  // home), so letting the directory claim `completed` would leave an empty shell
+  // that never re-indexes. Mark it `failed` with a code the UI renders as a
+  // delete-and-re-upload prompt (it migrated as a record but its vectors were dropped).
+  // Interrupted (failed) and never-indexed (idle) directories keep their inferred status
+  // (only a `completed` directory is overridden to `failed`).
+  const directoryIndexDropped = type === 'directory' && inferredStatus === 'completed'
+  const status = directoryIndexDropped ? 'failed' : inferredStatus
 
   return {
     ok: true,
@@ -404,10 +418,102 @@ export const transformKnowledgeItem = (
       type,
       data,
       status,
-      error: normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
+      error: directoryIndexDropped
+        ? KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+        : normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)
     },
     ...(fileCopy ? { fileCopy } : {})
   }
+}
+
+/** A v1 `directory` item expanded into a v2 container plus one `file` child per embedded file. */
+export interface ExpandedDirectoryItem {
+  container: NewKnowledgeItem
+  children: NewKnowledgeItem[]
+  /**
+   * Each embedded file's v1 loader id → the synthesized v2 child item id, so the
+   * vector migrator can re-attribute the folder's vectors to the right child.
+   */
+  childLoaderRemap: Map<string, string>
+}
+
+/**
+ * Expand a v1-indexed `directory` item into a `completed` container `directory`
+ * item plus one `completed` `file` child per embedded file, so the folder's v1
+ * vectors can be re-attributed instead of dropped (v1 booked every file under the
+ * directory item's loader ids, with no per-file item — see KnowledgeService.
+ * directoryTask). `loaderSourceMap` maps each loader id to its source file path
+ * (the legacy vector DB's `source` column).
+ *
+ * Children carry the external `source` path and a **virtual** `relativePath` (their
+ * own id): the file is never copied into the base (v1 never stored the folder inside Cherry, so
+ * there is nothing to copy) and the v1 `source` path is untrustworthy, so search uses the migrated
+ * vectors directly and the child is never read from disk. Re-indexing such a child is rejected
+ * because its source file no longer exists on disk (it would otherwise destroy the only copy of its
+ * vectors); rebuilding the folder means deleting it and re-adding it.
+ *
+ * Returns `null` when the directory's `content` (folder path) is blank, or when no child
+ * file can be resolved (vector DB unreadable/empty, or the directory carries no loader ids)
+ * — the caller then keeps the tombstone.
+ */
+export const expandLegacyDirectoryItem = (
+  baseId: string,
+  item: LegacyKnowledgeItem,
+  loaderSourceMap: Map<string, string>
+): ExpandedDirectoryItem | null => {
+  if (typeof item.content !== 'string' || item.content.trim() === '') {
+    return null
+  }
+
+  const createdAt = toTimestamp(item.created_at)
+  const updatedAt = toTimestamp(item.updated_at)
+  const containerId = uuidv7()
+  const children: NewKnowledgeItem[] = []
+  const childLoaderRemap = new Map<string, string>()
+
+  for (const loaderId of item.uniqueIds ?? []) {
+    if (typeof loaderId !== 'string' || loaderId.trim() === '') {
+      continue
+    }
+    const source = loaderSourceMap.get(loaderId)
+    if (typeof source !== 'string' || source.trim() === '') {
+      continue
+    }
+    const childId = uuidv7()
+    children.push({
+      id: childId,
+      baseId,
+      groupId: containerId,
+      type: 'file',
+      // Virtual relativePath (the child's own id): the source file is not copied into the base, so
+      // this never resolves to a raw/ file. Search reads the migrated vectors, not the file; reindex
+      // is rejected because that raw/ file does not exist on disk (see assertSubtreesCanReindex).
+      data: { source, relativePath: childId },
+      status: 'completed',
+      error: null,
+      createdAt,
+      updatedAt
+    })
+    childLoaderRemap.set(loaderId, childId)
+  }
+
+  if (children.length === 0) {
+    return null
+  }
+
+  const container: NewKnowledgeItem = {
+    id: containerId,
+    baseId,
+    groupId: null,
+    type: 'directory',
+    data: { source: item.content, path: item.content },
+    status: 'completed',
+    error: null,
+    createdAt,
+    updatedAt
+  }
+
+  return { container, children, childLoaderRemap }
 }

@@ -101,10 +101,43 @@ useIpcOn('cherryin.oauth_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError
 
 `IpcChannel.Notification_OnClick = 'notification:on-click'` (IpcChannel.ts) is unused; the actual push hardcodes `'notification-click'` (MainWindowService.ts / NotificationService.ts) and the renderer listens for the hardcoded string. Unify into a typed event when collecting the notification domain.
 
+## Escape Hatch — When a Channel May Stay Out
+
+**Default: every R→M channel goes through IpcApi.** The escape hatch is a rare, last-resort exception — today exactly **one** channel in the whole codebase clears the bar (`Tab_MoveWindow`). It is not a "high-frequency optimization" to reach for; it is opting out of the typed, gated, audited surface, and must be earned.
+
+Two-step test — direction, then frequency:
+
+```
+Does this R→M channel go through IpcApi?
+├─ M→R?            → never escapes (already one-way send); hot → class B, still in IpcApi
+└─ R→M?
+   ├─ per-action   → IN IpcApi (request, even void)
+   └─ per-frame    → escape candidate → must meet BOTH conditions below
+```
+
+**Why M→R never escapes.** Its IpcApi transport is already one-way `webContents.send` (`IpcApiService.send`, `WindowManager.broadcast`) — no reply leg, nothing to escape. A hot M→R stream stays in IpcApi via the class-B pattern (service-held registry + directed `send(windowId)` + batching).
+
+**Why per-frame R→M may escape.** R→M is `invoke`/`handle` (round-trip), so a per-frame channel pays the reply leg every frame, and `await` couples the drag loop to main's tail latency. `Tab_MoveWindow` (rAF-throttled, ~60–120/s, fire-and-forget native window move) is the only per-frame R→M in the repo — the only qualifier.
+
+**Two hard conditions for a carve-out** (or it is a hole, not an exception):
+
+- **Still gated** — register with native `ipcMain.on` + `registerDisposable` + an explicit `validateSender` call (mirroring DataApi/Cache native registration). Do **not** use the `this.ipcOn` sugar (slated for removal, see above).
+- **Still documented** — list it in [Not In Scope](#not-in-scope-for-ipcapi) below. A documented carve-out (like `Cache_Sync`) keeps the one-list exposure audit honest; an undocumented omission breaks it.
+
+**Scope discipline** — most of the same feature still migrates in:
+
+| Channel | Disposition |
+|---|---|
+| `Tab_MoveWindow` | **Out** — escape hatch (gated + documented) |
+| `Tab_Detach` / `Tab_DragEnd` / `Ai_AbortImage` | **In** — one-off → `void` request |
+| `Python_ExecutionResponse` | Separate — renderer-as-server reverse RPC (request-id correlated, carries error); IpcApi's main-as-server `request` model doesn't fit, handle on its own |
+| `Cache_Sync` | Stays in the Cache subsystem |
+
 ## Not In Scope For IpcApi
 
 | Item | Stays in |
 |---|---|
+| `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
 | `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
 | `preference.onChanged`, `dataApi.subscribe` | their own subsystems |
 | `Cache_Sync` "exclude self" (uses numeric `BrowserWindow.id`) | Cache subsystem |

@@ -1,7 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
+
+const mocks = vi.hoisted(() => ({
+  fileToAvatarDataUrl: vi.fn(),
+  imageStorageGet: vi.fn(),
+  imageStorageRemove: vi.fn(),
+  imageStorageSet: vi.fn(),
+  providerAvatarPrimitive: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -36,18 +44,33 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/ProviderAvatar', () => ({
-  ProviderAvatarPrimitive: () => <div>avatar</div>
+  ProviderAvatarPrimitive: (props: any) => {
+    mocks.providerAvatarPrimitive(props)
+    return <div data-testid="provider-avatar-preview" data-logo={props.logo ?? ''} />
+  }
 }))
 
 vi.mock('@renderer/components/ProviderLogoPicker', () => ({
-  default: () => <div>logo-picker</div>
+  default: ({ onProviderClick }: { onProviderClick: (providerId: string) => void }) => (
+    <button type="button" onClick={() => onProviderClick('openai')}>
+      pick-openai
+    </button>
+  )
+}))
+
+vi.mock('@renderer/services/ImageStorage', () => ({
+  default: {
+    get: (...args: any[]) => mocks.imageStorageGet(...args),
+    remove: (...args: any[]) => mocks.imageStorageRemove(...args),
+    set: (...args: any[]) => mocks.imageStorageSet(...args)
+  }
 }))
 
 vi.mock('@renderer/utils', () => ({
-  compressImage: vi.fn(),
-  convertToBase64: vi.fn(),
+  fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args),
   generateColorFromChar: vi.fn(),
   getForegroundColor: vi.fn(),
+  uuid: () => 'api-key-id',
   cn: (...args: any[]) => args.filter(Boolean).join(' ')
 }))
 
@@ -65,9 +88,144 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
+    mocks.imageStorageGet.mockResolvedValue('data:image/png;base64,stored')
+    mocks.imageStorageRemove.mockResolvedValue(undefined)
+    mocks.imageStorageSet.mockResolvedValue(undefined)
     window.toast = {
       error: vi.fn()
     } as unknown as typeof window.toast
+  })
+
+  it('encodes an uploaded logo via fileToAvatarDataUrl and previews the result', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+
+    await waitFor(() => {
+      expect(mocks.fileToAvatarDataUrl).toHaveBeenCalledWith(file)
+      expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute(
+        'data-logo',
+        'data:image/png;base64,stored-provider-logo'
+      )
+    })
+  })
+
+  it('surfaces a toast when encoding the uploaded logo fails', async () => {
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error('decode failed'))
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.provider.logo_upload_failed')
+    })
+  })
+
+  it('submits null when an uploaded logo is reset before saving', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logo: null,
+          mode: 'edit',
+          name: 'Custom Provider'
+        })
+      )
+    })
+  })
+
+  it('submits the built-in icon reference when selected after uploading a logo', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logo: 'icon:openai',
+          mode: 'edit',
+          name: 'Custom Provider'
+        })
+      )
+    })
   })
 
   it('submits a create-custom payload with api-key auth and OPENAI_CHAT_COMPLETIONS as the default endpoint', () => {

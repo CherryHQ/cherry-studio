@@ -4,12 +4,18 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { copy, ensureDir, remove, removeDir, write } from '@main/utils/file/fs'
+import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
-import { documentExts } from '@shared/config/constant'
+import { knowledgeFileProcessingExts } from '@shared/config/constant'
 import type { FilePath } from '@shared/file/types'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
+
+// A processed `.md` artifact is emitted iff the source actually runs through the file
+// processor — the exact predicate `needsFileProcessing` (sourcePlanning) uses. Keying
+// reservation off the same processing-ext source of truth keeps the two from ever
+// disagreeing (e.g. `.xls`, which is processed but not in the app-wide `documentExts`).
+const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
 const CHERRY_META_DIR = '.cherry'
 const VECTOR_STORE_FILE = 'index.sqlite'
@@ -51,6 +57,25 @@ export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
 export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): FilePath {
   assertSafeKnowledgeRelativePath(relativePath)
   return path.join(getKnowledgeMaterialDir(baseId), relativePath) as FilePath
+}
+
+/**
+ * Probe a base-relative material file (`{baseDir}/raw/{relativePath}`), distinguishing a genuinely
+ * absent file from one that could not be verified (see {@link probeReadable}).
+ */
+export async function probeKnowledgeFile(baseId: string, relativePath: string): Promise<PathReadability> {
+  return probeReadable(getKnowledgeBaseFilePath(baseId, relativePath))
+}
+
+/**
+ * Probe an absolute on-disk source path (e.g. a directory item's original folder, stored in
+ * `data.path`), distinguishing a genuinely missing source from one that could not be verified.
+ * Reindex rescans a directory from this path, so a missing source means there is nothing to rebuild
+ * from; an unverifiable one (transient/permission error) may still exist. The stored `data.path` is
+ * already absolute, so it is probed as-is.
+ */
+export async function probeKnowledgeSourcePath(absolutePath: string): Promise<PathReadability> {
+  return probeReadable(absolutePath as FilePath)
 }
 
 export function getKnowledgeSourceRelativePath(sourcePath: string): string {
@@ -139,7 +164,7 @@ export function needsProcessedArtifactReservation(
   if (!fileProcessorId) {
     return false
   }
-  return documentExts.includes(getFileExt(relativePath).toLowerCase())
+  return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(getFileExt(relativePath).toLowerCase())
 }
 
 /**

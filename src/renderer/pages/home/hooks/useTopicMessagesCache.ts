@@ -86,7 +86,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
 
   /** Replace the branch cache with a single empty page. */
   const clearBranchCache = useCallback(async () => {
-    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }], { revalidate: false })
+    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }], {
+      revalidate: false
+    })
   }, [mutate])
 
   // `useInvalidateCache`'s `invalidatePathPatterns` walks both scalar and
@@ -104,6 +106,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath]
   })
+  const { trigger: clearTopicMessagesTrigger } = useMutation('DELETE', '/topics/:topicId/messages', {
+    refresh: [messagesCachePath]
+  })
 
   return {
     branchWithoutIds,
@@ -114,6 +119,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     deleteMessageTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
-    setActiveNodeTrigger
+    setActiveNodeTrigger,
+    clearTopicMessagesTrigger
   }
 }

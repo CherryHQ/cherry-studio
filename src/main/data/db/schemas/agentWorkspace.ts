@@ -1,4 +1,4 @@
-import { AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { sql } from 'drizzle-orm'
 import { check, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -12,7 +12,7 @@ export const agentWorkspaceTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     path: text().notNull(),
-    type: text().notNull(),
+    type: text().notNull().default(AGENT_WORKSPACE_TYPE.USER),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

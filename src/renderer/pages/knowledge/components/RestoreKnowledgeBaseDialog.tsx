@@ -1,28 +1,15 @@
-import {
-  Dialog,
-  DialogContent,
-  FieldError,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cherrystudio/ui'
+import { Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
-import { useModels } from '@renderer/hooks/useModel'
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
-import CreateKnowledgeBaseDialog, { formatKnowledgeModelOptionLabel } from './CreateKnowledgeBaseDialog'
+import CreateKnowledgeBaseDialog from './CreateKnowledgeBaseDialog'
 import { KnowledgeDialogBody, KnowledgeDialogField } from './KnowledgeDialogLayout'
+import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
 
 interface RestoreKnowledgeBaseDialogProps {
   open: boolean
@@ -57,10 +44,6 @@ const RestoreKnowledgeBaseDialog = ({
   onRestored
 }: RestoreKnowledgeBaseDialogProps) => {
   const { t } = useTranslation()
-  const { models: embeddingModels } = useModels({
-    capability: MODEL_CAPABILITY.EMBEDDING,
-    enabled: true
-  })
   const defaultName = t('knowledge.restore.default_name', { name: base.name })
   const [values, setValues] = useState<RestoreKnowledgeBaseFormValues>(() =>
     createInitialValues(defaultName, initialEmbeddingModelId)
@@ -75,12 +58,7 @@ const RestoreKnowledgeBaseDialog = ({
     setSubmitError(null)
   }, [base.id, defaultName, initialEmbeddingModelId, open])
 
-  const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
-    value: model.id,
-    label: formatKnowledgeModelOptionLabel(model.id)
-  }))
-
-  const handleEmbeddingModelChange = (embeddingModelId: string) => {
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
     setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
     setSubmitError(null)
   }
@@ -144,25 +122,14 @@ const RestoreKnowledgeBaseDialog = ({
 
             <KnowledgeDialogField>
               <Label>{t('knowledge.embedding_model')}</Label>
-              <Select value={values.embeddingModelId ?? undefined} onValueChange={handleEmbeddingModelChange}>
-                <SelectTrigger
-                  size="sm"
-                  className="w-full"
-                  aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
-                  <SelectValue placeholder={t('knowledge.not_set')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {embeddingModelOptions.length > 0 ? (
-                    embeddingModelOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-2.5 py-2 text-foreground-muted text-sm">{t('knowledge.not_set')}</div>
-                  )}
-                </SelectContent>
-              </Select>
+              <KnowledgeModelSelect
+                aria-label={t('knowledge.embedding_model')}
+                value={values.embeddingModelId}
+                placeholder={t('knowledge.not_set')}
+                filter={isEmbeddingModel}
+                invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onChange={handleEmbeddingModelChange}
+              />
               {hasAttemptedSubmit && !values.embeddingModelId ? (
                 <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}
