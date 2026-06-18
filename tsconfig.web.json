@@ -16,6 +16,7 @@
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
       "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
       "@cherrystudio/ui/*": ["./packages/ui/src/*"],
+      "@cherrystudio/ui/composites/markdown": ["./packages/ui/src/components/composites/markdown/index.ts"],
       "@cherrystudio/ui/icons": ["./packages/ui/src/components/icons/index.ts"],
       "@data/*": ["./src/renderer/data/*"],
       "@logger": ["./src/renderer/services/LoggerService"],

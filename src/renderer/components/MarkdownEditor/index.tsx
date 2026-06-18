@@ -1,11 +1,9 @@
 import 'katex/dist/katex.min.css'
 
-import { cjk } from '@streamdown/cjk'
-import { math } from '@streamdown/math'
+import { Markdown, withFullMarkdown } from '@cherrystudio/ui/composites/markdown'
 import type { FC } from 'react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 
 interface MarkdownEditorProps {
   value: string
@@ -23,6 +21,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   autoFocus = false
 }) => {
   const { t } = useTranslation()
+  const markdownId = useId()
   const [inputValue, setInputValue] = useState(value || '')
 
   useEffect(() => {
@@ -45,9 +44,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
         autoFocus={autoFocus}
       />
       <div className="markdown flex-1 overflow-auto bg-background p-3">
-        <Streamdown mode="static" plugins={{ math, cjk }}>
+        <Markdown id={markdownId} plugins={withFullMarkdown()}>
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
-        </Streamdown>
+        </Markdown>
       </div>
     </div>
   )

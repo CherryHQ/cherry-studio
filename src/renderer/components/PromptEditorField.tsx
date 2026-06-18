@@ -1,11 +1,11 @@
 import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
+import { Markdown } from '@cherrystudio/ui/composites/markdown'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
 export interface PromptEditorFieldHandles {
@@ -42,6 +42,7 @@ export function PromptEditorField({
   maxHeight = '50vh'
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
+  const previewId = useId()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
   const [showPreview, setShowPreview] = useState(value.length > 0)
@@ -99,7 +100,7 @@ export function PromptEditorField({
               className="markdown overflow-auto p-3 text-foreground text-xs"
               style={{ minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
-              <Streamdown mode="static">{previewValue || value}</Streamdown>
+              <Markdown id={previewId}>{previewValue || value}</Markdown>
             </div>
           ) : (
             <CodeEditor
