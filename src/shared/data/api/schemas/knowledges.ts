@@ -1,8 +1,8 @@
 /**
  * Knowledge DataApi schemas.
  *
- * Runtime/index operations are exposed through KnowledgeService
- * IPC contracts in `src/main/features/knowledge/types/ipc`, not through DataApi.
+ * Runtime/index operations are exposed through the KnowledgeService IpcApi routes
+ * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api'

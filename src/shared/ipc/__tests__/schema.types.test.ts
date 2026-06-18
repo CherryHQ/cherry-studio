@@ -84,8 +84,16 @@ describe('IpcHandlersFor exhaustiveness', () => {
 
 describe('global registry reflects migrated domains', () => {
   // Extend these unions as each new domain is migrated onto IpcApi.
-  it('exposes the migrated selection + window request routes', () => {
+  it('exposes the migrated knowledge + selection + window request routes', () => {
     expectTypeOf<IpcRoute>().toEqualTypeOf<
+      | 'knowledge.create_base'
+      | 'knowledge.restore_base'
+      | 'knowledge.delete_base'
+      | 'knowledge.add_items'
+      | 'knowledge.delete_items'
+      | 'knowledge.reindex_items'
+      | 'knowledge.search'
+      | 'knowledge.list_item_chunks'
       | 'selection.hide_toolbar'
       | 'selection.write_to_clipboard'
       | 'selection.determine_toolbar_size'
