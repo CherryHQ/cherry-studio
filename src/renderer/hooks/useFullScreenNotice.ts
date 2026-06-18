@@ -1,24 +1,18 @@
 import { isWin } from '@renderer/config/constant'
-import { useEffect } from 'react'
+import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { useTranslation } from 'react-i18next'
 
 export function useFullScreenNotice() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    const unsubscribe = window.api.windowManager.onFullscreenChange((isFullscreen) => {
-      if (isWin && isFullscreen) {
-        window.toast.info({
-          title: t('common.fullscreen'),
-          timeout: 3000
-        })
-      }
-    })
-
-    return () => {
-      unsubscribe()
+  useIpcOn('window.fullscreen_changed', (isFullscreen) => {
+    if (isWin && isFullscreen) {
+      window.toast.info({
+        title: t('common.fullscreen'),
+        timeout: 3000
+      })
     }
-  }, [t])
+  })
 }
 
 export default useFullScreenNotice

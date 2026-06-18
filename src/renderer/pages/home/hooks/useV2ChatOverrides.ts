@@ -17,7 +17,6 @@ import { loggerService } from '@logger'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { V2ChatOverrides } from '@renderer/hooks/V2ChatContext'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,
@@ -36,7 +35,8 @@ const logger = loggerService.withContext('useV2ChatOverrides')
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
-  projectedMessages: Message[]
+  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
+  rootId: string | null
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
@@ -52,7 +52,7 @@ interface Result {
 }
 
 export function useV2ChatOverrides(params: Params): Result {
-  const { topic, uiMessages, projectedMessages, regenerate, setMessages, stop, refresh, cache } = params
+  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
@@ -62,38 +62,58 @@ export function useV2ChatOverrides(params: Params): Result {
     deleteMessageTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
-    setActiveNodeTrigger
+    setActiveNodeTrigger,
+    clearTopicMessagesTrigger
   } = cache
+
+  // A message is a "first turn" ff its parent IS the topic's virtual root.
+  const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
+
+  const handleClearTopicMessages = useCallback(async () => {
+    await clearBranchCache()
+    try {
+      const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
+      logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
+    } catch (err) {
+      await rollbackBranch()
+      throw err
+    }
+  }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
   const handleDeleteMessage = useCallback<V2ChatOverrides['deleteMessage']>(
     async (id) => {
+      // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
+      // reparent its replies onto the virtual root, stranding them as parent-less assistants.
+      // Use the row's real parentId (metadata) — NOT the projected `askId`, which is undefined
+      // for user messages and would misclassify a first-turn user delete as a splice.
+      const target = uiMessages.find((m) => m.id === id)
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
-      } catch (err: unknown) {
-        if (err instanceof DataApiError && err.code === ErrorCode.INVALID_OPERATION) {
-          try {
-            const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-            const deletedSet = new Set(result.deletedIds)
-            await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
-          } catch (cascadeErr) {
-            await rollbackBranch()
-            throw cascadeErr
-          }
+        if (target && isFirstTurnId(target.metadata?.parentId)) {
+          const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+          await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         } else {
-          await rollbackBranch()
-          throw err
+          await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         }
+      } catch (err: unknown) {
+        await rollbackBranch()
+        throw err
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, uiMessages, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<V2ChatOverrides['deleteMessageGroup']>(
     async (id: string) => {
+      // `id` is the group's askId (shared parent). For a first-turn group it is the virtual
+      // root, which cannot be deleted — deleting that group means clearing the topic.
+      if (isFirstTurnId(id)) {
+        await handleClearTopicMessages()
+        return
+      }
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
@@ -105,21 +125,15 @@ export function useV2ChatOverrides(params: Params): Result {
         throw err
       }
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [
+      branchWithoutIds,
+      deleteMessageTrigger,
+      handleClearTopicMessages,
+      isFirstTurnId,
+      rollbackBranch,
+      seedOptimisticBranch
+    ]
   )
-
-  const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = projectedMessages.find((m: Message) => !m.askId)
-    if (!rootMsg) return
-    await clearBranchCache()
-    try {
-      await deleteMessageTrigger({ params: { id: rootMsg.id }, query: { cascade: true } })
-      logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
-    } catch (err) {
-      await rollbackBranch()
-      throw err
-    }
-  }, [projectedMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, topic.id])
 
   const handleEditMessage = useCallback<V2ChatOverrides['editMessage']>(
     async (messageId, editedParts) => {

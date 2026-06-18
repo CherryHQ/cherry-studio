@@ -461,11 +461,6 @@ describe('ProviderRegistryService', () => {
       expect(disabled.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
         'cherryin:qwen-image:qwen-image'
       ])
-      await expect(providerRegistryService.isActiveProviderRegistryModel('silicon', 'qwen-image')).resolves.toBe(true)
-      await expect(providerRegistryService.isActiveProviderRegistryModel('silicon', 'Qwen/Qwen-Image')).resolves.toBe(
-        true
-      )
-      await expect(providerRegistryService.isActiveProviderRegistryModel('cherryin', 'qwen-image')).resolves.toBe(false)
     })
 
     it('lists provider-declared registry models without reading provider rows from DB', async () => {

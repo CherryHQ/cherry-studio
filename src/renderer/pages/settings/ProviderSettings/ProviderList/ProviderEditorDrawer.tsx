@@ -2,10 +2,10 @@ import { Button, Field, FieldError, FieldLabel, Input, Popover, PopoverContent, 
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn, compressImage, convertToBase64, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
+import { cn, fileToAvatarDataUrl, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
@@ -40,6 +40,7 @@ const SECONDARY_ENDPOINT_LABELS: Array<{ type: EndpointType; labelKey: string }>
   { type: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, labelKey: 'settings.provider.more_endpoints.gemini' },
   { type: ENDPOINT_TYPE.OPENAI_RESPONSES, labelKey: 'settings.provider.more_endpoints.openai_responses' }
 ]
+
 function emptyAuthConfigFor(authType: AuthType): AuthConfig {
   switch (authType) {
     case 'iam-azure':
@@ -166,15 +167,12 @@ export default function ProviderEditorDrawer({
     }
 
     try {
-      const processedFile = file.type === 'image/gif' ? file : await compressImage(file)
-      const encoded = await convertToBase64(processedFile)
-      if (typeof encoded === 'string') {
-        setLogo(encoded)
-        setLogoDirty(true)
-      }
+      const storedLogo = await fileToAvatarDataUrl(file)
+      setLogo(storedLogo)
+      setLogoDirty(true)
     } catch (error) {
-      // compressImage / convertToBase64 can reject on a corrupt or
-      // unsupported file — tell the user instead of silently doing nothing.
+      // fileToAvatarDataUrl can reject on a corrupt or unsupported file
+      // (compression or base64 encoding) — tell the user instead of silently doing nothing.
       logger.error('Failed to process uploaded provider logo', error as Error)
       window.toast.error(t('settings.provider.logo_upload_failed'))
     }
@@ -282,7 +280,7 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'edit') return t('common.edit')
     if (mode.kind === 'duplicate') {
       const presetLabel = mode.source.presetProviderId
-        ? getProviderLabel(mode.source.presetProviderId)
+        ? t(getProviderLabelKey(mode.source.presetProviderId))
         : mode.source.name
       return t('settings.provider.duplicate.drawer_title', { name: presetLabel })
     }
@@ -375,8 +373,9 @@ export default function ProviderEditorDrawer({
 }
 
 function DuplicateHeader({ source }: { source: Provider }) {
+  const { t } = useTranslation()
   const presetId = source.presetProviderId
-  const label = presetId ? getProviderLabel(presetId) : source.name
+  const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
     <div className="flex items-center gap-2 rounded-lg border border-(--section-border) bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />

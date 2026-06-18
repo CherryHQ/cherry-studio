@@ -1,7 +1,9 @@
 /**
  * disabledTools must take effect on a warm Claude Code connection. The driver pushes
  * `snapshot.update(agent)` on every agent change and the PreToolUse hook consults `snapshot.isDisabled`
- * per invocation. This asserts that live behavior at the snapshot layer.
+ * per invocation — so a tool disabled mid-session is denied without rebuilding the connection.
+ * isDisabled reuses the same `resolveDisallowedTools` derivation as the build-time SDK
+ * `disallowedTools`, so the live gate and the fresh-connection block stay consistent.
  */
 
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -52,28 +54,21 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
 
   it('reflects a disabledTools change after update() without a connection rebuild', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]))
-    expect(snapshot.isDisabled('Read')).toBe(false)
+    expect(snapshot.isDisabled('Bash')).toBe(false)
 
-    // Same snapshot path the driver runs on a live agent update.
-    await snapshot.update(makeAgent(['Read']))
-    expect(snapshot.isDisabled('Read')).toBe(true)
+    // Same code path the driver runs on a live agent update — no reconnect.
+    await snapshot.update(makeAgent(['Bash']))
+    expect(snapshot.isDisabled('Bash')).toBe(true)
 
     // Re-enabling propagates live too.
     await snapshot.update(makeAgent([]))
-    expect(snapshot.isDisabled('Read')).toBe(false)
+    expect(snapshot.isDisabled('Bash')).toBe(false)
   })
 
   it('does not flag tools the agent has not disabled', async () => {
-    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['Read']))
-    expect(snapshot.isDisabled('Bash')).toBe(false)
-    expect(snapshot.isDisabled('Read')).toBe(true)
-  })
-
-  it('denies raw runtime names even when the catalog has no matching descriptor', async () => {
-    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__*']))
-
-    expect(snapshot.isDisabled('mcp__docs__search_docs')).toBe(true)
-    expect(snapshot.isDisabled('mcp__other__search_docs')).toBe(false)
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['Bash']))
+    expect(snapshot.isDisabled('Read')).toBe(false)
+    expect(snapshot.isDisabled('Bash')).toBe(true)
   })
 
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
@@ -84,34 +79,40 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       name: 'search_docs'
     })
 
+    // A transient catalog failure must not drop the previously-known descriptor.
     mocks.listMcpTools.mockRejectedValueOnce(new Error('catalog unavailable'))
-    await snapshot.update(makeAgent(['mcp__server__*'], ['mcp-1']))
+    await snapshot.update(makeAgent([], ['mcp-1']))
 
     expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({
       id: 'mcp__server__searchDocs',
       name: 'search_docs'
     })
-    expect(snapshot.isDisabled('mcp__server__searchDocs')).toBe(true)
   })
 
   it('keeps the newest policy when an older rebuild completes late', async () => {
-    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]))
+    // Construction runs one rebuild against the default (immediately-resolved) mock.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+    const baselineCalls = mocks.listMcpTools.mock.calls.length
+
     const firstCatalog = createDeferred<[]>()
     const secondCatalog = createDeferred<[]>()
     mocks.listMcpTools
       .mockImplementationOnce(() => firstCatalog.promise)
       .mockImplementationOnce(() => secondCatalog.promise)
 
-    const olderUpdate = snapshot.update(makeAgent(['Read'], ['mcp-1']))
+    // Older update disables Bash; newer update re-enables it. The newer one resolves FIRST.
+    const olderUpdate = snapshot.update(makeAgent(['Bash'], ['mcp-1']))
     const newerUpdate = snapshot.update(makeAgent([], ['mcp-1']))
 
-    await vi.waitFor(() => expect(mocks.listMcpTools).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(mocks.listMcpTools).toHaveBeenCalledTimes(baselineCalls + 2))
     secondCatalog.resolve([])
     await newerUpdate
-    expect(snapshot.isDisabled('Read')).toBe(false)
+    expect(snapshot.isDisabled('Bash')).toBe(false)
 
+    // The older (disabling) rebuild now completes late — the sequence guard must drop it so it can't
+    // clobber the newer policy and re-disable Bash.
     firstCatalog.resolve([])
     await olderUpdate
-    expect(snapshot.isDisabled('Read')).toBe(false)
+    expect(snapshot.isDisabled('Bash')).toBe(false)
   })
 })

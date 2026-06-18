@@ -158,6 +158,10 @@ export function getFileProcessingFeatureTitleKey(feature: FileProcessorFeature):
   return `settings.tool.file_processing.features.${feature}.title`
 }
 
+export function getFileProcessingFeatureTooltipKey(feature: FileProcessorFeature): string {
+  return `settings.tool.file_processing.features.${feature}.tooltip`
+}
+
 export function getProcessorNameKey(processorId: FileProcessorId): string {
   return PROCESSOR_DISPLAY_META[processorId].nameKey
 }

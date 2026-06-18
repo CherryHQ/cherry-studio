@@ -3,7 +3,7 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
@@ -63,7 +63,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
                 </div>
               )}
               <div className={oauthCardClasses.nameBlock}>
-                <div className={oauthCardClasses.loggedInName}>{getProviderLabel(provider.id)}</div>
+                <div className={oauthCardClasses.loggedInName}>{t(getProviderLabelKey(provider.id))}</div>
                 <div className={oauthCardClasses.loggedInEmail}>{serviceDescription}</div>
               </div>
             </div>
