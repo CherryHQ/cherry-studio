@@ -7,6 +7,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages } from 'ai'
 
+import { normalizeUIMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
@@ -170,7 +171,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const aiAgent = await this.buildAiSdkAgent(hooks)
 
       const messages = initialMessages
-      const modelMessages = await convertToModelMessages(initialMessages)
+      // Normalize only the conversion input — keep `messages` (originalMessages
+      // for the UI stream) untouched. `ignoreIncompleteToolCalls` drops not-yet-
+      // resolved tool calls so a replayed turn never converts to empty content. See #16195.
+      const modelMessages = await convertToModelMessages(normalizeUIMessages(initialMessages), {
+        ignoreIncompleteToolCalls: true
+      })
       let hasUsedProvidedMessageId = false
 
       const result = await aiAgent.stream({
