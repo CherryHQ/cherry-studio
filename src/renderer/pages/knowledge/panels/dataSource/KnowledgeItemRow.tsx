@@ -12,6 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
@@ -244,7 +245,9 @@ const KnowledgeItemRow = ({
   } = useTranslation()
   const { icon, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
-  const failureReason = item.status === 'failed' ? item.error : null
+  // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
+  // be migrated); surface it as the badge tooltip.
+  const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)

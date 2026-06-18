@@ -432,7 +432,7 @@ export const modelSyncClasses = {
   fetchRowRemoved:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-[length:var(--radius-lg)] border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
-    'flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-[length:var(--font-size-body-xs)] leading-none text-foreground-muted',
+    'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-[length:var(--font-size-body-xs)] leading-none text-foreground-muted',
   fetchRowTitle:
     'truncate text-[length:var(--font-size-body-sm)] font-[weight:var(--font-weight-medium)] leading-[var(--line-height-body-xs)] text-foreground',
   fetchRowTitleStrike:
@@ -441,8 +441,6 @@ export const modelSyncClasses = {
     'mt-0.5 truncate font-mono text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
   fetchRowIdStrike:
     'mt-0.5 truncate font-mono text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted/70',
-  fetchContextValue:
-    'shrink-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   /** Trailing capability icons — pull preview panel strip */
   fetchCapabilityStrip: 'ps-compact-cap-strip flex shrink-0 items-center justify-end gap-[3px]'
 } as const

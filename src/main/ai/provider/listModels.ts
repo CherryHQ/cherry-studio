@@ -20,7 +20,13 @@ import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost } from '@shared/utils/api'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
-import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider, isVertexProvider } from '@shared/utils/provider'
+import {
+  isAIGatewayProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isVertexProvider,
+  matchesPreset
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@types'
 import * as z from 'zod'
 
@@ -173,6 +179,20 @@ const ollamaFetcher: ModelFetcher = {
   }
 }
 
+const EXCLUDED_GEMINI_GENERATION_METHODS = ['predictLongRunning', 'bidiGenerateContent'] as const
+
+const EXCLUDED_GEMINI_MODEL_KEYWORDS = ['tts'] as const
+
+function isSupportedGeminiModel(model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]): boolean {
+  const methods = model.supportedGenerationMethods ?? []
+  if (EXCLUDED_GEMINI_GENERATION_METHODS.some((method) => methods.includes(method))) {
+    return false
+  }
+
+  const id = (model.name.startsWith('models/') ? model.name.slice(7) : model.name).toLowerCase()
+  return !EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
 const geminiFetcher: ModelFetcher = {
   match: (p) => isGeminiProvider(p),
   fetch: async (provider, signal) => {
@@ -188,10 +208,12 @@ const geminiFetcher: ModelFetcher = {
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => {
-      const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
-      return toModel(id, provider, { name: m.displayName || id, description: m.description })
-    })
+    return dedup(response.models, (m) => m.name)
+      .filter(isSupportedGeminiModel)
+      .map((m) => {
+        const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
+        return toModel(id, provider, { name: m.displayName || id, description: m.description })
+      })
   }
 }
 
@@ -304,7 +326,7 @@ const githubFetcher: ModelFetcher = {
 }
 
 const copilotFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.copilot,
+  match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
     const headers = {
       ...COPILOT_DEFAULT_HEADERS,
@@ -499,6 +521,29 @@ const gatewayFetcher: ModelFetcher = {
   }
 }
 
+const EXCLUDED_OPENAI_MODEL_KEYWORDS = ['tts', 'whisper', 'transcribe', 'speech', 'audio', 'realtime', 'sora'] as const
+
+function isSupportedOpenAIModel(modelId: string): boolean {
+  const id = modelId.toLowerCase()
+  return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
+const openAIFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.openai),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: await defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id)
+      .filter((m) => isSupportedOpenAIModel(m.id))
+      .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+  }
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: async (provider, signal) => {
@@ -528,6 +573,7 @@ const fetchers: ModelFetcher[] = [
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
+  openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 
