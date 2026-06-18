@@ -13,7 +13,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils'
 
-import { createImageGenerationModel } from '../imageGenerationModel'
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
@@ -97,6 +97,37 @@ function resolveNativeImageFamily(modelId: string): DmxapiNativeImageFamily {
   return NATIVE_IMAGE_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat-image'
 }
 
+/**
+ * Whether a DMXAPI image model is routed to the bespoke submit/poll transport
+ * (Doubao Seedream / Wan / async Qwen-image) rather than a native AI SDK
+ * adapter or the OpenAI-compatible image model. MUST mirror the routing in
+ * `createImageModelV3` below — the image-generation job's transport registry
+ * (`resolveImageTransport`) uses this to decide whether DMXAPI generation goes
+ * through the job. Native families (gpt-image / dall-e / imagen / gemini-image)
+ * and the `openai-flat` compat fallback keep the in-SDK path.
+ */
+export function dmxapiUsesCustomTransport(modelId: string): boolean {
+  return resolveNativeImageFamily(modelId) === 'openai-compat-image' && resolveDmxapiFamily(modelId) !== 'openai-flat'
+}
+
+/**
+ * Build the DMXAPI submit/poll image transport from provider settings. Shared
+ * by the provider factory and the image-generation job's transport registry so
+ * the job handler can rebuild the same transport after a restart from the
+ * re-resolved provider settings.
+ */
+export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport {
+  if (!settings.baseURL) {
+    throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
+  }
+  return createDmxapiTransport({
+    apiKey: settings.apiKey ?? '',
+    // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
+    // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
+    baseURL: withoutTrailingApiVersion(settings.baseURL)
+  })
+}
+
 export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): DmxapiProvider {
   const { baseURL, fetch: customFetch } = settings
   if (!baseURL) {
@@ -134,12 +165,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       fetch: customFetch
     }).chat(modelId)
 
-  const transport = createDmxapiTransport({
-    apiKey: settings.apiKey ?? '',
-    // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
-    // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
-    baseURL: withoutTrailingApiVersion(baseURL)
-  })
+  const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
     switch (resolveChatFamily(modelId)) {

@@ -4,14 +4,11 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { TraceMethod } from '@mcp-trace/trace-core'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
-  WebSearchCheckProviderRequest,
-  WebSearchCheckProviderResponse,
   WebSearchExecutionConfig,
   WebSearchFetchUrlsRequest,
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import { postProcessWebSearchResponse } from './postProcessing'
 import type { WebSearchProviderDriver } from './providers/factory'
@@ -46,17 +43,6 @@ export class WebSearchService extends BaseService {
 
   protected onInit(): void {
     this.registerDisposable(() => this.apiKeyRotationState.clear())
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.WebSearch_SearchKeywords, (_, request: WebSearchSearchKeywordsRequest) =>
-      this.searchKeywords(request)
-    )
-    this.ipcHandle(IpcChannel.WebSearch_FetchUrls, (_, request: WebSearchFetchUrlsRequest) => this.fetchUrls(request))
-    this.ipcHandle(IpcChannel.WebSearch_CheckProvider, (_, request: WebSearchCheckProviderRequest) =>
-      this.checkProvider(request)
-    )
   }
 
   private async prepareContext(request: RunCapabilityRequest): Promise<PreparedWebSearchContext> {
@@ -182,30 +168,5 @@ export class WebSearchService extends BaseService {
       },
       httpOptions
     )
-  }
-
-  /**
-   * Validate a provider configuration (typically still-unsaved values from the
-   * settings UI) by running a single canned query through its driver. Bypasses
-   * preference lookup so the caller-supplied `provider` is the source of truth.
-   */
-  async checkProvider(request: WebSearchCheckProviderRequest): Promise<WebSearchCheckProviderResponse> {
-    const capability = request.capability ?? 'searchKeywords'
-    try {
-      const driver = createWebSearchProvider(request.provider, this.apiKeyRotationState)
-      const runner = driver[capability]
-      if (!runner) {
-        return {
-          valid: false,
-          error: `Provider ${request.provider.id} does not implement capability ${capability}`
-        }
-      }
-      const probe = capability === 'searchKeywords' ? 'test query' : 'https://example.com'
-      const runtimeConfig = await getRuntimeConfig(application.get('PreferenceService'))
-      await runner.call(driver, probe, runtimeConfig)
-      return { valid: true }
-    } catch (error) {
-      return { valid: false, error: error instanceof Error ? error.message : String(error) }
-    }
   }
 }
