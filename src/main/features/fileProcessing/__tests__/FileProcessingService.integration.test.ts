@@ -53,7 +53,6 @@ vi.mock('@main/services/file/toFileInfo', () => ({
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
   class MockBaseService {
-    ipcHandle = vi.fn()
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
       this._disposables.push(d)
