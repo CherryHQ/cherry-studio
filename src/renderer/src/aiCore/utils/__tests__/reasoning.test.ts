@@ -91,6 +91,8 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isOpenAIReasoningModel: vi.fn(() => false),
     isQwenAlwaysThinkModel: vi.fn(() => false),
     isHostedGemma4ThinkingModel: vi.fn(() => false),
+    isMiniMaxM3Model: vi.fn(() => false),
+    isMiniMaxReasoningModel: vi.fn(() => false),
     isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
     isSupportedThinkingTokenModel: vi.fn(() => false),
     isGPT51SeriesModel: vi.fn(() => false),
@@ -192,6 +194,56 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({ reasoning: { enabled: false, exclude: true } })
+    })
+
+    it('should use adaptive thinking for MiniMax-M3 on OpenAI-compatible endpoints', async () => {
+      const { isMiniMaxM3Model, isMiniMaxReasoningModel, isReasoningModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isMiniMaxReasoningModel).mockReturnValue(true)
+      vi.mocked(isMiniMaxM3Model).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'minimax-m3',
+        name: 'MiniMax-M3',
+        provider: 'minimax'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'auto'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'adaptive' } })
+    })
+
+    it('should disable MiniMax-M3 thinking when reasoning effort is none', async () => {
+      const { isMiniMaxM3Model, isMiniMaxReasoningModel, isReasoningModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isMiniMaxReasoningModel).mockReturnValue(true)
+      vi.mocked(isMiniMaxM3Model).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'minimax-m3',
+        name: 'MiniMax-M3',
+        provider: 'minimax'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'disabled' } })
     })
 
     it('should handle Qwen models with enable_thinking', async () => {
@@ -478,6 +530,67 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({ enable_thinking: false })
+    })
+
+    // DeepSeek V4+ reasoning effort must reach both the official @ai-sdk/deepseek path
+    // (reads snake_case `reasoning_effort`) and the @ai-sdk/openai-compatible path
+    // (drops snake_case, only honors camelCase `reasoningEffort`). getReasoningEffort cannot
+    // tell the two apart, so it emits both casings. Regression guard for
+    // https://github.com/CherryHQ/cherry-studio/issues/15824
+    it('should emit both snake_case and camelCase reasoning effort for DeepSeek V4+ with high', async () => {
+      const { isReasoningModel, isDeepSeekV4PlusModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        provider: 'my-openai-compatible'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled' },
+        reasoning_effort: 'high',
+        reasoningEffort: 'high'
+      })
+    })
+
+    it('should map xhigh to max in both casings for DeepSeek V4+', async () => {
+      const { isReasoningModel, isDeepSeekV4PlusModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        provider: SystemProviderIds.deepseek
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'xhigh'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled' },
+        reasoning_effort: 'max',
+        reasoningEffort: 'max'
+      })
     })
 
     it('should return medium effort for deep research models', async () => {
@@ -933,6 +1046,63 @@ describe('reasoning utils', () => {
           type: 'disabled'
         }
       })
+    })
+
+    it('should use adaptive thinking for MiniMax-M3 on Anthropic-compatible endpoints', async () => {
+      const { isMiniMaxM3Model, isMiniMaxReasoningModel, isReasoningModel, isSupportedThinkingTokenClaudeModel } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isMiniMaxM3Model).mockReturnValue(true)
+      vi.mocked(isMiniMaxReasoningModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'minimax-m3',
+        name: 'MiniMax-M3',
+        provider: 'minimax'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'auto'
+        }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'adaptive' },
+        sendReasoning: true
+      })
+    })
+
+    it('should not send unsupported thinking params for MiniMax-M2 on Anthropic-compatible endpoints', async () => {
+      const { isMiniMaxM3Model, isMiniMaxReasoningModel, isReasoningModel, isSupportedThinkingTokenClaudeModel } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isMiniMaxM3Model).mockReturnValue(false)
+      vi.mocked(isMiniMaxReasoningModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'minimax-m2.7',
+        name: 'MiniMax-M2.7',
+        provider: 'minimax'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'auto'
+        }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({})
     })
 
     it('should return enabled thinking with budget for Claude models', async () => {

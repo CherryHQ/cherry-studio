@@ -2962,8 +2962,8 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.cherryin) {
-          provider.apiHost = 'https://open.cherryin.cc'
-          provider.anthropicApiHost = 'https://open.cherryin.cc'
+          provider.apiHost = 'https://open.cherryin.net'
+          provider.anthropicApiHost = 'https://open.cherryin.net'
         }
       })
       state.llm.providers = moveProvider(state.llm.providers, SystemProviderIds.poe, 10)
@@ -3430,7 +3430,17 @@ const migrateConfig = {
   },
   '208': (state: RootState) => {
     try {
-      state.settings.enableDataCollection = true
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.cherryin) {
+          if (provider.apiHost === 'https://open.cherryin.cc') {
+            provider.apiHost = 'https://open.cherryin.net'
+          }
+          if (provider.anthropicApiHost === 'https://open.cherryin.cc') {
+            provider.anthropicApiHost = 'https://open.cherryin.net'
+          }
+        }
+      })
+
       logger.info('migrate 208 success')
       return state
     } catch (error) {

@@ -142,24 +142,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.9 - Stability and Model Updates
-
-    ✨ New Features
-    - [Models] Added MiniMax M3 to the built-in model list.
+    Cherry Studio 1.9.11 - Model, Agent, and Artifact Fixes
 
     🐛 Bug Fixes
-    - [Mini Apps] Fixed an app crash that could occur when launching mini apps.
-    - [OCR] Fixed a Windows startup crash that could occur while detecting Intel OV OCR availability.
-    - [Agent] Fixed agent sessions automatically renaming after topic auto-renaming is disabled.
+    - [Agent] Fix task completion status not updating in agent task lists.
+    - [Artifacts] Fix Mermaid flowcharts failing when CJK labels include parentheses.
+    - [CherryIN] Fix CherryIN sign-in flow completing in the wrong window.
+    - [Knowledge] Fix knowledge base embedding failures with some OpenAI-compatible providers.
+    - [Artifacts] Fix opening HTML artifacts in an external browser.
+    - [Models] Fix deep thinking with Claude Opus 4.8.
+    - [Models] Fix MiniMax M3 thinking content not showing as a thinking block.
+    - [Mini Apps] Fix oversized text in the Gemini mini app.
+    - [Agent] Fix deleted agent sessions leaving old messages behind.
+    - [Models] Fix custom provider models being grouped incorrectly.
+    - [Models] Fix Gemini model list loading when API keys contain special characters.
+
+    💄 Improvements
+    - [Models] Remove retired MiniMax models from the built-in model list.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.9 - 稳定性与模型更新
-
-    ✨ 新功能
-    - [模型] 内置模型列表新增 MiniMax M3。
+    Cherry Studio 1.9.11 - 模型、智能体问题修复
 
     🐛 问题修复
-    - [小程序] 修复启动小程序时可能导致应用崩溃的问题。
-    - [OCR] 修复 Windows 启动时检测 Intel OV OCR 可用性可能导致崩溃的问题。
-    - [智能体] 修复关闭话题自动命名后，智能体会话仍会自动重命名的问题。
+    - [知识库] 修复部分 OpenAI 兼容提供商的知识库向量化失败问题。
+    - [智能体] 修复智能体任务完成后，任务列表仍显示未勾选的问题。
+    - [智能体] 修复删除智能体会话后旧消息未清理的问题。
+    - [模型] 修复 Claude Opus 4.8 深度思考异常的问题。
+    - [模型] 修复 MiniMax M3 思考内容未显示为思考块的问题。
+    - [模型] 修复自定义提供商模型分组错误的问题。
+    - [模型] 修复 Gemini API Key 包含特殊字符时模型列表加载失败的问题。
+    - [小程序] 修复 Gemini 小程序文字异常变大的问题。
+    - [CherryIN] 修复 CherryIN 登录流程问题。
+    - [Artifacts] 修复 Mermaid 流程图中 CJK 标签包含括号时无法渲染的问题。
+    - [Artifacts] 修复 HTML 产物无法在外部浏览器打开的问题。
+
+    💄 改进
+    - [模型] 从内置模型列表移除已下线的 MiniMax 旧模型。
     <!--LANG:END-->
