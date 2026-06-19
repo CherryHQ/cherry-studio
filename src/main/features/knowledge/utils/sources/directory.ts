@@ -3,13 +3,21 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import type { NotesTreeNode } from '@shared/types/note'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
-import { v4 as uuidv4 } from 'uuid'
 
 import { copyFileIntoKnowledgeBaseAt } from '../storage/pathStorage'
 
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
+
+/** A scanned filesystem entry under a directory owner — only the fields this module reads. */
+interface DirectoryEntryNode {
+  type: 'file' | 'folder'
+  /** Absolute path of the entry on disk. */
+  externalPath: string
+  /** POSIX path of the entry relative to the scanned root, prefixed with `/`. */
+  treePath: string
+  children?: DirectoryEntryNode[]
+}
 
 export type ExpandedDirectoryNode =
   | {
@@ -35,11 +43,11 @@ async function readDirectoryTree(
   dirPath: string,
   signal: AbortSignal,
   rootPath: string = dirPath
-): Promise<NotesTreeNode[]> {
+): Promise<DirectoryEntryNode[]> {
   signal.throwIfAborted()
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   signal.throwIfAborted()
-  const nodes: NotesTreeNode[] = []
+  const nodes: DirectoryEntryNode[] = []
 
   for (const entry of entries) {
     signal.throwIfAborted()
@@ -49,20 +57,14 @@ async function readDirectoryTree(
     }
 
     const entryPath = path.join(dirPath, entry.name)
-    const stats = await fs.stat(entryPath)
-    signal.throwIfAborted()
     const relativePath = path.relative(rootPath, entryPath)
     const treePath = `/${relativePath.replace(/\\/g, '/')}`
 
     if (entry.isDirectory()) {
       nodes.push({
-        id: uuidv4(),
-        name: entry.name,
         type: 'folder',
         treePath,
         externalPath: entryPath,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString(),
         children: await readDirectoryTree(entryPath, signal, rootPath)
       })
       continue
@@ -70,13 +72,9 @@ async function readDirectoryTree(
 
     if (entry.isFile()) {
       nodes.push({
-        id: uuidv4(),
-        name: entry.name,
         type: 'file',
         treePath,
-        externalPath: entryPath,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString()
+        externalPath: entryPath
       })
     }
   }
@@ -87,7 +85,7 @@ async function readDirectoryTree(
 async function expandDirectoryNode(
   baseId: string,
   pathPrefix: string,
-  node: NotesTreeNode,
+  node: DirectoryEntryNode,
   signal: AbortSignal
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
