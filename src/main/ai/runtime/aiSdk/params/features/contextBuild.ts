@@ -12,10 +12,10 @@
  * - onBeforeCompress: no-LLM sliding-window fallback (drop oldest) — the only
  *   remaining budget guard; active when compress is enabled but no compression
  *   model is configured. In-flight LLM compress was removed in P2-B stage 2:
- *   durable cherry-driven compaction (turn-start) + the mid-loop budget-stop/
- *   continue path now own LLM summarization; running chef's in-flight compress
- *   too would double-compress. `options.compress` and `options.onCompress` are
- *   never set any more.
+ *   durable cherry-driven compaction (turn-start) + the mid-loop in-loop
+ *   compaction (prepareStep) hook now own LLM summarization; running chef's
+ *   in-flight compress too would double-compress. `options.compress` and
+ *   `options.onCompress` are never set any more.
  * - logger: routes chef degradation warnings to loggerService.
  *
  * Ordering invariant: registered before anthropicCacheFeature so truncation
@@ -70,8 +70,8 @@ export function buildChefOptions(scope: RequestScope): ContextChefOptions | null
   }
 
   // In-flight LLM compress was removed in P2-B stage 2: durable cherry-driven compaction
-  // (turn-start) + the mid-loop budget-stop/continue path now own LLM summarization, and
-  // running chef's in-flight compress too would double-compress. The no-LLM sliding-window
+  // (turn-start) + the mid-loop in-loop compaction (prepareStep) hook now own LLM summarization,
+  // and running chef's in-flight compress too would double-compress. The no-LLM sliding-window
   // remains as the only guard when compression is enabled but no model is configured
   // (the durable path also needs a model).
   if (settings.compress.enabled && !scope.compressionModel) {
