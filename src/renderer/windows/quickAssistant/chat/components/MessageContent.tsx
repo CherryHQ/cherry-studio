@@ -1,5 +1,5 @@
 import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
-import ChatMarkdown from '@renderer/components/chat/messages/markdown/ChatMarkdown'
+import { ChatMarkdown } from '@renderer/components/chat/messages'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 

@@ -1,11 +1,11 @@
-import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import type {
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListState
-} from '@renderer/components/chat/messages/types'
+import {
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  MessageListProvider,
+  type MessageListProviderValue,
+  type MessageListState
+} from '@renderer/components/chat/messages'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
 import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
 import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'

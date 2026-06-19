@@ -78,6 +78,12 @@ vi.mock('@renderer/i18n', () => ({
   default: { changeLanguage: vi.fn() }
 }))
 
+// Stub the chat message barrel so this lightweight window (which only projects messages)
+// doesn't pull the whole message-rendering package into the test.
+vi.mock('@renderer/components/chat/messages', () => ({
+  toMessageListItem: (message: unknown) => message
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) =>

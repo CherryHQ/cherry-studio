@@ -1,6 +1,5 @@
 import { Scrollbar } from '@cherrystudio/ui'
-import { MessageContentProvider } from '@renderer/components/chat/messages'
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { MessageContentProvider, type MessageListItem } from '@renderer/components/chat/messages'
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import type { Assistant } from '@renderer/types'
