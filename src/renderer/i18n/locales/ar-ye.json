@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "المزودون المدعومون",
-        "tooltip": "حالياً، النماذج التي تدعم نقاط نهاية Anthropic هي المتاحة فقط لميزة الوكيل.",
+        "tooltip": "حالياً، فقط النماذج الداعمة لنقاط نهاية Anthropic متاحة لميزة الوكيل.",
         "view_providers": "اعرض المزودين المدعومين"
       },
       "title": "أضف وكيل",
@@ -32,7 +32,7 @@
       "channels": {
         "add": "إضافة",
         "bindAgent": "اربط الوكيل",
-        "chatIdsAutoTrackHint": "عند تركه فارغاً، سيتتبع النظام تلقائياً: عليك إرسال رسالة إلى البوت على المنصة أولاً، ثم سيسجل النظام معرف الدردشة للتنبيهات المستقبلية.",
+        "chatIdsAutoTrackHint": "اتركه فارغاً ليتتبع النظام معرف الدردشة تلقائياً: أرسل رسالة للبوت أولاً، ثم سيسجل النظام المعرف للتنبيهات.",
         "comingSoon": "قريباً",
         "connected": "متصل",
         "connecting": "جاري الاتصال",
@@ -47,9 +47,9 @@
           "channelIds": "معرفات القنوات المسموح بها",
           "channelIdsHint": "التنسيق: channel:id أو dm:id. اتركه فارغاً للسماح للكل.",
           "channelIdsPlaceholder": "channel:123456789, dm:987654321",
-          "description": "استلم الرسائل ورد عليها عبر بوت Discord باستخدام بوابة WebSocket.",
+          "description": "استلم الرسائل ورد عليها عبر بوت Discord باستخدام WebSocket.",
           "title": "Discord",
-          "whoamiTip": "💡 نصيحة: أرسل /whoami للبوت للحصول على معرف القناة بالتنسيق الصحيح."
+          "whoamiTip": "💡 أرسل /whoami للبوت للحصول على معرف القناة."
         },
         "error": "خطأ",
         "feishu": {
@@ -58,7 +58,7 @@
           "appSecret": "سر التطبيق",
           "appSecretPlaceholder": "أدخل سر تطبيق Feishu الخاص بك",
           "chatIds": "معرفات الدردشة المسموح بها",
-          "chatIdsHint": "معرفات دردشة مفصولة بفواصل. اتركها فارغة للسماح لجميع الدردشات.",
+          "chatIdsHint": "معرفات دردشة مفصولة بفواصل. اتركها فارغة للسماح بالكل.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
           "connected": "متصل",
           "description": "استلم الرسائل ورد عليها عبر بوت Feishu/Lark باستخدام WebSocket.",
@@ -91,7 +91,7 @@
           "clientSecretPlaceholder": "أدخل سر عميل بوت QQ",
           "description": "استلم الرسائل ورد عليها عبر واجهة برمجة تطبيقات بوت QQ الرسمية.",
           "title": "QQ",
-          "whoamiTip": "💡 نصيحة: أرسل /whoami للبوت للحصول على معرف الدردشة بالتنسيق الصحيح."
+          "whoamiTip": "💡 أرسل /whoami للبوت للحصول على معرف الدردشة."
         },
         "security": {
           "inheritFromAgent": "توريث من الوكيل",
@@ -109,7 +109,7 @@
           "channelIdsPlaceholder": "C01234567, D89012345",
           "description": "استلم الرسائل ورد عليها عبر بوت Slack باستخدام وضع Socket.",
           "title": "Slack",
-          "whoamiTip": "💡 نصيحة: أرسل /whoami للبوت للحصول على معرف القناة."
+          "whoamiTip": "💡 أرسل /whoami للبوت للحصول على معرف القناة."
         },
         "soulModeRequired": "هذا الوكيل لم يفعل الوضع الذاتي. ميزات القناة لن تعمل. يرجى تفعيله في إعدادات الوكيل.",
         "tab": "القنوات",
@@ -117,7 +117,7 @@
           "botToken": "رمز البوت",
           "botTokenPlaceholder": "أدخل رمز بوت Telegram الخاص بك",
           "chatIds": "معرفات الدردشة المسموح بها",
-          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح بجميع الدردشات.",
+          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح بالكل.",
           "chatIdsPlaceholder": "123456789, 987654321",
           "description": "استلم الرسائل ورد عليها عبر بوت Telegram باستخدام أسلوب الاستطلاع الطويل.",
           "title": "Telegram"
@@ -127,7 +127,7 @@
         "wechat": {
           "addAccount": "أضف حساب WeChat",
           "chatIds": "معرفات المستخدمين المسموح بها",
-          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح بجميع المستخدمين.",
+          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح بالكل.",
           "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
           "connected": "تم تسجيل الدخول",
           "description": "استقبل ورد على الرسائل عبر WeChat باستخدام واجهة iLink Bot API.",
@@ -136,17 +136,17 @@
           "qrHint": "افتح WeChat على هاتفك، وامسح رمز QR لتسجيل الدخول.",
           "qrTitle": "تسجيل الدخول عبر رمز QR لـ WeChat",
           "title": "WeChat",
-          "whoamiTip": "نصيحة: أرسل /whoami في WeChat للحصول على معرف المستخدم."
+          "whoamiTip": "أرسال /whoami في WeChat للحصول على معرف المستخدم."
         }
       },
       "heartbeat": {
         "enabled": "تفعيل النبض",
-        "enabledHelper": "عند التفعيل ووجود ملف heartbeat.md في مساحة العمل، يقرأ المجدول محتواه ويرسله إلى الجلسة الرئيسية في الفاصل الزمني المحدد.",
+        "enabledHelper": "عند التفعيل، يقرأ المجدول ملف heartbeat.md في مساحة العمل ويرسله إلى الجلسة الرئيسية في الفاصل المحدد.",
         "interval": "الفاصل الزمني (بالدقائق)",
         "intervalHelper": "معدل تكرار النبض، بالدقائق."
       },
       "sandbox": {
-        "description": "يُقيّد وصول الوكيل إلى نظام الملفات والشبكة في دليل مساحة العمل باستخدام تقنية Sandbox على مستوى نظام التشغيل.",
+        "description": "يقيّد وصول الوكيل إلى نظام الملفات والشبكة في مساحة العمل باستخدام Sandbox.",
         "helper": "تقييد الوصول إلى نظام الملفات والأوامر في مسار مساحة العمل.",
         "label": "وضع Sandbox"
       },
@@ -190,21 +190,21 @@
         }
       },
       "soul": {
-        "description": "يحدد الـ Soul شخصية الوكيل وسلوكه الأساسي. يُقرأ من ملف soul.md في جذر مساحة العمل.",
+        "description": "يحدد Soul شخصية الوكيل وسلوكه. يُقرأ من ملف soul.md في جذر مساحة العمل.",
         "empty": "لم يتم العثور على soul.md في جذر مساحة العمل. أنشئ واحداً لتحديد شخصية الوكيل.",
-        "enabled": "تفعيل الـ Soul",
-        "enabledHelper": "عند التفعيل، يقوم الوكيل بقراءة ملف soul.md من جذر مساحة العمل وإضافته في بداية موجه النظام.",
+        "enabled": "تفعيل Soul",
+        "enabledHelper": "عند التفعيل، يقرأ الوكيل ملف soul.md من جذر مساحة العمل ويضيفه في بداية موجه النظام.",
         "fileLabel": "soul.md",
-        "preview": "معاينة الـ Soul",
+        "preview": "معاينة Soul",
         "tab": "Soul",
-        "title": "إعدادات الـ Soul"
+        "title": "إعدادات Soul"
       },
       "tasks": {
         "add": "أضف مهمة",
         "cancel": "إلغاء",
         "channels": {
           "label": "إرسال إلى القنوات",
-          "noActiveChatIds": "القنوات المحددة لا تملك مستلمين متاحين (Chat ID). قد لا يتم تسليم نتائج المهمة. يرجى إرسال رسالة إلى البوت على المنصة أولاً.",
+          "noActiveChatIds": "القنوات المحددة ليس لها مستلمون متاحون (Chat ID). قد لا تصل نتائج المهمة. أرسل رسالة للبوت على المنصة أولاً.",
           "placeholder": "اختيار القنوات لاستلام النتائج"
         },
         "cronPlaceholder": "مثلاً 0 9 * * * (كل يوم في الـ 9 صباحاً)",
@@ -276,11 +276,11 @@
         "title": "مهام مجدولة"
       },
       "warning": {
-        "bypassPermissions": "تعمل وكلاء CherryClaw بالوضع التلقائي بالكامل افتراضياً. تُنفذ جميع الأدوات دون طلب موافقة."
+        "bypassPermissions": "وكلاء CherryClaw تعمل بالوضع التلقائي الكامل افتراضياً. تُنفذ جميع الأدوات دون موافقة."
       }
     },
     "delete": {
-      "content": "سيؤدي حذف الوكيل إلى إيقاف وحذف جميع الجلسات المرتبطة به قسراً. هل أنت متأكد؟",
+      "content": "سيؤدي حذف الوكيل إلى إيقاف وحذف جميع الجلسات المرتبطة به. هل أنت متأكد؟",
       "error": {
         "failed": "فشل حذف الوكيل"
       },
@@ -290,13 +290,13 @@
       "title": "عدل الوكيل"
     },
     "empty": {
-      "description": "أنشئ وكيلاً لمعالجة المهام المعقدة بأدوات مدعومة بالذكاء الاصطناعي",
+      "description": "أنشئ وكيلاً للمهام المعقدة بأدوات الذكاء الاصطناعي",
       "title": "لا يوجد وكلاء بعد"
     },
     "get": {
       "error": {
-        "failed": "فشل جلب الوكيل.",
-        "null_id": "معرف الوكيل فارغ."
+        "failed": "فشل جلب الوكيل",
+        "null_id": "معرف الوكيل فارغ"
       }
     },
     "gitBash": {
@@ -307,7 +307,7 @@
       },
       "customPath": "استخدم المسار المخصص: {{path}}",
       "error": {
-        "description": "يلزم وجود Git Bash لتشغيل الوكلاء على Windows. لا يمكن للوكيل العمل بدونه. يرجى تثبيت Git لنظام Windows من",
+        "description": "يلزم Git Bash لتشغيل الوكلاء على Windows. ثبته من",
         "recheck": "أعد فحص تثبيت Git Bash",
         "required": "مسار Git Bash مطلوب على Windows",
         "title": "Git Bash مطلوب"
@@ -319,12 +319,12 @@
       "pick": {
         "button": "اختر مسار Git Bash",
         "failed": "فشل تعيين مسار Git Bash",
-        "invalidPath": "الملف المختار ليس ملف Git Bash تنفيذياً صالحاً (bash.exe).",
+        "invalidPath": "الملف المحدد ليس bash.exe صالحاً.",
         "title": "اختر ملف Git Bash التنفيذي"
       },
       "placeholder": "اختر مسار bash.exe",
       "success": "تم اكتشاف Git Bash بنجاح!",
-      "tooltip": "يلزم وجود Git Bash لتشغيل الوكلاء على Windows. ثبته من git-scm.com إذا لم يكن متاحاً."
+      "tooltip": "يلزم Git Bash على Windows. ثبته من git-scm.com."
     },
     "input": {
       "placeholder": "أدخل رسالتك هنا، أرسل بـ {{key}} - @ لاختيار المسار، / لاختيار الأمر",
@@ -332,7 +332,7 @@
     },
     "list": {
       "error": {
-        "failed": "فشل سرد الوكلاء."
+        "failed": "فشل سرد الوكلاء"
       }
     },
     "reorder": {
@@ -342,7 +342,7 @@
     },
     "server": {
       "error": {
-        "not_running": "خادم الـ API مفعل ولكنه لا يعمل بشكل صحيح."
+        "not_running": "خادم API مفعّل ولكن لا يعمل."
       }
     },
     "session": {
@@ -1656,7 +1656,7 @@
       "kimi_cli": "مساعد Kimi من Moonshot لسطر الأوامر",
       "openai_codex": "واجهة سطر الأوامر الرسمية من OpenAI لتوليد الكود",
       "opencode": "وكيل البرمجة متعدد النماذج مفتوح المصدر",
-      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
+      "qoder_cli": "أداة البرمجة command-line القائمة على الوكلاء من Alibaba Qoder",
       "qwen_code": "أداة البرمجة مفتوحة المصدر لسطر الأوامر من Alibaba Tongyi"
     },
     "update_options": "خيارات التحديث",
@@ -2145,10 +2145,10 @@
       },
       "add_dialog": {
         "conflict_dialog": {
-          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
-          "keep_all": "[to be translated]:Keep All",
-          "replace": "[to be translated]:Replace",
-          "title": "[to be translated]:Sources already exist"
+          "description": "{{count}} من المصادر التي تضيفها تحمل أسماءً مطابقة لعناصر موجودة. اختر كيفية معالجتها.",
+          "keep_all": "الاحتفاظ بالكل",
+          "replace": "استبدال",
+          "title": "المصادر موجودة مسبقاً"
         },
         "footer": {
           "selected_notes": "{{count}} ملاحظات محددة"
@@ -2250,7 +2250,7 @@
     "embedding_model_required": "نموذج تضمين قاعدة المعرفة مطلوب",
     "empty": "لم يتم العثور على قاعدة معرفة",
     "error": {
-      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
+      "directory_not_migrated": "فشل ترحيل المجلد. يرجى حذفه وإعادة رفعه.",
       "failed_base_unknown": "فشلت قاعدة المعرفة هذه أثناء الترحيل. أعد بناءها واختر نموذج تضمين جديد.",
       "failed_to_create": "فشل إنشاء قاعدة المعرفة",
       "failed_to_delete": "فشل حذف قاعدة المعرفة",
@@ -2301,78 +2301,78 @@
       "file_processing": "معالجة الملف",
       "file_processing_hint": "المعالجة الأولية للمستندات تعمل تلقائياً أثناء استيراد المستند. اختيار المزود المناسب يمكن أن يحسن جودة تحليل المستند.",
       "hints": {
-        "chunk_overlap": "[to be translated]:Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
-        "chunk_size": "[to be translated]:Target token count for each document chunk. This affects retrieval granularity and context length.",
-        "document_count": "[to be translated]:Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
-        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
-        "hybrid_alpha": "[to be translated]:Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
-        "processor": "[to be translated]:Parser used when importing files to extract body text, tables, and related content.",
-        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "[to be translated]:Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
-        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
-        "threshold_disabled": "[to be translated]:This retrieval mode returns ordered results and does not use a similarity threshold."
+        "chunk_overlap": "عدد الرموز المتداخلة المحفوظة بين الأجزاء المتجاورة لتقليل الفواصل الدلالية.",
+        "chunk_size": "عدد الرموز المستهدف لكل جزء من المستند. يؤثر هذا على دقة الاسترجاع وطول السياق.",
+        "document_count": "الحد الأقصى لأجزاء المستند المُرجعة لكل استرجاع. القيم الأعلى تغطي محتوى أكثر ولكنها تستخدم سياقاً أكبر.",
+        "embedding_model": "يُستخدم لتحويل محتوى قاعدة المعرفة إلى متجهات. تغيير النموذج يتطلب عادةً إعادة فهرسة المحتوى الموجود.",
+        "hybrid_alpha": "وزن النتيجة المتجهية في الاسترجاع الهجين. القيم الأعلى تفضل المطابقة الدلالية.",
+        "processor": "المحلل المُستخدم عند استيراد الملفات لاستخراج النص الأساسي والجداول والمحتوى ذي الصلة.",
+        "rerank_model": "النموذج المُستخدم لإعادة ترتيب نتائج الاسترجاع الأولية وتحسين صلة الأجزاء النهائية.",
+        "search_mode": "اختر وضع استرجاع: البحث المتجهي للمطابقة الدلالية، البحث النصي الكامل للكلمات المفتاحية، أو البحث الهجين لكليهما.",
+        "threshold": "عتبة التشابه لتصفية الأجزاء منخفضة الصلة. القيم الأعلى تجعل الاسترجاع أكثر صرامة.",
+        "threshold_disabled": "وضع الاسترجاع هذا يُرجع نتائج مرتبة ولا يستخدم عتبة تشابه."
       },
-      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
-      "processor": "[to be translated]:Processing Provider",
-      "rerank_disabled": "[to be translated]:Disabled",
-      "rerank_model": "[to be translated]:Rerank Model",
-      "reset_action": "[to be translated]:Restore Defaults",
-      "reset_defaults": "[to be translated]:Reset Defaults",
-      "retrieval": "[to be translated]:Retrieval",
-      "save_action": "[to be translated]:Save",
-      "saved": "[to be translated]:Saved",
+      "hybrid_alpha": "Hybrid Alpha",
+      "processor": "مزود المعالجة",
+      "rerank_disabled": "معطل",
+      "rerank_model": "نموذج إعادة الترتيب",
+      "reset_action": "استعادة الافتراضيات",
+      "reset_defaults": "إعادة الضبط للافتراضي",
+      "retrieval": "الاسترجاع",
+      "save_action": "حفظ",
+      "saved": "محفوظ",
       "search_mode": {
-        "bm25": "[to be translated]:Full-text Search",
-        "hybrid": "[to be translated]:Hybrid Search (recommended)",
-        "title": "[to be translated]:Search Mode",
-        "vector": "[to be translated]:Vector Search"
+        "bm25": "البحث النصي الكامل",
+        "hybrid": "البحث الهجين (موصى به)",
+        "title": "وضع البحث",
+        "vector": "البحث المتجهي"
       },
-      "separator_rule": "[to be translated]:Separator Rule",
-      "threshold": "[to be translated]:Similarity Threshold",
-      "tokens_unit": "[to be translated]:tokens"
+      "separator_rule": "قاعدة الفاصل",
+      "threshold": "عتبة التشابه",
+      "tokens_unit": "رموز"
     },
     "recall": {
-      "collapse": "[to be translated]:Collapse Chunk",
-      "copy": "[to be translated]:Copy Chunk",
-      "duration": "[to be translated]:{{duration}}ms",
-      "empty_description": "[to be translated]:Matched document chunks and scores will appear here",
-      "empty_title": "[to be translated]:Enter a query to test retrieval",
-      "expand": "[to be translated]:Expand Chunk",
-      "history_clear": "[to be translated]:Clear",
-      "history_remove": "[to be translated]:Remove History",
-      "history_title": "[to be translated]:Search History",
-      "placeholder": "[to be translated]:Enter test query...",
-      "ranking_only": "[to be translated]:Ordered results",
-      "result_count": "[to be translated]:{{count}} results",
-      "result_rank": "[to be translated]:Rank #{{rank}}",
-      "result_relevance": "[to be translated]:Relevance {{score}}",
-      "search_failed": "[to be translated]:Failed to run recall test",
-      "searching": "[to be translated]:Searching...",
-      "submit": "[to be translated]:Search",
-      "top_score": "[to be translated]:Top: {{score}}"
+      "collapse": "طيّ الجزء",
+      "copy": "نسخ الجزء",
+      "duration": "{{duration}}ms",
+      "empty_description": "أجزاء المستند المطابقة والنتائج ستظهر هنا",
+      "empty_title": "أدخل استعلاماً لاختبار الاسترجاع",
+      "expand": "توسيع الجزء",
+      "history_clear": "مسح",
+      "history_remove": "إزالة السجل",
+      "history_title": "سجل البحث",
+      "placeholder": "أدخل استعلام اختبار...",
+      "ranking_only": "نتائج مرتبة",
+      "result_count": "{{count}} نتائج",
+      "result_rank": "الترتيب #{{rank}}",
+      "result_relevance": "الصلة {{score}}",
+      "search_failed": "فشل تشغيل اختبار الاسترجاع",
+      "searching": "جارٍ البحث...",
+      "submit": "بحث",
+      "top_score": "الأعلى: {{score}}"
     },
-    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "rename_title": "إعادة تسمية قاعدة المعرفة",
     "restore": {
-      "action": "[to be translated]:Rebuild knowledge base",
-      "default_name": "[to be translated]:{{name}}_bak",
-      "failed_to_restore": "[to be translated]:Failed to rebuild knowledge base",
-      "submit": "[to be translated]:Rebuild",
-      "title": "[to be translated]:Rebuild Knowledge Base"
+      "action": "إعادة بناء قاعدة المعرفة",
+      "default_name": "{{name}}_bak",
+      "failed_to_restore": "فشل إعادة بناء قاعدة المعرفة",
+      "submit": "إعادة البناء",
+      "title": "إعادة بناء قاعدة المعرفة"
     },
     "search": "بحث في قاعدة المعرفة",
     "search_placeholder": "أدخل نصاً للبحث",
     "status": {
-      "completed": "[to be translated]:Ready",
+      "completed": "جاهز",
       "failed": "فشل",
-      "processing": "[to be translated]:Processing"
+      "processing": "قيد المعالجة"
     },
     "status_embedding_failed": "فشل التضمين",
     "status_preprocess_failed": "فشلت المعالجة الأولية",
     "subtitle_file": "ملف الترجمة",
     "tabs": {
-      "data_source": "[to be translated]:Data Sources",
-      "rag_config": "[to be translated]:RAG Config",
-      "recall_test": "[to be translated]:Recall Test"
+      "data_source": "مصادر البيانات",
+      "rag_config": "إعدادات RAG",
+      "recall_test": "اختبار الاسترجاع"
     },
     "title": "قاعدة المعرفة",
     "videos_file": "ملف فيديو"
@@ -2403,464 +2403,464 @@
   "launchpad": {
     "apps": "تطبيقات",
     "minapps": "تطبيقات مصغرة",
-    "miniApps": "[to be translated]:MiniApps"
+    "miniApps": "التطبيقات المصغرة"
   },
   "library": {
     "action": {
-      "create": "[to be translated]:New",
-      "delete": "[to be translated]:Delete",
-      "disable": "[to be translated]:Disable",
-      "duplicate": "[to be translated]:Duplicate",
-      "edit": "[to be translated]:Edit",
-      "enable": "[to be translated]:Enable",
-      "manage_tags": "[to be translated]:Manage tags",
-      "uninstall": "[to be translated]:Uninstall"
+      "create": "جديد",
+      "delete": "حذف",
+      "disable": "تعطيل",
+      "duplicate": "تكرار",
+      "edit": "تعديل",
+      "enable": "تفعيل",
+      "manage_tags": "إدارة الأوسمة",
+      "uninstall": "إلغاء التثبيت"
     },
     "assistant_catalog": {
-      "add": "[to be translated]:Add",
-      "add_failed": "[to be translated]:Failed to add assistant",
-      "browse_label": "[to be translated]:Assistant categories",
-      "empty_description": "[to be translated]:This category has no assistant presets yet.",
-      "empty_title": "[to be translated]:No assistants to add",
-      "mine": "[to be translated]:Mine",
-      "no_match_description": "[to be translated]:Try a different search keyword",
-      "no_match_title": "[to be translated]:No matching assistants",
-      "preview": "[to be translated]:Preview",
-      "preview_description": "[to be translated]:Overview",
-      "preview_prompt": "[to be translated]:Prompt",
-      "scroll_left": "[to be translated]:Scroll categories left",
-      "scroll_right": "[to be translated]:Scroll categories right"
+      "add": "إضافة",
+      "add_failed": "فشل إضافة مساعد",
+      "browse_label": "فئات المساعدين",
+      "empty_description": "هذه الفئة لا تحتوي على مساعدات افتراضية بعد.",
+      "empty_title": "لا يوجد مساعدات لإضافتها",
+      "mine": "خاصتي",
+      "no_match_description": "جرّب كلمة بحث مختلفة",
+      "no_match_title": "لا يوجد مساعدات مطابقة",
+      "preview": "معاينة",
+      "preview_description": "نظرة عامة",
+      "preview_prompt": "توجيه",
+      "scroll_left": "تمرير الفئات لليسار",
+      "scroll_right": "تمرير الفئات لليمين"
     },
     "badge": {
-      "update": "[to be translated]:Update"
+      "update": "تحديث"
     },
     "config": {
       "agent": {
-        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
-        "create_title": "[to be translated]:New agent",
+        "create_banner": "احفظ قبل ربط الأدوات وخوادم MCP",
+        "create_title": "وكيل جديد",
         "field": {
           "accessible_paths": {
-            "add": "[to be translated]:Add directory",
-            "empty": "[to be translated]:Not set (defaults to the workspace root)",
-            "hint": "[to be translated]:Limits directories the agent can access",
-            "label": "[to be translated]:Accessible directories"
+            "add": "إضافة دليل",
+            "empty": "غير محدد (يفتراضي إلى جذر مساحة العمل)",
+            "hint": "يحدد الأدلة التي يمكن للوكيل الوصول إليها",
+            "label": "الأدلة المتاحة"
           },
           "allowed_tools": {
-            "add": "[to be translated]:Add tool",
-            "empty": "[to be translated]:Leave empty to use the permission mode default",
-            "label": "[to be translated]:Allowed tools"
+            "add": "إضافة أداة",
+            "empty": "اتركه فارغاً لاستخدام وضع الإذن الافتراضي",
+            "label": "الأدوات المسموح بها"
           },
           "avatar": {
-            "hint": "[to be translated]:Used to identify it in the library and sessions"
+            "hint": "يُستخدم للتعرف عليه في المكتبة والجلسات"
           },
           "description": {
-            "hint": "[to be translated]:Helps identify what this agent is for",
-            "label": "[to be translated]:Description",
-            "placeholder": "[to be translated]:What this agent is for…"
+            "hint": "يساعد في التعرف على الغرض من هذا الوكيل",
+            "label": "الوصف",
+            "placeholder": "ما الغرض من هذا الوكيل…"
           },
           "env_vars": {
-            "help": "[to be translated]:One KEY=VALUE per line",
-            "label": "[to be translated]:Environment variables"
+            "help": "مفتاح=قيمة واحد في كل سطر",
+            "label": "متغيرات البيئة"
           },
           "heartbeat_enabled": {
-            "label": "[to be translated]:Heartbeat check"
+            "label": "فحص النبض"
           },
           "heartbeat_interval": {
-            "label": "[to be translated]:Heartbeat interval (minutes)"
+            "label": "فاصل النبض (دقائق)"
           },
           "instructions": {
-            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
-            "label": "[to be translated]:System prompt",
-            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+            "hint": "يحدد دور الوكيل وحدود سلوكه",
+            "label": "توجيه النظام",
+            "placeholder": "أخبر الوكيل من هو وماذا يمكنه أن يفعل…"
           },
           "max_turns": {
-            "help": "[to be translated]:0 means use the default",
-            "label": "[to be translated]:Max conversation turns"
+            "help": "0 يعني استخدام الافتراضي",
+            "label": "أقصى عدد لدورات المحادثة"
           },
           "mcps": {
-            "add": "[to be translated]:Add MCP server",
-            "empty": "[to be translated]:None bound",
-            "label": "[to be translated]:MCP servers (id)"
+            "add": "إضافة خادم MCP",
+            "empty": "لا يوجد خوادم مربوطة",
+            "label": "خوادم MCP (معرّف)"
           },
           "model": {
-            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
-            "hint": "[to be translated]:Main reasoning and execution",
-            "label": "[to be translated]:Primary model (required)"
+            "help": "معرف نموذج فريد؛ سيتم التبديل لاحقاً إلى منتظم مدعوم من /models",
+            "hint": "الاستدلال والتنفيذ الرئيسيان",
+            "label": "النموذج الأساسي (مطلوب)"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and session lists",
-            "label": "[to be translated]:Agent name",
-            "placeholder": "[to be translated]:Give the agent a name"
+            "hint": "يُعرض في المكتبة وقوائم الجلسات",
+            "label": "اسم الوكيل",
+            "placeholder": "أعطِ الوكيل اسماً"
           },
           "permission_mode": {
-            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
-            "label": "[to be translated]:Permission mode",
+            "help": "التبديل إلى bypassPermissions يعادل تفعيل وضع Soul",
+            "label": "وضع الإذن",
             "option": {
-              "acceptEdits": "[to be translated]:Accept edits",
-              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
-              "default": "[to be translated]:Default",
-              "plan": "[to be translated]:Plan mode"
+              "acceptEdits": "اقبل التعديلات",
+              "bypassPermissions": "تخطَّ الأذونات (Soul)",
+              "default": "افتراضي",
+              "plan": "وضع التخطيط"
             }
           },
           "plan_model": {
-            "hint": "[to be translated]:Task decomposition and planning",
-            "label": "[to be translated]:Plan model (optional)"
+            "hint": "تفكيك المهام والتخطيط",
+            "label": "نموذج التخطيط (اختياري)"
           },
           "small_model": {
-            "hint": "[to be translated]:Lightweight checks and formatting",
-            "label": "[to be translated]:Small model (optional)"
+            "hint": "فحوصات وتنسيقات خفيفة",
+            "label": "نموذج صغير (اختياري)"
           },
           "soul_enabled": {
-            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
-            "label": "[to be translated]:Soul mode"
+            "help": "عند التفعيل، يمنح تلقائياً bypassPermissions",
+            "label": "وضع Soul"
           }
         },
-        "model_config": "[to be translated]:Model configuration",
+        "model_config": "إعدادات النموذج",
         "section": {
           "advanced": {
-            "desc": "[to be translated]:Max turns and environment variables",
-            "label": "[to be translated]:Advanced",
-            "title": "[to be translated]:Advanced"
+            "desc": "أقصى عدد لدورات المحادثة ومتغيرات البيئة",
+            "label": "متقدم",
+            "title": "متقدم"
           },
           "basic": {
-            "desc": "[to be translated]:Name, avatar, model, directories, runtime",
-            "label": "[to be translated]:Basic",
-            "title": "[to be translated]:Basic"
+            "desc": "الاسم، الصورة الرمزية، النموذج، الأدلة، وقت التشغيل",
+            "label": "أساسي",
+            "title": "أساسي"
           },
           "permission": {
-            "desc": "[to be translated]:Authorization scope for agent actions",
-            "label": "[to be translated]:Permission mode",
-            "title": "[to be translated]:Permission mode"
+            "desc": "نطاق التفويض لإجراءات الوكيل",
+            "label": "وضع الإذن",
+            "title": "وضع الإذن"
           },
           "prompt": {
-            "desc": "[to be translated]:System prompt and behavioral constraints",
-            "label": "[to be translated]:Prompt",
-            "title": "[to be translated]:Prompt"
+            "desc": "توجيه النظام وقيود السلوك",
+            "label": "توجيه",
+            "title": "توجيه"
           },
           "tools": {
-            "add": "[to be translated]:Add",
-            "desc": "[to be translated]:Configure tools and MCP servers the agent can use",
-            "label": "[to be translated]:Tools",
-            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
-            "no_mcp_bound": "[to be translated]:No MCP servers bound",
-            "no_skills_enabled": "[to be translated]:No skills enabled",
-            "search_placeholder": "[to be translated]:Search tools or servers...",
-            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
-            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "add": "إضافة",
+            "desc": "اضبط الأدوات وخوادم MCP التي يمكن للوكيل استخدامها",
+            "label": "أدوات",
+            "no_builtin_enabled": "لا توجد أدوات مدمجة مفعلة",
+            "no_mcp_bound": "لا توجد خوادم MCP مربوطة",
+            "no_skills_enabled": "لا توجد مهارات مفعلة",
+            "search_placeholder": "ابحث عن أدوات أو خوادم...",
+            "skills_coming_soon": "ربط المهارات قريباً",
+            "skills_require_save": "احفظ قبل تفعيل المهارات",
             "tab": {
-              "mcp": "[to be translated]:MCP Server",
-              "skills": "[to be translated]:Skills",
-              "tools": "[to be translated]:Built-in tools"
+              "mcp": "خادم MCP",
+              "skills": "مهارات",
+              "tools": "أدوات مدمجة"
             },
-            "title": "[to be translated]:Capabilities"
+            "title": "القدرات"
           }
         }
       },
       "basic": {
-        "context_count": "[to be translated]:Context count",
-        "creative": "[to be translated]:Creative",
-        "custom_params": "[to be translated]:Custom parameters",
-        "custom_params_add": "[to be translated]:Add parameter",
-        "custom_params_name": "[to be translated]:Parameter name",
-        "default_value": "[to be translated]:Model default",
-        "desc": "[to be translated]:Fill in the avatar, name, description, and system prompt",
-        "description_label": "[to be translated]:Description",
+        "context_count": "عدد السياقات",
+        "creative": "إبداعي",
+        "custom_params": "معلمات مخصصة",
+        "custom_params_add": "إضافة معلمة",
+        "custom_params_name": "اسم المعلمة",
+        "default_value": "افتراضي النموذج",
+        "desc": "املأ الصورة الرمزية، الاسم، الوصف، وتوجيه النظام",
+        "description_label": "الوصف",
         "field": {
           "avatar": {
-            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+            "hint": "يُستخدم للتعرف على المساعد في المكتبة والمحادثات"
           },
           "context_count": {
-            "hint": "[to be translated]:Number of recent messages kept as context"
+            "hint": "عدد الرسائل الحديثة المحفوظة كسياق"
           },
           "custom_params": {
-            "hint": "[to be translated]:Extra provider parameters sent with requests"
+            "hint": "معلمات مزود إضافية تُرسل مع الطلبات"
           },
           "description": {
-            "hint": "[to be translated]:Helps distinguish what this assistant is for",
-            "placeholder": "[to be translated]:What this assistant is for..."
+            "hint": "تساعد في تمييز الغرض من هذا المساعد",
+            "placeholder": "ما الغرض من هذا المساعد..."
           },
           "max_tokens": {
-            "hint": "[to be translated]:Caps response length when enabled"
+            "hint": "تحد من طول الاستجابة عند التفعيل"
           },
           "max_tool_calls": {
-            "hint": "[to be translated]:Limits tool-call loops when enabled"
+            "hint": "تحد من حلقات استدعاء الأداة عند التفعيل"
           },
           "model": {
-            "hint": "[to be translated]:Overrides the global default model for this assistant"
+            "hint": "يتجاوز النموذج الافتراضي العام لهذا المساعد"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and assistant selectors",
-            "placeholder": "[to be translated]:Give the assistant a name"
+            "hint": "يُعرض في المكتبة ومحددات المساعدين",
+            "placeholder": "أعطِ المساعد اسماً"
           },
           "stream_output": {
-            "hint": "[to be translated]:Shows responses as they are generated"
+            "hint": "يعرض الاستجابات أثناء توليدها"
           },
           "tags": {
-            "hint": "[to be translated]:Used for filtering and organizing assistants"
+            "hint": "يُستخدم للتصفية وتنظيم المساعدين"
           },
           "temperature": {
-            "hint": "[to be translated]:Controls randomness when enabled"
+            "hint": "يتحكم في العشوائية عند التفعيل"
           },
           "top_p": {
-            "hint": "[to be translated]:Limits token sampling range when enabled"
+            "hint": "يحد من نطاق أخذ عينات الرموز عند التفعيل"
           }
         },
-        "json_invalid": "[to be translated]:Invalid JSON format",
-        "max_tokens": "[to be translated]:Max tokens",
-        "max_tool_calls": "[to be translated]:Max tool calls",
-        "model": "[to be translated]:Default model",
-        "model_clear": "[to be translated]:Clear",
-        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
-        "model_pick": "[to be translated]:+ Pick model",
-        "pick_avatar": "[to be translated]:Pick avatar",
-        "precise": "[to be translated]:Precise",
-        "stream_output": "[to be translated]:Stream output",
-        "tag_empty": "[to be translated]:No tags available",
-        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
-        "tag_placeholder": "[to be translated]:Select tags",
-        "tag_search": "[to be translated]:Search tags",
-        "tags": "[to be translated]:Tags",
-        "temperature": "[to be translated]:Temperature",
-        "title": "[to be translated]:Basic settings",
-        "top_p": "[to be translated]:Top-P",
-        "unlimited": "[to be translated]:Unlimited"
+        "json_invalid": "تنسيق JSON غير صالح",
+        "max_tokens": "أقصى عدد للرموز",
+        "max_tool_calls": "أقصى عدد لاستدعاءات الأدوات",
+        "model": "النموذج الافتراضي",
+        "model_clear": "مسح",
+        "model_not_found": "النموذج غير موجود (قد يكون مُزال): {{id}}",
+        "model_pick": "+ اختر نموذجاً",
+        "pick_avatar": "اختر صورة رمزية",
+        "precise": "دقيق",
+        "stream_output": "بث الخرج",
+        "tag_empty": "لا توجد أوسمة",
+        "tag_hint": "لإضافة وسم جديد، استخدم إدخال \"+ وسم\" في الشريط العلوي للمكتبة",
+        "tag_placeholder": "اختر أوسمة",
+        "tag_search": "ابحث عن أوسمة",
+        "tags": "أوسمة",
+        "temperature": "درجة الحرارة",
+        "title": "إعدادات أساسية",
+        "top_p": "Top-P",
+        "unlimited": "غير محدود"
       },
-      "breadcrumb": "[to be translated]:Library",
+      "breadcrumb": "المكتبة",
       "knowledge": {
-        "add": "[to be translated]:Add knowledge base",
-        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
-        "doc_count": "[to be translated]:{{count}} docs",
-        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
-        "empty_title": "[to be translated]:No knowledge bases linked",
-        "invalid_suffix": "[to be translated]:... (unavailable)",
-        "linked": "[to be translated]:Linked knowledge bases",
-        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
-        "no_more": "[to be translated]:No more knowledge bases available",
-        "remove_aria": "[to be translated]:Remove",
-        "search": "[to be translated]:Search knowledge bases...",
-        "title": "[to be translated]:Knowledge bases"
+        "add": "إضافة قاعدة معرفة",
+        "desc": "اربط قاعدة معرفة واحدة أو أكثر؛ سيتم استرجاع snippets ذات صلة أثناء الدردشة",
+        "doc_count": "{{count}} مستندات",
+        "empty_desc": "بمجرد الربط، يمكن للمساعد الإجابة بناءً على محتوى المستند",
+        "empty_title": "لا توجد قواعد معرفة مربوطة",
+        "invalid_suffix": "... (غير متوفر)",
+        "linked": "قواعد المعرفة المربوطة",
+        "linked_hint": "يتحكم في قواعد المعرفة التي يمكن للمساعد الاسترجاع منها",
+        "no_more": "لا توجد قواعد معرفة إضافية",
+        "remove_aria": "إزالة",
+        "search": "ابحث في قواعد المعرفة...",
+        "title": "قواعد المعرفة"
       },
       "prompt": {
-        "create_title": "[to be translated]:New Prompt",
-        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
-        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
-        "edit_title": "[to be translated]:Edit Prompt",
+        "create_title": "توجيه جديد",
+        "dblclick_hint": "انقر نقراً مزدوجاً على المعاينة للتبديل إلى التحرير",
+        "desc": "يُرسَل توجيه النظام كسياق افتتاحي للمساعد",
+        "edit_title": "تعديل التوجيه",
         "field": {
           "content": {
-            "label": "[to be translated]:Content",
-            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+            "label": "المحتوى",
+            "too_long": "يجب أن يكون المحتوى {{max}} أحرف أو أقل"
           },
           "name": {
-            "label": "[to be translated]:Name",
-            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+            "label": "الاسم",
+            "too_long": "يجب أن يكون الاسم {{max}} أحرف أو أقل"
           }
         },
-        "generate": "[to be translated]:Generate prompt",
-        "insert_variable": "[to be translated]:Insert variable",
-        "label": "[to be translated]:System prompt",
-        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
-        "title": "[to be translated]:Prompt",
-        "tokens_label": "[to be translated]:Tokens: ",
-        "variables_title": "[to be translated]:Available variables",
+        "generate": "توليد توجيه",
+        "insert_variable": "إدراج متغير",
+        "label": "توجيه النظام",
+        "placeholder": "أدخل توجيه النظام. المتغيرات مثل {{date}} و {{model_name}} مدعومة...",
+        "title": "توجيه",
+        "tokens_label": "الرموز: ",
+        "variables_title": "المتغيرات المتاحة",
         "vars": {
-          "arch": "[to be translated]:CPU architecture",
-          "date": "[to be translated]:Date",
-          "datetime": "[to be translated]:Date and time",
-          "language": "[to be translated]:Language",
-          "model_name": "[to be translated]:Model name",
-          "os": "[to be translated]:Operating system",
-          "time": "[to be translated]:Time",
-          "username": "[to be translated]:Username"
+          "arch": "معمارية المعالج",
+          "date": "التاريخ",
+          "datetime": "التاريخ والوقت",
+          "language": "اللغة",
+          "model_name": "اسم النموذج",
+          "os": "نظام التشغيل",
+          "time": "الوقت",
+          "username": "اسم المستخدم"
         }
       },
-      "save_failed": "[to be translated]:Save failed",
-      "saving": "[to be translated]:Saving...",
+      "save_failed": "فشل الحفظ",
+      "saving": "جارٍ الحفظ...",
       "section": {
         "basic": {
-          "desc": "[to be translated]:Avatar, name, description, and system prompt",
-          "label": "[to be translated]:Basic"
+          "desc": "الصورة الرمزية، الاسم، الوصف، وتوجيه النظام",
+          "label": "أساسي"
         },
         "knowledge": {
-          "desc": "[to be translated]:Linked knowledge bases and retrieval",
-          "label": "[to be translated]:Knowledge"
+          "desc": "قواعد المعرفة المربوطة والاسترجاع",
+          "label": "معرفة"
         },
         "more": {
-          "desc": "[to be translated]:Model, tags, and parameters",
-          "label": "[to be translated]:More settings"
+          "desc": "النموذج، الأوسمة، والمعلمات",
+          "label": "المزيد من الإعدادات"
         },
         "prompt": {
-          "desc": "[to be translated]:System prompt and variables",
-          "label": "[to be translated]:Prompt"
+          "desc": "توجيه النظام والمتغيرات",
+          "label": "توجيه"
         },
         "tools": {
-          "desc": "[to be translated]:MCP servers and tool configuration",
-          "label": "[to be translated]:Tools"
+          "desc": "خوادم MCP وتكوين الأدوات",
+          "label": "الأدوات"
         }
       },
       "tools": {
-        "add_mcp": "[to be translated]:Add MCP server",
-        "added": "[to be translated]:Added MCP servers",
-        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
-        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
-        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
-        "empty_title": "[to be translated]:No MCP servers added",
-        "inactive_badge": "[to be translated]:Inactive",
-        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
-        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "add_mcp": "أضف خادم MCP",
+        "added": "أضيفت خوادم MCP",
+        "added_hint": "الوضع اليدوي يعرض فقط الخوادم في هذه القائمة",
+        "desc": "هيّئ خوادم MCP التي يمكن لهذا المساعد استدعاءها أثناء الدردشة",
+        "empty_desc": "بمجرد الإضافة، يمكن للمساعد استدعاء أدوات خارجية",
+        "empty_title": "لم تُضف خوادم MCP",
+        "inactive_badge": "غير نشط",
+        "info_main": "MCP (بروتوكول سياق النموذج) يسمح للنموذج باستدعاء أدوات خارجية بأمان.",
+        "info_sub": "تفعيل الخوادم الضرورية فقط يحسّن الأمان وسرعة الاستجابة.",
         "mode": {
           "auto": {
-            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
-            "label": "[to be translated]:Auto"
+            "desc": "النموذج يقرر أي أدوات MCP المفعّلة يستدعي",
+            "label": "تلقائي"
           },
           "disabled": {
-            "desc": "[to be translated]:No MCP tools are available during chat",
-            "label": "[to be translated]:Disabled"
+            "desc": "لا توجد أدوات MCP متاحة أثناء الدردشة",
+            "label": "معطل"
           },
           "manual": {
-            "desc": "[to be translated]:Expose only the MCP servers selected below",
-            "label": "[to be translated]:Manual"
+            "desc": "اعرض فقط خوادم MCP المحددة أدناه",
+            "label": "يدوي"
           }
         },
-        "no_more": "[to be translated]:No more servers available",
-        "search": "[to be translated]:Search available servers...",
-        "switch_title_active": "[to be translated]:Toggle off to remove",
-        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
-        "title": "[to be translated]:Tools"
+        "no_more": "لا توجد خوادم أخرى متاحة",
+        "search": "ابحث عن الخوادم المتاحة...",
+        "switch_title_active": "أوقف التفعيل للحذف",
+        "switch_title_inactive": "هذا الخادم معطل في إعدادات MCP؛ احذفه لإعادة إضافته لاحقاً",
+        "title": "الأدوات"
       }
     },
     "create_menu": {
-      "create": "[to be translated]:New {{type}}",
-      "import": "[to be translated]:Import {{type}}"
+      "create": "{{type}} جديد",
+      "import": "استيراد {{type}}"
     },
     "delete": {
       "agent": {
-        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
-        "title": "[to be translated]:Delete agent"
+        "content": "هل أنت متأكد من حذف هذا الوكيل؟ لا يمكن التراجع عن هذا الإجراء.",
+        "title": "حذف الوكيل"
       },
       "skill": {
-        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
-        "title": "[to be translated]:Uninstall skill"
+        "content": "هل أنت متأكد من إلغاء تثبيت هذه المهارة؟ سيتم إزالتها من المكتبة العامة وجميع روابط مساحة عمل الوكيل سيتم تنظيفها.",
+        "title": "إلغاء تثبيت المهارة"
       }
     },
     "delete_confirm": {
-      "cancel": "[to be translated]:Cancel",
-      "confirm": "[to be translated]:Delete",
-      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
-      "title": "[to be translated]:Delete"
+      "cancel": "إلغاء",
+      "confirm": "حذف",
+      "description": "حذف \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+      "title": "حذف"
     },
-    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
-    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "duplicate_assistant_failed": "فشل نسخ المساعد",
+    "duplicate_name": "{{name}} (نسخة)",
     "empty_state": {
-      "description": "[to be translated]:Click \"New\" to create your first resource.",
-      "empty_description": "[to be translated]:Create your first agent or assistant",
-      "empty_title": "[to be translated]:No resources yet",
-      "no_match_description": "[to be translated]:Try a different search keyword",
-      "no_match_title": "[to be translated]:No matching resources",
-      "title": "[to be translated]:No resources"
+      "description": "انقر على \"جديد\" لإنشاء أول مورد لك.",
+      "empty_description": "أنشئ أول وكيل أو مساعد لك",
+      "empty_title": "لا توجد موارد بعد",
+      "no_match_description": "جرّب كلمة بحث مختلفة",
+      "no_match_title": "لا توجد موارد مطابقة",
+      "title": "لا توجد موارد"
     },
-    "export_assistant_failed": "[to be translated]:Failed to export assistant",
+    "export_assistant_failed": "فشل تصدير المساعد",
     "import_dialog": {
       "clipboard": {
-        "button": "[to be translated]:Parse and import",
-        "placeholder": "[to be translated]:Paste JSON configuration here..."
+        "button": "تحليل واستيراد",
+        "placeholder": "الصق تكوين JSON هنا..."
       },
       "error": {
-        "content_too_large": "[to be translated]:Content too large (>5 MB)",
-        "file_too_large": "[to be translated]:File too large (>5 MB)",
-        "invalid_url": "[to be translated]:Invalid URL",
-        "response_too_large": "[to be translated]:Response too large (>5 MB)",
-        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
-        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+        "content_too_large": "المحتوى كبير جداً (>5 ميجابايت)",
+        "file_too_large": "الملف كبير جداً (>5 ميجابايت)",
+        "invalid_url": "رابط غير صالح",
+        "response_too_large": "الاستجابة كبيرة جداً (>5 ميجابايت)",
+        "timeout": "انتهت مهلة الطلب. تحقق من إمكانية الوصول للرابط.",
+        "unsupported_protocol": "يُ دعم فقط روابط http أو https"
       },
-      "failure": "[to be translated]:Import failed: {{error}}",
+      "failure": "فشل الاستيراد: {{error}}",
       "file": {
-        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
-        "formats": "[to be translated]:Supports .json"
+        "drop_hint": "اسحب وأفلت ملفاً هنا، أو انقر لاختيار واحد",
+        "formats": "يدعم .json"
       },
-      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
-      "subtitle": "[to be translated]:JSON configuration files are supported",
-      "success": "[to be translated]:Imported successfully: {{name}}",
+      "partial_success": "نجاح جزئي: تم استيراد {{success}}، وفشل {{failed}} ({{first_name}}: {{first_error}})",
+      "subtitle": "ملفات تكوين JSON مدعومة",
+      "success": "تم الاستيراد بنجاح: {{name}}",
       "tab": {
-        "clipboard": "[to be translated]:Clipboard",
-        "file": "[to be translated]:File upload",
-        "url": "[to be translated]:Import from URL"
+        "clipboard": "الحافظة",
+        "file": "رفع ملف",
+        "url": "استيراد من رابط"
       },
       "url": {
-        "button": "[to be translated]:Fetch and import",
-        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
-        "supports": "[to be translated]:Raw file URLs are supported"
+        "button": "جلب واستيراد",
+        "hint": "استيراد من GitHub Gist أو مستودع GitHub أو أي رابط عام",
+        "supports": "روابط الملفات الخام مدعومة"
       }
     },
     "import_skill_dialog": {
       "local": {
-        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
-        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+        "drop_hint": "أسقط ملف ZIP أو مجلداً هنا، أو انقر لاختيار ملف ZIP",
+        "formats": "يدعم ملفات .zip والمجلدات التي تحتوي على SKILL.md"
       },
-      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
-      "title": "[to be translated]:Import skill"
+      "subtitle": "تثبيت مهارة من ملف ZIP أو مجلد",
+      "title": "استيراد مهارة"
     },
-    "no_match": "[to be translated]:No matching results",
+    "no_match": "لا توجد نتائج مطابقة",
     "pending_backend": {
-      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
-      "title": "[to be translated]:Backend setup in progress"
+      "description": "عمليات الكتابة لهذا المورد قادمة قريباً. هذه spedizione هي عنصر نائب.",
+      "title": "إعداد الخادم قيد التنفيذ"
     },
     "sidebar": {
-      "all_resources": "[to be translated]:All resources",
-      "all_tags": "[to be translated]:All tags",
-      "no_tags": "[to be translated]:No tags yet",
-      "subtitle": "[to be translated]:Manage your AI resources",
-      "tags": "[to be translated]:Tags",
-      "title": "[to be translated]:Library"
+      "all_resources": "جميع الموارد",
+      "all_tags": "جميع الوسوم",
+      "no_tags": "لا توجد وسوم بعد",
+      "subtitle": "أدر موارد الذكاء الاصطناعي الخاصة بك",
+      "tags": "الوسوم",
+      "title": "المكتبة"
     },
     "skill_detail": {
-      "created_at": "[to be translated]:Created",
-      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "[to be translated]:Delete skill",
-      "description": "[to be translated]:Description",
-      "file_preview": "[to be translated]:File preview",
-      "installed": "[to be translated]:Installed",
-      "no_description": "[to be translated]:No description",
-      "source_files": "[to be translated]:Source files",
-      "updated_at": "[to be translated]:Recently updated"
+      "created_at": "تم الإنشاء",
+      "delete_description": "أزل هذه المهارة وجميع تكوينها. لا يمكن التراجع عن هذا الإجراء.",
+      "delete_title": "حذف المهارة",
+      "description": "الوصف",
+      "file_preview": "معاينة الملف",
+      "installed": "مثبت",
+      "no_description": "لا يوجد وصف",
+      "source_files": "ملفات المصدر",
+      "updated_at": "تم التحديث مؤخراً"
     },
     "sort": {
-      "created": "[to be translated]:Sort by created",
-      "name": "[to be translated]:Sort by name",
-      "updated": "[to be translated]:Sort by updated"
+      "created": "فرز حسب الإنشاء",
+      "name": "فرز حسب الاسم",
+      "updated": "فرز حسب التحديث"
     },
-    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "subtitle": "أدر مساعديك ووكلائك ومهاراتك",
     "tag_picker": {
-      "no_tags": "[to be translated]:No tags yet",
-      "placeholder": "[to be translated]:New tag name..."
+      "no_tags": "لا توجد وسوم بعد",
+      "placeholder": "اسم وسم جديد..."
     },
-    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "tag_sync_failed": "فشل مزامنة الوسوم",
     "time_ago": {
-      "days": "[to be translated]:{{count}} day(s) ago",
-      "hours": "[to be translated]:{{count}} hour(s) ago",
-      "just_now": "[to be translated]:Just now",
-      "minutes": "[to be translated]:{{count}} minute(s) ago",
-      "months": "[to be translated]:{{count}} month(s) ago"
+      "days": "منذ {{count}} يوم(أيام)",
+      "hours": "منذ {{count}} ساعة(ساعات)",
+      "just_now": "الآن",
+      "minutes": "منذ {{count}} دقيقة(دقائق)",
+      "months": "منذ {{count}} شهر(أشهر)"
     },
-    "title": "[to be translated]:Library",
+    "title": "المكتبة",
     "toolbar": {
-      "add_tag_placeholder": "[to be translated]:Tag name...",
-      "new_resource": "[to be translated]:New resource",
-      "search_placeholder": "[to be translated]:Search by name or description...",
-      "tag_button": "[to be translated]:Tag"
+      "add_tag_placeholder": "اسم الوسم...",
+      "new_resource": "مورد جديد",
+      "search_placeholder": "ابحث بالاسم أو الوصف...",
+      "tag_button": "وسم"
     },
     "type": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "new_agent": "[to be translated]:New agent",
-      "new_assistant": "[to be translated]:New assistant",
-      "new_prompt": "[to be translated]:New Prompt",
-      "prompt": "[to be translated]:Prompt",
-      "skill": "[to be translated]:Skill"
+      "agent": "وكيل",
+      "assistant": "مساعد",
+      "new_agent": "وكيل جديد",
+      "new_assistant": "مساعد جديد",
+      "new_prompt": "توجيه جديد",
+      "prompt": "توجيه",
+      "skill": "مهارة"
     },
-    "uninstall_failed": "[to be translated]:Failed to uninstall",
+    "uninstall_failed": "فشل إلغاء التثبيت",
     "view": {
-      "grid": "[to be translated]:Grid view",
-      "list": "[to be translated]:List view"
+      "grid": "عرض شبكي",
+      "list": "عرض قائمة"
     }
   },
   "lmstudio": {
@@ -3211,7 +3211,7 @@
     "websearch": {
       "cutoff": "جارٍ تقليص محتوى البحث...",
       "fetch_complete": "{{count}} نتيجة (نتائج) بحث",
-      "partial_failure": "[to be translated]:{{count}} search result(s), some searches failed"
+      "partial_failure": "{{count}} نتيجة بحث، فشل بعضها"
     }
   },
   "minapp": {
@@ -3273,82 +3273,82 @@
     "zhihu": "Zhihu"
   },
   "miniApp": {
-    "add_to_launchpad": "[to be translated]:Add to Launchpad",
-    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "add_to_launchpad": "أضف إلى منصة الإطلاق",
+    "add_to_sidebar": "أضف إلى الشريط الجانبي",
     "error": {
-      "load_failed": "[to be translated]:Failed to load app",
-      "not_found": "[to be translated]:App not found"
+      "load_failed": "فشل تحميل التطبيق",
+      "not_found": "التطبيق غير موجود"
     },
-    "hide_failed": "[to be translated]:Failed to hide mini-app",
-    "pin_failed": "[to be translated]:Failed to pin mini-app",
+    "hide_failed": "فشل إخفاء التطبيق المصغر",
+    "pin_failed": "فشل تثبيت التطبيق المصغر",
     "popup": {
-      "close": "[to be translated]:Close MiniApp",
-      "devtools": "[to be translated]:Developer Tools",
-      "goBack": "[to be translated]:Go Back",
-      "goForward": "[to be translated]:Go Forward",
-      "openExternal": "[to be translated]:Open in Browser",
-      "open_link_external_off": "[to be translated]:Current: Open links in default window",
-      "open_link_external_on": "[to be translated]:Current: Open links in browser",
-      "refresh": "[to be translated]:Refresh",
-      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
+      "close": "أغلق MiniApp",
+      "devtools": "أدوات المطور",
+      "goBack": "عُد للخلف",
+      "goForward": "تقدم للأمام",
+      "openExternal": "افتح في المتصفح",
+      "open_link_external_off": "الحالي: فتح الروابط في النافذة الافتراضية",
+      "open_link_external_on": "الحالي: فتح الروابط في المتصفح",
+      "refresh": "تحديث",
+      "rightclick_copyurl": "انقر بزر الماوس الأيمن لنسخ الرابط"
     },
-    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
-    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
-    "reorder_failed": "[to be translated]:Failed to reorder mini-apps",
+    "remove_from_launchpad": "أزل من منصة الإطلاق",
+    "remove_from_sidebar": "أزل من الشريط الجانبي",
+    "reorder_failed": "فشل إعادة ترتيب التطبيقات المصغرة",
     "shortcut": {
-      "failed": "[to be translated]:Failed: {{message}}",
-      "html_saved": "[to be translated]:HTML saved to: {{path}}",
-      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+      "failed": "فشل: {{message}}",
+      "html_saved": "حُفِظ HTML في: {{path}}",
+      "pdf_saved": "حُفِظ PDF في: {{path}}"
     },
-    "show_failed": "[to be translated]:Failed to show mini-app",
+    "show_failed": "فشل إظهار التطبيق المصغر",
     "sidebar": {
       "close": {
-        "title": "[to be translated]:Close"
+        "title": "أغلق"
       },
       "closeall": {
-        "title": "[to be translated]:Close All"
+        "title": "أغلق الكل"
       },
       "hide": {
-        "title": "[to be translated]:Hide"
+        "title": "إخفاء"
       },
       "remove_custom": {
-        "title": "[to be translated]:Delete Custom App"
+        "title": "حذف التطبيق المخصص"
       }
     },
-    "title": "[to be translated]:MiniApp",
-    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
-    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
+    "title": "التطبيق المصغر",
+    "unpin_failed": "فشل إلغاء تثبيت التطبيق المصغر",
+    "update_partial_failure": "فشل {{failed}} من {{total}} تحديثات"
   },
   "miniApps": {
-    "ant-ling": "[to be translated]:Ant Ling",
-    "baichuan": "[to be translated]:Baichuan",
-    "baidu-ai-search": "[to be translated]:Baidu AI Search",
-    "chatglm": "[to be translated]:ChatGLM",
-    "dangbei": "[to be translated]:Dangbei",
-    "doubao": "[to be translated]:Doubao",
-    "hailuo": "[to be translated]:Hailuo",
-    "ima": "[to be translated]:ima",
-    "metaso": "[to be translated]:Metaso",
-    "minimax-agent": "[to be translated]:Minimax Agent CN",
-    "minimax-global": "[to be translated]:Minimax Agent",
-    "nami-ai": "[to be translated]:Nami AI",
-    "nami-ai-search": "[to be translated]:Nami AI Search",
-    "qwen": "[to be translated]:Qwen",
-    "sensechat": "[to be translated]:SenseChat",
-    "stepfun": "[to be translated]:Stepfun",
-    "tencent-yuanbao": "[to be translated]:Yuanbao",
-    "tiangong-ai": "[to be translated]:Skywork",
-    "update_partial_failure_generic": "[to be translated]:Some mini-apps failed to update",
-    "wanzhi": "[to be translated]:Wanzhi",
-    "wenxin": "[to be translated]:ERNIE",
-    "wps-copilot": "[to be translated]:WPS Copilot",
-    "xiaoyi": "[to be translated]:Xiaoyi",
-    "zhihu": "[to be translated]:Zhihu"
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "ima",
+    "metaso": "Metaso",
+    "minimax-agent": "Minimax Agent CN",
+    "minimax-global": "Minimax Agent",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "فشلت تحديث بعض التطبيقات المصغرة",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "تثبيت هذا النموذج",
+      "unpin": "إلغاء تثبيت النموذج"
     },
     "add_parameter": "أضف مُعامل",
     "all": "الكل",
@@ -3368,7 +3368,7 @@
     "invalid_model": "نموذج غير صالح",
     "json_parse_error": "تنسيق JSON غير صالح",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "توازي نماذج متعددة (متعارض مع مساعد متعدد)"
     },
     "no_matches": "لا توجد نماذج متاحة",
     "parameter_name": "اسم المُعامل",
@@ -3399,7 +3399,7 @@
     },
     "stream_output": "إخراج متدفق",
     "type": {
-      "audio": "[to be translated]:Audio",
+      "audio": "صوت",
       "embedding": "تضمين",
       "free": "مجاني",
       "function_calling": "أداة",
@@ -3407,7 +3407,7 @@
       "rerank": "إعادة ترتيب",
       "select": "أنواع النماذج",
       "text": "نص",
-      "video": "[to be translated]:Video",
+      "video": "فيديو",
       "vision": "رؤية",
       "websearch": "بحث ويب"
     }
@@ -3437,12 +3437,12 @@
     "collapse": "طوي",
     "content_placeholder": "يرجى إدخال محتوى الملاحظة...",
     "copyContent": "نسخ المحتوى",
-    "create_folder_failed": "[to be translated]:Failed to create folder",
-    "create_note_failed": "[to be translated]:Failed to create note",
+    "create_folder_failed": "فشل إنشاء مجلد",
+    "create_note_failed": "فشل إنشاء ملاحظة",
     "crossPlatformRestoreWarning": "تمت استعادة تكوين الأنظمة المتعددة، لكن دليل الملاحظات فارغ. يرجى نسخ ملفات الملاحظات إلى: {{path}}",
     "delete": "حذف",
     "delete_confirm": "هل أنت متأكد من حذف هذا الـ {{type}}؟",
-    "delete_failed": "[to be translated]:Failed to delete note",
+    "delete_failed": "فشل حذف الملاحظة",
     "delete_folder_confirm": "هل أنت متأكد من حذف المجلد \"{{name}}\" وجميع محتوياته؟",
     "delete_note_confirm": "هل أنت متأكد من حذف الملاحظة \"{{name}}\"؟",
     "drop_markdown_hint": "أسقط ملفات md. أو مجلدات هنا للاستيراد",
@@ -3454,11 +3454,11 @@
     "export_success": "تم التصدير إلى قاعدة المعرفة بنجاح",
     "export_to_word_failed": "فشل التصدير إلى Word",
     "folder": "مجلد",
-    "load_failed": "[to be translated]:Failed to load note",
-    "load_failed_description": "[to be translated]:The file could not be read. Editing is disabled to protect the note content.",
-    "metadata_sync_failed": "[to be translated]:File updated, but note state sync failed. Please retry the operation.",
-    "metadata_update_failed": "[to be translated]:Failed to update note state",
-    "move_failed": "[to be translated]:Failed to move note",
+    "load_failed": "فشل تحميل الملاحظة",
+    "load_failed_description": "تعذر قراءة الملف. تم تعطيل التحرير لحماية محتوى الملاحظة.",
+    "metadata_sync_failed": "تم تحديث الملف، لكن مزامنة حالة الملاحظة فشلت. يرجى إعادة المحاولة.",
+    "metadata_update_failed": "فشل تحديث حالة الملاحظة",
+    "move_failed": "فشل نقل الملاحظة",
     "new_folder": "مجلد جديد",
     "new_note": "إنشاء ملاحظة جديدة",
     "no_content_to_copy": "لا يوجد محتوى للنسخ",
@@ -3470,10 +3470,10 @@
     "open_outside": "فتح من مصدر خارجي",
     "rename": "إعادة تسمية",
     "rename_changed": "نظراً لسياسات الأمان، تم تغيير اسم الملف من {{original}} إلى {{final}}",
-    "rename_failed": "[to be translated]:Failed to rename note",
+    "rename_failed": "فشل إعادة تسمية الملاحظة",
     "save": "حفظ في الملاحظات",
-    "save_blocked_load_failed": "[to be translated]:Save blocked because the note failed to load",
-    "save_failed": "[to be translated]:Failed to save note",
+    "save_blocked_load_failed": "تم منع الحفظ لأن الملاحظة فشلت في التحميل",
+    "save_failed": "فشل حفظ الملاحظة",
     "search": {
       "both": "الاسم+المحتوى",
       "content": "المحتوى",
@@ -3529,7 +3529,7 @@
         },
         "view_mode_description": "يحدد وضع العرض الافتراضي لصفحة علامة التبويب الجديدة."
       },
-      "save_failed": "[to be translated]:Failed to save notes settings",
+      "save_failed": "فشل حفظ إعدادات الملاحظات",
       "title": "الملاحظات"
     },
     "show_starred": "إظهار الملاحظات المفضلة",
@@ -3543,18 +3543,18 @@
     "spell_check_tooltip": "تفعيل/تعطيل التدقيق الإملائي",
     "star": "تفضيل الملاحظة",
     "starred_notes": "الملاحظات المجموعة",
-    "target_name_exists": "[to be translated]:A note or folder with this name already exists",
+    "target_name_exists": "يوجد بالفعل ملاحظة أو مجلد بهذا الاسم",
     "title": "الملاحظات",
-    "tree_load_failed": "[to be translated]:Failed to load notes directory",
+    "tree_load_failed": "فشل تحميل دليل الملاحظات",
     "unsaved_changes": "لديك محتوى غير محفوظ، هل أنت متأكد من المغادرة؟",
     "unstar": "إزالة من المفضلة",
     "untitled_folder": "مجلد جديد",
     "untitled_note": "ملاحظة بدون عنوان",
-    "upload_all_failed": "[to be translated]:Failed to upload {{failed}} notes",
+    "upload_all_failed": "فشل رفع {{failed}} ملاحظات",
     "upload_failed": "فشل تحميل الملاحظة",
     "upload_files": "حمّل الملفات",
     "upload_folder": "حمّل المجلد",
-    "upload_partial_failed": "[to be translated]:Uploaded {{uploaded}} notes, {{failed}} failed",
+    "upload_partial_failed": "تم رفع {{uploaded}} ملاحظات، وفشل {{failed}}",
     "upload_success": "تم تحميل الملاحظة بنجاح",
     "uploading_files": "جاري تحميل {{count}} ملفات..."
   },
@@ -3753,10 +3753,10 @@
       "success": "تم التنزيل بنجاح",
       "success_desc": "تم تنزيل النموذج \"{{modelName}}\"-\"{{modelId}}\" بنجاح، يرجى الانتقال إلى واجهة إدارة OVMS لإضافة النموذج",
       "task": {
-        "embeddings": "[to be translated]:Embeddings",
-        "image_generation": "[to be translated]:Image Generation",
-        "rerank": "[to be translated]:Rerank",
-        "text_generation": "[to be translated]:Text Generation"
+        "embeddings": "التضمينات",
+        "image_generation": "توليد الصور",
+        "rerank": "إعادة الترتيب",
+        "text_generation": "توليد النص"
       },
       "tip": "جاري تنزيل النموذج، قد يستغرق الأمر ساعات أحياناً. يرجى التحلي بالصبر...",
       "title": "تنزيل نموذج Intel OpenVINO"
@@ -3774,7 +3774,7 @@
       "run": "فشل تشغيل OVMS:",
       "stop": "فشل إيقاف OVMS:"
     },
-    "guide": "[to be translated]:Intel OVMS Guide:",
+    "guide": "دليل Intel OVMS:",
     "status": {
       "not_installed": "OVMS غير مثبت",
       "not_running": "OVMS لا يعمل",
@@ -3809,49 +3809,49 @@
         "image": "صورة جديدة"
       },
       "select": {
-        "image": "[to be translated]:Select Image"
+        "image": "اختر صورة"
       }
     },
     "custom_size": "حجم مخصص",
     "dashscope": {
-      "bottom_scale": "[to be translated]:Expand Bottom",
-      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
-      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
-      "function": "[to be translated]:Edit Function",
+      "bottom_scale": "توسيع الأسفل",
+      "enable_interleave": "وضع النص+الصورة",
+      "enable_interleave_tip": "عند التفعيل، يولد مخرجات مختلطة من النص والصورة دون الحاجة إلى صورة إدخال. عطّله لاستخدام وضع التحرير (يتطلب 1-4 صور إدخال).",
+      "function": "وظيفة التحرير",
       "function_options": {
-        "colorization": "[to be translated]:Colorization",
-        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
-        "description_edit": "[to be translated]:Instruction Edit",
-        "description_edit_with_mask": "[to be translated]:Masked Edit",
-        "doodle": "[to be translated]:Doodle to Image",
-        "expand": "[to be translated]:Expand",
-        "remove_watermark": "[to be translated]:Remove Watermark",
-        "stylization_all": "[to be translated]:Global Stylization",
-        "stylization_local": "[to be translated]:Local Stylization",
-        "super_resolution": "[to be translated]:Super Resolution"
+        "colorization": "التلوين",
+        "control_cartoon_feature": "مرجع الكرتون",
+        "description_edit": "تحرير بالتعليمات",
+        "description_edit_with_mask": "تحرير مقنّع",
+        "doodle": "من رسمة إلى صورة",
+        "expand": "توسيع",
+        "remove_watermark": "إزالة العلامة المائية",
+        "stylization_all": "تنسيق عام",
+        "stylization_local": "تنسيق محلي",
+        "super_resolution": "دقة فائقة"
       },
-      "is_sketch": "[to be translated]:Sketch Input",
-      "left_scale": "[to be translated]:Expand Left",
-      "ref_mode": "[to be translated]:Reference Mode",
+      "is_sketch": "مدخل رسمة",
+      "left_scale": "توسيع اليسار",
+      "ref_mode": "وضع المرجع",
       "ref_mode_options": {
-        "refonly": "[to be translated]:Reference only",
-        "repaint": "[to be translated]:Repaint"
+        "refonly": "مرجع فقط",
+        "repaint": "إعادة الرسم"
       },
-      "ref_strength": "[to be translated]:Reference Strength",
-      "right_scale": "[to be translated]:Expand Right",
-      "source_lang": "[to be translated]:Source Language",
-      "strength": "[to be translated]:Strength",
-      "target_lang": "[to be translated]:Target Language",
-      "top_scale": "[to be translated]:Expand Top",
-      "upscale_factor": "[to be translated]:Upscale Factor"
+      "ref_strength": "قوة المرجع",
+      "right_scale": "توسيع اليمين",
+      "source_lang": "اللغة المصدر",
+      "strength": "القوة",
+      "target_lang": "اللغة الهدف",
+      "top_scale": "توسيع الأعلى",
+      "upscale_factor": "عامل التكبير"
     },
     "dmxapi": {
       "generating_tip": "جاري التوليد بالنموذج الرسمي، وقت الانتظار المقدر 2-5 دقائق للحصول على أفضل النتائج. يرجى مراجعة سجلات خلفية DMXAPI لمعرفة تكلفة هذه العملية.",
-      "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "max_images": "الحد الأقصى للصور",
+      "sequential_image_generation": "توليد الصور المتسلسل",
       "sequential_image_generation_options": {
-        "auto": "[to be translated]:Auto",
-        "disabled": "[to be translated]:Disabled"
+        "auto": "تلقائي",
+        "disabled": "معطل"
       }
     },
     "edit": {
@@ -3864,7 +3864,7 @@
     },
     "generate_failed": "فشل توليد الصورة",
     "generated_image": "الصورة المولدة",
-    "generating": "[to be translated]:Generating...",
+    "generating": "جاري التوليد...",
     "go_to_settings": "اذهب إلى الإعدادات",
     "guidance_scale": "مقياس التوجيه",
     "guidance_scale_tip": "التوجيه الخالي من التصنيف. مدى التزام النموذج بالتوجيه عند البحث عن صورة ذات صلة لعرضها لك",
@@ -3880,7 +3880,7 @@
     "image_size_options": {
       "auto": "تلقائي"
     },
-    "image_weight": "[to be translated]:Image Weight",
+    "image_weight": "وزن الصورة",
     "inference_steps": "خطوات الاستنتاج",
     "inference_steps_tip": "عدد خطوات الاستنتاج المراد تنفيذها. الخطوات الأكثر تمنح جودة أعلى ولكن تستغرق وقتاً أطول",
     "input_image": "صورة الإدخال",
@@ -3911,13 +3911,13 @@
     "paint_course": "دليل تعليمي",
     "per_image": "لكل صورة",
     "per_images": "لكل الصور",
-    "person_generation": "[to be translated]:Generate people",
+    "person_generation": "توليد أشخاص",
     "person_generation_options": {
       "allow_adult": "السماح بالمحتوى المخصص للبالغين",
       "allow_all": "السماح للكل",
       "allow_none": "غير مسموح"
     },
-    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
+    "person_generation_tip": "اسمح للنموذج بتوليد صور لأشخاص",
     "ppio": {
       "edit_prompt_tip": "تستخدم لتحديد العنصر أو المنطقة المراد إزالتها من الصورة، مثل 'كلب' أو 'قبعة'",
       "mask_image": "صورة القناع",
@@ -3934,16 +3934,16 @@
     "prompt_placeholder": "صف الصورة التي تريد إنشاءها، مثلاً: بحيرة هادئة عند الغروب مع جبال في الخلفية",
     "prompt_placeholder_edit": "أدخل وصف الصورة، استخدم \"علامات تنصيص مزدوجة\" لإدراج النصوص داخل الرسم",
     "prompt_placeholder_en": "أدخل وصف الصورة، يدعم حالياً التوجيهات باللغة الإنجليزية فقط",
-    "prompt_required": "[to be translated]:Please enter a prompt",
+    "prompt_required": "يرجى إدخال التوجيه",
     "proxy_required": "افتح البروكسي وفعل \"TUN mode\" لعرض الصور المولدة أو انسخها للمتصفح لفتحها. مستقبلاً سيتم دعم الاتصال المباشر المحلي",
     "quality": "الجودة",
     "quality_options": {
       "auto": "تلقائي",
-      "hd": "[to be translated]:HD",
+      "hd": "عالية الدقة",
       "high": "عالية",
       "low": "منخفضة",
       "medium": "متوسطة",
-      "standard": "[to be translated]:Standard"
+      "standard": "قياسية"
     },
     "regenerate": {
       "confirm": "سيؤدي هذا إلى استبدال صورك المولدة الحالية. هل تريد الاستمرار؟"
@@ -3959,40 +3959,40 @@
     "req_error_text": "الخادم مشغول أو التوجيه يحتوي على مصطلحات \"محمية بحقوق النشر\" أو \"حساسة\". يرجى المحاولة مرة أخرى.",
     "req_error_token": "يرجى التحقق من صلاحية الرمز",
     "required_field": "حقل مطلوب",
-    "safety_tolerance": "[to be translated]:Safety Tolerance",
-    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
+    "safety_tolerance": "تسامح الأمان",
+    "safety_tolerance_tip": "الأعلى = فلتر أكثر تسامحاً؛ 0 هو الأكثر صرامة، 6 هو الأكثر تسامحاً",
     "seed": "بذرة",
     "seed_desc_tip": "نفس البذرة والتوجيه يمكن أن يولدا صوراً متشابهة، ضبط القيمة على -1 سيولد نتائج مختلفة في كل مرة",
     "seed_random": "عشوائي",
     "seed_tip": "نفس البذرة والتوجيه يمكن أن ينتجا صوراً متشابهة",
     "select_model": "اختيار النموذج",
     "style_options": {
-      "anime": "[to be translated]:Anime",
-      "auto": "[to be translated]:Auto",
-      "cartoon_3d": "[to be translated]:3D Cartoon",
-      "chinese_painting": "[to be translated]:Chinese Painting",
-      "flat_illustration": "[to be translated]:Flat Illustration",
-      "natural": "[to be translated]:Natural",
-      "oil_painting": "[to be translated]:Oil Painting",
-      "photography": "[to be translated]:Photography",
-      "portrait": "[to be translated]:Portrait",
-      "sketch": "[to be translated]:Sketch",
-      "vivid": "[to be translated]:Vivid",
-      "watercolor": "[to be translated]:Watercolor"
+      "anime": "أنمي",
+      "auto": "تلقائي",
+      "cartoon_3d": "كرتون ثلاثي الأبعاد",
+      "chinese_painting": "رسم صيني",
+      "flat_illustration": "رسم توضيحي مسطح",
+      "natural": "طبيعي",
+      "oil_painting": "رسم زيتي",
+      "photography": "تصوير فوتوغرافي",
+      "portrait": "صورة شخصية",
+      "sketch": "رسم تخطيطي",
+      "vivid": "حيوي",
+      "watercolor": "ألوان مائية"
     },
     "style_type": "النمط",
     "style_type_options": {
-      "anime": "[to be translated]:Anime",
-      "auto": "[to be translated]:Auto",
-      "design": "[to be translated]:Design",
-      "general": "[to be translated]:General",
-      "realistic": "[to be translated]:Realistic",
-      "render_3d": "[to be translated]:3D Render"
+      "anime": "أنمي",
+      "auto": "تلقائي",
+      "design": "تصميم",
+      "general": "عام",
+      "realistic": "واقعي",
+      "render_3d": "تصوير ثلاثي الأبعاد"
     },
-    "style_type_tip": "[to be translated]:Image generation style",
+    "style_type_tip": "نمط توليد الصور",
     "text_desc_required": "يرجى إدخال وصف الصورة أولاً",
-    "thinking_mode": "[to be translated]:Thinking Mode",
-    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
+    "thinking_mode": "وضع التفكير",
+    "thinking_mode_tip": "عند التفعيل، تكون جودة التوليد أعلى ولكن تضيف حوالي 10-30 ثانية.",
     "title": "صور",
     "top_up": "اشحن الرصيد",
     "translating": "جارٍ الترجمة...",
@@ -4085,25 +4085,25 @@
     "uninstalling": "جاري إلغاء التثبيت..."
   },
   "preview": {
-    "close": "[to be translated]:Close Preview",
+    "close": "إغلاق المعاينة",
     "copy": {
       "image": "انسخ كصورة",
       "src": "انسخ مصدر الصورة"
     },
     "dialog": "افتح الحوار",
-    "flip_horizontal": "[to be translated]:Flip Horizontal",
-    "flip_vertical": "[to be translated]:Flip Vertical",
+    "flip_horizontal": "قلب أفقي",
+    "flip_vertical": "قلب عمودي",
     "label": "معاينة",
-    "next": "[to be translated]:Next Image",
+    "next": "الصورة التالية",
     "pan": "تحريك",
     "pan_down": "تحريك للأسفل",
     "pan_left": "تحريك لليسار",
     "pan_right": "تحريك لليمين",
     "pan_up": "تحريك للأعلى",
-    "previous": "[to be translated]:Previous Image",
+    "previous": "الصورة السابقة",
     "reset": "إعادة ضبط",
-    "rotate_left": "[to be translated]:Rotate Left",
-    "rotate_right": "[to be translated]:Rotate Right",
+    "rotate_left": "تدوير لليسار",
+    "rotate_right": "تدوير لليمين",
     "source": "عرض كود المصدر",
     "zoom_in": "تكبير",
     "zoom_out": "تصغير"
@@ -4127,13 +4127,13 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
-    "cherryai": "[to be translated]:CherryAI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
-    "doc2x": "[to be translated]:Doc2X",
+    "doc2x": "Doc2X",
     "doubao": "Volcengine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -4151,7 +4151,7 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
-    "mineru": "[to be translated]:MinerU",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -4162,12 +4162,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
-    "open-mineru": "[to be translated]:Open MinerU",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
-    "ovocr": "[to be translated]:Intel OV(NPU) OCR",
-    "paddleocr": "[to be translated]:PaddleOCR",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -4177,9 +4177,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
-    "system": "[to be translated]:System OCR",
+    "system": "تعرف ضوئي للنظام (OCR)",
     "tencent-cloud-ti": "Tencent Cloud TI",
-    "tesseract": "[to be translated]:Tesseract",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -4192,33 +4192,33 @@
   },
   "quickAssistant": {
     "alert": {
-      "google_login": "[to be translated]:Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+      "google_login": "نصيحة: إذا ظهر لك 'المتصفح غير موثوق' عند تسجيل الدخول إلى Google، يرجى أولاً تسجيل الدخول عبر التطبيق المصغّر لـ Google من قائمة التطبيقات المصغّرة، ثم استخدم تسجيل الدخول بـ Google في التطبيقات المصغّرة الأخرى"
     },
     "clipboard": {
-      "empty": "[to be translated]:Clipboard is empty"
+      "empty": "الحافظة فارغة"
     },
     "feature": {
-      "chat": "[to be translated]:Answer this question",
-      "explanation": "[to be translated]:Explanation",
-      "summary": "[to be translated]:Content summary",
-      "translate": "[to be translated]:Text translation"
+      "chat": "الإجابة عن هذا السؤال",
+      "explanation": "شرح",
+      "summary": "ملخص المحتوى",
+      "translate": "ترجمة النص"
     },
     "footer": {
-      "backspace_clear": "[to be translated]:Backspace to clear",
-      "copy_last_message": "[to be translated]:Press C to copy",
-      "esc": "[to be translated]:ESC to {{action}}",
-      "esc_back": "[to be translated]:return",
-      "esc_close": "[to be translated]:close",
-      "esc_pause": "[to be translated]:pause"
+      "backspace_clear": "Backspace للمسح",
+      "copy_last_message": "اضغط C للنسخ",
+      "esc": "ESC لـ {{action}}",
+      "esc_back": "العودة",
+      "esc_close": "إغلاق",
+      "esc_pause": "إيقاف مؤقت"
     },
     "input": {
       "placeholder": {
-        "empty": "[to be translated]:Ask {{model}} for help...",
-        "title": "[to be translated]:What do you want to do with this text?"
+        "empty": "اسأل {{model}} للمساعدة...",
+        "title": "ماذا تريد أن تفعل بهذا النص؟"
       }
     },
     "tooltip": {
-      "pin": "[to be translated]:Keep Window on Top"
+      "pin": "إبقاء النافذة في المقدمة"
     }
   },
   "restore": {
@@ -4474,7 +4474,7 @@
       },
       "translate": {
         "error": {
-          "no_selected_text": "[to be translated]:No text selected to translate"
+          "no_selected_text": "لم يتم تحديد نص للترجمة"
         },
         "smart_translate_tips": "الترجمة الذكية: سيتم ترجمة المحتوى إلى اللغة المستهدفة أولاً؛ المحتوى الموجود بالفعل باللغة المستهدفة سيترجم إلى اللغة البديلة"
       },
@@ -4666,31 +4666,31 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "وكيل جديد",
+      "empty_text": "لا يوجد وكلاء بعد",
+      "search_placeholder": "البحث عن الوكلاء…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "مساعد جديد",
+      "empty_text": "لا يوجد مساعدين بعد",
+      "multi_hint": "(يتعارض مع النموذج المتعدد)",
+      "multi_label": "متعدد المساعدين بشكل متوازٍ",
+      "search_placeholder": "البحث عن المساعدين…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "تحرير",
+      "pin": "تثبيت",
+      "pinned_title": "مثبت",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "الأقدم",
+        "desc": "الأحدث"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "ترتيب",
+      "unpin": "إلغاء التثبيت"
     },
     "workspace": {
-      "empty_text": "[to be translated]:No workspaces yet",
-      "placeholder": "[to be translated]:Select workspace"
+      "empty_text": "لا توجد مساحات عمل بعد",
+      "placeholder": "اختر مساحة العمل"
     }
   },
   "settings": {
@@ -4761,114 +4761,114 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "مسح",
+        "configDescription": "بدّل الخصائص لمعاينة سلوك المكون",
+        "configTitle": "إعدادات",
+        "currentProps": "الخصائص الحالية",
+        "description": "AgentSelector يقرأ الآن بيانات DataApi الحقيقية من /agents للتحقق من اختيار المعرف/العنصر والتثبيت والترتيب والبحث.",
+        "emptyShellNotice": "هذه المعاينة تستخدم قائمة الوكلاء الحقيقية التي ترجعها DataApi من /agents.",
+        "lastOnChange": "آخر onChange",
+        "previewDescription": "انقر على الزر لفتح المحدد",
+        "previewTitle": "معاينة",
+        "title": "محدد الوكيل",
+        "triggerPlaceholder": "اختر وكيلاً",
+        "valueProp": "القيمة الحالية"
       },
       "agentTodoList": {
-        "title": "[to be translated]:Agent Todo List"
+        "title": "قائمة مهام الوكيل"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "مسح",
+        "configDescription": "بدّل الخصائص لمعاينة سلوك المكون",
+        "configTitle": "إعدادات",
+        "currentProps": "الخصائص الحالية",
+        "description": "يثبت مكون AssistantSelector التجاري مباشرة للتحقق من السلوك المتعدد/الفردي والمعرف/العنصر والتثبيت والترتيب والبحث.",
+        "lastOnChange": "آخر onChange",
+        "previewDescription": "انقر على الزر لفتح المحدد",
+        "previewTitle": "معاينة",
+        "title": "محدد المساعد",
+        "triggerPlaceholder": "اختر مساعداً",
+        "triggerSelectedCount": "تم اختيار {{count}} مساعدين",
+        "valueProp": "القيمة الحالية"
       },
-      "description": "[to be translated]:Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
+      "description": "مرئي فقط في وضع التطوير لاختبار مكونات v2 الجديدة (المحددات وما شابهها) مباشرة داخل التطبيق.",
       "fileProcessing": {
         "artifact": {
-          "file": "[to be translated]:Markdown file",
-          "text": "[to be translated]:Text result"
+          "file": "ملف Markdown",
+          "text": "نتيجة نصية"
         },
-        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
-        "duration": "[to be translated]:{{seconds}}s",
-        "jobId": "[to be translated]:Job ID",
+        "description": "شغّل كل معالج ملفات مُعدّ عبر IPC لمعالجة الملفات الحقيقي وقارن النتائج.",
+        "duration": "{{seconds}}ث",
+        "jobId": "معرف المهمة",
         "markdown": {
-          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
-          "fileFilterName": "[to be translated]:Documents",
-          "noFile": "[to be translated]:No document selected",
-          "select": "[to be translated]:Select document",
-          "start": "[to be translated]:Test markdown",
-          "title": "[to be translated]:Markdown"
+          "description": "اختر مستنداً وشغّل جميع معالجات تحويل المستندات إلى Markdown.",
+          "fileFilterName": "المستندات",
+          "noFile": "لم يتم اختيار مستند",
+          "select": "اختر مستنداً",
+          "start": "اختبر Markdown",
+          "title": "Markdown"
         },
-        "noProcessors": "[to be translated]:No processors support this feature.",
+        "noProcessors": "لا توجد معالجات تدعم هذه الميزة.",
         "ocr": {
-          "description": "[to be translated]:Select an image and run all OCR processors.",
-          "fileFilterName": "[to be translated]:Images",
-          "noFile": "[to be translated]:No image selected",
-          "select": "[to be translated]:Select image",
-          "start": "[to be translated]:Test OCR",
-          "title": "[to be translated]:OCR"
+          "description": "اختر صورة وشغّل جميع معالجات OCR.",
+          "fileFilterName": "الصور",
+          "noFile": "لم يتم اختيار صورة",
+          "select": "اختر صورة",
+          "start": "اختبر OCR",
+          "title": "OCR"
         },
-        "processorCount": "[to be translated]:{{count}} processors",
+        "processorCount": "{{count}} معالجات",
         "status": {
           "cancelled": "ملغاة",
           "completed": "مكتملة",
-          "delayed": "[to be translated]:Delayed",
+          "delayed": "متأخر",
           "failed": "فشل",
-          "idle": "[to be translated]:Idle",
-          "pending": "[to be translated]:Pending",
-          "processing": "[to be translated]:Processing",
-          "running": "[to be translated]:Running",
-          "starting": "[to be translated]:Starting"
+          "idle": "خامل",
+          "pending": "قيد الانتظار",
+          "processing": "قيد المعالجة",
+          "running": "قيد التشغيل",
+          "starting": "قيد البدء"
         },
-        "title": "[to be translated]:Document Parsing"
+        "title": "تحليل المستندات"
       },
-      "label": "[to be translated]:Component Lab",
+      "label": "مختبر المكونات",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "إعدادات السلوك والعرض",
+        "callbackEmpty": "لم يتم استلام رد اتصال من المكون بعد",
+        "clearSelection": "مسح التحديد",
+        "configDescription": "بدّل خصائص ModelSelector الرئيسية أعلاه وافحص قيمة الإدخال بالإضافة إلى حمولات رد الاتصال أدناه.",
+        "configTitle": "ملعب الخصائص",
+        "controlMultiSelectMode": "controlMultiSelectMode",
+        "currentProps": "الخصائص الحالية",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "تثبت هذه الصفحة مكون ModelSelector التجاري الحالي مباشرة حتى نتمكن من التحقق من سلوك التحديد والتصفية والبحث والتثبيت.",
+        "empty": "لا توجد نماذج متاحة حالياً، لذا لا يمكن عرض المحدد بعد.",
+        "lastModeChangeReturn": "آخر إرجاع لـ onMultiSelectModeChange",
+        "lastSelectReturn": "آخر إرجاع لـ onSelect",
+        "loading": "جاري تحميل النماذج...",
+        "modelId": "معرف النموذج",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "تعدد",
+        "normalizedIds": "المعرفات المحددة المعيارية",
+        "outputEmpty": "لا توجد بيانات للعرض بعد",
+        "provider": "المزود",
+        "resetOutputs": "إعادة تعيين المخرجات",
+        "resultsDescription": "يعرض هذا قيمة الخاصية الحالية والمعرفات المحددة المعيارية وآخر مخرج لرد الاتصال من المكون.",
+        "resultsTitle": "المخرجات والحالة",
+        "selected": "التحديد الحالي",
+        "selectedEmpty": "لم يتم اختيار نموذج بعد",
+        "selectionConfig": "إعدادات قيمة التحديد",
+        "selectionType": "selectionType",
+        "selectionTypeId": "إرجاع معرفات النماذج",
+        "selectionTypeModel": "إرجاع كائنات النماذج",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "محدد النموذج",
+        "triggerPlaceholder": "اختر نموذجاً",
+        "triggerSelectedCount": "تم اختيار {{count}} نماذج",
+        "valueProp": "خاصية القيمة الحالية"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "مختبر مكونات التطوير"
     },
     "data": {
       "app_data": {
@@ -5529,7 +5529,7 @@
           "icon": "إظهار أيقونة التطبيق المصغر"
         },
         "miniApp": {
-          "icon": "[to be translated]:Show MiniApp icon"
+          "icon": "إظهار أيقونة التطبيق المصغّر"
         },
         "painting": {
           "icon": "إظهار أيقونة الرسم"
@@ -5565,12 +5565,12 @@
       },
       "common": {
         "sections": {
-          "custom_css": "[to be translated]:Custom CSS",
-          "display_language": "[to be translated]:Display & Language",
-          "privacy_advanced": "[to be translated]:Privacy & Advanced",
-          "system_startup": "[to be translated]:System & Startup"
+          "custom_css": "CSS مخصص",
+          "display_language": "العرض واللغة",
+          "privacy_advanced": "الخصوصية والخيارات المتقدمة",
+          "system_startup": "النظام والتشغيل"
         },
-        "title": "[to be translated]:General"
+        "title": "عام"
       },
       "display": {
         "title": "إعدادات العرض"
@@ -5634,7 +5634,7 @@
       }
     },
     "integrations": {
-      "title": "[to be translated]:Integrations"
+      "title": "التكاملات"
     },
     "launch": {
       "onboot": "بدء التشغيل تلقائيًا عند الإقلاع",
@@ -5669,25 +5669,25 @@
           },
           "invalid": "إدخال غير صالح، يرجى التحقق من تنسيق JSON",
           "json": "استيراد من JSON",
-          "mcpb": "[to be translated]:Import MCPB Bundle",
-          "mcpbFile": "[to be translated]:MCPB Bundle File",
-          "mcpbHelp": "[to be translated]:Select a .mcpb file containing an MCP server bundle",
-          "mcpbProcessFailed": "[to be translated]:Failed to process MCPB file",
+          "mcpb": "استيراد حزمة MCPB",
+          "mcpbFile": "ملف حزمة MCPB",
+          "mcpbHelp": "اختر ملف .mcpb يحتوي على حزمة خادم MCP",
+          "mcpbProcessFailed": "فشلت معالجة ملف MCPB",
           "method": "طريقة الاستيراد",
           "nameExists": "الخادم موجود بالفعل: {{name}}",
           "noDxtFile": "يرجى اختيار ملف DXT",
-          "noMcpbFile": "[to be translated]:Please select an MCPB file",
+          "noMcpbFile": "يرجى اختيار ملف MCPB",
           "oneServer": "يمكن تكوين خادم MCP واحد فقط في كل مرة",
           "placeholder": "الصق تكوين JSON لخادم MCP",
           "selectDxtFile": "اختر ملف DXT",
-          "selectMcpbFile": "[to be translated]:Select MCPB File",
+          "selectMcpbFile": "اختر ملف MCPB",
           "tooltip": "يرجى نسخ تكوين JSON (مع إعطاء الأولوية\n لتكوينات NPX أو UVX) من صفحة تعريف خوادم MCP ولصقه في مربع الإدخال."
         },
         "label": "أضف خادمًا"
       },
       "addSuccess": "تمت إضافة الخادم بنجاح",
       "advancedSettings": "الإعدادات المتقدمة",
-      "allServers": "[to be translated]:MCP Servers",
+      "allServers": "خوادم MCP",
       "args": "الوسائط",
       "argsTooltip": "كل وسيط في سطر جديد",
       "baseUrlTooltip": "رابط URL الأساسي للخادم البعيد",
@@ -5837,7 +5837,7 @@
       "serverPlural": "خوادم",
       "serverSingular": "خادم",
       "servers": "خوادم MCP",
-      "shortTitle": "[to be translated]:MCP",
+      "shortTitle": "MCP",
       "sse": "الأحداث المرسلة من الخادم (sse)",
       "startError": "فشل البدء",
       "stdio": "الإدخال/الإخراج القياسي (stdio)",
@@ -5913,11 +5913,11 @@
       "user": "المستخدم"
     },
     "menuGroups": {
-      "appSettings": "[to be translated]:Settings",
-      "integrations": "[to be translated]:Models",
-      "productivity": "[to be translated]:Productivity",
-      "services": "[to be translated]:Plugins",
-      "system": "[to be translated]:System"
+      "appSettings": "الإعدادات",
+      "integrations": "النماذج",
+      "productivity": "الإنتاجية",
+      "services": "الإضافات",
+      "system": "النظام"
     },
     "messages": {
       "divider": {
@@ -5957,62 +5957,62 @@
       "use_serif_font": "استخدم خط Serif"
     },
     "miniApps": {
-      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
-      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
-      "cache_settings": "[to be translated]:Cache Settings",
-      "cache_title": "[to be translated]:Mini App Cache Limit",
+      "cache_change_notice": "ستطبق التغييرات عندما يصل عدد التطبيقات المصغّرة المفتوحة إلى القيمة المحددة",
+      "cache_description": "حدد الحد الأقصى لعدد التطبيقات المصغّرة النشطة التي تبقى في الذاكرة",
+      "cache_settings": "إعدادات الذاكرة المؤقتة",
+      "cache_title": "حد الذاكرة المؤقتة للتطبيقات المصغّرة",
       "custom": {
-        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
-        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
-        "edit_title": "[to be translated]:Edit Custom Mini App",
-        "id": "[to be translated]:ID",
-        "id_error": "[to be translated]:ID is required.",
-        "id_placeholder": "[to be translated]:Enter ID",
-        "logo": "[to be translated]:Logo",
-        "logo_file": "[to be translated]:Upload Logo File",
-        "logo_upload_button": "[to be translated]:Upload",
-        "logo_upload_error": "[to be translated]:Failed to upload logo.",
-        "logo_upload_label": "[to be translated]:Upload Logo",
-        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
-        "logo_url": "[to be translated]:Logo URL",
-        "logo_url_label": "[to be translated]:Logo URL",
-        "logo_url_placeholder": "[to be translated]:Enter logo URL",
-        "name": "[to be translated]:Name",
-        "name_error": "[to be translated]:Name is required.",
-        "name_placeholder": "[to be translated]:Enter name",
-        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
-        "remove_error": "[to be translated]:Failed to remove custom mini app.",
-        "remove_success": "[to be translated]:Custom mini app removed successfully.",
-        "save": "[to be translated]:Save",
-        "save_error": "[to be translated]:Failed to save custom mini app.",
-        "save_success": "[to be translated]:Custom mini app saved successfully.",
-        "title": "[to be translated]:Custom",
-        "url": "[to be translated]:URL",
-        "url_error": "[to be translated]:URL is required.",
-        "url_placeholder": "[to be translated]:Enter URL"
+        "conflicting_ids": "معرفات متضاربة مع التطبيقات الافتراضية: {{ids}}",
+        "duplicate_ids": "تم العثور على معرفات مكررة: {{ids}}",
+        "edit_description": "عدّل تكوين التطبيق المصغّر المخصص هنا. يجب أن يتضمن كل تطبيق حقول id وname وurl وlogo.",
+        "edit_title": "تعديل التطبيق المصغّر المخصص",
+        "id": "المعرف",
+        "id_error": "المعرف مطلوب.",
+        "id_placeholder": "أدخل المعرف",
+        "logo": "الشعار",
+        "logo_file": "رفع ملف الشعار",
+        "logo_upload_button": "رفع",
+        "logo_upload_error": "فشل رفع الشعار.",
+        "logo_upload_label": "رفع الشعار",
+        "logo_upload_success": "تم رفع الشعار بنجاح.",
+        "logo_url": "رابط الشعار",
+        "logo_url_label": "رابط الشعار",
+        "logo_url_placeholder": "أدخل رابط الشعار",
+        "name": "الاسم",
+        "name_error": "الاسم مطلوب.",
+        "name_placeholder": "أدخل الاسم",
+        "placeholder": "أدخل تكوين التطبيق المصغّر المخصص (تنسيق JSON)",
+        "remove_error": "فشل إزالة التطبيق المصغّر المخصص.",
+        "remove_success": "تم إزالة التطبيق المصغّر المخصص بنجاح.",
+        "save": "حفظ",
+        "save_error": "فشل حفظ التطبيق المصغّر المخصص.",
+        "save_success": "تم حفظ التطبيق المصغّر المخصص بنجاح.",
+        "title": "مخصص",
+        "url": "الرابط",
+        "url_error": "الرابط مطلوب.",
+        "url_placeholder": "أدخل الرابط"
       },
-      "disabled": "[to be translated]:Hidden Mini Apps",
-      "display_title": "[to be translated]:Mini App Display Settings",
-      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "disabled": "التطبيقات المصغّرة المخفية",
+      "display_title": "إعدادات عرض التطبيقات المصغّرة",
+      "empty": "انقر على أيقونة الإخفاء في أحد التطبيقات على اليسار وسيظهر هنا",
       "group": {
-        "display": "[to be translated]:Display management",
-        "preferences": "[to be translated]:Preferences"
+        "display": "إدارة العرض",
+        "preferences": "التفضيلات"
       },
       "open_link_external": {
-        "description": "[to be translated]:Opens new-window links in your default browser",
-        "title": "[to be translated]:Open new-window links in browser"
+        "description": "يفتح الروابط ذات النافذة الجديدة في متصفحك الافتراضي",
+        "title": "فتح روابط النافذة الجديدة في المتصفح"
       },
       "region": {
-        "auto": "[to be translated]:Auto detect",
-        "cn": "[to be translated]:China",
-        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
-        "global": "[to be translated]:Global",
-        "title": "[to be translated]:Mini Program filter"
+        "auto": "كشف تلقائي",
+        "cn": "الصين",
+        "description": "تصفية البرامج المصغّرة غير المدعومة بناءً على المنطقة",
+        "global": "عالمي",
+        "title": "تصفية البرامج المصغّرة"
       },
-      "reset_tooltip": "[to be translated]:Reset to default",
-      "title": "[to be translated]:Mini Apps Settings",
-      "visible": "[to be translated]:Visible Mini Apps"
+      "reset_tooltip": "إعادة تعيين إلى الافتراضي",
+      "title": "إعدادات التطبيقات المصغّرة",
+      "visible": "التطبيقات المصغّرة المرئية"
     },
     "miniapps": {
       "cache_change_notice": "ستطبق التغييرات عندما يصل عدد التطبيقات المصغرة المفتوحة إلى القيمة المحددة",
@@ -6053,7 +6053,7 @@
       "disabled": "التطبيقات المصغرة المخفية",
       "display_title": "إعدادات عرض التطبيقات المصغرة",
       "empty": "اسحب التطبيقات المصغرة من اليسار لإخفائها",
-      "hide_app": "[to be translated]:Hide {{name}}",
+      "hide_app": "إخفاء {{name}}",
       "open_link_external": {
         "title": "افتح روابط النوافذ الجديدة في المتصفح"
       },
@@ -6065,7 +6065,7 @@
         "title": "مصفاة البرامج المصغرة"
       },
       "reset_tooltip": "استعادة الافتراضي",
-      "show_app": "[to be translated]:Show {{name}}",
+      "show_app": "إظهار {{name}}",
       "sidebar_description": "إظهار التطبيقات المصغرة النشطة في الشريط الجانبي",
       "sidebar_title": "عرض التطبيقات المصغرة النشطة في الشريط الجانبي",
       "title": "إعدادات التطبيقات المصغرة",
@@ -6077,13 +6077,13 @@
         "add_model": "أضف نموذجاً",
         "batch_add_models": "إضافة نماذج بالدفعة",
         "context_window": {
-          "label": "[to be translated]:Context window",
-          "placeholder": "[to be translated]:e.g. 128000"
+          "label": "نافذة السياق",
+          "placeholder": "مثلاً 128000"
         },
         "endpoint_type": {
           "label": "نوع نقطة النهاية",
           "placeholder": "اختر نوع نقطة النهاية",
-          "remove_chip": "[to be translated]:Remove",
+          "remove_chip": "إزالة",
           "required": "يرجى اختيار نوع نقطة النهاية",
           "tooltip": "اختر صيغة نوع نقطة نهاية API"
         },
@@ -6093,12 +6093,12 @@
           "tooltip": "اختياري مثلاً ChatGPT"
         },
         "max_input_tokens": {
-          "label": "[to be translated]:Max input tokens",
-          "placeholder": "[to be translated]:e.g. 128000"
+          "label": "الحد الأقصى لرموز الإدخال",
+          "placeholder": "مثلاً 128000"
         },
         "max_output_tokens": {
-          "label": "[to be translated]:Max output tokens",
-          "placeholder": "[to be translated]:e.g. 4096"
+          "label": "الحد الأقصى لرموز الإخراج",
+          "placeholder": "مثلاً 4096"
         },
         "model_id": {
           "label": "معرف النموذج",
@@ -6120,132 +6120,132 @@
       },
       "api_key": "مفتاح API",
       "base_url": "رابط URL الأساسي",
-      "bulk_disable": "[to be translated]:Disable all",
-      "bulk_enable": "[to be translated]:Enable all",
+      "bulk_disable": "عطّل الكل",
+      "bulk_enable": "فعّل الكل",
       "check": {
         "all": "الكل",
         "all_models_passed": "اجتازت جميع النماذج الفحص",
         "button_caption": "فحص الحالة",
         "disabled": "معطل",
         "disclaimer": "يتطلب فحص الحالة إرسال طلبات، يرجى الاستخدام بحذر. قد تفرض النماذج التي تتقاضى رسوماً لكل طلب تكاليف إضافية، يرجى تحمل المسؤولية.",
-        "drawer_result_hint": "[to be translated]:Results remain here until you close the drawer or run the check again.",
+        "drawer_result_hint": "تبقى النتائج هنا حتى تغلق القائمة الجانبية أو تجري الفحص مجدداً.",
         "enable_concurrent": "متزامن",
         "enabled": "مفعل",
         "failed": "فشل",
-        "failed_to_start": "[to be translated]:Failed to start health check",
-        "generation_output_audio": "[to be translated]:audio",
-        "generation_output_image": "[to be translated]:an image",
-        "generation_output_video": "[to be translated]:a video",
+        "failed_to_start": "فشل بدء فحص الحالة",
+        "generation_output_audio": "صوت",
+        "generation_output_image": "صورة",
+        "generation_output_video": "فيديو",
         "keys_status_count": "تم بنجاح: {{count_passed}} مفتاح، فشل: {{count_failed}} مفتاح",
-        "model_button_caption": "[to be translated]:Check all models",
+        "model_button_caption": "افحص جميع النماذج",
         "model_status_failed": "{{count}} نماذج غير قابلة للوصول تماماً",
         "model_status_partial": "مفاتيح غير قابلة للوصول في {{count}} نماذج",
         "model_status_passed": "{{count}} نماذج اجتازت فحص الحالة",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "لم يتم العثور على مفاتيح API، يرجى إضافة مفاتيح أولاً.",
         "no_results": "لا توجد نتائج",
-        "outcome_fail_short": "[to be translated]:{{count}} failed",
-        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
-        "outcome_success_short": "[to be translated]:{{count}} passed",
-        "outcome_total": "[to be translated]:{{count}} total",
+        "outcome_fail_short": "{{count}} فشل",
+        "outcome_skipped_short": "{{count}} تخطى",
+        "outcome_success_short": "{{count}} نجح",
+        "outcome_total": "{{count}} الكل",
         "passed": "تم بنجاح",
-        "pipeline_heading": "[to be translated]:Detection progress",
-        "progress_count": "[to be translated]:{{done}} / {{total}}",
-        "progress_current": "[to be translated]:Checking: {{name}}",
-        "progress_hint": "[to be translated]:While running, watch the list below. When finished, a short summary appears above the list.",
-        "progress_title": "[to be translated]:Running health check",
-        "retry": "[to be translated]:Check again",
+        "pipeline_heading": "تقدم الكشف",
+        "progress_count": "{{done}} / {{total}}",
+        "progress_current": "جاري فحص: {{name}}",
+        "progress_hint": "أثناء التشغيل، راقب القائمة أدناه. عند الانتهاء، يظهر ملخص موجز أعلى القائمة.",
+        "progress_title": "جاري فحص الحالة",
+        "retry": "أعد الفحص",
         "select_api_key": "اختر مفتاح API للاستخدام:",
         "single": "فردي",
-        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
-        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
+        "skip_reason_generation_cost": "فحص حالة هذا النموذج سيولد {{output}} ويستهلك الحصة، لذا يتم تخطيه افتراضياً.",
+        "skip_reason_unsupported_probe": "نوع هذا النموذج ليس لديه فحص حالة منخفض التكلفة بعد، لذا يتم تخطيه افتراضياً.",
         "start": "ابدأ",
-        "status_checking": "[to be translated]:Checking…",
-        "status_skipped": "[to be translated]:Skipped",
+        "status_checking": "جاري الفحص...",
+        "status_skipped": "تخطى",
         "timeout": "انتهاء المهلة",
         "title": "فحص حالة النموذج",
         "use_all_keys": "المفاتيح"
       },
-      "collapse_all": "[to be translated]:Collapse all",
+      "collapse_all": "طوِ الكل",
       "default_assistant_model": "نموذج المساعد الافتراضي",
       "default_assistant_model_description": "النموذج المستخدم عند إنشاء مساعد جديد؛ سيستخدم هذا النموذج إذا لم يتم تعيين مساعد.",
-      "docs": "[to be translated]:Model docs",
+      "docs": "توثيق النموذج",
       "empty": "لم يتم العثور على نماذج",
-      "enabled_models": "[to be translated]:Enabled",
-      "expand_all": "[to be translated]:Expand all",
+      "enabled_models": "مفعلة",
+      "expand_all": "وسّع الكل",
       "filter": {
-        "clear": "[to be translated]:Clear model filter",
-        "label": "[to be translated]:Filter models"
+        "clear": "امسح فلتر النماذج",
+        "label": "فلتر النماذج"
       },
-      "group_disable": "[to be translated]:Disable this group",
-      "group_enable": "[to be translated]:Enable this group",
-      "list_title": "[to be translated]:Model list",
+      "group_disable": "عطّل هذه المجموعة",
+      "group_enable": "فعّل هذه المجموعة",
+      "list_title": "قائمة النماذج",
       "manage": {
-        "add_custom_model": "[to be translated]:Add custom model",
+        "add_custom_model": "أضف نموذجاً مخصصاً",
         "add_listed": {
           "confirm": "هل أنت متأكد من إضافة جميع النماذج إلى القائمة؟",
           "label": "أضف النماذج إلى القائمة"
         },
         "add_whole_group": "أضف المجموعة كاملة",
-        "drawer_title": "[to be translated]:Model management",
-        "fetch_deselect_all_add": "[to be translated]:Deselect all",
-        "fetch_deselect_all_remove": "[to be translated]:Deselect all",
+        "drawer_title": "إدارة النماذج",
+        "fetch_deselect_all_add": "إلغاء تحديد الكل",
+        "fetch_deselect_all_remove": "إلغاء تحديد الكل",
         "fetch_list": "اجلب قائمة النماذج",
-        "fetch_ok": "[to be translated]:OK",
-        "fetch_removed_hint": "[to be translated]:These models no longer exist on the provider API. Check to remove them from your list.",
-        "fetch_result_title": "[to be translated]:Pull result",
-        "fetch_select_all_add": "[to be translated]:Select all to add",
-        "fetch_select_all_remove": "[to be translated]:Select all to remove",
-        "fetch_summary_add": "[to be translated]:Add {{selected}}/{{total}} models",
-        "fetch_summary_remove": "[to be translated]:Remove {{selected}}/{{total}} models",
-        "fetch_up_to_date": "[to be translated]:Your model list is up to date",
-        "fetch_up_to_date_hint": "[to be translated]:No new or removed models were found.",
-        "filter_add_all": "[to be translated]:Add all in view",
-        "filter_remove_all": "[to be translated]:Remove from provider",
-        "footer_done": "[to be translated]:Done",
-        "large_group_hidden": "[to be translated]:Show {{count}} more models",
-        "operation_failed": "[to be translated]:Model operation failed.",
+        "fetch_ok": "موافق",
+        "fetch_removed_hint": "هذه النماذج لم تعد موجودة في واجهة برمجة تطبيقات المزود. حدد لإزالتها من قائمتك.",
+        "fetch_result_title": "نتيجة السحب",
+        "fetch_select_all_add": "حدد الكل للإضافة",
+        "fetch_select_all_remove": "حدد الكل للإزالة",
+        "fetch_summary_add": "أضف {{selected}}/{{total}} نماذج",
+        "fetch_summary_remove": "أزل {{selected}}/{{total}} نماذج",
+        "fetch_up_to_date": "قائمة النماذج محدثة",
+        "fetch_up_to_date_hint": "لم يتم العثور على نماذج جديدة أو محذوفة.",
+        "filter_add_all": "أضف الكل في العرض",
+        "filter_remove_all": "أزل من المزود",
+        "footer_done": "تم",
+        "large_group_hidden": "اعرض {{count}} نماذج أخرى",
+        "operation_failed": "فشلت عملية النموذج.",
         "refetch_list": "أعد جلب قائمة النماذج",
-        "reload_catalog": "[to be translated]:Refresh list",
+        "reload_catalog": "أعد تحميل القائمة",
         "remove_listed": "أزل النماذج من القائمة",
         "remove_model": "أزل النموذج",
         "remove_whole_group": "أزل المجموعة كاملة",
-        "search_models_placeholder": "[to be translated]:Search models…",
-        "select_none": "[to be translated]:Select none",
-        "status_all": "[to be translated]:All",
-        "status_disabled": "[to be translated]:Disabled",
-        "status_enabled": "[to be translated]:Enabled",
-        "sync_added_description": "[to be translated]:New upstream models that can be added to this provider.",
-        "sync_added_metric": "[to be translated]:{{count}} new models",
-        "sync_added_section": "[to be translated]:New models",
-        "sync_apply_changes": "[to be translated]:Apply changes",
-        "sync_apply_result": "[to be translated]:Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
-        "sync_empty_added": "[to be translated]:No new upstream models were found.",
-        "sync_empty_missing": "[to be translated]:No unavailable local models were found.",
-        "sync_impact_section": "[to be translated]:Reference impact",
-        "sync_impact_summary": "[to be translated]:{{models}} impacted models, {{references}} strong references",
-        "sync_missing_description": "[to be translated]:Local models that no longer exist in the latest upstream list.",
-        "sync_missing_metric": "[to be translated]:{{count}} unavailable models",
-        "sync_missing_section": "[to be translated]:Unavailable models",
-        "sync_no_references": "[to be translated]:No strong references",
-        "sync_pick_delete": "[to be translated]:Delete",
-        "sync_pick_deprecate": "[to be translated]:Mark deprecated",
-        "sync_preview_description": "[to be translated]:Review upstream model changes before updating your local model list.",
-        "sync_preview_summary": "[to be translated]:Pull preview",
-        "sync_pull_failed": "[to be translated]:Failed to pull models.",
-        "sync_reference_assistants": "[to be translated]:Assistants {{count}}",
-        "sync_reference_knowledge": "[to be translated]:Knowledge bases {{count}}",
-        "sync_reference_preferences": "[to be translated]:Preferences {{count}}",
-        "sync_references": "[to be translated]:Strong references {{count}}",
-        "sync_replacement": "[to be translated]:Suggested replacement: {{model}}",
-        "sync_selected_metric": "[to be translated]:{{count}} selected",
-        "sync_selected_summary": "[to be translated]:{{selected}} / {{total}} selected",
-        "sync_switch_to_delete": "[to be translated]:Delete instead",
-        "sync_switch_to_deprecate": "[to be translated]:Mark deprecated instead",
-        "sync_will_deprecate": "[to be translated]:Will be marked deprecated"
+        "search_models_placeholder": "ابحث عن النماذج...",
+        "select_none": "لا تحدد شيئاً",
+        "status_all": "الكل",
+        "status_disabled": "معطلة",
+        "status_enabled": "مفعلة",
+        "sync_added_description": "نماذج upstream جديدة يمكن إضافتها إلى هذا المزود.",
+        "sync_added_metric": "{{count}} نماذج جديدة",
+        "sync_added_section": "نماذج جديدة",
+        "sync_apply_changes": "طبق التغييرات",
+        "sync_apply_result": "أُضيف {{added}}، أُهمل {{deprecated}}، حُذف {{deleted}}.",
+        "sync_empty_added": "لم يتم العثور على نماذج upstream جديدة.",
+        "sync_empty_missing": "لم يتم العثور على نماذج محلية غير متاحة.",
+        "sync_impact_section": "تأثير المراجع",
+        "sync_impact_summary": "{{models}} نماذج متأثرة، {{references}} مراجع قوية",
+        "sync_missing_description": "نماذج محلية لم تعد موجودة في قائمة upstream الأخيرة.",
+        "sync_missing_metric": "{{count}} نماذج غير متاحة",
+        "sync_missing_section": "نماذج غير متاحة",
+        "sync_no_references": "لا توجد مراجع قوية",
+        "sync_pick_delete": "احذف",
+        "sync_pick_deprecate": "علّم كمهمل",
+        "sync_preview_description": "راجع تغييرات نماذج upstream قبل تحديث قائمة النماذج المحلية.",
+        "sync_preview_summary": "معاينة السحب",
+        "sync_pull_failed": "فشل سحب النماذج.",
+        "sync_reference_assistants": "المساعدون {{count}}",
+        "sync_reference_knowledge": "قواعد المعرفة {{count}}",
+        "sync_reference_preferences": "التفضيلات {{count}}",
+        "sync_references": "مراجع قوية {{count}}",
+        "sync_replacement": "البديل المقترح: {{model}}",
+        "sync_selected_metric": "{{count}} محددة",
+        "sync_selected_summary": "{{selected}} / {{total}} محددة",
+        "sync_switch_to_delete": "احذف بدلاً من ذلك",
+        "sync_switch_to_deprecate": "علّم كمهمل بدلاً من ذلك",
+        "sync_will_deprecate": "سيتم تعليمها كمهملة"
       },
-      "more_actions": "[to be translated]:More model list actions",
-      "not_enabled_models": "[to be translated]:Disabled",
+      "more_actions": "المزيد من إجراءات قائمة النماذج",
+      "not_enabled_models": "معطلة",
       "provider_id": "معرف المزود",
       "provider_key_add_confirm": "هل تريد إضافة مفتاح API لـ {{provider}}؟",
       "provider_key_add_failed_by_empty_data": "فشل إضافة مفتاح API للمزود، البيانات فارغة",
@@ -6267,10 +6267,10 @@
         "tooltip": "يوصى باختيار نموذج خفيف ولا يوصى باختيار نموذج تفكير."
       },
       "toolbar": {
-        "custom_add": "[to be translated]:Custom",
-        "filter_close": "[to be translated]:Close filter",
-        "filter_open": "[to be translated]:Filter by capability",
-        "pull_short": "[to be translated]:Get model list"
+        "custom_add": "مخصص",
+        "filter_close": "أغلق الفلتر",
+        "filter_open": "فلتر حسب القدرة",
+        "pull_short": "احصل على قائمة النماذج"
       },
       "topic_naming": {
         "auto": "تسمية تلقائية للموضوع",
@@ -6333,41 +6333,41 @@
       }
     },
     "plugins": {
-      "bunDescription": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
-      "description": "[to be translated]:Manage binary tools and runtime dependencies required by the app.",
-      "installing": "[to be translated]:Installing...",
-      "notInstalled": "[to be translated]:Not installed",
-      "title": "[to be translated]:Dependencies",
-      "uvDescription": "[to be translated]:Python package manager for MCP services and dependency installation."
+      "bunDescription": "بيئة تشغيل JavaScript المستخدمة بواسطة خدمات MCP وسلاسل الأدوات ذات الصلة.",
+      "description": "أدر الأدوات الثنائية وتبعيات وقت التشغيل المطلوبة للتطبيق.",
+      "installing": "جاري التثبيت...",
+      "notInstalled": "غير مثبت",
+      "title": "التبعيات",
+      "uvDescription": "مدير حزم Python لخدمات MCP وتثبيت التبعيات."
     },
     "privacy": {
       "enable_privacy_mode": "إبلاغ مجهول عن الأخطاء والإحصائيات",
       "title": "إعدادات الخصوصية"
     },
     "prompts": {
-      "add": "[to be translated]:Add Prompt",
-      "contentLabel": "[to be translated]:Content",
-      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "[to be translated]:Delete Prompt",
-      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
-      "edit": "[to be translated]:Edit Prompt",
+      "add": "أضف موجهاً",
+      "contentLabel": "المحتوى",
+      "contentPlaceholder": "أدخل محتوى التوجيه. يدعم ${المتغيرات}؛ اضغط على Tab للانتقال بين المتغيرات. مثال:\nساعدني في التخطيط لمسار من ${from} إلى ${to}، وأرسله إلى ${email}.",
+      "delete": "احذف التوجيه",
+      "deleteConfirm": "سيتم حذف التوجيه نهائياً. هل تريد الاستمرار؟",
+      "edit": "عدل التوجيه",
       "errors": {
-        "createFailed": "[to be translated]:Failed to create prompt",
-        "deleteFailed": "[to be translated]:Failed to delete prompt",
-        "loadFailed": "[to be translated]:Failed to load prompts",
-        "reorderFailed": "[to be translated]:Failed to reorder prompts",
-        "updateFailed": "[to be translated]:Failed to update prompt"
+        "createFailed": "فشل إنشاء التوجيه",
+        "deleteFailed": "فشل حذف التوجيه",
+        "loadFailed": "فشل تحميل التوجيهات",
+        "reorderFailed": "فشل إعادة ترتيب التوجيهات",
+        "updateFailed": "فشل تحديث التوجيه"
       },
-      "title": "[to be translated]:Prompt Management",
-      "titleLabel": "[to be translated]:Title",
-      "titlePlaceholder": "[to be translated]:Enter prompt title"
+      "title": "إدارة التوجيهات",
+      "titleLabel": "العنوان",
+      "titlePlaceholder": "أدخل عنوان التوجيه"
     },
     "provider": {
       "add": {
         "name": {
           "label": "اسم المزود",
           "placeholder": "مثال: OpenAI",
-          "required": "[to be translated]:Please enter the provider name"
+          "required": "يرجى إدخال اسم المزود"
         },
         "title": "أضف مزوداً",
         "type": "نوع المزود"
@@ -6434,23 +6434,23 @@
         }
       },
       "api_host": "مضيف API",
-      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
+      "api_host_drawer_hint": "عنوان URL مخصص لطلبات API؛ اتركه فارغاً عند تطبيق الافتراضي من الكتالوج.",
       "api_host_no_valid": "عنوان API غير صالح",
-      "api_host_placeholder": "[to be translated]:Not configured",
+      "api_host_placeholder": "غير مهيأ",
       "api_host_preview": "معاينة: {{url}}",
       "api_host_tooltip": "تجاوز الإعداد فقط عندما يتطلب المزود نقطة نهاية مخصصة متوافقة مع OpenAI.",
       "api_key": {
-        "copy": "[to be translated]:Copy",
-        "enabled_suffix": "[to be translated]:enabled",
-        "hide_key": "[to be translated]:Hide key",
+        "copy": "انسخ",
+        "enabled_suffix": "مفعلة",
+        "hide_key": "إخفاء المفتاح",
         "label": "مفتاح API",
-        "label_placeholder": "[to be translated]:Label",
-        "list_description": "[to be translated]:Manage multiple API keys for this provider",
-        "placeholder": "[to be translated]:Enter API key",
-        "save_failed": "[to be translated]:Failed to save API keys",
-        "show_key": "[to be translated]:Show key",
+        "label_placeholder": "تسمية",
+        "list_description": "أدر مفاتيح API متعددة لهذا المزود",
+        "placeholder": "أدخل مفتاح API",
+        "save_failed": "فشل حفظ مفاتيح API",
+        "show_key": "إظهار المفتاح",
         "tip": "استخدم الفواصل للفصل بين عدة مفاتيح",
-        "unnamed": "[to be translated]:API Key"
+        "unnamed": "مفتاح API"
       },
       "api_version": "إصدار API",
       "aws-bedrock": {
@@ -6465,7 +6465,7 @@
         "description": "خدمة AWS Bedrock هي خدمة نماذج أساسية مدارة بالكامل من Amazon تدعم نماذج لغوية كبيرة متقدمة ومتنوعة",
         "region": "منطقة AWS",
         "region_help": "منطقة خدمة AWS الخاصة بك، مثل us-east-1",
-        "region_required": "[to be translated]:Enter an AWS region before saving",
+        "region_required": "أدخل منطقة AWS قبل الحفظ",
         "secret_access_key": "مفتاح الوصول السري لـ AWS",
         "secret_access_key_help": "مفتاح الوصول السري الخاص بك لـ AWS، يرجى الحفاظ على أمانه",
         "title": "تهيئة AWS Bedrock"
@@ -6477,9 +6477,9 @@
       },
       "balance": "الرصيد",
       "base_url": {
-        "label": "[to be translated]:Base URL",
-        "placeholder": "[to be translated]:https://api.example.com",
-        "required": "[to be translated]:Please enter the Base URL"
+        "label": "الرابط الأساسي",
+        "placeholder": "https://api.example.com",
+        "required": "يرجى إدخال الرابط الأساسي"
       },
       "basic_auth": {
         "label": "مصادقة HTTP",
@@ -6500,13 +6500,13 @@
       "check_multiple_keys": "تحقق من مفاتيح API المتعددة",
       "cherryin": {
         "api_host": {
-          "acceleration": "[to be translated]:Acceleration domain",
-          "backup": "[to be translated]:Backup domain",
-          "international": "[to be translated]:International domain"
+          "acceleration": "نطاق التسريع",
+          "backup": "النطاق الاحتياطي",
+          "international": "النطاق الدولي"
         }
       },
       "copilot": {
-        "add_request_header": "[to be translated]:Add header",
+        "add_request_header": "أضف رأساً",
         "auth_failed": "فشلت مصادقة GitHub Copilot.",
         "auth_success": "نجحت مصادقة GitHub Copilot.",
         "auth_success_title": "نجح التصديق.",
@@ -6519,12 +6519,12 @@
         "description": "يحتاج حساب GitHub الخاص بك للاشتراك في Copilot.",
         "description_detail": "GitHub Copilot هو مساعد برمجة مدعوم بالذكاء الاصطناعي يتطلب اشتراكاً صالحاً في GitHub Copilot لاستخدامه",
         "expand": "توسيع",
-        "header_field_name": "[to be translated]:Header",
-        "header_field_value": "[to be translated]:Value",
-        "header_name_placeholder": "[to be translated]:Header name",
-        "header_value_placeholder": "[to be translated]:Header value",
+        "header_field_name": "الرأس",
+        "header_field_value": "القيمة",
+        "header_name_placeholder": "اسم الرأس",
+        "header_value_placeholder": "قيمة الرأس",
         "headers_description": "رؤوس طلب مخصصة (بتنسيق JSON)",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "خطأ في تنسيق JSON",
         "login": "سجل الدخول إلى GitHub",
         "logout": "اخرج من GitHub",
@@ -6546,11 +6546,11 @@
         "step_copy_code_detail": "تم نسخ رمز المصادقة تلقائياً، يمكنك أيضاً نسخه يدوياً",
         "step_get_code": "احصل على رمز المصادقة",
         "step_get_code_desc": "توليد رمز مصادقة الجهاز",
-        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
-        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
+        "toggle_headers_editor_json": "التبديل إلى محرر JSON",
+        "toggle_headers_editor_list": "التبديل إلى قائمة الرؤوس"
       },
       "create_custom": {
-        "title": "[to be translated]:Add Custom Provider"
+        "title": "أضف مزوداً مخصصاً"
       },
       "delete": {
         "content": "هل أنت متأكد أنك تريد حذف هذا المزود؟",
@@ -6565,29 +6565,29 @@
       "docs_check": "تحقق",
       "docs_more_details": "لمزيد من التفاصيل",
       "duplicate": {
-        "add_another": "[to be translated]:Add {{name}} instance",
-        "drawer_title": "[to be translated]:Add {{name}} instance",
-        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
-        "menu_label": "[to be translated]:Add instance"
+        "add_another": "إضافة نسخة من {{name}}",
+        "drawer_title": "إضافة نسخة من {{name}}",
+        "fill_after_create": "يمكن تعبئة حقول المصادقة بعد الإنشاء",
+        "menu_label": "إضافة نسخة"
       },
       "filter": {
         "agent": "يدعم الوكيل",
         "all": "كافة المزودين",
-        "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only",
-        "label": "[to be translated]:Filter providers"
+        "disabled": "المعطلة فقط",
+        "enabled": "المفعلة فقط",
+        "label": "تصفية المزودين"
       },
       "filter_agent": "صفِّ المزودين الذين يدعمون الوكيل",
       "get_api_key": "احصل على مفتاح API",
-      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
+      "logo_upload_failed": "فشل معالجة الصورة المحددة",
       "misc": "آخر",
       "more_endpoints": {
-        "add": "[to be translated]:Add Endpoint",
-        "anthropic": "[to be translated]:Anthropic Messages",
-        "gemini": "[to be translated]:Google Gemini",
-        "openai_chat": "[to be translated]:OpenAI Chat Completions",
-        "openai_responses": "[to be translated]:OpenAI Responses",
-        "toggle": "[to be translated]:More Endpoints"
+        "add": "إضافة نقطة نهاية",
+        "anthropic": "Anthropic Messages",
+        "gemini": "Google Gemini",
+        "openai_chat": "OpenAI Chat Completions",
+        "openai_responses": "OpenAI Responses",
+        "toggle": "نقاط نهاية إضافية"
       },
       "no_models_for_check": "لا توجد نماذج متاحة للتحقق (مثل نماذج الدردشة)",
       "not_checked": "لم يتم التحقق",
@@ -6598,19 +6598,19 @@
       },
       "oauth": {
         "balance": "الرصيد",
-        "balance_error": "[to be translated]:Failed to fetch balance",
+        "balance_error": "فشل جلب الرصيد",
         "button": "سجل الدخول بواسطة {{provider}}",
         "cherryIn": {
           "description": "سجل الدخول إلى CherryIN باستخدام OAuth 2.0",
           "logged_in": "مسجل الدخول عبر OAuth",
           "login_button": "سجل الدخول بـ OAuth",
           "logout_button": "سجل الخروج",
-          "not_logged_in": "[to be translated]:Not logged in",
-          "register_account": "[to be translated]:Create account",
-          "service_attribution": "[to be translated]:This service is provided by <link>open.cherryin.ai</link>",
-          "tagline": "[to be translated]:After you sign in, you can use all model services",
+          "not_logged_in": "غير مسجل الدخول",
+          "register_account": "إنشاء حساب",
+          "service_attribution": "هذه الخدمة مقدمة من <link>open.cherryin.ai</link>",
+          "tagline": "بعد تسجيل الدخول، يمكنك استخدام جميع خدمات النماذج",
           "title": "تسجيل دخول OAuth",
-          "use_api_key": "[to be translated]:Use API key instead"
+          "use_api_key": "استخدم مفتاح API بدلاً من ذلك"
         },
         "connect": "اربط {{provider}}",
         "description": "يتم توفير هذه الخدمة بواسطة <website>{{provider}}</website>",
@@ -6626,22 +6626,22 @@
         "requests": "الطلبات",
         "topup": "اشحن الرصيد",
         "usage_title": "الاستخدام",
-        "usage_unit": "[to be translated]:tokens"
+        "usage_unit": "رموز"
       },
       "openai": {
         "alert": "مزود OpenAI لم يعد يدعم طرق الاستدعاء القديمة. إذا كنت تستخدم API لجهة خارجية، يرجى إنشاء مزود خدمة جديد."
       },
       "remove_duplicate_keys": "أزل المفاتيح المكررة",
       "remove_invalid_keys": "أزل المفاتيح غير الصالحة",
-      "reorder_failed": "[to be translated]:Failed to reorder providers",
-      "request_configuration": "[to be translated]:Request configuration",
-      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
-      "save_failed": "[to be translated]:Failed to save provider settings",
+      "reorder_failed": "فشل إعادة ترتيب المزودين",
+      "request_configuration": "تهيئة الطلب",
+      "request_configuration_tooltip": "هيئ مضيف API والترويسات المخصصة للطلب",
+      "save_failed": "فشل حفظ إعدادات المزود",
       "search": "ابحث عن المزودين...",
       "search_placeholder": "ابحث عن معرف النموذج أو اسمه",
       "section": {
-        "account": "[to be translated]:Account",
-        "configuration": "[to be translated]:Configuration"
+        "account": "الحساب",
+        "configuration": "التهيئة"
       },
       "title": "مزود النموذج",
       "vertex_ai": {
@@ -6654,7 +6654,7 @@
         "project_id": "معرف المشروع",
         "project_id_help": "معرف مشروع Google Cloud الخاص بك",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "اختر الموقع",
         "service_account": {
           "auth_success": "تم توثيق حساب الخدمة بنجاح",
           "client_email": "البريد الإلكتروني للعميل",
@@ -6671,9 +6671,9 @@
           "private_key_help": "حقل private_key من ملف مفتاح JSON الذي تم تنزيله من Google Cloud Console",
           "private_key_placeholder": "أدخل المفتاح الخاص لحساب الخدمة",
           "title": "إعداد حساب الخدمة",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "بدّل رؤية البريد الإلكتروني للعميل",
+          "toggle_private_key_visibility": "بدّل رؤية المفتاح الخاص",
+          "toggle_project_id_visibility": "بدّل رؤية معرف المشروع"
         }
       }
     },
@@ -6731,55 +6731,55 @@
     "shortcuts": {
       "action": "إجراء",
       "actions": "عملية",
-      "all_disable": "[to be translated]:Disable All",
-      "all_enable": "[to be translated]:Enable All",
-      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
+      "all_disable": "عطّل الكل",
+      "all_enable": "فعّل الكل",
+      "bind_first_to_enable": "اربط اختصاراً أولاً لتغيير حالته المفعلة",
       "categories": {
-        "assistant": "[to be translated]:AI Tools",
-        "chat": "[to be translated]:Messages",
-        "general": "[to be translated]:General",
-        "title": "[to be translated]:Shortcut Groups",
-        "topic": "[to be translated]:Conversations"
+        "assistant": "أدوات الذكاء الاصطناعي",
+        "chat": "الرسائل",
+        "general": "عام",
+        "title": "مجموعات الاختصارات",
+        "topic": "المحادثات"
       },
       "clear_shortcut": "مسح الاختصار",
       "clear_topic": "مسح الرسائل",
-      "close_tab": "[to be translated]:Close Tab",
-      "conflict_with": "[to be translated]:Already used by \"{{name}}\"",
+      "close_tab": "أغلق اللسان",
+      "conflict_with": "مستخدم بالفعل بواسطة \"{{name}}\"",
       "copy_last_message": "انسخ آخر رسالة",
       "edit_last_user_message": "عدّل آخر رسالة مستخدم",
-      "empty": "[to be translated]:No shortcuts are available in this group",
+      "empty": "لا توجد اختصارات متاحة في هذه المجموعة",
       "enabled": "فعّل",
       "exit_fullscreen": "اخرج من ملء الشاشة",
       "label": "مفتاح",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "انقل اللسان إلى الأول",
       "new_topic": "موضوع جديد",
-      "occupied_by_other_application": "[to be translated]:This shortcut is already used by the system or another application",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "occupied_by_other_application": "هذا الاختصار مستخدم بالفعل بواسطة النظام أو تطبيق آخر",
+      "open_tab_in_new_window": "افتح اللسان في نافذة جديدة",
+      "pin_tab": "بدّل تثبيت اللسان",
       "press_shortcut": "اضغط على الاختصار",
-      "quick_assistant": "[to be translated]:Quick Assistant",
+      "quick_assistant": "المساعد السريع",
       "rename_topic": "أعد تسمية الموضوع",
-      "reset": "[to be translated]:Reset",
+      "reset": "استعد",
       "reset_defaults": "استعد الافتراضيات",
       "reset_defaults_confirm": "هل أنت متأكد من إعادة ضبط كافة الاختصارات؟",
-      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
+      "reset_defaults_failed": "فشل استعادة الاختصارات إلى الافتراضيات",
       "reset_to_default": "استعد الافتراضي",
-      "save_failed": "[to be translated]:Failed to save shortcut",
-      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
+      "save_failed": "فشل حفظ الاختصار",
+      "save_failed_with_name": "فشل حفظ الاختصار: {{name}}",
       "search_message": "ابحث عن رسالة",
       "search_message_in_chat": "ابحث عن رسالة في الدردشة الحالية",
-      "search_placeholder": "[to be translated]:Search shortcuts...",
+      "search_placeholder": "ابحث عن الاختصارات...",
       "select_model": "اختيار النموذج",
       "selection_assistant_select_text": "مساعد التحديد: حدد النص",
       "selection_assistant_toggle": "بدّل مساعد التحديد",
       "show_app": "إظهار/إخفاءِ التطبيق",
       "show_settings": "افتح الإعدادات",
       "title": "اختصارات لوحة المفاتيح",
-      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
+      "toggle_left_sidebar": "بدّل الشريط الجانبي الأيسر",
       "toggle_new_context": "مسح السياق",
-      "toggle_right_sidebar": "[to be translated]:Toggle Right Sidebar",
+      "toggle_right_sidebar": "بدّل الشريط الجانبي الأيمن",
       "toggle_show_topics": "بدّل المواضيع",
-      "toggle_sidebar": "[to be translated]:Toggle Sidebar",
+      "toggle_sidebar": "بدّل الشريط الجانبي",
       "zoom_in": "كبّر",
       "zoom_out": "صغّر",
       "zoom_reset": "استعد مستوى التكبير"
@@ -6837,75 +6837,75 @@
     "tool": {
       "file_processing": {
         "actions": {
-          "set_as_default": "[to be translated]:Set as default"
+          "set_as_default": "عيّن كافتراضي"
         },
         "errors": {
-          "invalid_api_host": "[to be translated]:Invalid API host",
-          "load_processors_failed": "[to be translated]:Failed to load available processors",
-          "save_failed": "[to be translated]:Save failed"
+          "invalid_api_host": "مضيف API غير صالح",
+          "load_processors_failed": "فشل تحميل المعالجات المتاحة",
+          "save_failed": "فشل الحفظ"
         },
         "features": {
           "document_to_markdown": {
-            "title": "[to be translated]:Document Processing",
-            "tooltip": "[to be translated]:Used to parse documents for knowledge bases"
+            "title": "معالجة المستندات",
+            "tooltip": "تُستخدم لتحليل المستندات لقواعد المعرفة"
           },
           "image_to_text": {
-            "title": "[to be translated]:OCR",
-            "tooltip": "[to be translated]:Used to recognize text in images"
+            "title": "التعرف الضوئي على الحروف",
+            "tooltip": "تُستخدم للتعرف على النص في الصور"
           }
         },
         "fields": {
-          "api_base_url": "[to be translated]:API Base URL",
-          "api_key": "[to be translated]:API Key",
-          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
-          "languages": "[to be translated]:Languages"
+          "api_base_url": "عنوان API الأساسي",
+          "api_key": "مفتاح API",
+          "api_keys_placeholder": "افصل المفاتيح المتعددة بفواصل",
+          "languages": "اللغات"
         },
         "processors": {
           "doc2x": {
-            "description": "[to be translated]:Advanced file restoration engine.",
-            "name": "[to be translated]:Doc2x"
+            "description": "محرك متقدم لاستعادة الملفات.",
+            "name": "Doc2x"
           },
           "mineru": {
-            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
-            "name": "[to be translated]:MinerU"
+            "description": "أداة استخراج PDF مفتوحة المصدر عالية الجودة من OpenDataLab.",
+            "name": "MinerU"
           },
           "mistral": {
-            "description": "[to be translated]:File parsing and understanding service.",
-            "name": "[to be translated]:Mistral"
+            "description": "خدمة تحليل وفهم الملفات.",
+            "name": "Mistral"
           },
           "open_mineru": {
-            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
-            "name": "[to be translated]:Open MinerU"
+            "description": "خدمة MinerU قابلة للاستضافة الذاتية للفرق التي تريد المزيد من التحكم في خط المعالجة.",
+            "name": "Open MinerU"
           },
           "ovocr": {
-            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
-            "name": "[to be translated]:Intel OV OCR"
+            "description": "محرك Intel OpenVINO OCR للتعرف الضوئي على الحروف يعمل محلياً بتسريع NPU.",
+            "name": "Intel OV OCR"
           },
           "paddleocr": {
             "deployment": {
-              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
-              "docs": "[to be translated]:View Docker deployment docs"
+              "description": "يمكنك نشر PaddleOCR محلياً باستخدام صورة Docker المدعومة رسمياً، ثم إدخال عنوان API هنا.",
+              "docs": "اعرض وثائق نشر Docker"
             },
-            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "description": "نظام التعرف الضوئي على الحروف من Baidu PaddleOCR.",
             "fields": {
-              "parse_model": "[to be translated]:Parse Model"
+              "parse_model": "نموذج التحليل"
             },
-            "name": "[to be translated]:PaddleOCR"
+            "name": "PaddleOCR"
           },
           "system": {
-            "description": "[to be translated]:Native operating system OCR engine.",
-            "name": "[to be translated]:System OCR",
+            "description": "محرك التعرف الضوئي على الحروف الأصلي لنظام التشغيل.",
+            "name": "التعرف الضوئي للحروف للنظام",
             "status": {
-              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
-              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+              "available": "تم اكتشاف محرك macOS Live Text / Windows OCR المتاح.",
+              "no_configuration": "يستدعي التعرف الضوئي على الحروف للنظام المحرك الأصلي للنظام مباشرة. هو الأسرع، لكن الدقة تعتمد على إصدار نظام التشغيل."
             }
           },
           "tesseract": {
-            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
-            "name": "[to be translated]:Tesseract OCR"
+            "description": "محرك التعرف الضوئي على الحروف مفتوح المصدر من Google يعمل محلياً بالكامل.",
+            "name": "Tesseract OCR"
           }
         },
-        "title": "[to be translated]:Document Parsing"
+        "title": "تحليل المستندات"
       },
       "title": "إعدادات أخرى",
       "websearch": {
@@ -6918,7 +6918,7 @@
         "apikey": "مفتاح API",
         "blacklist": "القائمة السوداء",
         "blacklist_description": "لن تظهر نتائج المواقع التالية في نتائج البحث",
-        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
+        "blacklist_invalid_entries": "مدخلات القائمة السوداء غير صالحة: {{entries}}",
         "blacklist_tooltip": "يرجى استخدام التنسيق التالي (مفصولاً بسطور جديدة)\nمطابقة النمط: *://*.example.com/*\nتعبير نمطي: /example\\.(net|org)/",
         "check": "تحقق",
         "check_failed": "فشل التحقق",
@@ -6946,10 +6946,10 @@
         "content_limit_tooltip": "حدد طول محتوى نتائج البحث؛ سيتم قطع المحتوى الذي يتجاوز الحد.",
         "default_provider": "المزود الافتراضي",
         "errors": {
-          "save_failed": "[to be translated]:Save failed",
-          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+          "save_failed": "فشل الحفظ",
+          "zhipu_sync_failed": "فشل مزامنة مفتاح Zhipu API مع بحث الويب. يرجى إعادة حفظ المفتاح أو التحقق من إعدادات بحث الويب."
         },
-        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
+        "fetch_urls_provider": "مزود جلب الروابط الافتراضي",
         "free": "مجاني",
         "is_default": "افتراضي",
         "local_provider": {
@@ -6962,15 +6962,15 @@
         "overwrite": "تجاوز خدمة البحث",
         "overwrite_tooltip": "فرض استخدام خدمة البحث بدلاً من النموذج",
         "provider_description": {
-          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
-          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
-          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
-          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
-          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
-          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
-          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
-          "tavily": "[to be translated]:Search engine optimized for LLMs.",
-          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+          "bocha": "واجهة بحث AI صينية مع نتائج ويب فورية ومهيكلة.",
+          "exa": "واجهة بحث عصبية لتطبيقات الذكاء الاصطناعي، مضبوطة للاسترجاع الدلالي من الويب.",
+          "exa_mcp": "عرّض بحث Exa للوكلاء عبر خادم Exa MCP.",
+          "fetch": "مزود جلب الروابط المدمج. يجلب محتوى صفحة الويب من رابط لإثراء نتائج البحث.",
+          "jina": "واجهتا بحث وقراءة من Jina Reader لاسترجاع محتوى وب نظيف.",
+          "querit": "خدمة بحث لتطبيقات الذكاء الاصطناعي مع نتائج استرجاع من الويب.",
+          "searxng": "محرك بحث شامل مجاني قابل للاستضافة الذاتية عبر مصادر متعددة.",
+          "tavily": "محرك بحث مُحسن لنماذج اللغة الكبيرة.",
+          "zhipu": "بحث Zhipu GLM على الويب للاسترجاع الحي والمعلومات الحالية."
         },
         "search_max_result": {
           "label": "عدد نتائج البحث",
@@ -7066,17 +7066,17 @@
     }
   },
   "subWindow": {
-    "back_to_main": "[to be translated]:Back to Main Window",
-    "pin": "[to be translated]:Keep on Top",
-    "unpin": "[to be translated]:Cancel Keep on Top"
+    "back_to_main": "العودة للنافذة الرئيسية",
+    "pin": "تثبيت في الأعلى",
+    "unpin": "إلغاء التثبيت"
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "move_to_first": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "open_in_new_window": "[to be translated]:Open in New Window",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "أغلق اللسان",
+    "move_to_first": "انقل إلى الأول",
+    "new": "لسان جديد",
+    "open_in_new_window": "افتح في نافذة جديدة",
+    "pin": "ثبّت اللسان",
+    "unpin": "ألغِ تثبيت اللسان"
   },
   "title": {
     "apps": "تطبيقات",
@@ -7094,34 +7094,34 @@
     "translate": "ترجمة"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
+    "agent": "الوكيل",
     "backList": "عودة للقائمة",
-    "cachedTokens": "[to be translated]:Cached",
+    "cachedTokens": "المخزنة مؤقتاً",
     "endTime": "وقت الانتهاء",
     "inputs": "المدخلات",
     "label": "سلسلة الاستدعاء",
-    "model": "[to be translated]:Model",
+    "model": "النموذج",
     "name": "اسم العقدة",
     "noTraceList": "لم يتم العثور على معلومات التتبع",
-    "operation": "[to be translated]:Operation",
+    "operation": "العملية",
     "outputs": "المخرجات",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
+    "pollError": "فشل الاستطلاع",
+    "reasoningTokens": "الاستدلال",
+    "requestHeaders": "ترويسات الطلب",
+    "requestMethod": "طريقة الطلب",
+    "requestUrl": "رابط الطلب",
+    "responseHeaders": "ترويسات الاستجابة",
+    "responseStatus": "حالة الاستجابة",
+    "serverDescription": "وصف الخادم",
+    "serverName": "اسم الخادم",
+    "serverType": "نوع الخادم",
     "spanDetail": "تفاصيل النطاق",
     "spendTime": "الوقت المستغرق",
     "startTime": "وقت البدء",
-    "status": "[to be translated]:Status",
+    "status": "الحالة",
     "tag": "وسام",
     "tokenUsage": "استخدام الرموز",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "toolCalls": "استدعاءات الأدوات"
   },
   "translate": {
     "alter_language": "لغة بديلة",
@@ -7154,7 +7154,7 @@
         },
         "label": "وسيلة الاكتشاف التلقائي",
         "llm": {
-          "label": "[to be translated]:LLM",
+          "label": "نموذج اللغة الكبير",
           "tip": "استخدام النموذج السريع لاكتشاف اللغة يستهلك رموزاً أقل."
         },
         "placeholder": "اختر وسيلة الاكتشاف التلقائي",
@@ -7168,12 +7168,12 @@
     "detecting": "جاري الاكتشاف...",
     "empty": "محتوى الترجمة فارغ",
     "error": {
-      "auto_copy_failed": "[to be translated]:Failed to auto-copy translation result",
+      "auto_copy_failed": "فشل النسخ التلقائي لنتيجة الترجمة",
       "chat_qwen_mt": "لا يمكن استخدام نموذج Qwen MT في الدردشة. يرجى الذهاب لصفحة الترجمة.",
       "detect": {
-        "empty": "[to be translated]:Detected language is empty",
-        "failed": "[to be translated]:Language detection failed",
-        "invalid": "[to be translated]:Detected language is not supported",
+        "empty": "اللغة المكتشفة فارغة",
+        "failed": "فشل اكتشاف اللغة",
+        "invalid": "اللغة المكتشفة غير مدعومة",
         "qwen_mt": "لا يمكن استخدام نموذج QwenMT لاكتشاف اللغة",
         "unknown": "تم اكتشاف لغة غير معروفة",
         "update_setting": "فشل الضبط"
@@ -7181,7 +7181,7 @@
       "empty": "نتيجة الترجمة محتوى فارغ",
       "failed": "فشلت الترجمة",
       "invalid_source": "لغة المصدر غير صالحة",
-      "languages_load_failed": "[to be translated]:Failed to load translate languages. Some features may be unavailable.",
+      "languages_load_failed": "فشل تحميل لغات الترجمة. قد تكون بعض الميزات غير متاحة.",
       "not_configured": "نموذج الترجمة غير مهيأ",
       "not_supported": "لغة غير مدعومة {{language}}",
       "unknown": "حدث خطأ غير معروف أثناء الترجمة"
@@ -7194,43 +7194,43 @@
       "error": {
         "check_type": "حدث خطأ أثناء فحص نوع الملف",
         "multiple": "غير مسموح برفع ملفات متعددة",
-        "ocr": "[to be translated]:Failed to recognize image text",
+        "ocr": "فشل التعرف على نص الصورة",
         "too_large": "الملف كبير جداً",
         "unknown": "فشل قراءة محتوى الملف"
       },
       "reading": "جاري قراءة محتوى الملف...",
-      "upload": "[to be translated]:Drop or click to upload image/document"
+      "upload": "أفلت أو انقر لرفع صورة/مستند"
     },
     "history": {
-      "back": "[to be translated]:Back to list",
+      "back": "العودة للقائمة",
       "clear": "مسح السجل",
       "clear_description": "مسح السجل سيحذف كافة سجلات الترجمة، استمرار؟",
-      "copy_target": "[to be translated]:Copy result",
+      "copy_target": "انسخ النتيجة",
       "delete": "حذف سجل الترجمة",
-      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
+      "delete_description": "احذف سجل الترجمة هذا؟ لا يمكن التراجع عن هذا الإجراء.",
       "empty": "لا يوجد سجل ترجمة",
       "error": {
-        "add": "[to be translated]:Failed to add translation history",
-        "clear": "[to be translated]:Failed to clear translation history",
+        "add": "فشل إضافة سجل الترجمة",
+        "clear": "فشل مسح سجل الترجمة",
         "delete": "فشل الحذف",
-        "load": "[to be translated]:Failed to load translation history",
+        "load": "فشل تحميل سجل الترجمة",
         "save": "فشل حفظ سجل الترجمة"
       },
       "filter": {
-        "starred": "[to be translated]:Only starred"
+        "starred": "المفضلة فقط"
       },
-      "reuse": "[to be translated]:Reuse",
+      "reuse": "أعد الاستخدام",
       "search": {
         "placeholder": "ابحث في سجل الترجمة"
       },
-      "source": "[to be translated]:Source",
+      "source": "المصدر",
       "success": {
-        "add": "[to be translated]:Saved to history",
-        "clear": "[to be translated]:History cleared",
-        "delete": "[to be translated]:Deleted",
-        "update": "[to be translated]:Saved"
+        "add": "تم الحفظ في السجل",
+        "clear": "تم مسح السجل",
+        "delete": "تم الحذف",
+        "update": "تم الحفظ"
       },
-      "target": "[to be translated]:Target",
+      "target": "الهدف",
       "title": "سجل الترجمة"
     },
     "info": {
@@ -7260,7 +7260,7 @@
       "bidirectional": "إعدادات الترجمة ثنائية الاتجاه",
       "bidirectional_tip": "عند التفعيل، تُدعم الترجمة ثنائية الاتجاه فقط بين لغتي المصدر والهدف",
       "error": {
-        "save": "[to be translated]:Failed to save translation settings"
+        "save": "تعذر حفظ إعدادات الترجمة"
       },
       "model": "إعدادات النموذج",
       "model_desc": "النموذج المستخدم لخدمة الترجمة",
@@ -7270,7 +7270,7 @@
       "scroll_sync": "إعدادات مزامنة التمرير",
       "title": "إعدادات الترجمة"
     },
-    "source_language": "[to be translated]:Source Language",
+    "source_language": "اللغة المصدر",
     "stop": "أوقف الترجمة",
     "success": {
       "custom": {
@@ -7286,7 +7286,7 @@
   },
   "tray": {
     "quit": "إنهاء",
-    "show_quick_assistant": "[to be translated]:Quick Assistant",
+    "show_quick_assistant": "المساعد السريع",
     "show_window": "إظهار النافذة"
   },
   "update": {

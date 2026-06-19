@@ -14,7 +14,7 @@
     Courier, monospace;
 }
 
-/* Windows系统专用字体配置 */
+/* Windows 系统专用字体配置 */
 body[os='windows'] {
   --font-family:
     var(--cs-user-font-family, var(--user-font-family, 'Twemoji Country Flags')), Ubuntu, -apple-system,
@@ -24,4 +24,12 @@ body[os='windows'] {
   --code-font-family:
     var(--cs-user-code-font-family, var(--user-code-font-family, 'Cascadia Code')), 'Fira Code', 'Consolas',
     'Sarasa Mono SC', 'Microsoft YaHei UI', Courier, monospace;
+}
+
+/* RTL language font configuration - Tajawal for Arabic */
+html[dir='rtl'] {
+  --font-family:
+    'Tajawal', var(--cs-user-font-family, var(--user-font-family, Ubuntu)), -apple-system, BlinkMacSystemFont,
+    'Segoe UI', system-ui, Roboto, Oxygen, Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 }
