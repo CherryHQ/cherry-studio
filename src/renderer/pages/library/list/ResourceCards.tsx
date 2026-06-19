@@ -1,13 +1,22 @@
 import { Badge, Button, EmptyState, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { type KeyboardEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { RESOURCE_TYPE_META } from '../constants'
 import type { ResourceItem } from '../types'
 import { ResourceCardMenu } from './ResourceCardMenu'
 import { type AssistantCatalogPreset, getAssistantPresetCatalogKey } from './useAssistantPresetCatalog'
+
+// Cards expose their primary action on the outer element, so keyboard users need
+// Enter/Space to mirror the pointer click.
+function activateCardOnKeyDown(event: KeyboardEvent<HTMLDivElement>, activate: () => void) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    activate()
+  }
+}
 
 function getPresetSummary(preset: AssistantCatalogPreset) {
   return (preset.description || preset.prompt || '').replace(/\s+/g, ' ').trim()
@@ -144,8 +153,12 @@ function AssistantPresetGridCard({
 
   return (
     <div
-      className="group flex min-h-36 flex-col rounded-lg border border-border-subtle bg-card p-3.5 transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
-      onClick={() => onPreview(preset)}>
+      className="group flex min-h-36 cursor-pointer flex-col rounded-lg border border-border-subtle bg-card p-3.5 transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
+      role="button"
+      tabIndex={0}
+      aria-label={preset.name}
+      onClick={() => onPreview(preset)}
+      onKeyDown={(e) => activateCardOnKeyDown(e, () => onPreview(preset))}>
       <div className="mb-2.5 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
           {preset.emoji || '🤖'}
@@ -227,7 +240,11 @@ export function ResourceCard({
   return (
     <div
       className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
-      onClick={() => onEdit(r)}>
+      role="button"
+      tabIndex={0}
+      aria-label={r.name}
+      onClick={() => onEdit(r)}
+      onKeyDown={(e) => activateCardOnKeyDown(e, () => onEdit(r))}>
       <div className="p-3.5">
         <div className="flex items-center gap-3">
           <div

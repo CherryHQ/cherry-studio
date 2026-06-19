@@ -170,7 +170,11 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): s
   return []
 }
 
-const DEFAULT_RESOURCE_TAG_COLOR = '#6372bd'
+// Neutral fallback for tags that carry no color of their own. The library layer
+// owns the real tag palette and passes per-tag colors in; this generic shell only
+// needs a token-neutral default. CustomTag concatenates an alpha suffix onto the
+// value, so it must be a hex string rather than a CSS variable.
+const DEFAULT_RESOURCE_TAG_COLOR = '#6b7280'
 const DEFAULT_MIN_LIST_HEIGHT = 144
 
 function normalizeTag(tag: ResourceSelectorShellTag) {
