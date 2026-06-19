@@ -642,7 +642,7 @@ const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
 })
 
 // Runtime note add carries only the caller-supplied content; `relativePath` is
-// written lazily by main on first index (see ensureNoteSnapshot), never by raw
+// written lazily by main on first index (see ensureSnapshot), never by raw
 // caller input, so it is omitted from the add surface.
 const RuntimeNoteItemDataSchema = KnowledgeItemSharedSchema.extend({
   content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.')

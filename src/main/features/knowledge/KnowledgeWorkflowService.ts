@@ -386,7 +386,7 @@ export class KnowledgeWorkflowService {
       }
       // Restore: copy the captured snapshot markdown into this base under a
       // collision-free name and pin the item to it, so the first index reads the
-      // snapshot offline (see ensureUrlSnapshot) instead of re-fetching the page.
+      // snapshot offline (see ensureSnapshot) instead of re-fetching the page.
       const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
       const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
       await copyFileIntoKnowledgeBaseAt(baseId, input.data.snapshotPath, relativePath)
