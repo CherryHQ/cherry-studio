@@ -43,12 +43,6 @@ import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
 
-// ── Budget-stop helpers ──────────────────────────────────────────────
-/** Compound key so different models on the same topic don't share budget state. */
-const budgetKey = (topicId: string, modelId: string): string => `${topicId}::${modelId}`
-/** Maximum budget-continuation resumes per turn before the loop is considered exhausted. */
-const MAX_BUDGET_RESUMES = 3
-
 // ── IPC boundary validation ─────────────────────────────────────────
 // Renderer payloads are untrusted; reject malformed shapes before they
 // reach dispatch/attach. `safeParse` keeps the handlers free of throws on
@@ -210,16 +204,9 @@ export class AiStreamManager extends BaseService {
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<string, string[]>()
-  /** Per (topic,model) mid-loop budget-stop state for the CURRENT turn: set by the budget
-   *  stop condition when the live prompt crosses the budget; read by onExecutionDone to
-   *  drive a budget-continue; resumesUsed bounds the loop. */
-  private readonly budgetTripped = new Map<string, { resumesUsed: number; tripped: boolean }>()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
-  /** Per-(topic,model) budget-continue is mid-launch — dedups `scheduleBudgetContinue`. Keyed by
-   *  `budgetKey(topicId, modelId)` so different models on the same topic don't block each other. */
-  private readonly startingBudgetContinueKeys = new Set<string>()
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -519,44 +506,6 @@ export class AiStreamManager extends BaseService {
     return (this.pendingSteers.get(topicId)?.length ?? 0) > 0
   }
 
-  /** Record that THIS round tripped the budget stop (preserves the per-turn resume count). */
-  setBudgetTripped(topicId: string, modelId: string): void {
-    const key = budgetKey(topicId, modelId)
-    const entry = this.budgetTripped.get(key)
-    if (entry) entry.tripped = true
-    else this.budgetTripped.set(key, { resumesUsed: 0, tripped: true })
-  }
-
-  /** This round tripped AND we are still under the per-turn resume cap. */
-  isBudgetContinuable(topicId: string, modelId: string): boolean {
-    const entry = this.budgetTripped.get(budgetKey(topicId, modelId))
-    return entry !== undefined && entry.tripped && entry.resumesUsed < MAX_BUDGET_RESUMES
-  }
-
-  /** Consume the trip: count one resume and clear the per-round flag, so the NEXT round
-   *  only continues again if it RE-trips. Call right before dispatching a budget-continue. */
-  consumeBudgetTrip(topicId: string, modelId: string): void {
-    const entry = this.budgetTripped.get(budgetKey(topicId, modelId))
-    if (entry) {
-      entry.resumesUsed += 1
-      entry.tripped = false
-    }
-  }
-
-  /** Clear the flag — on a genuinely new turn (reset) or terminal cleanup. */
-  clearBudgetTripped(topicId: string, modelId: string): void {
-    this.budgetTripped.delete(budgetKey(topicId, modelId))
-  }
-
-  /** Clear budget-stop state for EVERY model of a topic — used at non-clean topic terminals
-   *  (a sibling failure can end the topic while another model still holds a trip). */
-  clearAllBudgetTripped(topicId: string): void {
-    const prefix = `${topicId}::`
-    for (const key of this.budgetTripped.keys()) {
-      if (key.startsWith(prefix)) this.budgetTripped.delete(key)
-    }
-  }
-
   /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
    *  this landed, start the continuation immediately. Mirrors `AgentSessionRuntimeService.enqueueUserMessage`. */
   enqueuePendingSteer(topicId: string, userMessageId: string): void {
@@ -717,39 +666,17 @@ export class AiStreamManager extends BaseService {
     // done with isTopicDone=false when chaining (the bubble finalises, the topic stays busy), skip the
     // terminal lifecycle, and start the continuation with the carried renderer listeners.
     const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
-    // Budget-continue: lower priority than steer — if a steer is queued, answer it first; the budget
-    // continue can run on the next turn if the budget trips again.
-    // Require anchorId here so a missing anchor → budgetContinuing=false → normal terminal lifecycle
-    // instead of dispatching into startBudgetContinue and hanging (the topic would be stuck live with
-    // no dispatch and no terminal settled).
-    const anchorId = exec.finalMessage?.id ?? exec.anchorMessageId
-    const budgetContinuing =
-      stream.status === 'done' &&
-      !chatChaining &&
-      Boolean(anchorId) &&
-      !stream.isMultiModel &&
-      this.isBudgetContinuable(topicId, modelId)
 
-    await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining && !budgetContinuing)
+    await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining)
 
     if (chatChaining) {
-      // A steer supersedes the prior turn — clear its budget trip so the steer turn does its own
-      // evaluation rather than inheriting a stale trip (which would spuriously budget-continue the
-      // steer even if it finished cleanly under budget).
-      this.clearAllBudgetTripped(topicId)
       this.scheduleNextChatTurn(topicId)
-    } else if (budgetContinuing) this.scheduleBudgetContinue(topicId, modelId, anchorId as string)
-    else if (topicDone) {
+    } else if (topicDone) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') {
         this.dropPendingSteers(topicId, stream.status)
       }
-      // Clear budget-stop state on topic terminal — but NOT for an approval-park ('awaiting-approval').
-      // An approval park is a PAUSE: after the user approves, a continue-conversation resumes the
-      // SAME turn (dispatch.ts does NOT reset budget for continue-conversation), so the per-turn
-      // resumesUsed must survive the park. Only clear on a genuine terminal (done/error/aborted).
-      if (stream.status !== 'awaiting-approval') this.clearAllBudgetTripped(topicId)
       this.runTerminalLifecycle(stream)
     }
   }
@@ -780,7 +707,6 @@ export class AiStreamManager extends BaseService {
       // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
       // instead of chaining. Its persisted user row stays as a dangling message the user can resend.
       this.dropPendingSteers(topicId, 'aborted')
-      this.clearAllBudgetTripped(topicId)
       this.runTerminalLifecycle(stream)
     }
   }
@@ -819,7 +745,6 @@ export class AiStreamManager extends BaseService {
     if (isTopicDone) {
       // Errored turn — drop any queued steer rather than chaining onto a failed turn.
       this.dropPendingSteers(topicId, 'error')
-      this.clearAllBudgetTripped(topicId)
       this.runTerminalLifecycle(stream)
     }
   }
@@ -940,46 +865,6 @@ export class AiStreamManager extends BaseService {
     previous.status = 'error'
     previous.lifecycle.onTerminal(previous)
     this.dropPendingSteers(previous.topicId, 'error')
-  }
-
-  /** Drain-dedup + microtask defer for the budget-continue. Mirrors `scheduleNextChatTurn`. */
-  private scheduleBudgetContinue(topicId: string, modelId: UniqueModelId, anchorId: string): void {
-    const key = budgetKey(topicId, modelId)
-    if (this.startingBudgetContinueKeys.has(key)) return
-    this.startingBudgetContinueKeys.add(key)
-    queueMicrotask(() => {
-      void this.startBudgetContinue(topicId, modelId, anchorId)
-        .catch((error) => logger.error('Failed to start budget-continue', { topicId, modelId, error }))
-        .finally(() => this.startingBudgetContinueKeys.delete(key))
-    })
-  }
-
-  /**
-   * Open a fresh assistant turn resuming the same assistant row after a mid-loop budget stop.
-   * Carries the finished turn's renderer listeners forward. Mirrors `startNextChatTurn`.
-   */
-  private async startBudgetContinue(topicId: string, modelId: UniqueModelId, anchorId: string): Promise<void> {
-    const previous = this.activeStreams.get(topicId)
-    // Never evict a still-live/unsettled stream — let its terminal hook drive.
-    if (previous && isLiveStatus(previous.status)) return
-
-    const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
-    if (previous) this.evictStream(topicId)
-
-    // Consume the trip RIGHT before dispatching — increments resumesUsed and clears the per-round flag
-    // so the next round only continues if it RE-trips.
-    this.consumeBudgetTrip(topicId, modelId)
-
-    const req: MainDispatchRequest = { trigger: 'budget-continue', topicId, parentAnchorId: anchorId }
-    try {
-      await this.dispatch(carried[0] ?? nullStreamListener, req)
-    } catch (error) {
-      logger.error('Budget-continue failed to launch', { topicId, modelId, anchorId, error })
-      if (previous) this.failChatContinuation(previous, carried, serializeError(error))
-      return
-    }
-    // Re-attach any other windows that were on the prior turn.
-    for (const listener of carried.slice(1)) this.addListener(topicId, listener)
   }
 
   // ── Public: inspection snapshot ───────────────────────────────────
