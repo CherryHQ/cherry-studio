@@ -15,9 +15,11 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { isFunctionCallingModel } from '@shared/utils/model'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FieldHeader } from '../../FieldHeader'
@@ -39,11 +41,38 @@ const DISALLOWED_AGENT_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
 
-function isSelectableAgentModel(model: Model): boolean {
-  return (
-    model.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) === true &&
-    !model.capabilities.some((capability) => DISALLOWED_AGENT_CAPABILITIES.has(capability))
-  )
+/**
+ * Protocol Translation Layer — Agent Model Filter
+ *
+ * Gate models that can be selected for Agent use. Uses **provider-level**
+ * Anthropic endpoint detection, not model-level `endpointTypes`. This allows
+ * models from providers that proxy Anthropic-compatible requests (SiliconFlow,
+ * DeepSeek, BigModel, AIHubMix, CherryIN, etc.) to appear in the Agent picker,
+ * even if the individual model does not declare `anthropic-messages` support.
+ *
+ * The API Gateway (proxyStream) handles cross-format protocol translation at
+ * runtime — converting Anthropic-format Agent requests to the model's native
+ * format (OpenAI / Gemini) and back — so the model itself does NOT need to
+ * natively speak Anthropic.
+ *
+ * Additional gate: model must support function calling (tool use), since
+ * Agent mode relies on tool-call round-trips.
+ */
+function createAgentModelFilter(
+  claudeCompatibleProviderIds: Set<string>
+): (model: Model) => boolean {
+  return (model: Model): boolean => {
+    // Provider must have an Anthropic-compatible endpoint
+    if (!claudeCompatibleProviderIds.has(model.providerId)) return false
+
+    // Model must not be embedding / rerank / image-gen
+    if (model.capabilities.some((c) => DISALLOWED_AGENT_CAPABILITIES.has(c))) return false
+
+    // Model must support function calling (tool use)
+    if (!isFunctionCallingModel(model)) return false
+
+    return true
+  }
 }
 
 /**
@@ -62,6 +91,21 @@ function isSelectableAgentModel(model: Model): boolean {
 const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const { providers } = useProviders()
+
+  // Build the set of provider IDs that can serve Anthropic-shaped requests.
+  // This mirrors the logic in useAgentModelFilter.ts — any provider with an
+  // explicit `anthropic-messages` endpoint config (or the native Anthropic
+  // provider) is eligible for Agent use.
+  const agentModelFilter = useMemo(() => {
+    const claudeCompatibleIds = new Set<string>(['anthropic'])
+    for (const p of providers) {
+      if (p.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]) {
+        claudeCompatibleIds.add(p.id)
+      }
+    }
+    return createAgentModelFilter(claudeCompatibleIds)
+  }, [providers])
 
   return (
     <div className="flex flex-col gap-5">
@@ -138,6 +182,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           hint={t('library.config.agent.field.model.hint')}
           value={form.model}
           errorMessage={modelError}
+          filter={agentModelFilter}
           onSelect={(modelId) => onChange({ model: modelId ?? '' })}
         />
         <ModelField
@@ -145,6 +190,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           hint={t('library.config.agent.field.plan_model.hint')}
           value={form.planModel}
           allowClear
+          filter={agentModelFilter}
           onSelect={(modelId) => onChange({ planModel: modelId ?? '' })}
         />
         <ModelField
@@ -152,6 +198,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           hint={t('library.config.agent.field.small_model.hint')}
           value={form.smallModel}
           allowClear
+          filter={agentModelFilter}
           onSelect={(modelId) => onChange({ smallModel: modelId ?? '' })}
         />
       </ModelSubsection>
@@ -228,7 +275,8 @@ function ModelField({
   value,
   allowClear = false,
   errorMessage,
-  onSelect
+  onSelect,
+  filter
 }: {
   label: string
   hint: string
@@ -236,6 +284,7 @@ function ModelField({
   allowClear?: boolean
   errorMessage?: string
   onSelect: (modelId: UniqueModelId | null) => void
+  filter: (model: Model) => boolean
 }) {
   return (
     <ModelSelectorField
@@ -244,7 +293,7 @@ function ModelField({
       value={value}
       allowClear={allowClear}
       errorMessage={errorMessage}
-      filter={isSelectableAgentModel}
+      filter={filter}
       onSelect={onSelect}
     />
   )
