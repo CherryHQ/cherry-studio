@@ -43,10 +43,6 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       // Never reached: steers are only enqueued for persistent topics (provider-gated in dispatch).
       throw new Error('steer-continuation is not supported for temporary chats')
     }
-    if (req.trigger === 'budget-continue') {
-      // Never reached: budget-continue is only dispatched for persistent topics.
-      throw new Error('budget-continue is not supported for temporary chats')
-    }
     // Temporary chats have no steer queue, so a busy submit can't be absorbed. Refuse it here rather
     // than letting `send()` take the inject branch and silently discard the models (the message would
     // be persisted to the in-memory history, acked as success, and never answered). The renderer

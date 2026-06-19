@@ -40,19 +40,7 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
 }
 
-/** Main-synthesized (never on the renderer↔main IPC contract): resume an assistant row
- *  after a mid-loop budget stop, letting the model continue on a compacted history. */
-export interface MainBudgetContinueRequest {
-  trigger: 'budget-continue'
-  topicId: string
-  parentAnchorId: string // the assistant row to resume into
-}
-
-export type MainDispatchRequest =
-  | AiStreamOpenRequest
-  | MainContinueConversationRequest
-  | MainSteerContinuationRequest
-  | MainBudgetContinueRequest
+export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
 
 const logger = loggerService.withContext('chatContextDispatch')
 
@@ -132,18 +120,6 @@ export async function dispatchStreamRequest(
         topicId: req.topicId
       }
     )
-  }
-
-  // Reset budget state for a genuinely new user turn so `resumesUsed` starts at 0.
-  // Keyed on the OUTER dispatch trigger, not the flattened inner AiStreamRequest trigger
-  // (buildStreamRequest hard-codes 'submit-message' for every dispatch, including budget-continue,
-  // so the inner trigger cannot distinguish a real new turn from a resume).
-  // Continuation triggers (budget-continue, steer-continuation, continue-conversation) carry over
-  // budget state — their turn is a continuation of the same user intent, not a fresh attempt.
-  if (req.trigger === 'submit-message' || req.trigger === 'regenerate-message') {
-    for (const { modelId } of prepared.models) {
-      manager.clearBudgetTripped(prepared.topicId, modelId)
-    }
   }
 
   const result = manager.send({
