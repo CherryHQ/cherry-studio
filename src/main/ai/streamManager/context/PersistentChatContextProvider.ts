@@ -433,11 +433,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model])
     const [{ span: rootSpan }] = turnRootSpans
     try {
-      // Re-open the row as pending — no parts rewrite, no approval decisions.
-      await messageService.update(req.parentAnchorId, {
-        status: 'pending'
-      })
-
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -458,12 +453,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       ]
 
       const history = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
+      const modelRequest = this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id)
+
+      // Re-open the row as pending only after all throwable prep has succeeded.
+      // If resolveCompactedHistory or buildStreamRequest throws, the row stays `success`
+      // (its already-persisted state) — no stranded pending bubble on reload.
+      await messageService.update(req.parentAnchorId, { status: 'pending' })
+
       return {
         topicId: req.topicId,
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+            request: modelRequest,
             rootSpan
           }
         ],
