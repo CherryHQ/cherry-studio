@@ -7,14 +7,6 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn()
-    })
-  }
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return await importOriginal()
 })

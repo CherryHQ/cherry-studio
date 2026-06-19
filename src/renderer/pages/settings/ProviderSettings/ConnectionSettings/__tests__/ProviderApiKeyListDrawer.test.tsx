@@ -15,14 +15,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn()
-    })
-  }
-}))
-
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderApiKeys: () => ({
     data: { keys: [] }

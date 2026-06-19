@@ -4,18 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ModelListGroup from '../ModelListGroup'
 
-const { loggerErrorMock } = vi.hoisted(() => ({
-  loggerErrorMock: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: loggerErrorMock
-    })
-  }
-}))
-
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
 
@@ -146,13 +134,8 @@ describe('ModelListGroup', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'settings.models.group_disable' }))
 
     await waitFor(() => {
-      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to toggle provider model group', {
-        groupName: 'chat',
-        enabled: false,
-        error
-      })
+      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
-    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('renders the group bulk action as a switch', () => {

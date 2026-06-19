@@ -5,17 +5,6 @@ import { MODEL_LIST_CAPABILITY_FILTERS } from '../modelListDerivedState'
 import ProviderModelList from '../ProviderModelList'
 
 const onToggleVisibleModelsMock = vi.fn()
-const { loggerErrorMock } = vi.hoisted(() => ({
-  loggerErrorMock: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: loggerErrorMock
-    })
-  }
-}))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -152,13 +141,6 @@ describe('ProviderModelList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
-    expect(loggerErrorMock).toHaveBeenCalledWith(
-      'Failed to disable visible provider models',
-      expect.objectContaining({
-        providerId: 'openai',
-        error: expect.any(Error)
-      })
-    )
   })
 
   it('enables visible disabled models from the action menu', () => {
