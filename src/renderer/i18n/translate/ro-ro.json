@@ -395,9 +395,6 @@
           "failed": "Nu s-a putut reordona sesiunile"
         }
       },
-      "tool": {
-        "disabled": "Instrumentul {{toolName}} este dezactivat pentru acest agent."
-      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
@@ -1656,10 +1653,10 @@
       "claude_code": "Asistentul oficial de programare cu linie de comandă al companiei Anthropic",
       "gemini_cli": "Asistentul oficial de linie de comandă Gemini al Google",
       "github_copilot_cli": "Companion oficial de linie de comandă Copilot al GitHub",
-      "iflow_cli": "asistentul în linie de comandă multi-model al iFlow",
       "kimi_cli": "Asistentul de linie de comandă Kimi de la Moonshot",
       "openai_codex": "CLI-ul oficial de generare de cod al OpenAI",
       "opencode": "Agent de codare multi-model cu sursă deschisă",
+      "qoder_cli": "Instrumentul de codare în linia de comandă cu agenți al Alibaba Qoder",
       "qwen_code": "Instrumentul CLI de codare open-source al Alibaba Tongyi"
     },
     "update_options": "Opțiuni de actualizare",
@@ -2159,7 +2156,8 @@
         "note": {
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Notele selectabile vor apărea aici după ce lista reală de note va fi conectată. Deocamdată, folosiți fișiere, foldere, URL-uri sau hărți de site.",
-          "empty_title": "Notele nu sunt încă conectate"
+          "empty_title": "Notele nu sunt încă conectate",
+          "loading": "Se încarcă notițele…"
         },
         "placeholder": {
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2174,7 @@
           "success": "Sursa de date adăugată la baza de cunoștințe"
         },
         "title": "Adăugare sursă de date",
+        "unsupported_files_skipped": "S-au omis {{count}} fișier(e) neacceptate",
         "url": {
           "description": "Introduceți un URL de pagină web:",
           "help": "Textul paginii va fi preluat, împărțit în fragmente și indexat automat",
@@ -2185,15 +2184,12 @@
         }
       },
       "bulk": {
-        "cancel": "Anulează",
         "delete": "Șterge",
         "delete_confirm_description": "Ștergeți cele {{count}} surse de date selectate? Această acțiune nu poate fi anulată.",
         "delete_confirm_title": "Șterge sursele de date selectate?",
         "reindex": "Reindexare",
         "selected_count": "{{count}} selectate"
       },
-      "chunk_delete_confirm_description": "După ștergere, acest fragment nu va mai fi folosit pentru recuperare. Reindexarea sursei de date îl va genera din nou.",
-      "chunk_delete_confirm_title": "Șterge fragmentul?",
       "chunks_count": "{{count}} fragmente",
       "delete_confirm_description": "Această sursă de date și datele sale index nu pot fi recuperate după ștergere.",
       "delete_confirm_title": "Șterge sursa de date?",
@@ -2245,20 +2241,17 @@
         "select_row": "Selectați rândul"
       },
       "toolbar": {
-        "add": "Adaugă sursă de date",
-        "no_search_results": "Nu există surse de date corespunzătoare",
-        "search_placeholder": "Căutați surse de date"
+        "add": "Adaugă sursă de date"
       }
     },
-    "dimensions": "Dimensiuni de înglobare",
     "dimensions_auto_set": "Setează automat dimensiunile embedding",
-    "dimensions_error_invalid": "Dimensiune embedding invalidă",
     "dimensions_size_placeholder": "Lasă gol pentru a nu transmite dimensiuni",
     "drag_file": "Trage fișierul aici",
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
     "error": {
+      "directory_not_migrated": "Migrarea folderului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
       "failed_base_unknown": "Această bază de cunoștințe a eșuat în timpul migrării. Reconstruiește-o și alege un nou model de încorporare.",
       "failed_to_create": "Nu s-a reușit crearea bazei de cunoștințe",
       "failed_to_delete": "Nu s-a reușit ștergerea bazei de cunoștințe",
@@ -2304,7 +2297,6 @@
       "chunk_size_invalid": "Dimensiunea fragmentului trebuie să fie mai mare decât 0",
       "chunking": "Segmentare",
       "default_separator": "Auto (recomandat)",
-      "dimensions": "Dimensiuni Vectoriale",
       "document_count": "Număr de documente",
       "embedding_model": "Model de încorporare",
       "embedding_model_select": "Selecția Modelului",
@@ -2313,7 +2305,6 @@
       "hints": {
         "chunk_overlap": "Numărul de token-uri suprapuse păstrate între fragmentele adiacente pentru a reduce rupturile semantice.",
         "chunk_size": "Numărul țintă de tokeni pentru fiecare fragment de document. Acest lucru afectează granularitatea recuperării și lungimea contextului.",
-        "dimensions": "Dimensiunea vectorului generat de modelul de încorporare actual, utilizată pentru a crea și potrivi indexurile vectoriale.",
         "document_count": "Numărul maxim de fragmente de document returnate pentru fiecare recuperare. Valori mai mari acoperă mai mult conținut, dar folosesc mai mult context.",
         "embedding_model": "Folosit pentru a converti conținutul bazei de cunoștințe în vectori. Schimbarea modelului necesită de obicei reindexarea conținutului existent.",
         "hybrid_alpha": "Ponderea scorului vectorial în recuperarea hibridă. Valorile mai mari favorizează potrivirea semantică.",
@@ -2324,9 +2315,7 @@
         "threshold_disabled": "Acest mod de recuperare returnează rezultate ordonate și nu utilizează un prag de similaritate."
       },
       "hybrid_alpha": "Alpha Hibrid",
-      "hybrid_alpha_hint": "Configurabil doar în modul de recuperare hibrid",
       "processor": "Furnizor de procesare",
-      "refresh_dimensions": "Reîmprospătează dimensiunile vectorului",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -2336,9 +2325,9 @@
       "saved": "Salvat",
       "search_mode": {
         "bm25": "Căutare în text complet",
-        "default": "Căutare Vectorială",
         "hybrid": "Căutare hibridă (recomandat)",
-        "title": "Mod de căutare"
+        "title": "Mod de căutare",
+        "vector": "Căutare Vectorială"
       },
       "separator_rule": "Regula Separator",
       "threshold": "Prag de similaritate",
@@ -6066,6 +6055,7 @@
       "disabled": "Mini Aplicații Ascunse",
       "display_title": "Setări de afișare Mini App",
       "empty": "Apasă pictograma de ascundere pe o aplicație din stânga și aceasta va fi mutată aici",
+      "hide_app": "Ascunde {{name}}",
       "open_link_external": {
         "title": "Deschide linkurile în fereastră nouă în browser"
       },
@@ -6077,6 +6067,7 @@
         "title": "Filtru Mini Program"
       },
       "reset_tooltip": "Resetare la valorile implicite",
+      "show_app": "Arată {{name}}",
       "sidebar_description": "Afișează miniaplicațiile active în bara laterală",
       "sidebar_title": "Afișare Mini Aplicații Active în Bara Laterală",
       "title": "Setări Mini Apps",
@@ -6377,7 +6368,8 @@
       "add": {
         "name": {
           "label": "Nume furnizor",
-          "placeholder": "Exemplu: OpenAI"
+          "placeholder": "Exemplu: OpenAI",
+          "required": "Vă rugăm să introduceți numele furnizorului"
         },
         "title": "Adaugă furnizor",
         "type": "Tip furnizor"
@@ -6488,7 +6480,8 @@
       "balance": "Echilibru",
       "base_url": {
         "label": "URL de bază",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Vă rugăm să introduceți URL-ul de bază"
       },
       "basic_auth": {
         "label": "Autentificare HTTP",
@@ -6663,7 +6656,7 @@
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Selectați locația",
         "service_account": {
           "auth_success": "Cont de serviciu autentificat cu succes",
           "client_email": "E-mail client",
@@ -6680,9 +6673,9 @@
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",
           "title": "Configurare Cont de Serviciu",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Comută vizibilitatea e-mailului clientului",
+          "toggle_private_key_visibility": "Comută vizibilitatea cheii private",
+          "toggle_project_id_visibility": "Comută vizibilitatea ID-ului proiectului"
         }
       }
     },
@@ -6752,6 +6745,7 @@
       },
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
+      "close_tab": "Închide fila",
       "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
@@ -6759,8 +6753,11 @@
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
+      "move_tab_to_first": "Mută fila pe prima poziție",
       "new_topic": "Subiect nou",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
+      "open_tab_in_new_window": "Deschide fila într-o fereastră nouă",
+      "pin_tab": "Comutare fixare filă",
       "press_shortcut": "Apasă comanda rapidă",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
