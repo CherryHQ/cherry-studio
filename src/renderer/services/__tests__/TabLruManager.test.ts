@@ -88,7 +88,7 @@ describe('TabLruManager', () => {
       it('should not hibernate the default chat tab', () => {
         const now = Date.now()
         const tabs = [
-          createTab('chat', { lastAccessTime: now - 10000 }), // Oldest
+          createTab('home', { lastAccessTime: now - 10000 }), // Oldest
           ...Array.from({ length: TAB_LIMITS.softCap + 1 }, (_, i) =>
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
@@ -96,7 +96,7 @@ describe('TabLruManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.softCap}`)
 
-        expect(result).not.toContain('chat')
+        expect(result).not.toContain('home')
       })
 
       it('should not hibernate pinned tabs', () => {
@@ -148,7 +148,7 @@ describe('TabLruManager', () => {
       it('should still protect the default chat and active tabs in hard cap mode', () => {
         const now = Date.now()
         const tabs = [
-          createTab('chat', { lastAccessTime: now - 30000 }),
+          createTab('home', { lastAccessTime: now - 30000 }),
           ...Array.from({ length: TAB_LIMITS.hardCap + 2 }, (_, i) =>
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
@@ -157,7 +157,7 @@ describe('TabLruManager', () => {
         const activeTabId = `tab-${TAB_LIMITS.hardCap + 1}`
         const result = manager.checkAndGetDormantCandidates(tabs, activeTabId)
 
-        expect(result).not.toContain('chat')
+        expect(result).not.toContain('home')
         expect(result).not.toContain(activeTabId)
       })
     })
