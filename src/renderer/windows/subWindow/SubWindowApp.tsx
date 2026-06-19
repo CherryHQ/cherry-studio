@@ -37,7 +37,7 @@ function SubWindowApp(): React.ReactElement {
                 <CodeStyleProvider>
                   <ContextKeyProvider>
                     <CommandProvider>
-                      <TabsProvider>
+                      <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                         <TopViewContainer>
                           <SubWindowAppShell />
                         </TopViewContainer>
