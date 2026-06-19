@@ -210,14 +210,6 @@ export const REQUIRED_SIDEBAR_ICONS: SidebarIcon[] = ['assistants']
 
 const sidebarIconSet = new Set<SidebarIcon>(SIDEBAR_ICON_ORDER)
 
-export const SIDEBAR_ROUTE_PREFIX_MAP: Record<SidebarIcon, string> = SIDEBAR_APPS.reduce(
-  (acc, app) => {
-    acc[app.id] = app.routePrefix
-    return acc
-  },
-  {} as Record<SidebarIcon, string>
-)
-
 export const SIDEBAR_ICON_COMPONENTS: Record<SidebarIcon, SidebarMenuItem['icon']> = SIDEBAR_APPS.reduce(
   (acc, app) => {
     acc[app.id] = app.icon
@@ -248,16 +240,6 @@ export function sanitizeSidebarIcons(icons: readonly SidebarIcon[] | undefined):
     seen.add(icon)
     return true
   })
-}
-
-export function getRequiredSidebarIconsVisible(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
-  const visible = new Set(sanitizeSidebarIcons(icons))
-
-  for (const icon of REQUIRED_SIDEBAR_ICONS) {
-    visible.add(icon)
-  }
-
-  return SIDEBAR_ICON_ORDER.filter((icon) => visible.has(icon))
 }
 
 export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {

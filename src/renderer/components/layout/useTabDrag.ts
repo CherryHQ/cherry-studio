@@ -60,9 +60,7 @@ export function useTabDrag({
     tabType: 'normal' as 'pinned' | 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>(),
-    grabOffsetX: 0,
-    grabOffsetY: 0
+    originalRects: new Map<string, { left: number; width: number }>()
   })
 
   // Prevent onClick from firing after drag ends
@@ -158,9 +156,7 @@ export function useTabDrag({
         tabType,
         detachedCreated: false,
         tabClosed: false,
-        originalRects,
-        grabOffsetX: e.screenX - window.screenX,
-        grabOffsetY: e.screenY - window.screenY
+        originalRects
       }
 
       didDragRef.current = false
