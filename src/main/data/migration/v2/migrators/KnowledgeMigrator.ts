@@ -9,9 +9,12 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
+import {
+  needsProcessedArtifactReservation,
+  reserveImportedFileRelativePath
+} from '@main/features/knowledge/utils/storage/pathStorage'
 import { sanitizeFilename } from '@main/utils/file'
 import { copy, ensureDir } from '@main/utils/file/fs'
-import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
@@ -804,7 +807,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         const baseItems = itemsByBaseId.get(base.id) ?? []
         // Finalize relativePath + copy uploads before opening the write tx so no
         // file I/O happens while the transaction is held.
-        await this.copyKnowledgeFilesForBase(ctx, base.id, baseItems)
+        await this.copyKnowledgeFilesForBase(ctx, base.id, base.fileProcessorId, baseItems)
         let transactionProcessed = 0
 
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
@@ -884,13 +887,20 @@ export class KnowledgeMigrator extends BaseMigrator {
    * never the stale `path` column (#15733). A missing or unreadable source
    * degrades gracefully: the item is kept (still searchable via migrated vectors)
    * but not copied, so it just cannot be reindexed until re-added.
+   *
+   * Dedup goes through `reserveImportedFileRelativePath` (the same primitive the native add
+   * path uses), so when this base runs a file processor a processable file also reserves its
+   * prospective processed-markdown (`.md`) sibling slot. Without this, a base holding both
+   * `report.pdf` and a real `report.md` would later hard-fail reindex when the processor tries
+   * to write `report.md` onto the existing sibling.
    */
   private async copyKnowledgeFilesForBase(
     ctx: MigrationContext,
     baseId: string,
+    fileProcessorId: string | null | undefined,
     items: NewKnowledgeItem[]
   ): Promise<void> {
-    const usedRelativePaths = new Set<string>()
+    const reservedPaths = new Set<string>()
 
     for (const item of items) {
       if (item.type !== 'file' || !item.id) {
@@ -904,11 +914,8 @@ export class KnowledgeMigrator extends BaseMigrator {
       }
 
       const data = item.data as { relativePath: string }
-      const relativePath = nextFreeKnowledgeRelativePath(
-        data.relativePath,
-        (candidate) => !usedRelativePaths.has(candidate)
-      )
-      usedRelativePaths.add(relativePath)
+      const reserveArtifact = needsProcessedArtifactReservation(fileProcessorId, data.relativePath)
+      const relativePath = reserveImportedFileRelativePath(data.relativePath, reserveArtifact, reservedPaths)
       data.relativePath = relativePath
 
       const storageName = this.fileStorageNameByItemId.get(item.id)

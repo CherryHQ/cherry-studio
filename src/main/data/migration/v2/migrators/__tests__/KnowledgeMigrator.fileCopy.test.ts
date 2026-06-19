@@ -232,4 +232,56 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     // Copied to a real file under the base dir's `raw/` material root, not onto the base dir itself.
     expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', relativePath), 'utf8')).toBe('Z')
   })
+
+  it("reserves the processed-markdown slot so a PDF and a real .md sibling don't collide", async () => {
+    // A base with a file processor that holds both report.pdf and a real report.md: without
+    // reserving the prospective .md artifact slot, a later reindex of report.pdf would try to
+    // write report.md onto the existing sibling and hard-fail. The migrator must dedup so the
+    // PDF's prospective artifact slot never equals the real .md sibling's path.
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'knowledge-file-copy-md-'))
+    const filesDataDir = path.join(tempRoot, 'Files')
+    const knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
+    mkdirSync(filesDataDir, { recursive: true })
+    writeFileSync(path.join(filesDataDir, 'fpdf.pdf'), 'PDF')
+    writeFileSync(path.join(filesDataDir, 'fmd.md'), 'MD')
+
+    const dexieFiles: FileMetadata[] = [
+      dexieFileRow({ id: 'fpdf', name: 'fpdf.pdf', origin_name: 'report.pdf', ext: '.pdf' }),
+      dexieFileRow({ id: 'fmd', name: 'fmd.md', origin_name: 'report.md', ext: '.md' })
+    ]
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'kb-md',
+          name: 'KB Md',
+          dimensions: 1024,
+          model: { id: 'emb', name: 'emb', provider: 'openai' },
+          // A configured preprocessor makes report.pdf a processable source that will emit report.md.
+          preprocessProvider: { type: 'preprocess', provider: { id: 'mineru' } },
+          items: [
+            { id: 'item-pdf', type: 'file', content: 'fpdf' },
+            { id: 'item-md', type: 'file', content: 'fmd' }
+          ]
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, dexieFiles, reduxKnowledge, { knowledgeBaseDir, filesDataDir })
+
+    const migrator = new KnowledgeMigrator()
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    const baseId = (migrator as unknown as { preparedBases: { id: string }[] }).preparedBases[0].id
+    expect((await migrator.execute(ctx)).success).toBe(true)
+
+    const rows = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
+    const relativePaths = rows.map((row) => (row.data as { relativePath: string }).relativePath)
+    // PDF keeps its name; the real markdown sibling is bumped so the PDF's prospective
+    // processed-artifact slot (report.md) stays free for the processor.
+    expect(relativePaths.slice().sort()).toEqual(['report.pdf', 'report_1.md'])
+    // The invariant: the PDF's prospective .md artifact must not equal a real sibling's path.
+    expect(relativePaths).not.toContain('report.md')
+    // Both sources copied into raw/.
+    expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', 'report.pdf'), 'utf8')).toBe('PDF')
+    expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', 'report_1.md'), 'utf8')).toBe('MD')
+  })
 })
