@@ -782,7 +782,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // Rebuild into a temp store through the exact runtime open sequence
         // (driver → schema → ensureIndexMeta → KnowledgeIndexStore.rebuildMaterial), so the
         // migrated store is byte-for-byte a store the runtime would produce.
-        const driver = await openLibsqlIndexDriver(tempPath)
+        //
+        // serializedSingleConnection: the per-material rebuild loop runs one transaction per
+        // material. With libsql's client.transaction('write') each would orphan a still-open
+        // handle on this temp store (released only by GC), and on Windows those leaked handles
+        // block the rename below — the intermittent "file lock". Manual BEGIN keeps every write on
+        // the single connection, so driver.close() releases all of it before the rename. Safe here
+        // because migration is the sole writer and nothing reads this temp store concurrently.
+        const driver = await openLibsqlIndexDriver(tempPath, { serializedSingleConnection: true })
         try {
           await createKnowledgeIndexSchema(driver)
           await ensureIndexMeta(driver, { baseId: plan.baseId })
