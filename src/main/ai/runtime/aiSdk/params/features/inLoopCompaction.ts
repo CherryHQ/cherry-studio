@@ -54,7 +54,7 @@ function estimateModelMessages(messages: ModelMessage[]): number {
  * following `tool` messages (one atomic turn). Leading `system` is not a turn.
  * Always keeps at least one turn so the tail is never emptied.
  */
-function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: number): number {
+export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: number): number {
   let acc = 0
   let turns = 0
   let i = messages.length - 1
@@ -90,6 +90,7 @@ export const inLoopCompactionFeature: RequestFeature = {
   contributeHooks: (scope) => {
     const contextWindow = scope.model.contextWindow
     const model = scope.compressionModel
+    // Unreachable at runtime — `applies()` already guards both; present only to narrow the types.
     if (!contextWindow || !model) return {}
     const trigger = Math.floor(contextWindow * COMPACT_TRIGGER_RATIO)
     const keepBudget = Math.floor(contextWindow * KEEP_BUDGET_RATIO)

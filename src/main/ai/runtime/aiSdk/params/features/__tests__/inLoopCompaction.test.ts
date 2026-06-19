@@ -12,7 +12,7 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
 }))
 
-import { inLoopCompactionFeature } from '../inLoopCompaction'
+import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
 const CONTEXT_WINDOW = 100_000
 const COMPRESSION_MODEL = { id: 'compression-model' } as any
@@ -143,5 +143,79 @@ describe('inLoopCompactionFeature', () => {
     await prepareStep({ messages } as any)
     const keepRecentTurns = compactModelMessages.mock.calls[0][2].keepRecentTurns
     expect(keepRecentTurns).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Pure helper: computeKeepRecentTurns
+// ---------------------------------------------------------------------------
+// Turn-grouping rule (mirrored from the implementation):
+//   Walk from the tail. Each turn = (a) consume trailing tool messages, then
+//   (b) consume the one preceding non-system message. Stop at a system message.
+//   Accumulate token estimates; stop once acc >= keepBudget. Return Math.max(turns, 1).
+// ---------------------------------------------------------------------------
+
+const msg = <R extends ModelMessage['role']>(role: R, text = 'x') =>
+  ({ role, content: text }) as Extract<ModelMessage, { role: R }>
+
+describe('computeKeepRecentTurns', () => {
+  describe('grouping', () => {
+    it('[system, user, assistant, tool, tool, user, assistant] with huge budget → 4 turns', () => {
+      // Walk from tail (indices 0-6):
+      //   i=6 assistant             → turn 1, i=5
+      //   i=5 user                  → turn 2, i=4
+      //   i=4 tool, i=3 tool (inner while), then i=2 assistant (non-system) → turn 3, i=1
+      //   i=1 user                  → turn 4, i=0
+      //   i=0 system                → break
+      // Math.max(4, 1) = 4
+      const messages: ModelMessage[] = [
+        msg('system'),
+        msg('user'),
+        msg('assistant'),
+        msg('tool'),
+        msg('tool'),
+        msg('user'),
+        msg('assistant')
+      ]
+      expect(computeKeepRecentTurns(messages, 1e9)).toBe(4)
+    })
+
+    it('[user, assistant, tool, user, assistant] with huge budget → 4 turns', () => {
+      // Walk from tail (indices 0-4):
+      //   i=4 assistant             → turn 1, i=3
+      //   i=3 user                  → turn 2, i=2
+      //   i=2 tool (inner while), then i=1 assistant (non-system) → turn 3, i=0
+      //   i=0 user                  → turn 4, i=-1
+      // Math.max(4, 1) = 4
+      const messages: ModelMessage[] = [msg('user'), msg('assistant'), msg('tool'), msg('user'), msg('assistant')]
+      expect(computeKeepRecentTurns(messages, 1e9)).toBe(4)
+    })
+  })
+
+  describe('floor / clamp', () => {
+    it('system-only history → 1 (clamp floor)', () => {
+      // Walk: i=0 system → break immediately, turns=0. Math.max(0,1)=1.
+      const messages: ModelMessage[] = [msg('system', 'You are helpful.')]
+      expect(computeKeepRecentTurns(messages, 1e9)).toBe(1)
+    })
+
+    it('empty history → 1 (clamp floor)', () => {
+      // Walk: i=-1 → while exits immediately, turns=0. Math.max(0,1)=1.
+      expect(computeKeepRecentTurns([], 1e9)).toBe(1)
+    })
+  })
+
+  describe('budget early-exit', () => {
+    it('multi-turn history with keepBudget=1 → 1 (first tail turn already meets budget)', () => {
+      // The first turn from the tail accumulates at least 1 token (acc >= 1),
+      // so the loop breaks after one turn. Math.max(1,1)=1.
+      const messages: ModelMessage[] = [
+        msg('user', 'hello'),
+        msg('assistant', 'hi'),
+        msg('user', 'world'),
+        msg('assistant', 'ok')
+      ]
+      expect(computeKeepRecentTurns(messages, 1)).toBe(1)
+    })
   })
 })
