@@ -1,6 +1,17 @@
 import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import Scrollbar from '@renderer/components/Scrollbar'
+import {
+  MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
+  ModelSelectorRow,
+  ModelSelectorRowActionButton
+} from '@renderer/components/Selector/model/ModelSelectorRow'
+import {
+  DEFAULT_SELECTOR_CONTENT_HEIGHT,
+  SelectorShell,
+  type SelectorShellMountStrategy,
+  type SelectorShellProps
+} from '@renderer/components/Selector/shell/SelectorShell'
 import { Pin, Plus, SquarePen } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -13,18 +24,6 @@ import {
   useRef,
   useState
 } from 'react'
-
-import {
-  MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
-  ModelSelectorRow,
-  ModelSelectorRowActionButton
-} from '../model/ModelSelectorRow'
-import {
-  DEFAULT_SELECTOR_CONTENT_HEIGHT,
-  SelectorShell,
-  type SelectorShellMountStrategy,
-  type SelectorShellProps
-} from '../shell/SelectorShell'
 
 export type ResourceSelectorShellItem = {
   id: string

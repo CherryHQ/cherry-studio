@@ -1,5 +1,13 @@
 import { Alert, Button } from '@cherrystudio/ui'
-import PromptEditDialog from '@renderer/components/PromptEditDialog'
+import {
+  AgentEditDialog,
+  AssistantEditDialog,
+  ResourceCreateDialog,
+  type ResourceCreateDialogKind,
+  type ResourceCreateDialogValues
+} from '@renderer/features/resource/dialogs'
+import { isSelectableAssistantModel } from '@renderer/features/resource/dialogs/form/assistantModelFilter'
+import PromptEditDialog from '@renderer/features/resource/dialogs/PromptEditDialog'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -16,14 +24,6 @@ import { useAssistantMutations } from './adapters/assistantAdapter'
 import { usePromptMutations, usePromptMutationsById } from './adapters/promptAdapter'
 import { DEFAULT_TAG_COLOR, getRandomTagColor, RESOURCE_TYPE_ORDER } from './constants'
 import SkillDetailDialog from './detail/skill/SkillDetailDialog'
-import {
-  AgentEditDialog,
-  AssistantEditDialog,
-  ResourceCreateDialog,
-  type ResourceCreateDialogKind,
-  type ResourceCreateDialogValues
-} from './dialogs'
-import { isSelectableAssistantModel } from './dialogs/form/assistantModelFilter'
 import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'

@@ -8,13 +8,12 @@ import {
   Input,
   Tooltip
 } from '@cherrystudio/ui'
+import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { Braces } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import PromptEditorField, { type PromptEditorFieldHandles } from './PromptEditorField'
 
 interface FormData {
   title: string

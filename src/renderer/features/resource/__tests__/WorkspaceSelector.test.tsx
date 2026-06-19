@@ -41,8 +41,9 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { WorkspaceSelector } from '../resource/WorkspaceSelector'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/Selector/shell/SelectorShell'
+
+import { WorkspaceSelector } from '../WorkspaceSelector'
 
 const WORKSPACES = [
   {

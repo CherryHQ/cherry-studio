@@ -42,7 +42,7 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
-vi.mock('../model', () => ({
+vi.mock('@renderer/components/Selector/model', () => ({
   ModelSelector: ({
     trigger,
     onSelect
@@ -206,8 +206,9 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { AgentSelector, type AgentSelectorItem } from '../resource/AgentSelector'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/Selector/shell/SelectorShell'
+
+import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
 
 const ALPHA_AGENT_ID = '44444444-4444-4444-8444-444444444444'
 const BETA_AGENT_ID = '55555555-5555-4555-8555-555555555555'

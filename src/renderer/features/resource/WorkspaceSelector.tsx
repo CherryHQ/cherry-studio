@@ -1,19 +1,18 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
-import { type ReactElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { ModelSelectorRow } from '../model/ModelSelectorRow'
+import { ModelSelectorRow } from '@renderer/components/Selector/model/ModelSelectorRow'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
   type SelectorShellMountStrategy,
   type SelectorShellProps
-} from '../shell/SelectorShell'
+} from '@renderer/components/Selector/shell/SelectorShell'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
+import { type ReactElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
