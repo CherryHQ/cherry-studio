@@ -328,7 +328,7 @@ vi.mock('@renderer/components/Selector', () => ({
   )
 }))
 
-vi.mock('@renderer/features/resource', () => ({
+vi.mock('@renderer/components/resource', () => ({
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
       {trigger}

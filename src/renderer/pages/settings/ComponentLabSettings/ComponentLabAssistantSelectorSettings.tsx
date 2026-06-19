@@ -1,6 +1,6 @@
 import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { AssistantSelector, type AssistantSelectorItem } from '@renderer/features/resource'
+import { AssistantSelector, type AssistantSelectorItem } from '@renderer/components/resource'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import {
   ResourceCreateDialog,
   type ResourceCreateDialogValues
-} from '@renderer/features/resource/dialogs/ResourceCreateDialog'
+} from '@renderer/components/resource/dialogs/ResourceCreateDialog'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
 import type { AgentDetail } from '@renderer/pages/library/types'
@@ -16,7 +16,7 @@ import { ResourceSelectorShell, type ResourceSelectorShellItem } from './Resourc
 
 const logger = loggerService.withContext('AgentSelector')
 const AgentEditDialog = lazy(() =>
-  import('@renderer/features/resource/dialogs/edit/AgentEditDialog').then((module) => ({
+  import('@renderer/components/resource/dialogs/edit/AgentEditDialog').then((module) => ({
     default: module.AgentEditDialog
   }))
 )

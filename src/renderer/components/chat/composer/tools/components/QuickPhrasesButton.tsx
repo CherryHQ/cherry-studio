@@ -8,7 +8,7 @@ import {
   QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import PromptEditDialog from '@renderer/features/resource/dialogs/PromptEditDialog'
+import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'

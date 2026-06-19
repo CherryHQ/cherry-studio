@@ -310,7 +310,7 @@ vi.mock('@renderer/components/Selector', () => ({
   )
 }))
 
-vi.mock('@renderer/features/resource', () => ({
+vi.mock('@renderer/components/resource', () => ({
   AssistantSelector: ({ autoSelectOnCreate, onChange, trigger, value }: any) => (
     <div
       data-testid="assistant-selector"
