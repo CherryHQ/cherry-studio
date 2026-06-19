@@ -7,7 +7,15 @@ import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
 import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
-import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
+import {
+  type CreateKnowledgeItemDto,
+  DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,
+  type KnowledgeAddConflictStrategy,
+  type KnowledgeAddItemInput,
+  type KnowledgeAddItemsResult,
+  type KnowledgeBase,
+  type KnowledgeItem
+} from '@shared/data/types/knowledge'
 
 import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -24,7 +32,9 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
+import { resolveKnowledgeAddConflicts } from './utils/addConflicts'
 import { markUnscheduledKnowledgeItemsFailed } from './utils/cleanup/statusCleanup'
+import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from './utils/cleanup/subtreePurge'
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 import {
@@ -47,23 +57,64 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
-  async addItems(baseId: string, inputs: KnowledgeAddItemInput[]): Promise<void> {
+  async addItems(
+    baseId: string,
+    inputs: KnowledgeAddItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
+  ): Promise<KnowledgeAddItemsResult> {
     if (inputs.length === 0) {
-      return
+      return { status: 'added' }
     }
 
     const base = await knowledgeBaseService.getById(baseId)
+
+    // rename (the default, and every internal caller — restore/migrator): keep all,
+    // auto-rename on collision. detect/replace first resolve same-name conflicts
+    // against the existing root items and earlier items in the same batch.
+    let itemsToAdd = inputs
+    if (conflictStrategy !== 'rename') {
+      const existingRoots = await knowledgeItemService.getRootItemsByBaseId(base.id)
+      const resolution = resolveKnowledgeAddConflicts(inputs, existingRoots)
+      if (conflictStrategy === 'detect') {
+        if (resolution.conflicts.length > 0) {
+          // Report and add nothing — the UI asks the user how to resolve.
+          return { status: 'conflicts', conflicts: resolution.conflicts }
+        }
+      } else {
+        // replace: incoming sources win. Drop earlier same-name batch items (last
+        // wins) and cancel any in-flight job on the conflicting existing subtrees
+        // BEFORE taking the lock — cancel awaits handler settlement and the
+        // index/prepare handlers take this same base lock, so cancelling while
+        // holding it would deadlock.
+        itemsToAdd = resolution.keptInputs
+        if (resolution.conflictingExistingRootIds.length > 0) {
+          await cancelActiveKnowledgeSubtreeJobs(
+            base.id,
+            resolution.conflictingExistingRootIds,
+            'knowledge-add-replace'
+          )
+        }
+      }
+    }
+
     const acceptedItems: KnowledgeItem[] = []
     const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
     await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
+        if (conflictStrategy === 'replace') {
+          // Purge the conflicting existing items synchronously inside the lock and
+          // BEFORE reserving paths, so the freed name is claimed by the incoming
+          // source instead of being auto-renamed with a numeric suffix.
+          await this.purgeConflictingExistingItems(base, itemsToAdd)
+        }
+
         // Reserve every existing on-disk path up front, then let each new file
         // claim a collision-free name (auto-renaming with a numeric suffix)
         // against the same growing set, so a same-named batch add no longer
         // throws — earlier inputs are visible when deduping later ones.
         const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
-        for (const input of inputs) {
+        for (const input of itemsToAdd) {
           const createInput = await this.prepareRuntimeAddItemInput(base.id, base.fileProcessorId, input, reservedPaths)
           // A url restore copies its snapshot to raw/{relativePath} under type 'url',
           // so track it for rollback too — otherwise a mid-batch failure orphans the
@@ -102,6 +153,27 @@ export class KnowledgeWorkflowService {
       await this.markUnscheduledAcceptedItemsFailed(base.id, acceptedItems, completedSchedulingItemIds, error)
       throw error
     }
+
+    return { status: 'added' }
+  }
+
+  /**
+   * Remove the existing root items (and their subtrees) whose name an incoming
+   * source collides with, for the `replace` strategy. MUST run inside the base
+   * mutation lock. Re-resolves conflicts against the current roots so a change in
+   * the cancel->lock gap is honored; the in-flight jobs were already cancelled by
+   * the caller outside the lock.
+   */
+  private async purgeConflictingExistingItems(base: KnowledgeBase, itemsToAdd: KnowledgeAddItemInput[]): Promise<void> {
+    const currentRoots = await knowledgeItemService.getRootItemsByBaseId(base.id)
+    const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+    if (conflictingExistingRootIds.length === 0) {
+      return
+    }
+    const subtreeItems = await knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
+      includeRoots: true
+    })
+    await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId: base.id, reason: 'knowledge-add-replace' })
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
