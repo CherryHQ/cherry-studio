@@ -19,6 +19,7 @@ import {
 } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
+import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
@@ -108,6 +109,7 @@ export function useHomeMessageListProviderValue({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
+  const { editingMessageId, startEditing } = useMessageEditing()
 
   const messageItems = useMemo(
     () =>
@@ -625,6 +627,7 @@ export function useHomeMessageListProviderValue({
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
+      editingMessageId,
       translationLanguages: translationLanguages ?? [],
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
@@ -634,6 +637,7 @@ export function useHomeMessageListProviderValue({
     }),
     [
       assistant?.id,
+      editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
       getTranslationLanguageLabel,
@@ -675,6 +679,7 @@ export function useHomeMessageListProviderValue({
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
       editMessage,
+      startEditing,
       deleteMessage,
       startMessageBranch,
       setActiveBranch,
@@ -712,6 +717,7 @@ export function useHomeMessageListProviderValue({
       saveCodeBlock,
       setActiveBranch,
       showInFolder,
+      startEditing,
       startMessageBranch,
       startNewContext,
       selectionController.actions,

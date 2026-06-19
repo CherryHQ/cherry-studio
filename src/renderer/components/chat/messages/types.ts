@@ -13,6 +13,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { ReactNode } from 'react'
 
@@ -249,6 +250,7 @@ export interface MessageListState {
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
+  editingMessageId?: string | null
   translationLanguages?: TranslateLanguage[]
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
@@ -323,6 +325,12 @@ export interface MessageListActions {
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
+  /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
+  startEditing?: (
+    message: MessageListItem,
+    parts: CherryMessagePart[],
+    options?: { lockedMentionedModels?: Model[] }
+  ) => void
   deleteMessage?: (messageId: string, traceOptions?: { modelName?: string }) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>

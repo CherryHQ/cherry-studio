@@ -66,6 +66,10 @@ vi.mock('@renderer/config/models/_bridge', () => ({
   toSharedCompatModel: vi.fn(() => undefined)
 }))
 
+vi.mock('@renderer/context/MessageEditingContext', () => ({
+  useMessageEditing: () => ({ editingMessageId: null, editingMessage: null, startEditing: vi.fn() })
+}))
+
 vi.mock('@renderer/hooks/ChatWriteContext', () => ({
   useChatWrite: () => undefined
 }))

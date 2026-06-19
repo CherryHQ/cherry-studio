@@ -77,6 +77,7 @@ const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>
 const MessageListSelectionContext = createContext<MessageListSelectionState | undefined | null>(null)
 const MessageListUiStaticContext = createContext<MessageListUiStaticValue | null>(null)
 const MessageListUiSelectorsContext = createContext<MessageListUiSelectorsValue | null>(null)
+const MessageListEditingContext = createContext<string | null>(null)
 
 export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
   const { state, actions, meta } = value
@@ -146,7 +147,11 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
               <MessageListRenderConfigContext value={state.renderConfig}>
                 <MessageListSelectionContext value={state.selection}>
                   <MessageListUiStaticContext value={uiStatic}>
-                    <MessageListUiSelectorsContext value={uiSelectors}>{children}</MessageListUiSelectorsContext>
+                    <MessageListUiSelectorsContext value={uiSelectors}>
+                      <MessageListEditingContext value={state.editingMessageId ?? null}>
+                        {children}
+                      </MessageListEditingContext>
+                    </MessageListUiSelectorsContext>
                   </MessageListUiStaticContext>
                 </MessageListSelectionContext>
               </MessageListRenderConfigContext>
@@ -229,6 +234,10 @@ export const useMessageListSelection = (): MessageListSelectionState | undefined
   }
   return value
 }
+
+/** Id of the message currently being edited (null when none). Non-throwing: "not editing"
+ * is a valid state, so embeds that never set it simply get null. */
+export const useMessageListEditingId = (): string | null => use(MessageListEditingContext)
 
 /**
  * Back-compat hook: merged static + selectors UI value. Required variant
