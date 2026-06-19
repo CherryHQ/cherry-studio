@@ -2416,6 +2416,8 @@
       "edit": "编辑",
       "enable": "启用",
       "manage_tags": "管理标签",
+      "open_folder": "打开文件夹",
+      "open_folder_failed": "打开技能文件夹失败",
       "uninstall": "卸载"
     },
     "assistant_catalog": {
