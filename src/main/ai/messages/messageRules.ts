@@ -10,7 +10,14 @@
 
 import type { ModelMessage, UIMessage } from 'ai'
 
-type MessageRule = <T extends UIMessage>(messages: T[]) => T[]
+import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
+
+/** Context shared by every UIMessage normalization rule. */
+export interface NormalizeContext {
+  mediaCapabilities?: MediaCapabilities
+}
+
+type MessageRule = <T extends UIMessage>(messages: T[], ctx: Required<NormalizeContext>) => T[]
 
 /**
  * Give an otherwise-empty assistant turn a placeholder text part.
@@ -36,11 +43,18 @@ export function ensureNonEmptyAssistantParts<T extends UIMessage = UIMessage>(me
   })
 }
 
-const RULES: readonly MessageRule[] = [ensureNonEmptyAssistantParts]
+/** Drop media the model can't accept — see `stripUnsupportedMedia` in `messageCapabilities.ts`. */
+function gateUnsupportedMedia<T extends UIMessage = UIMessage>(messages: T[], ctx: Required<NormalizeContext>): T[] {
+  return stripUnsupportedMedia(messages, ctx.mediaCapabilities)
+}
 
-/** Apply every normalization rule in order. */
-export function normalizeUIMessages<T extends UIMessage = UIMessage>(messages: T[]): T[] {
-  return RULES.reduce<T[]>((acc, rule) => rule(acc), messages)
+// Order matters: gate media before the empty-turn guard.
+const RULES: readonly MessageRule[] = [gateUnsupportedMedia, ensureNonEmptyAssistantParts]
+
+/** Apply every UIMessage normalization rule in order, before `convertToModelMessages`. */
+export function normalizeUIMessages<T extends UIMessage = UIMessage>(messages: T[], ctx: NormalizeContext = {}): T[] {
+  const resolved: Required<NormalizeContext> = { mediaCapabilities: ctx.mediaCapabilities ?? ALL_MEDIA }
+  return RULES.reduce<T[]>((acc, rule) => rule(acc, resolved), messages)
 }
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */

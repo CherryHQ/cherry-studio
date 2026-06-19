@@ -45,6 +45,14 @@ describe('normalizeUIMessages', () => {
       { role: 'user', content: [{ type: 'text', text: '继续' }] }
     ])
   })
+
+  it('applies media gating as part of the pipeline', () => {
+    const msgs: UIMessage[] = [
+      ui('user', [{ type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }])
+    ]
+    const [out] = normalizeUIMessages(msgs, { mediaCapabilities: { image: false, video: true, audio: true } })
+    expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('image attachment omitted') }])
+  })
 })
 
 describe('coalesceConsecutiveSameRole', () => {

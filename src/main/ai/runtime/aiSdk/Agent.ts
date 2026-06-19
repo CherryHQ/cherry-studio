@@ -7,7 +7,6 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages } from 'ai'
 
-import { ALL_MEDIA, stripUnsupportedMedia } from '../../messages/messageCapabilities'
 import { coalesceConsecutiveSameRole, normalizeUIMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
@@ -177,7 +176,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       // Pipeline: strip unsupported media → ensure non-empty assistant turns →
       // convert (dropping incomplete tool calls) → merge adjacent same-role turns.
       // See #16195.
-      const shaped = normalizeUIMessages(stripUnsupportedMedia(initialMessages, params.mediaCapabilities ?? ALL_MEDIA))
+      const shaped = normalizeUIMessages(initialMessages, { mediaCapabilities: params.mediaCapabilities })
       const modelMessages = coalesceConsecutiveSameRole(
         await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true })
       )
