@@ -152,7 +152,7 @@ describe('reindex-subtree job handler', () => {
       }
     )
     probeKnowledgeSourcePathMock.mockImplementation(async (absolutePath: string) =>
-      absolutePath === '/docs/dir-1' ? 'readable' : 'missing'
+      absolutePath === 'dir-1' ? 'readable' : 'missing'
     )
 
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1', 'dir-2'] }, 'reindex-job')
@@ -232,7 +232,7 @@ describe('reindex-subtree job handler', () => {
       }
     )
     probeKnowledgeSourcePathMock.mockImplementation(async (absolutePath: string) =>
-      absolutePath === '/docs/dir-1' ? 'readable' : 'missing'
+      absolutePath === 'dir-1' ? 'readable' : 'missing'
     )
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
 

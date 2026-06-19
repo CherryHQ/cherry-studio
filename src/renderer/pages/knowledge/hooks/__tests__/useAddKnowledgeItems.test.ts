@@ -24,7 +24,7 @@ describe('useAddKnowledgeItems', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
-    mockIpcRequest.mockResolvedValue(undefined)
+    mockIpcRequest.mockResolvedValue({ status: 'added' })
   })
 
   it('submits knowledge sources through orchestration IPC and refreshes the list', async () => {
@@ -32,8 +32,7 @@ describe('useAddKnowledgeItems', () => {
       {
         type: 'directory' as const,
         data: {
-          source: '/Users/me/docs',
-          relativePath: '/Users/me/docs'
+          source: '/Users/me/docs'
         }
       },
       {
@@ -48,11 +47,35 @@ describe('useAddKnowledgeItems', () => {
     const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
 
     await act(async () => {
-      await expect(result.current.submit(items)).resolves.toBeUndefined()
+      await expect(result.current.submit(items)).resolves.toEqual({ status: 'added' })
     })
 
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', { baseId: 'base-1', items })
     expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
+    expect(result.current.error).toBeUndefined()
+    expect(result.current.isSubmitting).toBe(false)
+  })
+
+  it('returns the conflicts result and skips the list refresh when the add reports conflicts', async () => {
+    const conflictsResult = { status: 'conflicts' as const, conflicts: [{ type: 'note' as const, title: 'Doc A' }] }
+    mockIpcRequest.mockResolvedValueOnce(conflictsResult)
+    const items = [{ type: 'note' as const, data: { source: 'Doc A', content: 'Doc A' } }]
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    let submitResult: unknown
+    await act(async () => {
+      submitResult = await result.current.submit(items, 'detect')
+    })
+
+    expect(submitResult).toEqual(conflictsResult)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
+      baseId: 'base-1',
+      items,
+      conflictStrategy: 'detect'
+    })
+    // Nothing was added, so the list cache is not refreshed.
+    expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.error).toBeUndefined()
     expect(result.current.isSubmitting).toBe(false)
   })

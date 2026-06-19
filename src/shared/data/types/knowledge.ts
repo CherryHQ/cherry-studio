@@ -279,10 +279,22 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 /**
- * Directory item data.
+ * Directory item data. The original folder to (re)scan lives in `source` (shared with
+ * every item type); `relativePath` is the deduped `raw/` directory the expanded files
+ * are stored under, mirroring FileItemData's source/relativePath split.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
-  relativePath: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
+  // Written lazily by main on first expansion (add omits it): the deduped, base-relative
+  // `raw/` directory prefix the container's files live under (e.g. `docs` or `docs_2`).
+  // Same POSIX-normalized, no-traversal invariant as FileItemData.relativePath.
+  relativePath: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
+    )
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
@@ -635,3 +647,140 @@ export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
   DirectoryItemMemberSchema
 ])
 export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>
+
+// ============================================================================
+// Add-Item Conflict Resolution
+// ============================================================================
+
+/**
+ * How `addItems` resolves a same-name conflict between an incoming source and an
+ * existing root item (or an earlier item in the same batch). One decision applies
+ * to the whole batch (Finder semantics).
+ *
+ * - `rename` (default): keep all, auto-rename the new file on collision with a
+ *   numeric suffix (the long-standing `reserveImportedFileRelativePath` behavior).
+ *   Internal callers (restore, the v1->v2 migrator) rely on this default.
+ * - `detect`: proceed only when nothing collides; otherwise add nothing and report
+ *   the conflicts so the UI can ask the user. This is the first pass an interactive
+ *   add makes — one round-trip when there is no conflict.
+ * - `replace`: the incoming source wins. Conflicting existing items are purged
+ *   synchronously before the add, and an earlier same-name item in the same batch
+ *   is dropped (last wins).
+ */
+export const KNOWLEDGE_ADD_CONFLICT_STRATEGIES = ['rename', 'detect', 'replace'] as const
+export const KnowledgeAddConflictStrategySchema = z.enum(KNOWLEDGE_ADD_CONFLICT_STRATEGIES)
+export type KnowledgeAddConflictStrategy = z.infer<typeof KnowledgeAddConflictStrategySchema>
+export const DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY: KnowledgeAddConflictStrategy = 'rename'
+
+/**
+ * A single same-name conflict reported by a `detect` pass. `title` is the
+ * user-facing display name (so the user recognizes which source collides);
+ * `type` selects the icon. Detection itself keys off a per-type detection key
+ * that is intentionally separate from this display title (see
+ * `getKnowledgeItemConflictKey` vs `getKnowledgeItemDisplayTitle`).
+ */
+export const KnowledgeAddItemConflictSchema = z.object({
+  type: KnowledgeItemTypeSchema,
+  title: z.string()
+})
+export type KnowledgeAddItemConflict = z.infer<typeof KnowledgeAddItemConflictSchema>
+
+/**
+ * Result of `addItems`. `conflicts` is only returned by a `detect` pass that
+ * found collisions and added nothing; `added` means the batch was applied.
+ */
+export const KnowledgeAddItemsResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('added') }),
+  z.object({ status: z.literal('conflicts'), conflicts: z.array(KnowledgeAddItemConflictSchema) })
+])
+export type KnowledgeAddItemsResult = z.infer<typeof KnowledgeAddItemsResultSchema>
+
+// ============================================================================
+// Item Display Title / Conflict Key Helpers
+// ============================================================================
+
+/**
+ * Minimal structural shape shared by a persisted {@link KnowledgeItem} and a
+ * {@link KnowledgeAddItemInput}: enough to derive a display title and a conflict
+ * key without depending on which of the two it is. Uses string ops only (no
+ * `node:path`) so it is safe in the renderer.
+ */
+export interface KnowledgeItemTitleSource {
+  type: KnowledgeItemType
+  data: {
+    source?: string
+    content?: string
+    url?: string
+    relativePath?: string
+  }
+}
+
+/** Last path segment of a slash/backslash path, trimmed; falls back to the input. */
+export function getKnowledgePathBasename(value: string): string {
+  const normalized = value.replace(/[/\\]+$/, '')
+  const name = normalized.split(/[/\\]/).pop()?.trim()
+  return name || normalized || value
+}
+
+/** First non-empty, trimmed line of note content (the note's display title). */
+export function getKnowledgeNoteFirstLine(content: string): string {
+  return (
+    content
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || ''
+  )
+}
+
+/**
+ * User-facing display name for a knowledge item or add-input. Prefers the
+ * `relativePath` — the deduped name stored under `raw/` (e.g. `测试_2.pdf`) — so
+ * that same-name items kept side by side ("保留全部") stay distinguishable:
+ * - file: relativePath basename (always set at add-time) else source basename
+ * - note: captured snapshot name (set on first index) else first content line
+ * - url: captured snapshot name (set on first index) else the raw url
+ * - directory: deduped `raw/` directory prefix (set on first expansion, e.g. `docs_2`)
+ *   else the original folder's source basename
+ */
+export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): string {
+  const data = item.data
+  switch (item.type) {
+    case 'file':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'directory':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'note': {
+      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+      return snapshotName || getKnowledgeNoteFirstLine(data.content || '')
+    }
+    case 'url': {
+      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+      return snapshotName || data.url || data.source || ''
+    }
+  }
+}
+
+/**
+ * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
+ * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
+ * `test_2.md`) when present, else the source basename. An add-input has no
+ * relativePath yet, so it keys off the source basename and detection still fires;
+ * an existing item keys off its deduped relativePath, so `replace` targets only
+ * the one colliding copy (relativePath `test.md`) instead of every item sharing a
+ * source basename (`test.md`, `test_2.md`, `test_3.md`). url/note stay separate
+ * from the display title: url keys off the raw `data.url` (exact, no normalization)
+ * and note off its first line, because their deduped name is a post-index snapshot
+ * name absent at add-time — keying off it would miss real duplicate urls/notes.
+ */
+export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
+  const data = item.data
+  switch (item.type) {
+    case 'file':
+    case 'directory':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'note':
+      return getKnowledgeNoteFirstLine(data.content || '')
+    case 'url':
+      return (data.url || '').trim()
+  }
+}

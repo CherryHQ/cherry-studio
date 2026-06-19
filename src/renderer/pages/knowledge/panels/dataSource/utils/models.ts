@@ -1,5 +1,11 @@
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
-import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
+import {
+  getKnowledgeItemDisplayTitle,
+  getKnowledgePathBasename,
+  type KnowledgeItemOf,
+  type KnowledgeItemStatus,
+  type KnowledgeItemType
+} from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
@@ -46,37 +52,11 @@ type DataSourceTypeDisplayConfigMap = {
 const getRelativeMetaParts = (updatedAt: string, language: string, extraParts: Array<string | undefined> = []) =>
   [...extraParts, formatRelativeTime(updatedAt, language)].filter((part): part is string => Boolean(part))
 
-const getNoteTitle = (content: string) => {
-  const firstLine = content
-    .split('\n')
-    .map((line) => line.trim())
-    .find(Boolean)
-
-  return firstLine || ''
-}
-
-const getPathName = (source: string) => {
-  const normalizedSource = source.replace(/[/\\]+$/, '')
-  const name = normalizedSource.split(/[/\\]/).pop()?.trim()
-
-  return name || normalizedSource || source
-}
-
-const getFileTitle = (item: KnowledgeItemOf<'file'>) => getPathName(item.data.source || item.data.relativePath)
-
 const getFileSuffix = (item: KnowledgeItemOf<'file'>) => {
-  const fallbackName = getPathName(item.data.source)
+  const fallbackName = getKnowledgePathBasename(item.data.source)
   const fallbackExt = fallbackName.includes('.') ? fallbackName.split('.').pop() : undefined
 
   return (fallbackExt || 'FILE').toLowerCase()
-}
-
-// Prefer the captured snapshot's name (derived from the page title) over the raw URL.
-// `relativePath` is written lazily on first index, so fall back to the URL while reading.
-const getUrlTitle = (item: KnowledgeItemOf<'url'>) => {
-  const snapshotName = item.data.relativePath ? getPathName(item.data.relativePath).replace(/\.md$/i, '') : ''
-
-  return snapshotName || item.data.source
 }
 
 export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): DataSourceStatusViewModel => {
@@ -149,7 +129,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: FileText,
       iconClassName: 'text-blue-500'
     },
-    getTitle: (item) => getFileTitle(item),
+    getTitle: (item) => getKnowledgeItemDisplayTitle(item),
     getSuffix: (item) => getFileSuffix(item),
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
@@ -160,7 +140,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: StickyNote,
       iconClassName: 'text-amber-500'
     },
-    getTitle: (item) => getNoteTitle(item.data.content),
+    getTitle: (item) => getKnowledgeItemDisplayTitle(item),
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
@@ -171,7 +151,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: Folder,
       iconClassName: 'text-violet-500'
     },
-    getTitle: (item) => getPathName(item.data.source),
+    getTitle: (item) => getKnowledgeItemDisplayTitle(item),
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
@@ -182,7 +162,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: Link2,
       iconClassName: 'text-cyan-500'
     },
-    getTitle: (item) => getUrlTitle(item),
+    getTitle: (item) => getKnowledgeItemDisplayTitle(item),
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
