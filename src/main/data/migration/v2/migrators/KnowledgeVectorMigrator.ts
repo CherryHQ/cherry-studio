@@ -301,10 +301,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
    * If every child in a group is empty, the container is degraded too; a group with at least one
    * surviving child keeps its container `completed`.
    */
-  private markEmptyDirectoryChildren(
-    groups: Map<string, Set<string>>,
-    chunksByItem: Map<string, unknown>
-  ): void {
+  private markEmptyDirectoryChildren(groups: Map<string, Set<string>>, chunksByItem: Map<string, unknown>): void {
     for (const [containerId, childIds] of groups) {
       let survivors = 0
       for (const childId of childIds) {

@@ -2142,9 +2142,9 @@ describe('KnowledgeVectorMigrator', () => {
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
-      expect(executeResult.warnings?.some((warning: string) => warning.includes('Invalid knowledge relative path'))).toBe(
-        true
-      )
+      expect(
+        executeResult.warnings?.some((warning: string) => warning.includes('Invalid knowledge relative path'))
+      ).toBe(true)
       // The traversal target was never written outside the material root.
       expect(fs.existsSync(path.join(knowledgeBaseDir, MIGRATED_KNOWLEDGE_BASE_ID, 'escape.md'))).toBe(false)
     })
