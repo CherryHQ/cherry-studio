@@ -326,7 +326,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   value={retryFallbackModelIds as UniqueModelId[]}
                   onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
                   filter={modelFilter}
-                  listVisibleCount={MODEL_SELECTOR_VISIBLE_COUNT}
                   trigger={
                     <Button
                       type="button"
