@@ -51,34 +51,42 @@ describe('budgetStopFeature', () => {
     expect(conditions).toHaveLength(1)
   })
 
-  it('returns false and does not call setBudgetTripped when inputTokens is below threshold', () => {
+  it('returns false and does not call setBudgetTripped when totalTokens is below threshold', () => {
     setBudgetTripped.mockClear()
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000))
     // threshold = 0.8 * 100_000 = 80_000; 79_999 < threshold
-    expect(condition({ steps: [{ usage: { inputTokens: 79_999 } }] } as any)).toBe(false)
+    expect(condition({ steps: [{ usage: { totalTokens: 79_999 } }] } as any)).toBe(false)
     expect(setBudgetTripped).not.toHaveBeenCalled()
   })
 
-  it('returns true and calls setBudgetTripped when inputTokens meets threshold (below cap)', () => {
+  it('returns true and calls setBudgetTripped when totalTokens meets threshold (below cap)', () => {
     setBudgetTripped.mockClear()
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000, 'prov::model'))
     // threshold = 80_000; step 1 of 20 cap — budget is binding
-    expect(condition({ steps: [{ usage: { inputTokens: 80_000 } }] } as any)).toBe(true)
+    expect(condition({ steps: [{ usage: { totalTokens: 80_000 } }] } as any)).toBe(true)
     expect(setBudgetTripped).toHaveBeenCalledOnce()
     expect(setBudgetTripped).toHaveBeenCalledWith('topic-1', 'prov::model')
   })
 
-  it('returns true and calls setBudgetTripped when inputTokens exceeds threshold (below cap)', () => {
+  it('returns true and calls setBudgetTripped when totalTokens exceeds threshold (below cap)', () => {
     setBudgetTripped.mockClear()
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000, 'prov::model'))
-    expect(condition({ steps: [{ usage: { inputTokens: 95_000 } }] } as any)).toBe(true)
+    expect(condition({ steps: [{ usage: { totalTokens: 95_000 } }] } as any)).toBe(true)
     expect(setBudgetTripped).toHaveBeenCalledWith('topic-1', 'prov::model')
   })
 
-  it('defaults inputTokens to 0 (no trip) when steps is empty', () => {
+  it('does not trip when steps is empty', () => {
     setBudgetTripped.mockClear()
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000))
     expect(condition({ steps: [] } as any)).toBe(false)
+    expect(setBudgetTripped).not.toHaveBeenCalled()
+  })
+
+  it('does not trip when provider omits usage (totalTokens is undefined)', () => {
+    setBudgetTripped.mockClear()
+    const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000))
+    // No totalTokens reported — fallback should be safe (no trip)
+    expect(condition({ steps: [{ usage: {} }] } as any)).toBe(false)
     expect(setBudgetTripped).not.toHaveBeenCalled()
   })
 
@@ -96,7 +104,7 @@ describe('budgetStopFeature', () => {
     setBudgetTripped.mockClear()
     // No assistant → default cap is 20
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000))
-    const atCap = Array.from({ length: 20 }, () => ({ usage: { inputTokens: 95_000 } }))
+    const atCap = Array.from({ length: 20 }, () => ({ usage: { totalTokens: 95_000 } }))
     expect(condition({ steps: atCap } as any)).toBe(false)
     expect(setBudgetTripped).not.toHaveBeenCalled()
   })
@@ -105,7 +113,7 @@ describe('budgetStopFeature', () => {
     setBudgetTripped.mockClear()
     const assistant = { settings: { enableMaxToolCalls: true, maxToolCalls: 5 } }
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000, 'prov::model', assistant))
-    const atCap = Array.from({ length: 5 }, () => ({ usage: { inputTokens: 95_000 } }))
+    const atCap = Array.from({ length: 5 }, () => ({ usage: { totalTokens: 95_000 } }))
     expect(condition({ steps: atCap } as any)).toBe(false)
     expect(setBudgetTripped).not.toHaveBeenCalled()
   })
@@ -114,7 +122,7 @@ describe('budgetStopFeature', () => {
     setBudgetTripped.mockClear()
     const assistant = { settings: { enableMaxToolCalls: true, maxToolCalls: 5 } }
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000, 'prov::model', assistant))
-    const belowCap = Array.from({ length: 4 }, () => ({ usage: { inputTokens: 95_000 } }))
+    const belowCap = Array.from({ length: 4 }, () => ({ usage: { totalTokens: 95_000 } }))
     expect(condition({ steps: belowCap } as any)).toBe(true)
     expect(setBudgetTripped).toHaveBeenCalledOnce()
   })
@@ -124,12 +132,12 @@ describe('budgetStopFeature', () => {
     const assistant = { settings: { enableMaxToolCalls: false, maxToolCalls: 5 } }
     const [condition] = budgetStopFeature.contributeStopConditions!(scope('topic-1', 100_000, 'prov::model', assistant))
     // At cap=20, should not trip
-    const atDefaultCap = Array.from({ length: 20 }, () => ({ usage: { inputTokens: 95_000 } }))
+    const atDefaultCap = Array.from({ length: 20 }, () => ({ usage: { totalTokens: 95_000 } }))
     expect(condition({ steps: atDefaultCap } as any)).toBe(false)
     expect(setBudgetTripped).not.toHaveBeenCalled()
     // Below cap=20, should trip
     setBudgetTripped.mockClear()
-    const belowDefaultCap = Array.from({ length: 19 }, () => ({ usage: { inputTokens: 95_000 } }))
+    const belowDefaultCap = Array.from({ length: 19 }, () => ({ usage: { totalTokens: 95_000 } }))
     expect(condition({ steps: belowDefaultCap } as any)).toBe(true)
     expect(setBudgetTripped).toHaveBeenCalledOnce()
   })

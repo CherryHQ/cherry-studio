@@ -28,12 +28,19 @@ function resolveStepCap(scope: Parameters<NonNullable<RequestFeature['contribute
 }
 
 /**
- * Stops the agentic loop at the next step boundary when the most recent step's prompt
- * (`inputTokens`) crosses BUDGET_FRACTION × contextWindow, and records the trip on
- * AiStreamManager (keyed by topic+model) so onExecutionDone can re-dispatch a
- * budget-continue. The flag is set ONLY when:
+ * Stops the agentic loop at the next step boundary when the most recent step's
+ * `totalTokens` (input + output) crosses BUDGET_FRACTION × contextWindow, and records
+ * the trip on AiStreamManager (keyed by topic+model) so onExecutionDone can re-dispatch
+ * a budget-continue. The flag is set ONLY when:
  *   1. The budget threshold is crossed, AND
  *   2. The step cap is NOT the binding constraint (steps.length < cap).
+ *
+ * totalTokens mirrors the metric used by the turn-start compaction trigger
+ * (contextTokens anchor = prior step's totalTokens), so both thresholds are measured on
+ * the same scale. When the provider omits usage entirely (totalTokens is undefined) the
+ * predicate returns false — no tokenizer fallback is attempted here because the
+ * StepResult API does not expose the full prompt/history, only the generated content
+ * (which would undercount the input side).
  *
  * Persistent-chat-only: the feature is excluded for agent-session topics (they manage
  * their own runtime queue) and temporary-chat topics (budget-continue throws for them).
@@ -57,8 +64,8 @@ export const budgetStopFeature: RequestFeature = {
     const stepCap = resolveStepCap(scope)
     return [
       ({ steps }) => {
-        const inputTokens = steps.at(-1)?.usage.inputTokens ?? 0
-        if (inputTokens >= threshold && steps.length < stepCap) {
+        const totalTokens = steps.at(-1)?.usage.totalTokens
+        if (totalTokens !== undefined && totalTokens >= threshold && steps.length < stepCap) {
           application.get('AiStreamManager').setBudgetTripped(topicId, modelId)
           return true
         }
