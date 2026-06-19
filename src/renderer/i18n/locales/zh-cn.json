@@ -2357,6 +2357,7 @@
       "action": "重建知识库",
       "default_name": "{{name}}_副本",
       "failed_to_restore": "知识库重建失败",
+      "skipped_missing_sources": "已跳过 {{count}} 个源已丢失的项目",
       "submit": "重建",
       "title": "重建知识库"
     },

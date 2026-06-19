@@ -2357,6 +2357,7 @@
       "action": "Rebuild knowledge base",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Failed to rebuild knowledge base",
+      "skipped_missing_sources": "Skipped {{count}} item(s) whose source no longer exists",
       "submit": "Rebuild",
       "title": "Rebuild Knowledge Base"
     },

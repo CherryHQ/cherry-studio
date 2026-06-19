@@ -573,6 +573,15 @@ export const RestoreKnowledgeBaseSchema = z.strictObject({
 })
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
+// Restore is a partial operation: root items whose source is genuinely gone are skipped rather
+// than aborting the whole restore, so the result reports how many were dropped for the UI to tell
+// the user (a silent count is a silent data loss).
+export const RestoreKnowledgeBaseResultSchema = z.strictObject({
+  base: KnowledgeBaseSchema,
+  skippedMissingSourceCount: z.number().int().nonnegative()
+})
+export type RestoreKnowledgeBaseResult = z.infer<typeof RestoreKnowledgeBaseResultSchema>
+
 const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: KnowledgeItemIdSchema.nullable().optional()
 })

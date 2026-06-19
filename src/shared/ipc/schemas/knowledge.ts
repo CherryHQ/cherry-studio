@@ -7,6 +7,7 @@ import {
   KnowledgeBaseSchema,
   KnowledgeItemChunkSchema,
   KnowledgeSearchResultSchema,
+  RestoreKnowledgeBaseResultSchema,
   RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
@@ -41,7 +42,10 @@ export const knowledgeRequestSchemas = {
     input: z.strictObject({ base: CreateKnowledgeBaseSchema }),
     output: KnowledgeBaseSchema
   }),
-  'knowledge.restore_base': defineRoute({ input: RestoreKnowledgeBaseSchema, output: KnowledgeBaseSchema }),
+  'knowledge.restore_base': defineRoute({
+    input: RestoreKnowledgeBaseSchema,
+    output: RestoreKnowledgeBaseResultSchema
+  }),
   'knowledge.delete_base': defineRoute({ input: z.strictObject({ baseId: baseIdSchema }), output: z.void() }),
   'knowledge.add_items': defineRoute({
     input: z.strictObject({

@@ -17,7 +17,8 @@ import {
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
   type KnowledgeSearchResult,
-  type RestoreKnowledgeBaseDto
+  type RestoreKnowledgeBaseDto,
+  type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
@@ -153,7 +154,7 @@ export class KnowledgeService extends BaseService {
     })
   }
 
-  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
+  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
@@ -230,7 +231,7 @@ export class KnowledgeService extends BaseService {
       )
     }
 
-    return restoredBase
+    return { base: restoredBase, skippedMissingSourceCount }
   }
 
   async addItems(

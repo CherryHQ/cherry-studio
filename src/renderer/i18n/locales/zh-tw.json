@@ -2357,6 +2357,7 @@
       "action": "重建知識庫",
       "default_name": "{{name}}_副本",
       "failed_to_restore": "知識庫重建失敗",
+      "skipped_missing_sources": "已略過 {{count}} 個來源已遺失的項目",
       "submit": "重建",
       "title": "重建知識庫"
     },

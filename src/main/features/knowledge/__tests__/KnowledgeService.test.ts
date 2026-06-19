@@ -609,7 +609,7 @@ describe('KnowledgeService', () => {
         embeddingModelId: 'provider::new',
         dimensions: 6
       })
-    ).resolves.toBe(restoredBase)
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
@@ -643,7 +643,7 @@ describe('KnowledgeService', () => {
         embeddingModelId: 'provider::new',
         dimensions: 6
       })
-    ).resolves.toBe(restoredBase)
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 1 })
 
     // The note is restored into the new base; the missing-source file is skipped, not restored.
     expect(createdItemBaseIds.get('keep-note')).toBe('restored-kb')
@@ -665,7 +665,7 @@ describe('KnowledgeService', () => {
         embeddingModelId: 'provider::embed',
         dimensions: 3
       })
-    ).resolves.toBe(restoredBase)
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
