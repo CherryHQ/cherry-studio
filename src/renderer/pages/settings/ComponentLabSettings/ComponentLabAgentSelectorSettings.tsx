@@ -1,6 +1,6 @@
 import { Button, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
-import { AgentSelector, type AgentSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { AgentSelector, type AgentSelectorItem } from '@renderer/features/resource'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

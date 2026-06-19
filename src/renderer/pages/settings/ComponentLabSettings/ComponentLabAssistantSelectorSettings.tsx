@@ -1,6 +1,6 @@
 import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
-import { AssistantSelector, type AssistantSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { AssistantSelector, type AssistantSelectorItem } from '@renderer/features/resource'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -139,13 +139,14 @@ const AssistantSelectorLabSession: FC<AssistantSelectorLabSessionProps> = ({ mul
       return (
         <AssistantSelector
           trigger={trigger}
+          multi={false}
           selectionType="item"
           value={singleItem}
           onChange={handleSingleItemChange}
         />
       )
     }
-    return <AssistantSelector trigger={trigger} value={singleId} onChange={handleSingleIdChange} />
+    return <AssistantSelector trigger={trigger} multi={false} value={singleId} onChange={handleSingleIdChange} />
   })()
 
   return (

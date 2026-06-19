@@ -1,4 +1,5 @@
 import { useTagList } from '@renderer/hooks/useTags'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -132,13 +133,12 @@ export function useResourceLibrary({
   }, [])
 
   const buildAgentItem = useCallback((a: AgentDetail): ResourceItem => {
-    const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
     return {
       id: a.id,
       type: 'agent',
       name: a.name ?? '',
       description: a.description ?? '',
-      avatar: avatarFromConfig || '🤖',
+      avatar: getAgentAvatarFromConfiguration(a.configuration),
       model: a.modelName ?? undefined,
       tags: [],
       createdAt: a.createdAt,
