@@ -7067,10 +7067,16 @@
       "title": "Page Zoom"
     }
   },
+  "subWindow": {
+    "back_to_main": "Back to Main Window",
+    "pin": "Keep on Top",
+    "unpin": "Cancel Keep on Top"
+  },
   "tab": {
     "close": "Close Tab",
     "move_to_first": "Move to First",
     "new": "New Tab",
+    "open_in_new_window": "Open in New Window",
     "pin": "Pin Tab",
     "unpin": "Unpin Tab"
   },

@@ -1,7 +1,6 @@
 import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import {
-  buildTabInstanceMetadata,
   getTabInstanceAppId,
   getTabInstanceKey,
   hasTabInstanceMetadataForApp
@@ -194,34 +193,6 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
   }
 
   return tab.url
-}
-
-/**
- * The tab id to focus on a sidebar click, or undefined if none exists. Apps with
- * sub-instances narrow the match to the last-focused key (so clicking returns to
- * that one); keyless apps focus any tab they own.
- */
-export function findAppTabToFocus(app: SidebarApp, tabs: Tab[], ctx: SidebarNavContext): string | undefined {
-  const key = app.instanceKey?.defaultKey(ctx)
-  const existing = tabs.find(
-    (t) =>
-      t.type === 'route' &&
-      (app.exactRouteFocus ? t.url === app.routePrefix : tabBelongsToApp(app, t.url)) &&
-      (app.instanceKey && key ? getSidebarAppTabInstanceKey(app, t) === key : true)
-  )
-  return existing?.id
-}
-
-/** The url to open when no owned tab exists yet (base route, resolveUrl, or routePrefix). */
-export function resolveAppOpenUrl(app: SidebarApp, ctx: SidebarNavContext): string {
-  const key = app.instanceKey?.defaultKey(ctx)
-  return app.instanceKey && key ? app.routePrefix : (app.resolveUrl?.(ctx) ?? app.routePrefix)
-}
-
-export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab['metadata'] {
-  if (!app.instanceKey || !key) return undefined
-  if (app.id !== 'assistants' && app.id !== 'agents') return undefined
-  return buildTabInstanceMetadata(undefined, { appId: app.id, key })
 }
 
 /**

@@ -7067,10 +7067,16 @@
       "title": "縮放"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "關閉分頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
   },

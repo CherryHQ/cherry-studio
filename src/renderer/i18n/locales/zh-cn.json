@@ -7067,10 +7067,16 @@
       "title": "缩放"
     }
   },
+  "subWindow": {
+    "back_to_main": "回到主窗口",
+    "pin": "窗口置顶",
+    "unpin": "取消置顶"
+  },
   "tab": {
     "close": "关闭标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
+    "open_in_new_window": "从新窗口打开",
     "pin": "固定标签页",
     "unpin": "取消固定"
   },
