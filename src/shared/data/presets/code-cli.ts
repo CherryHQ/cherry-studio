@@ -32,7 +32,9 @@ export const CodeCliOverrideSchema = z.object({
   envVars: z.string().optional(),
   terminal: z.string().optional(),
   currentDirectory: z.string().optional(),
-  directories: z.array(z.string()).optional()
+  directories: z.array(z.string()).optional(),
+  pinned: z.boolean().optional(),
+  order: z.number().optional()
 })
 
 export const CodeCliOverridesSchema = z.partialRecord(CodeCliIdSchema, CodeCliOverrideSchema)

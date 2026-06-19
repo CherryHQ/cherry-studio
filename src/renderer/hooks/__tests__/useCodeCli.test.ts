@@ -1,4 +1,5 @@
 import { codeCLI, terminalApps } from '@shared/config/constant'
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +24,8 @@ function setupOverridesMock(overrides: Record<string, any>) {
 describe('useCodeCli', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
+    mockPreferenceService._resetMockState()
+    mockPreferenceService.getCachedValue.mockReset()
   })
 
   describe('selectedCliTool', () => {
@@ -275,6 +278,44 @@ describe('useCodeCli', () => {
           })
         })
       )
+    })
+  })
+
+  describe('pinning and ordering', () => {
+    it('should toggle pin state against the latest cached overrides', async () => {
+      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+      mockPreferenceService.getCachedValue.mockReturnValue({
+        'qwen-code': { enabled: true },
+        'claude-code': { order: 2 }
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.togglePin(codeCLI.claudeCode)
+      })
+
+      expect(mockSetter).toHaveBeenCalledWith({
+        'qwen-code': { enabled: true },
+        'claude-code': { order: 2, pinned: true }
+      })
+    })
+
+    it('should reorder tools against the latest cached overrides', async () => {
+      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+      mockPreferenceService.getCachedValue.mockReturnValue({
+        'qwen-code': { enabled: true, pinned: true },
+        'claude-code': { pinned: true }
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.reorderTools([codeCLI.claudeCode, codeCLI.qwenCode])
+      })
+
+      expect(mockSetter).toHaveBeenCalledWith({
+        'qwen-code': { enabled: true, pinned: true, order: 1 },
+        'claude-code': { pinned: true, order: 0 }
+      })
     })
   })
 })
