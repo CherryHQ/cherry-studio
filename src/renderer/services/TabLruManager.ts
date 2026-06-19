@@ -137,7 +137,7 @@ export class TabLruManager {
   private isHardExempt(tab: Tab, activeTabId: string): boolean {
     return (
       tab.id === activeTabId || // 当前活动标签
-      tab.id === 'chat' || // 默认聊天标签
+      tab.id === 'home' || // 默认聊天标签（须与 TabsContext 的 DEFAULT_TAB.id 一致）
       tab.isDormant === true // 已休眠的不再参与
     )
     // 注意：isPinned 在硬保险丝触发时不再豁免
@@ -157,14 +157,14 @@ export class TabLruManager {
    *
    * 豁免条件：
    * - 当前活动标签
-   * - 默认聊天标签 (id === 'chat')
+   * - 默认聊天标签 (id === 'home')
    * - 置顶标签 (isPinned)
    * - 已休眠的标签（不重复处理）
    */
   private isExempt(tab: Tab, activeTabId: string): boolean {
     return (
       tab.id === activeTabId || // 当前活动标签
-      tab.id === 'chat' || // 默认聊天标签
+      tab.id === 'home' || // 默认聊天标签（须与 TabsContext 的 DEFAULT_TAB.id 一致）
       tab.isPinned === true || // 置顶标签
       tab.isDormant === true // 已休眠的不再参与
     )
