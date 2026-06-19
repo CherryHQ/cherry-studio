@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-06-18T18:00:00Z",
-  "snapshot_date": "2026-06-18",
-  "data_source": "GitHub Issues API (discussion-labeled issues) + known high-engagement threads",
-  "note": "Full Discussion GraphQL data unavailable in this environment; data derived from issues with 'discussion' label and known high-engagement threads",
+  "generated_at": "2026-06-19T18:00:00Z",
+  "snapshot_date": "2026-06-19",
+  "data_source": "GitHub Issues API (discussion-labeled issues) + high-engagement threads",
+  "note": "GitHub Discussions GraphQL unavailable in this environment; data derived from issues with 'discussion' label and high-engagement issue threads",
   "discussion_labeled_issues": {
-    "open_count": 4,
-    "closed_30d_count": 7
+    "open_count": 3,
+    "closed_30d_count": 10
   },
   "top_discussions_by_engagement": [
     {
@@ -15,7 +15,7 @@
       "comments": 26,
       "type": "feature_discussion",
       "created_at": "2025-05-03",
-      "age_days": 411,
+      "age_days": 412,
       "status": "open",
       "note": "Oldest active issue, highest comment count — multi-year roadmap discussion"
     },
@@ -25,6 +25,14 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16078",
       "comments": 9,
       "type": "feature_discussion",
+      "status": "open"
+    },
+    {
+      "number": 14996,
+      "title": "[Bug]: Using Qwen or Gemma local models to create agents frequently encounter errors",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14996",
+      "comments": 9,
+      "type": "bug_discussion",
       "status": "open"
     },
     {
@@ -47,52 +55,61 @@
   ],
   "hot_topics": [
     {
-      "topic": "QQ Channel Bot Reply Broken",
+      "topic": "Log file disk space explosion (dual reports)",
       "urgency": "CRITICAL",
-      "issue": 16166,
-      "created": "2026-06-18",
-      "note": "Internal team flagged: bot sends active push instead of passive reply (msgId required). Zero-day."
+      "issues": [16142, 15947],
+      "note": "Two separate reports still open: 17GB+ (#16142, hardcoded Windows path) and 26GB+ (#15947, HTTP 418 retry loop against gitcode WAF). Both multi-day with no fix merged yet."
     },
     {
       "topic": "Agent Session Data Loss",
       "urgency": "CRITICAL",
       "issue": 16082,
-      "note": "29 sessions hard-deleted via internal API (soft:false). No recovery path."
+      "note": "29 sessions hard-deleted via internal API (soft:false). No recovery path. Open since 2026-06-16."
     },
     {
-      "topic": "Log file disk space explosion",
+      "topic": "Context-overflow deadlock",
       "urgency": "CRITICAL",
-      "issues": [16142, 15947],
-      "note": "Two separate reports: 17GB+ and 26GB+ log growth in one day. HTTP 418 retry loop + hardcoded Windows path."
+      "issue": 16112,
+      "note": "App hangs unrecoverably when context is too large. 4 comments, no resolution. Open since 2026-06-17."
     },
     {
-      "topic": "13 new PRD issues filed today",
+      "topic": "Quick Assist MCP tools not called",
       "urgency": "HIGH",
-      "note": "Largest single-day PRD burst observed. Topics: Agent UX, MCP Security, Knowledge Base, Usage Analytics, Browser Pane, OAuth. Signals major v2 feature planning cycle."
+      "issue": 16203,
+      "created": "2026-06-18",
+      "note": "Quick Assist silently skips MCP/tool calls — core integration broken."
     },
     {
-      "topic": "V2 chat page migration (stacked PRs)",
+      "topic": "Multi-turn search deduplication broken",
       "urgency": "HIGH",
-      "pr": 16152,
-      "note": "10-part stacked PR series for v1->v2 chat migration; layer 9/10 opened yesterday by DeJeune. Layer 10 pending."
+      "issue": 16210,
+      "created": "2026-06-19",
+      "note": "New today: multi-turn searches return identical results — search state not reset between turns."
     },
     {
-      "topic": "Gemini CLI deprecation",
-      "urgency": "RESOLVED",
-      "issue": 16136,
-      "note": "Deadline was TODAY (2026-06-18). Gemini CLI stops serving unpaid tiers. Migration path to Antigravity CLI requested."
+      "topic": "Renderer App Shell — major architectural work today",
+      "urgency": "INFO",
+      "prs": [16202, 16211, 16187],
+      "note": "DeJeune merged 3 PRs today carving tab architecture, app shell, and resource selectors. Major structural milestone for v2 renderer."
     },
     {
-      "topic": "anthropic-beta header expired",
+      "topic": "Claude conversation import",
+      "urgency": "INFO",
+      "pr": 16164,
+      "note": "PR open: add Claude (Anthropic) conversation import support by Pleasurecruise — community feature addition."
+    },
+    {
+      "topic": "anthropic-beta header expired (ongoing)",
       "urgency": "MEDIUM",
       "issue": 16135,
-      "note": "[Bug]: advisor-tool-2026-03-01 beta header causing 400 rejections — header should be removed."
+      "note": "advisor-tool-2026-03-01 beta header causing 400 rejections — header should be removed from aiCore."
     }
   ],
   "community_sentiment": {
-    "observation": "Open issues rose +8 today (936→944). 13 new PRD issues signals active v2 roadmap planning. Two critical disk-exhaustion bugs (#16142, #15947) need immediate attention. Community active — 409 issues closed in 30 days.",
-    "engagement_health": "moderate",
-    "top_contributor": "DeJeune (18 open PRs, leading v2 chat migration stacked series)",
-    "alert": "Three CRITICAL bugs filed in last 48h (data loss, disk exhaustion x2, QQ integration broken)"
+    "observation": "Open issues dropped slightly (-3: 944→941). 59 new issues in the last 7 days shows high user activity. Three CRITICAL bugs (disk exhaustion ×2, data loss) remain open with no fix merged. Dev velocity is high: 142 PRs merged to main in 30 days, 63 in the last 7 days alone.",
+    "engagement_health": "active",
+    "top_contributor": "DeJeune (14 open PRs, 28 merged in 30d, leading renderer app shell + chat migration sprint)",
+    "knowledge_sprint": "eeee0717 driving knowledge v2 feature: 15 merged PRs in 30d covering url/note snapshots, engine-portable index store, migration, conflict dialogs",
+    "alert": "CRITICAL: #15947 and #16142 (disk exhaustion) + #16082 (data loss) have been open 2-9 days with no merged fix."
   }
 }

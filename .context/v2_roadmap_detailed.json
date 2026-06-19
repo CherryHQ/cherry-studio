@@ -1,184 +1,129 @@
 {
-  "generated_at": "2026-06-18T18:00:00Z",
-  "snapshot_date": "2026-06-18",
-  "v2_status": "In Progress — v2 merged into main; coexistence phase",
-  "open_v2_prs": {
-    "total": 15,
+  "generated_at": "2026-06-19T18:00:00Z",
+  "snapshot_date": "2026-06-19",
+  "v2_status": "In Progress — v2 merged into main; coexistence phase (v1 + v2 code coexist)",
+  "v2_branch_prs": {
+    "open_targeting_v2_branch": 0,
+    "note": "v2 branch merged into main; all v2 work now targets main directly"
+  },
+  "open_v2_labeled_prs": {
+    "total": 4,
+    "blocked_on_v2": 1,
     "items": [
       {
         "number": 15184,
-        "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-back",
+        "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed",
         "url": "https://github.com/CherryHQ/cherry-studio/pull/15184",
         "labels": ["v2"],
-        "area": "tooling"
+        "area": "tooling",
+        "age_days": 30
       },
       {
         "number": 15045,
         "title": "feat(agent): AI SDK Agent Runtime",
         "url": "https://github.com/CherryHQ/cherry-studio/pull/15045",
         "labels": ["v2"],
-        "area": "agent"
+        "area": "agent",
+        "age_days": 37
       },
       {
         "number": 14997,
         "title": "chore(chat-page): scaffold chat component tree",
         "url": "https://github.com/CherryHQ/cherry-studio/pull/14997",
         "labels": ["v2"],
-        "area": "chat-ui"
+        "area": "chat-ui",
+        "age_days": 38
       },
       {
         "number": 14178,
         "title": "refactor(copilot): separate business logic from IPC handler signatures",
         "url": "https://github.com/CherryHQ/cherry-studio/pull/14178",
         "labels": ["v2"],
-        "area": "ipc"
-      },
-      {
-        "number": 14160,
-        "title": "feat: migrate agents data access to data api",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/14160",
-        "labels": ["v2"],
-        "area": "data-api"
-      },
-      {
-        "number": 14146,
-        "title": "feat(layout): add split-view infrastructure for multi-pane tabs",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/14146",
-        "labels": ["v2"],
-        "area": "layout"
-      },
-      {
-        "number": 14064,
-        "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/14064",
-        "labels": ["v2"],
-        "area": "tooling"
-      },
-      {
-        "number": 13856,
-        "title": "feat(process-manager): add ProcessManager with unified lifecycle, events",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/13856",
-        "labels": ["v2"],
-        "area": "lifecycle"
-      },
-      {
-        "number": 13561,
-        "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/13561",
-        "labels": ["v2"],
-        "area": "ui-components"
-      },
-      {
-        "number": 13517,
-        "title": "feat: integrate json-render for interactive UI in chat",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/13517",
-        "labels": ["v2"],
-        "area": "chat-ui"
-      },
-      {
-        "number": 13238,
-        "title": "feat(data): add provider/model data API and catalog core",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/13238",
-        "labels": ["v2"],
-        "area": "data-api"
-      },
-      {
-        "number": 12659,
-        "title": "feat(backup): add v2 backup system refactor plan document",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/12659",
-        "labels": ["v2"],
-        "area": "data"
-      },
-      {
-        "number": 12433,
-        "title": "feat: 添加浏览器剪藏 API 和插件支持",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/12433",
-        "labels": ["v2"],
-        "area": "browser-integration"
-      },
-      {
-        "number": 11878,
-        "title": "feat(ui): toast",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/11878",
-        "labels": ["v2"],
-        "area": "ui-components"
-      },
-      {
-        "number": 11420,
-        "title": "feat: Model & Provider Catalog",
-        "url": "https://github.com/CherryHQ/cherry-studio/pull/11420",
-        "labels": ["v2"],
-        "area": "models"
+        "area": "ipc",
+        "age_days": "unknown"
       }
     ]
   },
-  "stacked_chat_migration": {
-    "description": "v1->v2 chat renderer migration, split into 10 stacked PRs by DeJeune",
-    "status": "layer 9/10 opened 2026-06-17; layer 10 pending",
-    "latest_pr": {
-      "number": 16152,
-      "title": "feat(renderer): v2 history & app-shell chat surfaces (9/10)",
-      "author": "DeJeune",
-      "base": "feat/chat-sem-8",
-      "url": "https://github.com/CherryHQ/cherry-studio/pull/16152",
-      "note": "Stacked series: feat/chat-sem-1..10. CI not green on intermediate layers by design; full stack needed for working tree."
-    },
-    "total_files": 1193,
-    "note": "Series reviews in order; merge as unit"
-  },
-  "prd_burst_today": {
-    "date": "2026-06-18",
-    "count": 13,
-    "note": "13 new internal PRD issues filed in one day — largest single-day planning burst observed",
-    "themes": ["Agent UX", "MCP Security", "Knowledge Base", "Usage Analytics", "Auth/Privacy"],
-    "issues": [
-      {"number": 16186, "title": "[Feature]: Default Sidebar Leads with Agent for New Users", "area": "Agent/UX"},
-      {"number": 16173, "title": "[Feature]: Knowledge base — hide inline reference/citation markers", "area": "RAG/UX"},
-      {"number": 16172, "title": "[Feature]: Improve knowledge base retrieval recall (hybrid search / reranking)", "area": "RAG"},
-      {"number": 16170, "title": "[Feature]: Usage dashboard — view daily / weekly / total token usage", "area": "Analytics"},
-      {"number": 16167, "title": "[Feature]: App startup password / lock to protect local data", "area": "Privacy"},
-      {"number": 16165, "title": "[Feature]: Allow users to manage and delete tools that Agents create at runtime", "area": "Agent"},
-      {"number": 16159, "title": "[Feature]: MCP Apps — Interactive UI Components Returned by Tools", "area": "MCP"},
-      {"number": 16134, "title": "[Feature]: Interactive Scheduled-Task Card with Inline View & Edit", "area": "Agent/UX"},
-      {"number": 16131, "title": "[Feature]: Preflight Delivery Review", "area": "Agent"},
-      {"number": 16129, "title": "[Feature]: Agent Usage, Cost & Audit Console", "area": "Agent/Analytics"},
-      {"number": 16128, "title": "[Feature]: MCP Security Inspector & Tool Description Lock", "area": "MCP/Security"},
-      {"number": 16124, "title": "[Feature]: Built-In Browser Pane (Open & Browse Web Pages In-App)", "area": "Browser/Agent"},
-      {"number": 16090, "title": "[Feature]: Anthropic OAuth Sign-In for Claude Pro / Max Subscribers", "area": "Auth/Models"}
+  "merged_v2_related_last_30d": {
+    "total": 20,
+    "highlights": [
+      {"number": 16202, "title": "feat(renderer-app-shell): carve tab architecture & app shell", "mergedAt": "2026-06-19T11:00:39Z", "author": "DeJeune", "area": "renderer-shell"},
+      {"number": 16211, "title": "refactor(renderer-components): move resource selectors/dialogs from features/", "mergedAt": "2026-06-19T10:12:06Z", "author": "DeJeune", "area": "renderer-components"},
+      {"number": 16187, "title": "feat(renderer-components): split unified Selector component", "mergedAt": "2026-06-19T09:05:49Z", "author": "DeJeune", "area": "renderer-components"},
+      {"number": 16189, "title": "feat(knowledge): add-source conflict dialog and directory source/relativePath", "mergedAt": "2026-06-19T06:42:13Z", "author": "eeee0717", "area": "knowledge"},
+      {"number": 16093, "title": "feat(knowledge): re-attribute v1 directory vectors to per-file children on v2 migration", "mergedAt": "2026-06-18T06:00:56Z", "author": "eeee0717", "area": "knowledge-migration"},
+      {"number": 15951, "title": "feat(data-api): per-topic virtual-root message tree (structural single-root invariant)", "mergedAt": "2026-06-17T10:20:35Z", "author": "DeJeune", "area": "data-api"},
+      {"number": 16066, "title": "feat(data-migration): agent/chat/preference v2 migration mappings", "mergedAt": "2026-06-16T13:39:35Z", "author": "DeJeune", "area": "data-migration"},
+      {"number": 16062, "title": "feat(knowledge): url/note snapshots, note data source, and flat raw material storage", "mergedAt": "2026-06-16T06:23:22Z", "author": "eeee0717", "area": "knowledge"},
+      {"number": 15973, "title": "feat(knowledge): engine-portable per-base index store and retrieval cutover", "mergedAt": "2026-06-15T11:43:11Z", "author": "eeee0717", "area": "knowledge"},
+      {"number": 15943, "title": "feat(assistant-data): default assistant bootstrap and ordering", "mergedAt": "2026-06-12T11:46:42Z", "author": "DeJeune", "area": "data-api"},
+      {"number": 15705, "title": "feat(api-gateway): port the universal API gateway onto v2 (ElysiaJS rewrite)", "mergedAt": "2026-06-07T10:04:27Z", "author": "DeJeune", "area": "api-gateway"}
     ]
   },
-  "v2_areas_coverage": {
-    "data-api": {"prs": 2, "status": "active"},
-    "chat-ui": {"prs": 2, "status": "active"},
-    "ui-components": {"prs": 2, "status": "active"},
-    "agent": {"prs": 1, "status": "active"},
-    "ipc": {"prs": 1, "status": "active"},
-    "layout": {"prs": 1, "status": "active"},
-    "lifecycle": {"prs": 1, "status": "active"},
-    "models": {"prs": 1, "status": "active"},
-    "tooling": {"prs": 2, "status": "active"},
-    "data": {"prs": 1, "status": "active"},
-    "browser-integration": {"prs": 1, "status": "active"}
+  "v2_active_areas": {
+    "renderer_shell": {
+      "status": "ACTIVE",
+      "description": "Tab architecture and app shell being carved out (3 PRs merged today by DeJeune)",
+      "latest_prs": [16202, 16211, 16187]
+    },
+    "knowledge": {
+      "status": "ACTIVE",
+      "description": "URL/note snapshots, per-base index store, add-source conflict dialog, migration (eeee0717 sprint)",
+      "latest_prs": [16189, 16093, 16091, 16062, 15973]
+    },
+    "data_api": {
+      "status": "ACTIVE",
+      "description": "Per-topic virtual-root message tree, assistant bootstrap, topic duplicate endpoint",
+      "latest_prs": [15951, 15943, 15937]
+    },
+    "data_migration": {
+      "status": "ACTIVE",
+      "description": "Agent/chat/preference v2 migration mappings merged; v1→v2 file migrator cross-platform",
+      "latest_prs": [16066, 15737]
+    },
+    "api_gateway": {
+      "status": "DONE",
+      "description": "ElysiaJS rewrite of universal API gateway merged",
+      "pr": 15705
+    },
+    "agent_runtime": {
+      "status": "OPEN_PR",
+      "description": "AI SDK Agent Runtime (#15045) open 37 days — awaiting merge",
+      "blocking_pr": 15045
+    },
+    "chat_ui": {
+      "status": "IN_PROGRESS",
+      "description": "Chat component tree scaffold (#14997, 38d old) + foundation layer (#16215 open today by DeJeune)",
+      "open_prs": [14997, 16215]
+    }
   },
-  "removing": ["Redux", "Dexie", "ElectronStore"],
-  "adopting": ["Cache/Preference/DataApi", "@cherrystudio/ui", "Tailwind CSS", "Shadcn UI"],
-  "blocked_issues": {
-    "label": "Blocked: v2",
-    "prs_blocked": 7,
-    "oldest_blocked_pr": {"number": 10662, "title": "feat: new shortcut 'resend'", "since": "2025-10-12"}
-  },
-  "milestone": {
-    "name": "temp-siin",
-    "open_issues": 133,
-    "closed_issues": 25,
-    "url": "https://github.com/CherryHQ/cherry-studio/milestone/57"
-  },
-  "merged_prs_last_30d": 126,
-  "key_risks": [
-    "10-part stacked chat PR series has CI failures on intermediate layers by design — needs coordinated review+merge",
-    "15 v2-labeled PRs open simultaneously — potential review bottleneck",
-    "133 open issues in temp-siin milestone with only 25 closed (16% completion)",
-    "13 new PRD issues today may expand milestone scope significantly",
-    "Blocked: v2 PRs accumulating (oldest since Oct 2025)"
+  "v2_open_prs_today": [
+    {"number": 16215, "title": "feat(chat): carve chat foundation layer", "author": "DeJeune", "created": "2026-06-19"},
+    {"number": 16208, "title": "feat(ai-video): video generation for custom providers on the job system", "author": "DeJeune", "created": "2026-06-19"},
+    {"number": 16207, "title": "feat(ai-provider): route provider HTTP through proxy-aware net.fetch", "author": "DeJeune", "created": "2026-06-19"},
+    {"number": 16206, "title": "fix(ai-messages): normalize empty assistant turns + capability-gate media", "author": "DeJeune", "created": "2026-06-19"},
+    {"number": 16057, "title": "feat(model-retry): user-configured model retry & fallback via ai-retry", "author": "DeJeune", "created": "2026-06-16"}
+  ],
+  "v2_contributors_30d": [
+    {"login": "DeJeune", "merged": 28, "open": 14, "note": "Top contributor — renderer shell, data-api, migration, chat, ai-provider"},
+    {"login": "eeee0717", "merged": 15, "open": 0, "note": "Knowledge v2 sprint leader"},
+    {"login": "AtomsH4", "merged": 10, "open": 2},
+    {"login": "kangfenmao", "merged": 9, "open": 6},
+    {"login": "Pleasurecruise", "merged": 6, "open": 2},
+    {"login": "ousugo", "merged": 6, "open": 5}
+  ],
+  "blockers": [
+    {
+      "description": "PR #15045 (AI SDK Agent Runtime) open 37 days — may be blocking agent v2 migration",
+      "pr": 15045
+    },
+    {
+      "description": "PR #14997 (chat component scaffold) open 38 days — superseded by new chat PRs or stale",
+      "pr": 14997
+    },
+    {
+      "description": "Critical disk-exhaustion bugs (#15947, #16142) not yet patched — release risk",
+      "issues": [15947, 16142]
+    }
   ]
 }

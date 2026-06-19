@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-06-18T18:00:00Z",
-  "snapshot_date": "2026-06-18",
+  "generated_at": "2026-06-19T18:00:00Z",
+  "snapshot_date": "2026-06-19",
   "methodology": "Active=updated<30d; Aging=updated 30-90d; Stale=not updated in 90-180d; Zombie=not updated in 180d+",
   "health_distribution": {
-    "total_open": 944,
+    "total_open": 941,
     "active": {
-      "count": 585,
-      "pct": 62.0,
-      "definition": "Updated in last 30 days (since 2026-05-19)"
+      "count": 577,
+      "pct": 61.3,
+      "definition": "Updated in last 30 days (since 2026-05-20)"
     },
     "not_updated_30d": {
-      "count": 359,
-      "pct": 38.0,
+      "count": 364,
+      "pct": 38.7,
       "note": "Includes aging, stale, and zombie"
     },
     "zombie_proxy": {
@@ -26,37 +26,36 @@
     }
   },
   "closure_health": {
-    "last_30d_closed": 409,
-    "completion_rate_pct": 19.3,
-    "not_planned_rate_pct": 80.7,
-    "avg_time_to_close_hours": 926,
-    "median_time_to_close_hours": 981,
-    "note": "Tight p25-p75 range (969-1000h) indicates batch auto-close after ~40d inactivity window"
+    "last_30d_closed": 407,
+    "completion_rate_pct": 19.2,
+    "not_planned_rate_pct": 80.8,
+    "dominant_close_label": "inactive (auto-close after ~40d inactivity)",
+    "note": "~81% of closures are stale auto-closures, not resolutions. True resolution velocity remains low."
   },
   "label_health": {
-    "no_label_open": 92,
-    "needs_triage": 6,
+    "no_label_open": 91,
+    "no_label_pct": 9.7,
+    "inactive_labeled": 30,
     "needs_repro": 6,
-    "needs_more_info": 2,
-    "inactive_labeled": 37,
-    "unactionable_total": 98,
-    "unactionable_pct": 10.4
+    "needs_more_info": 3,
+    "unactionable_total": 94,
+    "unactionable_pct": 10.0
   },
   "high_engagement_open_bugs": [
-    {"number": 16142, "title": "日志文件占用17GB+，日志目录硬编码无法修改位置", "comments": 6, "created": "2026-06-17", "severity": "CRITICAL"},
-    {"number": 16166, "title": "[Bug]: QQ channel bot cannot reply in group chats", "comments": 0, "created": "2026-06-18", "severity": "CRITICAL", "labels": ["BUG", "internal_team"]},
-    {"number": 16082, "title": "[Bug]: Agent auto-deleted — 29 sessions permanently lost", "comments": 0, "created": "2026-06-16", "severity": "CRITICAL"},
-    {"number": 15947, "title": "[Bug]: Auto-updater loop produces 26GB+ logs", "comments": 0, "created": "2026-06-10", "severity": "CRITICAL"},
-    {"number": 15416, "title": "[Bug]: Taskbar icon becomes blank after merging", "comments": 6, "severity": "HIGH"},
-    {"number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6, "severity": "HIGH"},
+    {"number": 16142, "title": "日志文件占用17GB+，日志目录硬编码无法修改位置", "comments": 6, "created": "2026-06-17", "severity": "CRITICAL", "labels": ["needs-triage"]},
+    {"number": 14996, "title": "[Bug]: Using Qwen or Gemma local models to create agents frequently encounter errors", "comments": 9, "severity": "HIGH"},
     {"number": 15293, "title": "[Bug]: deepseek-v4-pro only displays the last token", "comments": 5, "severity": "HIGH"},
     {"number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models", "comments": 5, "severity": "HIGH"},
-    {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "severity": "HIGH"},
-    {"number": 16016, "title": "[Bug]: Agent fails with ECONNREFUSED when stale system proxy is set", "comments": 0, "created": "2026-06-12", "severity": "HIGH", "labels": ["BUG", "Connectivity", "internal_team"]}
+    {"number": 16082, "title": "[Bug]: Agent auto-deleted — 29 sessions permanently lost", "comments": 0, "created": "2026-06-16", "severity": "CRITICAL"},
+    {"number": 15947, "title": "[Bug]: Auto-updater loop produces 26GB+ logs", "comments": 0, "created": "2026-06-10", "severity": "CRITICAL"},
+    {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "created": "2026-06-17", "severity": "CRITICAL"},
+    {"number": 16016, "title": "[Bug]: Agent fails with ECONNREFUSED when stale system proxy is set", "comments": 0, "created": "2026-06-12", "severity": "HIGH", "labels": ["BUG", "Connectivity", "internal_team"]},
+    {"number": 16203, "title": "[Bug]: Quick Assist not calling MCPs / Tools", "comments": 0, "created": "2026-06-18", "severity": "HIGH"},
+    {"number": 16210, "title": "[Bug]: Multi-turn searches return identical results", "comments": 0, "created": "2026-06-19", "severity": "HIGH"}
   ],
   "recently_closed_notable": [
     {"number": 13629, "title": "[Bug]: Cannot select models when adding agent", "comments": 15, "closed": "2026-06-12", "resolution": "completed"},
-    {"number": 16142, "title": "[Bug] 日志文件占用17GB+", "comments": 6, "closed": "N/A — still open", "note": "Monitoring"},
+    {"number": 16142, "title": "[Bug] 日志文件占用17GB+", "comments": 6, "status": "STILL OPEN — monitoring"},
     {"number": 14699, "title": "[Bug]: Agent tool no response for a long time", "comments": 8, "closed": "2026-06-10", "resolution": "not_planned"},
     {"number": 13418, "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "comments": 5, "closed": "2026-06-17", "resolution": "not_planned"},
     {"number": 14517, "title": "[Bug]: v1.9.2 Data Backup Failed", "comments": 5, "closed": "2026-06-12", "resolution": "not_planned"}
@@ -71,26 +70,38 @@
       "2026-06-15": 22,
       "2026-06-16": 12,
       "2026-06-17": 13,
-      "2026-06-18": "TBD"
+      "2026-06-18": 6,
+      "2026-06-19": "TBD"
     },
-    "weekly_close": {
-      "2026-W24": 53,
-      "2026-W25": 47,
-      "2026-W26_partial": 25
-    },
+    "issues_created_last_7d": 59,
     "delta_from_yesterday": {
-      "open_issues": "+8 (936→944)",
-      "closed_30d": "+15 (394→409)"
+      "open_issues": "-3 (944→941)",
+      "closed_30d": "-2 (409→407)"
     }
   },
+  "open_pr_health": {
+    "total_returned": 100,
+    "fresh_0_6d": 28,
+    "aging_7_29d": 56,
+    "stale_30_89d": 12,
+    "very_stale_90d_plus": 4,
+    "unlabeled_pct": 93,
+    "oldest_pr": {"number": 11495, "age_days": 203, "base": "main"},
+    "stale_prs_needing_attention": [
+      {"number": 11495, "age_days": 203, "title": "feat: Implement shared provider utilities and Proxy Api Server"},
+      {"number": 12032, "age_days": 181, "title": "Fix trace problems"},
+      {"number": 12659, "age_days": 139, "title": "feat(backup): add v2 backup system refactor plan document"},
+      {"number": 12774, "age_days": 131, "title": "fix: restore textarea resize handle visibility"}
+    ]
+  },
   "action_items": [
-    "CRITICAL: Triage #16166 (QQ bot broken — internal_team flagged today)",
-    "CRITICAL: Triage #16082 (agent auto-delete lost 29 sessions — data loss)",
-    "CRITICAL: Fix #15947 + #16142 (disk exhaustion via log loops — C drive filling up)",
-    "Review 6 open needs-triage issues for classification",
-    "Clear 92 unlabeled open issues (9.7% of backlog)",
-    "Address 134 zombie issues (created >6mo ago) — consider batch close or milestone planning",
-    "Fix regression: #15051 agent model selection broken, #15416 taskbar icon blank",
-    "Review 13 new PRD issues filed today for v2 roadmap prioritization"
+    "CRITICAL: Fix #15947 + #16142 (disk exhaustion via log loops — C drive filling up, multi-day reports)",
+    "CRITICAL: Triage #16082 (agent auto-delete lost 29 sessions — data loss, hard delete)",
+    "CRITICAL: Investigate #16112 (context-too-large causes unrecoverable hang)",
+    "HIGH: #16203 Quick Assist not calling MCP tools — core integration broken",
+    "HIGH: #16210 Multi-turn search returns identical results — new today",
+    "Review 91 unlabeled open issues (9.7% of backlog)",
+    "Close or triage 4 very-stale PRs (90+ days): #11495 (203d), #12032 (181d), #12659 (139d), #12774 (131d)",
+    "Address 134 zombie issues (created >6mo ago) — batch close or milestone planning"
   ]
 }
