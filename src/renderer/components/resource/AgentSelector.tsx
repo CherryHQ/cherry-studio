@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
-import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import {
   ResourceCreateDialog,
   type ResourceCreateDialogValues
 } from '@renderer/components/resource/dialogs/ResourceCreateDialog'
+import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
 import type { AgentDetail } from '@renderer/pages/library/types'
