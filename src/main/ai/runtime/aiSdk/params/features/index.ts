@@ -9,11 +9,11 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
-import { budgetStopFeature } from './budgetStop'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
+import { inLoopCompactionFeature } from './inLoopCompaction'
 import { modelParamsFeature } from './modelParams'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
@@ -50,6 +50,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   providerUrlContextFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
   steerYieldFeature,
-  // Stop condition only — stops the turn when the live prompt exceeds 80% of the context window.
-  budgetStopFeature
+  // Hook only — `prepareStep` rewrites the in-flight prompt with a chef-compacted
+  // history when it crosses 80% of the context window (keeps each call under budget).
+  inLoopCompactionFeature
 ]
