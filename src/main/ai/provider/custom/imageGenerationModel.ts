@@ -4,7 +4,15 @@ import { createAbortError } from './transportUtils'
 
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
-  poll?(taskId: string, options: { signal?: AbortSignal; onProgress?: (progress: number) => void }): Promise<string[]>
+  /**
+   * `providerParams` carries the submit-time vendor bag so a transport that
+   * keeps per-task state in memory (e.g. DashScope's response-family descriptor)
+   * can rebuild it when polling resumes on a fresh instance after an app restart.
+   */
+  poll?(
+    taskId: string,
+    options: { signal?: AbortSignal; onProgress?: (progress: number) => void; providerParams?: Record<string, unknown> }
+  ): Promise<string[]>
   cancel?(taskId: string): Promise<void>
 }
 

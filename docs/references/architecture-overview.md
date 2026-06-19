@@ -145,16 +145,11 @@ cherry-studio
 │   │   ├── services/            #   Small, independent / cross-domain services
 │   │   └── utils/               #   Small, independent / cross-domain utilities
 │   │
-│   ├── renderer/                # Renderer process (React)
-│   │   ├── pages/               #   Route pages (Chat, Settings, Agent, ...)
-│   │   ├── components/          #   Shared UI components
-│   │   ├── features/            #   Large, multi-file domain modules
-│   │   ├── data/                #   Data hooks and services
-│   │   └── windows/             #   Multi-window entry points
+│   ├── renderer/                # Renderer process (React) — directory layout in ./renderer-architecture.md
 │   │
 │   ├── preload/                 # Preload scripts (IPC bridge)
 │   │
-│   └── shared/                  # Shared types, schemas, constants
+│   └── shared/                  # Cross-process primitives: types, schemas/contracts, pure logic — layout in ./shared-layer-architecture.md
 │
 ├── packages/
 │   ├── ui/                      #   @cherrystudio/ui (Shadcn + Tailwind)
@@ -171,7 +166,9 @@ cherry-studio
 └── scripts/                     # Build, lint, i18n, and CI scripts
 ```
 
-Main-process and renderer code is organized by **feature** (`features/` — high-cohesion domain modules) versus **type-bucket** (`services/`, `utils/`, `components/`, `hooks/` — small, independent pieces). See [Naming Conventions §4.10](./naming-conventions.md) for the placement rule.
+Main-process and renderer code is organized by **feature** (`features/` — high-cohesion domain modules) versus **type-bucket** (`services/`, `utils/`, `components/`, `hooks/` — small, independent pieces). See [Naming Conventions §4.10](./naming-conventions.md) for the placement rule. For the renderer's full layering, directory responsibilities, and dependency rules, see [Renderer Architecture](./renderer-architecture.md).
+
+`src/shared/` is the **cross-process primitive layer**: types, schemas/contracts, and pure logic importable by **both** `main` and `renderer`, depending on no app code. Being cross-process is the entry gate. See [Shared Layer Architecture](./shared-layer-architecture.md) for its internal layout, invariants, and the closed top-level set.
 
 ## Key Subsystems
 

@@ -1,6 +1,6 @@
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { useCommandHandler } from '@renderer/features/command'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils'
 import type { AgentEntity } from '@shared/data/types/agent'
 

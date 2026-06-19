@@ -17,9 +17,8 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.delete_base': async ({ baseId }) => {
     await application.get('KnowledgeService').deleteBase(baseId)
   },
-  'knowledge.add_items': async ({ baseId, items }) => {
-    await application.get('KnowledgeService').addItems(baseId, items)
-  },
+  'knowledge.add_items': async ({ baseId, items, conflictStrategy }) =>
+    application.get('KnowledgeService').addItems(baseId, items, conflictStrategy),
   'knowledge.delete_items': async ({ baseId, itemIds }) => {
     await application.get('KnowledgeService').deleteItems(baseId, itemIds)
   },

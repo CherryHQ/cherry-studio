@@ -12,9 +12,9 @@ describe('assistant preset catalog helpers', () => {
   it('keeps my assistants first and orders known system groups before custom groups', () => {
     const tabs = buildAssistantCatalogTabs(
       [
-        { name: 'Business helper', group: ['Business'] },
-        { name: 'Career helper', group: ['Career'] },
-        { name: 'Custom helper', group: ['Custom'] }
+        { id: 'preset-business', name: 'Business helper', group: ['Business'] },
+        { id: 'preset-career', name: 'Career helper', group: ['Career'] },
+        { id: 'preset-custom', name: 'Custom helper', group: ['Custom'] }
       ],
       2,
       'Mine'
@@ -27,9 +27,9 @@ describe('assistant preset catalog helpers', () => {
   it('filters only the active system group by name or description', () => {
     const presets = filterAssistantCatalogPresets(
       [
-        { name: 'Product Manager', description: 'Plan requirements', group: ['Career'] },
-        { name: 'Marketing Planner', description: 'Campaign ideas', group: ['Business'] },
-        { name: 'Research Writer', description: 'Long-form product analysis', group: ['Career'] }
+        { id: 'preset-product', name: 'Product Manager', description: 'Plan requirements', group: ['Career'] },
+        { id: 'preset-marketing', name: 'Marketing Planner', description: 'Campaign ideas', group: ['Business'] },
+        { id: 'preset-research', name: 'Research Writer', description: 'Long-form product analysis', group: ['Career'] }
       ],
       'Career',
       'product'
@@ -41,6 +41,7 @@ describe('assistant preset catalog helpers', () => {
 
   it('builds a DataApi create payload from a catalog preset without legacy fields', () => {
     const dto = toCreateAssistantDtoFromCatalogPreset({
+      id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Product Manager',
       prompt: 'You are a product manager.',
       description: 'Plan requirements',
@@ -63,8 +64,9 @@ describe('assistant preset catalog helpers', () => {
     })
   })
 
-  it('uses name and prompt as the stable catalog key', () => {
-    expect(getAssistantPresetCatalogKey({ name: 'A', prompt: 'P', description: 'D' })).toBe('A\nP')
-    expect(getAssistantPresetCatalogKey({ name: 'A', description: 'D' })).toBe('A\nD')
+  it('uses the preset id as the stable catalog key', () => {
+    expect(getAssistantPresetCatalogKey({ id: '550e8400-e29b-41d4-a716-446655440000' })).toBe(
+      '550e8400-e29b-41d4-a716-446655440000'
+    )
   })
 })

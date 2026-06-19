@@ -8,8 +8,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
-  useAllShortcuts
-} from '@renderer/hooks/useShortcuts'
+  useCommandShortcuts
+} from '@renderer/hooks/command/useCommandShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils/style'
 import { type CommandId, findCommandDefinition, findKeybindingConflicts, type SupportedPlatform } from '@shared/command'
@@ -78,7 +78,7 @@ const groupIconMap: Record<ShortcutSettingsGroup, ReactNode> = {
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { shortcuts, updatePreference } = useAllShortcuts()
+  const { shortcuts, updatePreference } = useCommandShortcuts()
   const recorderRefs = useRef<Record<string, HTMLButtonElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<ShortcutBinding>([])
