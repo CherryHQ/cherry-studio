@@ -76,10 +76,7 @@ const Messages: React.FC<MessagesProps> = ({
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
   const partsMapRef = useRef(partsMap)
-
-  useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
+  const [pendingScrollRestore, setPendingScrollRestore] = useState<number | null>(null)
 
   useEffect(() => {
     partsMapRef.current = partsMap
@@ -92,6 +89,36 @@ const Messages: React.FC<MessagesProps> = ({
       messageElements.current.delete(id)
     }
   }, [])
+
+  useEffect(() => {
+    // Detect regeneration: an assistant message went from having blocks to empty with PENDING status.
+    // This state transition is triggered by resetAssistantMessage() in the regeneration thunk.
+    const prevMessages = messagesRef.current
+    const isRegeneration = prevMessages.some((prevMsg) => {
+      if (prevMsg.role !== 'assistant' || !prevMsg.blocks || prevMsg.blocks.length === 0) return false
+      const currentMsg = messages.find((m) => m.id === prevMsg.id)
+      return currentMsg && currentMsg.blocks?.length === 0 && currentMsg.status === 'pending'
+    })
+
+    if (isRegeneration && scrollContainerRef.current) {
+      setPendingScrollRestore(scrollContainerRef.current.scrollTop)
+    }
+
+    // Update the ref AFTER detection, so the next render can compare against this render's messages
+    messagesRef.current = messages
+  }, [messages, scrollContainerRef])
+
+  // Restore scroll position after regeneration causes DOM height change.
+  useEffect(() => {
+    if (pendingScrollRestore === null) return
+    const scrollTopToRestore = pendingScrollRestore
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollTopToRestore
+      }
+      setPendingScrollRestore(null)
+    })
+  }, [pendingScrollRestore, scrollContainerRef])
 
   // Chronological order (oldest first). Display order matches array order
   // now that the column-reverse trick is gone — `ChatVirtualList` owns
