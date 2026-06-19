@@ -1,4 +1,4 @@
-import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
 
 type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
   ? Pick<TItem, 'error' | 'status'>
@@ -82,7 +82,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    relativePath: originName
+    relativePath: getKnowledgePathBasename(source)
   }
 })
 
@@ -124,7 +124,6 @@ export const createDirectoryItem = ({
   id,
   type: 'directory',
   data: {
-    source,
-    relativePath: source
+    source
   }
 })

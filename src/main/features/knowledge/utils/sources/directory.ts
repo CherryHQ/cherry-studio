@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { NotesTreeNode } from '@types'
@@ -13,13 +14,22 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 export type ExpandedDirectoryNode =
   | {
       type: 'directory'
-      data: Pick<DirectoryItemData, 'source' | 'relativePath'>
+      data: Pick<DirectoryItemData, 'source'>
       children: ExpandedDirectoryNode[]
     }
   | {
       type: 'file'
       data: Pick<FileItemData, 'source' | 'relativePath'>
     }
+
+/**
+ * Result of expanding a directory owner: the deduped `raw/` prefix its files were
+ * stored under (to pin onto the owner's `relativePath`) plus the child tree.
+ */
+export interface ExpandedDirectoryTree {
+  pathPrefix: string
+  children: ExpandedDirectoryNode[]
+}
 
 async function readDirectoryTree(
   dirPath: string,
@@ -76,7 +86,7 @@ async function readDirectoryTree(
 
 async function expandDirectoryNode(
   baseId: string,
-  ownerId: string,
+  pathPrefix: string,
   node: NotesTreeNode,
   signal: AbortSignal
 ): Promise<ExpandedDirectoryNode | null> {
@@ -85,12 +95,12 @@ async function expandDirectoryNode(
       return null
     }
 
-    // Namespace each file under the directory owner's item id and keep its
-    // subtree path (from `treePath`, already POSIX) so siblings sharing a
+    // Namespace each file under the owner directory's (deduped) basename and keep
+    // its subtree path (from `treePath`, already POSIX) so siblings sharing a
     // basename across subdirectories don't collide and the hierarchy survives.
     // The whole tree resolves under the base material root (raw/) via the helper.
     const subtreePath = node.treePath.replace(/^\/+/, '')
-    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, node.externalPath, `${ownerId}/${subtreePath}`)
+    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, node.externalPath, `${pathPrefix}/${subtreePath}`)
     signal.throwIfAborted()
 
     return {
@@ -109,7 +119,7 @@ async function expandDirectoryNode(
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(baseId, ownerId, child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -122,8 +132,7 @@ async function expandDirectoryNode(
   return {
     type: 'directory',
     data: {
-      source: node.externalPath,
-      relativePath: node.externalPath
+      source: node.externalPath
     },
     children
   }
@@ -132,22 +141,35 @@ async function expandDirectoryNode(
 export async function expandDirectoryOwnerToTree(
   owner: KnowledgeItem,
   baseId: string,
+  reservedTopLevelNames: Set<string>,
   signal: AbortSignal
-): Promise<ExpandedDirectoryNode[]> {
+): Promise<ExpandedDirectoryTree> {
   if (owner.type !== 'directory') {
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
   }
 
-  const resolvedPath = path.resolve(owner.data.relativePath)
+  // The original folder to scan lives in `source` (shared by every item type). `path`
+  // was retired in favour of a `relativePath` written back from `pathPrefix` below.
+  const resolvedPath = path.resolve(owner.data.source)
+  // Store children under the directory's own name (e.g. `raw/docs/...`) instead of
+  // the opaque owner UUID, so the on-disk layout mirrors what the user picked. When
+  // that top-level name is already taken under raw/, dedupe it with a `_N` suffix —
+  // the same strategy file imports use (see reserveImportedFileRelativePath).
+  const pathPrefix = nextFreeKnowledgeRelativePath(
+    path.basename(resolvedPath),
+    (candidate) => !reservedTopLevelNames.has(candidate),
+    false // a directory basename is not a filename — keep any trailing ".ext" intact
+  )
+
   const children = await readDirectoryTree(resolvedPath, signal)
   const expandedChildren: ExpandedDirectoryNode[] = []
 
   for (const child of children) {
-    const expandedChild = await expandDirectoryNode(baseId, owner.id, child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }
   }
 
-  return expandedChildren
+  return { pathPrefix, children: expandedChildren }
 }

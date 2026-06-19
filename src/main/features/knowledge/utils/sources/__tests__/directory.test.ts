@@ -53,15 +53,14 @@ describe('expandDirectoryOwnerToTree', () => {
     realFs.writeFileSync(path.join(rootDir, '.dockerignore'), 'node_modules')
     realFs.writeFileSync(path.join(nestedDir, 'skill.md'), '# skill')
 
-    const nodes = await expandDirectoryOwnerToTree(
+    const { pathPrefix, children } = await expandDirectoryOwnerToTree(
       {
         id: 'dir-owner-1',
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',
         data: {
-          source: rootDir,
-          relativePath: rootDir
+          source: rootDir
         },
         status: 'idle',
         error: null,
@@ -69,23 +68,25 @@ describe('expandDirectoryOwnerToTree', () => {
         updatedAt: '2026-04-08T00:00:00.000Z'
       },
       'kb-1',
+      new Set(),
       createSignal()
     )
 
-    expect(nodes).toEqual([
+    expect(pathPrefix).toBe('anna')
+    expect(children).toEqual([
       {
         type: 'directory',
-        data: { source: path.join(rootDir, 'agents'), relativePath: path.join(rootDir, 'agents') },
+        data: { source: path.join(rootDir, 'agents') },
         children: [
           {
             type: 'directory',
-            data: { source: nestedDir, relativePath: nestedDir },
+            data: { source: nestedDir },
             children: [
               {
                 type: 'file',
                 data: {
                   source: path.join(nestedDir, 'skill.md'),
-                  relativePath: 'dir-owner-1/agents/skills/skill.md'
+                  relativePath: 'anna/agents/skills/skill.md'
                 }
               }
             ]
@@ -105,15 +106,14 @@ describe('expandDirectoryOwnerToTree', () => {
     realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
     realFs.writeFileSync(path.join(nestedDir, 'reference.md'), '# reference')
 
-    const nodes = await expandDirectoryOwnerToTree(
+    const { children } = await expandDirectoryOwnerToTree(
       {
         id: 'dir-owner-1',
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',
         data: {
-          source: rootDir,
-          relativePath: rootDir
+          source: rootDir
         },
         status: 'idle',
         error: null,
@@ -121,33 +121,34 @@ describe('expandDirectoryOwnerToTree', () => {
         updatedAt: '2026-04-08T00:00:00.000Z'
       },
       'kb-1',
+      new Set(),
       createSignal()
     )
 
-    expect(JSON.stringify(nodes)).not.toContain(emptyDir)
-    expect(nodes).toContainEqual(
+    expect(JSON.stringify(children)).not.toContain(emptyDir)
+    expect(children).toContainEqual(
       expect.objectContaining({
         type: 'file',
         data: expect.objectContaining({
           source: path.join(rootDir, 'readme.md'),
-          relativePath: 'dir-owner-1/readme.md'
+          relativePath: 'workspace/readme.md'
         })
       })
     )
-    expect(nodes).toContainEqual(
+    expect(children).toContainEqual(
       expect.objectContaining({
         type: 'directory',
-        data: expect.objectContaining({ relativePath: path.join(rootDir, 'guides') }),
+        data: expect.objectContaining({ source: path.join(rootDir, 'guides') }),
         children: [
           expect.objectContaining({
             type: 'directory',
-            data: expect.objectContaining({ relativePath: nestedDir }),
+            data: expect.objectContaining({ source: nestedDir }),
             children: [
               expect.objectContaining({
                 type: 'file',
                 data: expect.objectContaining({
                   source: path.join(nestedDir, 'reference.md'),
-                  relativePath: 'dir-owner-1/guides/api/reference.md'
+                  relativePath: 'workspace/guides/api/reference.md'
                 })
               })
             ]
@@ -170,15 +171,14 @@ describe('expandDirectoryOwnerToTree', () => {
     realFs.writeFileSync(path.join(rootDir, 'sheet.ods'), 'ods')
 
     copyFileIntoKnowledgeBaseAtMock.mockClear()
-    const nodes = await expandDirectoryOwnerToTree(
+    const { children } = await expandDirectoryOwnerToTree(
       {
         id: 'dir-owner-1',
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',
         data: {
-          source: rootDir,
-          relativePath: rootDir
+          source: rootDir
         },
         status: 'idle',
         error: null,
@@ -186,15 +186,16 @@ describe('expandDirectoryOwnerToTree', () => {
         updatedAt: '2026-04-08T00:00:00.000Z'
       },
       'kb-1',
+      new Set(),
       createSignal()
     )
 
-    expect(nodes).toEqual([
+    expect(children).toEqual([
       {
         type: 'file',
         data: {
           source: path.join(rootDir, 'readme.md'),
-          relativePath: 'dir-owner-1/readme.md'
+          relativePath: 'workspace/readme.md'
         }
       }
     ])
@@ -202,7 +203,7 @@ describe('expandDirectoryOwnerToTree', () => {
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
       'kb-1',
       path.join(rootDir, 'readme.md'),
-      'dir-owner-1/readme.md'
+      'workspace/readme.md'
     )
   })
 
@@ -217,15 +218,14 @@ describe('expandDirectoryOwnerToTree', () => {
     realFs.writeFileSync(path.join(dirB, 'notes.md'), '# b')
 
     copyFileIntoKnowledgeBaseAtMock.mockClear()
-    const nodes = await expandDirectoryOwnerToTree(
+    const { children } = await expandDirectoryOwnerToTree(
       {
         id: 'dir-owner-1',
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',
         data: {
-          source: rootDir,
-          relativePath: rootDir
+          source: rootDir
         },
         status: 'idle',
         error: null,
@@ -233,15 +233,94 @@ describe('expandDirectoryOwnerToTree', () => {
         updatedAt: '2026-04-08T00:00:00.000Z'
       },
       'kb-1',
+      new Set(),
       createSignal()
     )
 
-    const relativePaths = JSON.stringify(nodes)
-    expect(relativePaths).toContain('dir-owner-1/a/notes.md')
-    expect(relativePaths).toContain('dir-owner-1/b/notes.md')
+    const relativePaths = JSON.stringify(children)
+    expect(relativePaths).toContain('project/a/notes.md')
+    expect(relativePaths).toContain('project/b/notes.md')
     // No collision: copy is invoked once per file with a unique target path.
     const copiedTargets = copyFileIntoKnowledgeBaseAtMock.mock.calls.map((call) => call[2])
     expect(new Set(copiedTargets).size).toBe(copiedTargets.length)
+  })
+
+  it('dedupes the top-level directory name with a `_N` suffix when it is already taken', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'project')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'notes.md'), '# notes')
+
+    const { pathPrefix, children } = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: rootDir
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      // A prior `project` directory already occupies that top-level name under raw/.
+      new Set(['project']),
+      createSignal()
+    )
+
+    expect(pathPrefix).toBe('project_1')
+    expect(children).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(rootDir, 'notes.md'),
+          relativePath: 'project_1/notes.md'
+        }
+      }
+    ])
+  })
+
+  it('dedupes a dotted directory name after the whole basename, not before a fake extension', async () => {
+    tempRoot = createTempRoot()
+    // A folder literally named `report.v2`: the trailing `.v2` is part of the name,
+    // not a file extension, so the suffix must land after it (`report.v2_1`).
+    const rootDir = path.join(tempRoot, 'report.v2')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'notes.md'), '# notes')
+
+    const { pathPrefix, children } = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: rootDir
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      // A prior `report.v2` directory already occupies that top-level name under raw/.
+      new Set(['report.v2']),
+      createSignal()
+    )
+
+    expect(pathPrefix).toBe('report.v2_1')
+    expect(children).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(rootDir, 'notes.md'),
+          relativePath: 'report.v2_1/notes.md'
+        }
+      }
+    ])
   })
 
   it('stops before reading when the runtime signal is already aborted', async () => {
@@ -258,8 +337,7 @@ describe('expandDirectoryOwnerToTree', () => {
           groupId: null,
           type: 'directory',
           data: {
-            source: tempRoot,
-            relativePath: tempRoot
+            source: tempRoot
           },
           status: 'idle',
           error: null,
@@ -267,6 +345,7 @@ describe('expandDirectoryOwnerToTree', () => {
           updatedAt: '2026-04-08T00:00:00.000Z'
         },
         'kb-1',
+        new Set(),
         controller.signal
       )
     ).rejects.toBe(abortError)

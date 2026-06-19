@@ -395,9 +395,6 @@
           "failed": "Falha ao reordenar as sessões"
         }
       },
-      "tool": {
-        "disabled": "A ferramenta {{toolName}} está desativada para este agente."
-      },
       "update": {
         "error": {
           "failed": "Falha ao atualizar a sessão"
@@ -1656,10 +1653,10 @@
       "claude_code": "Assistente oficial de codificação com IA em linha de comando da Anthropic",
       "gemini_cli": "Assistente oficial de linha de comando Gemini da Google",
       "github_copilot_cli": "Companheiro oficial de linha de comando do Copilot do GitHub",
-      "iflow_cli": "assistente de linha de comando multi-modelo do iFlow",
       "kimi_cli": "Assistente de linha de comando Kimi da Moonshot",
       "openai_codex": "CLI oficial de geração de código da OpenAI",
       "opencode": "Agente de codificação multi-modelo de código aberto",
+      "qoder_cli": "Ferramenta de codificação em linha de comando agentiva do Alibaba Qoder",
       "qwen_code": "Ferramenta de codificação CLI de código aberto da Tongyi da Alibaba"
     },
     "update_options": "Opções de atualização",
@@ -2159,7 +2156,8 @@
         "note": {
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use arquivos, pastas, URLs ou mapas do site.",
-          "empty_title": "As notas ainda não estão conectadas"
+          "empty_title": "As notas ainda não estão conectadas",
+          "loading": "Carregando notas…"
         },
         "placeholder": {
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2174,7 @@
           "success": "Fonte de dados adicionada à base de conhecimento"
         },
         "title": "Adicionar Fonte de Dados",
+        "unsupported_files_skipped": "Ignorados {{count}} arquivo(s) não suportado(s)",
         "url": {
           "description": "Insira um URL de página web:",
           "help": "O texto da página será buscado, dividido em partes e indexado automaticamente",
@@ -2185,15 +2184,12 @@
         }
       },
       "bulk": {
-        "cancel": "Cancelar",
         "delete": "Apagar",
         "delete_confirm_description": "Excluir {{count}} fontes de dados selecionadas? Isso não pode ser desfeito.",
         "delete_confirm_title": "Excluir Fontes de Dados Selecionadas?",
         "reindex": "Reindexar",
         "selected_count": "{{count}} selecionado"
       },
-      "chunk_delete_confirm_description": "Após a exclusão, este bloco não será mais utilizado para recuperação. A reindexação da fonte de dados o gerará novamente.",
-      "chunk_delete_confirm_title": "Excluir Chunk?",
       "chunks_count": "{{count}} blocos",
       "delete_confirm_description": "Esta fonte de dados e seus dados de índice não podem ser recuperados após a exclusão.",
       "delete_confirm_title": "Excluir Fonte de Dados?",
@@ -2245,20 +2241,17 @@
         "select_row": "Selecionar linha"
       },
       "toolbar": {
-        "add": "Adicionar Fonte de Dados",
-        "no_search_results": "Nenhuma fonte de dados correspondente",
-        "search_placeholder": "Pesquisar fontes de dados"
+        "add": "Adicionar Fonte de Dados"
       }
     },
-    "dimensions": "Dimensões de Incorporação",
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
-    "dimensions_error_invalid": "Por favor insira o tamanho da dimensão de incorporação",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
     "drag_file": "Arraste o arquivo aqui",
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
     "error": {
+      "directory_not_migrated": "Falha na migração da pasta. Por favor, exclua-a e faça o upload novamente.",
       "failed_base_unknown": "Esta base de conhecimento falhou durante a migração. Reconstrua-a e escolha um novo modelo de incorporação.",
       "failed_to_create": "Falha ao criar a base de conhecimento",
       "failed_to_delete": "Falha ao excluir a base de conhecimento",
@@ -2304,7 +2297,6 @@
       "chunk_size_invalid": "O tamanho do bloco deve ser maior que 0",
       "chunking": "Fragmentação",
       "default_separator": "Automático (recomendado)",
-      "dimensions": "Dimensões de Vetor",
       "document_count": "Contagem de Documentos",
       "embedding_model": "Modelo de Incorporação",
       "embedding_model_select": "Seleção de Modelo",
@@ -2313,7 +2305,6 @@
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
         "chunk_size": "Contagem-alvo de tokens para cada fragmento de documento. Isso afeta a granularidade da recuperação e o comprimento do contexto.",
-        "dimensions": "A dimensão do vetor produzida pelo modelo de incorporação atual, usada para criar e corresponder índices vetoriais.",
         "document_count": "Número máximo de blocos de documentos retornados para cada recuperação. Valores mais altos cobrem mais conteúdo, mas utilizam mais contexto.",
         "embedding_model": "Usado para converter o conteúdo da base de conhecimento em vetores. Alterar o modelo geralmente exige reindexar o conteúdo existente.",
         "hybrid_alpha": "Peso da pontuação vetorial na recuperação híbrida. Valores mais altos favorecem o pareamento semântico.",
@@ -2324,9 +2315,7 @@
         "threshold_disabled": "Este modo de recuperação retorna resultados ordenados e não utiliza um limiar de similaridade."
       },
       "hybrid_alpha": "Alfa Híbrido",
-      "hybrid_alpha_hint": "Apenas configurável no modo de recuperação híbrida",
       "processor": "Processador de Provedor",
-      "refresh_dimensions": "Atualizar dimensões do vetor",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -2336,9 +2325,9 @@
       "saved": "Salvo",
       "search_mode": {
         "bm25": "Pesquisa de texto completo",
-        "default": "Busca Vetorial",
         "hybrid": "Busca Híbrida (recomendado)",
-        "title": "Modo de Pesquisa"
+        "title": "Modo de Pesquisa",
+        "vector": "Busca Vetorial"
       },
       "separator_rule": "Regra Separadora",
       "threshold": "Limite de Similaridade",
@@ -6066,6 +6055,7 @@
       "disabled": "Mini Apps Ocultos",
       "display_title": "Configurações de Exibição do Mini App",
       "empty": "Clique no ícone de ocultar em um aplicativo à esquerda e ele será movido para cá.",
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "title": "Abrir links de nova janela no navegador"
       },
@@ -6077,6 +6067,7 @@
         "title": "Filtro de Mini Programa"
       },
       "reset_tooltip": "Restaurar para o padrão",
+      "show_app": "Mostrar {{name}}",
       "sidebar_description": "Mostrar mini apps ativos na barra lateral",
       "sidebar_title": "Exibição de Mini Apps Ativos na Barra Lateral",
       "title": "Configurações de Mini Apps",
@@ -6377,7 +6368,8 @@
       "add": {
         "name": {
           "label": "Nome do Fornecedor",
-          "placeholder": "Exemplo OpenAI"
+          "placeholder": "Exemplo OpenAI",
+          "required": "Por favor, insira o nome do provedor"
         },
         "title": "Adicionar Fornecedor",
         "type": "Tipo de Fornecedor"
@@ -6488,7 +6480,8 @@
       "balance": "Saldo",
       "base_url": {
         "label": "URL Base",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Por favor, insira a URL Base"
       },
       "basic_auth": {
         "label": "Autenticação HTTP",
@@ -6663,7 +6656,7 @@
         "project_id": "ID do Projeto",
         "project_id_help": "Seu ID do projeto no Google Cloud",
         "project_id_placeholder": "seu-id-do-projeto-no-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Selecionar local",
         "service_account": {
           "auth_success": "Autenticação da Conta de Serviço realizada com sucesso",
           "client_email": "E-mail do cliente",
@@ -6680,9 +6673,9 @@
           "private_key_help": "Campo private_key do arquivo de chave JSON baixado do Google Cloud Console",
           "private_key_placeholder": "Por favor, insira a chave privada da Conta de Serviço",
           "title": "Configuração da Conta de Serviço",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Alternar visibilidade do e-mail do cliente",
+          "toggle_private_key_visibility": "Alternar visibilidade da chave privada",
+          "toggle_project_id_visibility": "Alternar visibilidade do ID do projeto"
         }
       }
     },
@@ -6752,6 +6745,7 @@
       },
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
+      "close_tab": "Fechar Aba",
       "conflict_with": "Já usado por \"{{name}}\"",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
@@ -6759,8 +6753,11 @@
       "enabled": "ativar",
       "exit_fullscreen": "Sair da tela cheia",
       "label": "Tecla",
+      "move_tab_to_first": "Mover Aba para o Primeiro",
       "new_topic": "Novo tópico",
       "occupied_by_other_application": "Este atalho já está sendo usado pelo sistema ou por outro aplicativo",
+      "open_tab_in_new_window": "Abrir aba em nova janela",
+      "pin_tab": "Alternar Fixação de Aba",
       "press_shortcut": "Pressionar atalho",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",

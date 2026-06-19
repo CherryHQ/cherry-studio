@@ -617,8 +617,7 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'directory',
         data: {
-          source: '/tmp/docs',
-          relativePath: '/tmp/docs'
+          source: '/tmp/docs'
         },
         status: 'idle',
         error: null,
@@ -708,7 +707,7 @@ describe('expandLegacyDirectoryItem', () => {
       baseId: 'kb-1',
       groupId: null,
       type: 'directory',
-      data: { source: '/tmp/docs', relativePath: '/tmp/docs' },
+      data: { source: '/tmp/docs' },
       status: 'completed',
       error: null,
       createdAt: 1735689600000,

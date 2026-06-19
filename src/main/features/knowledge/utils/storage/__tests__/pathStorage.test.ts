@@ -6,15 +6,18 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { copyMock, writeMock, ensureDirMock, removeMock, removeDirMock, lstatMock, errorMock } = vi.hoisted(() => ({
-  copyMock: vi.fn(),
-  writeMock: vi.fn(),
-  ensureDirMock: vi.fn(),
-  removeMock: vi.fn(),
-  removeDirMock: vi.fn(),
-  lstatMock: vi.fn(),
-  errorMock: vi.fn()
-}))
+const { copyMock, writeMock, ensureDirMock, removeMock, removeDirMock, rmdirMock, lstatMock, errorMock, warnMock } =
+  vi.hoisted(() => ({
+    copyMock: vi.fn(),
+    writeMock: vi.fn(),
+    ensureDirMock: vi.fn(),
+    removeMock: vi.fn(),
+    removeDirMock: vi.fn(),
+    rmdirMock: vi.fn(),
+    lstatMock: vi.fn(),
+    errorMock: vi.fn(),
+    warnMock: vi.fn()
+  }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -23,12 +26,12 @@ vi.mock('@application', async () => {
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ error: errorMock, info: vi.fn(), warn: vi.fn() })
+    withContext: () => ({ error: errorMock, info: vi.fn(), warn: warnMock })
   }
 }))
 
 vi.mock('node:fs/promises', () => ({
-  default: { lstat: lstatMock }
+  default: { lstat: lstatMock, rmdir: rmdirMock }
 }))
 
 vi.mock('@main/utils/file/fs', () => ({
@@ -357,6 +360,7 @@ describe('deleteKnowledgeItemFiles', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     removeMock.mockResolvedValue(undefined)
+    rmdirMock.mockResolvedValue(undefined)
   })
 
   it('removes file and captured url/note snapshot paths, skipping directories and uncaptured notes', async () => {
@@ -404,6 +408,45 @@ describe('deleteKnowledgeItemFiles', () => {
     await expect(
       deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
     ).rejects.toThrow('busy')
+  })
+
+  it('prunes now-empty ancestor directories deepest-first (the directory data source shell)', async () => {
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'file', data: { relativePath: 'docs/sub/a.pdf' } },
+      { type: 'file', data: { relativePath: 'docs/b.pdf' } }
+    ])
+
+    const prunedDirs = rmdirMock.mock.calls.map((call) => call[0])
+    expect(prunedDirs).toEqual([path.join(MATERIAL_DIR, 'docs/sub'), path.join(MATERIAL_DIR, 'docs')])
+  })
+
+  it('leaves a top-level file with no ancestor directory to prune', async () => {
+    await deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
+
+    expect(rmdirMock).not.toHaveBeenCalled()
+  })
+
+  it('swallows a still-populated directory (ENOTEMPTY) without failing or warning', async () => {
+    rmdirMock.mockRejectedValue(Object.assign(new Error('not empty'), { code: 'ENOTEMPTY' }))
+
+    await expect(
+      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'docs/a.pdf' } }])
+    ).resolves.toBeUndefined()
+    expect(rmdirMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'docs'))
+    // ENOTEMPTY/ENOENT are expected outcomes — they must not produce log noise.
+    expect(warnMock).not.toHaveBeenCalled()
+  })
+
+  it('warns (without throwing) on an unexpected prune error so it is not silently swallowed', async () => {
+    rmdirMock.mockRejectedValue(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
+
+    await expect(
+      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'docs/a.pdf' } }])
+    ).resolves.toBeUndefined()
+    expect(warnMock).toHaveBeenCalledWith(
+      'Failed to prune empty knowledge material directory',
+      expect.objectContaining({ dir: 'docs', code: 'EACCES' })
+    )
   })
 })
 
