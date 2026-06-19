@@ -145,12 +145,7 @@ cherry-studio
 │   │   ├── services/            #   Small, independent / cross-domain services
 │   │   └── utils/               #   Small, independent / cross-domain utilities
 │   │
-│   ├── renderer/                # Renderer process (React)
-│   │   ├── pages/               #   Route pages (Chat, Settings, Agent, ...)
-│   │   ├── components/          #   Shared UI components
-│   │   ├── features/            #   Large, multi-file domain modules
-│   │   ├── data/                #   Data hooks and services
-│   │   └── windows/             #   Multi-window entry points
+│   ├── renderer/                # Renderer process (React) — directory layout in ./renderer-architecture.md
 │   │
 │   ├── preload/                 # Preload scripts (IPC bridge)
 │   │
@@ -171,7 +166,7 @@ cherry-studio
 └── scripts/                     # Build, lint, i18n, and CI scripts
 ```
 
-Main-process and renderer code is organized by **feature** (`features/` — high-cohesion domain modules) versus **type-bucket** (`services/`, `utils/`, `components/`, `hooks/` — small, independent pieces). See [Naming Conventions §4.10](./naming-conventions.md) for the placement rule.
+Main-process and renderer code is organized by **feature** (`features/` — high-cohesion domain modules) versus **type-bucket** (`services/`, `utils/`, `components/`, `hooks/` — small, independent pieces). See [Naming Conventions §4.10](./naming-conventions.md) for the placement rule. For the renderer's full layering, directory responsibilities, and dependency rules, see [Renderer Architecture](./renderer-architecture.md).
 
 ## Key Subsystems
 

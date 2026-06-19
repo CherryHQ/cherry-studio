@@ -262,7 +262,7 @@ A **feature module** is a self-contained domain directory under a process root's
 
 This is the §4.4 promotion rule applied at the top level: a domain graduates from "a file (plus maybe one util) in a bucket" to "its own `features/` module" only once the additional files actually arrive and span more than one concern.
 Do not pre-create a `features/<domain>/` for an anticipated module.
-`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
+`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `services/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
 A large, multi-file domain left scattered across the `services/` and `utils/` buckets instead of gathered into one `features/<domain>/` is the §6.7 scattered/impure anti-pattern.
 
 **Canonical example** — `src/main/features/apiGateway/`:
@@ -275,6 +275,8 @@ features/apiGateway/
 ├── routes/
 └── utils/                 # domain-local utils, not the global src/main/utils/ bucket
 ```
+
+For the renderer, [Renderer Architecture](./renderer-architecture.md) places `features/` within the full layering (windows → pages → features → components → packages/ui), with per-directory responsibilities and dependency rules.
 
 ---
 
