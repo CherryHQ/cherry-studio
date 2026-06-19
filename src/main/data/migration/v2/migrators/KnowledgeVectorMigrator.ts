@@ -1,9 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { DOCUMENT_SEPARATOR } from '@main/features/knowledge/utils/indexing/chunk'
 import {
@@ -21,7 +19,7 @@ import {
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { ensureIndexMeta } from '@main/features/knowledge/vectorstore/indexStore/indexMeta'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import { openLibsqlIndexDriver } from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
+import { type LibsqlDriver, openLibsqlIndexDriver } from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
 import { libsqlVectorIndex } from '@main/features/knowledge/vectorstore/indexStore/LibsqlVectorIndex'
 import type { RebuildMaterialInput } from '@main/features/knowledge/vectorstore/indexStore/model'
 import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore/indexStore/schema'
@@ -59,6 +57,29 @@ const SKIP_WARNING_SAMPLE_LIMIT = 3
 // fs.rm options that survive a transient Windows lock (libsql handle / AV / indexer)
 // on the index.sqlite family; `recursive` is required for fs.rm to honor the retries.
 const REMOVE_RETRY_OPTIONS = { recursive: true, force: true, maxRetries: 5, retryDelay: 100 } as const
+
+// rename / writeFile / mkdir face the same transient Windows locks as fs.rm — Defender or the
+// Search Indexer briefly opens a just-written file, so MoveFileEx / open throws
+// EPERM / EACCES / EBUSY — but fs.rm's built-in retry does not cover them, and its errno set
+// notably omits EACCES. Wrap these mutations in a retry with the same 5×100ms budget plus EACCES,
+// so a single momentary lock no longer fails the whole migration (the user-reported symptom).
+const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const FS_RETRY_MAX_ATTEMPTS = 5
+const FS_RETRY_DELAY_MS = 100
+
+async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code
+      if (attempt >= FS_RETRY_MAX_ATTEMPTS || code === undefined || !TRANSIENT_FS_LOCK_CODES.has(code)) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, FS_RETRY_DELAY_MS))
+    }
+  }
+}
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => {
@@ -755,7 +776,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       const tempPath = this.getTempVectorStorePath(plan.targetDbPath)
 
       try {
-        await fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true })
+        await retryOnTransientFsLock(() => fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true }))
         await this.removeIndexStoreFiles(tempPath)
 
         // Rebuild into a temp store through the exact runtime open sequence
@@ -798,7 +819,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // store at the target; remove it (and its WAL sidecars) first so the rename succeeds on
         // Windows (POSIX rename overwrites, Windows throws on an existing target).
         await this.removeIndexStoreFiles(plan.targetDbPath)
-        await fs.promises.rename(tempPath, plan.targetDbPath)
+        await retryOnTransientFsLock(() => fs.promises.rename(tempPath, plan.targetDbPath))
 
         // Materialize each migrated url/note snapshot file under the base's `raw/`
         // material root (overwriting a previous partial run's copy) and pin the item
@@ -807,17 +828,15 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // instead of re-deriving from data). The material root may not exist yet (a
         // url/note-only base copies no files), so ensure it first.
         if (plan.materialSnapshots.length > 0) {
-          await fs.promises.mkdir(plan.materialDirPath, { recursive: true })
+          await retryOnTransientFsLock(() => fs.promises.mkdir(plan.materialDirPath, { recursive: true }))
         }
         for (const snapshot of plan.materialSnapshots) {
           // A reused item.data.relativePath could in principle carry a traversal;
           // guard it before writing — the same invariant every other base write
           // enforces (getKnowledgeBaseFilePath) but which this direct join bypasses.
           assertSafeKnowledgeRelativePath(snapshot.relativePath)
-          await fs.promises.writeFile(
-            path.join(plan.materialDirPath, snapshot.relativePath),
-            snapshot.fileText,
-            'utf-8'
+          await retryOnTransientFsLock(() =>
+            fs.promises.writeFile(path.join(plan.materialDirPath, snapshot.relativePath), snapshot.fileText, 'utf-8')
           )
           await ctx.db
             .update(knowledgeItemTable)
@@ -839,9 +858,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        // Cleanup must not throw past the structured return: on Windows a locked
-        // index.sqlite can make rm reject even after retries, which would mask the
-        // real errorMessage and let execute escape with an exception.
+        // Cleanup must not throw past the loop: on Windows a locked index.sqlite can make rm reject
+        // even after retries, which would mask the real errorMessage and abort the whole migration.
         try {
           await this.removeIndexStoreFiles(tempPath)
         } catch (cleanupError) {
@@ -851,11 +869,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           })
         }
 
-        return {
-          success: false,
-          processedCount,
-          error: errorMessage
-        }
+        // A per-base failure is non-fatal: skip this base (it stays out of successfulBaseIds, so
+        // validate() never checks it) and keep migrating the rest, mirroring prepare()'s skip +
+        // continue. One locked/corrupt base no longer drags the entire migration — and every other
+        // migrator after it — into markFailed; the failure is surfaced as a warning instead.
+        continue
       }
     }
 
@@ -868,7 +886,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
     return {
       success: true,
-      processedCount
+      processedCount,
+      warnings: this.executionErrors.length > 0 ? [...this.executionErrors] : undefined
     }
   }
 
@@ -910,11 +929,15 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           })
         }
 
-        const client = createClient({ url: pathToFileURL(plan.targetDbPath).toString() })
+        // Reopen through openLibsqlIndexDriver, not a bare createClient: the driver sets
+        // busy_timeout=5000, so this post-rename re-read waits out a transient Windows lock
+        // (Defender / indexer scanning the just-renamed store) instead of throwing SQLITE_BUSY /
+        // EACCES and failing validation for an already-correct store.
+        const driver = await openLibsqlIndexDriver(plan.targetDbPath)
         try {
-          const materialCount = await this.tableCount(client, 'material')
-          const unitCount = await this.tableCount(client, 'search_unit')
-          const embeddingCount = await this.tableCount(client, 'embedding')
+          const materialCount = await this.tableCount(driver, 'material')
+          const unitCount = await this.tableCount(driver, 'search_unit')
+          const embeddingCount = await this.tableCount(driver, 'embedding')
           targetCount += unitCount
 
           this.pushCountMismatch(errors, plan.baseId, 'material', plan.materials.length, materialCount)
@@ -924,12 +947,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // Every unit's body search_text must resolve to a stored embedding, or that
           // unit is silently absent from vector search. This is the migration-time
           // form of the rebuild self-heal invariant (knowledge-technical-design.md §10).
-          const uncovered = await client.execute({
-            sql: `SELECT count(*) AS count FROM search_text st
+          const uncovered = await driver.execute(
+            `SELECT count(*) AS count FROM search_text st
                   LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
-                  WHERE e.embedding_text_hash IS NULL`,
-            args: []
-          })
+                  WHERE e.embedding_text_hash IS NULL`
+          )
           const uncoveredCount = Number(uncovered.rows[0]?.count ?? 0)
           if (uncoveredCount > 0) {
             errors.push({
@@ -940,7 +962,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
         } finally {
-          client.close()
+          await driver.close()
         }
       }
 
@@ -979,8 +1001,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     }
   }
 
-  private async tableCount(client: ReturnType<typeof createClient>, table: string): Promise<number> {
-    const result = await client.execute({ sql: `SELECT count(*) AS count FROM ${table}`, args: [] })
+  private async tableCount(driver: LibsqlDriver, table: string): Promise<number> {
+    const result = await driver.execute(`SELECT count(*) AS count FROM ${table}`)
     return Number(result.rows[0]?.count ?? 0)
   }
 

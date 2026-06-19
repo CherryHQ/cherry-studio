@@ -1426,7 +1426,7 @@ describe('KnowledgeVectorMigrator', () => {
       })
     })
 
-    it('fails the migration when a material rebuild fails, without counting it', async () => {
+    it('keeps migrating when a material rebuild fails, recording the failure as a non-fatal warning', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -1459,11 +1459,18 @@ describe('KnowledgeVectorMigrator', () => {
 
       vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
 
+      // A per-base failure is non-fatal (P1-6): execute succeeds overall, the failed base is left
+      // out of successfulBaseIds (so validate never checks it), and its error surfaces as a warning
+      // rather than aborting the whole migration.
       const executeResult = await migrator.execute(migrationCtx as any)
-      expect(executeResult.success).toBe(false)
+      expect(executeResult.success).toBe(true)
       expect(executeResult.processedCount).toBe(0)
-      expect(executeResult.error).toContain(MIGRATED_KNOWLEDGE_BASE_ID)
-      expect(executeResult.error).toContain('rebuild failed')
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(
+        executeResult.warnings?.some(
+          (warning: string) => warning.includes(MIGRATED_KNOWLEDGE_BASE_ID) && warning.includes('rebuild failed')
+        )
+      ).toBe(true)
       expect(migrator.skippedCount).toBe(0)
       expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
       expect(fs.existsSync(dbPath)).toBe(true)
@@ -1509,12 +1516,192 @@ describe('KnowledgeVectorMigrator', () => {
         .mockResolvedValueOnce(undefined)
         .mockRejectedValue(new Error('EPERM: index store locked'))
 
-      // The cleanup rejection must not escape past the structured return (the W2 fix): execute
-      // resolves to a failure carrying the *real* rebuild error, not the masking cleanup error.
+      // The cleanup rejection must not escape past the loop (the W2 fix): execute resolves
+      // (non-fatally, P1-6) with a warning carrying the *real* rebuild error, not the masking
+      // cleanup error, and never aborts the migration.
       const executeResult = await migrator.execute(migrationCtx as any)
-      expect(executeResult.success).toBe(false)
-      expect(executeResult.error).toContain('rebuild failed')
-      expect(executeResult.error).not.toContain('EPERM')
+      expect(executeResult.success).toBe(true)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('rebuild failed'))).toBe(true)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('EPERM'))).toBe(false)
+    })
+
+    it('retries rename on a transient Windows lock instead of failing the base', async () => {
+      // The just-closed temp store can be momentarily locked by Defender / the Search Indexer, so
+      // the first rename throws EPERM. retryOnTransientFsLock retries (a bare fs.rename would not),
+      // so a single momentary lock no longer fails the base. The same helper guards the snapshot
+      // writeFile and the mkdir calls.
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const realRename = fs.promises.rename.bind(fs.promises)
+      const renameSpy = vi
+        .spyOn(fs.promises, 'rename')
+        .mockRejectedValueOnce(Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' }))
+        .mockImplementation((...args) => realRename(...(args as Parameters<typeof realRename>)))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(true)
+      // First attempt threw EPERM, the retry succeeded → at least two attempts.
+      expect(renameSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+    })
+
+    it('does not retry rename on a non-transient error and skips only that base', async () => {
+      // ENOENT is not a transient lock — retryOnTransientFsLock must rethrow immediately (no retry),
+      // and the per-base failure stays non-fatal (P1-6).
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const renameSpy = vi
+        .spyOn(fs.promises, 'rename')
+        .mockRejectedValue(Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(renameSpy.mock.calls.length).toBe(1)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('ENOENT'))).toBe(true)
+    })
+
+    it('keeps a healthy base when another base fails (per-base failure is non-fatal)', async () => {
+      // P1-6 headline: a locked/corrupt base must not drag down the rest. Base A's rebuild throws;
+      // base B still migrates end-to-end, execute succeeds overall, and A surfaces as a warning.
+      const MIGRATED_BASE_B_ID = '22222222-2222-4222-8222-222222222222'
+      const MIGRATED_FILE_B_ITEM_ID = '0198f3f2-7f10-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-a-0',
+          pageContent: 'base a chunk',
+          uniqueLoaderId: 'loader-a',
+          source: '/docs-a/file.md',
+          vector: [1, 2]
+        }
+      ])
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-2'), [
+        {
+          id: 'legacy-b-0',
+          pageContent: 'base b chunk',
+          uniqueLoaderId: 'loader-b',
+          source: '/docs-b/file.md',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeBaseIdRemap: new Map([
+          [LEGACY_KNOWLEDGE_BASE_ID, MIGRATED_KNOWLEDGE_BASE_ID],
+          ['kb-2', MIGRATED_BASE_B_ID]
+        ]),
+        knowledgeItemIdRemap: new Map([
+          ['item-a', MIGRATED_FILE_ITEM_ID],
+          ['item-b', MIGRATED_FILE_B_ITEM_ID]
+        ]),
+        migratedBases: [createMigratedBase(), createMigratedBase({ id: MIGRATED_BASE_B_ID })],
+        migratedItems: [
+          createMigratedItem(MIGRATED_FILE_ITEM_ID, {
+            data: { source: '/docs-a/file.md', relativePath: MIGRATED_FILE_ITEM_ID }
+          }),
+          createMigratedItem(MIGRATED_FILE_B_ITEM_ID, {
+            baseId: MIGRATED_BASE_B_ID,
+            data: { source: '/docs-b/file.md', relativePath: MIGRATED_FILE_B_ITEM_ID }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base A',
+                items: [{ id: 'item-a', type: 'file', uniqueId: 'loader-a' }]
+              },
+              {
+                id: 'kb-2',
+                name: 'Base B',
+                items: [{ id: 'item-b', type: 'file', uniqueId: 'loader-b' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // Only base A's rebuild fails (it is processed first, in migratedBases order); base B uses the
+      // real rebuild so its store is written for real.
+      const realRebuild = KnowledgeIndexStore.prototype.rebuildMaterial
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial')
+        .mockRejectedValueOnce(new Error('base a rebuild failed'))
+        .mockImplementation(function (this: KnowledgeIndexStore, ...args: Parameters<typeof realRebuild>) {
+          return realRebuild.apply(this, args)
+        })
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      // Base B migrated despite base A failing first.
+      expect(migrator.successfulBaseIds.has(MIGRATED_BASE_B_ID)).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+
+      const storeB = await readStore(MIGRATED_BASE_B_ID)
+      expect(storeB.material.map((m) => m.material_id)).toEqual([MIGRATED_FILE_B_ITEM_ID])
+      expect(storeB.content.map((c) => String(c.text))).toEqual(['base b chunk'])
     })
 
     it('validate fails when a stored unit has no backing embedding', async () => {
@@ -1949,9 +2136,15 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
+      // The traversal guard still throws, but per-base failure is now non-fatal (P1-6): the base is
+      // skipped with the rejection surfaced as a warning, and execute succeeds overall. The security
+      // guarantee is unchanged — the guard fires before writeFile, so nothing escapes `raw/`.
       const executeResult = await migrator.execute(migrationCtx as any)
-      expect(executeResult.success).toBe(false)
-      expect(executeResult.error).toContain('Invalid knowledge relative path')
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('Invalid knowledge relative path'))).toBe(
+        true
+      )
       // The traversal target was never written outside the material root.
       expect(fs.existsSync(path.join(knowledgeBaseDir, MIGRATED_KNOWLEDGE_BASE_ID, 'escape.md'))).toBe(false)
     })
