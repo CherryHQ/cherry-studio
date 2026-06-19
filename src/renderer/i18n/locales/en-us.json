@@ -6368,7 +6368,8 @@
       "add": {
         "name": {
           "label": "Provider Name",
-          "placeholder": "Example: OpenAI"
+          "placeholder": "Example: OpenAI",
+          "required": "Please enter the provider name"
         },
         "title": "Add Provider",
         "type": "Provider Type"
@@ -6479,7 +6480,8 @@
       "balance": "Balance",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Please enter the Base URL"
       },
       "basic_auth": {
         "label": "HTTP authentication",

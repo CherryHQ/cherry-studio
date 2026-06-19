@@ -38,6 +38,22 @@ vi.mock('@cherrystudio/ui', () => ({
       {...props}
     />
   ),
+  Field: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  FieldLabel: ({ children, required, ...props }: any) => (
+    <label {...props}>
+      {children}
+      {required ? <span aria-hidden="true">*</span> : null}
+    </label>
+  ),
+  FieldError: ({ errors, children, ...props }: any) => {
+    const content = children ?? errors?.[0]?.message
+    if (!content) return null
+    return (
+      <div role="alert" {...props}>
+        {content}
+      </div>
+    )
+  },
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverContent: ({ children }: any) => <div>{children}</div>,
   PopoverTrigger: ({ children }: any) => <div>{children}</div>
@@ -432,5 +448,200 @@ describe('ProviderEditorDrawer', () => {
     const payload = onSubmit.mock.calls[0]?.[0] as { presetProviderId?: string; authConfig?: unknown } | undefined
     expect(payload?.presetProviderId).toBeUndefined()
     expect(payload?.authConfig).toBeUndefined()
+  })
+
+  it('shows a required error and does not submit when the name is empty on create-custom', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    // Fill the base URL so the button is enabled, but leave the name empty.
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://api.example.com' }
+    })
+    expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('settings.provider.add.name.required')).toBeInTheDocument()
+  })
+
+  it('shows the required error after the name input is blurred while empty', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.add.name.placeholder'))
+
+    expect(screen.getByText('settings.provider.add.name.required')).toBeInTheDocument()
+  })
+
+  it('clears the required error once a valid name is entered', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+    fireEvent.blur(nameInput)
+    expect(screen.getByText('settings.provider.add.name.required')).toBeInTheDocument()
+
+    fireEvent.change(nameInput, { target: { value: 'My Custom' } })
+    expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
+  })
+
+  it('shows a base URL required error and does not submit when the base URL is empty on create-custom', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    // Fill the name so the only thing missing is the base URL.
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'My Custom' }
+    })
+    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+  })
+
+  it('shows the base URL required error after the base URL input is blurred while empty', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
+
+    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+  })
+
+  it('clears the base URL required error once a valid base URL is entered', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
+    fireEvent.blur(baseUrlInput)
+    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+
+    fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.com' } })
+    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
+  })
+
+  it('name input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+
+    expect(nameInput).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.querySelector(`label[for="${nameInput.id}"]`)).toBeInTheDocument()
+
+    fireEvent.blur(nameInput)
+
+    const errorId = nameInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    const errorNode = document.getElementById(errorId!)
+    expect(errorNode).toHaveAttribute('role', 'alert')
+    expect(errorNode).toHaveTextContent('settings.provider.add.name.required')
+  })
+
+  it('base URL input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
+
+    expect(baseUrlInput).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.querySelector(`label[for="${baseUrlInput.id}"]`)).toBeInTheDocument()
+
+    fireEvent.blur(baseUrlInput)
+
+    const errorId = baseUrlInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    const errorNode = document.getElementById(errorId!)
+    expect(errorNode).toHaveAttribute('role', 'alert')
+    expect(errorNode).toHaveTextContent('settings.provider.base_url.required')
+  })
+
+  it('does not require the base URL in duplicate mode (optional, no error on blur)', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'openai-2',
+            name: 'OpenAI Personal',
+            presetProviderId: 'openai',
+            defaultChatEndpoint: 'openai-chat-completions',
+            authType: 'api-key'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
+
+    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
   })
 })

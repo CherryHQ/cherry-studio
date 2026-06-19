@@ -556,7 +556,7 @@ export class KnowledgeService extends BaseService {
 
       // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
       // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-      // front. Only the root's own source matters: a directory is rescanned from data.path and its
+      // front. Only the root's own source matters: a directory is rescanned from data.relativePath and its
       // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
       // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
       // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely

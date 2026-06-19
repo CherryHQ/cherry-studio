@@ -364,7 +364,7 @@ export const transformKnowledgeItem = (
     type = 'directory'
     data = {
       source: item.content,
-      path: item.content
+      relativePath: item.content
     }
   } else if (item.type === 'note') {
     const note = deps.noteById.get(item.id)
@@ -508,7 +508,7 @@ export const expandLegacyDirectoryItem = (
     baseId,
     groupId: null,
     type: 'directory',
-    data: { source: item.content, path: item.content },
+    data: { source: item.content, relativePath: item.content },
     status: 'completed',
     error: null,
     createdAt,
