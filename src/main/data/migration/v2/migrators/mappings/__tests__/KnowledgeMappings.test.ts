@@ -18,10 +18,11 @@ const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
 
-// Keep the three filename-bearing fields distinct so each assertion below can
-// independently tell where a value came from: `name` (v1 storage name) feeds
-// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, and
-// `path` (stale column) feeds `data.source`. A crossed wiring fails the asserts.
+// Keep the filename-bearing fields distinct so each assertion below can independently tell
+// where a value came from: `id`+`ext` (the v1 storage name `{id}{ext}`) feeds
+// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, `path` (stale column)
+// feeds `data.source`, and `name` is a deliberate DISTRACTOR that must NOT feed storageName
+// (v1's dedup path emits a malformed double-extension `name`). A crossed wiring fails the asserts.
 const fileMetadata = {
   id: LEGACY_FILE_ID,
   name: 'stored-019606a0.pdf',
@@ -412,7 +413,7 @@ describe('KnowledgeMappings', () => {
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       },
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
   })
 
@@ -450,7 +451,7 @@ describe('KnowledgeMappings', () => {
           relativePath: 'stored-019606a0.pdf'
         }
       }),
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
     // The fallback leaves a diagnostic trail in the migration log.
     expect(warnings).toHaveLength(1)
@@ -500,7 +501,7 @@ describe('KnowledgeMappings', () => {
         status: 'completed',
         error: null
       }),
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
   })
 

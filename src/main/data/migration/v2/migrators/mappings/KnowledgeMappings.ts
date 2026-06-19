@@ -326,7 +326,13 @@ export const transformKnowledgeItem = (
       )
     }
     data = { source: file.path, relativePath }
-    fileCopy = { storageName: file.name }
+    // Locate the physical upload by reconstructing the v1 storage name from `{id}{ext}` (see the
+    // KnowledgeItemFileCopy doc), NOT by trusting `file.name`: v1 FileStorage.findDuplicateFile
+    // returns a malformed `name` on a second upload (double extension `a1b2.pdf.pdf` + origin_name
+    // set to the storage name), so `file.name` would resolve to a path that does not exist and the
+    // bytes would never reach raw/. `{id}{ext}` is the real on-disk name for both normal and
+    // deduplicated uploads, so it copies correctly in either case.
+    fileCopy = { storageName: `${file.id}${file.ext}` }
   } else if (item.type === 'url') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
       return {

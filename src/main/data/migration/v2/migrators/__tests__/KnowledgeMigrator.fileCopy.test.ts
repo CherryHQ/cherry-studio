@@ -94,14 +94,15 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     const filesDataDir = path.join(tempRoot, 'Files')
     const knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
     mkdirSync(filesDataDir, { recursive: true })
-    writeFileSync(path.join(filesDataDir, 'a.bin'), 'A')
-    writeFileSync(path.join(filesDataDir, 'b.bin'), 'B')
-    // 'c.bin' intentionally not written — its source is missing.
+    // v1 stores uploads at `{id}{ext}` and the migrator locates the source by id+ext, not `name`.
+    writeFileSync(path.join(filesDataDir, 'fileA.pdf'), 'A')
+    writeFileSync(path.join(filesDataDir, 'fileB.pdf'), 'B')
+    // 'fileC.pdf' intentionally not written — its source is missing.
 
     const dexieFiles: FileMetadata[] = [
-      dexieFileRow({ id: 'fileA', name: 'a.bin', origin_name: 'report.pdf' }),
-      dexieFileRow({ id: 'fileB', name: 'b.bin', origin_name: 'report.pdf' }),
-      dexieFileRow({ id: 'fileC', name: 'c.bin', origin_name: 'missing.pdf' })
+      dexieFileRow({ id: 'fileA', name: 'fileA.pdf', origin_name: 'report.pdf' }),
+      dexieFileRow({ id: 'fileB', name: 'fileB.pdf', origin_name: 'report.pdf' }),
+      dexieFileRow({ id: 'fileC', name: 'fileC.pdf', origin_name: 'missing.pdf' })
     ]
     const reduxKnowledge = {
       bases: [
@@ -130,7 +131,7 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     expect(execute.success).toBe(true)
     // Execute-phase warnings are returned on the result (not just logged), so the engine
     // can surface "kept but not reindexable" diagnostics in the migration report.
-    expect(execute.warnings?.some((w) => w.includes('source missing') && w.includes('c.bin'))).toBe(true)
+    expect(execute.warnings?.some((w) => w.includes('source missing') && w.includes('fileC.pdf'))).toBe(true)
 
     const rows = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
     const relativePaths = rows.map((row) => (row.data as { relativePath: string }).relativePath).sort()
@@ -147,7 +148,51 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     // The missing source is not copied, but its item is kept.
     expect(existsSync(path.join(knowledgeBaseDir, baseId, 'raw', 'missing.pdf'))).toBe(false)
     const warnings = (migrator as unknown as { warnings: string[] }).warnings
-    expect(warnings.some((w) => w.includes('source missing') && w.includes('c.bin'))).toBe(true)
+    expect(warnings.some((w) => w.includes('source missing') && w.includes('fileC.pdf'))).toBe(true)
+  })
+
+  it('locates the source via id+ext even when a deduped upload has a malformed double-extension name', async () => {
+    // v1 FileStorage.findDuplicateFile returns a malformed FileMetadata on a second upload of the
+    // same bytes: `name` gains a double extension (a1b2.pdf.pdf) and `origin_name` is set to the
+    // storage name. Trusting `name` would resolve to a path that does not exist, so the bytes would
+    // never reach raw/ and the item would be permanently unreindexable. The migrator must rebuild
+    // the storage name from `{id}{ext}` (the real on-disk name) and copy successfully.
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'knowledge-file-copy-dedup-'))
+    const filesDataDir = path.join(tempRoot, 'Files')
+    const knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
+    mkdirSync(filesDataDir, { recursive: true })
+    // Real on-disk file is `{id}{ext}`; the malformed `name` (a1b2.pdf.pdf) does NOT exist.
+    writeFileSync(path.join(filesDataDir, 'a1b2.pdf'), 'DUP')
+
+    const dexieFiles: FileMetadata[] = [
+      dexieFileRow({ id: 'a1b2', name: 'a1b2.pdf.pdf', origin_name: 'a1b2.pdf', ext: '.pdf' })
+    ]
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'kb-dup',
+          name: 'KB Dup',
+          dimensions: 1024,
+          model: { id: 'emb', name: 'emb', provider: 'openai' },
+          items: [{ id: 'item-dup', type: 'file', content: 'a1b2' }]
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, dexieFiles, reduxKnowledge, { knowledgeBaseDir, filesDataDir })
+
+    const migrator = new KnowledgeMigrator()
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    const baseId = (migrator as unknown as { preparedBases: { id: string }[] }).preparedBases[0].id
+    const execute = await migrator.execute(ctx)
+    expect(execute.success).toBe(true)
+
+    const [row] = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
+    const relativePath = (row.data as { relativePath: string }).relativePath
+    // Bytes are copied (located via id+ext), so the item stays reindexable — no "source missing".
+    expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', relativePath), 'utf8')).toBe('DUP')
+    const warnings = (migrator as unknown as { warnings: string[] }).warnings
+    expect(warnings.some((w) => w.includes('source missing'))).toBe(false)
   })
 
   it('falls back to the storage name when a legacy file has a blank origin_name', async () => {
@@ -155,9 +200,9 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     const filesDataDir = path.join(tempRoot, 'Files')
     const knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
     mkdirSync(filesDataDir, { recursive: true })
-    writeFileSync(path.join(filesDataDir, 'stored.bin'), 'Z')
+    writeFileSync(path.join(filesDataDir, 'fileZ.pdf'), 'Z')
 
-    const dexieFiles: FileMetadata[] = [dexieFileRow({ id: 'fileZ', name: 'stored.bin', origin_name: '' })]
+    const dexieFiles: FileMetadata[] = [dexieFileRow({ id: 'fileZ', name: 'fileZ.pdf', origin_name: '' })]
     const reduxKnowledge = {
       bases: [
         {
@@ -180,7 +225,7 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     const [row] = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
     const relativePath = (row.data as { relativePath: string }).relativePath
     // Falls back to the sanitized storage name (never blank).
-    expect(relativePath).toBe('stored.bin')
+    expect(relativePath).toBe('fileZ.pdf')
     // The stored row survives the read path that lists items — a blank
     // relativePath would throw here and poison the whole base.
     expect(FileItemDataSchema.safeParse(row.data).success).toBe(true)
