@@ -1,6 +1,6 @@
+import type { AgentDetail } from '@renderer/pages/library/types'
 import { describe, expect, it } from 'vitest'
 
-import type { AgentDetail } from '../../../types'
 import {
   type AgentFormState,
   applyAgentFormPatch,

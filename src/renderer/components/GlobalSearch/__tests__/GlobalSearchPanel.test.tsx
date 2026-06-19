@@ -165,7 +165,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/pages/library/dialogs', () => ({
+vi.mock('@renderer/features/resource/dialogs', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))

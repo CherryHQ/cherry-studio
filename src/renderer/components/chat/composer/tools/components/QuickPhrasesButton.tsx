@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import PromptEditDialog from '@renderer/components/PromptEditDialog'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelListItem,
@@ -9,6 +8,7 @@ import {
   QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
+import PromptEditDialog from '@renderer/features/resource/dialogs/PromptEditDialog'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'

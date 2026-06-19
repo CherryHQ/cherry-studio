@@ -10,12 +10,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/Selector/shell/SelectorShell'
+
 import {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
   type ResourceSelectorShellLabels
-} from '../resource/ResourceSelectorShell'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
+} from '../ResourceSelectorShell'
 
 type Item = ResourceSelectorShellItem
 

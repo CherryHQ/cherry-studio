@@ -37,7 +37,7 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
-vi.mock('../model', () => ({
+vi.mock('@renderer/components/Selector/model', () => ({
   ModelSelector: ({
     trigger,
     onSelect
@@ -126,8 +126,9 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { AssistantSelector } from '../resource/AssistantSelector'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/Selector/shell/SelectorShell'
+
+import { AssistantSelector } from '../AssistantSelector'
 
 const ALPHA_ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const BETA_ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'

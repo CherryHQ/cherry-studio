@@ -187,7 +187,7 @@ vi.mock('../list/AssistantPresetPreviewDialog', () => ({
     ) : null
 }))
 
-vi.mock('@renderer/components/PromptEditDialog', () => ({
+vi.mock('@renderer/features/resource/dialogs/PromptEditDialog', () => ({
   default: ({
     open,
     prompt,
@@ -211,7 +211,7 @@ vi.mock('@renderer/components/PromptEditDialog', () => ({
     ) : null
 }))
 
-vi.mock('../dialogs', () => ({
+vi.mock('@renderer/features/resource/dialogs', () => ({
   ResourceCreateDialog: ({
     kind,
     open,

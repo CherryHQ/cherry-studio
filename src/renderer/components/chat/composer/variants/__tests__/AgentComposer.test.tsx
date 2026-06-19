@@ -308,14 +308,6 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
-  AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
-    <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
-      {trigger}
-      <button type="button" onClick={() => onChange('agent-2')}>
-        select agent 2
-      </button>
-    </div>
-  ),
   ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
     <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}
@@ -331,6 +323,17 @@ vi.mock('@renderer/components/Selector', () => ({
       ) : null}
       <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
         select model 2
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('@renderer/features/resource', () => ({
+  AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
+    <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
+      {trigger}
+      <button type="button" onClick={() => onChange('agent-2')}>
+        select agent 2
       </button>
     </div>
   ),

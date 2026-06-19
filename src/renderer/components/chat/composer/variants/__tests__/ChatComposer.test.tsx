@@ -256,17 +256,6 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
-  AssistantSelector: ({ autoSelectOnCreate, onChange, trigger, value }: any) => (
-    <div
-      data-testid="assistant-selector"
-      data-value={value ?? ''}
-      data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
-      {trigger}
-      <button type="button" onClick={() => onChange('assistant-2')}>
-        select assistant 2
-      </button>
-    </div>
-  ),
   ModelSelector: ({
     onSelect,
     trigger,
@@ -317,6 +306,20 @@ vi.mock('@renderer/components/Selector', () => ({
           </button>
         </>
       ) : null}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/features/resource', () => ({
+  AssistantSelector: ({ autoSelectOnCreate, onChange, trigger, value }: any) => (
+    <div
+      data-testid="assistant-selector"
+      data-value={value ?? ''}
+      data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
+      {trigger}
+      <button type="button" onClick={() => onChange('assistant-2')}>
+        select assistant 2
+      </button>
     </div>
   )
 }))

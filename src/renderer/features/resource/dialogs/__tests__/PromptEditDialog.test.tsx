@@ -62,7 +62,7 @@ vi.mock('lucide-react', () => ({
   Braces: () => <span />
 }))
 
-vi.mock('../PromptEditorField', () => ({
+vi.mock('@renderer/components/PromptEditorField', () => ({
   default: MockPromptEditorField
 }))
 
