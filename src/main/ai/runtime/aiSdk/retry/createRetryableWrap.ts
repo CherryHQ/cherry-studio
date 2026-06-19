@@ -10,10 +10,13 @@
  * (sampling / providerOptions / headers). This leaf only assembles the
  * ai-retry policy — it does not load providers/models itself.
  *
- * Note: `retryAfterDelay` covers retryable API errors only — it does not
- * handle `AbortSignal.timeout()` style `TimeoutError`s (that would need a
- * separate `requestTimeout` retryable). Cherry's abort signal is the user's
- * cancel/request scope, so timeouts are deliberately not retried here.
+ * Strategy is a fixed internal policy (not user-configurable): same-model retry
+ * on retryable errors, then cross-model fallback. The retry conditions use
+ * ai-retry's condition-based API (`error.isRetryable(true).retry(...)`). The
+ * `error.isRetryable(true)` condition matches retryable API errors only; it does
+ * not handle `AbortSignal.timeout()` style `TimeoutError`s — Cherry's abort
+ * signal is the user's cancel/request scope, so timeouts are deliberately not
+ * retried here.
  *
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
@@ -24,7 +27,6 @@ import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { APICallError } from 'ai'
 import {
-  createRetryable,
   isErrorAttempt,
   type LanguageModel,
   type LanguageModelRetryCallOptions,
@@ -32,7 +34,7 @@ import {
   type Retryable,
   type RetryContext
 } from 'ai-retry'
-import { retryAfterDelay } from 'ai-retry/retryables'
+import { createRetryableModel, error } from 'ai-retry/language-model'
 
 const logger = loggerService.withContext('ModelRetry')
 
@@ -103,12 +105,16 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   const backoffEnabled = preferences.get('chat.retry.backoff_enabled')
 
   const retries: Retries<LanguageModel> = [
-    // Same-model transient retry: honors Retry-After headers, otherwise delay + backoff.
-    retryAfterDelay<LanguageModel>({
-      maxAttempts: retryCount + 1,
-      delay: RETRY_BASE_DELAY_MS,
-      ...(backoffEnabled && { backoffFactor: 2 })
-    }),
+    // Same-model transient retry on retryable errors: honors Retry-After headers,
+    // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
+    // holds since retryCount >= 1.)
+    error
+      .isRetryable(true)
+      .retry({
+        maxAttempts: retryCount + 1,
+        delay: RETRY_BASE_DELAY_MS,
+        ...(backoffEnabled && { backoffFactor: 2 })
+      }),
     // Cross-model fallback, tried in user-configured order (one attempt each).
     // Resolved lazily on first failure (memoized) so the happy path pays nothing;
     // each fallback carries its own middleware + params (a per-retry override).
@@ -128,7 +134,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   ]
 
   return (base) =>
-    createRetryable({
+    createRetryableModel({
       model: base,
       retries,
       onRetry: (context) => {

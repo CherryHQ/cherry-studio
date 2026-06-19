@@ -14,7 +14,7 @@ tool state and hook composition are untouched.
 ```text
 AiService.streamText/generateText
   └─ createRetryableWrap()              src/main/ai/runtime/aiSdk/retry/
-       └─ wrapModel: (model) => createRetryable({ model, retries: [...] })
+       └─ wrapModel: (model) => createRetryableModel({ model, retries: [...] })
             └─ passed via AgentLoopParams.wrapModel
                  └─ createAgent() applies it AFTER pluginEngine.resolveModel
                       (middlewares already applied → retryable is outermost)
@@ -65,12 +65,15 @@ ai-retry policy from the pre-built fallbacks (no provider/model loading in this
 leaf): returns `undefined` when disabled, else a `wrapModel` closure:
 
 ```ts
-createRetryable({
+// ai-retry's condition-based API (ai-retry/language-model). The retry STRATEGY
+// (which conditions retry vs fall back) is a fixed internal policy — not exposed.
+createRetryableModel({
   model: base,
   retries: [
-    // maxAttempts = max_attempts + 1 (ai-retry counts the original call, so the
-    // pref reads as the number of RETRIES); backoffFactor only when backoff_enabled.
-    retryAfterDelay({ maxAttempts: max_attempts + 1, delay: 1_000, /* backoffFactor: 2 */ }),
+    // same-model retry on retryable errors. maxAttempts = max_attempts + 1
+    // (ai-retry counts the original call, so the pref reads as the number of
+    // RETRIES); backoffFactor only when backoff_enabled. Honors Retry-After.
+    error.isRetryable(true).retry({ maxAttempts: max_attempts + 1, delay: 1_000, /* backoffFactor: 2 */ }),
     // fallbacks are lazy, error-only Retryable fns (resolve on first failure, memoized)
     ...fallbackResolvers.map((resolve) => errorOnlyLazyRetryable(resolve))
   ],
