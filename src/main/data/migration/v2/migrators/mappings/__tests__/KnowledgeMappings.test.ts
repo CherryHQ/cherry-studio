@@ -1,7 +1,8 @@
 import { FILE_TYPE } from '@shared/data/types/file'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
-  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
+  KNOWLEDGE_NOTE_CONTENT_MAX
 } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
@@ -286,6 +287,60 @@ describe('KnowledgeMappings', () => {
         updatedAt: expect.any(Number)
       }
     })
+  })
+
+  it('transformKnowledgeItem keeps note content unchanged when within the read-side max', () => {
+    const warnings: string[] = []
+    const content = 'short note body'
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-1', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.value.data).toMatchObject({ content })
+    expect(warnings).toEqual([])
+  })
+
+  it('transformKnowledgeItem clamps over-long note content to the read-side max and warns', () => {
+    // v1 notes had no length cap; the v2 read path enforces .max(KNOWLEDGE_NOTE_CONTENT_MAX), so a
+    // longer note would parse-fail and poison the whole base's item-list query. It must be
+    // truncated (not dropped) and the truncation surfaced as a warning.
+    const warnings: string[] = []
+    const content = 'a'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX + 10)
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-long', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || !('content' in result.value.data)) throw new Error('expected a note result')
+    expect(result.value.data.content).toHaveLength(KNOWLEDGE_NOTE_CONTENT_MAX)
+    expect(result.value.data.content).toBe('a'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('note-long')
+    expect(warnings[0]).toContain('truncated')
+  })
+
+  it('transformKnowledgeItem keeps note content exactly at the max without warning (boundary)', () => {
+    const warnings: string[] = []
+    const content = 'b'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX)
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-exact', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || !('content' in result.value.data)) throw new Error('expected a note result')
+    expect(result.value.data.content).toHaveLength(KNOWLEDGE_NOTE_CONTENT_MAX)
+    expect(warnings).toEqual([])
   })
 
   it('transformKnowledgeItem skips a note with neither sourceUrl nor content', () => {
