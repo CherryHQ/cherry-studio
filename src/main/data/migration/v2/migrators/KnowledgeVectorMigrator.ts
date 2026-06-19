@@ -28,10 +28,11 @@ import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
   type KnowledgeItemData,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { LegacyKnowledgeVectorLoadResult } from '../utils/KnowledgeVectorSourceReader'
@@ -83,6 +84,7 @@ interface LegacyKnowledgeStateWithLoaders {
 interface MigratedKnowledgeItemForVector {
   id: string
   baseId: string
+  groupId: string | null
   type: KnowledgeItemType
   data: KnowledgeItemData
 }
@@ -216,6 +218,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   private preparedBasePlans: PreparedBasePlan[] = []
   private successfulBaseIds = new Set<string>()
   private executionErrors: string[] = []
+  // Directory-expanded items (KnowledgeMigrator split a v1 folder into a `completed` container
+  // plus `completed` per-file children) whose vectors never landed here — either the whole base
+  // was skipped (a TOCTOU: KnowledgeMigrator read the legacy store at order 1.8, but it became
+  // unreadable by order 3.5) or a child received 0 migratable vectors. Their `data.source` is a
+  // virtual path with no raw/ file, so reindex is rejected and they would be invisible empty
+  // docs; execute() degrades them to `failed`/directory_not_migrated so the UI prompts a re-add.
+  private directoryItemsToDegrade = new Set<string>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -225,6 +234,69 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.preparedBasePlans = []
     this.successfulBaseIds = new Set<string>()
     this.executionErrors = []
+    this.directoryItemsToDegrade = new Set<string>()
+  }
+
+  /**
+   * Group a base's directory-expanded children by their container item id (children carry
+   * `groupId = containerId`). Built from the per-base loader remap KnowledgeMigrator published.
+   */
+  private collectDirectoryGroups(
+    baseId: string,
+    migratedItemsByBaseId: Map<string, Map<string, MigratedKnowledgeItemForVector>>,
+    directoryChildLoaderRemapByBase: Map<string, Map<string, string>>
+  ): Map<string, Set<string>> {
+    const groups = new Map<string, Set<string>>()
+    const childRemap = directoryChildLoaderRemapByBase.get(baseId)
+    const items = migratedItemsByBaseId.get(baseId)
+    if (!childRemap || !items) {
+      return groups
+    }
+    for (const childId of new Set(childRemap.values())) {
+      const child = items.get(childId)
+      if (!child || !child.groupId) {
+        continue
+      }
+      const containerId = child.groupId
+      const bucket = groups.get(containerId) ?? new Set<string>()
+      bucket.add(childId)
+      groups.set(containerId, bucket)
+    }
+    return groups
+  }
+
+  /** A skipped base writes no vectors, so every directory group it owns (container + children) is orphaned. */
+  private markDirectoryGroupsFullyOrphaned(groups: Map<string, Set<string>>): void {
+    for (const [containerId, childIds] of groups) {
+      this.directoryItemsToDegrade.add(containerId)
+      for (const childId of childIds) {
+        this.directoryItemsToDegrade.add(childId)
+      }
+    }
+  }
+
+  /**
+   * For a base that loaded: a directory child that received no chunks is an empty doc — degrade it.
+   * If every child in a group is empty, the container is degraded too; a group with at least one
+   * surviving child keeps its container `completed`.
+   */
+  private markEmptyDirectoryChildren(
+    groups: Map<string, Set<string>>,
+    chunksByItem: Map<string, unknown>
+  ): void {
+    for (const [containerId, childIds] of groups) {
+      let survivors = 0
+      for (const childId of childIds) {
+        if (chunksByItem.has(childId)) {
+          survivors += 1
+        } else {
+          this.directoryItemsToDegrade.add(childId)
+        }
+      }
+      if (survivors === 0 && childIds.size > 0) {
+        this.directoryItemsToDegrade.add(containerId)
+      }
+    }
   }
 
   private getTempVectorStorePath(dbPath: string): string {
@@ -326,6 +398,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         .select({
           id: knowledgeItemTable.id,
           baseId: knowledgeItemTable.baseId,
+          groupId: knowledgeItemTable.groupId,
           type: knowledgeItemTable.type,
           data: knowledgeItemTable.data
         })
@@ -356,9 +429,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         : new Map<string, Map<string, string>>()
 
       for (const base of migratedBases) {
+        // Directory-expanded children/containers KnowledgeMigrator created for this base. If this
+        // base is skipped below, none of their vectors land here, so they become orphaned
+        // virtual-path docs (markDirectoryGroupsFullyOrphaned); if the base loads, children that
+        // receive no chunks are degraded individually (markEmptyDirectoryChildren). The map is
+        // empty for bases without directory expansion, so the marker calls are no-ops there.
+        const directoryGroups = this.collectDirectoryGroups(
+          base.id,
+          migratedItemsByBaseId,
+          directoryChildLoaderRemapByBase
+        )
+
         if (base.status === 'failed' || base.embeddingModelId === null) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: missing embedding model`
           this.recordSkippedWarning(KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, warningMessage)
+          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
 
@@ -367,6 +452,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (typeof dimensions !== 'number' || !Number.isInteger(dimensions) || dimensions <= 0) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: invalid dimensions`
           this.recordSkippedWarning('invalid_dimensions', warningMessage)
+          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
 
@@ -374,6 +460,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (!legacyBaseId) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: migrated base id cannot be mapped to legacy knowledge base id`
           this.recordSkippedWarning('unmapped_base', warningMessage)
+          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
 
@@ -381,6 +468,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base ${legacyBaseId} not found`
           this.recordSkippedWarning('legacy_base_missing', warningMessage)
+          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
 
@@ -397,27 +485,32 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             'read_error',
             `Skipped knowledge vector base ${base.id}: legacy vector DB unreadable (${message})`
           )
+          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
             this.recordSkippedWarning('invalid_path', warningMessage)
+            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
             continue
           }
           case 'missing': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB missing`
             this.recordSkippedWarning('missing', warningMessage)
+            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
             continue
           }
           case 'directory': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB path is a directory`
             this.recordSkippedWarning('directory', warningMessage)
+            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
             continue
           }
           case 'not_embedjs': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy DB is not embedjs format`
             this.recordSkippedWarning('not_embedjs', warningMessage)
+            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
             continue
           }
         }
@@ -506,6 +599,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           entry.chunks.push({ pageContent: row.pageContent, embedding: row.vector.value })
           chunksByItem.set(target.id, entry)
         }
+
+        // A directory child that drew no chunks (its v1 file's vectors were absent/unmappable) is an
+        // empty virtual-path doc that cannot reindex — degrade it; a fully-empty group degrades its
+        // container too. Children that did receive chunks stay completed and flow through below.
+        this.markEmptyDirectoryChildren(directoryGroups, chunksByItem)
 
         // Snapshot names must dodge every path the base already occupies (copied
         // files, their processed artifacts, other snapshots planned this run). Pass
@@ -613,7 +711,35 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     }
   }
 
+  /**
+   * Persist the directory degrade set collected in prepare(): orphaned directory-expanded items
+   * become `failed`/directory_not_migrated so the UI prompts a re-add (their virtual-path source
+   * cannot reindex). A failure here is non-fatal — the worst case is a stale `completed` row that
+   * the next migration run re-degrades — so it is recorded as a warning, never thrown.
+   */
+  private async flushDirectoryDegradations(ctx: MigrationContext): Promise<void> {
+    if (this.directoryItemsToDegrade.size === 0) {
+      return
+    }
+    const ids = [...this.directoryItemsToDegrade]
+    try {
+      await ctx.db
+        .update(knowledgeItemTable)
+        .set({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED })
+        .where(inArray(knowledgeItemTable.id, ids))
+      logger.info('Degraded orphaned directory-expanded knowledge items', { count: ids.length })
+    } catch (error) {
+      this.recordWarning(
+        `Failed to degrade ${ids.length} orphaned directory-expanded knowledge items: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    // Degrade items orphaned in prepare() before the empty-plan early-return, so a base whose only
+    // content was a directory expansion still degrades its children when no vector plan survived.
+    await this.flushDirectoryDegradations(ctx)
+
     if (this.preparedBasePlans.length === 0) {
       return {
         success: true,

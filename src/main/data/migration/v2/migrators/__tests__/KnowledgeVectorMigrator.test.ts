@@ -8,7 +8,10 @@ import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfF
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+} from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -97,6 +100,7 @@ interface MigratedKnowledgeBaseRow {
 interface MigratedKnowledgeItemRow {
   id: string
   baseId: string
+  groupId?: string | null
   type: 'file' | 'url' | 'note' | 'directory'
   data: Record<string, unknown>
 }
@@ -980,6 +984,160 @@ describe('KnowledgeVectorMigrator', () => {
       )
       expect(store.embedding).toHaveLength(2)
       expect(store.content.map((c) => String(c.text)).sort()).toEqual(['api readme', 'web readme'])
+    })
+
+    it('degrades directory-expanded children and their container when the base is skipped (read TOCTOU)', async () => {
+      // KnowledgeMigrator (order 1.8) read the legacy store, expanded a v1 folder into a `completed`
+      // directory container plus per-file `completed` children, and published the loader->child
+      // remap. By the time the vector migrator (order 3.5) runs, that legacy store has become
+      // unreadable, so the base is skipped and the children never receive vectors. Each child's
+      // `data.source` is a virtual path with no raw/ file, so it cannot reindex — left `completed`
+      // it would be a silent empty doc. The children and their now-empty container must be degraded
+      // to failed/directory_not_migrated so the UI prompts a re-add.
+      const CHILD_A = '0198f3f2-7d40-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7d41-7abc-8def-123456789abc'
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
+        } as any,
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/web/README.md', relativePath: CHILD_B }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a', 'loader-dir-b'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', CHILD_A],
+              ['loader-dir-b', CHILD_B]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      // No vector plan survived — the only base was skipped on the unreadable store.
+      expect(migrator.preparedBasePlans).toHaveLength(0)
+      // Container + both children are queued for degrade.
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual(
+        [CHILD_A, CHILD_B, MIGRATED_DIRECTORY_ITEM_ID].sort()
+      )
+
+      // The flush runs even with zero plans because it precedes execute()'s empty-plan early-return.
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      expect(degradeWrites).toHaveLength(1)
+      expect(degradeWrites[0].values).toEqual({
+        status: 'failed',
+        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      })
+    })
+
+    it('degrades only the directory children that got no vectors, keeping a container with a survivor', async () => {
+      // The base loads, but only one of the folder's two files still has a migratable vector. The
+      // child that drew chunks stays `completed` and indexes normally; the empty child is degraded
+      // to failed/directory_not_migrated (its virtual path cannot reindex). One survivor keeps the
+      // container `completed`, so the container is NOT degraded.
+      const CHILD_A = '0198f3f2-7d50-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7d51-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-dir-a-0',
+          pageContent: 'api readme',
+          uniqueLoaderId: 'loader-dir-a',
+          source: '/docs/api/README.md',
+          vector: [1, 2]
+        }
+        // loader-dir-b is intentionally absent: child B's file lost its vector in v1.
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/web/README.md', relativePath: CHILD_B }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a', 'loader-dir-b'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', CHILD_A],
+              ['loader-dir-b', CHILD_B]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      // Only the empty child is degraded; the surviving child and its container are left alone.
+      expect([...migrator.directoryItemsToDegrade]).toEqual([CHILD_B])
+      // The surviving child still produced a material to rebuild.
+      expect(materialItemIds(migrator)).toEqual([CHILD_A])
+
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      expect(degradeWrites).toHaveLength(1)
+      expect(degradeWrites[0].values).toEqual({
+        status: 'failed',
+        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      })
     })
 
     it('scopes the directory-child loader remap per base so a shared loader id never clobbers across bases', async () => {
