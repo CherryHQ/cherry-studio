@@ -495,6 +495,13 @@ export class KnowledgeItemService {
    * a path is never written onto the wrong kind. Shared by the relative-path
    * setters below; `label` names the patched field for the validation / log
    * messages. Runs in a single write transaction.
+   *
+   * `patch` is a concrete key union, not `Partial<KnowledgeItemData>`: the latter
+   * keeps only keys common to every item type and would drop the file-only
+   * `indexedRelativePath`. The merged `data` is cast to `KnowledgeItemData`, which
+   * cannot statically prove the patched key belongs to the resolved item type —
+   * `allowedTypes` is the runtime guard that makes the cast sound, so the two are
+   * load-bearing together and must be kept in sync.
    */
   private async patchItemData(
     id: string,
