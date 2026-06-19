@@ -134,7 +134,7 @@ export function knowledgeSearchModelOutput(
     return {
       type: 'text',
       value:
-        'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb_list first to inspect available bases and their sample sources, then retry kb_search with refined baseIds or query.'
+        'No matches found in the requested knowledge bases. You may retry kb_search with different keywords or baseIds (call kb_list first to discover available bases), but if the knowledge base genuinely does not cover this topic, you MUST explicitly inform the user that no relevant information was found in their knowledge base, and make clear that your answer relies on general knowledge alone rather than their stored documents.'
     }
   }
   return { type: 'json', value: output }

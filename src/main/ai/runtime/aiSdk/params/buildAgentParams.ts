@@ -96,7 +96,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
+  const system = await assembleSystemPrompt({
+    assistant,
+    model,
+    tools,
+    deferredEntries,
+    kbSearchActive: (assistant?.knowledgeBaseIds?.length ?? 0) > 0
+  })
   const options = buildAgentOptions(scope, contributions.stopConditions)
 
   return {
