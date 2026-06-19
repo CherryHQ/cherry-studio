@@ -138,7 +138,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     url: 'https://agent.minimax.io/',
     logo: 'minimax',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'ima',
