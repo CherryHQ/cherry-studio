@@ -7,6 +7,7 @@ import {
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
@@ -405,8 +406,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         'X-Timestamp': '1700000000',
         'X-Signature': 'signed'
       })
-      const fetchMock = vi.fn().mockResolvedValue(new Response('{}'))
-      vi.stubGlobal('fetch', fetchMock)
+      // The signing wrapper composes onto customFetch (net.fetch), so the request
+      // routes through Chromium's proxy-aware network stack rather than globalThis.fetch.
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
 
       const provider = makeProvider({
         id: CHERRYAI_PROVIDER_ID,
@@ -438,7 +440,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         query: '',
         body: { model: CHERRYAI_DEFAULT_MODEL_ID }
       })
-      expect(fetchMock).toHaveBeenCalledWith(
+      expect(net.fetch).toHaveBeenCalledWith(
         `${CHERRYAI_API_BASE_URL}/chat/completions`,
         expect.objectContaining({
           headers: expect.objectContaining({
