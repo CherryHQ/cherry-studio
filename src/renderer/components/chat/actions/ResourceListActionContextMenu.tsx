@@ -1,4 +1,4 @@
-import { CommandContextMenu } from '@renderer/features/command'
+import { CommandContextMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 

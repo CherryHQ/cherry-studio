@@ -2,26 +2,26 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import { platform } from '@renderer/config/constant'
 import {
+  type CommandHandler,
+  type CommandHandlerOptions,
+  CommandRuntimeContext,
+  type CommandSharedPreferences,
+  CommandSharedPreferencesContext,
+  useCommandContextSnapshot
+} from '@renderer/hooks/command'
+import { getShortcutBindingFromKeyboardEvent } from '@renderer/utils/command'
+import {
   type CommandId,
   type ContextReader,
-  getShortcutBindingFromKeyboardEvent,
   type MenuPresentationMode,
   REGISTERED_KEYBINDINGS,
   resolveCommandByKeybinding,
   type SupportedPlatform
 } from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
-
-import { useCommandContextSnapshot } from './ContextKeyProvider'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('CommandProvider')
-
-export type CommandHandler = () => void | Promise<void>
-
-export interface CommandHandlerOptions {
-  enabled?: boolean
-}
 
 interface CommandHandlerEntry {
   id: number
@@ -35,28 +35,6 @@ interface CommandDispatcherState {
   hasHandler: (command: CommandId) => boolean
   execute: (command: CommandId) => void
 }
-
-interface CommandRuntime {
-  execute: (command: CommandId) => void
-  hasHandler: (command: CommandId) => boolean
-  registerHandler: (command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions) => () => void
-}
-
-interface CommandSharedPreferences {
-  shortcutPreferences: Partial<Record<CommandId, PreferenceShortcutType>>
-  menuPresentationMode: MenuPresentationMode | undefined
-}
-
-const EMPTY_SHORTCUT_PREFERENCES: Partial<Record<CommandId, PreferenceShortcutType>> = {}
-
-const NO_OP_RUNTIME: CommandRuntime = {
-  execute: (command) => logger.warn(`No renderer command runtime mounted: ${command}`),
-  hasHandler: () => false,
-  registerHandler: () => () => {}
-}
-
-const CommandRuntimeContext = createContext<CommandRuntime | null>(null)
-const CommandSharedPreferencesContext = createContext<CommandSharedPreferences | null>(null)
 
 /**
  * True when the event target is a text-entry surface — an `<input>`,
@@ -219,35 +197,4 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       <CommandSharedPreferencesContext value={sharedPreferences}>{children}</CommandSharedPreferencesContext>
     </CommandRuntimeContext>
   )
-}
-
-export function useCommandHandler(command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions): void {
-  const runtime = useCommandRuntime()
-  const handlerRef = useRef(handler)
-  handlerRef.current = handler
-  const enabled = options?.enabled !== false
-
-  useEffect(() => {
-    return runtime.registerHandler(command, () => handlerRef.current(), { enabled })
-  }, [command, enabled, runtime])
-}
-
-export function useCommandRuntime(): CommandRuntime {
-  return use(CommandRuntimeContext) ?? NO_OP_RUNTIME
-}
-
-/**
- * Single-subscriber accessor for the shortcut preference map. Reads from the
- * context populated by {@link CommandProvider}; falls back to an empty map
- * outside any provider (tests, isolated windows).
- *
- * Direct `useMultiplePreferences(shortcutPreferenceKeys)` calls multiply IPC
- * listeners per render — N consumers × ~22 keys froze the settings window.
- */
-export function useCommandShortcutPreferences(): Partial<Record<CommandId, PreferenceShortcutType>> {
-  return use(CommandSharedPreferencesContext)?.shortcutPreferences ?? EMPTY_SHORTCUT_PREFERENCES
-}
-
-export function useCommandMenuPresentationMode(): MenuPresentationMode | undefined {
-  return use(CommandSharedPreferencesContext)?.menuPresentationMode
 }

@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { ArrowRightLeft, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'

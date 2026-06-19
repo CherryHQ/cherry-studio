@@ -19,11 +19,11 @@ import {
   useResourceListPinnedState,
   useResourceListRowState
 } from '@renderer/components/chat/resources'
+import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { CommandPopupMenu } from '@renderer/features/command'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'

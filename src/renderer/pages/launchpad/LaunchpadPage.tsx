@@ -1,5 +1,6 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
@@ -12,7 +13,6 @@ import {
   SIDEBAR_ICON_COMPONENTS,
   SIDEBAR_ICON_ORDER
 } from '@renderer/config/sidebar'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'

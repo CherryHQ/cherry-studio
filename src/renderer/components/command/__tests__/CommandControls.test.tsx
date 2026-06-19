@@ -54,15 +54,15 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-import { ContextKeyProvider } from '../ContextKeyProvider'
+import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
+import { CommandShortcut, CommandTooltip } from '../CommandControls'
 import * as commandExports from '../index'
-import { CommandShortcut, CommandTooltip } from '../presentation'
 
 function renderShortcut() {
   return render(
-    <ContextKeyProvider>
+    <CommandContextKeyProvider>
       <CommandShortcut command="topic.create" />
-    </ContextKeyProvider>
+    </CommandContextKeyProvider>
   )
 }
 
@@ -98,11 +98,11 @@ describe('CommandShortcut', () => {
 
   it('supports context-specific tooltip labels while keeping command shortcut rendering centralized', () => {
     render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandTooltip command="topic.create" label="New Session" placement="bottom" delay={800}>
           <button type="button">trigger</button>
         </CommandTooltip>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     const content = screen.getByTestId('tooltip-content')

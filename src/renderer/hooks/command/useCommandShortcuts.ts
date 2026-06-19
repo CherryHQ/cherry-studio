@@ -1,6 +1,5 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/config/constant'
-import { useCommandContextReader } from '@renderer/features/command'
 import {
   type CommandId,
   type CommandShortcutPreferenceKey,
@@ -16,6 +15,8 @@ import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 import type { ResolvedShortcut } from '@shared/shortcuts/types'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useCommandContextReader } from './useCommandContext'
 
 export type ShortcutSettingsGroup = 'general' | 'chat' | 'topic' | 'assistant'
 type CommandShortcutKey = CommandShortcutPreferenceKey<CommandId>
@@ -90,7 +91,7 @@ export const getAllShortcutDefaultPreferences = (): Record<CommandShortcutKey, P
   )
 }
 
-export const useAllShortcuts = () => {
+export const useCommandShortcuts = () => {
   const { t } = useTranslation()
   const context = useCommandContextReader()
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)

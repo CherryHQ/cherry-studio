@@ -1,8 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
+import { CommandTooltip } from '@renderer/components/command'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { CommandTooltip } from '@renderer/features/command'
 import { t } from 'i18next'
 import type { FC } from 'react'
 

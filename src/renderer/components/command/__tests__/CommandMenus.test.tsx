@@ -167,9 +167,11 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
-import { CommandProvider, useCommandHandler } from '../CommandProvider'
-import { ContextKeyProvider } from '../ContextKeyProvider'
-import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '../menus'
+import { useCommandHandler } from '@renderer/hooks/command'
+
+import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '../CommandMenus'
+import { CommandProvider } from '../CommandProvider'
 
 function RegisteredTopicCreate({ onExecute }: { onExecute: () => void }) {
   useCommandHandler('topic.create', onExecute)
@@ -192,7 +194,7 @@ function renderMenu({
   location?: Parameters<typeof CommandContextMenu>[0]['location']
 } = {}) {
   return render(
-    <ContextKeyProvider>
+    <CommandContextKeyProvider>
       <CommandProvider>
         <RegisteredTopicCreate onExecute={onExecute} />
         <CommandContextMenu
@@ -203,7 +205,7 @@ function renderMenu({
           <button type="button">trigger</button>
         </CommandContextMenu>
       </CommandProvider>
-    </ContextKeyProvider>
+    </CommandContextKeyProvider>
   )
 }
 
@@ -471,7 +473,7 @@ describe('CommandContextMenu', () => {
     }
 
     render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandProvider>
           <CommandContextMenu
             location="webcontents.context"
@@ -479,7 +481,7 @@ describe('CommandContextMenu', () => {
             <TriggerContent />
           </CommandContextMenu>
         </CommandProvider>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => expect(mountCount).toHaveBeenCalledOnce())
@@ -536,7 +538,7 @@ describe('CommandContextMenu', () => {
     showNativePopupMenuMock.mockResolvedValueOnce(null)
 
     render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandProvider>
           <CommandPopupMenu
             location="webcontents.context"
@@ -545,7 +547,7 @@ describe('CommandContextMenu', () => {
             <button type="button">trigger-popup</button>
           </CommandPopupMenu>
         </CommandProvider>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
@@ -564,7 +566,7 @@ describe('CommandContextMenu', () => {
     const onSelect = vi.fn()
 
     render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandProvider>
           <CommandPopupMenu
             location="webcontents.context"
@@ -573,7 +575,7 @@ describe('CommandContextMenu', () => {
             <button type="button">trigger-popup</button>
           </CommandPopupMenu>
         </CommandProvider>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
@@ -593,7 +595,7 @@ describe('CommandContextMenu', () => {
     const onSelect = vi.fn()
 
     render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandProvider>
           <CommandContextMenu
             location="webcontents.context"
@@ -602,7 +604,7 @@ describe('CommandContextMenu', () => {
             <button type="button">trigger-context</button>
           </CommandContextMenu>
         </CommandProvider>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger-context' }))

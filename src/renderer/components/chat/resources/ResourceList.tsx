@@ -1,5 +1,5 @@
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
-import { CommandTooltip } from '@renderer/features/command'
+import { CommandTooltip } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'

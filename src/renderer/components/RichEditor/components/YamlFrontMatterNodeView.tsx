@@ -1,7 +1,7 @@
 import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Calendar, Check, FileText, Hash, MoreHorizontal, Plus, Tag as TagIcon, Trash2, Type, X } from 'lucide-react'
 import React, { useCallback, useMemo, useState } from 'react'

@@ -1,5 +1,5 @@
 import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
-import { useCommandHandler } from '@renderer/features/command'
+import { useCommandHandler } from '@renderer/hooks/command'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { CherryMessagePart } from '@shared/data/types/message'

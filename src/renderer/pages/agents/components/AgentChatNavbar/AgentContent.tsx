@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip } from '@renderer/components/command'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { CommandTooltip } from '@renderer/features/command'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'

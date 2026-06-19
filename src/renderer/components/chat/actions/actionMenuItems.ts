@@ -1,4 +1,4 @@
-import type { CommandContextMenuExtraItem } from '@renderer/features/command'
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
 import type { ResolvedAction } from './actionTypes'
 

@@ -1,27 +1,17 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { platform } from '@renderer/config/constant'
-import { ContextKeyService, type ContextReader, type ContextValue } from '@shared/command'
-import React, { createContext, use, useCallback, useEffect, useRef, useState } from 'react'
-
-export type RendererCommandContextKey =
-  | 'platform'
-  | 'feature.quick_assistant.enabled'
-  | 'feature.selection.enabled'
-  | 'chat.active'
-  | 'topic.exists'
-  | 'input.composing'
+import {
+  ContextKeyRegisterContext,
+  ContextKeySnapshotContext,
+  type RendererCommandContextKey,
+  rendererPlatform
+} from '@renderer/hooks/command'
+import { ContextKeyService, type ContextValue } from '@shared/command'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 interface ContextEntry {
   id: number
   value: ContextValue
 }
-
-type RegisterContextKey = (key: RendererCommandContextKey, value: ContextValue) => () => void
-
-const ContextKeySnapshotContext = createContext<ReadonlyMap<string, ContextValue> | null>(null)
-const ContextKeyRegisterContext = createContext<RegisterContextKey | null>(null)
-const rendererPlatform = platform ?? 'unknown'
-const fallbackSnapshot = new Map<string, ContextValue>([['platform', rendererPlatform]])
 
 const buildSnapshot = (
   baseValues: ReadonlyMap<RendererCommandContextKey, ContextValue>,
@@ -41,7 +31,7 @@ const buildSnapshot = (
   return service.snapshot()
 }
 
-export function ContextKeyProvider({ children }: { children: React.ReactNode }) {
+export function CommandContextKeyProvider({ children }: { children: React.ReactNode }) {
   const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
   const [selectionEnabled] = usePreference('feature.selection.enabled')
   const baseValuesRef = useRef(
@@ -100,20 +90,4 @@ export function ContextKeyProvider({ children }: { children: React.ReactNode }) 
       <ContextKeySnapshotContext value={snapshot}>{children}</ContextKeySnapshotContext>
     </ContextKeyRegisterContext>
   )
-}
-
-export function useCommandContextSnapshot(): ReadonlyMap<string, ContextValue> {
-  return use(ContextKeySnapshotContext) ?? fallbackSnapshot
-}
-
-export function useCommandContextReader(): ContextReader {
-  return useCommandContextSnapshot()
-}
-
-export function useCommandContextKey(key: RendererCommandContextKey, value: ContextValue): void {
-  const register = use(ContextKeyRegisterContext)
-
-  useEffect(() => {
-    return register?.(key, value)
-  }, [key, register, value])
 }

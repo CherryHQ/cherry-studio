@@ -1,4 +1,4 @@
-import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/features/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'

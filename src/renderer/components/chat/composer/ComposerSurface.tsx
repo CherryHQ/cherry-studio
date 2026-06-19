@@ -1358,7 +1358,7 @@ export default function ComposerSurface({
       aria-live="polite"
       aria-label={t('chat.input.editing_message')}
       data-composer-editing-badge=""
-      className="absolute top-0 left-3 z-4 inline-flex h-6 max-w-[180px] -translate-y-1/2 items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
+      className="-translate-y-1/2 absolute top-0 left-3 z-4 inline-flex h-6 max-w-[180px] items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />
       <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
       {editingState.onLocate ? (

@@ -8,7 +8,7 @@ import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messag
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { useCommandHandler } from '@renderer/features/command'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'

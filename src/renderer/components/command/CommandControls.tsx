@@ -1,65 +1,8 @@
 import { Button, Kbd, Tooltip, type TooltipProps } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { usePreference } from '@data/hooks/usePreference'
-import { isMac, platform } from '@renderer/config/constant'
-import {
-  type CommandId,
-  evaluateContextExpr,
-  findCommandDefinition,
-  findKeybindingRule,
-  getCommandShortcutLabel,
-  type ResolvedCommandState,
-  type SupportedPlatform
-} from '@shared/command'
-import React, { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { useCommandRuntime } from './CommandProvider'
-import { useCommandContextReader } from './ContextKeyProvider'
-
-const useCommandContext = useCommandContextReader
-
-function useCommandShortcutLabel(command: CommandId): string {
-  const rule = findKeybindingRule(command)
-  const [preference] = usePreference(rule?.preferenceKey ?? 'shortcut.topic.create')
-  const context = useCommandContext()
-
-  return useMemo(() => {
-    if (!rule) {
-      return ''
-    }
-
-    return getCommandShortcutLabel(command, preference, {
-      context,
-      isMac,
-      platform: platform as SupportedPlatform
-    })
-  }, [command, context, preference, rule])
-}
-
-export function useResolvedCommand(command: CommandId): ResolvedCommandState & { execute: () => void } {
-  const { t } = useTranslation()
-  const runtime = useCommandRuntime()
-  const definition = findCommandDefinition(command)
-  const context = useCommandContext()
-  const shortcutLabel = useCommandShortcutLabel(command)
-
-  return useMemo(() => {
-    const label = definition ? t(definition.titleKey) : command
-    const enabled = Boolean(
-      definition && runtime.hasHandler(command) && evaluateContextExpr(definition.enablement, context)
-    )
-
-    return {
-      id: command,
-      label,
-      enabled,
-      shortcutLabel,
-      iconKey: definition?.iconKey,
-      execute: () => runtime.execute(command)
-    }
-  }, [command, context, definition, runtime, shortcutLabel, t])
-}
+import { useResolvedCommand } from '@renderer/hooks/command'
+import type { CommandId } from '@shared/command'
+import type React from 'react'
 
 export function CommandShortcut({
   command,
@@ -70,7 +13,7 @@ export function CommandShortcut({
   className?: string
   hiddenWhenUnavailable?: boolean
 }): React.ReactNode {
-  const shortcutLabel = useCommandShortcutLabel(command)
+  const { shortcutLabel } = useResolvedCommand(command)
 
   if (!shortcutLabel && hiddenWhenUnavailable) {
     return null

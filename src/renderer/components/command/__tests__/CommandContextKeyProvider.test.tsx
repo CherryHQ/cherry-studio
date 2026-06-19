@@ -11,11 +11,12 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 import {
-  ContextKeyProvider,
   type RendererCommandContextKey,
   useCommandContextKey,
   useCommandContextSnapshot
-} from '../ContextKeyProvider'
+} from '@renderer/hooks/command'
+
+import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
 
 function SnapshotView({ testId = 'snapshot' }: { testId?: string }) {
   const snapshot = useCommandContextSnapshot()
@@ -29,7 +30,7 @@ function ScopedContextKey({ contextKey, value }: { contextKey: RendererCommandCo
 
 const readSnapshot = (testId = 'snapshot') => JSON.parse(screen.getByTestId(testId).textContent ?? '{}')
 
-describe('ContextKeyProvider', () => {
+describe('CommandContextKeyProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     for (const key of Object.keys(preferenceValues)) {
@@ -46,9 +47,9 @@ describe('ContextKeyProvider', () => {
     preferenceValues['feature.selection.enabled'] = false
 
     render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     expect(readSnapshot()).toMatchObject({
@@ -61,18 +62,18 @@ describe('ContextKeyProvider', () => {
   it('updates snapshot when feature preferences change', async () => {
     preferenceValues['feature.quick_assistant.enabled'] = false
     const { rerender } = render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     expect(readSnapshot()['feature.quick_assistant.enabled']).toBe(false)
 
     preferenceValues['feature.quick_assistant.enabled'] = true
     rerender(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => {
@@ -82,10 +83,10 @@ describe('ContextKeyProvider', () => {
 
   it('registers scoped keys and removes them on unmount', async () => {
     const { rerender } = render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <ScopedContextKey contextKey="chat.active" value />
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => {
@@ -93,9 +94,9 @@ describe('ContextKeyProvider', () => {
     })
 
     rerender(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => {
@@ -105,10 +106,10 @@ describe('ContextKeyProvider', () => {
 
   it('uses stack priority for duplicate scoped keys', async () => {
     const { rerender } = render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <ScopedContextKey key="first" contextKey="topic.exists" value />
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => {
@@ -116,11 +117,11 @@ describe('ContextKeyProvider', () => {
     })
 
     rerender(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <ScopedContextKey key="first" contextKey="topic.exists" value />
         <ScopedContextKey key="second" contextKey="topic.exists" value={false} />
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => {
@@ -128,10 +129,10 @@ describe('ContextKeyProvider', () => {
     })
 
     rerender(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <ScopedContextKey key="first" contextKey="topic.exists" value />
         <SnapshotView />
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     await waitFor(() => {
@@ -142,14 +143,14 @@ describe('ContextKeyProvider', () => {
   it('keeps provider instances isolated', async () => {
     render(
       <>
-        <ContextKeyProvider>
+        <CommandContextKeyProvider>
           <ScopedContextKey contextKey="chat.active" value />
           <SnapshotView testId="first" />
-        </ContextKeyProvider>
-        <ContextKeyProvider>
+        </CommandContextKeyProvider>
+        <CommandContextKeyProvider>
           <ScopedContextKey contextKey="chat.active" value={false} />
           <SnapshotView testId="second" />
-        </ContextKeyProvider>
+        </CommandContextKeyProvider>
       </>
     )
 

@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { MoreHorizontal, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

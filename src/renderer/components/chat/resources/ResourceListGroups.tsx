@@ -1,4 +1,4 @@
-import { CommandContextMenu } from '@renderer/features/command'
+import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'

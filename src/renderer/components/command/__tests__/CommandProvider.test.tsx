@@ -22,8 +22,10 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferenceValues, vi.fn()]
 }))
 
-import { CommandProvider, useCommandHandler, useCommandRuntime } from '../CommandProvider'
-import { ContextKeyProvider } from '../ContextKeyProvider'
+import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
+
+import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
+import { CommandProvider } from '../CommandProvider'
 
 function RegisteredCommand({
   command,
@@ -49,9 +51,9 @@ function RuntimeButton({ command }: { command: CommandId }) {
 
 function renderProvider(children: ReactNode) {
   return render(
-    <ContextKeyProvider>
+    <CommandContextKeyProvider>
       <CommandProvider>{children}</CommandProvider>
-    </ContextKeyProvider>
+    </CommandContextKeyProvider>
   )
 }
 
@@ -114,12 +116,12 @@ describe('CommandProvider', () => {
     const second = vi.fn()
 
     const { rerender } = render(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandProvider>
           <RegisteredCommand command="topic.create" onExecute={first} />
           <RegisteredCommand command="topic.create" onExecute={second} />
         </CommandProvider>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     dispatchShortcut({})
@@ -127,11 +129,11 @@ describe('CommandProvider', () => {
     expect(second).toHaveBeenCalledOnce()
 
     rerender(
-      <ContextKeyProvider>
+      <CommandContextKeyProvider>
         <CommandProvider>
           <RegisteredCommand command="topic.create" onExecute={first} />
         </CommandProvider>
-      </ContextKeyProvider>
+      </CommandContextKeyProvider>
     )
 
     dispatchShortcut({})

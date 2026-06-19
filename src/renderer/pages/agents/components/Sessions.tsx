@@ -22,13 +22,13 @@ import {
   SessionResourceList,
   updateResourceListExpansionState
 } from '@renderer/components/chat/resources'
+import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useCurrentTabId } from '@renderer/context/TabIdContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { CommandPopupMenu } from '@renderer/features/command'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'

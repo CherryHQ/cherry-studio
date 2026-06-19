@@ -10,7 +10,7 @@ import {
   TopicMessageFlowCanvas
 } from '@renderer/components/chat/messages/flow'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
-import { CommandContextMenu } from '@renderer/features/command'
+import { CommandContextMenu } from '@renderer/components/command'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 import { CopyPlus, GitBranch } from 'lucide-react'

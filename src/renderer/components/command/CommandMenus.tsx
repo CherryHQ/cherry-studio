@@ -22,26 +22,24 @@ import {
 import { loggerService } from '@logger'
 import { isMac, platform } from '@renderer/config/constant'
 import {
+  useCommandContextReader,
+  useCommandMenuPresentationMode,
+  useCommandRuntime,
+  useCommandShortcutPreferences,
+  useResolvedCommandMenu
+} from '@renderer/hooks/command'
+import { getCommandShortcutLabel } from '@renderer/utils/command'
+import {
   type CommandId,
-  evaluateContextExpr,
-  findCommandDefinition,
   findKeybindingRule,
-  getCommandShortcutLabel,
   type MenuLocation,
-  menuRegistry,
   type NativePopupMenuItem,
   type NativePopupMenuModel,
-  resolveCommandKeybinding,
   type ResolvedMenuItem,
-  type ResolvedMenuModel,
   resolveMenuPresentationMode,
   type SupportedPlatform
 } from '@shared/command'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { useCommandMenuPresentationMode, useCommandRuntime, useCommandShortcutPreferences } from './CommandProvider'
-import { useCommandContextReader } from './ContextKeyProvider'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 
@@ -165,47 +163,6 @@ const getExtraItemActions = (extraItems: readonly CommandContextMenuExtraItem[])
     }
   }
   return actions
-}
-
-export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuModel<CommandId> {
-  const { t } = useTranslation()
-  const runtime = useCommandRuntime()
-  const context = useCommandContextReader()
-  const shortcutPreferences = useCommandShortcutPreferences()
-
-  return useMemo(
-    () =>
-      menuRegistry.resolve({
-        location,
-        context,
-        getCommandState: (command) => {
-          const definition = findCommandDefinition(command)
-          const rule = findKeybindingRule(command)
-          const preference = rule ? shortcutPreferences[command] : undefined
-          const keybinding = resolveCommandKeybinding({
-            command,
-            preference,
-            context,
-            platform: platform as SupportedPlatform
-          })
-
-          return {
-            label: definition ? t(definition.titleKey) : command,
-            enabled: Boolean(
-              definition && runtime.hasHandler(command) && evaluateContextExpr(definition.enablement, context)
-            ),
-            iconKey: definition?.iconKey,
-            shortcutLabel: getCommandShortcutLabel(command, preference, {
-              context,
-              isMac,
-              platform: platform as SupportedPlatform
-            }),
-            accelerator: keybinding?.accelerator
-          }
-        }
-      }),
-    [context, location, runtime, shortcutPreferences, t]
-  )
 }
 
 function CommandMenuItemView({
