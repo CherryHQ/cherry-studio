@@ -27680,7 +27680,783 @@
       },
       "modelId": "qwen-image",
       "providerId": "dmxapi"
+    },
+    {
+      "providerId": "vertexai",
+      "modelId": "veo-3.1-generate-001",
+      "name": "Veo 3.1",
+      "ownedBy": "google",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16"], "default": "16:9" },
+              "resolution": { "type": "enum", "options": ["720p", "1080p"], "default": "720p" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16"], "default": "16:9" },
+              "resolution": { "type": "enum", "options": ["720p", "1080p"], "default": "720p" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "gemini",
+      "modelId": "veo-2.0-generate-001",
+      "name": "Veo 2",
+      "ownedBy": "google",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16"], "default": "16:9" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "grok",
+      "modelId": "grok-imagine-video",
+      "name": "Grok Imagine Video",
+      "ownedBy": "xai",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16", "1:1"], "default": "16:9" }
+            }
+          },
+          "i2v": { "mediaInputs": { "firstFrame": true }, "supports": {} }
+        }
+      }
+    },
+    {
+      "providerId": "fal",
+      "modelId": "luma-ray-2",
+      "name": "Luma Ray 2",
+      "ownedBy": "luma",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"],
+                "default": "16:9"
+              },
+              "resolution": { "type": "enum", "options": ["540p", "720p", "1080p"], "default": "720p" }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["540p", "720p", "1080p"], "default": "720p" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "replicate",
+      "modelId": "minimax/video-01",
+      "name": "MiniMax Video-01",
+      "ownedBy": "minimax",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": { "modes": { "t2v": { "supports": {} } } }
+    },
+    {
+      "providerId": "klingai",
+      "modelId": "kling-v2.6-t2v",
+      "name": "Kling v2.6 (Text to Video)",
+      "ownedBy": "kuaishou",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16", "1:1"], "default": "16:9" },
+              "duration": { "type": "enum", "options": ["5", "10"], "default": "5" },
+              "mode": { "type": "enum", "options": ["std", "pro"], "default": "pro" },
+              "cfg": { "type": "range", "min": 0, "max": 1, "default": 0.5, "step": 0.1 },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "klingai",
+      "modelId": "kling-v2.6-i2v",
+      "name": "Kling v2.6 (Image to Video)",
+      "ownedBy": "kuaishou",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "i2v": {
+            "mediaInputs": { "firstFrame": true, "lastFrame": true },
+            "supports": {
+              "duration": { "type": "enum", "options": ["5", "10"], "default": "5" },
+              "mode": { "type": "enum", "options": ["pro"], "default": "pro" },
+              "cfg": { "type": "range", "min": 0, "max": 1, "default": 0.5, "step": 0.1 },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "doubao",
+      "modelId": "seedance-1-5-pro-251215",
+      "name": "Seedance 1.5 Pro",
+      "ownedBy": "bytedance",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                "default": "16:9"
+              },
+              "duration": { "type": "range", "min": 4, "max": 12, "default": 5 },
+              "seed": { "type": "text" },
+              "cameraFixed": { "type": "switch", "default": false },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 12, "default": 5 },
+              "seed": { "type": "text" },
+              "cameraFixed": { "type": "switch", "default": false },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          },
+          "keyframe": {
+            "mediaInputs": { "firstFrame": true, "lastFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 12, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "doubao",
+      "modelId": "dreamina-seedance-2-0-260128",
+      "name": "Seedance 2.0",
+      "ownedBy": "bytedance",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image", "video"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                "default": "adaptive"
+              },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          },
+          "keyframe": {
+            "mediaInputs": { "firstFrame": true, "lastFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          },
+          "reference": {
+            "mediaInputs": { "referenceImages": { "max": 9 } },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          },
+          "extend": {
+            "mediaInputs": { "inputVideo": { "max": 3 } },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true },
+              "watermark": { "type": "switch", "default": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dashscope",
+      "modelId": "wan2.6-t2v",
+      "name": "Wan 2.6 (Text to Video)",
+      "ownedBy": "alibaba",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "size": {
+                "type": "enum",
+                "options": [
+                  "1280*720",
+                  "720*1280",
+                  "960*960",
+                  "1088*832",
+                  "832*1088",
+                  "1920*1080",
+                  "1080*1920",
+                  "1440*1440",
+                  "1632*1248",
+                  "1248*1632"
+                ],
+                "default": "1920*1080"
+              },
+              "duration": { "type": "enum", "options": ["5", "10", "15"], "default": "5" },
+              "shotType": { "type": "enum", "options": ["single", "multi"], "default": "single" },
+              "promptExtend": { "type": "switch", "default": true },
+              "seed": { "type": "text" },
+              "watermark": { "type": "switch", "default": false },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dashscope",
+      "modelId": "wan2.6-i2v",
+      "name": "Wan 2.6 (Image to Video)",
+      "ownedBy": "alibaba",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["720P", "1080P"], "default": "1080P" },
+              "duration": { "type": "enum", "options": ["5", "10", "15"], "default": "5" },
+              "shotType": { "type": "enum", "options": ["single", "multi"], "default": "single" },
+              "promptExtend": { "type": "switch", "default": true },
+              "seed": { "type": "text" },
+              "watermark": { "type": "switch", "default": false },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "happyhorse-1.0-t2v",
+      "apiModelId": "happyhorse-1.0-t2v",
+      "name": "HappyHorse 1.0 (Text to Video)",
+      "ownedBy": "happyhorse",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["720P", "1080P"], "default": "1080P" },
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+                "default": "16:9"
+              },
+              "duration": { "type": "range", "min": 3, "max": 15, "default": 5 },
+              "seed": { "type": "text" },
+              "watermark": { "type": "switch", "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "happyhorse-1.0-i2v",
+      "apiModelId": "happyhorse-1.0-i2v",
+      "name": "HappyHorse 1.0 (Image to Video)",
+      "ownedBy": "happyhorse",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["720P"], "default": "720P" },
+              "duration": { "type": "range", "min": 3, "max": 15, "default": 5 },
+              "seed": { "type": "text" },
+              "watermark": { "type": "switch", "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "viduq3-pro",
+      "apiModelId": "viduq3-pro",
+      "name": "Vidu Q3 Pro",
+      "ownedBy": "shengshu",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["540p", "720p", "1080p"], "default": "720p" },
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["16:9", "9:16", "3:4", "4:3", "1:1"],
+                "default": "16:9"
+              },
+              "duration": { "type": "range", "min": 1, "max": 16, "default": 5 },
+              "seed": { "type": "text" }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["540p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 1, "max": 16, "default": 5 },
+              "seed": { "type": "text" }
+            }
+          },
+          "keyframe": {
+            "mediaInputs": { "firstFrame": true, "lastFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["540p", "720p", "1080p"], "default": "720p" },
+              "duration": { "type": "range", "min": 1, "max": 16, "default": 5 },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "minimax_hailuo2.3_t2v",
+      "apiModelId": "minimax_hailuo2.3_t2v",
+      "name": "MiniMax Hailuo 2.3 (Text to Video)",
+      "ownedBy": "minimax",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "minimax_hailuo2.3_i2v",
+      "apiModelId": "minimax_hailuo2.3_i2v",
+      "name": "MiniMax Hailuo 2.3 (Image to Video)",
+      "ownedBy": "minimax",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "seedance_v1.5_pro_t2v",
+      "apiModelId": "seedance_v1.5_pro_t2v",
+      "name": "Seedance 1.5 Pro (Text to Video)",
+      "ownedBy": "bytedance",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p"], "default": "720p" },
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+                "default": "adaptive"
+              },
+              "duration": { "type": "range", "min": 4, "max": 12, "default": 5 },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "aihubmix",
+      "modelId": "sora-2",
+      "apiModelId": "sora-2",
+      "name": "Sora 2",
+      "ownedBy": "openai",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": {
+                "type": "enum",
+                "options": ["720x1280", "1280x720", "1024x1792", "1792x1024"],
+                "default": "1280x720"
+              },
+              "duration": { "type": "enum", "options": ["4", "8", "12"], "default": "4" }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": {
+                "type": "enum",
+                "options": ["720x1280", "1280x720", "1024x1792", "1792x1024"],
+                "default": "1280x720"
+              },
+              "duration": { "type": "enum", "options": ["4", "8", "12"], "default": "4" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "aihubmix",
+      "modelId": "wan2.6-t2v",
+      "apiModelId": "wan2.6-t2v",
+      "name": "Wan 2.6 (Text to Video)",
+      "ownedBy": "alibaba",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": {
+                "type": "enum",
+                "options": ["1280*720", "720*1280", "1920*1080", "1080*1920"],
+                "default": "1920*1080"
+              },
+              "duration": { "type": "enum", "options": ["5", "10", "15"], "default": "5" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "MiniMax-Hailuo-2.3",
+      "apiModelId": "MiniMax-Hailuo-2.3",
+      "name": "MiniMax Hailuo 2.3",
+      "ownedBy": "minimax",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "dmxapi",
+      "modelId": "MiniMax-Hailuo-02",
+      "apiModelId": "MiniMax-Hailuo-02",
+      "name": "MiniMax Hailuo 02",
+      "ownedBy": "minimax",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["512P", "768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          },
+          "keyframe": {
+            "mediaInputs": { "firstFrame": true, "lastFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["768P", "1080P"], "default": "768P" },
+              "duration": { "type": "enum", "options": ["6", "10"], "default": "6" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "doubao",
+      "modelId": "dreamina-seedance-2-0-fast-260128",
+      "name": "Seedance 2.0 Fast",
+      "ownedBy": "bytedance",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p"], "default": "720p" },
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                "default": "adaptive"
+              },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "resolution": { "type": "enum", "options": ["480p", "720p"], "default": "720p" },
+              "duration": { "type": "range", "min": 4, "max": 15, "default": 5 },
+              "generateAudio": { "type": "switch", "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "vertexai",
+      "modelId": "veo-3.0-generate-001",
+      "name": "Veo 3.0",
+      "ownedBy": "google",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16"], "default": "16:9" },
+              "resolution": { "type": "enum", "options": ["720p", "1080p"], "default": "720p" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          },
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16"], "default": "16:9" },
+              "resolution": { "type": "enum", "options": ["720p", "1080p"], "default": "720p" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "klingai",
+      "modelId": "kling-v2.5-turbo-t2v",
+      "name": "Kling v2.5 Turbo (Text to Video)",
+      "ownedBy": "kuaishou",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16", "1:1"], "default": "16:9" },
+              "duration": { "type": "enum", "options": ["5", "10"], "default": "5" },
+              "cfg": { "type": "range", "min": 0, "max": 1, "default": 0.5, "step": 0.1 },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "klingai",
+      "modelId": "kling-v2.5-turbo-i2v",
+      "name": "Kling v2.5 Turbo (Image to Video)",
+      "ownedBy": "kuaishou",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "i2v": {
+            "mediaInputs": { "firstFrame": true },
+            "supports": {
+              "duration": { "type": "enum", "options": ["5", "10"], "default": "5" },
+              "cfg": { "type": "range", "min": 0, "max": 1, "default": 0.5, "step": 0.1 },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "kling2.5_turbo_pro_t2v",
+      "apiModelId": "kling2.5_turbo_pro_t2v",
+      "name": "Kling 2.5 Turbo Pro (Text to Video)",
+      "ownedBy": "kuaishou",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "aspectRatio": { "type": "enum", "options": ["16:9", "9:16", "1:1"], "default": "16:9" },
+              "duration": { "type": "enum", "options": ["5", "10"], "default": "5" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "wan2.6_t2v",
+      "apiModelId": "wan2.6_t2v",
+      "name": "Wan 2.6 (Text to Video)",
+      "ownedBy": "alibaba",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["video"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": {
+            "supports": {
+              "resolution": {
+                "type": "enum",
+                "options": ["1280*720", "720*1280", "1920*1080", "1080*1920", "1440*1440"],
+                "default": "1920*1080"
+              },
+              "duration": { "type": "enum", "options": ["5", "10", "15"], "default": "5" },
+              "seed": { "type": "text" },
+              "negativePrompt": { "type": "text", "multiline": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "providerId": "fal",
+      "modelId": "minimax-video",
+      "name": "MiniMax Video (fal)",
+      "ownedBy": "minimax",
+      "capabilities": { "force": ["video-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["video"],
+      "endpointTypes": ["video-generation"],
+      "videoGeneration": {
+        "modes": {
+          "t2v": { "supports": {} },
+          "i2v": { "mediaInputs": { "firstFrame": true }, "supports": {} }
+        }
+      }
     }
   ],
-  "version": "2026.05.28"
+  "version": "2026.06.19"
 }

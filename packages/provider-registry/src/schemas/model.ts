@@ -13,7 +13,14 @@ import {
   VersionSchema,
   ZodCurrencySchema
 } from './common'
-import { CANONICAL_PARAM_KEY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import {
+  CANONICAL_PARAM_KEY,
+  CANONICAL_VIDEO_PARAM_KEY,
+  MODALITY,
+  MODEL_CAPABILITY,
+  objectValues,
+  REASONING_EFFORT
+} from './enums'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -23,6 +30,9 @@ export type ModelCapabilityType = z.infer<typeof ModelCapabilityTypeSchema>
 
 export const CanonicalParamKeySchema = z.enum(objectValues(CANONICAL_PARAM_KEY))
 export type CanonicalParamKeyType = z.infer<typeof CanonicalParamKeySchema>
+
+export const CanonicalVideoParamKeySchema = z.enum(objectValues(CANONICAL_VIDEO_PARAM_KEY))
+export type CanonicalVideoParamKeyType = z.infer<typeof CanonicalVideoParamKeySchema>
 
 // Thinking token limits schema (shared across reasoning types)
 // min and max must be both present or both absent; when present, min <= max
@@ -171,6 +181,61 @@ export const ImageGenerationSupportSchema = z.object({
   modes: z.partialRecord(ImageGenerationModeSchema, ImageModeDefSchema)
 })
 
+/**
+ * Video-generation support — the video counterpart of `ImageGenerationSupportSchema`.
+ * Same shape (modes → ModeDef), with two video-specific additions:
+ *   - `mediaInputs`: which media pickers a mode needs (first/last frame, reference images,
+ *     input video/audio). Image infers inputs from its mode + the PromptBar; video models are
+ *     omni-modal so the accepted inputs are declared explicitly per mode.
+ *   - `vendorTransport`: a superset of the image `{endpoint,isSync}` descriptor that carries the
+ *     submit→poll wire shape (query model, parse style, JSON paths) per `.context/
+ *     video-providers-research.md`, so ONE adapter per `family` covers all of a vendor's models by data.
+ * Scalar controls reuse the generic `SupportSpecSchema` (switch/enum/range/size/text).
+ */
+export const VideoGenerationModeSchema = z.enum(['t2v', 'i2v', 'keyframe', 'reference', 'extend', 'edit', 'multishot'])
+
+const VideoMediaInputsSchema = z.object({
+  firstFrame: z.boolean().optional(),
+  lastFrame: z.boolean().optional(),
+  referenceImages: z.object({ max: z.number().int().positive() }).optional(),
+  inputVideo: z.object({ max: z.number().int().positive() }).optional(),
+  inputAudio: z.object({ max: z.number().int().positive() }).optional()
+})
+
+const VideoVendorTransportSchema = z.object({
+  /** Selects the code-level submit/poll adapter (e.g. 'ark', 'ppio', 'aihubmix', 'dmxapi-seedance-2'). */
+  family: z.string().optional(),
+  /** Submit path override (e.g. ppio `/v3/video/create`, ark `contents/generations/tasks`). */
+  endpoint: z.string().optional(),
+  /** Wire `model` value to send when it differs from the registry model id. */
+  submitModel: z.string().optional(),
+  /** DMXAPI query "model" (`seedance-2-0-get`, `wan2.6-get`, `vidu-get`, …). */
+  queryModel: z.string().optional(),
+  /** Poll path override (ppio `/v3/async/task-result`, hailuo `/v1/query/video_generation`). */
+  queryEndpoint: z.string().optional(),
+  /** `'sse-text'` for vendors that stream the URL inside free text (DMXAPI seedance-1.5/vidu/kling-v2.6). */
+  queryStyle: z.enum(['json', 'sse-text']).optional(),
+  /** Dot/bracket path to the task id in the submit response. */
+  taskIdPath: z.string().optional(),
+  /** Dot/bracket path to the status field in the poll response. */
+  statusPath: z.string().optional(),
+  /** Dot/bracket path to the result video URL in the poll response. */
+  videoUrlPath: z.string().optional(),
+  /** Hailuo-style: poll returns a `file_id` that needs a third call to resolve the URL. */
+  download3Step: z.boolean().optional()
+})
+
+const VideoModeDefSchema = z.object({
+  mediaInputs: VideoMediaInputsSchema.optional(),
+  supports: z.partialRecord(CanonicalVideoParamKeySchema, SupportSpecSchema),
+  vendorTransport: VideoVendorTransportSchema.optional(),
+  requirePrompt: z.boolean().optional()
+})
+
+export const VideoGenerationSupportSchema = z.object({
+  modes: z.partialRecord(VideoGenerationModeSchema, VideoModeDefSchema)
+})
+
 // Parameter support configuration
 // Defaults reflect the most common LLM provider capabilities
 export const ParameterSupportSchema = z.object({
@@ -282,6 +347,10 @@ export const ModelConfigSchema = z.object({
   // populate for models whose `capabilities` includes `'image-generation'`.
   imageGeneration: ImageGenerationSupportSchema.optional(),
 
+  // Video-generation parameter support — drives the generic Creation video UI + transport
+  // routing. Only populate for models whose `capabilities` includes `'video-generation'`.
+  videoGeneration: VideoGenerationSupportSchema.optional(),
+
   // Model family (e.g., "GPT-4", "Claude 3")
   family: z.string().optional(),
 
@@ -309,6 +378,9 @@ export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
 export type SupportSpec = z.infer<typeof SupportSpecSchema>
 export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
+export type VideoGenerationMode = z.infer<typeof VideoGenerationModeSchema>
+export type VideoModeDef = z.infer<typeof VideoModeDefSchema>
+export type VideoGenerationSupport = z.infer<typeof VideoGenerationSupportSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>
 export type ModelList = z.infer<typeof ModelListSchema>

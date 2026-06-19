@@ -14,7 +14,8 @@ import {
   ModelCapabilityTypeSchema,
   ModelPricingSchema,
   ParameterSupportSchema,
-  ReasoningSupportSchema
+  ReasoningSupportSchema,
+  VideoGenerationSupportSchema
 } from './model'
 import { EndpointTypeSchema } from './provider'
 
@@ -81,6 +82,10 @@ export const ProviderModelOverrideSchema = z.object({
   // `ModelConfig.imageGeneration` (so the same model id can declare different
   // params per provider — useful for vendor-flavored variants).
   imageGeneration: ImageGenerationSupportSchema.optional(),
+
+  // Creation-page video metadata. When set on the override, takes precedence over
+  // `ModelConfig.videoGeneration` (vendor-flavored params + transport descriptor per provider).
+  videoGeneration: VideoGenerationSupportSchema.optional(),
 
   // Status control
   disabled: z.boolean().optional(),

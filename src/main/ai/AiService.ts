@@ -1,6 +1,7 @@
 import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
+  generateVideo as aiCoreGenerateVideo,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -35,7 +36,14 @@ import { isAgentSessionTopic } from './agentSession/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
-import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import type {
+  ImageGenerationJobOutput,
+  ImageGenerationJobPayload,
+  VideoGenerationJobOutput,
+  VideoGenerationJobPayload
+} from './provider/custom/tasks/jobTypes'
+import { deleteVideoInputEntries, videoGenerationJobHandler } from './provider/custom/tasks/videoGenerationJobHandler'
+import { resolveVideoTransport } from './provider/custom/videoTransportRegistry'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
@@ -47,6 +55,7 @@ import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
+import { buildVideoProviderOptions } from './utils/videoOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -104,6 +113,45 @@ export interface AiImageRequest extends AiBaseRequest {
 
 /** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
+  files: FileEntry[]
+}
+
+/**
+ * Video generation request.
+ *
+ * The AI SDK standardizes only `prompt` + a single start-frame `image` and the scalar
+ * fields below. Omni-modal extras (end frame, reference images, input video/audio, camera
+ * controls) have no standard field and are added alongside their first vendor transport;
+ * until then this carries only what the native (`@ai-sdk/google` Veo) path consumes.
+ */
+export interface AiVideoRequest extends AiBaseRequest {
+  prompt?: string
+  /** Image-to-video start frame (base64 data URL or URL). Maps to the AI SDK `prompt.image`. */
+  firstFrame?: string
+  /** End frame for first+last-frame models (aggregator transports only). */
+  lastFrame?: string
+  /** Reference/subject images for consistency (aggregator transports only). */
+  referenceImages?: string[]
+  /** Input video for extend / video-to-video (aggregator transports only). */
+  inputVideo?: string
+  /** Input audio for lip-sync / audio-driven generation (aggregator transports only). */
+  inputAudio?: string
+  n?: number
+  /** Video length in seconds. */
+  duration?: number
+  aspectRatio?: string
+  /** `${width}x${height}` (e.g. '1280x720'). */
+  resolution?: string
+  fps?: number
+  seed?: number
+  negativePrompt?: string
+  personGeneration?: PersonGeneration
+  /** Vendor-specific video params keyed by provider id; mapped to AI SDK provider options in main. */
+  providerOptions?: Record<string, Record<string, unknown>>
+}
+
+/** Video generation result — persisted file entries (main writes the bytes). */
+export interface AiVideoResult {
   files: FileEntry[]
 }
 
@@ -176,10 +224,15 @@ export class AiService extends BaseService {
   // the shared `ipcHandleWithAbort` helper lands.
   private readonly imageRequests = new Map<string, AbortController>()
 
+  // Per-request AbortControllers for `Ai_GenerateVideo`, paired with the
+  // `Ai_AbortVideo` channel — same self-cleaning pattern as `imageRequests`.
+  private readonly videoRequests = new Map<string, AbortController>()
+
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    application.get('JobManager').registerHandler('video-generation.generate', videoGenerationJobHandler)
     logger.info('AiService initialized')
   }
 
@@ -212,6 +265,24 @@ export class AiService extends BaseService {
 
     this.ipcOn(IpcChannel.Ai_AbortImage, (_, request: { requestId: string }) => {
       this.imageRequests.get(request.requestId)?.abort()
+    })
+
+    this.ipcHandle(IpcChannel.Ai_GenerateVideo, async (_, request: { requestId: string; payload: AiVideoRequest }) => {
+      const { requestId, payload } = request
+      const controller = new AbortController()
+      this.videoRequests.set(requestId, controller)
+      try {
+        return await this.generateVideo({
+          ...payload,
+          requestOptions: { ...payload.requestOptions, signal: controller.signal }
+        })
+      } finally {
+        this.videoRequests.delete(requestId)
+      }
+    })
+
+    this.ipcOn(IpcChannel.Ai_AbortVideo, (_, request: { requestId: string }) => {
+      this.videoRequests.get(request.requestId)?.abort()
     })
 
     this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: ListModelsRequest) => {
@@ -624,6 +695,158 @@ export class AiService extends BaseService {
       throw new DOMException('Image generation aborted', 'AbortError')
     }
     throw new Error(snapshot.error?.message ?? 'Image generation failed')
+  }
+
+  // ── Video ──
+
+  /**
+   * Generate video via aiCore's native path (`@ai-sdk/google` Veo today). Video models
+   * are long-running and poll internally, so this call blocks until the SDK returns —
+   * mirroring the in-SDK image path. Async custom-provider transports (Seedance / Wan /
+   * Kling / …) will route through the job system in a later phase.
+   */
+  async generateVideo(request: AsInProcess<AiVideoRequest>): Promise<AiVideoResult> {
+    logger.info('generateVideo started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
+    const signal = request.requestOptions?.signal
+
+    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+
+    // Image-to-video: the AI SDK `prompt` accepts `{ image, text }` for a single start frame.
+    const promptParam = request.firstFrame
+      ? { image: request.firstFrame, ...(request.prompt ? { text: request.prompt } : {}) }
+      : (request.prompt ?? '')
+
+    // The long-tail vendor params are not standardized by the AI SDK; they ride in
+    // providerOptions[<providerId>]. For native providers the scalar params (duration /
+    // aspectRatio / …) are top-level (built below) and the emitter only adds the long
+    // tail; for aggregator transports there are no top-level params, so the emitter maps
+    // ALL of them into the vendor bag the transport sends.
+    const videoProviderOptions = buildVideoProviderOptions(sdkConfig.providerId, {
+      negativePrompt: request.negativePrompt,
+      personGeneration: request.personGeneration,
+      aspectRatio: request.aspectRatio,
+      resolution: request.resolution,
+      duration: request.duration,
+      seed: request.seed,
+      providerOptions: request.providerOptions
+    })
+
+    // Aggregator submit/poll vendors (DMXAPI HappyHorse/Vidu/Hailuo, …) run the long
+    // poll loop on the job system so it survives a restart; native providers (Veo / Grok
+    // / Seedance-ByteDance / Wan-Alibaba / Luma / Kling) keep the in-SDK path below.
+    if (resolveVideoTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)) {
+      return await this.generateVideoViaJob(request, videoProviderOptions[sdkConfig.providerId] ?? {}, signal)
+    }
+
+    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
+
+    const videoParams = {
+      model: sdkConfig.modelId,
+      prompt: promptParam,
+      ...(request.n !== undefined ? { n: request.n } : {}),
+      ...(request.duration !== undefined ? { duration: request.duration } : {}),
+      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(request.resolution ? { resolution: request.resolution as `${number}x${number}` } : {}),
+      ...(request.fps !== undefined ? { fps: request.fps } : {}),
+      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      ...(Object.keys(videoProviderOptions).length > 0 ? { providerOptions: videoProviderOptions } : {}),
+      ...(signal ? { abortSignal: signal } : {})
+    }
+
+    const result = await aiCoreGenerateVideo<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      videoParams
+    )
+
+    const fileManager = application.get('FileManager')
+    const files = await Promise.all(
+      (result.videos ?? [])
+        .filter((video) => Boolean(video.base64))
+        .map((video) => {
+          const data = `data:${video.mediaType || 'video/mp4'};base64,${video.base64}` as Base64String
+          return fileManager.createInternalEntry({ source: 'base64', data })
+        })
+    )
+
+    return { files }
+  }
+
+  /**
+   * Run an async aggregator video generation through the job system (mirror of
+   * `generateImageViaJob`). The handler owns submit/poll/download/persist and
+   * survives a restart; here we persist media inputs as temp FileEntries, enqueue,
+   * bridge the IPC abort signal to job cancellation, and await the terminal snapshot.
+   */
+  private async generateVideoViaJob(
+    request: AsInProcess<AiVideoRequest>,
+    providerParams: Record<string, unknown>,
+    signal: AbortSignal | undefined
+  ): Promise<AiVideoResult> {
+    const uniqueModelId = request.uniqueModelId
+    if (!uniqueModelId) throw new Error('generateVideoViaJob requires a uniqueModelId')
+
+    const fileManager = application.get('FileManager')
+    const jobManager = application.get('JobManager')
+
+    const createdEntryIds: string[] = []
+    const persistMedia = async (value: string): Promise<string> => {
+      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
+      createdEntryIds.push(entry.id)
+      return entry.id
+    }
+
+    let handle: JobHandle
+    try {
+      const firstFrameFileId = request.firstFrame ? await persistMedia(request.firstFrame) : undefined
+      const lastFrameFileId = request.lastFrame ? await persistMedia(request.lastFrame) : undefined
+      const inputVideoFileId = request.inputVideo ? await persistMedia(request.inputVideo) : undefined
+      const inputAudioFileId = request.inputAudio ? await persistMedia(request.inputAudio) : undefined
+      let referenceImageFileIds: string[] | undefined
+      if (request.referenceImages?.length) {
+        const settled = await Promise.allSettled(request.referenceImages.map(persistMedia))
+        const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+        if (rejected) throw rejected.reason
+        referenceImageFileIds = settled.map((r) => (r as PromiseFulfilledResult<string>).value)
+      }
+
+      const payload: VideoGenerationJobPayload = {
+        uniqueModelId,
+        prompt: request.prompt,
+        ...(firstFrameFileId && { firstFrameFileId }),
+        ...(lastFrameFileId && { lastFrameFileId }),
+        ...(inputVideoFileId && { inputVideoFileId }),
+        ...(inputAudioFileId && { inputAudioFileId }),
+        ...(referenceImageFileIds && { referenceImageFileIds }),
+        providerParams
+      }
+      handle = await jobManager.enqueue('video-generation.generate', payload)
+    } catch (error) {
+      // Setup failed before the job owns the payload — clean up what we created.
+      await deleteVideoInputEntries(createdEntryIds)
+      throw error
+    }
+
+    const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+
+    let snapshot: JobSnapshot
+    try {
+      snapshot = await handle.finished
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      await deleteVideoInputEntries(createdEntryIds)
+    }
+
+    if (snapshot.status === 'completed') {
+      const output = snapshot.output as VideoGenerationJobOutput | null
+      return { files: output?.files ?? [] }
+    }
+    if (snapshot.status === 'cancelled') {
+      throw new DOMException('Video generation aborted', 'AbortError')
+    }
+    throw new Error(snapshot.error?.message ?? 'Video generation failed')
   }
 
   // ── Embedding ──

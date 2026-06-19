@@ -31,8 +31,32 @@ export interface ImageGenerationJobOutput {
   files: FileEntry[]
 }
 
+/**
+ * Payload for the async video-generation job (aggregator submit/poll transports —
+ * DMXAPI / PPIO / AiHubMix). Same restart-safety contract as image: no secrets, media
+ * inputs persisted as FileEntries and referenced by id, `uniqueModelId` re-resolves the
+ * provider/model + fresh apiKey on every attempt. `providerParams` is the mapped vendor
+ * bag (`buildVideoProviderOptions[sdkConfig.providerId]`).
+ */
+export interface VideoGenerationJobPayload {
+  uniqueModelId: UniqueModelId
+  prompt?: string
+  firstFrameFileId?: string
+  lastFrameFileId?: string
+  referenceImageFileIds?: string[]
+  inputVideoFileId?: string
+  inputAudioFileId?: string
+  providerParams: Record<string, unknown>
+}
+
+/** Job output — the persisted result video FileEntries the IPC layer returns verbatim. */
+export interface VideoGenerationJobOutput {
+  files: FileEntry[]
+}
+
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'image-generation.generate': ImageGenerationJobPayload
+    'video-generation.generate': VideoGenerationJobPayload
   }
 }

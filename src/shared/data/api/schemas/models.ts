@@ -18,7 +18,8 @@ import {
   RuntimeModelPricingSchema,
   RuntimeReasoningSchema,
   type UniqueModelId,
-  UniqueModelIdSchema
+  UniqueModelIdSchema,
+  type VideoGenerationSupport
 } from '../../types/model'
 
 /** Query parameters for listing models */
@@ -261,6 +262,21 @@ export type ModelSchemas = {
     GET: {
       params: { providerId: string; modelId: string }
       response: ImageGenerationSupport | null
+    }
+  }
+
+  /**
+   * Read the Creation-page video metadata block (`VideoGenerationSupport`) — the
+   * video counterpart of `image-generation-support`. Drives the generic video form
+   * (per-mode media inputs + scalar `supports`) and carries the transport descriptor.
+   * Returns `null` when the model carries no `videoGeneration` block.
+   *
+   * @example GET /providers/dmxapi/models/doubao-seedance-2-0-260128/video-generation-support
+   */
+  '/providers/:providerId/models/:modelId*/video-generation-support': {
+    GET: {
+      params: { providerId: string; modelId: string }
+      response: VideoGenerationSupport | null
     }
   }
 }

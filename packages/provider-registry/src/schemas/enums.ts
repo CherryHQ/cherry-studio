@@ -27,7 +27,12 @@ export const ENDPOINT_TYPE = {
   OPENAI_RESPONSES: 'openai-responses',
   OPENAI_TEXT_COMPLETIONS: 'openai-text-completions',
   OPENAI_TEXT_TO_SPEECH: 'openai-text-to-speech',
-  OPENAI_VIDEO_GENERATION: 'openai-video-generation'
+  OPENAI_VIDEO_GENERATION: 'openai-video-generation',
+  // Generic video-generation endpoint for native AI SDK video providers whose protocol is NOT
+  // OpenAI/Sora-shaped (fal/replicate/klingai). The `adapterFamily` on the provider's
+  // `endpointConfigs['video-generation']` routes to the extension; aggregator video (ark/dmxapi/
+  // ppio/aihubmix) does NOT use this — it routes by capability + `config.ts` override.
+  VIDEO_GENERATION: 'video-generation'
 } as const
 export type EndpointType = (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]
 
@@ -120,6 +125,35 @@ export const CANONICAL_PARAM_KEY = {
   UPSCALE_FACTOR: 'upscaleFactor'
 } as const
 export type CanonicalParamKey = (typeof CANONICAL_PARAM_KEY)[keyof typeof CANONICAL_PARAM_KEY]
+
+/**
+ * Closed vocabulary of video-generation param keys — the video counterpart of
+ * {@link CANONICAL_PARAM_KEY}, kept SEPARATE so the video form's exhaustive
+ * `KEY_LABELS` doesn't have to cover image-only keys (and vice versa). Values are
+ * camelCase on purpose: they ARE the runtime `video.params` bag keys and the
+ * registry `videoGeneration.modes[*].supports` keys. Adding a param: add a member
+ * here, give it a label in the video form's `KEY_LABELS`, declare it on models.
+ */
+export const CANONICAL_VIDEO_PARAM_KEY = {
+  ASPECT_RATIO: 'aspectRatio',
+  CAMERA_FIXED: 'cameraFixed',
+  CFG: 'cfg',
+  DURATION: 'duration',
+  FPS: 'fps',
+  GENERATE_AUDIO: 'generateAudio',
+  MODE: 'mode',
+  MOVEMENT_AMPLITUDE: 'movementAmplitude',
+  NEGATIVE_PROMPT: 'negativePrompt',
+  PROMPT_EXTEND: 'promptExtend',
+  PROMPT_OPTIMIZER: 'promptOptimizer',
+  RESOLUTION: 'resolution',
+  SEED: 'seed',
+  SHOT_TYPE: 'shotType',
+  SIZE: 'size',
+  SOUND: 'sound',
+  WATERMARK: 'watermark'
+} as const
+export type CanonicalVideoParamKey = (typeof CANONICAL_VIDEO_PARAM_KEY)[keyof typeof CANONICAL_VIDEO_PARAM_KEY]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modality

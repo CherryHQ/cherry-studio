@@ -809,6 +809,26 @@ const api = {
     abortImage: (requestId: string): void => {
       ipcRenderer.send(IpcChannel.Ai_AbortImage, { requestId })
     },
+    generateVideo: async (
+      payload: {
+        uniqueModelId?: string
+        prompt?: string
+        firstFrame?: string
+        n?: number
+        duration?: number
+        aspectRatio?: string
+        resolution?: string
+        fps?: number
+        seed?: number
+        negativePrompt?: string
+        personGeneration?: string
+        providerOptions?: Record<string, Record<string, unknown>>
+      },
+      requestId: string
+    ): Promise<{ files: FileEntry[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateVideo, { requestId, payload }),
+    abortVideo: (requestId: string): void => {
+      ipcRenderer.send(IpcChannel.Ai_AbortVideo, { requestId })
+    },
     listModels: (request: {
       providerId?: string
       assistantId?: string

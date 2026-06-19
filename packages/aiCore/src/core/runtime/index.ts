@@ -86,6 +86,22 @@ export async function generateImage<
 }
 
 /**
+ * 直接生成视频 - 支持 middlewares
+ */
+export async function generateVideo<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(
+  providerId: T,
+  options: TSettingsMap[T],
+  params: Parameters<RuntimeExecutor<TSettingsMap, T>['generateVideo']>[0],
+  plugins?: AiPlugin[]
+): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['generateVideo']>> {
+  const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+  return executor.generateVideo(params)
+}
+
+/**
  * 直接批量嵌入文本
  * AI SDK v6 只有 embedMany，没有 embed
  */

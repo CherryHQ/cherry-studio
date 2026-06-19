@@ -438,6 +438,8 @@ export enum IpcChannel {
   Ai_EmbedMany = 'ai:embed-many',
   Ai_GenerateImage = 'ai:generate-image',
   Ai_AbortImage = 'ai:abort-image',
+  Ai_GenerateVideo = 'ai:generate-video',
+  Ai_AbortVideo = 'ai:abort-video',
   Ai_ListModels = 'ai:list-models',
   Ai_Agent_RunTask = 'ai:agent:run-task',
 

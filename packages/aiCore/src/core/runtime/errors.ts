@@ -36,3 +36,38 @@ export class ImageModelResolutionError extends ImageGenerationError {
     this.name = 'ImageModelResolutionError'
   }
 }
+
+/**
+ * Error thrown when video generation fails
+ */
+export class VideoGenerationError extends Error {
+  constructor(
+    message: string,
+    public providerId?: string,
+    public modelId?: string,
+    public cause?: Error
+  ) {
+    super(message)
+    this.name = 'VideoGenerationError'
+
+    // Maintain proper stack trace (for V8 engines)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, VideoGenerationError)
+    }
+  }
+}
+
+/**
+ * Error thrown when model resolution fails during video generation
+ */
+export class VideoModelResolutionError extends VideoGenerationError {
+  constructor(modelId: string, providerId?: string, cause?: Error) {
+    super(
+      `Failed to resolve video model: ${modelId}${providerId ? ` for provider: ${providerId}` : ''}`,
+      providerId,
+      modelId,
+      cause
+    )
+    this.name = 'VideoModelResolutionError'
+  }
+}

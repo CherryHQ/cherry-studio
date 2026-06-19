@@ -3,7 +3,7 @@
  * Provides mock implementations for all supported AI providers
  */
 
-import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import type { Experimental_VideoModelV3, ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import { vi } from 'vitest'
 
 /**
@@ -90,6 +90,32 @@ export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageMo
 
     ...overrides
   } as ImageModelV3
+}
+
+/**
+ * Creates a mock video model with customizable behavior
+ * Compliant with AI SDK v3 (experimental) video model specification
+ */
+export function createMockVideoModel(overrides?: Partial<Experimental_VideoModelV3>): Experimental_VideoModelV3 {
+  return {
+    specificationVersion: 'v3',
+    provider: 'mock-provider',
+    modelId: 'mock-video-model',
+    maxVideosPerCall: 1,
+
+    doGenerate: vi.fn().mockResolvedValue({
+      videos: [
+        {
+          type: 'url',
+          url: 'https://example.com/mock-video.mp4',
+          mediaType: 'video/mp4'
+        }
+      ],
+      warnings: []
+    }),
+
+    ...overrides
+  } as Experimental_VideoModelV3
 }
 
 /**
