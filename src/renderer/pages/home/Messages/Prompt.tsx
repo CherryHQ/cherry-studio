@@ -1,10 +1,8 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { buildLibraryEditSearch, LIBRARY_ROUTE } from '@renderer/pages/library/routeSearch'
 import type { Topic } from '@renderer/types'
 import { containsSupportedVariables } from '@renderer/utils/prompt'
-import { useNavigate } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +16,6 @@ const Prompt: FC<Props> = ({ topic }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { assistant, model } = useAssistant(topic.assistantId)
-  const navigate = useNavigate()
 
   const prompt = assistant?.prompt || t('chat.default.description')
   const topicPrompt = topic.prompt || ''
@@ -66,13 +63,7 @@ const Prompt: FC<Props> = ({ topic }) => {
   }
 
   return (
-    <Container
-      className="system-prompt"
-      onClick={() => {
-        if (!assistant) return
-        void navigate({ to: LIBRARY_ROUTE, search: buildLibraryEditSearch('assistant', assistant.id) })
-      }}
-      $isDark={isDark}>
+    <Container className="system-prompt" $isDark={isDark}>
       <Text $isVisible={isVisible}>{displayText}</Text>
     </Container>
   )
@@ -81,7 +72,6 @@ const Prompt: FC<Props> = ({ topic }) => {
 const Container = styled.div<{ $isDark: boolean }>`
   padding: 11px 16px;
   border-radius: 10px;
-  cursor: pointer;
   border: 0.5px solid var(--color-border);
   margin: 15px 20px;
   margin-bottom: 0;
