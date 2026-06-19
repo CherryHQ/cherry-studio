@@ -618,6 +618,38 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('skips a root item whose source is gone and restores the rest (partial restore)', async () => {
+    // M4: a failed base often holds an item whose source no longer exists — a v1-migrated directory
+    // child has a virtual path with no raw/ file, and a deleted file has no material to copy. Because
+    // addItems is atomic, one such item used to abort the whole restore. Restore now probes each root
+    // and skips only the genuinely-missing ones, restoring the rest.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockResolvedValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
+      .mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([
+      createNoteItem('keep-note', 'source-kb'),
+      createFileItem('gone-file', 'source-kb', '/docs/gone.pdf')
+    ])
+    // The file's material is gone; a note never probes the filesystem (always rebuildable).
+    probeKnowledgeFileMock.mockResolvedValue('missing')
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).resolves.toBe(restoredBase)
+
+    // The note is restored into the new base; the missing-source file is skipped, not restored.
+    expect(createdItemBaseIds.get('keep-note')).toBe('restored-kb')
+    expect(createdItemBaseIds.has('/docs/gone.pdf')).toBe(false)
+  })
+
   it('restores a completed base when embedding model and dimensions are unchanged', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
