@@ -5,9 +5,9 @@ import {
   ResourceCreateDialog,
   type ResourceCreateDialogKind,
   type ResourceCreateDialogValues
-} from '@renderer/features/resource/dialogs'
-import { isSelectableAssistantModel } from '@renderer/features/resource/dialogs/form/assistantModelFilter'
-import PromptEditDialog from '@renderer/features/resource/dialogs/PromptEditDialog'
+} from '@renderer/components/resource/dialogs'
+import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
+import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'

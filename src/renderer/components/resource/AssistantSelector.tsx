@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { isSelectableAssistantModel } from '@renderer/features/resource/dialogs/form/assistantModelFilter'
+import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
 import {
   ResourceCreateDialog,
   type ResourceCreateDialogValues
-} from '@renderer/features/resource/dialogs/ResourceCreateDialog'
+} from '@renderer/components/resource/dialogs/ResourceCreateDialog'
+import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import type { Assistant } from '@shared/data/types/assistant'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
@@ -19,7 +19,7 @@ import {
 
 const logger = loggerService.withContext('AssistantSelector')
 const AssistantEditDialog = lazy(() =>
-  import('@renderer/features/resource/dialogs/edit/AssistantEditDialog').then((module) => ({
+  import('@renderer/components/resource/dialogs/edit/AssistantEditDialog').then((module) => ({
     default: module.AssistantEditDialog
   }))
 )
