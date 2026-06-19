@@ -10,8 +10,11 @@ import { ResourceCardMenu } from './ResourceCardMenu'
 import { type AssistantCatalogPreset, getAssistantPresetCatalogKey } from './useAssistantPresetCatalog'
 
 // Cards expose their primary action on the outer element, so keyboard users need
-// Enter/Space to mirror the pointer click.
+// Enter/Space to mirror the pointer click. Guard on the event target: a key press on
+// a nested action button (More / Delete / Add / Go-to-chat) bubbles up to the card,
+// and without this it would also fire the card's primary action.
 function activateCardOnKeyDown(event: KeyboardEvent<HTMLDivElement>, activate: () => void) {
+  if (event.target !== event.currentTarget) return
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     activate()
