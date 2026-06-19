@@ -67,6 +67,12 @@ const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
 const FS_RETRY_MAX_ATTEMPTS = 5
 const FS_RETRY_DELAY_MS = 100
 
+// inArray() binds one SQL variable per id; a single UPDATE over the whole degrade set would
+// overflow SQLite's bound-variable cap once a corpus accumulates enough orphaned directory items.
+// Chunk well under the cap, matching the repo convention (FileRefService / orphanCheckerRegistry /
+// ChatMigrator all use 500 on this same knowledge_item id column).
+const DEGRADE_UPDATE_CHUNK = 500
+
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -152,6 +158,11 @@ interface PreparedBasePlan {
   // by hash, so identical chunk bodies — within or across materials — collapse to one row).
   expectedEmbeddingCount: number
   sourceRowCount: number
+  // Directory-expanded groups (container id → child ids) this base owns. Kept on the plan so a
+  // per-base failure in execute() can degrade them (markDirectoryGroupsFullyOrphaned) the same way
+  // a prepare-time skip does — otherwise an isolated base's directory children stay `completed`
+  // with no vectors and no raw/ file, an unreindexable silent orphan.
+  directoryGroups: Map<string, Set<string>>
 }
 
 function isStringMap(value: unknown): value is Map<string, string> {
@@ -706,7 +717,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           materialSnapshots,
           expectedUnitCount,
           expectedEmbeddingCount: baseEmbeddingHashes.size,
-          sourceRowCount: vectorRows.length
+          sourceRowCount: vectorRows.length,
+          directoryGroups
         })
       }
 
@@ -730,35 +742,45 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
-   * Persist the directory degrade set collected in prepare(): orphaned directory-expanded items
-   * become `failed`/directory_not_migrated so the UI prompts a re-add (their virtual-path source
-   * cannot reindex). A failure here is non-fatal — the worst case is a stale `completed` row that
-   * the next migration run re-degrades — so it is recorded as a warning, never thrown.
+   * Persist the directory degrade set (collected in prepare() for skipped/empty bases and in
+   * execute()'s per-base catch for bases that failed mid-rebuild): orphaned directory-expanded
+   * items become `failed`/directory_not_migrated so the UI prompts a re-add (their virtual-path
+   * source cannot reindex). A failure here is non-fatal — the worst case is a stale `completed`
+   * row that the next migration run re-degrades — so it is recorded as a warning, never thrown.
+   * Chunked under SQLite's bound-variable cap so a large degrade set cannot overflow the UPDATE.
    */
   private async flushDirectoryDegradations(ctx: MigrationContext): Promise<void> {
     if (this.directoryItemsToDegrade.size === 0) {
       return
     }
     const ids = [...this.directoryItemsToDegrade]
-    try {
-      await ctx.db
-        .update(knowledgeItemTable)
-        .set({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED })
-        .where(inArray(knowledgeItemTable.id, ids))
-      logger.info('Degraded orphaned directory-expanded knowledge items', { count: ids.length })
-    } catch (error) {
-      this.recordWarning(
-        `Failed to degrade ${ids.length} orphaned directory-expanded knowledge items: ${error instanceof Error ? error.message : String(error)}`
-      )
+    let degradedCount = 0
+    for (let offset = 0; offset < ids.length; offset += DEGRADE_UPDATE_CHUNK) {
+      const batch = ids.slice(offset, offset + DEGRADE_UPDATE_CHUNK)
+      try {
+        await ctx.db
+          .update(knowledgeItemTable)
+          .set({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED })
+          .where(inArray(knowledgeItemTable.id, batch))
+        degradedCount += batch.length
+      } catch (error) {
+        // Best-effort per batch: one failed batch must not abort the rest of the degrade pass.
+        this.recordWarning(
+          `Failed to degrade ${batch.length} orphaned directory-expanded knowledge items: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     }
+    logger.info('Degraded orphaned directory-expanded knowledge items', {
+      degradedCount,
+      totalCount: ids.length
+    })
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    // Degrade items orphaned in prepare() before the empty-plan early-return, so a base whose only
-    // content was a directory expansion still degrades its children when no vector plan survived.
-    await this.flushDirectoryDegradations(ctx)
-
     if (this.preparedBasePlans.length === 0) {
+      // No vector plan survived prepare(); still degrade items orphaned there (a base whose only
+      // content was a directory expansion) before returning.
+      await this.flushDirectoryDegradations(ctx)
       return {
         success: true,
         processedCount: 0
@@ -877,9 +899,27 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // validate() never checks it) and keep migrating the rest, mirroring prepare()'s skip +
         // continue. One locked/corrupt base no longer drags the entire migration — and every other
         // migrator after it — into markFailed; the failure is surfaced as a warning instead.
+        //
+        // But isolation alone is incomplete: prepare() already counted this base's surviving rows
+        // into sourceCount, and validate() now omits them from targetCount, so the engine's
+        // `targetCount < sourceCount - skippedCount` reconciliation would still abort the whole
+        // migration. Credit the base's expected units to skippedCount so expectedCount drops in
+        // lockstep — the genuine per-base skip the engine then accepts. And degrade this base's
+        // directory-expanded items the same way a prepare-time skip does, so once the migration is
+        // allowed to succeed its children are not left `completed` with no vectors (an
+        // unreindexable virtual-path orphan); regular file items keep their real raw/ file and
+        // self-heal via runtime reindex, so they need no degrade here.
+        this.skippedCount += plan.expectedUnitCount
+        this.markDirectoryGroupsFullyOrphaned(plan.directoryGroups)
         continue
       }
     }
+
+    // Persist all directory degradations now: both those collected in prepare() and those added in
+    // the per-base catch above for bases that failed mid-rebuild. Running it after the loop (rather
+    // than before) is what lets a failed base's directory items reach `failed` once the per-base
+    // skip keeps the overall migration alive.
+    await this.flushDirectoryDegradations(ctx)
 
     logger.info('KnowledgeVectorMigrator.execute completed', {
       processedCount,
