@@ -31,6 +31,19 @@ export interface I18nMessage {
   params?: Record<string, string | number>
 }
 
+// Completion-screen summary stats (display metadata only, derived on success)
+export interface MigrationSummary {
+  completedMigrators: number
+  totalMigrators: number
+  itemsProcessed: number
+  durationMs: number
+}
+
+// Backup display metadata (set only when a new V1 backup was created)
+export interface MigrationBackupInfo {
+  createdBackupPath: string
+}
+
 // Overall migration progress
 export interface MigrationProgress {
   stage: MigrationStage
@@ -42,6 +55,10 @@ export interface MigrationProgress {
   error?: string
   /** Non-fatal diagnostics aggregated across migrators, surfaced on the completion screen */
   warnings?: string[]
+  /** Completion-screen summary stats; written only on successful completion */
+  summary?: MigrationSummary
+  /** Backup display metadata; present only when a new V1 backup was created */
+  backupInfo?: MigrationBackupInfo
 }
 
 // Prepare phase result

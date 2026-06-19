@@ -9,6 +9,7 @@ import {
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
+  type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain } from 'electron'
@@ -20,6 +21,10 @@ import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
+
+// Local backup result shape; not part of the shared contract because the renderer
+// drives its UI from progress updates, not from this return value.
+type MigrationBackupResult = { success: boolean; path?: string; error?: string }
 
 let inFlightMigration: Promise<MigrationResult> | null = null
 const backupManager = new LegacyBackupManager()
@@ -123,7 +128,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
             stage: 'backup_confirmed',
             overallProgress: 100,
             currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-            migrators: []
+            migrators: [],
+            ...(backupResult.path ? { backupInfo: { createdBackupPath: backupResult.path } } : {})
           })
         } else {
           updateProgress({
@@ -210,9 +216,10 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
       }
 
-      // Set up progress callback
+      // Set up progress callback. Preserve created-backup display metadata across
+      // every running tick so the completion screen can still show the backup path.
       migrationEngine.onProgress((progress) => {
-        updateProgress(progress)
+        updateProgress(progress, { preserveBackupInfo: true })
       })
 
       // Run migration
@@ -222,24 +229,31 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       const result = await runPromise
 
       if (result.success) {
-        updateProgress({
-          stage: 'migration_completed',
-          overallProgress: 100,
-          currentMessage: 'Migration completed successfully! Please confirm to continue.',
-          migrators: currentProgress.migrators.map((m) => ({
-            ...m,
-            status: 'completed'
-          })),
-          warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? [])
-        })
+        updateProgress(
+          {
+            stage: 'migration_completed',
+            overallProgress: 100,
+            currentMessage: 'Migration completed successfully! Please confirm to continue.',
+            migrators: currentProgress.migrators.map((m) => ({
+              ...m,
+              status: 'completed'
+            })),
+            warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
+            summary: createMigrationSummary(result, currentProgress)
+          },
+          { preserveBackupInfo: true }
+        )
       } else {
-        updateProgress({
-          stage: 'error',
-          overallProgress: currentProgress.overallProgress,
-          currentMessage: result.error || 'Migration failed',
-          migrators: currentProgress.migrators,
-          error: result.error
-        })
+        updateProgress(
+          {
+            stage: 'error',
+            overallProgress: currentProgress.overallProgress,
+            currentMessage: result.error || 'Migration failed',
+            migrators: currentProgress.migrators,
+            error: result.error
+          },
+          { preserveBackupInfo: true }
+        )
       }
 
       return result
@@ -337,11 +351,32 @@ export function unregisterMigrationIpcHandlers(): void {
 }
 
 /**
- * Update progress and broadcast to window
+ * Update progress and broadcast to window.
+ *
+ * `backupInfo` is display metadata only. It is preserved across an update solely
+ * when `preserveBackupInfo` is requested (engine progress ticks + success/error
+ * completion), and never overwrites a `backupInfo` the new progress already sets.
+ * `summary` is never implicitly preserved.
  */
-function updateProgress(progress: MigrationProgress): void {
-  currentProgress = progress
-  migrationWindowManager.send(MigrationIpcChannels.Progress, progress)
+function updateProgress(progress: MigrationProgress, options: { preserveBackupInfo?: boolean } = {}): void {
+  const next: MigrationProgress = { ...progress }
+  if (options.preserveBackupInfo && !next.backupInfo && currentProgress.backupInfo) {
+    next.backupInfo = currentProgress.backupInfo
+  }
+  currentProgress = next
+  migrationWindowManager.send(MigrationIpcChannels.Progress, next)
+}
+
+/**
+ * Derive completion-screen summary stats from the migration result + final progress.
+ */
+function createMigrationSummary(result: MigrationResult, progress: MigrationProgress): MigrationSummary {
+  return {
+    completedMigrators: result.migratorResults.length,
+    totalMigrators: progress.migrators.length || result.migratorResults.length,
+    itemsProcessed: result.migratorResults.reduce((sum, r) => sum + r.recordsProcessed, 0),
+    durationMs: result.totalDuration
+  }
 }
 
 /**
@@ -375,7 +410,7 @@ export function setVersionIncompatible(reason: VersionBlockReason, details: Reco
 /**
  * Perform backup to a specific file location
  */
-async function performBackupToFile(filePath: string): Promise<{ success: boolean; error?: string }> {
+async function performBackupToFile(filePath: string): Promise<MigrationBackupResult> {
   try {
     logger.info('Performing backup to file', { filePath })
 
@@ -393,7 +428,7 @@ async function performBackupToFile(filePath: string): Promise<{ success: boolean
 
     if (backupPath) {
       logger.info('Backup created successfully', { path: backupPath })
-      return { success: true }
+      return { success: true, path: backupPath }
     } else {
       return {
         success: false,
