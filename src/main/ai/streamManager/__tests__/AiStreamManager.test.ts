@@ -2047,5 +2047,86 @@ describe('AiStreamManager', () => {
       // Topic settled cleanly.
       expect(mgr.inspect('a')!.status).toBe('done')
     })
+
+    // ── Fix #746: budget state survives an approval park ─────────────
+
+    it('Fix #746: awaiting-approval park does NOT clear budget state (resumesUsed must survive)', async () => {
+      // An approval park is a PAUSE — after the user approves, continue-conversation resumes the
+      // SAME turn. dispatch.ts does NOT reset budget state for continue-conversation, so the
+      // per-turn resumesUsed must survive the park. Before this fix, clearAllBudgetTripped ran
+      // unconditionally in the topicDone arm, wiping resumesUsed and letting the same turn
+      // budget-continue up to MAX_BUDGET_RESUMES additional times.
+      vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const clearSpy = vi.spyOn(mgr, 'clearAllBudgetTripped')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), messageId: 'assistant-row-1' },
+        listeners: [new FakeListener('wc:1:a')]
+      })
+
+      // Simulate 2 prior resumes: setBudgetTripped + consumeBudgetTrip × 2.
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      mgr.consumeBudgetTrip('a', 'provider-a::model-a') // resumesUsed=1
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      mgr.consumeBudgetTrip('a', 'provider-a::model-a') // resumesUsed=2
+      // Trip again (not consumed) — resumesUsed=2, tripped=true → still continuable.
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(true)
+
+      // Drive the execution into awaiting-approval then call onExecutionDone (the MCP-continue path).
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // Topic parks on awaiting-approval.
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+
+      // clearAllBudgetTripped must NOT have been called — budget state must survive the park.
+      expect(clearSpy).not.toHaveBeenCalled()
+
+      // The budget entry is intact: resumesUsed is still reflected (continuable if re-tripped next turn).
+      // isBudgetContinuable checks tripped=true here, so it should still be true.
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(true)
+    })
+
+    // ── Fix #719/#725: budget trip cleared when a steer supersedes ───
+
+    it('Fix #719/#725: clean done + pending steer (chatChaining) clears budget trip to avoid steer-turn leak', async () => {
+      // Before this fix, chatChaining skipped clearAllBudgetTripped. The stale {tripped:true} carried
+      // into the steer continuation; when THAT turn finished (even cleanly), isBudgetContinuable was
+      // true and a spurious budget-continue was dispatched. A steer is a fresh user intent — it should
+      // do its own turn-start evaluation, not inherit the prior turn's trip.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const clearSpy = vi.spyOn(mgr, 'clearAllBudgetTripped')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1:a')]
+      })
+
+      // Set a budget trip and queue a steer simultaneously.
+      mgr.setBudgetTripped('a', 'provider-a::model-a')
+      mgr.enqueuePendingSteer('a', 'steer-msg-2')
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(true)
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // The steer won (chatChaining) — steer dispatch was called.
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ trigger: 'steer-continuation', userMessageId: 'steer-msg-2' })
+      )
+
+      // clearAllBudgetTripped MUST have been called — stale trip cleared before the steer turn starts.
+      expect(clearSpy).toHaveBeenCalledWith('a')
+
+      // Budget state is gone — the steer turn inherits a clean slate.
+      expect(mgr.isBudgetContinuable('a', 'provider-a::model-a')).toBe(false)
+    })
   })
 })

@@ -732,18 +732,24 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining && !budgetContinuing)
 
-    if (chatChaining) this.scheduleNextChatTurn(topicId)
-    else if (budgetContinuing) this.scheduleBudgetContinue(topicId, modelId, anchorId as string)
+    if (chatChaining) {
+      // A steer supersedes the prior turn — clear its budget trip so the steer turn does its own
+      // evaluation rather than inheriting a stale trip (which would spuriously budget-continue the
+      // steer even if it finished cleanly under budget).
+      this.clearAllBudgetTripped(topicId)
+      this.scheduleNextChatTurn(topicId)
+    } else if (budgetContinuing) this.scheduleBudgetContinue(topicId, modelId, anchorId as string)
     else if (topicDone) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') {
         this.dropPendingSteers(topicId, stream.status)
       }
-      // Clear budget-stop state on ANY topic terminal — clean done or error/aborted. This branch is
-      // only reached when NOT chatChaining and NOT budgetContinuing, so it never clears a pending
-      // budget-continue resume (those two arms are mutually exclusive with this one).
-      this.clearAllBudgetTripped(topicId)
+      // Clear budget-stop state on topic terminal — but NOT for an approval-park ('awaiting-approval').
+      // An approval park is a PAUSE: after the user approves, a continue-conversation resumes the
+      // SAME turn (dispatch.ts does NOT reset budget for continue-conversation), so the per-turn
+      // resumesUsed must survive the park. Only clear on a genuine terminal (done/error/aborted).
+      if (stream.status !== 'awaiting-approval') this.clearAllBudgetTripped(topicId)
       this.runTerminalLifecycle(stream)
     }
   }
