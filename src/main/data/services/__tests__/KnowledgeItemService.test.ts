@@ -1129,6 +1129,45 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('updateDirectoryRelativePath', () => {
+    it('stores the deduped raw/ prefix on directory item data, preserving source', async () => {
+      await seedItem({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: { source: '/docs' }
+      })
+
+      const result = await service.updateDirectoryRelativePath(DIR_A_ID, 'docs')
+
+      expect(result).toMatchObject({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: {
+          source: '/docs',
+          relativePath: 'docs'
+        }
+      })
+    })
+
+    it('rejects updating directory relative path for a missing knowledge item', async () => {
+      await expect(service.updateDirectoryRelativePath(OTHER_ITEM_ID, 'docs')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects storing a directory relative path on a non-directory item', async () => {
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+
+      await expect(service.updateDirectoryRelativePath(NOTE_A_ID, 'docs')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+  })
+
   describe('container reconciliation', () => {
     async function getItemRow(id: string) {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
