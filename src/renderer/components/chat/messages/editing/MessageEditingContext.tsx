@@ -1,8 +1,9 @@
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
+
+import type { MessageListItem } from '../types'
 
 export interface EditingMessageSnapshot {
   message: MessageListItem

@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import { useMessageEditing } from '@renderer/components/chat/messages/editing/MessageEditingContext'
 import type {
   MessageGroupRuntime,
   MessageListActions,
@@ -19,7 +20,6 @@ import {
 } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
-import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'

@@ -28,12 +28,6 @@ const mocks = vi.hoisted(() => ({
     off: vi.fn(),
     emit: vi.fn()
   },
-  MessageEditingProvider: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  useMessageEditing: vi.fn().mockReturnValue({
-    editingMessageId: null,
-    startEditing: vi.fn(),
-    stopEditing: vi.fn()
-  }),
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
   MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
@@ -77,11 +71,6 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
   default: mocks.HorizontalScrollContainer
-}))
-
-vi.mock('@renderer/context/MessageEditingContext', () => ({
-  MessageEditingProvider: mocks.MessageEditingProvider,
-  useMessageEditing: () => mocks.useMessageEditing()
 }))
 
 vi.mock('@renderer/utils', () => {

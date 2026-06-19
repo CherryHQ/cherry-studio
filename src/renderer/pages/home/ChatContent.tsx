@@ -4,10 +4,10 @@ import {
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
 } from '@renderer/components/chat/messages/blocks'
+import { MessageEditingProvider } from '@renderer/components/chat/messages/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
-import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
