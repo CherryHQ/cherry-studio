@@ -301,15 +301,7 @@ export class KnowledgeWorkflowService {
       return
     }
 
-    await jobManager.enqueue(
-      'knowledge.index-documents',
-      { baseId, itemId, parentJobId },
-      {
-        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
-        queue: knowledgeQueueName(baseId),
-        parentId: parentJobId ?? undefined
-      }
-    )
+    await this.scheduleIndexing(baseId, itemId, parentJobId)
   }
 
   async scheduleFileProcessingCheck(
@@ -339,6 +331,11 @@ export class KnowledgeWorkflowService {
     )
   }
 
+  /**
+   * Enqueue the index-documents job for an item. The single point that builds
+   * this job's idempotency key, queue, and parent id — shared by `scheduleItem`
+   * and the file-processing check handler so the enqueue stays identical.
+   */
   async scheduleIndexing(
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
