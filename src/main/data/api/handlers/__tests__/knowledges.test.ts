@@ -4,14 +4,12 @@ const {
   listKnowledgeBasesMock,
   getKnowledgeBaseByIdMock,
   updateKnowledgeBaseMock,
-  deleteKnowledgeBaseMock,
   listKnowledgeItemsMock,
   getKnowledgeItemByIdMock
 } = vi.hoisted(() => ({
   listKnowledgeBasesMock: vi.fn(),
   getKnowledgeBaseByIdMock: vi.fn(),
   updateKnowledgeBaseMock: vi.fn(),
-  deleteKnowledgeBaseMock: vi.fn(),
   listKnowledgeItemsMock: vi.fn(),
   getKnowledgeItemByIdMock: vi.fn()
 }))
@@ -20,8 +18,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
     list: listKnowledgeBasesMock,
     getById: getKnowledgeBaseByIdMock,
-    update: updateKnowledgeBaseMock,
-    delete: deleteKnowledgeBaseMock
+    update: updateKnowledgeBaseMock
   }
 }))
 
@@ -147,7 +144,6 @@ describe('knowledgeHandlers', () => {
 
       expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { name: 'Updated Base' })
-      expect(deleteKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
     it('should reject invalid PATCH bodies before calling the service', async () => {
