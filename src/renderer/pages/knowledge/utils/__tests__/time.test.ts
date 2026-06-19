@@ -27,8 +27,6 @@ describe('formatRelativeTime', () => {
   it('rolls a sub-day value up to days at the hour boundary', () => {
     // 23h59m ago rounds to 24 hours -> must read "yesterday", not "24 hours ago"
     const almostADay = 23 * 3600000 + 59 * 60000
-    expect(formatRelativeTime(new Date(NOW - almostADay).toISOString(), 'en-US', NOW)).toBe(
-      'yesterday'
-    )
+    expect(formatRelativeTime(new Date(NOW - almostADay).toISOString(), 'en-US', NOW)).toBe('yesterday')
   })
 })
