@@ -1,6 +1,7 @@
 import {
-  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   type KnowledgeBase,
+  type KnowledgeBaseErrorCode,
+  KnowledgeBaseErrorCodeSchema,
   type KnowledgeItem,
   type KnowledgeItemErrorCode,
   KnowledgeItemErrorCodeSchema
@@ -10,12 +11,27 @@ type KnowledgeErrorTranslator = (
   key:
     | 'knowledge.error.failed_base_unknown'
     | 'knowledge.error.missing_embedding_model'
+    | 'knowledge.error.missing_vector_store'
     | 'knowledge.error.directory_not_migrated'
 ) => string
 
+/** Localized copy for a known base error code. Exhaustive over `KnowledgeBaseErrorCode`. */
+const translateKnowledgeBaseErrorCode = (code: KnowledgeBaseErrorCode, t: KnowledgeErrorTranslator): string => {
+  switch (code) {
+    case 'missing_embedding_model':
+      return t('knowledge.error.missing_embedding_model')
+    case 'missing_vector_store':
+      return t('knowledge.error.missing_vector_store')
+    default:
+      return code satisfies never
+  }
+}
+
+/** Failed base tooltip text: known error codes map to localized copy, free-form messages pass through. */
 export const getKnowledgeBaseFailureReason = (base: Pick<KnowledgeBase, 'error'>, t: KnowledgeErrorTranslator) => {
-  if (base.error === KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL) {
-    return t('knowledge.error.missing_embedding_model')
+  const parsedCode = KnowledgeBaseErrorCodeSchema.safeParse(base.error)
+  if (parsedCode.success) {
+    return translateKnowledgeBaseErrorCode(parsedCode.data, t)
   }
 
   return base.error ?? t('knowledge.error.failed_base_unknown')

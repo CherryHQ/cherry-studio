@@ -14,7 +14,10 @@ import { copy, ensureDir } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+} from '@shared/data/types/knowledge'
 import type { FilePath } from '@shared/types/file'
 import { sql } from 'drizzle-orm'
 
@@ -563,13 +566,14 @@ export class KnowledgeMigrator extends BaseMigrator {
             ? await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
             : { dimensions: resolveLegacyKnowledgeBaseDimensions(validBase), reason: 'legacy_dimensions' as const }
 
-        if (embeddingResolution.kind === 'resolved' && resolvedDimensions.dimensions === null) {
-          this.skippedCount += 1 + items.length
-          this.sourceCount += items.length
-          const warningMessage = `Skipped knowledge base ${validBase.id}: ${resolvedDimensions.reason}`
-          this.recordSkippedWarning(`knowledge_base_${resolvedDimensions.reason}`, warningMessage)
-          continue
-        }
+        // A resolved embedding model whose per-base legacy vector store is missing/empty/locked
+        // yields dimensions===null. We must NOT drop the base (that loses the library with no
+        // recoverable row): keep it as a `failed` row, like the dangling-model branch below, so
+        // the name/model/config/idle items survive and the UI offers a restore/re-index entry.
+        // `vectorsWillMigrate` also gates directory expansion: a base whose vectors will not
+        // migrate must not expand folders into `completed` children that would be empty shells.
+        const vectorStoreUnresolved = embeddingResolution.kind === 'resolved' && resolvedDimensions.dimensions === null
+        const vectorsWillMigrate = embeddingResolution.kind === 'resolved' && resolvedDimensions.dimensions !== null
 
         const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions, (msg) =>
           this.recordWarning(msg)
@@ -589,6 +593,14 @@ export class KnowledgeMigrator extends BaseMigrator {
           preparedBase.error = KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
         }
 
+        if (vectorStoreUnresolved) {
+          this.recordWarning(
+            `Knowledge base ${validBase.id}: legacy vector store unreadable (${resolvedDimensions.reason}); kept as a restorable failed base (re-index to recover) instead of being dropped`
+          )
+          preparedBase.status = 'failed'
+          preparedBase.error = KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+        }
+
         const rerankResolution = resolveModelReference(preparedBase.rerankModelId ?? null, validModelIds)
         preparedBase.rerankModelId = rerankResolution.kind === 'resolved' ? rerankResolution.modelId : null
         if (rerankResolution.kind === 'dangling') {
@@ -606,11 +618,12 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         // Re-attribute a directory's vectors only when this base's vectors will actually
-        // migrate (embedding model resolved); otherwise the children would claim `completed`
-        // with nothing behind them. An empty source map makes expandLegacyDirectoryItem return
-        // null, so the directory keeps its tombstone.
+        // migrate (embedding model resolved AND dimensions known); otherwise the children would
+        // claim `completed` with nothing behind them — including the dimensions===null /
+        // missing-vector-store case above, which must keep its folders as tombstones. An empty
+        // source map makes expandLegacyDirectoryItem return null, so the directory keeps its tombstone.
         const directoryLoaderResult: LoaderSourceMapResult =
-          embeddingResolution.kind === 'resolved' && items.some((candidate) => candidate?.type === 'directory')
+          vectorsWillMigrate && items.some((candidate) => candidate?.type === 'directory')
             ? await this.loadLoaderSourceMap(validBase.id, ctx.sources.knowledgeVectorSource)
             : { kind: 'loaded', sources: new Map<string, string>() }
 
