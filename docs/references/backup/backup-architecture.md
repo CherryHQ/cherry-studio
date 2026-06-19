@@ -81,7 +81,22 @@ flowchart LR
   B --> C1
 ```
 
-**manifest**（备份与恢复唯一交接物的元数据，归档内与 `backup.sqlite`/`files`/`knowledge` 同级）：`backupFormatVersion`（归档格式版本，v2 起 = 1，major bump = 不兼容；**release 前重生成单条 clean initial migration 时须 major bump**，使旧格式备份被拒而非走 migrate-forward）、`schemaMigrationId`（producer 已应用的最末 migration 的 `when`(folderMillis)；drizzle migrate 按 folderMillis 决定增量、**非** tag 词典序，故版本比对以 folderMillis 为权威，tag 如 `0005_lyrical_galactus` 仅诊断）、`producerAppVersion`（producer app 版本，源自 `package.json`，仅诊断/错误提示）、`domains`（域范围：完整/精简）、`resources`（文件/知识库资源清单）。`backupFormatVersion` + `schemaMigrationId` 供恢复第一步兼容门禁（§9 step 0）。
+**manifest**（备份与恢复唯一交接物的元数据，归档内与 `backup.sqlite`/`files`/`knowledge` 同级）。五字段分两类：
+
+- **内容范围**：`domains`（域：完整/精简）、`resources`（文件/知识库清单）
+- **版本兼容**：`backupFormatVersion`、`schemaMigrationId`、`producerAppVersion`
+
+三个版本字段角色不同，仅前两个进兼容门禁（§9 step 0）：
+
+| 字段 | 管什么 | 进门禁 |
+|---|---|---|
+| `backupFormatVersion` | 归档**格式**（v2 起 = 1，major bump = 不兼容 → 拒） | ✅ |
+| `schemaMigrationId` | DB **schema** 版本指纹 | ✅ |
+| `producerAppVersion` | **app** 版本（`package.json`） | ❌ 仅诊断/错误提示 |
+
+- `schemaMigrationId` 取 producer 最末 migration 的 `when`(folderMillis)——drizzle migrate 按 folderMillis 决定增量、**非** tag 词典序，故比对以 folderMillis 为权威，tag（如 `0005_lyrical_galactus`）仅诊断。
+- **release 转换点须 `backupFormatVersion` major bump**：CLAUDE.md 规定 release 前 `migrations/sqlite-drizzle/` 会清空并重生成成一条全新 clean initial migration（开发期 migration 是 throwaway）。此举换掉整条 chain、打断 migrate-forward 依赖的连续性——旧备份的 `schemaMigrationId` 指向已被替换的旧 chain，migrate-forward 会拿新 clean initial 的 `CREATE TABLE` 去撞 backup.sqlite 里已建好的表（`table already exists`）。故在该 release 版本点 major bump formatVersion，让旧格式备份在门禁直接被拒，而非走到必失败的 migrate-forward。
+- `producerAppVersion` 不进门禁：`schemaMigrationId` 偏序已蕴含 app 版本偏序，它仅用于用户可见的错误提示。
 
 每个域由一个 `BackupContributor` 表示：
 
@@ -334,7 +349,15 @@ flowchart TB
 
 当前文件级回滚只覆盖 FILE_STORAGE 覆盖写入，不覆盖 DB 行导入中途失败，也不覆盖 API key / 偏好 / provider / assistant / agent / 聊天记录等 SQLite 数据。补恢复编排层 RestoreRecoveryPoint：整库 DB pre-snapshot + restore journal + 受影响文件快照（同 restoreId）。**执行分层严格分离**（符合 V2 withWriteTx「fn 内仅 DB ops、不做文件 IO」约束）：
 
-0. **manifest 版本门禁**（恢复第一步，先于 RESTORE BARRIER；只读/操作备份文件、不碰 live DB）：读 manifest，先校验 `backupFormatVersion`（major bump = 不兼容 → 拒绝 + 明确错误）；再比对 producer/consumer 的 migration chain 位置——以 `schemaMigrationId` 的 `when`(folderMillis) 为权威序（**非 tag 词典序**，drizzle migrate 按 folderMillis 决定增量）：**consumer chain 前缀包含 producer 末端（老备份）→ migrate-forward**，对 `backup.sqlite` 在**独立 libsql client**（非 live `DbService.client`，避免污染 live 连接）跑 drizzle `migrate` 到 consumer 末条——因 VACUUM INTO 连带复制了 producer 的 `__drizzle_migrations`，migrator 自动只应用 producer 之后的增量；**producer 末端不在 consumer chain 上（新备份 / 跨分支分叉）→ 拒绝**并提示升级 app；等同 → 直接导入。migrate-forward 失败 = 门禁失败：中止恢复、保留 live DB 原状（未触碰）、删临时 `backup.sqlite`，**不触发 step 4 整库回滚**。migrate-forward 跑 release migration chain（`migrations/sqlite-drizzle` 正式产物），不碰开发期 drift；跨分支表集差异（`agent_task` vs `painting`/`agent_workspace`，§四）由 chain 位置识别并经 migrate-forward 消解。
+0. **manifest 版本门禁**（恢复第一步，先于 RESTORE BARRIER；只读/操作备份文件、**不碰 live DB**）：
+
+   - **格式校验**：`backupFormatVersion` major bump = 不兼容 → 拒绝 + 明确错误
+   - **schema 比对**（以 `schemaMigrationId` 的 `when`(folderMillis) 为权威序，**非 tag 词典序**——drizzle migrate 按 folderMillis 决定增量），三种状态：
+     - **老备份**（consumer chain 前缀含 producer 末端）→ **migrate-forward**：对 `backup.sqlite` 在**独立 libsql client**（非 live `DbService.client`，避免污染 live 连接）跑 drizzle `migrate` 到 consumer 末条——因 VACUUM INTO 连带复制了 producer 的 `__drizzle_migrations`，migrator 自动只应用 producer 之后的增量
+     - **新备份 / 跨分支分叉**（producer 末端不在 consumer chain 上）→ **拒绝**，提示升级 app
+     - **等同** → 直接导入
+   - **失败善后**：migrate-forward 失败（备份损坏 / migration SQL 执行失败）= 门禁失败，中止恢复、保留 live DB 原状（未触碰）、删临时 `backup.sqlite`，**不触发 step 4 整库回滚**（因 live DB 未变），并向用户报错「备份无法恢复：文件损坏或版本不受支持」
+   - migrate-forward 跑 release migration chain（`migrations/sqlite-drizzle` 正式产物），不碰开发期 drift；跨分支表集差异（`agent_task` vs `painting`/`agent_workspace`，§四）由 chain 位置识别并经 migrate-forward 消解
 1. **RESTORE BARRIER** acquire（静默 WhenReady DB writers + 阻塞 renderer mutation，全程）后用 VACUUM INTO 建快照（须事务外，持 withExclusiveAccess 写锁）
 2. contributor restoreResources 文件 IO 在 withWriteTx 之外、之前
 3. 仅 DB 行导入在 withWriteTx 内
