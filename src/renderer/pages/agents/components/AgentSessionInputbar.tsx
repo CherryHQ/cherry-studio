@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
+import { isAudioModel, isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
@@ -32,7 +32,7 @@ import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { audioExts, documentExts, imageExts, textExts } from '@shared/utils/file'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -428,20 +428,14 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
   }, [focusTextarea])
 
   const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    }
-
-    if (canAddImageFile) {
-      return [...imageExts]
-    }
+    const mediaExts = [...(canAddImageFile ? imageExts : []), ...(model && isAudioModel(model) ? audioExts : [])]
 
     if (canAddTextFile) {
-      return [...documentExts, ...textExts]
+      return [...mediaExts, ...documentExts, ...textExts]
     }
 
-    return []
-  }, [canAddImageFile, canAddTextFile])
+    return mediaExts
+  }, [canAddImageFile, canAddTextFile, model])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -456,7 +450,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
         )}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant, toolsSession]
+    [config.showTools, scope, assistant, model, toolsSession]
   )
   const placeholderText = useMemo(() => {
     if (isSoulModeEnabled(agentBase?.configuration)) {

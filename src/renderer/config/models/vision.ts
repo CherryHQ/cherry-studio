@@ -1,5 +1,6 @@
 import type { Model } from '@shared/data/types/model'
 import {
+  isAudioModel as sharedIsAudioModel,
   isEditImageModel as sharedIsEditImageModel,
   isGenerateImageModel as sharedIsGenerateImageModel,
   isTextToImageModel as sharedIsTextToImageModel,
@@ -53,4 +54,9 @@ export const isPureGenerateImageModel = isTextToImageModel
 export function isVisionModel(model: Model): boolean {
   if (!model) return false
   return sharedIsVisionModel(model)
+}
+
+export function isAudioModel(model: Model): boolean {
+  if (!model) return false
+  return sharedIsAudioModel(model)
 }

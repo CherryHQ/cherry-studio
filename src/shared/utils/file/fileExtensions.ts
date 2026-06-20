@@ -2,7 +2,7 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
-export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
+export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.aiff', '.aif']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const knowledgeSupportedFileExts = [
   '.txt',

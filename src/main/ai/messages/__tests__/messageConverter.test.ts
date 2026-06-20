@@ -62,10 +62,12 @@ describe('toCherryUIMessage', () => {
 describe('prepareUIMessages — file:// URL resolution', () => {
   let tmpDir: string
   let imgPath: string
+  let audioPath: string
 
   beforeAll(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-msg-'))
     imgPath = path.join(tmpDir, 'pixel.png')
+    audioPath = path.join(tmpDir, 'voice.flac')
     // 1x1 PNG (smallest valid)
     const png = Buffer.from(
       '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415478DA636400' +
@@ -73,6 +75,7 @@ describe('prepareUIMessages — file:// URL resolution', () => {
       'hex'
     )
     await fs.writeFile(imgPath, png)
+    await fs.writeFile(audioPath, Buffer.from('fLaC'))
   })
 
   afterAll(async () => {
@@ -88,6 +91,15 @@ describe('prepareUIMessages — file:// URL resolution', () => {
     const [ui] = await prepareUIMessages([msg])
     const filePart = ui.parts[0] as { type: 'file'; url: string }
     expect(filePart.url.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('infers audio media types for file:// URL file parts', async () => {
+    const msg = makeMessage({
+      parts: [{ type: 'file', url: `file://${audioPath}`, filename: 'voice.flac' }] as CherryMessagePart[]
+    })
+    const [ui] = await prepareUIMessages([msg])
+    const filePart = ui.parts[0] as { type: 'file'; url: string }
+    expect(filePart.url.startsWith('data:audio/flac;base64,')).toBe(true)
   })
 
   it('leaves data: URLs untouched', async () => {

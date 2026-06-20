@@ -3,7 +3,7 @@ import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputb
 
 const attachmentTool = defineTool({
   key: 'attachment',
-  label: (t) => t('chat.input.upload.image_or_document'),
+  label: (t) => t('chat.input.upload.attachment'),
 
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant'],
 

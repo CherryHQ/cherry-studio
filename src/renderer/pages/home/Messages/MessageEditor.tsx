@@ -14,8 +14,8 @@ import { classNames } from '@renderer/utils'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { documentExts, imageExts, textExts } from '@shared/utils/file'
-import { isVisionModel } from '@shared/utils/model'
+import { audioExts, documentExts, imageExts, textExts } from '@shared/utils/file'
+import { isAudioModel, isVisionModel } from '@shared/utils/model'
 import { Space } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
@@ -65,19 +65,18 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   )
 
   const couldAddImageFile = useMemo(() => (model ? isVisionModel(model) : false), [model])
+  const couldAddAudioFile = useMemo(() => (model ? isAudioModel(model) : false), [model])
   const couldAddTextFile = useMemo(() => true, [])
 
   const extensions = useMemo(() => {
-    if (couldAddImageFile && couldAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    } else if (couldAddImageFile) {
-      return [...imageExts]
-    } else if (couldAddTextFile) {
-      return [...documentExts, ...textExts]
-    } else {
-      return []
+    const mediaExts = [...(couldAddImageFile ? imageExts : []), ...(couldAddAudioFile ? audioExts : [])]
+
+    if (couldAddTextFile) {
+      return [...mediaExts, ...documentExts, ...textExts]
     }
-  }, [couldAddImageFile, couldAddTextFile])
+
+    return mediaExts
+  }, [couldAddAudioFile, couldAddImageFile, couldAddTextFile])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -340,7 +339,7 @@ const EditorContainer = styled(Space)`
   }
 
   .editing-message {
-    background-color: var(--color-background-opacity);
+    background-color: color-mix(in srgb, var(--color-background) 88%, transparent);
     border: 0.5px solid var(--color-border);
     border-radius: 15px;
     padding: 1em;

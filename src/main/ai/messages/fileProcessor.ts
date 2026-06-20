@@ -38,6 +38,11 @@ const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   '.pdf': 'application/pdf',
   '.mp3': 'audio/mpeg',
   '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.aac': 'audio/aac',
+  '.aiff': 'audio/aiff',
+  '.aif': 'audio/aiff',
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
   '.webm': 'video/webm'

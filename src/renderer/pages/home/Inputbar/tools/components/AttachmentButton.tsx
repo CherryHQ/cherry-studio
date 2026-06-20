@@ -4,6 +4,7 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
+import { audioExts } from '@shared/utils/file'
 import { Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -22,6 +23,8 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   const { t } = useTranslation()
   const { open: openQuickPanelPanel } = useQuickPanel()
   const [selecting, setSelecting] = useState<boolean>(false)
+  const couldAddAudioFile = useMemo(() => extensions.some((ext) => audioExts.includes(ext)), [extensions])
+  const couldAddMediaFile = couldAddImageFile || couldAddAudioFile
 
   const openFileSelectDialog = useCallback(async () => {
     if (selecting) {
@@ -91,7 +94,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   useEffect(() => {
     const disposeRootMenu = quickPanel.registerRootMenu([
       {
-        label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
+        label: couldAddMediaFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
         isMenu: true,
@@ -105,9 +108,9 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
       disposeRootMenu()
       disposeTrigger()
     }
-  }, [couldAddImageFile, openQuickPanel, quickPanel, t])
+  }, [couldAddMediaFile, openQuickPanel, quickPanel, t])
 
-  const ariaLabel = couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')
+  const ariaLabel = couldAddMediaFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document')
 
   return (
     <Tooltip placement="top" content={ariaLabel}>

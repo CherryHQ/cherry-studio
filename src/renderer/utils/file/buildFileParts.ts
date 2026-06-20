@@ -24,12 +24,28 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file/common'
 
+const AUDIO_EXT_TO_MEDIA_TYPE: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.aac': 'audio/aac',
+  '.aiff': 'audio/aiff',
+  '.aif': 'audio/aiff'
+}
+
 function mediaTypeFor(file: FileMetadata, ext: string): string {
+  const normalizedExt = ext.toLowerCase()
   if (file.type === FILE_TYPE.IMAGE) {
-    const bare = ext.replace(/^\./, '')
+    const bare = normalizedExt.replace(/^\./, '')
     if (!bare) return 'image/png'
     return `image/${bare === 'jpg' ? 'jpeg' : bare === 'svg' ? 'svg+xml' : bare}`
   }
+
+  if (file.type === FILE_TYPE.AUDIO) {
+    return AUDIO_EXT_TO_MEDIA_TYPE[normalizedExt] ?? 'application/octet-stream'
+  }
+
   return 'application/octet-stream'
 }
 
