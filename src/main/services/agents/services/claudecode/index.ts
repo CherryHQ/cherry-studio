@@ -52,6 +52,7 @@ import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { filterReachableMcpServers } from './mcp'
 import { mergeUserEnvironmentVariables, withPreferredWindowsShellEnvironment } from './runtimeEnv'
 import { promptForToolApproval } from './tool-permissions'
 import { getRuntimeAllowedTools } from './tools'
@@ -514,9 +515,25 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
+      // Probe each configured MCP server before exposing it to the agent so a
+      // single unreachable or slow server cannot block the whole agent from
+      // starting (graceful degradation — see issue #16242). Probes run in
+      // parallel and warm the proxy's connection cache, so reachable servers
+      // stay fast; unreachable ones are skipped for this session.
+      // Imported lazily: both reach MCPService, which pulls WindowService and
+      // the browser MCP controller into the module graph at load time.
+      const [{ getMCPServersFromRedux }, { default: mcpService }] = await Promise.all([
+        import('@main/apiServer/utils/mcp'),
+        import('@main/services/MCPService')
+      ])
+      const reachableMcpIds = await filterReachableMcpServers(session.mcps, {
+        listServers: getMCPServersFromRedux,
+        checkConnectivity: (server) => mcpService.checkMcpConnectivity({} as Electron.IpcMainInvokeEvent, server)
+      })
+
       // mcp configs
       const mcpList: Record<string, McpHttpServerConfig> = {}
-      for (const mcpId of session.mcps) {
+      for (const mcpId of reachableMcpIds) {
         mcpList[mcpId] = {
           type: 'http',
           url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
