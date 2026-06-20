@@ -1,76 +1,38 @@
 {
-  "generated_at": "2026-06-19T18:00:00Z",
-  "snapshot_date": "2026-06-19",
-  "data_source": "GitHub Issues API (discussion-labeled issues) + high-engagement threads",
-  "note": "GitHub Discussions GraphQL unavailable in this environment; data derived from issues with 'discussion' label and high-engagement issue threads",
+  "generated_at": "2026-06-20T00:00:00Z",
+  "snapshot_date": "2026-06-20",
+  "data_source": "GitHub Issues API (discussion-labeled issues) + high-engagement issue threads",
+  "note": "GitHub Discussions GraphQL not available in remote execution environment. Analysis derived from issues with 'discussion' / 'help wanted' labels and high-engagement issue threads.",
   "discussion_labeled_issues": {
-    "open_count": 3,
-    "closed_30d_count": 10
+    "open_count": 6,
+    "closed_30d_count": 10,
+    "open_sample": [
+      {"number": 16126, "title": "[Discussion]: 权限始终没法开启", "labels": ["help wanted", "discussion", "UI/UX"], "created": "2026-06-17"},
+      {"number": 16121, "title": "[Discussion]: 无法使用阿里云百炼模型内置联网搜索", "labels": ["help wanted", "discussion"], "created": "2026-06-17"},
+      {"number": 16080, "title": "[Discussion]: 无法关闭qwen3.6 35b思考模式", "labels": ["help wanted", "discussion", "Models"], "created": "2026-06-16"},
+      {"number": 16034, "title": "[Discussion]: How to configure local PaddleOCR Python path?", "labels": ["help wanted", "discussion"], "created": "2026-06-13"},
+      {"number": 16010, "title": "[Discussion]: Which models are supported by the agent?", "labels": ["help wanted", "discussion", "Models"], "created": "2026-06-12"},
+      {"number": 16013, "title": "[Discussion]: How to load skills in assistant?", "labels": ["needs-more-info", "help wanted", "discussion", "Assistant"], "created": "2026-06-12"}
+    ]
   },
-  "top_discussions_by_engagement": [
-    {
-      "number": 5640,
-      "title": "【需求汇总】Cherry Studio as a Service (CSaaS)...",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/5640",
-      "comments": 26,
-      "type": "feature_discussion",
-      "created_at": "2025-05-03",
-      "age_days": 412,
-      "status": "open",
-      "note": "Oldest active issue, highest comment count — multi-year roadmap discussion"
-    },
-    {
-      "number": 16078,
-      "title": "Cherry Studio智能体功能申请",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16078",
-      "comments": 9,
-      "type": "feature_discussion",
-      "status": "open"
-    },
-    {
-      "number": 14996,
-      "title": "[Bug]: Using Qwen or Gemma local models to create agents frequently encounter errors",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14996",
-      "comments": 9,
-      "type": "bug_discussion",
-      "status": "open"
-    },
-    {
-      "number": 14018,
-      "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6 New Feature Adoption",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14018",
-      "comments": 8,
-      "type": "feature_discussion",
-      "status": "open"
-    },
-    {
-      "number": 16142,
-      "title": "[Bug] 日志文件占用17GB+，日志目录硬编码无法修改位置",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142",
-      "comments": 6,
-      "type": "critical_bug_discussion",
-      "status": "open",
-      "created_at": "2026-06-17"
-    }
-  ],
   "hot_topics": [
     {
       "topic": "Log file disk space explosion (dual reports)",
       "urgency": "CRITICAL",
       "issues": [16142, 15947],
-      "note": "Two separate reports still open: 17GB+ (#16142, hardcoded Windows path) and 26GB+ (#15947, HTTP 418 retry loop against gitcode WAF). Both multi-day with no fix merged yet."
+      "note": "Two separate bug reports: 17GB+ via hardcoded log path (#16142, 6 comments) and 26GB+ via auto-updater HTTP 418 retry loop (#15947). Both open with no fix merged."
     },
     {
       "topic": "Agent Session Data Loss",
       "urgency": "CRITICAL",
       "issue": 16082,
-      "note": "29 sessions hard-deleted via internal API (soft:false). No recovery path. Open since 2026-06-16."
+      "note": "29 sessions hard-deleted via internal API (soft:false). No recovery. Open since 2026-06-16."
     },
     {
       "topic": "Context-overflow deadlock",
       "urgency": "CRITICAL",
       "issue": 16112,
-      "note": "App hangs unrecoverably when context is too large. 4 comments, no resolution. Open since 2026-06-17."
+      "note": "App hangs unrecoverably when context is too large. 4 comments, no resolution."
     },
     {
       "topic": "Quick Assist MCP tools not called",
@@ -84,32 +46,40 @@
       "urgency": "HIGH",
       "issue": 16210,
       "created": "2026-06-19",
-      "note": "New today: multi-turn searches return identical results — search state not reset between turns."
+      "note": "Multi-turn searches return identical results. Reported yesterday."
     },
     {
-      "topic": "Renderer App Shell — major architectural work today",
-      "urgency": "INFO",
-      "prs": [16202, 16211, 16187],
-      "note": "DeJeune merged 3 PRs today carving tab architecture, app shell, and resource selectors. Major structural milestone for v2 renderer."
-    },
-    {
-      "topic": "Claude conversation import",
-      "urgency": "INFO",
-      "pr": 16164,
-      "note": "PR open: add Claude (Anthropic) conversation import support by Pleasurecruise — community feature addition."
-    },
-    {
-      "topic": "anthropic-beta header expired (ongoing)",
+      "topic": "anthropic-beta header expired",
       "urgency": "MEDIUM",
       "issue": 16135,
-      "note": "advisor-tool-2026-03-01 beta header causing 400 rejections — header should be removed from aiCore."
+      "note": "advisor-tool-2026-03-01 beta header causing 400 rejections — should be removed from aiCore."
+    },
+    {
+      "topic": "Chat foundation & app shell restructure (renderer v2)",
+      "urgency": "INFO",
+      "prs": [16229, 16215],
+      "note": "DeJeune actively building v2 message renderer and chat foundation layer — major structural sprint this week."
     }
   ],
+  "top_discussions_by_engagement": [
+    {"number": 16078, "title": "Cherry Studio智能体功能申请", "comments": 9, "status": "open"},
+    {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "status": "open"},
+    {"number": 16203, "title": "[Bug]: Quick Assist not calling MCPs / Tools", "comments": 2, "status": "open"},
+    {"number": 16201, "title": "[Bug]: minimax-m3 thinking.type not supported", "comments": 2, "status": "open"}
+  ],
+  "user_pain_points_trending": [
+    "Log file disk exhaustion (2 separate reports with 17GB+ and 26GB+)",
+    "Agent sessions lost after data operations (backup/restore, API calls)",
+    "MCP tools silently skipped in Quick Assist",
+    "Azure OpenAI routing to wrong API endpoint (P1 open since March)",
+    "Large context causing unrecoverable app hang",
+    "Xiaomi mimo streaming only shows last line (P1 open since March)"
+  ],
   "community_sentiment": {
-    "observation": "Open issues dropped slightly (-3: 944→941). 59 new issues in the last 7 days shows high user activity. Three CRITICAL bugs (disk exhaustion ×2, data loss) remain open with no fix merged. Dev velocity is high: 142 PRs merged to main in 30 days, 63 in the last 7 days alone.",
+    "observation": "Open issues increased by 7 from yesterday (941→948). 59 new issues in last 7 days shows sustained high user activity. Three CRITICAL bugs open (disk exhaustion ×2, data loss) with no fix merged. Dev velocity remains high: 146 PRs merged to main in 30 days.",
     "engagement_health": "active",
-    "top_contributor": "DeJeune (14 open PRs, 28 merged in 30d, leading renderer app shell + chat migration sprint)",
-    "knowledge_sprint": "eeee0717 driving knowledge v2 feature: 15 merged PRs in 30d covering url/note snapshots, engine-portable index store, migration, conflict dialogs",
-    "alert": "CRITICAL: #15947 and #16142 (disk exhaustion) + #16082 (data loss) have been open 2-9 days with no merged fix."
+    "top_contributor": "DeJeune (12 open PRs, 27 merged in 30d — leading renderer v2 sprint)",
+    "knowledge_sprint": "eeee0717 driving knowledge v2 feature: 15 merged PRs in 30d",
+    "alert": "CRITICAL: #15947 and #16142 (disk exhaustion) + #16082 (data loss) remain unresolved."
   }
 }

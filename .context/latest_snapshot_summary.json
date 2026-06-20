@@ -1,202 +1,142 @@
 {
-  "generated_at": "2026-06-19T18:00:00Z",
-  "snapshot_date": "2026-06-19",
+  "generated_at": "2026-06-20T00:00:00Z",
+  "snapshot_date": "2026-06-20",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 941,
-    "by_label": {
-      "inactive": 30,
-      "internal_team": 26,
-      "UI/UX": 23,
-      "Models": 18,
-      "Assistant": 17,
-      "feature": 15,
-      "prd": 14,
-      "MCP": 8,
-      "needs-repro": 6,
-      "RAG": 6,
+    "total": 948,
+    "by_label_sample_top100": {
+      "UI/UX": 25,
+      "internal_team": 23,
+      "Models": 16,
+      "feature": 14,
+      "prd": 13,
+      "Assistant": 10,
+      "MCP": 9,
+      "needs-repro": 7,
+      "needs-more-info": 6,
+      "help wanted": 6,
+      "discussion": 6,
+      "RAG": 5,
       "Agent": 5,
-      "needs-more-info": 3,
-      "Connectivity": 3,
-      "Performance": 3,
-      "help_wanted": 3,
-      "discussion": 3,
-      "module:knowledge-rag": 2,
-      "BUG": 2,
+      "Connectivity": 4,
       "Data": 2,
-      "ready-for-dev": 1,
-      "dependencies": 1
+      "Performance": 1
     },
-    "no_label_count": 91,
-    "no_label_pct": 9.7,
+    "no_label_count": 93,
+    "no_label_pct": 9.8,
     "health": {
-      "active_updated_30d": 577,
-      "not_updated_30d": 364,
-      "created_before_6mo": 134,
-      "created_before_9mo": 22,
-      "note": "Active = updated in last 30d; zombie proxy = created >6 months ago"
+      "stale_gt90d": 140,
+      "zombie_gt180d": 1,
+      "active_lt7d_estimate": "~200+",
+      "aging_7_90d_estimate": "~607",
+      "note": "Stale/zombie counts from targeted search. Active/aging are estimates based on partial API page data."
     }
   },
   "open_prs": {
     "total_api_returned": 100,
-    "total_estimate": "≥250 (API page capped at 100; yesterday: 255)",
-    "base_main": 84,
-    "base_v1": 16,
+    "base_main": 88,
+    "base_v1": 12,
     "base_v2": 0,
+    "draft_count": 7,
+    "ready_to_merge": ["#16220", "#16104"],
+    "stale_prs_over30d": 0,
+    "oldest_pr_days": 24,
+    "oldest_pr_number": 15342,
     "no_label_pct": 93,
-    "age_buckets": {
-      "fresh_0_6d": 28,
-      "aging_7_29d": 56,
-      "stale_30_89d": 12,
-      "very_stale_90d_plus": 4
-    },
-    "oldest_pr": {"number": 11495, "age_days": 203, "title": "feat: Implement shared provider utilities and Proxy Api Server"},
     "top_authors": [
-      {"login": "DeJeune", "count": 14},
-      {"login": "Raymond8196", "count": 11},
-      {"login": "LWWZH", "count": 7},
+      {"login": "DeJeune", "count": 12},
       {"login": "HUQIANTAO", "count": 7},
+      {"login": "Raymond8196", "count": 7},
       {"login": "kangfenmao", "count": 6},
-      {"login": "404-Page-Found", "count": 5},
-      {"login": "ousugo", "count": 5},
+      {"login": "EurFelux", "count": 5},
+      {"login": "ousugo", "count": 4},
+      {"login": "404-Page-Found", "count": 4},
       {"login": "kovsu", "count": 4}
     ]
   },
   "last_30_days": {
-    "issues_closed": 407,
-    "issues_closed_resolution": {
-      "not_planned": 329,
-      "completed": 78
-    },
-    "completion_rate_pct": 19.2,
-    "not_planned_rate_pct": 80.8,
-    "prs_merged_main": 142,
-    "prs_merged_7d": 63,
+    "issues_closed": 405,
+    "inactive_closures_pct": 75,
+    "completion_rate_pct": 25,
+    "prs_merged_main": 146,
+    "prs_merged_daily_rate": 4.9,
+    "most_recent_merged_prs": [
+      {"number": 16228, "title": "feat(ui-markdown): simplify markdown imports", "mergedAt": "2026-06-20", "author": "eeee0717"},
+      {"number": 16223, "title": "chore(pnpm): migrate to pnpm 11", "mergedAt": "2026-06-20", "author": "kangfenmao"},
+      {"number": 16215, "title": "feat(chat): carve chat foundation layer (primitives, tokens, layout, utils)", "mergedAt": "2026-06-20", "author": "DeJeune"}
+    ],
     "top_merged_contributors": [
-      {"login": "DeJeune", "count": 28},
+      {"login": "DeJeune", "count": 27},
       {"login": "eeee0717", "count": 15},
-      {"login": "AtomsH4", "count": 10},
-      {"login": "kangfenmao", "count": 9},
+      {"login": "kangfenmao", "count": 10},
+      {"login": "AtomsH4", "count": 9},
       {"login": "Pleasurecruise", "count": 6},
       {"login": "ousugo", "count": 6}
-    ],
-    "most_recent_merged_prs": [
-      {"number": 16202, "title": "feat(renderer-app-shell): carve tab architecture & app shell", "mergedAt": "2026-06-19T11:00:39Z", "author": "DeJeune"},
-      {"number": 16211, "title": "refactor(renderer-components): move resource selectors/dialogs from features/", "mergedAt": "2026-06-19T10:12:06Z", "author": "DeJeune"},
-      {"number": 16187, "title": "feat(renderer-components): split unified Selector component", "mergedAt": "2026-06-19T09:05:49Z", "author": "DeJeune"},
-      {"number": 16189, "title": "feat(knowledge): add-source conflict dialog and directory source/relativePath", "mergedAt": "2026-06-19T06:42:13Z", "author": "eeee0717"},
-      {"number": 16204, "title": "Daily Auto I18N Sync: Jun 19, 2026", "mergedAt": "2026-06-19T06:32:52Z", "author": "github-actions[bot]"}
     ]
   },
-  "p1_candidates": [
+  "p1_issues_open": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
+      "created_at": "2026-05-07",
+      "age_days": 44,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-18",
+      "age_days": 94,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found)",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-04",
+      "age_days": 108,
+      "assignee": "DeJeune",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    }
+  ],
+  "p1_candidates_unlabeled": [
     {
       "number": 15947,
-      "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files in one day",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947",
-      "comments": 0,
+      "title": "[Bug]: Auto-updater infinite retry produces 26GB+ log files in one day",
+      "severity_reason": "Disk exhaustion — C drive fills within 24h",
       "created_at": "2026-06-10",
-      "severity_reason": "Critical: disk exhaustion; 26GB+ logs per day on C drive",
-      "labels": [],
-      "status": "open_ongoing"
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947"
     },
     {
       "number": 16082,
-      "title": "[Bug]: Agent auto-deleted via internal API with all 29 sessions lost (hard delete, soft:false)",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16082",
-      "comments": 0,
+      "title": "[Bug]: Agent auto-deleted via internal API — 29 sessions permanently lost",
+      "severity_reason": "Data loss — hard delete, no recovery path",
       "created_at": "2026-06-16",
-      "severity_reason": "Critical: data loss — 29 user sessions permanently deleted, no recovery path",
-      "labels": [],
-      "status": "open_ongoing"
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16082"
     },
     {
       "number": 16142,
-      "title": "[Bug] 日志文件占用17GB+，日志目录硬编码无法修改位置",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142",
-      "comments": 6,
+      "title": "[Bug]: Log file occupies 17GB+, directory hardcoded",
+      "severity_reason": "Disk exhaustion on C drive, path cannot be changed",
       "created_at": "2026-06-17",
-      "severity_reason": "Critical: log files consuming 17GB+ on C drive, hardcoded path blocks workaround",
       "labels": ["needs-triage"],
-      "status": "open_ongoing"
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
     },
     {
       "number": 16112,
-      "title": "[Bug]: 上下文太大导致死机且无法恢复",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16112",
-      "comments": 4,
+      "title": "[Bug]: App crashes with large context, cannot recover",
+      "severity_reason": "Unrecoverable hang on large context",
       "created_at": "2026-06-17",
-      "severity_reason": "Critical: app hangs and cannot recover on large context — no kill path",
-      "labels": [],
-      "status": "open_ongoing"
-    },
-    {
-      "number": 16016,
-      "title": "[Bug]: Agent fails with ECONNREFUSED when a stale system proxy is set",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016",
-      "comments": 0,
-      "created_at": "2026-06-12",
-      "severity_reason": "High: core Agent flow fails silently on stale proxy; no error surfaced to user",
-      "labels": ["BUG", "Connectivity", "internal_team"],
-      "status": "open_ongoing"
-    },
-    {
-      "number": 16203,
-      "title": "[Bug]: Quick Assist not calling MCPs / Tools",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16203",
-      "comments": 0,
-      "created_at": "2026-06-18",
-      "severity_reason": "High: MCP tools silently skipped in Quick Assist — breaks core integration",
-      "labels": [],
-      "status": "open_new"
-    },
-    {
-      "number": 16210,
-      "title": "[Bug]: Multi-turn searches return identical results",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16210",
-      "comments": 0,
-      "created_at": "2026-06-19",
-      "severity_reason": "High: search deduplication broken; all turns return same result set",
-      "labels": [],
-      "status": "open_new_today"
-    }
-  ],
-  "notable_today": [
-    {
-      "number": 16218,
-      "title": "[Bug]: Agent工作目录无法添加",
-      "type": "bug",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16218",
-      "created_at": "2026-06-19"
-    },
-    {
-      "number": 16210,
-      "title": "[Bug]: Multi-turn searches return identical results",
-      "type": "bug",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16210",
-      "created_at": "2026-06-19"
-    },
-    {
-      "number": 16164,
-      "title": "feat: add Claude (Anthropic) conversation import support",
-      "type": "pr_open",
-      "pr": 16164,
-      "author": "Pleasurecruise",
-      "url": "https://github.com/CherryHQ/cherry-studio/pull/16164"
-    },
-    {
-      "type": "major_merge",
-      "note": "DeJeune merged 3 PRs today building renderer app shell + tab architecture (#16202, #16211, #16187) — significant structural milestone",
-      "prs": [16202, 16211, 16187]
-    },
-    {
-      "type": "knowledge_feature",
-      "note": "eeee0717 merged knowledge add-source conflict dialog (#16189) — continuing knowledge v2 feature sprint",
-      "pr": 16189
+      "comments": 4,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16112"
     }
   ],
   "delta_from_yesterday": {
-    "open_issues": "-3 (944→941)",
-    "closed_30d": "-2 (409→407, likely API variance)",
-    "merged_prs_30d": "+16 (126→142)"
+    "open_issues": "+7 (941→948)",
+    "closed_30d": "-2 (407→405, API variance)",
+    "merged_prs_30d": "+4 (142→146)"
   }
 }

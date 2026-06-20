@@ -1,107 +1,153 @@
 {
-  "generated_at": "2026-06-19T18:00:00Z",
-  "snapshot_date": "2026-06-19",
-  "methodology": "Active=updated<30d; Aging=updated 30-90d; Stale=not updated in 90-180d; Zombie=not updated in 180d+",
+  "generated_at": "2026-06-20T00:00:00Z",
+  "snapshot_date": "2026-06-20",
+  "methodology": "Active=updated<7d; Aging=updated 7-90d; Stale=not updated 90-180d; Zombie=not updated 180d+",
   "health_distribution": {
-    "total_open": 941,
-    "active": {
-      "count": 577,
-      "pct": 61.3,
-      "definition": "Updated in last 30 days (since 2026-05-20)"
+    "total_open": 948,
+    "active_lt7d": {
+      "estimated_count": "~200+",
+      "note": "91 of top 100 (by recency) updated <7d; actual pool is larger across all 948"
     },
-    "not_updated_30d": {
-      "count": 364,
-      "pct": 38.7,
-      "note": "Includes aging, stale, and zombie"
+    "aging_7_90d": {
+      "estimated_count": "~607"
     },
-    "zombie_proxy": {
-      "count": 134,
-      "pct": 14.2,
-      "definition": "Created before 2025-12-18 (>6 months ago)"
+    "stale_90_180d": {
+      "count": 139,
+      "note": "99 of 100 sampled stale issues cluster near 100 days — evidence of mass bot-triage event in mid-March 2026"
     },
-    "very_old_proxy": {
-      "count": 22,
-      "pct": 2.3,
-      "definition": "Created before 2025-09-18 (>9 months ago)"
+    "zombie_gt180d": {
+      "count": 1,
+      "issues": [
+        {
+          "number": 11578,
+          "title": "Upgrade to the MCP protocol by November 25, 2025",
+          "days_stale": 201,
+          "labels": ["MCP"],
+          "comments": 0,
+          "action": "Safe to close — expired internal tracking task"
+        }
+      ]
     }
   },
   "closure_health": {
-    "last_30d_closed": 407,
-    "completion_rate_pct": 19.2,
-    "not_planned_rate_pct": 80.8,
-    "dominant_close_label": "inactive (auto-close after ~40d inactivity)",
-    "note": "~81% of closures are stale auto-closures, not resolutions. True resolution velocity remains low."
+    "last_30d_closed": 405,
+    "inactive_auto_closure_pct": 75,
+    "note": "~75% of closures are bot-driven 'inactive' sweeps, not genuine resolutions. True resolution velocity is lower than closure count implies."
   },
   "label_health": {
-    "no_label_open": 91,
-    "no_label_pct": 9.7,
-    "inactive_labeled": 30,
-    "needs_repro": 6,
-    "needs_more_info": 3,
-    "unactionable_total": 94,
-    "unactionable_pct": 10.0
+    "no_label_open": 93,
+    "no_label_pct": 9.8
   },
-  "high_engagement_open_bugs": [
-    {"number": 16142, "title": "日志文件占用17GB+，日志目录硬编码无法修改位置", "comments": 6, "created": "2026-06-17", "severity": "CRITICAL", "labels": ["needs-triage"]},
-    {"number": 14996, "title": "[Bug]: Using Qwen or Gemma local models to create agents frequently encounter errors", "comments": 9, "severity": "HIGH"},
-    {"number": 15293, "title": "[Bug]: deepseek-v4-pro only displays the last token", "comments": 5, "severity": "HIGH"},
-    {"number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models", "comments": 5, "severity": "HIGH"},
-    {"number": 16082, "title": "[Bug]: Agent auto-deleted — 29 sessions permanently lost", "comments": 0, "created": "2026-06-16", "severity": "CRITICAL"},
-    {"number": 15947, "title": "[Bug]: Auto-updater loop produces 26GB+ logs", "comments": 0, "created": "2026-06-10", "severity": "CRITICAL"},
-    {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "created": "2026-06-17", "severity": "CRITICAL"},
-    {"number": 16016, "title": "[Bug]: Agent fails with ECONNREFUSED when stale system proxy is set", "comments": 0, "created": "2026-06-12", "severity": "HIGH", "labels": ["BUG", "Connectivity", "internal_team"]},
-    {"number": 16203, "title": "[Bug]: Quick Assist not calling MCPs / Tools", "comments": 0, "created": "2026-06-18", "severity": "HIGH"},
-    {"number": 16210, "title": "[Bug]: Multi-turn searches return identical results", "comments": 0, "created": "2026-06-19", "severity": "HIGH"}
-  ],
-  "recently_closed_notable": [
-    {"number": 13629, "title": "[Bug]: Cannot select models when adding agent", "comments": 15, "closed": "2026-06-12", "resolution": "completed"},
-    {"number": 16142, "title": "[Bug] 日志文件占用17GB+", "comments": 6, "status": "STILL OPEN — monitoring"},
-    {"number": 14699, "title": "[Bug]: Agent tool no response for a long time", "comments": 8, "closed": "2026-06-10", "resolution": "not_planned"},
-    {"number": 13418, "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "comments": 5, "closed": "2026-06-17", "resolution": "not_planned"},
-    {"number": 14517, "title": "[Bug]: v1.9.2 Data Backup Failed", "comments": 5, "closed": "2026-06-12", "resolution": "not_planned"}
-  ],
-  "trend": {
-    "daily_close_recent": {
-      "2026-06-10": 15,
-      "2026-06-11": 4,
-      "2026-06-12": 18,
-      "2026-06-13": 1,
-      "2026-06-14": 7,
-      "2026-06-15": 22,
-      "2026-06-16": 12,
-      "2026-06-17": 13,
-      "2026-06-18": 6,
-      "2026-06-19": "TBD"
+  "critical_open_bugs": [
+    {
+      "number": 15947,
+      "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files",
+      "severity": "CRITICAL",
+      "labels": [],
+      "comments": 0,
+      "created": "2026-06-10",
+      "days_open": 10,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947",
+      "note": "C drive fills in <24h — disk exhaustion risk"
     },
-    "issues_created_last_7d": 59,
-    "delta_from_yesterday": {
-      "open_issues": "-3 (944→941)",
-      "closed_30d": "-2 (409→407)"
+    {
+      "number": 16142,
+      "title": "[Bug]: Log file occupies 17GB+, directory hardcoded (cannot be relocated)",
+      "severity": "CRITICAL",
+      "labels": ["needs-triage"],
+      "comments": 6,
+      "created": "2026-06-17",
+      "days_open": 3,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
+    },
+    {
+      "number": 16082,
+      "title": "[Bug]: Agent auto-deleted via internal API with all 29 sessions permanently lost",
+      "severity": "CRITICAL",
+      "labels": [],
+      "comments": 1,
+      "created": "2026-06-16",
+      "days_open": 4,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16082",
+      "note": "Data loss — hard delete (soft:false), no recovery path"
+    },
+    {
+      "number": 16112,
+      "title": "[Bug]: 上下文太大导致死机且无法恢复",
+      "severity": "CRITICAL",
+      "labels": ["Performance"],
+      "comments": 4,
+      "created": "2026-06-17",
+      "days_open": 3,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16112",
+      "note": "App hangs unrecoverably on large context — no kill path"
+    },
+    {
+      "number": 16203,
+      "title": "[Bug]: Quick Assist not calling MCPs / Tools",
+      "severity": "HIGH",
+      "labels": ["MCP"],
+      "comments": 2,
+      "created": "2026-06-18",
+      "days_open": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16203"
+    },
+    {
+      "number": 16210,
+      "title": "[Bug]: Multi-turn searches return identical results",
+      "severity": "HIGH",
+      "labels": [],
+      "comments": 0,
+      "created": "2026-06-19",
+      "days_open": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16210"
+    },
+    {
+      "number": 16016,
+      "title": "[Bug]: Agent ECONNREFUSED with stale system proxy",
+      "severity": "HIGH",
+      "labels": ["BUG", "Connectivity", "internal_team"],
+      "comments": 0,
+      "created": "2026-06-12",
+      "days_open": 8,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
     }
-  },
-  "open_pr_health": {
-    "total_returned": 100,
-    "fresh_0_6d": 28,
-    "aging_7_29d": 56,
-    "stale_30_89d": 12,
-    "very_stale_90d_plus": 4,
-    "unlabeled_pct": 93,
-    "oldest_pr": {"number": 11495, "age_days": 203, "base": "main"},
-    "stale_prs_needing_attention": [
-      {"number": 11495, "age_days": 203, "title": "feat: Implement shared provider utilities and Proxy Api Server"},
-      {"number": 12032, "age_days": 181, "title": "Fix trace problems"},
-      {"number": 12659, "age_days": 139, "title": "feat(backup): add v2 backup system refactor plan document"},
-      {"number": 12774, "age_days": 131, "title": "fix: restore textarea resize handle visibility"}
+  ],
+  "stale_issues_analysis": {
+    "total_stale_gt90d": 140,
+    "label_distribution": {
+      "BUG": 58,
+      "Models": 40,
+      "MCP": 13,
+      "UI/UX": 11,
+      "feature": 11,
+      "Data": 10,
+      "needs-repro": 8
+    },
+    "zero_comment_count": 33,
+    "high_community_interest_stale": [
+      {"number": 12618, "title": "Unable to properly configure Anthropic API", "days_stale": 100, "comments": 14},
+      {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter: messages", "days_stale": 100, "comments": 13},
+      {"number": 12168, "title": "Support cache for Gemini 3 Flash", "days_stale": 100, "comments": 9},
+      {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays last line (P1)", "days_stale": 92, "comments": 8}
     ]
   },
+  "open_pr_health": {
+    "total_open": 100,
+    "stale_prs_gt30d": 0,
+    "oldest_pr_days": 24,
+    "draft_count": 7,
+    "ready_to_merge_count": 2,
+    "stale_prs_needing_attention": []
+  },
   "action_items": [
-    "CRITICAL: Fix #15947 + #16142 (disk exhaustion via log loops — C drive filling up, multi-day reports)",
-    "CRITICAL: Triage #16082 (agent auto-delete lost 29 sessions — data loss, hard delete)",
-    "CRITICAL: Investigate #16112 (context-too-large causes unrecoverable hang)",
-    "HIGH: #16203 Quick Assist not calling MCP tools — core integration broken",
-    "HIGH: #16210 Multi-turn search returns identical results — new today",
-    "Review 91 unlabeled open issues (9.7% of backlog)",
-    "Close or triage 4 very-stale PRs (90+ days): #11495 (203d), #12032 (181d), #12659 (139d), #12774 (131d)",
-    "Address 134 zombie issues (created >6mo ago) — batch close or milestone planning"
+    "CRITICAL: #15947 + #16142 — disk exhaustion via log file loops (C drive fills in <24h). No fix merged.",
+    "CRITICAL: #16082 — agent auto-delete lost 29 sessions (data loss, hard delete). No fix merged.",
+    "CRITICAL: #16112 — context-overflow causes unrecoverable app hang.",
+    "HIGH: #16203 — Quick Assist silently skips MCP/tool calls.",
+    "HIGH: #16210 — multi-turn search returns identical results (new today).",
+    "Triage 93 unlabeled open issues (9.8% of backlog).",
+    "Re-triage P1 #13608 and #13193 — >90 days old, milestone closed.",
+    "Close #11578 — only zombie issue (201d, expired MCP deadline, 0 comments)."
   ]
 }
