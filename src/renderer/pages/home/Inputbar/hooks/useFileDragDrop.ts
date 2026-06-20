@@ -1,9 +1,8 @@
 import { loggerService } from '@logger'
+import { type ComposerAttachment, toComposerAttachments } from '@renderer/components/chat/composer/composerAttachment'
 import { useDrag } from '@renderer/hooks/useDrag'
-import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import { withComposerFileTokenSourceIds } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 
@@ -11,7 +10,7 @@ const logger = loggerService.withContext('useFileDragDrop')
 
 export interface UseFileDragDropOptions {
   supportedExts: string[]
-  setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void
+  setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onTextDropped?: (text: string) => void
   enabled?: boolean
   t: TFunction
@@ -68,7 +67,7 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
       if (droppedFiles) {
         const supportedFiles = await filterSupportedFiles(droppedFiles, options.supportedExts)
         if (supportedFiles.length > 0) {
-          options.setFiles((prevFiles) => [...prevFiles, ...withComposerFileTokenSourceIds(supportedFiles)])
+          options.setFiles((prevFiles) => [...prevFiles, ...toComposerAttachments(supportedFiles)])
         }
 
         // 如果有不支持的文件，显示提示

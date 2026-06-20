@@ -31,9 +31,10 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { FileMetadata, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
+import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -47,6 +48,7 @@ import { Bot } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerAttachment } from '../composerAttachment'
 import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -89,7 +91,6 @@ interface ChatComposerProps {
   onSend: (
     text: string,
     options?: {
-      files?: FileMetadata[]
       mentionedModels?: UniqueModelId[]
       knowledgeBaseIds?: KnowledgeBase['id'][]
       userMessageParts?: CherryMessagePart[]
@@ -118,7 +119,7 @@ const emptyActions: ProviderActionHandlers = {
 interface SavedComposerDraft {
   text: string
   draftTokens: ComposerSerializedToken[]
-  files: FileMetadata[]
+  files: ComposerAttachment[]
   selectedKnowledgeBases: KnowledgeBase[]
 }
 
@@ -710,11 +711,12 @@ const ChatComposerInner = ({
       setIsSending(true)
 
       try {
+        const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        const fileParts = await buildFilePartsForAttachments(attachments)
         await onSend(payload.text, {
-          files: payload.files as FileMetadata[] | undefined,
           mentionedModels: payload.mentionedModels,
           knowledgeBaseIds: payload.knowledgeBaseIds,
-          userMessageParts: payload.userMessageParts
+          userMessageParts: [...payload.userMessageParts, ...fileParts]
         })
         return true
       } catch (error) {
@@ -756,24 +758,24 @@ const ChatComposerInner = ({
     (item: FollowupQueueItem) => {
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
-      setFiles((item.payload.files as FileMetadata[] | undefined) ?? [])
+      setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => item.payload.knowledgeBaseIds?.includes(base.id)))
     },
     [allKnowledgeBases, setFiles, setSelectedKnowledgeBases, setText]
   )
 
   const buildEditedMessageParts = useCallback(
-    (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft) => {
       const tokenIds = getComposerTokenIds(draft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
       const originalFilePartsByTokenId = editingOriginalFilePartsByTokenIdRef.current
 
       const newFiles = payloadFiles.filter((file) => !originalFilePartsByTokenId.has(chatComposerTokenId.file(file)))
-      const rebuiltParts = createComposerUserMessageParts(draft, { files: newFiles })
-      const textPart = rebuiltParts[0]
+      const [textPart] = createComposerUserMessageParts(draft)
+      const newFileParts = await buildFilePartsForAttachments(newFiles)
       const rebuiltFileParts = new Map<string, CherryMessagePart>()
 
-      rebuiltParts.slice(1).forEach((part, index) => {
+      newFileParts.forEach((part, index) => {
         const file = newFiles[index]
         if (file) rebuiltFileParts.set(chatComposerTokenId.file(file), part)
       })
@@ -807,7 +809,7 @@ const ChatComposerInner = ({
           return
         }
 
-        const editedParts = buildEditedMessageParts(draft)
+        const editedParts = await buildEditedMessageParts(draft)
         try {
           await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, editedParts)
           restoreSavedDraft()

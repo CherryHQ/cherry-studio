@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
+  createComposerAttachmentFromComposerClipboardToken,
   createComposerClipboardFragment,
   createComposerRichClipboardContentFromDraft,
   createComposerRichClipboardContentFromPartGroups,
   createComposerRichClipboardContentFromParts,
-  createFileMetadataFromComposerClipboardToken,
   readComposerClipboardFragment,
   readComposerClipboardFragmentFromSessionCache,
   writeComposerRichClipboardContent
@@ -102,9 +102,8 @@ describe('composer clipboard', () => {
     const segment = fragment?.segments[0]
     expect(segment?.type).toBe('token')
     if (segment?.type === 'token') {
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toEqual(
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toEqual(
         expect.objectContaining({
-          id: 'file-entry-image',
           fileTokenSourceId: 'source-image',
           path: '/Users/example/private/default-topic.png',
           type: 'image'
@@ -143,7 +142,7 @@ describe('composer clipboard', () => {
       expect(segment?.type).toBe('token')
       if (segment?.type === 'token') {
         expect(segment.token.payload).not.toHaveProperty('handle')
-        expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+        expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
       }
     } finally {
       vi.unstubAllGlobals()
@@ -176,11 +175,11 @@ describe('composer clipboard', () => {
       expect(segment?.type).toBe('token')
       if (segment?.type !== 'token') return
 
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).not.toBeNull()
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).not.toBeNull()
 
       vi.advanceTimersByTime(30 * 60 * 1000 + 1)
 
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
     } finally {
       vi.useRealTimers()
     }
@@ -208,7 +207,7 @@ describe('composer clipboard', () => {
     expect(segment?.type).toBe('token')
     if (segment?.type === 'token') {
       expect(segment.token.payload).not.toHaveProperty('handle')
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
     }
   })
 
@@ -239,7 +238,7 @@ describe('composer clipboard', () => {
     expect(segment?.type).toBe('token')
     if (segment?.type === 'token') {
       expect(segment.token.payload).not.toHaveProperty('handle')
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
     }
   })
 
@@ -374,7 +373,7 @@ describe('composer clipboard', () => {
     const segment = fragment?.segments[0]
     expect(segment?.type).toBe('token')
     if (segment?.type === 'token') {
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
     }
   })
 
@@ -558,7 +557,7 @@ describe('composer clipboard', () => {
     const segment = readComposerClipboardFragment(fragmentText)?.segments[0]
     expect(segment?.type).toBe('token')
     if (segment?.type === 'token') {
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toEqual(
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toEqual(
         expect.objectContaining({
           fileTokenSourceId: 'source-report',
           path: '/Users/example/private/report.pdf',
@@ -615,7 +614,7 @@ describe('composer clipboard', () => {
 
     expect(segment?.type).toBe('token')
     if (segment?.type === 'token') {
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toEqual(
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toEqual(
         expect.objectContaining({
           fileTokenSourceId: 'source-report-win',
           path: 'C:/Users/example/private/report.pdf'
@@ -687,7 +686,7 @@ describe('composer clipboard', () => {
       }
     })
     if (segment?.type === 'token') {
-      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
     }
   })
 

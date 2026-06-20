@@ -33,10 +33,11 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { FileMetadata, LocalSkill, ThinkingOption } from '@renderer/types'
+import type { LocalSkill, ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -46,6 +47,7 @@ import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from '
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerAttachment } from '../composerAttachment'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
@@ -190,7 +192,7 @@ const AgentComposerRoot = ({
     () => ({
       mentionedModels: [],
       selectedKnowledgeBases: [],
-      files: [] as FileMetadata[],
+      files: [] as ComposerAttachment[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
@@ -757,9 +759,11 @@ const AgentComposerInner = ({
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
       try {
+        const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        const fileParts = await buildFilePartsForAttachments(attachments)
         await chatSendMessage(
           { text: payload.text },
-          { body: { agentId, sessionId, userMessageParts: payload.userMessageParts } }
+          { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         return true
@@ -802,7 +806,7 @@ const AgentComposerInner = ({
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       setText(item.draft.text)
-      setFiles((item.payload.files as FileMetadata[] | undefined) ?? [])
+      setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(item.draft.tokens.filter((token) => token.kind === 'skill').map(getSkillFromCachedToken))
     },
     [setFiles, setText]
@@ -1044,7 +1048,7 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
     () => ({
       mentionedModels: [],
       selectedKnowledgeBases: [],
-      files: [] as FileMetadata[],
+      files: [] as ComposerAttachment[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]

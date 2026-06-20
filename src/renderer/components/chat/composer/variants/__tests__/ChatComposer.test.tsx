@@ -609,6 +609,16 @@ describe('ChatComposer', () => {
       configurable: true,
       value: { error: mocks.toastError }
     })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        file: {
+          createInternalEntry: vi.fn(async () => ({ id: 'fe-1', ext: 'pdf' })),
+          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf'),
+          getMetadata: vi.fn(async () => ({ kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 }))
+        }
+      }
+    })
   })
 
   afterEach(() => {
@@ -1053,7 +1063,20 @@ describe('ChatComposer', () => {
       })
     })
 
-    expect(onSend).toHaveBeenCalledWith('quoted text follow up', expect.objectContaining({ files: [cachedFile] }))
+    // The FileEntry is created at send time: the sent file part carries fileEntryId + a file:// url
+    // + a real MIME, not the raw path / literal extension.
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/doc.pdf' })
+    const sentOptions = onSend.mock.calls[0]?.[1]
+    expect(sentOptions?.userMessageParts).toEqual([
+      expect.objectContaining({ type: 'text', text: 'quoted text follow up' }),
+      {
+        type: 'file',
+        url: 'file:///p/fe-1.pdf',
+        mediaType: 'application/pdf',
+        filename: 'doc.pdf',
+        providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      }
+    ])
   })
 
   it('does not restore knowledge tokens from the draft cache', () => {
@@ -1075,7 +1098,12 @@ describe('ChatComposer', () => {
   })
 
   it('persists the live draft minus knowledge tokens with the current files', async () => {
-    const cachedFile = { id: 'file-1', name: 'doc.pdf', origin_name: 'doc.pdf', fileTokenSourceId: 'source-1' } as any
+    const cachedFile = {
+      name: 'doc.pdf',
+      origin_name: 'doc.pdf',
+      path: '/tmp/doc.pdf',
+      fileTokenSourceId: 'source-1'
+    } as any
     const cachedFileToken = {
       id: 'file:source-1',
       kind: 'file',
@@ -1673,7 +1701,6 @@ describe('ChatComposer', () => {
     expect(fileToken).toBeDefined()
     expect(fileToken?.id).toMatch(/^file:.+/)
     expect(fileToken?.id).not.toBe('file:file-entry-1')
-    expect((fileToken?.payload as any)?.id).toBe('file-entry-1')
     expect((fileToken?.payload as any)?.fileTokenSourceId).not.toBe('file-entry-1')
 
     await act(async () => {

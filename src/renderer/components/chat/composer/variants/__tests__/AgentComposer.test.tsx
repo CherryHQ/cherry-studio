@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
+  createInternalEntry: vi.fn(),
+  getPhysicalPath: vi.fn(),
+  getMetadata: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -414,12 +417,21 @@ describe('AgentComposer', () => {
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
     vi.mocked(cacheService.setCasual).mockReset()
+    mocks.createInternalEntry.mockReset()
+    mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
+    mocks.getPhysicalPath.mockReset()
+    mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
+    mocks.getMetadata.mockReset()
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
     window.api = {
       ...window.api,
       file: {
         ...window.api.file,
         isDirectory: mocks.isDirectory,
-        listDirectory: mocks.listDirectory
+        listDirectory: mocks.listDirectory,
+        createInternalEntry: mocks.createInternalEntry,
+        getPhysicalPath: mocks.getPhysicalPath,
+        getMetadata: mocks.getMetadata
       }
     }
     mocks.updateModel.mockReset()
@@ -630,7 +642,7 @@ describe('AgentComposer', () => {
   it('marks already selected workspace resources as disabled', async () => {
     mocks.files = [
       {
-        id: '/workspace/docs/notes.md',
+        fileTokenSourceId: 'source-notes',
         name: 'notes.md',
         origin_name: 'notes.md',
         path: '/workspace/docs/notes.md'
@@ -960,7 +972,7 @@ describe('AgentComposer', () => {
     // only asserts the agent-owned skill reconcile keeps the skill when a file token is removed.
   })
 
-  it('sends a draft that only contains a skill token', () => {
+  it('sends a draft that only contains a skill token', async () => {
     mocks.draftText = 'Use the pdf skill.'
     mocks.draftTokens = [
       {
@@ -982,6 +994,7 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'Use the pdf skill.' },
       {
@@ -1017,7 +1030,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('bridges file tokens into the existing agent session message text protocol', () => {
+  it('bridges file tokens into the existing agent session message text protocol', async () => {
     mocks.files = [file]
     render(
       <AgentComposer
@@ -1031,6 +1044,10 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
+    // The FileEntry is created at send time: the file part carries fileEntryId + a file:// url
+    // + a real MIME, not the raw path / literal extension.
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/notes.md' })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
@@ -1061,12 +1078,12 @@ describe('AgentComposer', () => {
             },
             {
               type: 'file',
-              url: '/tmp/notes.md',
-              mediaType: 'application/octet-stream',
+              url: 'file:///p/fe-1.png',
+              mediaType: 'text/markdown',
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
-                  fileTokenSourceId: 'source-file-1'
+                  fileEntryId: 'fe-1'
                 }
               }
             }
@@ -1428,7 +1445,7 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 })
 

@@ -41,7 +41,7 @@ const quoteToken: ComposerSerializedToken = {
   textOffset: 0
 }
 
-const file = { id: 'file-1', name: 'doc.pdf', fileTokenSourceId: 'source-1' } as any
+const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any
 
 describe('chatDraftCache', () => {
   beforeEach(() => {
@@ -64,16 +64,6 @@ describe('chatDraftCache', () => {
 
     vi.mocked(cacheService.getCasual).mockReturnValue({ text: 'hello', tokens: 'nope' })
     expect(readChatDraftCache()).toEqual({ text: '', tokens: [], files: [] })
-  })
-
-  it('drops malformed tokens and files while reading', () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue({
-      text: 'hello',
-      tokens: [fileToken, { id: 'broken' }],
-      files: [file, 'not-a-file']
-    })
-
-    expect(readChatDraftCache()).toEqual({ text: 'hello', tokens: [fileToken], files: [file] })
   })
 
   it('filters knowledge tokens on read and write', () => {

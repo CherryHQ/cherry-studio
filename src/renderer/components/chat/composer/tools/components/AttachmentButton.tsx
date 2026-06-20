@@ -1,7 +1,6 @@
+import { type ComposerAttachment, toComposerAttachments } from '@renderer/components/chat/composer/composerAttachment'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
-import { withComposerFileTokenSourceIds } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import { Paperclip } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -11,8 +10,8 @@ interface Props {
   launcher: ToolLauncherApi
   couldAddImageFile: boolean
   extensions: string[]
-  files: FileMetadata[]
-  setFiles: Dispatch<SetStateAction<FileMetadata[]>>
+  files: ComposerAttachment[]
+  setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
   disabled?: boolean
 }
 
@@ -41,12 +40,12 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
 
     if (_files) {
       if (!useAllFiles) {
-        setFiles([...files, ...withComposerFileTokenSourceIds(_files)])
+        setFiles([...files, ...toComposerAttachments(_files)])
         return
       }
       const supportedFiles = await filterSupportedFiles(_files, extensions)
       if (supportedFiles.length > 0) {
-        setFiles([...files, ...withComposerFileTokenSourceIds(supportedFiles)])
+        setFiles([...files, ...toComposerAttachments(supportedFiles)])
       }
 
       if (supportedFiles.length !== _files.length) {

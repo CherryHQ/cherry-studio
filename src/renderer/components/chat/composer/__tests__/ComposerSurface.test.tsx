@@ -2110,7 +2110,7 @@ describe('ComposerSurface', () => {
           kind: 'file',
           label: 'report.pdf',
           payload: expect.objectContaining({
-            id: 'file-1',
+            fileTokenSourceId: 'file-1',
             path: '/Users/example/private/report.pdf',
             type: 'document'
           })
@@ -2120,7 +2120,7 @@ describe('ComposerSurface', () => {
     const updater = setFiles.mock.calls[0]?.[0] as (files: unknown[]) => unknown[]
     expect(updater([])).toEqual([
       expect.objectContaining({
-        id: 'file-1',
+        fileTokenSourceId: 'file-1',
         path: '/Users/example/private/report.pdf',
         type: 'document'
       })

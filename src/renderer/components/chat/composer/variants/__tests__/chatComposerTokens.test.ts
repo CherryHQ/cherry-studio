@@ -1,7 +1,7 @@
-import type { FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
+import type { ComposerAttachment } from '../../composerAttachment'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -12,12 +12,11 @@ import {
 describe('chat composer token mapping', () => {
   it('maps files and knowledge bases to stable composer token ids', () => {
     const file = {
-      id: 'file-1',
       fileTokenSourceId: 'source-file-1',
       name: 'chat.ts',
       origin_name: 'chat.ts',
       path: '/tmp/chat.ts'
-    } as FileMetadata
+    } as ComposerAttachment
     const knowledgeBase = { id: 'kb-1', name: 'Docs' } as KnowledgeBase
 
     expect(fileToComposerToken(file)).toMatchObject({
@@ -35,34 +34,15 @@ describe('chat composer token mapping', () => {
   })
 
   it('uses the unguessable file token source id instead of the file path', () => {
-    const file = { id: '', fileTokenSourceId: 'source-fallback', path: '/tmp/fallback.txt' } as FileMetadata
+    const file = { fileTokenSourceId: 'source-fallback', path: '/tmp/fallback.txt' } as ComposerAttachment
 
     expect(chatComposerTokenId.file(file)).toBe('file:source-fallback')
   })
 
   it('does not create a fixed fallback token id for files without a source id', () => {
-    const file = { id: 'file-1', path: '/tmp/chat.ts' } as FileMetadata
+    const file = { path: '/tmp/chat.ts' } as ComposerAttachment
 
     expect(() => chatComposerTokenId.file(file)).toThrow('fileTokenSourceId')
-  })
-
-  it('creates a file token source id instead of reusing the file id', () => {
-    const file = {
-      id: 'file-1',
-      name: 'chat.ts',
-      origin_name: 'chat.ts',
-      path: '/tmp/chat.ts'
-    } as FileMetadata
-
-    const token = fileToComposerToken(file)
-
-    expect(token.id).toMatch(/^file:.+/)
-    expect(token.id).not.toBe('file:file-1')
-    expect(token.payload).toMatchObject({
-      id: 'file-1',
-      fileTokenSourceId: expect.any(String)
-    })
-    expect((token.payload as FileMetadata).fileTokenSourceId).not.toBe(file.id)
   })
 
   it('extracts token ids by kind', () => {

@@ -1,13 +1,12 @@
-import type { FileMetadata } from '@renderer/types'
 import {
   composerFileTokenIdFromSourceId,
-  getComposerFileTokenSourceId,
-  withComposerFileTokenSourceId
+  getComposerFileTokenSourceId
 } from '@renderer/utils/messageUtils/composerFileTokenSource'
 
+import type { ComposerAttachment } from '../../composerAttachment'
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
-export const composerFileTokenId = (file: Pick<FileMetadata, 'fileTokenSourceId'>) => {
+export const composerFileTokenId = (file: Pick<ComposerAttachment, 'fileTokenSourceId'>) => {
   const sourceId = getComposerFileTokenSourceId(file)
   if (!sourceId) {
     throw new Error('fileTokenSourceId is required to create a composer file token id')
@@ -15,13 +14,12 @@ export const composerFileTokenId = (file: Pick<FileMetadata, 'fileTokenSourceId'
   return composerFileTokenIdFromSourceId(sourceId)
 }
 
-export function fileToComposerToken(file: FileMetadata): ComposerDraftToken {
-  const sourceFile = withComposerFileTokenSourceId(file)
+export function fileToComposerToken(file: ComposerAttachment): ComposerDraftToken {
   return {
-    id: composerFileTokenId(sourceFile),
+    id: composerFileTokenId(file),
     kind: 'file',
-    label: sourceFile.origin_name || sourceFile.name,
-    payload: sourceFile
+    label: file.origin_name || file.name,
+    payload: file
   }
 }
 

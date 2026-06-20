@@ -1,3 +1,4 @@
+import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,8 +49,8 @@ describe('PasteService', () => {
   it('marks long pasted text files with the pasted-text composer kind', async () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
-    let files: FileMetadata[] = []
-    const setFiles = vi.fn((updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => {
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
     const event = {
@@ -70,10 +71,14 @@ describe('PasteService', () => {
     expect(window.api.file.write).toHaveBeenCalledWith('/tmp/pasted_text.txt', clipboardText)
     expect(files).toEqual([
       {
-        ...selectedFile,
+        fileTokenSourceId: expect.any(String),
+        path: selectedFile.path,
+        name: selectedFile.name,
         origin_name: '已粘贴的文本.txt',
-        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT,
-        fileTokenSourceId: expect.any(String)
+        ext: selectedFile.ext,
+        size: selectedFile.size,
+        type: selectedFile.type,
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
       }
     ])
     expect(files[0]?.fileTokenSourceId).not.toBe(selectedFile.id)

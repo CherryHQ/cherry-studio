@@ -6,7 +6,6 @@ import type {
   ComposerMessageToken,
   ComposerMessageTokenPayload
 } from '@shared/data/types/uiParts'
-import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
@@ -31,16 +30,6 @@ type RestoredComposerToken = Omit<ComposerMessageToken, 'index' | 'textOffset'> 
   payload?: ComposerMessageTokenPayload & {
     restoredTextSuffix?: string
   }
-}
-
-interface ComposerFilePartSource {
-  fileTokenSourceId?: string
-  path?: string
-  url?: string
-  ext?: string
-  name?: string
-  origin_name?: string
-  providerMetadata?: Extract<CherryMessagePart, { type: 'file' }>['providerMetadata']
 }
 
 function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
@@ -254,31 +243,11 @@ function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot
   } as unknown as CherryMessagePart
 }
 
-function createComposerFilePart(file: ComposerFilePartSource): CherryMessagePart | undefined {
-  const url = file.path ?? file.url
-  if (!url) return undefined
-
-  const part = {
-    type: 'file',
-    url,
-    mediaType: file.ext ?? 'application/octet-stream',
-    filename: file.origin_name ?? file.name,
-    ...(file.providerMetadata && { providerMetadata: file.providerMetadata })
-  } as CherryMessagePart
-
-  return file.fileTokenSourceId ? withCherryMeta(part, { fileTokenSourceId: file.fileTokenSourceId }) : part
-}
-
-export function createComposerUserMessageParts(
-  draft: ComposerSerializedDraft,
-  options: { files?: readonly ComposerFilePartSource[] } = {}
-): CherryMessagePart[] {
-  const parts: CherryMessagePart[] = [createComposerTextPart(draft.text, createComposerMessageSnapshot(draft))]
-
-  for (const file of options.files ?? []) {
-    const filePart = createComposerFilePart(file)
-    if (filePart) parts.push(filePart)
-  }
-
-  return parts
+/**
+ * Builds the user message parts from a serialized draft. Returns only the text
+ * part (carrying the composer snapshot). File parts are created at send time
+ * from `ComposerAttachment`s via `buildFilePartsForAttachments`, not here.
+ */
+export function createComposerUserMessageParts(draft: ComposerSerializedDraft): CherryMessagePart[] {
+  return [createComposerTextPart(draft.text, createComposerMessageSnapshot(draft))]
 }

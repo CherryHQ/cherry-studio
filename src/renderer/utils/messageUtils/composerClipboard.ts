@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { type ComposerAttachment, toComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
@@ -594,13 +595,16 @@ export function createComposerRichClipboardContentFromPartGroups(
   })
 }
 
-export function createFileMetadataFromComposerClipboardToken(token: ComposerClipboardToken): FileMetadata | null {
+export function createComposerAttachmentFromComposerClipboardToken(
+  token: ComposerClipboardToken
+): ComposerAttachment | null {
   if (token.kind !== 'file' || !token.payload?.handle) return null
 
   const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
   if (!sourceId) return null
 
-  return resolveFileRestorationHandle(token.payload.handle, sourceId)
+  const file = resolveFileRestorationHandle(token.payload.handle, sourceId)
+  return file ? toComposerAttachment(file) : null
 }
 
 export function readComposerClipboardFragment(value: string): ComposerClipboardFragment | null {

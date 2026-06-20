@@ -1,11 +1,11 @@
-import type { FileMetadata } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
+import type { ComposerAttachment } from '../../../composerAttachment'
 import type { ComposerSerializedToken } from '../../../tokens'
 import attachmentTool from '../attachmentTool'
 
-const file = (id: string): FileMetadata =>
-  ({ id: `entry-${id}`, fileTokenSourceId: `source-${id}`, path: `/tmp/${id}` }) as FileMetadata
+const file = (id: string): ComposerAttachment =>
+  ({ fileTokenSourceId: `source-${id}`, path: `/tmp/${id}` }) as ComposerAttachment
 const fileToken = (id: string): ComposerSerializedToken => ({
   id: `file:source-${id}`,
   kind: 'file',
@@ -14,13 +14,13 @@ const fileToken = (id: string): ComposerSerializedToken => ({
   textOffset: 0
 })
 
-function runReconcile(draft: ComposerSerializedToken[], prev: FileMetadata[]): FileMetadata[] {
+function runReconcile(draft: ComposerSerializedToken[], prev: ComposerAttachment[]): ComposerAttachment[] {
   const reconcile = attachmentTool.composer?.tokens?.reconcile
   if (!reconcile) throw new Error('attachmentTool must contribute tokens.reconcile')
   let result = prev
   const context = {
     actions: {
-      setFiles: (updater: FileMetadata[] | ((p: FileMetadata[]) => FileMetadata[])) => {
+      setFiles: (updater: ComposerAttachment[] | ((p: ComposerAttachment[]) => ComposerAttachment[])) => {
         result = typeof updater === 'function' ? updater(prev) : updater
       }
     }

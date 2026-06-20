@@ -1,6 +1,6 @@
-import type { FileMetadata } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ComposerAttachment } from '../../../composerAttachment'
 import type { ComposerSerializedDraft } from '../../../tokens'
 import { buildComposerQueuedPayload } from '../composerQueuedPayload'
 
@@ -8,8 +8,8 @@ vi.mock('../../../composerDraft', () => ({
   createComposerUserMessageParts: vi.fn((draft: ComposerSerializedDraft) => [{ type: 'text', text: draft.text }])
 }))
 
-const file = (id: string): FileMetadata => ({ id, path: `/tmp/${id}` }) as FileMetadata
-const fileTokenId = (f: FileMetadata) => `file:${f.id || f.path}`
+const file = (id: string): ComposerAttachment => ({ fileTokenSourceId: id, path: `/tmp/${id}` }) as ComposerAttachment
+const fileTokenId = (f: ComposerAttachment) => `file:${f.fileTokenSourceId}`
 
 const draft = (text: string, tokenIds: string[] = []): ComposerSerializedDraft => ({
   text,
@@ -35,7 +35,8 @@ describe('buildComposerQueuedPayload', () => {
     const result = buildComposerQueuedPayload(draft('', ['file:a']), { files: [file('a')], fileTokenId })
 
     expect(result).not.toBeNull()
-    expect(result?.files).toHaveLength(1)
+    expect(result?.attachments).toHaveLength(1)
+    expect(result?.userMessageParts).toEqual([{ type: 'text', text: '' }])
   })
 
   it('attaches only files still present as draft tokens', () => {
@@ -48,7 +49,8 @@ describe('buildComposerQueuedPayload', () => {
       requireText: true
     })
 
-    expect(result?.files).toEqual([kept])
+    expect(result?.attachments).toEqual([kept])
+    expect(result?.userMessageParts).toEqual([{ type: 'text', text: 'hi' }])
   })
 
   it('trims text and merges variant-specific extra fields', () => {
