@@ -117,7 +117,7 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
       <div>
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
         <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
-        <div data-testid="composer-send-accessory">{props.renderSendAccessory?.()}</div>
+        <div data-testid="composer-send-accessory">{props.sendAccessory}</div>
         <button
           type="button"
           onClick={() =>

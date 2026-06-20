@@ -931,7 +931,7 @@ const AgentComposerInner = ({
         rootPanelAdditionalItems={rootPanelSkillItems}
         onRootPanelOpen={handleRootPanelOpen}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderSendAccessory={() => <AgentComposerContextUsage model={model} sessionId={sessionId} />}
+        sendAccessory={<AgentComposerContextUsage model={model} sessionId={sessionId} />}
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>

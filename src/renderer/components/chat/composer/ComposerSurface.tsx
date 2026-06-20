@@ -126,7 +126,7 @@ export interface ComposerSurfaceProps {
   onToolLauncherSelect?: ComposerRootPanelSelectHandler
   renderLeftControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
   renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
-  renderSendAccessory?: () => React.ReactNode
+  sendAccessory?: React.ReactNode
 }
 
 function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSerializedToken) => boolean) {
@@ -464,7 +464,7 @@ export default function ComposerSurface({
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls,
-  renderSendAccessory
+  sendAccessory
 }: ComposerSurfaceProps) {
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
@@ -1451,7 +1451,7 @@ export default function ComposerSurface({
         className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
         <div className="flex flex-row items-center gap-1.5">
-          {renderSendAccessory?.()}
+          {sendAccessory}
           {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button

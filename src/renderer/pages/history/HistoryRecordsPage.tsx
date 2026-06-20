@@ -41,20 +41,19 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { useTranslation } from 'react-i18next'
 
 import HistoryQueryForm, { type HistoryBulkMoveTarget } from './components/HistoryQueryForm'
-import HistoryResultList from './components/HistoryResultList'
+import HistorySessionResultList from './components/HistorySessionResultList'
 import HistorySourceSidebar, {
   type HistorySourceItem,
   type HistorySourceStatus,
   type HistoryStatusItem
 } from './components/HistorySourceSidebar'
+import HistoryTopicResultList from './components/HistoryTopicResultList'
 
 export type HistoryRecordsMode = 'assistant' | 'agent'
 
 const ALL_SOURCE_ID = 'all'
 const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
 const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
-const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
-const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
 const logger = loggerService.withContext('HistoryRecordsPage')
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 type HistoryTopicItem = ApiTopic & {
@@ -481,12 +480,9 @@ const AssistantHistoryRecordsContent = ({
       onBulkMove={handleBulkMoveTopics}
       onSearchTextChange={setSearchText}
       onSourceSelect={setSelectedSourceId}>
-      <HistoryResultList
-        mode="assistant"
+      <HistoryTopicResultList
         topics={searchedTopics}
-        sessions={[]}
         assistantById={assistantById}
-        agentById={EMPTY_AGENT_BY_ID}
         unlinkedAssistantLabel={unlinkedAssistantLabel}
         isLoading={isTopicsLoading}
         isTopicPinned={isTopicPinned}
@@ -714,13 +710,9 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       onSearchTextChange={setSearchText}
       onSourceSelect={setSelectedSourceId}
       onStatusSelect={setSelectedStatus}>
-      <HistoryResultList
-        mode="agent"
-        topics={[]}
+      <HistorySessionResultList
         sessions={searchedSessions}
-        assistantById={EMPTY_ASSISTANT_BY_ID}
         agentById={agentById}
-        unlinkedAssistantLabel=""
         isLoading={isSessionsLoading}
         isSessionPinned={isSessionPinned}
         selectedSessionIds={selectedSessionIds}
