@@ -1,5 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
-import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import { type MarkdownSource, Tooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check } from 'lucide-react'

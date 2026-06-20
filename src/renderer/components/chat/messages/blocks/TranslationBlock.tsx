@@ -1,4 +1,4 @@
-import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import type { MarkdownSource } from '@cherrystudio/ui'
 import React, { useMemo } from 'react'
 
 import MessageTranslate from './MessageTranslate'

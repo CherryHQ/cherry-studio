@@ -1,6 +1,6 @@
-import '@cherrystudio/ui/composites/markdown/styles'
+import '@cherrystudio/ui/components/composites/markdown/styles'
 
-import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui/composites/markdown'
+import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
