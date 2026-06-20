@@ -7,7 +7,7 @@ import { getFileExt } from '@main/utils/file'
 import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { knowledgeFileProcessingExts } from '@shared/config/constant'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
 

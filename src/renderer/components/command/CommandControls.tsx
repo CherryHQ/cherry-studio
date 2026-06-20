@@ -1,7 +1,7 @@
 import { Button, Kbd, Tooltip, type TooltipProps } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useResolvedCommand } from '@renderer/hooks/command'
-import type { CommandId } from '@shared/command'
+import type { CommandId } from '@shared/utils/command'
 import type React from 'react'
 
 export function CommandShortcut({

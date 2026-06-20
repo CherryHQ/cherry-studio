@@ -146,7 +146,7 @@ This document describes the **target** architecture. The renderer has not yet be
 **Already aligned:**
 
 - `packages/ui` has no back-imports from `@renderer/*` (the primitive layer is clean).
-- The command capability is decomposed by shape with no `component`/`hook → feature` edges: the renderer cells (`utils/command`, `hooks/command`, `components/command`) are in place. Its cross-process cell currently sits at the top-level `@shared/command` and is slated to dissolve into `@shared/utils/command` + `@shared/types/command` — tracked in [Shared Layer Architecture §6](./shared-layer-architecture.md).
+- The command capability is decomposed by shape with no `component`/`hook → feature` edges: the renderer cells (`utils/command`, `hooks/command`, `components/command`) are in place, and its cross-process cell is split into `@shared/utils/command` (logic + `ContextKeyService`/`MenuRegistry` blueprints) and `@shared/types/command` (types) per [Shared Layer Architecture](./shared-layer-architecture.md).
 
 **Pending (current deviations from the target):**
 

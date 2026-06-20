@@ -1,3 +1,4 @@
+import type { RegisteredKeybindingRule } from '@shared/types/command'
 import { describe, expect, it } from 'vitest'
 
 import { parseContextExpr } from '../contextExpr'
@@ -16,7 +17,6 @@ import {
   resolveCommandKeybinding,
   resolveCommandShortcutPreference
 } from '../keybindings'
-import type { RegisteredKeybindingRule } from '../types'
 
 const testRule = (
   command: CommandId,

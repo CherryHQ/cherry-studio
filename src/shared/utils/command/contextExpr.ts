@@ -1,4 +1,4 @@
-import type { ContextExpr, ContextReader, ContextValue } from './types'
+import type { ContextExpr, ContextReader, ContextValue } from '@shared/types/command'
 
 type ContextLiteral = string | number | boolean
 type ConstraintPolarity = 'truthy' | 'falsy'

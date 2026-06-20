@@ -16,7 +16,7 @@
  * input shape is no longer reachable.
  */
 import type OpenAI from '@cherrystudio/openai'
-import { type FileType, FileTypeSchema } from '@shared/file/types'
+import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 export interface FileMetadata {

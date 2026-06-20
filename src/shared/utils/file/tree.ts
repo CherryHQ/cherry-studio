@@ -19,9 +19,8 @@
  * renderer-side after the tree mirror has been built — see directory-tree.md §9.
  */
 
+import type { FilePath } from '@shared/types/file'
 import * as z from 'zod'
-
-import type { FilePath } from './common'
 
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import type { ExternalAppConfig } from '../types'
+import type { ExternalAppConfig } from '@shared/types/externalApp'
 
 export const EXTERNAL_APPS = [
   { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'] },

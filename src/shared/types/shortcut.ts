@@ -1,6 +1,5 @@
 import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-
-import type { ShortcutBinding } from './tokens'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 /** Preference keys under the `shortcut.` namespace (one per command). */
 export type ShortcutPreferenceKey = Extract<PreferenceKeyType, `shortcut.${string}`>

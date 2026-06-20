@@ -1,11 +1,12 @@
-import { parseContextExpr } from './contextExpr'
 import type {
   CommandDefinition,
   CommandShortcutPreferenceKey,
   KeybindingRule,
   RegisteredCommandDefinition,
   RegisteredKeybindingRule
-} from './types'
+} from '@shared/types/command'
+
+import { parseContextExpr } from './contextExpr'
 
 const defineCommand = <const T extends CommandDefinition>(definition: T): T => definition
 

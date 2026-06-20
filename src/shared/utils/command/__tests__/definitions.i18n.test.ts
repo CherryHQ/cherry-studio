@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import enUs from '../../../renderer/i18n/locales/en-us.json'
+import enUs from '../../../../renderer/i18n/locales/en-us.json'
 import { COMMAND_DEFINITIONS } from '../definitions'
 
 // en-us.json is the i18n base locale; resolve a dotted key into its nested value.

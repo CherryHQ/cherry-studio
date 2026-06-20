@@ -540,7 +540,7 @@ export interface FileIpcApi {
   //
   // For the `file://` URL that used to be served via `includeUrl`, callers
   // now compose it in-process via the shared `toSafeFileUrl(path, ext)` helper
-  // in `@shared/file/urlUtil` — a pure formatting layer over the `FilePath`
+  // in `@shared/utils/file/urlUtil` — a pure formatting layer over the `FilePath`
   // returned by `getPhysicalPath`, so it needs no IPC of its own.
   //
   // Each method has a single-item and a batch form. Prefer the batch form when

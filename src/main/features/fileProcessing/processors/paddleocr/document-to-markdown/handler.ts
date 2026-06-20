@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 
 import type { JobStatus } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
