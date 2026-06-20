@@ -15,126 +15,61 @@ import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowle
 import { DEFAULT_SOURCE_TYPE, KNOWLEDGE_ADD_ITEMS_MAX } from './addKnowledgeItemDialog/constants'
 import type { NoteItem } from './addKnowledgeItemDialog/types'
 
+type ConflictResolution = 'rename' | 'replace'
+
+interface PendingConflictState {
+  items: KnowledgeAddItemInput[]
+  conflicts: KnowledgeAddItemConflict[]
+}
+
 interface AddKnowledgeItemDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-const getDirectoryName = (directoryPath: string) => {
-  const normalizedPath = directoryPath.replace(/[/\\]+$/, '')
-  const name = normalizedPath.split(/[/\\]/).pop()?.trim()
+// `file` and `directory` skip the in-dialog panel entirely: clicking the menu item opens the OS
+// picker directly and submits the selection. Only `note` / `url` still render the dialog panel.
+const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || source === 'directory'
 
-  return name || normalizedPath || directoryPath
-}
+const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
+// Electron's open-dialog `filters` want bare extensions (no leading dot); the set above keeps the
+// dots for the post-pick safety filter.
+const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
 
-const resolveFilePath = (file: File): string | Error => {
+const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
+
+const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)
 
   if (!filePath) {
-    return new Error(`Failed to resolve a local path for "${file.name}"`)
-  }
-
-  return filePath
-}
-
-const resolveSelectedFileEntryData = async (file: File) => {
-  const filePath = resolveFilePath(file)
-
-  if (filePath instanceof Error) {
-    return Promise.reject(filePath)
+    return Promise.reject(new Error(`Failed to resolve a local path for "${file.name}"`))
   }
 
   return resolveKnowledgeFileData(filePath, file.name)
 }
 
-const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
-
-const filterSupportedKnowledgeFiles = (files: File[]) =>
-  files.filter((file) => knowledgeSupportedFileExtSet.has(getFileExtension(file.name)))
-
-// Dedupe the in-dialog selection by each file's on-disk path. Two files that share a name
-// but live in different folders are distinct sources and must both be addable (the backend
-// auto-renames same-named files on disk via reserveImportedFileRelativePath); only the exact
-// same file dropped twice collapses to one. Keying by name+size+lastModified instead wrongly
-// dropped a copy of the same file living in another folder.
-const getSelectedFileKey = (file: File) => window.api.file.getPathForFile(file)
-
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
   const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
-  const [activeSource, setActiveSource] = useState(DEFAULT_SOURCE_TYPE)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
+  // The dialog mounts fresh per open (the section conditionally renders it), so the requested
+  // source is fixed for this lifetime — derive it instead of mirroring it into state.
+  const activeSource = pendingAddSource ?? DEFAULT_SOURCE_TYPE
+  const directPick = isDirectPickSource(activeSource)
+
   const [selectedNotes, setSelectedNotes] = useState<NoteItem[]>([])
   const [urlValue, setUrlValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
+  const [pendingConflict, setPendingConflict] = useState<PendingConflictState | null>(null)
+  const [pendingResolution, setPendingResolution] = useState<ConflictResolution | null>(null)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
 
-  const resetDialogState = useCallback(() => {
-    setActiveSource(DEFAULT_SOURCE_TYPE)
-    setSelectedFiles([])
-    setSelectedDirectories([])
-    setSelectedNotes([])
-    setUrlValue('')
-    setSubmitErrorMessage('')
-    setIsResolvingSubmit(false)
-  }, [])
-
-  const handleFileDrop = useCallback<DropzoneOnDrop>(
-    (acceptedFiles) => {
-      setSubmitErrorMessage('')
-      const supportedFiles = filterSupportedKnowledgeFiles(acceptedFiles)
-      // The dropzone has no `accept` filter, so every dropped/picked file reaches us here and the
-      // extension allow-list is the single gate. Surface the dropped-minus-kept delta so the user
-      // learns nothing was silently skipped (matching the page-level pending-files entry point).
-      const skippedCount = acceptedFiles.length - supportedFiles.length
-      if (skippedCount > 0) {
-        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
-      }
-      setSelectedFiles((currentFiles) => {
-        const existingKeys = new Set(currentFiles.map(getSelectedFileKey))
-        const newFiles = supportedFiles.filter((file) => !existingKeys.has(getSelectedFileKey(file)))
-        return [...currentFiles, ...newFiles]
-      })
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      onOpenChange(nextOpen)
     },
-    [t]
+    [onOpenChange]
   )
-
-  const handleDirectorySelect = useCallback(async () => {
-    setSubmitErrorMessage('')
-    const directoryPath = await window.api.file.selectFolder()
-
-    if (!directoryPath) {
-      return
-    }
-
-    setSelectedDirectories((currentDirectories) => {
-      if (currentDirectories.some((directory) => directory.path === directoryPath)) {
-        return currentDirectories
-      }
-
-      return [
-        ...currentDirectories,
-        {
-          name: getDirectoryName(directoryPath),
-          path: directoryPath
-        }
-      ]
-    })
-  }, [])
-
-  const handleFileRemove = useCallback((fileIndex: number) => {
-    setSubmitErrorMessage('')
-    setSelectedFiles((currentFiles) => currentFiles.filter((_, index) => index !== fileIndex))
-  }, [])
-
-  const handleDirectoryRemove = useCallback((directoryPath: string) => {
-    setSubmitErrorMessage('')
-    setSelectedDirectories((currentDirectories) =>
-      currentDirectories.filter((directory) => directory.path !== directoryPath)
-    )
-  }, [])
 
   const handleNoteToggle = useCallback((note: NoteItem) => {
     setSubmitErrorMessage('')
@@ -145,53 +80,18 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     )
   }, [])
 
-  useEffect(() => {
-    if (!open) {
-      resetDialogState()
-      return
-    }
-
-    if (pendingAddFiles?.length) {
-      setActiveSource('file')
-      const supportedFiles = filterSupportedKnowledgeFiles(pendingAddFiles)
-      const skippedCount = pendingAddFiles.length - supportedFiles.length
-      if (skippedCount > 0) {
-        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
-      }
-      setSelectedFiles(supportedFiles)
-      return
-    }
-
-    if (pendingAddSource) {
-      setActiveSource(pendingAddSource)
-    }
-  }, [open, pendingAddFiles, pendingAddSource, resetDialogState, t])
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) {
-        resetDialogState()
-      }
-
-      onOpenChange(nextOpen)
-    },
-    [onOpenChange, resetDialogState]
-  )
-
   const canSubmit = useMemo(() => {
     if (!selectedBaseId) {
       return false
     }
 
     switch (activeSource) {
-      case 'file':
-        return selectedFiles.length > 0
-      case 'directory':
-        return selectedDirectories.length > 0
       case 'url':
         return urlValue.trim().length > 0
       case 'note':
         return selectedNotes.length > 0
+      default:
+        return false
     }
   }, [activeSource, selectedBaseId, selectedNotes.length, urlValue])
 
@@ -356,51 +256,84 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     directPick,
     ensureWithinAddLimit,
     handleOpenChange,
-    isResolvingSubmit,
-    selectedDirectories,
-    selectedFiles,
-    selectedNotes,
-    submitKnowledgeItems,
-    t,
-    urlValue
+    open,
+    submitWithStrategy,
+    t
   ])
+
+  const handleConflictResolve = useCallback(
+    (resolution: ConflictResolution) => {
+      if (!pendingConflict) {
+        return
+      }
+
+      setPendingResolution(resolution)
+      void submitWithStrategy(pendingConflict.items, resolution)
+        .catch((error) => {
+          setPendingConflict(null)
+          const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
+          // Direct-pick sources have no panel to fall back to, so report inline (toast) and close.
+          if (directPick) {
+            window.toast.error(message)
+            handleOpenChange(false)
+          } else {
+            setSubmitErrorMessage(message)
+          }
+        })
+        .finally(() => {
+          setPendingResolution(null)
+        })
+    },
+    [directPick, handleOpenChange, pendingConflict, submitWithStrategy, t]
+  )
+
+  const handleConflictCancel = useCallback(() => {
+    setPendingConflict(null)
+    // No panel exists behind a direct-pick conflict, so cancelling ends the whole flow.
+    if (directPick) {
+      handleOpenChange(false)
+    }
+  }, [directPick, handleOpenChange])
 
   const isSubmitting = isResolvingSubmit || isSubmittingItems
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
-        <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pe-1">
-          <AddKnowledgeItemDialogSourceTabs
-            activeSource={activeSource}
-            selectedDirectories={selectedDirectories}
-            selectedFiles={selectedFiles}
-            selectedNotes={selectedNotes}
-            urlValue={urlValue}
-            onDirectoryRemove={handleDirectoryRemove}
-            onDirectorySelect={handleDirectorySelect}
-            onFileDrop={handleFileDrop}
-            onFileRemove={handleFileRemove}
-            onNoteToggle={handleNoteToggle}
-            onUrlValueChange={(value) => {
-              setSubmitErrorMessage('')
-              setUrlValue(value)
-            }}
-          />
-        </div>
-        <AddKnowledgeItemDialogFooter
-          activeSource={activeSource}
-          canSubmit={canSubmit}
-          errorMessage={submitErrorMessage}
-          isSubmitting={isSubmitting}
-          selectedDirectoryCount={selectedDirectories.length}
-          selectedFileCount={selectedFiles.length}
-          selectedNoteCount={selectedNotes.length}
-          onSubmit={handleSubmit}
-        />
-      </DialogContent>
-    </Dialog>
+    <>
+      {directPick ? null : (
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogContent size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
+            <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-1">
+              <AddKnowledgeItemDialogSourceTabs
+                activeSource={activeSource}
+                selectedNotes={selectedNotes}
+                urlValue={urlValue}
+                onNoteToggle={handleNoteToggle}
+                onUrlValueChange={(value) => {
+                  setSubmitErrorMessage('')
+                  setUrlValue(value)
+                }}
+              />
+            </div>
+            <AddKnowledgeItemDialogFooter
+              activeSource={activeSource}
+              canSubmit={canSubmit}
+              errorMessage={submitErrorMessage}
+              isSubmitting={isSubmitting}
+              selectedNoteCount={selectedNotes.length}
+              onSubmit={handleSubmit}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+      <KnowledgeAddConflictDialog
+        open={pendingConflict !== null}
+        conflicts={pendingConflict?.conflicts ?? []}
+        pendingResolution={pendingResolution}
+        onResolve={handleConflictResolve}
+        onCancel={handleConflictCancel}
+      />
+    </>
   )
 }
 
