@@ -56,6 +56,20 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
     }
   }
 
+  const handleInputBlur = () => {
+    const nextColor = normalizeHexColor(draftValue)
+
+    if (!nextColor) {
+      setDraftValue(normalizedValue)
+      return
+    }
+
+    setDraftValue(nextColor)
+    if (nextColor !== normalizedValue) {
+      onChange(nextColor)
+    }
+  }
+
   return (
     <RowFlex className={cn('min-w-0 max-w-full flex-wrap items-center gap-3', className)}>
       <RowFlex className="min-w-0 max-w-full flex-wrap gap-3">
@@ -93,8 +107,8 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
       </label>
       <Input
         value={draftValue}
-        onChange={(event) => commitColor(event.target.value)}
-        onBlur={() => setDraftValue(normalizedValue)}
+        onChange={(event) => setDraftValue(event.target.value)}
+        onBlur={handleInputBlur}
         className="h-8 w-24 font-mono text-xs uppercase"
         spellCheck={false}
       />

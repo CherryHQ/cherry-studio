@@ -7,7 +7,7 @@ import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
-import type { McpServer, McpTool } from '@types'
+import type { McpPrompt, McpResource, McpServer, McpTool } from '@types'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -179,6 +179,16 @@ export class McpCatalogService extends BaseService {
   public async listTools(serverId: string, options: ListToolsOptions = {}): Promise<McpTool[]> {
     const server = await this.getServerById(serverId)
     return this.listToolsForServer(server, options)
+  }
+
+  // Resources and prompts are owned by McpRuntimeService (cached under `mcp:list_*` and exposed
+  // over renderer IPC); the catalog delegates so SDK-runtime consumers keep one MCP read facade.
+  public async listResources(serverId: string): Promise<McpResource[]> {
+    return this.runtimeService().listResources(serverId)
+  }
+
+  public async listPrompts(serverId: string): Promise<McpPrompt[]> {
+    return this.runtimeService().listPrompts(serverId)
   }
 
   public async refreshTools(serverId: string): Promise<void> {

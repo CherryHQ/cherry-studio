@@ -88,7 +88,7 @@ export class AgentSessionMessageService {
             sm.role,
             sm.created_at AS "createdAt"
           FROM agent_session_message sm
-          JOIN agent_session_message_fts fts ON sm.rowid = fts.rowid
+          JOIN agent_session_message_fts fts ON sm.fts_rowid = fts.rowid
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
           WHERE sm.searchable_text != ''

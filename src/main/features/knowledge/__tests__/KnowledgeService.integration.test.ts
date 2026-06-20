@@ -3,6 +3,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -14,8 +15,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
-  createStoreMock: vi.fn(),
+const { getIndexStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
+  getIndexStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   listMock: vi.fn(),
@@ -33,9 +34,9 @@ vi.mock('@application', async () => {
       registerHandler: registerHandlerMock
     },
     KnowledgeVectorStoreService: {
-      createStore: createStoreMock,
+      getIndexStore: getIndexStoreMock,
       deleteStore: deleteStoreMock,
-      getStoreIfExists: vi.fn()
+      getIndexStoreIfExists: vi.fn()
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -63,7 +64,10 @@ describe('KnowledgeService integration', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    createStoreMock.mockResolvedValue({})
+    // KnowledgeService extends the lifecycle BaseService singleton; reset so each test
+    // can `new KnowledgeService()` without tripping the already-instantiated guard.
+    BaseService.resetInstances()
+    getIndexStoreMock.mockResolvedValue({})
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
@@ -104,8 +108,7 @@ describe('KnowledgeService integration', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       threshold: null,
       documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
-      hybridAlpha: null
+      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
@@ -148,7 +151,7 @@ describe('KnowledgeService integration', () => {
       error: null
     })
     expect(restoredBase.id).not.toBe(SOURCE_BASE_ID)
-    expect(createStoreMock).toHaveBeenCalledWith(expect.objectContaining({ id: restoredBase.id }))
+    expect(getIndexStoreMock).toHaveBeenCalledWith(expect.objectContaining({ id: restoredBase.id }))
 
     const [sourceBase] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
     expect(sourceBase).toMatchObject({
@@ -200,5 +203,94 @@ describe('KnowledgeService integration', () => {
       .from(knowledgeItemTable)
       .where(isNull(knowledgeItemTable.groupId))
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
+  })
+
+  describe('addItems conflict resolution', () => {
+    const COMPLETED_BASE_ID = '33333333-3333-4333-8333-333333333333'
+    const EXISTING_NOTE_ID = '0198f3f2-7d2a-7abc-8def-123456789abc'
+
+    const seedCompletedBaseWithNote = async () => {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        id: COMPLETED_BASE_ID,
+        name: 'Active KB',
+        groupId: null,
+        dimensions: 1536,
+        embeddingModelId,
+        status: 'completed',
+        error: null,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+        threshold: null,
+        documentCount: null,
+        searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+      })
+      await dbh.db.insert(knowledgeItemTable).values({
+        id: EXISTING_NOTE_ID,
+        baseId: COMPLETED_BASE_ID,
+        groupId: null,
+        type: 'note',
+        data: { source: 'Doc A', content: 'Doc A\noriginal body' },
+        status: 'completed',
+        error: null
+      })
+    }
+
+    const noteInput = (content: string) => ({
+      type: 'note' as const,
+      data: { source: content.split('\n')[0], content }
+    })
+
+    const baseRows = () =>
+      dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, COMPLETED_BASE_ID))
+
+    it('detect reports a same-name conflict and adds nothing', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nnew body')], 'detect')
+
+      expect(result).toEqual({ status: 'conflicts', conflicts: [{ type: 'note', title: 'Doc A' }] })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).toBe(EXISTING_NOTE_ID)
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('detect adds the item when nothing collides', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc B\nbody')], 'detect')
+
+      expect(result).toEqual({ status: 'added' })
+      expect(await baseRows()).toHaveLength(2)
+    })
+
+    it('replace purges the conflicting existing item and adds the incoming one', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nreplacement body')], 'replace')
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
+      expect((rows[0].data as { content: string }).content).toBe('Doc A\nreplacement body')
+    })
+
+    it('defaults to rename (keep all) when no strategy is given, adding alongside the existing item', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nanother body')])
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(2)
+      expect(rows.some((row) => row.id === EXISTING_NOTE_ID)).toBe(true)
+    })
   })
 })

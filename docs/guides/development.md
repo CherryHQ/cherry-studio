@@ -71,6 +71,24 @@ cp .env.example .env
 pnpm dev
 ```
 
+By default, development runs append `Dev` to Electron's default `userData`
+directory, keeping local dev data separate from packaged app data. To run
+multiple development instances at the same time, give each instance a unique
+suffix. You can set it in `.env`:
+
+```bash
+CS_DEV_USER_DATA_SUFFIX=DevQuito
+```
+
+Or pass it inline when starting a dev instance:
+
+```bash
+CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
+CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
+```
+
+Blank values are ignored and fall back to `Dev`.
+
 ### Debug
 
 ```bash

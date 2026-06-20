@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/config/constant'
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 import { net } from 'electron'
 
 import {

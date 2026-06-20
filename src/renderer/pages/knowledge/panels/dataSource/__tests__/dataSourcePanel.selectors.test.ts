@@ -7,7 +7,18 @@ describe('dataSourcePanel.selectors', () => {
   it('gets titles from the correct source field for each item type', () => {
     expect(getItemTitle(createFileItem({ id: 'file-1', source: '/tmp/季度报告.pdf' }))).toBe('季度报告.pdf')
     expect(getItemTitle(createFileItem({ id: 'file-2', source: '/tmp/fallback.md' }))).toBe('fallback.md')
-    expect(getItemTitle(createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' }))).toBe(
+    // A captured url snapshot shows its title-derived file name (`.md` stripped); a url not
+    // yet indexed (no snapshot) falls back to the raw URL.
+    expect(
+      getItemTitle(
+        createUrlItem({
+          id: 'url-1',
+          source: 'https://example.com/product-docs',
+          relativePath: 'Drop-in replacements for React Native UI.md'
+        })
+      )
+    ).toBe('Drop-in replacements for React Native UI')
+    expect(getItemTitle(createUrlItem({ id: 'url-2', source: 'https://example.com/product-docs' }))).toBe(
       'https://example.com/product-docs'
     )
     expect(getItemTitle(createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' }))).toBe(

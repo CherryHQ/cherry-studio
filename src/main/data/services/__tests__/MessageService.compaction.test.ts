@@ -2,7 +2,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { messageService } from '@data/services/MessageService'
 import type { MessageData } from '@shared/data/types/message'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
@@ -14,17 +14,21 @@ describe('setCompactionSummary', () => {
 
   beforeEach(async () => {
     await dbh.db.insert(topicTable).values({ id: 'topic-c', activeNodeId: 'm1', orderKey: 'a0' })
-    await dbh.db.insert(messageTable).values({
-      id: 'm1',
-      parentId: null,
-      topicId: 'topic-c',
-      role: 'user',
-      data: mainText('hello'),
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 100,
-      updatedAt: 100
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-c', [
+        {
+          id: 'm1',
+          parentId: null,
+          topicId: 'topic-c',
+          role: 'user',
+          data: mainText('hello'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        }
+      ])
+    )
   })
 
   it('sets and reads back the summary on a message row', async () => {

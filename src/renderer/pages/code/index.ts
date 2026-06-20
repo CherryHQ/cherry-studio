@@ -3,10 +3,10 @@ import {
   ClaudeCode,
   GeminiCli,
   GithubCopilotCli,
-  IflowCli,
   KimiCli,
   OpenaiCodex,
   OpenCode,
+  QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
 import { formatApiHost } from '@renderer/utils/api'
@@ -64,9 +64,9 @@ export const CLI_TOOLS = [
   { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
   { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
   { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
+  { value: codeCLI.qoderCli, label: 'Qoder CLI', icon: QoderCli },
   { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
-  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCli },
+  { value: codeCLI.kimiCli, label: 'Kimi Code', icon: KimiCli },
   { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
 ] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
@@ -90,7 +90,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeCLI.qwenCode]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openaiCodex]: (providers) =>
     providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.iFlowCli]: (providers) => providers.filter(isOpenAILikeProvider),
+  [codeCLI.qoderCli]: () => [],
   [codeCLI.githubCopilotCli]: () => [],
   [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openCode]: (providers) =>
@@ -228,10 +228,8 @@ export const generateToolEnvironment = ({
       env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(fancyProviderName)
       break
 
-    case codeCLI.iFlowCli:
-      env.IFLOW_API_KEY = apiKey
-      env.IFLOW_BASE_URL = formattedBaseUrl
-      env.IFLOW_MODEL_NAME = rawModelId
+    case codeCLI.qoderCli:
+      env.QODERCN_PERSONAL_ACCESS_TOKEN = apiKey || ''
       break
 
     case codeCLI.githubCopilotCli:
@@ -239,9 +237,10 @@ export const generateToolEnvironment = ({
       break
 
     case codeCLI.kimiCli:
-      env.KIMI_API_KEY = apiKey
-      env.KIMI_BASE_URL = formattedBaseUrl
       env.KIMI_MODEL_NAME = rawModelId
+      env.KIMI_MODEL_API_KEY = apiKey
+      env.KIMI_MODEL_BASE_URL = formattedBaseUrl
+      env.KIMI_MODEL_PROVIDER_TYPE = 'openai'
       break
 
     case codeCLI.openCode:

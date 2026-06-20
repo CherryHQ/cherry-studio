@@ -162,11 +162,11 @@ const CodeCliPage: FC = () => {
         return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.githubCopilotCli) {
+      if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
         return false
       }
 
-      if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
+      if (selectedCliTool === codeCLI.qwenCode) {
         if (eps.length) {
           return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
@@ -278,14 +278,16 @@ const CodeCliPage: FC = () => {
   }
 
   const validateLaunch = (): { isValid: boolean; message?: string } => {
-    if (!canLaunch || !isBunInstalled) {
+    // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
+    const needsBun = selectedCliTool !== codeCLI.qoderCli
+    if (!canLaunch || (needsBun && !isBunInstalled)) {
       return {
         isValid: false,
-        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
+        message: needsBun && !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
       }
     }
 
-    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli) {
+    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -295,7 +297,7 @@ const CodeCliPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
   } | null> => {
-    if (selectedCliTool === codeCLI.githubCopilotCli) {
+    if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
       return { env: userEnv }
     }
@@ -356,13 +358,13 @@ const CodeCliPage: FC = () => {
 
   const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
-    if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
+    if (selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && !resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
       window.toast.error(t('code.model_required'))
       return false
     }
     const modelId =
-      selectedCliTool === codeCLI.githubCopilotCli || !resolvedModel
+      selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || !resolvedModel
         ? ''
         : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
 
@@ -503,14 +505,14 @@ const CodeCliPage: FC = () => {
 
         {activeMeta && (
           <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
-            <DialogContent aria-describedby={undefined}>
+            <DialogContent aria-describedby={undefined} className="min-w-0">
               <DialogHeader>
                 <DialogTitle>{activeMeta.label}</DialogTitle>
               </DialogHeader>
 
-              <div className="flex flex-col gap-4">
-                {selectedCliTool !== codeCLI.githubCopilotCli && (
-                  <div>
+              <div className="flex min-w-0 flex-col gap-4">
+                {selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && (
+                  <div className="min-w-0">
                     <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
                     <SelectDropdown
                       items={modelItems}
@@ -520,15 +522,15 @@ const CodeCliPage: FC = () => {
                       placeholder={t('code.model_placeholder')}
                       triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
                       renderSelected={(item) => (
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                           <ModelAvatar model={item.model} size={18} />
                           <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
                         </div>
                       )}
                       renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <ModelAvatar model={item.model} size={18} />
-                          <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
+                          <span className="min-w-0 flex-1 truncate">{item.model.name || item.model.id}</span>
                           <span className="shrink-0 text-muted-foreground text-xs">
                             {getProviderDisplayName(item.provider)}
                           </span>
@@ -539,9 +541,9 @@ const CodeCliPage: FC = () => {
                   </div>
                 )}
 
-                <div>
+                <div className="min-w-0">
                   <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <SelectDropdown
                         items={directoryItems}
@@ -553,14 +555,16 @@ const CodeCliPage: FC = () => {
                         placeholder={t('code.folder_placeholder')}
                         triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
                         renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
-                        renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
+                        renderSelected={(item) => (
+                          <span className="min-w-0 flex-1 truncate font-mono text-foreground">{item.id}</span>
+                        )}
                         renderItem={(item, isSelected) => (
                           <>
                             <FolderOpen
                               size={11}
                               className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
                             />
-                            <span className="flex-1 truncate font-mono">{item.id}</span>
+                            <span className="min-w-0 flex-1 truncate font-mono">{item.id}</span>
                             {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
                           </>
                         )}
@@ -573,7 +577,7 @@ const CodeCliPage: FC = () => {
                 </div>
 
                 {(isMac || isWin) && terminalItems.length > 0 && (
-                  <div>
+                  <div className="min-w-0">
                     <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
                     <SelectDropdown
                       items={terminalItems}
@@ -581,16 +585,18 @@ const CodeCliPage: FC = () => {
                       onSelect={setTerminal}
                       placeholder={t('code.terminal_placeholder')}
                       triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                      renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
+                      renderSelected={(item) => (
+                        <span className="min-w-0 flex-1 truncate text-foreground">{item.name}</span>
+                      )}
                       renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
-                          <span className="flex-1">{item.name}</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
                           {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
                         </div>
                       )}
                     />
                     {needsWindowsCustomPath && (
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-2 flex min-w-0 items-center gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -599,7 +605,7 @@ const CodeCliPage: FC = () => {
                           <FolderOpen size={10} />
                           {t('code.set_custom_path')}
                         </Button>
-                        <span className="truncate text-muted-foreground text-xs">
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
                           {terminalCustomPaths[selectedTerminal]
                             ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                             : t('code.custom_path_required')}
@@ -646,7 +652,7 @@ const CodeCliPage: FC = () => {
                   variant="emphasis"
                   onClick={handleLaunch}
                   loading={isLaunching}
-                  disabled={!canLaunch || !isBunInstalled || isLaunching}>
+                  disabled={!canLaunch || (selectedCliTool !== codeCLI.qoderCli && !isBunInstalled) || isLaunching}>
                   {launchSuccess ? (
                     <>
                       <Check size={14} />

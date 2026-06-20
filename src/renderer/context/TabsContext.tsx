@@ -1,19 +1,21 @@
 import { loggerService } from '@logger'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { TabLruManager } from '@renderer/services/TabLruManager'
-import { uuid } from '@renderer/utils'
-import { getDefaultRouteTitle, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('TabsContext')
 
 const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
-  url: '/home',
+  url: '/app/chat',
   title: '',
   lastAccessTime: Date.now(),
   isDormant: false
@@ -21,6 +23,13 @@ const DEFAULT_TAB: Tab = {
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
+  // Chat / agent tabs are page-titled (topic / session name + assistant / agent
+  // emoji set by their page) — never auto-localize, or the route title clobbers
+  // the page title even for the bare `/app/chat` default tab.
+  if (isPageTitledRoute(tab.url)) {
+    return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
+  }
+  if (tab.id === 'home') return { ...tab, title: getDefaultRouteTitle(tab.url) }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
@@ -46,6 +55,8 @@ export interface OpenTabOptions {
   id?: string
   /** Per-entity icon descriptor (e.g. mini-app logo string); rendered in the tab bar when set */
   icon?: string
+  /** Optional tab metadata copied into the newly-created tab. */
+  metadata?: Tab['metadata']
 }
 
 export interface TabsContextValue {
@@ -83,7 +94,20 @@ export interface TabsContextValue {
 
 const TabsContext = createContext<TabsContextValue | null>(null)
 
-export function TabsProvider({ children }: { children: ReactNode }) {
+type TabsProviderProps = {
+  children: ReactNode
+  initialDefaultTab?: Tab | null
+  includePinnedTabs?: boolean
+}
+
+export function TabsProvider({
+  children,
+  initialDefaultTab = DEFAULT_TAB,
+  includePinnedTabs = true
+}: TabsProviderProps) {
+  // Route-derived tab titles are localized, so recompute them on language change.
+  const { i18n } = useTranslation()
+
   // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
@@ -104,11 +128,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     [setPinnedTabsRaw]
   )
 
-  // Normal tabs - in-memory storage (cleared on restart), excludes home tab
-  const [normalTabs, setNormalTabs] = useState<Tab[]>([])
+  // Normal tabs - in-memory storage (cleared on restart)
+  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
 
   // Active tab ID - in-memory storage
-  const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
+  const [activeTabId, setActiveTabIdState] = useState<string>(() => initialDefaultTab?.id ?? '')
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLruManager | null>(null)
@@ -133,11 +157,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // Merge tabs: home + pinned + normal (route titles follow current i18n language)
+  // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
-    return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [pinnedTabs, normalTabs])
+    const currentPinnedTabs = includePinnedTabs ? pinnedTabs || [] : []
+    return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
+  }, [includePinnedTabs, pinnedTabs, normalTabs, i18n.language])
 
   /**
    * Hibernate tab (manual)
@@ -292,7 +316,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -308,6 +332,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         url,
         title: title || getDefaultRouteTitle(url),
         icon,
+        metadata,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -388,7 +413,10 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, tab)
+      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+        ...tab,
+        url: resolveSidebarAppTabEntryUrl(tab)
+      })
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)

@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
-import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
@@ -23,55 +22,13 @@ import { ActionMenu, type ActionMenuItem } from './components/ActionMenu'
 // DragContextMenuWrapper 已被 TipTap 扩展替代
 import LinkEditor from './components/LinkEditor'
 import PlusButton from './components/PlusButton'
+import { findElementByLine } from './helpers/jumpToLine'
 import { EditorContent as StyledEditorContent, RichEditorWrapper } from './styles'
 import { ToC } from './TableOfContent'
 import { Toolbar } from './toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
 import { useRichEditor } from './useRichEditor'
 const logger = loggerService.withContext('RichEditor')
-
-/**
- * Find element by line number with fallback strategies:
- * 1. Exact line + content match
- * 2. Exact line match
- * 3. Closest line <= target
- */
-function findElementByLine(editorDom: HTMLElement, lineNumber: number, lineContent?: string): HTMLElement | null {
-  const allElements = Array.from(editorDom.querySelectorAll<HTMLElement>(`[${MARKDOWN_SOURCE_LINE_ATTR}]`))
-  if (allElements.length === 0) {
-    logger.warn('No elements with data-source-line attribute found')
-    return null
-  }
-  const exactMatches = editorDom.querySelectorAll<HTMLElement>(`[${MARKDOWN_SOURCE_LINE_ATTR}="${lineNumber}"]`)
-
-  // Strategy 1: Exact line + content match
-  if (exactMatches.length > 1 && lineContent) {
-    for (const match of Array.from(exactMatches)) {
-      if (match.textContent?.includes(lineContent)) {
-        return match
-      }
-    }
-  }
-
-  // Strategy 2: Exact line match
-  if (exactMatches.length > 0) {
-    return exactMatches[0]
-  }
-
-  // Strategy 3: Closest line <= target
-  let closestElement: HTMLElement | null = null
-  let closestLine = 0
-
-  for (const el of allElements) {
-    const sourceLine = parseInt(el.getAttribute(MARKDOWN_SOURCE_LINE_ATTR) || '0', 10)
-    if (sourceLine <= lineNumber && sourceLine > closestLine) {
-      closestLine = sourceLine
-      closestElement = el
-    }
-  }
-
-  return closestElement
-}
 
 /**
  * Create fixed-position highlight overlay at element location
@@ -203,18 +160,7 @@ const RichEditor = ({
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
   // Use the rich editor hook for complete editor management
-  const {
-    editor,
-    markdown,
-    html,
-    formattingState,
-    tableOfContentsItems,
-    linkEditor,
-    setMarkdown,
-    setHtml,
-    clear,
-    getPreviewText
-  } = useRichEditor({
+  const { editor, markdown, formattingState, tableOfContentsItems, linkEditor, setMarkdown, clear } = useRichEditor({
     initialContent,
     onChange: onMarkdownChange,
     onHtmlChange,
@@ -494,14 +440,7 @@ const RichEditor = ({
     ref,
     () => ({
       getContent: () => editor?.getText() || '',
-      getHtml: () => html,
       getMarkdown: () => markdown,
-      setContent: (content: string) => {
-        editor?.commands.setContent(content)
-      },
-      setHtml: (htmlContent: string) => {
-        setHtml(htmlContent)
-      },
       setMarkdown: (markdownContent: string) => {
         setMarkdown(markdownContent)
       },
@@ -520,9 +459,6 @@ const RichEditor = ({
           editor.commands[command](value)
         }
       },
-      getPreviewText: (maxLength?: number) => {
-        return getPreviewText(markdown, maxLength)
-      },
       getScrollTop: () => {
         return scrollContainerRef.current?.scrollTop ?? 0
       },
@@ -535,7 +471,8 @@ const RichEditor = ({
         if (!editor || !scrollContainerRef.current) return
 
         try {
-          const element = findElementByLine(editor.view.dom, lineNumber, options?.lineContent)
+          const totalLines = editor.getMarkdown().split('\n').length
+          const element = findElementByLine(editor.view.dom, lineNumber, options?.lineContent, totalLines)
           if (!element) return
 
           if (options?.highlight) {
@@ -556,7 +493,7 @@ const RichEditor = ({
       getAllCommands,
       getToolbarCommands
     }),
-    [editor, html, markdown, setHtml, setMarkdown, clear, getPreviewText]
+    [editor, markdown, setMarkdown, clear]
   )
 
   return (

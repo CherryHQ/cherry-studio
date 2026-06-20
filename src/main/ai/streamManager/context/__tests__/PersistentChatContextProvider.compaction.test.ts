@@ -107,12 +107,14 @@ vi.mock('../modelResolution', () => ({
 }))
 
 vi.mock('../../../observability', () => ({
-  startAiTurnTrace: vi.fn(() => ({ rootSpan: { end: vi.fn(), setStatus: vi.fn() }, traceId: 'trace-1' }))
+  startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn(), setStatus: vi.fn() } })),
+  applyTurnInputAttributes: vi.fn()
 }))
 
 vi.mock('@data/services/TopicService', () => ({
   topicService: {
-    getById: vi.fn(async () => ({ id: 'topic-1', assistantId: undefined, activeNodeId: 'u1', orderKey: 'a0' }))
+    getById: vi.fn(async () => ({ id: 'topic-1', assistantId: undefined, activeNodeId: 'u1', orderKey: 'a0' })),
+    ensureTraceId: vi.fn(async () => 'trace-1')
   }
 }))
 

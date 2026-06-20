@@ -4,7 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../types'

@@ -9,7 +9,7 @@
  */
 
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DanglingCache } from '../../danglingCache'

@@ -8,7 +8,7 @@
 import fs from 'node:fs/promises'
 
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'

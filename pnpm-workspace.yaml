@@ -1,6 +1,5 @@
 packages:
   - 'packages/*'
-  - 'packages/vectorstores/*'
 
 supportedArchitectures:
   os:

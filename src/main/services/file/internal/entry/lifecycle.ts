@@ -18,7 +18,7 @@
 import { loggerService } from '@logger'
 import { remove as fsRemove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { BatchMutationResult } from '@shared/file/types'
+import type { BatchMutationResult } from '@shared/types/file'
 
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'

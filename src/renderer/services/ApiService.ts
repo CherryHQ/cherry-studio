@@ -92,16 +92,19 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
 export async function fetchGenerate({
   prompt,
   content,
-  model
+  model,
+  throwOnError = false
 }: {
   prompt: string
   content: string
   model?: Model
+  throwOnError?: boolean
 }): Promise<string> {
   try {
     const resolvedModel = model ?? (await readDefaultModel())
     if (!resolvedModel) {
       logger.error('fetchGenerate: no model available')
+      if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
       return ''
     }
     const { text } = await window.api.ai.generateText({
@@ -112,6 +115,7 @@ export async function fetchGenerate({
     return text || ''
   } catch (error: any) {
     logger.error('fetchGenerate failed', error)
+    if (throwOnError) throw error
     return ''
   }
 }

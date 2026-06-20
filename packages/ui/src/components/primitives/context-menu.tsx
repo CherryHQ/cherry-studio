@@ -3,14 +3,21 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import * as ContextMenuPrimitive from '@radix-ui/react-context-menu'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronRight } from 'lucide-react'
+import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import * as React from 'react'
+
+import { usePortalContainer } from './portal-container'
 
 /* ─── Style variants ──────────────────────────────────────────────────────── */
 
 const menuContentStyles = cn(
-  'bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-xs p-2',
-  'shadow-[0px_2px_5px_rgba(0,0,0,0.04),0px_10px_10px_rgba(0,0,0,0.04),0px_22px_13px_rgba(0,0,0,0.02),0px_39px_16px_rgba(0,0,0,0.01),inset_0px_-1px_1.3px_rgba(0,0,0,0.2)]',
+  'z-50 max-h-(--radix-context-menu-content-available-height) min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+  'data-[state=open]:animate-in data-[state=closed]:animate-out',
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+  'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
+)
+const menuSubContentStyles = cn(
+  'z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg',
   'data-[state=open]:animate-in data-[state=closed]:animate-out',
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
   'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
@@ -18,16 +25,18 @@ const menuContentStyles = cn(
 
 const menuItemVariants = cva(
   cn(
-    'relative flex cursor-default select-none items-center gap-2 rounded-2xs px-2 py-[9px] text-sm outline-hidden transition-colors',
-    'focus:bg-menu-item-hover',
-    'data-[disabled]:pointer-events-none data-[disabled]:opacity-40',
-    "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0"
+    'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden',
+    'focus:bg-accent focus:text-accent-foreground',
+    'data-disabled:pointer-events-none data-disabled:opacity-50',
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    "[&_svg:not([class*='text-'])]:text-muted-foreground"
   ),
   {
     variants: {
       variant: {
         default: '',
-        destructive: 'text-destructive focus:bg-destructive/10 focus:text-destructive'
+        destructive:
+          'text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 data-[variant=destructive]:*:[svg]:text-destructive!'
       },
       inset: {
         true: 'pl-8',
@@ -43,20 +52,101 @@ const menuItemVariants = cva(
 
 /* ─── Root / trigger / content / items ────────────────────────────────────── */
 
-function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+type ContextMenuOpeningPointerUpGuard = {
+  consumeOpeningPointerUp: () => boolean
+  markOpeningPointerUp: () => void
 }
 
-function ContextMenuTrigger({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
-  return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
+const ContextMenuOpeningPointerUpGuardContext = React.createContext<ContextMenuOpeningPointerUpGuard | null>(null)
+
+function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
+  const shouldStopOpeningPointerUpRef = React.useRef(false)
+  const clearOpeningPointerUpListenerRef = React.useRef<(() => void) | null>(null)
+  const clearOpeningPointerUpTimerRef = React.useRef<number | null>(null)
+  const clearOpeningPointerUp = React.useCallback(() => {
+    shouldStopOpeningPointerUpRef.current = false
+    clearOpeningPointerUpListenerRef.current?.()
+    clearOpeningPointerUpListenerRef.current = null
+    if (clearOpeningPointerUpTimerRef.current !== null) {
+      window.clearTimeout(clearOpeningPointerUpTimerRef.current)
+      clearOpeningPointerUpTimerRef.current = null
+    }
+  }, [])
+  const pointerUpGuard = React.useMemo<ContextMenuOpeningPointerUpGuard>(
+    () => ({
+      consumeOpeningPointerUp: () => {
+        const shouldStop = shouldStopOpeningPointerUpRef.current
+        clearOpeningPointerUp()
+        return shouldStop
+      },
+      markOpeningPointerUp: () => {
+        shouldStopOpeningPointerUpRef.current = true
+        clearOpeningPointerUpListenerRef.current?.()
+        const handleOpeningPointerUp = () => clearOpeningPointerUp()
+        window.addEventListener('pointerup', handleOpeningPointerUp, { once: true })
+        clearOpeningPointerUpListenerRef.current = () => {
+          window.removeEventListener('pointerup', handleOpeningPointerUp)
+        }
+        if (clearOpeningPointerUpTimerRef.current !== null) {
+          window.clearTimeout(clearOpeningPointerUpTimerRef.current)
+        }
+        clearOpeningPointerUpTimerRef.current = window.setTimeout(clearOpeningPointerUp, 1000)
+      }
+    }),
+    [clearOpeningPointerUp]
+  )
+  const handleOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (!open) clearOpeningPointerUp()
+      onOpenChange?.(open)
+    },
+    [clearOpeningPointerUp, onOpenChange]
+  )
+
+  React.useEffect(() => clearOpeningPointerUp, [clearOpeningPointerUp])
+
+  return (
+    <ContextMenuOpeningPointerUpGuardContext value={pointerUpGuard}>
+      <ContextMenuPrimitive.Root data-slot="context-menu" onOpenChange={handleOpenChange} {...props} />
+    </ContextMenuOpeningPointerUpGuardContext>
+  )
+}
+
+function ContextMenuTrigger({
+  onContextMenu,
+  disabled,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
+  const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+
+  return (
+    <ContextMenuPrimitive.Trigger
+      data-slot="context-menu-trigger"
+      disabled={disabled}
+      onContextMenu={(event) => {
+        if (!disabled) {
+          pointerUpGuard?.markOpeningPointerUp()
+        }
+        onContextMenu?.(event)
+      }}
+      {...props}
+    />
+  )
 }
 
 function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Group>) {
   return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
 }
 
-function ContextMenuPortal({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
-  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
+function ContextMenuPortal({ container, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
+  const defaultPortalContainer = usePortalContainer()
+  return (
+    <ContextMenuPrimitive.Portal
+      data-slot="context-menu-portal"
+      container={container ?? defaultPortalContainer ?? undefined}
+      {...props}
+    />
+  )
 }
 
 function ContextMenuSub({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
@@ -65,6 +155,14 @@ function ContextMenuSub({ ...props }: React.ComponentProps<typeof ContextMenuPri
 
 function ContextMenuRadioGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.RadioGroup>) {
   return <ContextMenuPrimitive.RadioGroup data-slot="context-menu-radio-group" {...props} />
+}
+
+function stopOpeningPointerUp(event: React.PointerEvent, pointerUpGuard: ContextMenuOpeningPointerUpGuard | null) {
+  const isOpeningPointerUp = pointerUpGuard?.consumeOpeningPointerUp() ?? false
+  if (event.button !== 2 && !isOpeningPointerUp) return
+
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 // Sub-trigger only exposes the `inset` knob — `variant` is intentionally
@@ -79,35 +177,66 @@ function ContextMenuSubTrigger({
   return (
     <ContextMenuPrimitive.SubTrigger
       data-slot="context-menu-sub-trigger"
-      className={cn(menuItemVariants({ inset }), 'justify-between data-[state=open]:bg-menu-item-hover', className)}
+      data-inset={inset}
+      className={cn(
+        menuItemVariants({ inset }),
+        'data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
+        className
+      )}
       {...props}>
-      <span className="flex items-center gap-2">{children}</span>
-      <ChevronRight className="size-4 text-foreground-secondary" />
+      {children}
+      <ChevronRightIcon className="ml-auto size-4" />
     </ContextMenuPrimitive.SubTrigger>
   )
 }
 
-function ContextMenuSubContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+function ContextMenuSubContent({
+  className,
+  onPointerUpCapture,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+  const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+
   return (
     <ContextMenuPrimitive.SubContent
       data-slot="context-menu-sub-content"
       className={cn(
-        menuContentStyles,
+        menuSubContentStyles,
         'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
         'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className
       )}
+      onPointerUpCapture={(event) => {
+        onPointerUpCapture?.(event)
+        stopOpeningPointerUp(event, pointerUpGuard)
+      }}
       {...props}
     />
   )
 }
 
-function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+type ContextMenuContentProps = React.ComponentProps<typeof ContextMenuPrimitive.Content> & {
+  portalContainer?: React.ComponentProps<typeof ContextMenuPrimitive.Portal>['container']
+}
+
+function ContextMenuContent({ className, onPointerUpCapture, portalContainer, ...props }: ContextMenuContentProps) {
+  const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+  const defaultPortalContainer = usePortalContainer()
+
   return (
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
-        className={cn(menuContentStyles, className)}
+        className={cn(
+          menuContentStyles,
+          'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
+          'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+          className
+        )}
+        onPointerUpCapture={(event) => {
+          onPointerUpCapture?.(event)
+          stopOpeningPointerUp(event, pointerUpGuard)
+        }}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
@@ -123,7 +252,9 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       data-slot="context-menu-item"
-      className={cn(menuItemVariants({ variant, inset }), 'justify-between', className)}
+      data-inset={inset}
+      data-variant={variant}
+      className={cn(menuItemVariants({ variant, inset }), className)}
       {...props}
     />
   )
@@ -143,7 +274,7 @@ function ContextMenuCheckboxItem({
       {...props}>
       <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
-          <Check className="size-4" />
+          <CheckIcon className="size-4" />
         </ContextMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -163,7 +294,7 @@ function ContextMenuRadioItem({
       {...props}>
       <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
-          <Check className="size-4" />
+          <CircleIcon className="size-2 fill-current" />
         </ContextMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -183,7 +314,7 @@ function ContextMenuLabel({
   return (
     <ContextMenuPrimitive.Label
       data-slot="context-menu-label"
-      className={cn('px-2 py-[9px] text-sm text-foreground-secondary', inset && 'pl-8', className)}
+      className={cn('px-2 py-1.5 font-medium text-sm', inset && 'pl-8', className)}
       {...props}
     />
   )
@@ -193,7 +324,7 @@ function ContextMenuSeparator({ className, ...props }: React.ComponentProps<type
   return (
     <ContextMenuPrimitive.Separator
       data-slot="context-menu-separator"
-      className={cn('-mx-2 my-0 border-b border-border', className)}
+      className={cn('-mx-1 my-1 h-px bg-border', className)}
       {...props}
     />
   )
@@ -203,7 +334,7 @@ function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span
   return (
     <span
       data-slot="context-menu-shortcut"
-      className={cn('ml-auto text-xs tracking-widest text-foreground-secondary', className)}
+      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
       {...props}
     />
   )
@@ -243,14 +374,14 @@ function ContextMenuItemContent(props: ContextMenuItemContentProps) {
   const hasSubmenu = 'hasSubmenu' in props ? props.hasSubmenu : false
   return (
     <>
-      <span className={cn('flex items-center gap-2', className)}>
+      <span className={cn('flex min-w-0 flex-1 items-center gap-2', className)}>
         {icon && <span className="size-4 shrink-0">{icon}</span>}
-        <span className="flex-1">{children}</span>
+        <span className="min-w-0 flex-1 truncate">{children}</span>
       </span>
-      <span className="flex items-center gap-1">
+      <span className="ml-auto flex items-center gap-1">
         {badge}
         {shortcut && <ContextMenuShortcut>{shortcut}</ContextMenuShortcut>}
-        {hasSubmenu && <ChevronRight className="size-4 text-foreground-secondary" />}
+        {hasSubmenu && <ChevronRightIcon className="size-4 text-muted-foreground" />}
       </span>
     </>
   )

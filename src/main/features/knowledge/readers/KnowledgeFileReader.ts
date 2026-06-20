@@ -1,9 +1,10 @@
 import { getFileExt } from '@main/utils/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
+import { HTMLReader } from '@vectorstores/readers/html'
 import { JSONReader } from '@vectorstores/readers/json'
 import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
@@ -25,9 +26,14 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
       return new DocxReader()
     case '.epub':
       return new EpubReader()
+    case '.html':
+    case '.htm':
+      return new HTMLReader()
     case '.json':
       return new JSONReader()
+    case '.markdown':
     case '.md':
+    case '.mdx':
       return new MarkdownReader()
     case '.draftsexport':
       return new DraftsExportReader()
@@ -36,14 +42,20 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
   }
 }
 
-export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
-  const filePath = getKnowledgeBaseFilePath(item.baseId, item.data.indexedRelativePath ?? item.data.relativePath)
+/**
+ * Read a base-relative file with the extension's reader and tag every document
+ * with `source`.
+ */
+export async function loadDocumentsFromKnowledgeBaseFile(
+  baseId: string,
+  relativePath: string,
+  source: string
+): Promise<Document[]> {
+  const filePath = getKnowledgeBaseFilePath(baseId, relativePath)
 
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)
-  const sourceMetadata: KnowledgeSourceMetadata = {
-    source: item.data.source
-  }
+  const sourceMetadata: KnowledgeSourceMetadata = { source }
 
   return documents.map(
     (document) =>
@@ -51,5 +63,13 @@ export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<
         text: document.text,
         metadata: { ...sourceMetadata }
       })
+  )
+}
+
+export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
+  return loadDocumentsFromKnowledgeBaseFile(
+    item.baseId,
+    item.data.indexedRelativePath ?? item.data.relativePath,
+    item.data.source
   )
 }
