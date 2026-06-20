@@ -161,7 +161,12 @@ flowchart TB
 
 > 精简模式（§三.1）：10 域含、4 域（KNOWLEDGE / TRANSLATE_HISTORY / PAINTINGS / FILE_STORAGE）排除。junction 表（`agent_channel_task` / `agent_skill`）不计入聚合成员，走独立 junction reference。
 >
-> `note` 暂归 PREFERENCES（配置/状态类域）：它是各模块（含 Notes）的 sparse metadata（starred/expanded/path overlay），非 `preference(scope,key)` 表的一部分；按 `(rootPath,path)` natural-key + FIELD_MERGE 处理。**内容范围**：`note` 表只存 sparse metadata（备份仅这些 metadata 行）；**Notes 笔记正文是 `knowledge_item`(type='note')，归 KNOWLEDGE 域**——精简排除 KNOWLEDGE 时不备份正文（符合精简语义），完整模式随 KNOWLEDGE 域备份。如需语义更清晰可后续拆独立 SETTINGS 域，本期不拆。
+> `note` 暂归 PREFERENCES（配置/状态类域）：它是 Notes 等模块的状态 overlay（starred/expanded），非 `preference(scope,key)` 表的一部分；按 `(rootPath,path)` natural-key + FIELD_MERGE 处理。**正文归属（三者区分，勿混）**：
+> - `note` 表（本域）：仅状态 overlay（`isStarred`/`isExpanded`），`rootPath`+`path` 指向 Notes 笔记的 markdown 文件，**不含正文**。
+> - **Notes 模块笔记正文** = filesystem markdown 文件（`rootPath`/`path` 指向，独立 notes 目录），属**文件资源**——完整模式随文件资源备份，精简模式（排除文件资源）不备份。
+> - `knowledge_item`(type='note') 是**知识库内的 note item**（KNOWLEDGE 域，正文 `raw/{slug}.md`），与 Notes 模块笔记是不同概念。
+>
+> **精简模式一致性**：精简排除文件资源时 Notes markdown 正文不备份；`note` 表状态行若 `rootPath` 指向未备份 markdown，恢复后状态悬空——须按 selected-resource 过滤（仅恢复指向已备份文件的 note 状态，类比 §5.2 多态软引用过滤）。如需语义更清晰可后续拆独立域，本期不拆。
 
 ### 4. TOPICS contributor 示例
 
