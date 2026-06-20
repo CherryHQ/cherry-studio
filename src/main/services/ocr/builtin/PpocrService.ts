@@ -1,6 +1,7 @@
 import { loadOcrImage } from '@main/utils/ocr'
-import type { ImageFileMetadata, OcrPpocrConfig, OcrResult, SupportedOcrFile } from '@types'
-import { isImageFileMetadata } from '@types'
+import type { ImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { isImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { OcrPpocrConfig, OcrResult, SupportedOcrFile } from '@shared/types/ocr'
 import { net } from 'electron'
 import * as z from 'zod'
 

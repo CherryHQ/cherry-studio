@@ -1,4 +1,4 @@
-import { codeLangExts, customTextExts } from '../src/shared/config/constant'
+import { codeLangExts, customTextExts } from '../src/shared/utils/file/fileExtensions'
 
 console.log('Running sanity check for custom extensions...')
 
@@ -33,7 +33,9 @@ if (totalOverlaps === 0) {
   console.error(
     'The following extensions in `customTextExts` are already present in `codeLangExts` (from languages.ts).'
   )
-  console.error('Please remove them from `customTextExts` in `src/shared/config/constant.ts` to avoid redundancy.')
+  console.error(
+    'Please remove them from `customTextExts` in `src/shared/utils/file/fileExtensions.ts` to avoid redundancy.'
+  )
   console.error(`\nFound ${totalOverlaps} overlapping extensions in ${overlappingExtsByCategory.size} categories:`)
 
   for (const [category, exts] of overlappingExtsByCategory.entries()) {

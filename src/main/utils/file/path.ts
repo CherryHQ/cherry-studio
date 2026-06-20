@@ -9,7 +9,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/path.${op}: not implemented (deferred to Phase 2)`)

@@ -14,6 +14,7 @@ import {
 import { dataApiService } from '@data/DataApiService'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@renderer/config/codeProviders'
 import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
@@ -24,12 +25,11 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { loggerService } from '@renderer/services/LoggerService'
 import { EFFORT_RATIO } from '@renderer/types'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'
-import type { TerminalConfig } from '@shared/config/constant'
-import { codeCLI, terminalApps } from '@shared/config/constant'
-import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { Provider } from '@shared/data/types/provider'
+import type { TerminalConfig } from '@shared/types/codeCli'
+import { codeCLI, terminalApps } from '@shared/types/codeCli'
 import {
   isEmbeddingModel,
   isReasoningModel,

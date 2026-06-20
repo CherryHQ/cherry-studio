@@ -5,7 +5,8 @@ import {
   type RendererCommandContextKey,
   rendererPlatform
 } from '@renderer/hooks/command'
-import { ContextKeyService, type ContextValue } from '@shared/command'
+import type { ContextValue } from '@shared/types/command'
+import { ContextKeyService } from '@shared/utils/command'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 interface ContextEntry {

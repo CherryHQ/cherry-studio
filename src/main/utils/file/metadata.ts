@@ -8,7 +8,8 @@
 
 import path from 'node:path'
 
-import { FILE_TYPE, type FilePath, type FileType, getFileTypeByExt } from '@shared/file/types'
+import { FILE_TYPE, type FilePath, type FileType } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import mime from 'mime'
 
 /** Detect file type from extension. Buffer-sniff fallback deferred (no consumer yet). */

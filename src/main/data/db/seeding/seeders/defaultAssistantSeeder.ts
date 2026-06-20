@@ -2,7 +2,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { insertWithOrderKey } from '@data/services/utils/orderKey'
-import { DEFAULT_ASSISTANT_SEED } from '@shared/data/presets/default-assistant'
+import { DEFAULT_ASSISTANT_SEED } from '@shared/data/presets/defaultAssistant'
 import { and, eq, isNull } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'

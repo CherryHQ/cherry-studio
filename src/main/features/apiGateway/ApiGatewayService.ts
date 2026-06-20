@@ -3,7 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@types'
+import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import { v4 as uuidv4 } from 'uuid'
 
 import { ApiGateway } from './server'

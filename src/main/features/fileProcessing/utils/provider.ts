@@ -1,5 +1,5 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 
 const lastUsedKeyByProcessor = new Map<FileProcessorId, string>()
 

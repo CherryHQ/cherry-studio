@@ -1,4 +1,4 @@
-import { WebSearchProviderIdSchema } from '@shared/data/presets/web-search-providers'
+import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
 import type { WebSearchFetchUrlsRequest, WebSearchSearchKeywordsRequest } from '@shared/data/types/webSearch'
 import * as z from 'zod'
 
