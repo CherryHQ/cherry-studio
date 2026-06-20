@@ -237,7 +237,7 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
     case 'url':
       return item.data.url.trim() || null
     case 'directory':
-      return item.data.relativePath.trim() || null
+      return item.data.source.trim() || null
     case 'note': {
       const firstLine = item.data.content.split(/\r?\n/).find((line) => line.trim().length > 0)
       if (!firstLine) return null

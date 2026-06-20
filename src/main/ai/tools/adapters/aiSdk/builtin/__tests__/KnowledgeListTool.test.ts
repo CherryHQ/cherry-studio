@@ -114,7 +114,7 @@ function makeDirectoryItem(id: string, path: string): KnowledgeItem {
     status: 'completed',
     phase: null,
     error: null,
-    data: { source: id, relativePath: path },
+    data: { source: path },
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z'
   } as unknown as KnowledgeItem

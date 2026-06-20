@@ -1,12 +1,6 @@
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import {
-  convertKeyToAccelerator,
-  formatShortcutDisplay,
-  normalizeShortcutBinding,
-  type ShortcutBinding,
-  type ShortcutToken
-} from '@shared/shortcuts/tokens'
+import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/shortcuts/tokens'
 
 import { canContextExprsOverlap, evaluateContextExpr } from './contextExpr'
 import { type CommandId, findKeybindingRule, REGISTERED_KEYBINDINGS } from './definitions'
@@ -58,15 +52,6 @@ export interface FindKeybindingConflictsOptions {
   preferences?: Partial<Record<CommandId, PreferenceShortcutType | null | undefined>>
   platform?: SupportedPlatform
   rules?: readonly RegisteredKeybindingRule<CommandId>[]
-}
-
-export interface KeyboardEventLike {
-  key: string
-  code?: string
-  ctrlKey?: boolean
-  metaKey?: boolean
-  altKey?: boolean
-  shiftKey?: boolean
 }
 
 const isPlatformSupported = (rule: RegisteredKeybindingRule, platform?: SupportedPlatform): boolean => {
@@ -124,26 +109,6 @@ const getTriggerBindings = (
   { binding, trigger: 'primary' },
   ...additionalBindings.map((additionalBinding) => ({ binding: additionalBinding, trigger: 'additional' as const }))
 ]
-
-const getEventKeyToken = (event: KeyboardEventLike) => {
-  const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
-  const fromKey = convertKeyToAccelerator(event.key)
-  const token = fromCode ?? fromKey
-
-  if (
-    token === 'CommandOrControl' ||
-    token === 'Command' ||
-    token === 'Ctrl' ||
-    token === 'Alt' ||
-    token === 'AltGr' ||
-    token === 'Shift' ||
-    token === 'Meta'
-  ) {
-    return undefined
-  }
-
-  return token
-}
 
 export const getCommandAccelerator = (binding: ShortcutBinding): string | undefined => {
   if (!binding.length) {
@@ -217,31 +182,6 @@ export const resolveCommandKeybinding = ({
     accelerator: shortcutPreference.enabled ? getCommandAccelerator(shortcutPreference.binding) : undefined,
     additionalBindings: rule.additionalBindings ?? []
   }
-}
-
-export const getShortcutBindingFromKeyboardEvent = (
-  event: KeyboardEventLike,
-  platform?: SupportedPlatform
-): ShortcutBinding => {
-  const binding: ShortcutToken[] = []
-
-  if (platform === 'darwin') {
-    if (event.metaKey) binding.push('CommandOrControl')
-    if (event.ctrlKey) binding.push('Ctrl')
-  } else {
-    if (event.ctrlKey) binding.push('CommandOrControl')
-    if (event.metaKey) binding.push(platform ? 'Meta' : 'CommandOrControl')
-  }
-
-  if (event.altKey) binding.push('Alt')
-  if (event.shiftKey) binding.push('Shift')
-
-  const keyToken = getEventKeyToken(event)
-  if (keyToken) {
-    binding.push(keyToken)
-  }
-
-  return normalizeShortcutBinding(binding)
 }
 
 export const resolveCommandByKeybinding = ({
@@ -355,27 +295,4 @@ export const findKeybindingConflicts = ({
   }
 
   return conflicts
-}
-
-export const getCommandShortcutLabel = (
-  command: CommandId,
-  preference: PreferenceShortcutType | null | undefined,
-  options: {
-    context: ContextReader
-    isMac: boolean
-    platform?: SupportedPlatform
-  }
-): string => {
-  const resolved = resolveCommandKeybinding({
-    command,
-    preference,
-    context: options.context,
-    platform: options.platform
-  })
-
-  if (!resolved?.enabled || !resolved.binding.length) {
-    return ''
-  }
-
-  return formatShortcutDisplay(resolved.binding, options.isMac)
 }

@@ -395,9 +395,6 @@
           "failed": "Error al reordenar las sesiones"
         }
       },
-      "tool": {
-        "disabled": "La herramienta {{toolName}} está deshabilitada para este agente."
-      },
       "update": {
         "error": {
           "failed": "Error al actualizar la sesión"
@@ -1656,10 +1653,10 @@
       "claude_code": "El asistente oficial de codificación con IA de línea de comandos de Anthropic",
       "gemini_cli": "Asistente oficial de línea de comandos de Google Gemini",
       "github_copilot_cli": "Compañero oficial de línea de comandos de GitHub Copilot",
-      "iflow_cli": "Asistente de línea de comandos multimodelo de iFlow",
       "kimi_cli": "Asistente de línea de comandos Kimi de Moonshot",
       "openai_codex": "CLI oficial de OpenAI para generación de código",
       "opencode": "Agente de codificación multi-modelo de código abierto",
+      "qoder_cli": "Herramienta de codificación en línea de comandos agentica de Alibaba Qoder",
       "qwen_code": "Herramienta de codificación CLI de código abierto de Alibaba Tongyi"
     },
     "update_options": "Opciones de actualización",
@@ -2159,7 +2156,8 @@
         "note": {
           "description": "Selecciona notas existentes como fuentes de base de conocimiento",
           "empty_description": "Las notas seleccionables aparecerán aquí después de que se conecte la lista de notas reales. Por ahora, usa archivos, carpetas, URLs o mapas del sitio.",
-          "empty_title": "Las notas aún no están conectadas"
+          "empty_title": "Las notas aún no están conectadas",
+          "loading": "Cargando notas…"
         },
         "placeholder": {
           "supported_formats": "Soporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2174,7 @@
           "success": "Fuente de datos añadida a la base de conocimientos"
         },
         "title": "Agregar Fuente de Datos",
+        "unsupported_files_skipped": "Se omitieron {{count}} archivo(s) no admitido(s)",
         "url": {
           "description": "Introduce una URL de página web:",
           "help": "El texto de la página se obtendrá, se dividirá en fragmentos y se indexará automáticamente.",
@@ -2185,15 +2184,12 @@
         }
       },
       "bulk": {
-        "cancel": "Cancelar",
         "delete": "Eliminar",
         "delete_confirm_description": "¿Eliminar {{count}} fuentes de datos seleccionadas? Esta acción no se puede deshacer.",
         "delete_confirm_title": "¿Eliminar las fuentes de datos seleccionadas?",
         "reindex": "Reindexar",
         "selected_count": "{{count}} seleccionado"
       },
-      "chunk_delete_confirm_description": "Después de la eliminación, este fragmento ya no se utilizará para la recuperación. Reindexar la fuente de datos lo generará nuevamente.",
-      "chunk_delete_confirm_title": "¿Eliminar fragmento?",
       "chunks_count": "{{count}} fragmentos",
       "delete_confirm_description": "Esta fuente de datos y sus datos de índice no se pueden recuperar después de la eliminación.",
       "delete_confirm_title": "¿Eliminar fuente de datos?",
@@ -2245,20 +2241,17 @@
         "select_row": "Seleccionar fila"
       },
       "toolbar": {
-        "add": "Agregar fuente de datos",
-        "no_search_results": "No hay fuentes de datos coincidentes",
-        "search_placeholder": "Buscar fuentes de datos"
+        "add": "Agregar fuente de datos"
       }
     },
-    "dimensions": "Dimensiones de Incrustación",
     "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
-    "dimensions_error_invalid": "Por favor ingrese el tamaño de dimensión de incrustación",
     "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
     "drag_file": "Arrastre archivos aquí",
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
     "error": {
+      "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
       "failed_base_unknown": "Esta base de conocimientos falló durante la migración. Reconstrúyela y elige un nuevo modelo de incrustación.",
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_delete": "Error al eliminar la base de conocimientos",
@@ -2304,7 +2297,6 @@
       "chunk_size_invalid": "El tamaño del fragmento debe ser mayor que 0",
       "chunking": "Fragmentación",
       "default_separator": "Auto (recomendado)",
-      "dimensions": "Dimensiones del Vector",
       "document_count": "Recuento de documentos",
       "embedding_model": "Modelo de incrustación",
       "embedding_model_select": "Selección de Modelo",
@@ -2313,7 +2305,6 @@
       "hints": {
         "chunk_overlap": "Número de tokens superpuestos que se conservan entre fragmentos adyacentes para reducir las rupturas semánticas.",
         "chunk_size": "Recuento objetivo de tokens para cada fragmento de documento. Esto afecta la granularidad de recuperación y la longitud del contexto.",
-        "dimensions": "La dimensión del vector generado por el modelo de incrustación actual, utilizada para crear y coincidir con índices vectoriales.",
         "document_count": "Número máximo de fragmentos de documento devueltos para cada recuperación. Valores más altos cubren más contenido pero utilizan más contexto.",
         "embedding_model": "Se utiliza para convertir el contenido de la base de conocimientos en vectores. Cambiar el modelo suele requerir reindexar el contenido existente.",
         "hybrid_alpha": "Peso de puntuación vectorial en la recuperación híbrida. Valores más altos favorecen el emparejamiento semántico.",
@@ -2324,9 +2315,7 @@
         "threshold_disabled": "Este modo de recuperación devuelve resultados ordenados y no utiliza un umbral de similitud."
       },
       "hybrid_alpha": "Alfa Híbrida",
-      "hybrid_alpha_hint": "Solo configurable en el modo de recuperación híbrida",
       "processor": "Proveedor de Procesamiento",
-      "refresh_dimensions": "Actualizar dimensiones del vector",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de Reordenamiento",
       "reset_action": "Restablecer valores predeterminados",
@@ -2336,9 +2325,9 @@
       "saved": "Guardado",
       "search_mode": {
         "bm25": "Búsqueda de texto completo",
-        "default": "Búsqueda Vectorial",
         "hybrid": "Búsqueda híbrida (recomendada)",
-        "title": "Modo de búsqueda"
+        "title": "Modo de búsqueda",
+        "vector": "Búsqueda Vectorial"
       },
       "separator_rule": "Regla de Separador",
       "threshold": "Umbral de Similitud",
@@ -6066,6 +6055,7 @@
       "disabled": "Miniaplicaciones Ocultas",
       "display_title": "Configuración de visualización de la Mini App",
       "empty": "Haz clic en el icono de ocultar en una aplicación de la izquierda y se moverá aquí",
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "title": "Abrir enlaces de nueva ventana en el navegador"
       },
@@ -6077,6 +6067,7 @@
         "title": "Filtro de Mini Programa"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
+      "show_app": "Mostrar {{name}}",
       "sidebar_description": "Mostrar miniaplicaciones activas en la barra lateral",
       "sidebar_title": "Barra lateral: Miniaplicaciones activas en pantalla",
       "title": "Configuración de Mini Apps",
@@ -6377,7 +6368,8 @@
       "add": {
         "name": {
           "label": "Nombre del proveedor",
-          "placeholder": "Por ejemplo, OpenAI"
+          "placeholder": "Por ejemplo, OpenAI",
+          "required": "Por favor ingrese el nombre del proveedor"
         },
         "title": "Agregar proveedor",
         "type": "Tipo de proveedor"
@@ -6488,7 +6480,8 @@
       "balance": "Saldo disponible",
       "base_url": {
         "label": "URL base",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Por favor, introduce la URL base"
       },
       "basic_auth": {
         "label": "Autenticación HTTP",
@@ -6663,7 +6656,7 @@
         "project_id": "ID del proyecto",
         "project_id_help": "Su ID de proyecto de Google Cloud",
         "project_id_placeholder": "su-id-de-proyecto-de-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Seleccionar ubicación",
         "service_account": {
           "auth_success": "Autenticación de Service Account exitosa",
           "client_email": "Correo electrónico del cliente",
@@ -6680,9 +6673,9 @@
           "private_key_help": "Campo private_key del archivo de clave JSON descargado desde Google Cloud Console",
           "private_key_placeholder": "Ingrese la clave privada de Service Account",
           "title": "Configuración de Service Account",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Alternar la visibilidad del correo electrónico del cliente",
+          "toggle_private_key_visibility": "Alternar la visibilidad de la clave privada",
+          "toggle_project_id_visibility": "Alternar la visibilidad del ID del proyecto"
         }
       }
     },
@@ -6752,6 +6745,7 @@
       },
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
+      "close_tab": "Cerrar pestaña",
       "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
@@ -6759,8 +6753,11 @@
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
+      "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
+      "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
+      "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",

@@ -1,5 +1,5 @@
 import type * as RendererConstantModule from '@renderer/config/constant'
-import type { ShortcutListItem } from '@renderer/hooks/useShortcuts'
+import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/command'
 import type { ShortcutBinding } from '@shared/shortcuts/tokens'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -51,9 +51,9 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
+vi.mock('@renderer/hooks/command/useCommandShortcuts', () => ({
   getAllShortcutDefaultPreferences: () => ({}),
-  useAllShortcuts: () => ({
+  useCommandShortcuts: () => ({
     shortcuts: shortcutsMock.shortcuts,
     updatePreference: shortcutsMock.updatePreference
   })

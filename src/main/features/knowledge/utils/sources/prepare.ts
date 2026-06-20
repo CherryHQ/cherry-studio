@@ -9,6 +9,7 @@ import {
 
 import type { IndexableKnowledgeItem } from '../../types/items'
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
+import { collectKnowledgeReservedRelativePaths } from '../storage/pathStorage'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')
@@ -45,10 +46,13 @@ async function prepareDirectoryForRuntime(
   runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
-  const expandedChildren = await expandDirectoryOwnerToTree(item, baseId, signal)
+  // Exclude this container itself: on reindex it already owns its `relativePath`
+  // prefix, and counting it as reserved would self-collide it to `_1` every time.
+  const reservedTopLevelNames = await collectReservedTopLevelNames(baseId, item.id)
+  const { pathPrefix, children } = await expandDirectoryOwnerToTree(item, baseId, reservedTopLevelNames, signal)
   signal.throwIfAborted()
 
-  if (expandedChildren.length === 0) {
+  if (children.length === 0) {
     logger.warn('Directory expansion produced no indexable files', {
       baseId,
       itemId: item.id,
@@ -58,7 +62,30 @@ async function prepareDirectoryForRuntime(
     return []
   }
 
-  return await createDirectoryChildren(baseId, item.id, expandedChildren, onCreatedItem, runMutation, signal)
+  // Pin the deduped `raw/` prefix the children were stored under onto the container, so the
+  // UI shows the on-disk name (e.g. `docs_2`) and delete can remove the whole shell by it.
+  await runMutation(() => knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix))
+
+  return await createDirectoryChildren(baseId, item.id, children, onCreatedItem, runMutation, signal)
+}
+
+/**
+ * Top-level `raw/` segment of every name already occupied in the base — the set a
+ * directory expansion must avoid when claiming its own basename. Each reserved
+ * relativePath contributes its first segment: a bare file (`report.pdf`) or another
+ * directory's namespace (`docs/sub/a.pdf` → `docs`). Runs inside the base mutation
+ * lock, so the read-then-dedupe-then-write is free of concurrent expansions.
+ */
+async function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Promise<Set<string>> {
+  const items = await knowledgeItemService.getItemsByBaseId(baseId)
+  const names = new Set<string>()
+  for (const relativePath of collectKnowledgeReservedRelativePaths(items, { excludeItemId })) {
+    const topSegment = relativePath.split('/')[0]
+    if (topSegment) {
+      names.add(topSegment)
+    }
+  }
+  return names
 }
 
 async function createDirectoryChildren(

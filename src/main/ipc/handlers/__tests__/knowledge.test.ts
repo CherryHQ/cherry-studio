@@ -67,12 +67,18 @@ describe('knowledgeHandlers', () => {
     expect(result).toBeUndefined()
   })
 
-  it('add_items forwards baseId and items', async () => {
+  it('add_items forwards baseId, items, and conflictStrategy and returns the result', async () => {
     const items = [{ type: 'note' as const, data: { source: 'manual', content: 'hello' } }]
+    const addResult = { status: 'conflicts' as const, conflicts: [{ type: 'note' as const, title: 'hello' }] }
+    knowledgeService.addItems.mockResolvedValue(addResult)
 
-    await knowledgeHandlers['knowledge.add_items']({ baseId: 'base-1', items }, ctx)
+    const result = await knowledgeHandlers['knowledge.add_items'](
+      { baseId: 'base-1', items, conflictStrategy: 'detect' },
+      ctx
+    )
 
-    expect(knowledgeService.addItems).toHaveBeenCalledWith('base-1', items)
+    expect(knowledgeService.addItems).toHaveBeenCalledWith('base-1', items, 'detect')
+    expect(result).toBe(addResult)
   })
 
   it('delete_items forwards baseId and itemIds', async () => {
