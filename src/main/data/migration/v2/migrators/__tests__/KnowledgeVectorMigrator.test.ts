@@ -850,6 +850,158 @@ describe('KnowledgeVectorMigrator', () => {
         )
       ).toBe(true)
     })
+
+    it('degrades a directory child orphaned by a cross-directory shared loader-id collision (F3)', async () => {
+      // Two `completed` v1 folders in one base recursively include the same physical file (a parent
+      // folder and its subfolder, or the same folder added twice). v1 books that file's chunks under
+      // one loader id; KnowledgeMigrator expands BOTH folders, minting a child per folder, and its
+      // flat last-write-wins loaderId->childId remap keeps only the later child (CHILD_B). CHILD_A
+      // must still be degraded: collectDirectoryGroups derives groups from the migrated rows' groupId,
+      // so the orphaned child (which draws no chunks) is found and degraded instead of being left a
+      // silent `completed` empty doc with no vectors and no raw/ file.
+      const CONTAINER_A = '0198f3f2-7e10-7abc-8def-123456789abc'
+      const CONTAINER_B = '0198f3f2-7e11-7abc-8def-123456789abc'
+      const CHILD_A = '0198f3f2-7e12-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7e13-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-shared-0',
+          pageContent: 'shared file chunk',
+          uniqueLoaderId: 'loader-shared',
+          source: '/docs/sub/x.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(CONTAINER_A, { type: 'directory', groupId: null, data: { source: '/docs' } }),
+          createMigratedItem(CONTAINER_B, { type: 'directory', groupId: null, data: { source: '/docs/sub' } }),
+          createMigratedItem(CHILD_A, {
+            groupId: CONTAINER_A,
+            data: { source: '/docs/sub/x.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: CONTAINER_B,
+            data: { source: '/docs/sub/x.md', relativePath: CHILD_B }
+          })
+        ],
+        knowledgeItemIdRemap: new Map([
+          ['item-dir-a', CONTAINER_A],
+          ['item-dir-b', CONTAINER_B]
+        ]),
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  { id: 'item-dir-a', type: 'directory', uniqueId: 'DirectoryLoader_a', uniqueIds: ['loader-shared'] },
+                  { id: 'item-dir-b', type: 'directory', uniqueId: 'DirectoryLoader_b', uniqueIds: ['loader-shared'] }
+                ]
+              }
+            ]
+          }
+        }
+      })
+      // Last-write-wins precondition: CHILD_B overwrote CHILD_A for the shared loader id.
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([[MIGRATED_KNOWLEDGE_BASE_ID, new Map([['loader-shared', CHILD_B]])]])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      // The shared loader's chunk lands on the surviving child; the orphaned CHILD_A and its now-empty
+      // container are degraded instead of left silently `completed`.
+      expect(materialItemIds(migrator)).toEqual([CHILD_B])
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, CONTAINER_A].sort())
+      expect(migrator.skippedCount).toBe(0)
+    })
+
+    it('keeps a standalone file item as vector owner when a directory child shares its loader id (F4)', async () => {
+      // One base holds both a standalone file item (added on its own) and a `completed` folder that
+      // recursively includes the same file. v1 books that file's chunks under one loader id shared by
+      // both. The standalone item owns a real raw/ file and is reindexable; the directory child is a
+      // virtual-path doc. Re-attribution must NOT steal the loader from the standalone — it keeps its
+      // vectors (stays searchable) and the redundant directory child is degraded.
+      const STANDALONE_FILE = '0198f3f2-7e20-7abc-8def-123456789abc'
+      const CONTAINER = '0198f3f2-7e21-7abc-8def-123456789abc'
+      const CHILD = '0198f3f2-7e22-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-shared-0',
+          pageContent: 'report chunk',
+          uniqueLoaderId: 'loader-report',
+          source: '/docs/report.pdf',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(STANDALONE_FILE, {
+            groupId: null,
+            data: { source: '/docs/report.pdf', relativePath: 'report.pdf' }
+          }),
+          createMigratedItem(CONTAINER, { type: 'directory', groupId: null, data: { source: '/docs' } }),
+          createMigratedItem(CHILD, {
+            groupId: CONTAINER,
+            data: { source: '/docs/report.pdf', relativePath: CHILD }
+          })
+        ],
+        knowledgeItemIdRemap: new Map([
+          ['item-file', STANDALONE_FILE],
+          ['item-directory', CONTAINER]
+        ]),
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  { id: 'item-file', type: 'file', uniqueId: 'loader-report' },
+                  {
+                    id: 'item-directory',
+                    type: 'directory',
+                    uniqueId: 'DirectoryLoader_x',
+                    uniqueIds: ['loader-report']
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([[MIGRATED_KNOWLEDGE_BASE_ID, new Map([['loader-report', CHILD]])]])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      // The standalone item keeps the loader's vectors; the redundant directory child is degraded.
+      expect(materialItemIds(migrator)).toEqual([STANDALONE_FILE])
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD, CONTAINER].sort())
+      expect(
+        result.warnings?.some(
+          (warning: string) =>
+            warning.includes('Skipped knowledge vector records (directory_child_loader_conflict): count=1') &&
+            warning.includes('loader-report')
+        )
+      ).toBe(true)
+      expect(migrator.skippedCount).toBe(0)
+    })
   })
 
   describe('execute + validate', () => {
@@ -1765,7 +1917,7 @@ describe('KnowledgeVectorMigrator', () => {
       const renameSpy = vi
         .spyOn(fs.promises, 'rename')
         .mockRejectedValueOnce(Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' }))
-        .mockImplementation((...args) => realRename(...(args as Parameters<typeof realRename>)))
+        .mockImplementation((...args) => realRename(...(args)))
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)

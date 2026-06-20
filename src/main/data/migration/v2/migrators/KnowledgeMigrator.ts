@@ -840,10 +840,11 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       await this.dropDanglingAssistantKnowledgeBaseRefs(ctx)
 
-      // Self-check the knowledge domain. assistant_knowledge_base is verified HERE (not in
-      // AssistantMigrator): AssistantMigrator writes those rows with legacy KB ids, and this
-      // migrator remaps them to the new base ids + drops any that stay dangling — so they are
-      // referentially consistent only now.
+      // Self-check the knowledge domain. In production AssistantMigrator (order 2) writes
+      // assistant_knowledge_base AFTER this migrator (order 1.8) — translating each ref to the new
+      // base id itself — so the junction is empty here and the engine's final verifyForeignKeys()
+      // is its real gate. The remap UPDATE above + this assertion only bite when junction rows with
+      // legacy ids already exist at this point (a re-run, or the white-box test that seeds them).
       await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
 
       this.flushSkippedWarnings()

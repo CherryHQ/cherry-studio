@@ -270,28 +270,38 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
-   * Group a base's directory-expanded children by their container item id (children carry
-   * `groupId = containerId`). Built from the per-base loader remap KnowledgeMigrator published.
+   * Group a base's directory-expanded children by their container item id, derived from the migrated
+   * rows themselves: every child carries `groupId = containerId`, and migration sets a non-null
+   * `groupId` ONLY on directory-expanded children (standalone items and containers are `null`), so
+   * grouping the rows by `groupId` captures every child of the base.
+   *
+   * This must NOT be derived from the per-base loader remap's values: when two overlapping/duplicate
+   * v1 folders share a file's loader id, KnowledgeMigrator's last-write-wins remap keeps only the
+   * later child, so the earlier child would be absent from the groups and never degraded — left as a
+   * silent `completed` row with no vectors and no raw/ file (an unreindexable orphan). Scanning the
+   * rows includes both children, so the one that draws no chunks is still degraded.
    */
   private collectDirectoryGroups(
     baseId: string,
-    migratedItemsByBaseId: Map<string, Map<string, MigratedKnowledgeItemForVector>>,
-    directoryChildLoaderRemapByBase: Map<string, Map<string, string>>
+    migratedItemsByBaseId: Map<string, Map<string, MigratedKnowledgeItemForVector>>
   ): Map<string, Set<string>> {
     const groups = new Map<string, Set<string>>()
-    const childRemap = directoryChildLoaderRemapByBase.get(baseId)
     const items = migratedItemsByBaseId.get(baseId)
-    if (!childRemap || !items) {
+    if (!items) {
       return groups
     }
-    for (const childId of new Set(childRemap.values())) {
-      const child = items.get(childId)
-      if (!child || !child.groupId) {
+    for (const item of items.values()) {
+      const containerId = item.groupId
+      if (!containerId) {
         continue
       }
-      const containerId = child.groupId
+      // Defensive: only group under an actual directory container that lives in this base.
+      const container = items.get(containerId)
+      if (!container || container.type !== 'directory') {
+        continue
+      }
       const bucket = groups.get(containerId) ?? new Set<string>()
-      bucket.add(childId)
+      bucket.add(item.id)
       groups.set(containerId, bucket)
     }
     return groups
@@ -408,6 +418,49 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     return map
   }
 
+  /**
+   * Loader ids owned by a migrated STANDALONE indexable item (a file/url/note the user added on its
+   * own — no group owner) → that item, as opposed to a directory container/child. Used to stop a
+   * directory re-attribution from stealing a standalone item's vectors when both claim the same v1
+   * loader id (md5(path) collides a file added standalone and inside a folder). A directory legacy
+   * item maps to its container (type 'directory', excluded); its children are synthesized, not legacy
+   * items, so they never appear here.
+   */
+  private collectStandaloneLoaderOwners(
+    legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
+    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>,
+    legacyItemIdRemap: Map<string, string>
+  ): Map<string, MigratedKnowledgeItemForVector> {
+    const owners = new Map<string, MigratedKnowledgeItemForVector>()
+    if (!legacyBase || !Array.isArray(legacyBase.items)) {
+      return owners
+    }
+    for (const item of legacyBase.items) {
+      if (!item.id) {
+        continue
+      }
+      const migratedId = legacyItemIdRemap.get(item.id)
+      const migrated = migratedId ? migratedItemsById.get(migratedId) : undefined
+      // A non-null groupId marks a directory-expanded child; standalone items carry none. Truthy
+      // check (not `!== null`) so an undefined groupId is treated the same as null.
+      if (!migrated || migrated.groupId || !INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(migrated.type)) {
+        continue
+      }
+      const loaderIds =
+        Array.isArray(item.uniqueIds) && item.uniqueIds.length > 0
+          ? item.uniqueIds
+          : typeof item.uniqueId === 'string' && item.uniqueId.trim() !== ''
+            ? [item.uniqueId]
+            : []
+      for (const loaderId of loaderIds) {
+        if (typeof loaderId === 'string' && loaderId.trim() !== '' && !owners.has(loaderId)) {
+          owners.set(loaderId, migrated)
+        }
+      }
+    }
+    return owners
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       // One timestamp for every snapshot this run materializes; it records when
@@ -463,11 +516,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // virtual-path docs (markDirectoryGroupsFullyOrphaned); if the base loads, children that
         // receive no chunks are degraded individually (markEmptyDirectoryChildren). The map is
         // empty for bases without directory expansion, so the marker calls are no-ops there.
-        const directoryGroups = this.collectDirectoryGroups(
-          base.id,
-          migratedItemsByBaseId,
-          directoryChildLoaderRemapByBase
-        )
+        const directoryGroups = this.collectDirectoryGroups(base.id, migratedItemsByBaseId)
 
         if (base.status === 'failed' || base.embeddingModelId === null) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: missing embedding model`
@@ -562,7 +611,31 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const baseMigratedItems = migratedItemsByBaseId.get(base.id)
         const baseDirectoryChildLoaderRemap = directoryChildLoaderRemapByBase.get(base.id)
         if (baseMigratedItems && baseDirectoryChildLoaderRemap) {
+          // A loader id can be claimed by BOTH a directory expansion and a standalone file/url/note
+          // item the user added separately — v1 loader ids are md5(path), so the same physical file
+          // added both on its own and inside a folder collides on one id. The standalone item owns a
+          // real raw/ file and is reindexable, whereas the directory child is a virtual-path doc, so
+          // keep the standalone as the vector owner: pin the loader id to it (independent of
+          // buildLoaderTargetMap's array-order last-write-wins, which may have left it on the
+          // non-indexable container) and skip the override that would otherwise steal its vectors and
+          // leave the standalone `completed` but unsearchable. The skipped directory child draws no
+          // chunks and is degraded by collectDirectoryGroups + markEmptyDirectoryChildren.
+          const standaloneLoaderOwners = this.collectStandaloneLoaderOwners(
+            legacyBase,
+            baseMigratedItems,
+            legacyItemIdRemap
+          )
+          for (const [loaderId, owner] of standaloneLoaderOwners) {
+            loaderTargetMap.set(loaderId, owner)
+          }
           for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
+            if (standaloneLoaderOwners.has(loaderId)) {
+              this.recordSkippedWarning(
+                'directory_child_loader_conflict',
+                `Knowledge base ${base.id}: loader '${loaderId}' is owned by a standalone item; kept its vectors there and left the directory child to degrade`
+              )
+              continue
+            }
             const child = baseMigratedItems.get(childItemId)
             if (child) {
               loaderTargetMap.set(loaderId, child)
