@@ -34,10 +34,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/constants', () => ({
-  HOME_CHERRY_DIR: '.cherrystudio'
-}))
-
 vi.mock('electron', () => ({
   app: {
     isPackaged: false
@@ -52,6 +48,7 @@ vi.mock('@application', () => ({
   application: {
     getPath: (key: string) => {
       if (key === 'app.root.resources.binaries') return '/app/resources/binaries'
+      if (key === 'cherry.bin') return '/home/testuser/.cherrystudio/bin'
       return '/app/resources'
     }
   }

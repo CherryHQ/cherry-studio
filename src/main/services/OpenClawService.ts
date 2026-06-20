@@ -15,7 +15,7 @@ import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScrip
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
-import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
+import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils/api'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { vertexAiService } from './VertexAiService'

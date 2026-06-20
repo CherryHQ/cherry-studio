@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isSerializable, SerializableSchema } from '../serialize'
+import { isSerializable, SerializableSchema } from '../serializable'
 
 describe('isSerializable', () => {
   describe('primitives', () => {

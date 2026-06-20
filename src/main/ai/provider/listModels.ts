@@ -14,10 +14,10 @@ import {
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost } from '@shared/utils/api'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
 import {

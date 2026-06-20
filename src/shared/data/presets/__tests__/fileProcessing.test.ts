@@ -17,7 +17,7 @@ import {
   FileProcessorTemplatesSchema,
   FileProcessorTypeSchema,
   PRESETS_FILE_PROCESSORS
-} from '../file-processing'
+} from '../fileProcessing'
 
 describe('FileProcessorFeatureCapabilitySchema', () => {
   it('accepts image_to_text with image inputs', () => {

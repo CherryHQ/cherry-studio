@@ -8,7 +8,7 @@ import type {
   WebSearchProviderId,
   WebSearchProviderOverride
 } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

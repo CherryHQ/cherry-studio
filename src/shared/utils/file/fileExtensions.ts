@@ -1,4 +1,4 @@
-import { codeLanguages } from '@shared/utils/code-languages'
+import { codeLanguages } from '@shared/utils/codeLanguages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
