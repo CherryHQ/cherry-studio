@@ -1,6 +1,6 @@
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { MiniAppSeeder } from '@data/db/seeding/seeders/miniAppSeeder'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'

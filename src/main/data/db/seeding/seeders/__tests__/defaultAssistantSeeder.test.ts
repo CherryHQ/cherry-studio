@@ -12,7 +12,7 @@ import {
   DEFAULT_ASSISTANT_EMOJI,
   DEFAULT_ASSISTANT_NAME,
   DEFAULT_ASSISTANT_PROMPT
-} from '@shared/data/presets/default-assistant'
+} from '@shared/data/presets/defaultAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'

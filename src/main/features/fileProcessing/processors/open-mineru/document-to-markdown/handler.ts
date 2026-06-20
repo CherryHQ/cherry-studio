@@ -1,4 +1,4 @@
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
 import { getApiKey, getRequiredApiHost, getRequiredCapability } from '../../../utils/provider'

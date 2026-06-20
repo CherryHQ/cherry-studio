@@ -1,7 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
-import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

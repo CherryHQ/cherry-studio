@@ -1,5 +1,5 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
 export type ImageToTextHandlerOutput = {

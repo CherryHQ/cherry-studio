@@ -14,8 +14,8 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import type { Shortcut } from '@main/data/migration/v2/legacyTypes'
 import { ZOOM_SHORTCUTS } from '@shared/utils/shortcut'
-import type { Shortcut } from '@types'
 import Store from 'electron-store'
 
 export enum ConfigKeys {

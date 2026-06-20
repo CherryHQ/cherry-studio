@@ -8,7 +8,7 @@ import {
   isTranslateLangCode,
   type TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { isQwenMTModel } from '@shared/utils/model'
 import { franc } from 'franc-min'

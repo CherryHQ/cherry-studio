@@ -5,7 +5,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
+import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
   type CreateKnowledgeItemDto,
   DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,

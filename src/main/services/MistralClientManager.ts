@@ -1,5 +1,5 @@
+import type { Provider } from '@main/data/migration/v2/legacyTypes'
 import { Mistral } from '@mistralai/mistralai'
-import type { Provider } from '@types'
 
 export class MistralClientManager {
   private client: Mistral | null = null

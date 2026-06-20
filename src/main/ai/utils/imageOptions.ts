@@ -1,4 +1,4 @@
-import type { GenerateImageParams } from '@types'
+import type { GenerateImageParams } from '@shared/types/image'
 import type { JSONValue } from 'ai'
 
 /**

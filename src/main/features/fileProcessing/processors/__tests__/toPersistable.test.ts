@@ -7,7 +7,7 @@
  */
 import fs from 'node:fs/promises'
 
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

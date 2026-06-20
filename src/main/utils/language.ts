@@ -3,6 +3,11 @@ import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 import { app } from 'electron'
 
+// TODO(i18n-migration): main must not depend on renderer source. These locale
+// JSON imports are a known cross-process boundary violation, intentionally left
+// in place and deferred to the dedicated i18n migration PR (relocate locales to
+// a shared on-disk resource loaded per-process via i18next-fs-backend). Do NOT
+// add new renderer imports here.
 import EnUs from '../../renderer/i18n/locales/en-us.json'
 import ZhCn from '../../renderer/i18n/locales/zh-cn.json'
 import ZhTw from '../../renderer/i18n/locales/zh-tw.json'
