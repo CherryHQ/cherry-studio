@@ -7,8 +7,8 @@ import {
 } from '@renderer/components/chat/utils/quoteToken'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import type { FilePath } from '@shared/file/types'
-import { toSafeFileUrl } from '@shared/file/urlUtil'
+import type { FilePath } from '@shared/types/file'
+import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
 import { Boxes, Braces, File, FileCode2, FileImage, FileText, TextQuote, Zap } from 'lucide-react'
 import {
   type ComponentType,
