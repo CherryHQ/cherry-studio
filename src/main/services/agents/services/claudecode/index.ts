@@ -21,12 +21,14 @@ import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/res
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
+import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
 import SkillsServer from '@main/mcpServers/skills'
 import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
 import { configManager } from '@main/services/ConfigManager'
+import mcpService from '@main/services/MCPService'
 import {
   getNodeProxyConfigFromEnvironment,
   getProxyEnvironment,
@@ -59,6 +61,7 @@ import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { filterReachableMcpServers } from './mcp'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 import { with1mContextSuffix } from './utils'
@@ -568,9 +571,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
+      // Probe each configured MCP server before exposing it to the agent so a
+      // single unreachable or slow server cannot block the whole agent from
+      // starting (graceful degradation — see issue #16242). Probes run in
+      // parallel and warm the proxy's connection cache, so reachable servers
+      // stay fast; unreachable ones are skipped for this session.
+      const reachableMcpIds = await filterReachableMcpServers(session.mcps, {
+        listServers: getMCPServersFromRedux,
+        checkConnectivity: (server) => mcpService.checkMcpConnectivity({} as Electron.IpcMainInvokeEvent, server)
+      })
+
       // mcp configs
       const mcpList: Record<string, McpHttpServerConfig> = {}
-      for (const mcpId of session.mcps) {
+      for (const mcpId of reachableMcpIds) {
         mcpList[mcpId] = {
           type: 'http',
           url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
