@@ -14,7 +14,7 @@ import {
   VideoCameraFilled
 } from '@ant-design/icons'
 import { ColFlex } from '@cherrystudio/ui'
-import { videoExts } from '@shared/config/constant'
+import { videoExts } from '@shared/utils/file'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 

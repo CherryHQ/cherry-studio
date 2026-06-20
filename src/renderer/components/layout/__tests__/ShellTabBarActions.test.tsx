@@ -43,7 +43,7 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
   }
 }))
 
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 

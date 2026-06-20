@@ -77,7 +77,7 @@ vi.mock('react-i18next', () => ({
 
 // Render the command context menu's extra items inline as buttons so each tab's
 // "move to first" action is directly clickable without driving the real menu.
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/components/command', () => ({
   CommandContextMenu: ({
     children,
     extraItems

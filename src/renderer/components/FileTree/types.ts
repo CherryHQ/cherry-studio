@@ -1,5 +1,5 @@
 import type { DragPosition, TreeListSlotArgs } from '@cherrystudio/ui'
-import type { CommandContextMenuExtraItem } from '@renderer/features/command'
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import type React from 'react'
 
 export type FileTreeNodeKind = 'file' | 'folder'

@@ -1,8 +1,8 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
-import { defaultAppHeaders } from '@shared/utils'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
 
 import { getBaseUrl } from '../../utils/provider'

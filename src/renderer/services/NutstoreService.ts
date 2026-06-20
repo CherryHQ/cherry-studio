@@ -3,7 +3,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setNutstoreSyncState } from '@renderer/store/nutstore'
 import type { WebDavConfig } from '@renderer/types'
-import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { type CreateDirectoryOptions } from 'webdav'
 

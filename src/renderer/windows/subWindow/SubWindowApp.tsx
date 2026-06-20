@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
@@ -8,7 +9,6 @@ import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import store from '@renderer/store'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -35,7 +35,7 @@ function SubWindowApp(): React.ReactElement {
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <ContextKeyProvider>
+                  <CommandContextKeyProvider>
                     <CommandProvider>
                       <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                         <TopViewContainer>
@@ -43,7 +43,7 @@ function SubWindowApp(): React.ReactElement {
                         </TopViewContainer>
                       </TabsProvider>
                     </CommandProvider>
-                  </ContextKeyProvider>
+                  </CommandContextKeyProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>

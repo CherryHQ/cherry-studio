@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'

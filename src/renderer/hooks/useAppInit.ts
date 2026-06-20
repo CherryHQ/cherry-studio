@@ -7,7 +7,7 @@ import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUp
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { delay, runAsyncFunction } from '@renderer/utils'
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultLanguage } from '@shared/utils/languages'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 

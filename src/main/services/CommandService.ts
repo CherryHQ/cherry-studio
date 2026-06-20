@@ -4,8 +4,9 @@ import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDispos
 import { WindowType } from '@main/core/window/types'
 import { showNativePopupMenu } from '@main/services/nativePopupMenu'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { type CommandId, type ContextReader, evaluateContextExpr, findCommandDefinition } from '@shared/command'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { ContextReader } from '@shared/types/command'
+import { type CommandId, evaluateContextExpr, findCommandDefinition } from '@shared/utils/command'
 import type { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('CommandService')

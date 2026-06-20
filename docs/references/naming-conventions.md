@@ -234,6 +234,8 @@ is **closed by default**. Adding one is a structural commitment.
 
 If either is in doubt, place the files inside an existing bucket. Subdirectories under existing buckets are unrestricted.
 
+For the per-root applications of this rule, see [Renderer Architecture §6](./renderer-architecture.md) (`/src/renderer/`) and [Shared Layer Architecture §2](./shared-layer-architecture.md) (`/src/shared/`).
+
 ### 4.9 Singular vs Plural
 
 Choose number based on what the directory **conceptually contains**, not on which sounds nicer.

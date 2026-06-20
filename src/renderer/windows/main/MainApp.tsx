@@ -2,6 +2,7 @@ import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
@@ -10,7 +11,6 @@ import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import store from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
@@ -40,7 +40,7 @@ function MainApp(): React.ReactElement {
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <ContextKeyProvider>
+                  <CommandContextKeyProvider>
                     <CommandProvider>
                       <TabsProvider>
                         <TopViewContainer>
@@ -48,7 +48,7 @@ function MainApp(): React.ReactElement {
                         </TopViewContainer>
                       </TabsProvider>
                     </CommandProvider>
-                  </ContextKeyProvider>
+                  </CommandContextKeyProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>

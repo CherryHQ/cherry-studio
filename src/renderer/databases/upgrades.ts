@@ -25,7 +25,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { parseTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Transaction } from 'dexie'
 import { isEmpty } from 'lodash'
 

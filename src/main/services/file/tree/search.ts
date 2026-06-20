@@ -20,7 +20,7 @@ import * as path from 'node:path'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils'
-import type { DirectoryListOptions, FilePath } from '@shared/file/types'
+import type { DirectoryListOptions, FilePath } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
 
