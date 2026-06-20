@@ -127,6 +127,10 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/ui/composites/markdown/styles': resolve(
+          'packages/ui/src/components/composites/markdown/styles.ts'
+        ),
+        '@cherrystudio/ui/composites/markdown': resolve('packages/ui/src/components/composites/markdown/index.ts'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
         '@test-mocks': resolve('tests/__mocks__')
