@@ -139,9 +139,7 @@
     "vitest": "^3.2.4"
   },
   "sideEffects": [
-    "**/*.css",
-    "./dist/composites/markdown/styles.js",
-    "./dist/composites/markdown/styles.mjs"
+    "**/*.css"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -185,27 +183,6 @@
       "import": "./dist/icons/index.mjs",
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
-    },
-    "./composites/markdown": {
-      "types": "./dist/composites/markdown/index.d.ts",
-      "react-native": "./dist/composites/markdown/index.js",
-      "import": "./dist/composites/markdown/index.mjs",
-      "require": "./dist/composites/markdown/index.js",
-      "default": "./dist/composites/markdown/index.js"
-    },
-    "./composites/markdown/presets": {
-      "types": "./dist/composites/markdown/presets.d.ts",
-      "react-native": "./dist/composites/markdown/presets.js",
-      "import": "./dist/composites/markdown/presets.mjs",
-      "require": "./dist/composites/markdown/presets.js",
-      "default": "./dist/composites/markdown/presets.js"
-    },
-    "./composites/markdown/styles": {
-      "types": "./dist/composites/markdown/styles.d.ts",
-      "react-native": "./dist/composites/markdown/styles.js",
-      "import": "./dist/composites/markdown/styles.mjs",
-      "require": "./dist/composites/markdown/styles.js",
-      "default": "./dist/composites/markdown/styles.js"
     },
     "./styles": "./dist/styles/tokens.css",
     "./styles/tokens.css": "./dist/styles/tokens.css",
