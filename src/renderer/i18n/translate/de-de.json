@@ -388,6 +388,9 @@
           "null_id": "Sitzung ID ist leer."
         }
       },
+      "group": {
+        "conversation": "Konversation"
+      },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
       "reorder": {
@@ -2144,13 +2147,13 @@
         "view_chunks": "Ansicht Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Unterstützte Dateien rekursiv aus einem Ordner importieren",
-          "title": "Klicken, um einen Ordner auszuwählen"
+        "conflict_dialog": {
+          "description": "{{count}} der Quellen, die Sie hinzufügen, haben denselben Namen wie vorhandene Elemente. Wählen Sie, wie Sie diese behandeln möchten.",
+          "keep_all": "Alle behalten",
+          "replace": "Ersetzen",
+          "title": "Quellen existieren bereits"
         },
         "footer": {
-          "selected_directories": "{{count}} Verzeichnisse ausgewählt",
-          "selected_files": "{{count}} Dateien ausgewählt",
           "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
@@ -2246,7 +2249,6 @@
     },
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
-    "drag_file": "Datei hierher ziehen",
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
@@ -2260,7 +2262,6 @@
       "missing_embedding_model": "Das Embedding-Modell, das von dieser Wissensbasis verwendet wurde, wurde während der Migration nicht gefunden. Erstellen Sie die Wissensbasis neu und wählen Sie ein neues Embedding-Modell.",
       "model_invalid": "Kein Modell ausgewählt"
     },
-    "file_hint": "{{file_types}}-Formate werden unterstützt",
     "groups": {
       "add": "Neue Gruppe",
       "create_base_here": "Erstelle hier",
@@ -7067,10 +7068,16 @@
       "title": "Zoom"
     }
   },
+  "subWindow": {
+    "back_to_main": "Zurück zum Hauptfenster",
+    "pin": "Im Vordergrund halten",
+    "unpin": "Im Vordergrund halten beenden"
+  },
   "tab": {
     "close": "Tab schließen",
     "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
+    "open_in_new_window": "In neuem Fenster öffnen",
     "pin": "Tab anheften",
     "unpin": "Tab lösen"
   },

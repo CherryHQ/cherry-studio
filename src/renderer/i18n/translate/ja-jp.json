@@ -388,6 +388,9 @@
           "null_id": "セッション ID が null です"
         }
       },
+      "group": {
+        "conversation": "会話"
+      },
       "label_one": "セッション",
       "label_other": "セッション",
       "reorder": {
@@ -2144,13 +2147,13 @@
         "view_chunks": "チャンクを表示"
       },
       "add_dialog": {
-        "directory": {
-          "description": "フォルダからサポートされているファイルを再帰的にインポート",
-          "title": "フォルダを選択するにはクリックしてください"
+        "conflict_dialog": {
+          "description": "追加しようとしているソースのうち{{count}}件が、既存のアイテムと同名です。処理方法を選択してください。",
+          "keep_all": "すべて保持",
+          "replace": "置き換える",
+          "title": "ソースは既に存在します"
         },
         "footer": {
-          "selected_directories": "{{count}}個のディレクトリが選択されています",
-          "selected_files": "{{count}}個のファイルが選択されています",
           "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
@@ -2246,7 +2249,6 @@
     },
     "dimensions_auto_set": "埋め込み次元を自動設定",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
-    "drag_file": "ファイルをここにドラッグ",
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
@@ -2260,7 +2262,6 @@
       "missing_embedding_model": "このナレッジベースで使用されていた埋め込みモデルは移行中に見つかりませんでした。ナレッジベースを再構築し、新しい埋め込みモデルを選択してください。",
       "model_invalid": "モデルが選択されていません"
     },
-    "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
       "add": "新しいグループ",
       "create_base_here": "ここに作成",
@@ -7067,10 +7068,16 @@
       "title": "ページズーム"
     }
   },
+  "subWindow": {
+    "back_to_main": "メインウィンドウに戻る",
+    "pin": "最前面に固定",
+    "unpin": "最前面固定を解除"
+  },
   "tab": {
     "close": "タブを閉じる",
     "move_to_first": "最初へ移動",
     "new": "新しいタブ",
+    "open_in_new_window": "新しいウィンドウで開く",
     "pin": "タブをピン留め",
     "unpin": "タブを固定解除"
   },

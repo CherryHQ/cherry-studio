@@ -388,6 +388,9 @@
           "null_id": "工作階段 ID 為空"
         }
       },
+      "group": {
+        "conversation": "對話"
+      },
       "label_one": "工作階段",
       "label_other": "工作階段",
       "reorder": {
@@ -2145,10 +2148,10 @@
       },
       "add_dialog": {
         "conflict_dialog": {
-          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
-          "keep_all": "[to be translated]:Keep All",
-          "replace": "[to be translated]:Replace",
-          "title": "[to be translated]:Sources already exist"
+          "description": "您正在新增的 {{count}} 個來源與現有項目名稱相同。請選擇處理方式。",
+          "keep_all": "全部保留",
+          "replace": "取代",
+          "title": "來源已存在"
         },
         "footer": {
           "selected_notes": "已选 {{count}} 个笔记"
@@ -7066,15 +7069,15 @@
     }
   },
   "subWindow": {
-    "back_to_main": "[to be translated]:Back to Main Window",
-    "pin": "[to be translated]:Keep on Top",
-    "unpin": "[to be translated]:Cancel Keep on Top"
+    "back_to_main": "回到主視窗",
+    "pin": "視窗置頂",
+    "unpin": "取消置頂"
   },
   "tab": {
     "close": "關閉分頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
-    "open_in_new_window": "[to be translated]:Open in New Window",
+    "open_in_new_window": "從新視窗開啟",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
   },

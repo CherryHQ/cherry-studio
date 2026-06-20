@@ -388,6 +388,9 @@
           "null_id": "会话 ID 为空"
         }
       },
+      "group": {
+        "conversation": "对话"
+      },
       "label_one": "会话",
       "label_other": "会话",
       "reorder": {

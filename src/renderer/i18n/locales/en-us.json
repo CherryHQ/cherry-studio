@@ -388,6 +388,9 @@
           "null_id": "Session ID is null"
         }
       },
+      "group": {
+        "conversation": "Conversation"
+      },
       "label_one": "Session",
       "label_other": "Sessions",
       "reorder": {

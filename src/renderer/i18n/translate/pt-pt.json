@@ -388,6 +388,9 @@
           "null_id": "O ID da sessão é nulo"
         }
       },
+      "group": {
+        "conversation": "Conversa"
+      },
       "label_one": "Sessão",
       "label_other": "Sessões",
       "reorder": {
@@ -2144,13 +2147,13 @@
         "view_chunks": "Ver Blocos"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importar recursivamente arquivos suportados de uma pasta",
-          "title": "Clique para selecionar uma pasta"
+        "conflict_dialog": {
+          "description": "{{count}} das fontes que está a adicionar têm o mesmo nome que itens existentes. Escolha como lidar com eles.",
+          "keep_all": "Manter tudo",
+          "replace": "Substituir",
+          "title": "As fontes já existem"
         },
         "footer": {
-          "selected_directories": "{{count}} diretórios selecionados",
-          "selected_files": "{{count}} ficheiros selecionados",
           "selected_notes": "{{count}} notas selecionadas"
         },
         "note": {
@@ -2246,7 +2249,6 @@
     },
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
-    "drag_file": "Arraste o arquivo aqui",
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
@@ -2260,7 +2262,6 @@
       "missing_embedding_model": "O modelo de incorporação utilizado por esta base de conhecimento não foi encontrado durante a migração. Reconstrua a base de conhecimento e escolha um novo modelo de incorporação.",
       "model_invalid": "Modelo não selecionado ou eliminado"
     },
-    "file_hint": "Formatos suportados: {{file_types}}",
     "groups": {
       "add": "Novo Grupo",
       "create_base_here": "Criar aqui",
@@ -7067,10 +7068,16 @@
       "title": "Escala"
     }
   },
+  "subWindow": {
+    "back_to_main": "Voltar à janela principal",
+    "pin": "Manter no topo",
+    "unpin": "Cancelar manter no topo"
+  },
   "tab": {
     "close": "Fechar Aba",
     "move_to_first": "Mover para o Primeiro",
     "new": "Nova Aba",
+    "open_in_new_window": "Abrir em nova janela",
     "pin": "Fixar Aba",
     "unpin": "Desafixar Aba"
   },
