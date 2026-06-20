@@ -1,13 +1,11 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { HOME_CHERRY_DIR } from '@main/constants'
 import { isWin } from '@main/core/platform'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/types/codeCli'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import iconv from 'iconv-lite'
-import os from 'os'
 import path from 'path'
 
 import { ConfigKeys, configManager } from '../services/ConfigManager'
@@ -52,14 +50,16 @@ export async function getBinaryName(name: string): Promise<string> {
 }
 
 export async function getBinaryPath(name?: string): Promise<string> {
+  const binDir = application.getPath('cherry.bin')
   if (!name) {
-    return path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    return binDir
   }
 
   const binaryName = await getBinaryName(name)
-  const binariesDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  const binariesDirExists = fs.existsSync(binariesDir)
-  return binariesDirExists ? path.join(binariesDir, binaryName) : binaryName
+  const binaryPath = path.join(binDir, binaryName)
+  // Fall back to the bare name (resolved via the system PATH) only when the
+  // managed binary is actually absent — not merely when the bin dir is missing.
+  return fs.existsSync(binaryPath) ? binaryPath : binaryName
 }
 
 export async function isBinaryExists(name: string): Promise<boolean> {

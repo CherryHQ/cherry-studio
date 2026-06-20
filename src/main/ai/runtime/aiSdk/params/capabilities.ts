@@ -29,7 +29,7 @@ import {
   isWebSearchModel
 } from '@shared/utils/model'
 import { isAIGatewayProvider, isSupportUrlContextProvider } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { getAiSdkProviderId } from '../../../provider/factory'
 import type { AppProviderId } from '../../../types'

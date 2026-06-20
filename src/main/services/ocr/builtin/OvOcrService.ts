@@ -1,8 +1,8 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { HOME_CHERRY_DIR } from '@main/constants'
 import { isWin } from '@main/core/platform'
-import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
-import { isImageFileMetadata } from '@types'
+import { isImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@shared/types/ocr'
 import { exec } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -14,8 +14,6 @@ import { OcrBaseService } from './OcrBaseService'
 const logger = loggerService.withContext('OvOcrService')
 const execAsync = promisify(exec)
 
-const PATH_BAT_FILE = path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr', 'run.npu.bat')
-
 export class OvOcrService extends OcrBaseService {
   constructor() {
     super()
@@ -26,12 +24,12 @@ export class OvOcrService extends OcrBaseService {
       isWin &&
       os.cpus()[0].model.toLowerCase().includes('intel') &&
       os.cpus()[0].model.toLowerCase().includes('ultra') &&
-      fs.existsSync(PATH_BAT_FILE)
+      fs.existsSync(application.getPath('feature.ovms.ovocr', 'run.npu.bat'))
     )
   }
 
   private getOvOcrPath(): string {
-    return path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr')
+    return application.getPath('feature.ovms.ovocr')
   }
 
   private getImgDir(): string {
@@ -72,7 +70,7 @@ export class OvOcrService extends OcrBaseService {
 
     try {
       // Execute run.bat in the ov-ocr directory
-      await execAsync(`"${PATH_BAT_FILE}"`, {
+      await execAsync(`"${application.getPath('feature.ovms.ovocr', 'run.npu.bat')}"`, {
         cwd: ovOcrPath,
         timeout: 60000 // 60 second timeout
       })

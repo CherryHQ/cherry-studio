@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { escapeBatchText } from '../CodeCliService'
+import { sanitizeEnvForLogging } from '../envRedaction'
 
-describe('CodeToolsService - escapeBatchText', () => {
+describe('escapeBatchText', () => {
   it('preserves normal text without special characters', () => {
     const input = 'hello world'
     const result = escapeBatchText(input)
@@ -186,5 +187,59 @@ describe('CodeToolsService - escapeBatchText', () => {
     const input = 'bun error > debug.log'
     const result = escapeBatchText(input)
     expect(result).toBe('bun error ^> debug.log')
+  })
+})
+
+describe('sanitizeEnvForLogging - Sensitive Data Redaction', () => {
+  it('should redact API_KEY values', () => {
+    const env = { OPENAI_API_KEY: 'sk-secret123', MODEL: 'gpt-4' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.OPENAI_API_KEY).toBe('<redacted>')
+    expect(result.MODEL).toBe('gpt-4')
+  })
+
+  it('should redact AUTHORIZATION tokens', () => {
+    const env = { AUTHORIZATION: 'Bearer token123' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.AUTHORIZATION).toBe('<redacted>')
+  })
+
+  it('should redact TOKEN values', () => {
+    const env = { GITHUB_TOKEN: 'ghp_12345' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.GITHUB_TOKEN).toBe('<redacted>')
+  })
+
+  it('should redact SECRET values', () => {
+    const env = { AWS_SECRET_ACCESS_KEY: 'secret-key' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.AWS_SECRET_ACCESS_KEY).toBe('<redacted>')
+  })
+
+  it('should redact PASSWORD values', () => {
+    const env = { DATABASE_PASSWORD: 'mypassword' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.DATABASE_PASSWORD).toBe('<redacted>')
+  })
+
+  it('should be case-insensitive for sensitive key detection', () => {
+    const env = { api_key: 'lowercase', API_KEY: 'uppercase', Api_Key: 'mixed' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.api_key).toBe('<redacted>')
+    expect(result.API_KEY).toBe('<redacted>')
+    expect(result.Api_Key).toBe('<redacted>')
+  })
+
+  it('should handle empty environment object', () => {
+    const env = {}
+    const result = sanitizeEnvForLogging(env)
+    expect(result).toEqual({})
+  })
+
+  it('should handle keys that partially contain sensitive words', () => {
+    const env = { API_KEY_PATH: '/path/to/key', MODEL_PATH: '/path/to/model' }
+    const result = sanitizeEnvForLogging(env)
+    expect(result.API_KEY_PATH).toBe('<redacted>')
+    expect(result.MODEL_PATH).toBe('/path/to/model')
   })
 })

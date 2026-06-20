@@ -1,4 +1,4 @@
-import type { LanguageVarious } from '@types'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'de-DE': 'German',

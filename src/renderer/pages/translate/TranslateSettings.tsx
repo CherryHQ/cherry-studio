@@ -32,7 +32,7 @@ import type {
   TranslateBidirectionalPair
 } from '@shared/data/preference/preferenceTypes'
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
-import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'

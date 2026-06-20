@@ -1,4 +1,4 @@
-import type { McpTool } from '@types'
+import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'

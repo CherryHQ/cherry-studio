@@ -55,7 +55,8 @@ import {
   isSupportNoneReasoningEffortModel
 } from '@shared/utils/model'
 import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
-import { EFFORT_RATIO, isSystemProviderId, SystemProviderIds } from '@types'
+import { EFFORT_RATIO } from '@shared/utils/reasoning'
+import { isSystemProviderId, SystemProviderIds } from '@shared/utils/systemProviderId'
 import { toInteger } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 

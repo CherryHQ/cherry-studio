@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
-import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/code-cli'
+import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/codeCli'
 import { codeCLI } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 

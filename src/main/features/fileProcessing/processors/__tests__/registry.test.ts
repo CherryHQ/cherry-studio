@@ -1,5 +1,5 @@
 import { FILE_PROCESSOR_FEATURES } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import { describe, expect, it, vi } from 'vitest'
 
 async function importRegistryWithPlatform(platform: { isLinux: boolean; isMac: boolean; isWin: boolean }) {
