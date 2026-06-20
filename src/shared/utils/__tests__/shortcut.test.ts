@@ -6,7 +6,7 @@ import {
   normalizeShortcutBinding,
   normalizeShortcutToken,
   type ShortcutBinding
-} from '../tokens'
+} from '../shortcut'
 
 describe('normalizeShortcutToken', () => {
   it('returns canonical tokens unchanged', () => {

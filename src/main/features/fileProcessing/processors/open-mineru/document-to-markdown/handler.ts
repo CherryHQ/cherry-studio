@@ -1,5 +1,5 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 
 import { getApiKey, getRequiredApiHost, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'

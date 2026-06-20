@@ -1,10 +1,10 @@
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/shortcuts/tokens'
+import type { CommandScope, ContextReader, RegisteredKeybindingRule, SupportedPlatform } from '@shared/types/command'
+import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import { canContextExprsOverlap, evaluateContextExpr } from './contextExpr'
 import { type CommandId, findKeybindingRule, REGISTERED_KEYBINDINGS } from './definitions'
-import type { CommandScope, ContextReader, RegisteredKeybindingRule, SupportedPlatform } from './types'
 
 export interface ResolveCommandKeybindingOptions {
   command: CommandId

@@ -98,8 +98,8 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
-import type { FilePath } from '@shared/file/types/common'
+import type { FilePath } from '@shared/types/file/common'
+import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
 import { SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'

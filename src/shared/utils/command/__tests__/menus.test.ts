@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { MenuRegistry, menuRegistry, resolveMenuPresentationMode } from '../menus'
+import { MenuRegistry, resolveMenu, resolveMenuPresentationMode } from '../menus'
 
 describe('MenuRegistry', () => {
   it('resolves contributions by location and context', () => {
@@ -66,7 +66,7 @@ describe('MenuRegistry', () => {
   })
 
   it('resolves app menu command contributions through the shared registry', () => {
-    const model = menuRegistry.resolve({
+    const model = resolveMenu({
       location: 'app.menu',
       context: {},
       getCommandState: (command) => ({

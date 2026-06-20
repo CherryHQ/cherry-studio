@@ -1,5 +1,5 @@
 import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import type { ShortcutBinding } from '@shared/shortcuts/tokens'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 export type CommandScope = 'main' | 'renderer' | 'both'
 

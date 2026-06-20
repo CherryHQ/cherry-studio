@@ -10,15 +10,9 @@ import {
   useCommandContextSnapshot
 } from '@renderer/hooks/command'
 import { getShortcutBindingFromKeyboardEvent } from '@renderer/utils/command'
-import {
-  type CommandId,
-  type ContextReader,
-  type MenuPresentationMode,
-  REGISTERED_KEYBINDINGS,
-  resolveCommandByKeybinding,
-  type SupportedPlatform
-} from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
+import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('CommandProvider')

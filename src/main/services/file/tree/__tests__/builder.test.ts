@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { TreeMutationEvent } from '@shared/file/types'
+import type { TreeMutationEvent } from '@shared/utils/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
@@ -429,14 +429,14 @@ describe('createDirectoryTree — watcher mutations', () => {
 describe('createDirectoryTree — DB isolation', () => {
   it('the tree primitive does not import @main/data', async () => {
     // Import-graph proxy: a regex over the source files. The classes live
-    // in `src/shared/file/types/tree.ts` and the main-side primitive
+    // in `src/shared/utils/file/tree.ts` and the main-side primitive
     // is split across `builder.ts` / `DirectoryTreeManager.ts`. None of
     // them may pull anything from `@main/data`.
     const { readFile } = await import('node:fs/promises')
     const builderSource = await readFile(new URL('../builder.ts', import.meta.url), 'utf8')
     const managerSource = await readFile(new URL('../DirectoryTreeManager.ts', import.meta.url), 'utf8')
     const sharedTreeSource = await readFile(
-      new URL('../../../../../shared/file/types/tree.ts', import.meta.url),
+      new URL('../../../../../shared/utils/file/tree.ts', import.meta.url),
       'utf8'
     )
     for (const src of [builderSource, managerSource, sharedTreeSource]) {

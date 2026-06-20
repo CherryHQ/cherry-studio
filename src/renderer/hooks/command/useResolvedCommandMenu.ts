@@ -1,15 +1,13 @@
 import { isMac, platform } from '@renderer/config/constant'
 import { resolveCommandDisplayState } from '@renderer/utils/command'
+import type { MenuLocation, ResolvedMenuModel, SupportedPlatform } from '@shared/types/command'
 import {
   type CommandId,
   findCommandDefinition,
   findKeybindingRule,
-  type MenuLocation,
-  menuRegistry,
   resolveCommandKeybinding,
-  type ResolvedMenuModel,
-  type SupportedPlatform
-} from '@shared/command'
+  resolveMenu
+} from '@shared/utils/command'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,7 +22,7 @@ export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuMode
 
   return useMemo(
     () =>
-      menuRegistry.resolve({
+      resolveMenu({
         location,
         context,
         getCommandState: (command) => {

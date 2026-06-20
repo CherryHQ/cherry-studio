@@ -44,7 +44,7 @@ export type URLString = `http://${string}` | `https://${string}`
  *
  * Runtime validation required — the template-literal pattern only provides a
  * type-level hint. Produced by the shared pure helper
- * `toSafeFileUrl(path, ext)` (in `@shared/file/urlUtil`), which composes an
+ * `toSafeFileUrl(path, ext)` (in `@shared/utils/file/urlUtil`), which composes an
  * absolute `FilePath` (obtained from File IPC `getPhysicalPath` /
  * `batchGetPhysicalPaths`) with a danger-file safety wrap (for
  * `.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc., the URL points at the

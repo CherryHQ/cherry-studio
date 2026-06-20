@@ -1,5 +1,5 @@
 import { platform } from '@renderer/config/constant'
-import type { ContextReader, ContextValue } from '@shared/command'
+import type { ContextReader, ContextValue } from '@shared/types/command'
 import { createContext, use, useEffect } from 'react'
 
 export type RendererCommandContextKey =

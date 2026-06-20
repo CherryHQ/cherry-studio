@@ -12,8 +12,10 @@ import {
 } from '@renderer/hooks/command/useCommandShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils/style'
-import { type CommandId, findCommandDefinition, findKeybindingConflicts, type SupportedPlatform } from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { SupportedPlatform } from '@shared/types/command'
+import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
+import { type CommandId, findCommandDefinition, findKeybindingConflicts } from '@shared/utils/command'
 import {
   convertKeyToAccelerator,
   formatKeyDisplay,
@@ -22,8 +24,7 @@ import {
   normalizeShortcutToken,
   type ShortcutBinding,
   type ShortcutToken
-} from '@shared/shortcuts/tokens'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+} from '@shared/utils/shortcut'
 import { isEmpty } from 'lodash'
 import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'

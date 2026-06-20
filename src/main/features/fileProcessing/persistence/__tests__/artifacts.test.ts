@@ -1,5 +1,5 @@
 import type { JobContext } from '@main/core/job/types'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../../tasks/shared'

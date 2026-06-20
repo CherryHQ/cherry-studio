@@ -1,6 +1,6 @@
+import type { FilePath, FileURLString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import type { FilePath, FileURLString } from '../types/common'
 import { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from '../urlUtil'
 
 describe('isDangerExt', () => {
