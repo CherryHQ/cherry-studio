@@ -1,5 +1,7 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ProxyMode } from '@shared/data/preference/preferenceTypes'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
@@ -8,6 +10,29 @@ import { NodeProxyController } from './proxy/nodeProxy'
 
 const logger = loggerService.withContext('ProxyManager')
 
+/** Proxy preferences that drive the global proxy. Changing any of them re-applies it. */
+const PROXY_PREFERENCE_KEYS = ['app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'] as const
+
+/**
+ * Map the user-facing proxy mode to an Electron {@link ProxyConfig}. `system` returns the
+ * bare `system` mode and lets {@link ProxyManager.configureProxy} resolve the concrete
+ * system proxy URL from the OS. A `custom` mode without a URL can't form a fixed-servers
+ * config, so it falls back to direct.
+ */
+export function resolveProxyConfig(mode: ProxyMode, url: string, bypassRules: string): ProxyConfig {
+  switch (mode) {
+    case 'none':
+      return { mode: 'direct' }
+    case 'custom':
+      return url
+        ? { mode: 'fixed_servers', proxyRules: url, proxyBypassRules: bypassRules || undefined }
+        : { mode: 'direct' }
+    case 'system':
+    default:
+      return { mode: 'system' }
+  }
+}
+
 @Injectable('ProxyManager')
 @ServicePhase(Phase.WhenReady)
 export class ProxyManager extends BaseService {
@@ -15,6 +40,34 @@ export class ProxyManager extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private isSettingProxy = false
   private nodeProxyController = new NodeProxyController(logger)
+
+  /**
+   * Apply the proxy from user preferences on startup, then re-apply whenever the proxy
+   * preferences change. Without this the global proxy mechanism is never wired to
+   * settings — changing the proxy in the UI would have no effect on the network stack.
+   */
+  protected async onReady(): Promise<void> {
+    await this.applyProxyFromPreferences()
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeMultipleChanges([...PROXY_PREFERENCE_KEYS], () => {
+        void this.applyProxyFromPreferences()
+      })
+    )
+  }
+
+  private async applyProxyFromPreferences(): Promise<void> {
+    const preferenceService = application.get('PreferenceService')
+    const config = resolveProxyConfig(
+      preferenceService.get('app.proxy.mode'),
+      preferenceService.get('app.proxy.url'),
+      preferenceService.get('app.proxy.bypass_rules')
+    )
+    try {
+      await this.configureProxy(config)
+    } catch (error) {
+      logger.error('Failed to apply proxy from preferences:', error as Error)
+    }
+  }
 
   private async monitorSystemProxy(): Promise<void> {
     this.clearSystemProxyMonitor()
