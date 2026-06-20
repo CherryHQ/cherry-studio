@@ -92,7 +92,7 @@ describe('AgentContent', () => {
     expect(toggle).not.toHaveAttribute('data-active')
   })
 
-  it('shows only the inactive sidebar toggle when the sidebar is hidden', () => {
+  it('shows the inactive sidebar toggle and a new-session button when the sidebar is hidden', () => {
     render(<AgentContent activeAgent={agentA} />)
 
     const toggle = screen.getAllByRole('button')[0]
@@ -100,5 +100,14 @@ describe('AgentContent', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).toHaveAttribute('data-tone', 'conversation')
     expect(toggle).not.toHaveAttribute('data-active')
+    expect(screen.getByRole('button', { name: 'agent.session.add.title' })).toBeInTheDocument()
+  })
+
+  it('hides the new-session button when the sidebar is visible', () => {
+    preferenceMock.showSidebar = true
+
+    render(<AgentContent activeAgent={agentA} />)
+
+    expect(screen.queryByRole('button', { name: 'agent.session.add.title' })).not.toBeInTheDocument()
   })
 })

@@ -44,11 +44,25 @@ describe('ChatNavBar', () => {
   it('uses the conversation style without active state when the sidebar is hidden', () => {
     render(<ChatNavBar />)
 
-    const toggle = screen.getByRole('button')
+    const [toggle] = screen.getAllByRole('button')
 
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).not.toHaveAttribute('data-active')
     expect(toggle).toHaveClass('hover:bg-accent/60')
+  })
+
+  it('offers a new-topic button next to the toggle when the sidebar is hidden', () => {
+    render(<ChatNavBar />)
+
+    expect(screen.getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+  })
+
+  it('hides the new-topic button when the sidebar is visible', () => {
+    preferenceMock.showSidebar = true
+
+    render(<ChatNavBar />)
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('keeps the sidebar toggle inactive when the sidebar is visible', () => {

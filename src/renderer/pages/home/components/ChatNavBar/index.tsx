@@ -3,7 +3,9 @@ import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { CommandTooltip } from '@renderer/components/command'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import { t } from 'i18next'
+import { SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 
 interface HeaderNavbarProps {
@@ -15,6 +17,7 @@ interface HeaderNavbarProps {
 const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sidebarOpen, onSidebarToggle }) => {
   const [preferredShowSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
+  const newTopic = useResolvedCommand('topic.create')
   const toggleShowSidebar = () => {
     if (onSidebarToggle) {
       onSidebarToggle()
@@ -42,19 +45,35 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
                 </NavbarIcon>
               </CommandTooltip>
             ) : (
-              <CommandTooltip
-                command="app.sidebar.toggle"
-                label={t('navbar.show_sidebar')}
-                placement="bottom"
-                delay={800}>
-                <NavbarIcon
-                  tone="conversation"
-                  aria-pressed={showSidebar}
-                  onClick={toggleShowSidebar}
-                  style={{ marginRight: 2 }}>
-                  <SidebarExpandIcon />
-                </NavbarIcon>
-              </CommandTooltip>
+              <>
+                <CommandTooltip
+                  command="app.sidebar.toggle"
+                  label={t('navbar.show_sidebar')}
+                  placement="bottom"
+                  delay={800}>
+                  <NavbarIcon
+                    tone="conversation"
+                    aria-pressed={showSidebar}
+                    onClick={toggleShowSidebar}
+                    style={{ marginRight: 2 }}>
+                    <SidebarExpandIcon />
+                  </NavbarIcon>
+                </CommandTooltip>
+                <CommandTooltip
+                  command="topic.create"
+                  label={t('chat.conversation.new')}
+                  placement="bottom"
+                  delay={800}>
+                  <NavbarIcon
+                    tone="conversation"
+                    aria-label={t('chat.conversation.new')}
+                    className="[&_svg]:size-4!"
+                    disabled={!newTopic.enabled}
+                    onClick={newTopic.execute}>
+                    <SquarePen />
+                  </NavbarIcon>
+                </CommandTooltip>
+              </>
             ))}
         </div>
       </div>
