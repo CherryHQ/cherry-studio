@@ -12,15 +12,7 @@ const mocks = vi.hoisted(() => ({
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: ['assistants'] as SidebarIcon[],
-  persistCacheValues: {
-    'ui.chat.last_used_topic_id': undefined,
-    'ui.agent.last_used_session_id': undefined
-  } as Record<string, unknown>
-}))
-
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: (key: string) => [mocks.persistCacheValues[key], vi.fn()]
+  sidebarFavorites: ['assistants'] as SidebarIcon[]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -146,10 +138,6 @@ describe('LaunchpadPage', () => {
     mocks.openedMiniApps = []
     mocks.sidebarFavorites = ['assistants']
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
-    mocks.persistCacheValues = {
-      'ui.chat.last_used_topic_id': undefined,
-      'ui.agent.last_used_session_id': undefined
-    }
   })
 
   it('renders the launchpad page chrome and app grid', () => {
@@ -172,18 +160,16 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
   })
 
-  it('navigates chat and agent apps to their last-used instances in the current tab', async () => {
+  it('opens chat and agent apps fresh (new conversation/session) in the current tab', async () => {
     const user = userEvent.setup()
-    mocks.persistCacheValues['ui.chat.last_used_topic_id'] = 'topic-1'
-    mocks.persistCacheValues['ui.agent.last_used_session_id'] = 'session-1'
 
     render(<LaunchpadPage />)
 
     await user.click(screen.getByRole('button', { name: 'Chat' }))
     await user.click(screen.getByRole('button', { name: 'Agent' }))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: { topicId: 'topic-1' } })
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: { sessionId: 'session-1' } })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents' })
   })
 
   it('navigates concrete mini apps inside the current launchpad tab', async () => {

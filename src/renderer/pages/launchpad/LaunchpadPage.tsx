@@ -1,14 +1,11 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
   getRequiredSidebarIconsVisible,
-  getSidebarApp,
   getSidebarMenuPath,
   REQUIRED_SIDEBAR_ICONS,
-  resolveAppOpenUrl,
   sanitizeSidebarIcons,
   SIDEBAR_ICON_COMPONENTS,
   SIDEBAR_ICON_ORDER
@@ -16,7 +13,7 @@ import {
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite, SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
@@ -74,8 +71,6 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { defaultPaintingProvider } = useSettings()
-  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
   const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
 
@@ -99,14 +94,13 @@ export default function LaunchpadPage() {
     [navigate]
   )
 
-  const openLaunchpadItem = (icon: SidebarIcon) => {
-    const app = getSidebarApp(icon)
-    if (!app) return
-
-    const navCtx = { defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId }
-    const key = app.instanceKey?.defaultKey(navCtx)
-    const url = app.instanceKey && key ? app.instanceKey.urlForKey(key) : resolveAppOpenUrl(app, navCtx)
-    void navigateToUrl(url)
+  const openLaunchpadItem = (icon: SidebarFavorite) => {
+    // Launchpad opens each app at its base entry (chat → new conversation,
+    // agents → new session). Resuming the last-used instance is the sidebar's
+    // job, not the launcher's.
+    const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+    if (!path) return
+    void navigateToUrl(path)
   }
 
   const openMiniApp = (app: MiniAppType) => {
