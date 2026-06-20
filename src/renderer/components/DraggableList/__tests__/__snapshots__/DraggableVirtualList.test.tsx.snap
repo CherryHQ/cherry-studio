@@ -34,7 +34,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
               <div
                 class="draggable-item"
                 data-index="0"
-                style="position: absolute; top: 0px; left: 0px; width: 100%; transform: translateY(0px);"
+                style="position: absolute; top: 0px; inset-inline-start: 0; width: 100%; transform: translateY(0px);"
               >
                 <div
                   class="draggable-content"
@@ -52,7 +52,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
               <div
                 class="draggable-item"
                 data-index="1"
-                style="position: absolute; top: 0px; left: 0px; width: 100%; transform: translateY(50px);"
+                style="position: absolute; top: 0px; inset-inline-start: 0; width: 100%; transform: translateY(50px);"
               >
                 <div
                   class="draggable-content"
@@ -70,7 +70,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
               <div
                 class="draggable-item"
                 data-index="2"
-                style="position: absolute; top: 0px; left: 0px; width: 100%; transform: translateY(100px);"
+                style="position: absolute; top: 0px; inset-inline-start: 0; width: 100%; transform: translateY(100px);"
               >
                 <div
                   class="draggable-content"
