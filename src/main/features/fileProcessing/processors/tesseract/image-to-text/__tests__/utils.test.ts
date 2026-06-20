@@ -1,5 +1,5 @@
 import { FILE_TYPE } from '@shared/data/types/file'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'

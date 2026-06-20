@@ -85,7 +85,7 @@ Two gates, in order, then categorize:
 
 ## 5. Anti-Patterns
 
-- **Exported instance singleton** — `export const x = new XService()`, or any registry / manager / service instance. Violates Invariant 1.2. *(Current: `command/menus.ts`'s `menuRegistry`; see §6.)*
+- **Exported instance singleton** — `export const x = new XService()`, or any registry / manager / service instance. Violates Invariant 1.2.
 - **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Current epicenter: `config/constant.ts`; see §6.)*
 - **Junk-drawer file or dir** — a `config/` bucket or a `constant.ts` accumulating unrelated globals across domains and processes. Decompose by domain + process; do not relocate as a blob.
 - **A new top-level dir per capability** — every capability decomposes by shape; the top level is closed (§2).
@@ -93,15 +93,10 @@ Two gates, in order, then categorize:
 
 ## 6. Migration (target vs current — deferred, tracked)
 
-The architecture above is the **target**; `@shared` is not yet migrated to it. Known deviations:
+The structural decomposition is **done**: `command`, `file`, `shortcuts`, and `externalApp` were dissolved out of the top level into `types/` + `utils/` by shape, and `menuRegistry`'s exported instance was replaced by the pure `resolveMenu` (Invariant 1.2). Remaining deviations:
 
 | Area | Current | Target |
 |---|---|---|
-| `command` | top-level `@shared/command/` | decompose by shape: pure logic + static data + `ContextKeyService`/`MenuRegistry` blueprints → `@shared/utils/command/`; types → `@shared/types/command.ts` |
-| `menuRegistry` | exported instance singleton (`command/menus.ts`) | pure `resolveMenu(MENU_CONTRIBUTIONS, options)` — no exported instance (Invariant 1.2) |
-| `file` | top-level `@shared/file/` | path/url/canonicalize logic → `utils/file/`; schemas + types → `types/file/` |
-| `shortcuts` | top-level `@shared/shortcuts/` | `tokens` → `utils/`; `types` → `types/` |
-| `externalApp` | top-level `@shared/externalApp/` | `EXTERNAL_APPS` data → `utils/`; types → `types/` |
 | `config` | by-kind junk drawer | dissolve (§6.1) |
 | `utils/index.ts` | misc utilities implemented in a bucket-root file | split into topic files (`utils/<topic>.ts`); no bucket-root `index.ts` (§3.1) |
 | `IpcChannel.ts` | 18 KB v1 channel enum at the root | v1 legacy; folded into `ipc/` as the IpcApi migration retires channels — not part of this governance |

@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 
-import type { FileEntryId } from '../../data/types/file'
-import type { BatchCreateResult, BatchMutationResult } from '../types/ipc'
+import type { FileEntryId } from '../../../data/types/file'
+import type { BatchCreateResult, BatchMutationResult } from '../ipc'
 
 const id = 'fe_01' as FileEntryId
 

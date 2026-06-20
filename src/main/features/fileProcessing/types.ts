@@ -1,6 +1,6 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
-import type { FileHandle } from '@shared/file/types'
+import type { FileHandle } from '@shared/types/file'
 export type {
   FileProcessingArtifact,
   FileProcessingJobOutput,

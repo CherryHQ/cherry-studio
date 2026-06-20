@@ -1,6 +1,5 @@
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
-
-import { FILE_TYPE, type FileType } from './common'
+import { FILE_TYPE, type FileType } from '@shared/types/file'
 
 const buildFileTypeMap = (): Readonly<Record<string, FileType>> => {
   const entries: Array<[string, FileType]> = []

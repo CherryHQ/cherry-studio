@@ -14,7 +14,6 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/command'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -38,18 +37,20 @@ import type {
 import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
-import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
-import type { FileHandle } from '@shared/file/types/handle'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { FilePath, PhysicalFileMetadata } from '@shared/types/file/common'
+import type { FileHandle } from '@shared/types/file/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
-} from '@shared/file/types/ipc'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+} from '@shared/types/file/ipc'
+import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { StorageHealth } from '@shared/types/storageMonitor'
+import type { CommandId } from '@shared/utils/command'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file/tree'
 import type {
   ApiGatewayStatusResult,
   FileMetadata,
