@@ -34,13 +34,14 @@ import { getAllTools, getToolsForScope } from '@renderer/components/chat/compose
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { Assistant, FileMetadata } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { ChevronRightIcon, Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerAttachment } from './composerAttachment'
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 
@@ -56,7 +57,7 @@ interface ComposerToolRuntimeActions {
 interface ComposerToolRuntimeProviderProps {
   children: React.ReactNode
   initialState?: Partial<{
-    files: FileMetadata[]
+    files: ComposerAttachment[]
     mentionedModels: Model[]
     selectedKnowledgeBases: KnowledgeBase[]
     isExpanded: boolean

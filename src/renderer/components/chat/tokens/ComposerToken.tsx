@@ -1,11 +1,12 @@
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
 import {
   getQuoteTooltipContent,
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/chat/utils/quoteToken'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { FilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
@@ -104,21 +105,21 @@ export function SkillComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.skill} />
 }
 
-function isFileMetadata(value: unknown): value is FileMetadata {
+function isComposerAttachment(value: unknown): value is ComposerAttachment {
   return typeof value === 'object' && value !== null
 }
 
-function normalizeFileExtension(file: FileMetadata | undefined, fallbackLabel: string) {
+function normalizeFileExtension(file: ComposerAttachment | undefined, fallbackLabel: string) {
   const extension = file?.ext || fallbackLabel.match(/\.[^.]+$/)?.[0] || ''
   return extension.replace(/^\./, '').toUpperCase()
 }
 
-function getFilePreviewUrl(file: FileMetadata | undefined) {
+function getFilePreviewUrl(file: ComposerAttachment | undefined) {
   if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
   return toSafeFileUrl(file.path as FilePath, file.ext?.replace(/^\./, '') || null)
 }
 
-function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel: string): FileTokenPresentation {
+function getFileTokenPresentation(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenPresentation {
   const extensionLabel = normalizeFileExtension(file, fallbackLabel)
 
   if (file?.type === FILE_TYPE.IMAGE) {
@@ -168,7 +169,7 @@ function FileTokenTooltip({
   actions,
   metadataLayout = 'split'
 }: {
-  file: FileMetadata | undefined
+  file: ComposerAttachment | undefined
   label: string
   presentation: FileTokenPresentation
   actions?: ReactNode
@@ -219,7 +220,7 @@ function FileTokenTooltip({
 export function FileComposerToken(props: FileComposerTokenProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
-  const file = isFileMetadata(props.token.payload) ? props.token.payload : undefined
+  const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
   const label = file?.origin_name || file?.name || props.token.label
   const presentation = getFileTokenPresentation(file, label)
   const title = props.token.description ?? props.token.promptText ?? label

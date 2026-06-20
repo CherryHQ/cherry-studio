@@ -1,9 +1,9 @@
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
-import type { FileMetadata } from '@renderer/types'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
-import { createFileMetadataFromComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
+import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
 import type { JSONContent } from '@tiptap/core'
 
+import type { ComposerAttachment } from './composerAttachment'
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
@@ -21,7 +21,7 @@ interface ComposerPlainTextPasteOptions {
 
 interface ComposerClipboardPasteOverride {
   content: JSONContent[]
-  files: FileMetadata[]
+  files: ComposerAttachment[]
 }
 
 const SKILL_TOKEN_MARKER_PATTERN = /(^|\s)\/([^/\s]+)\/(?=$|\s)/g
@@ -80,7 +80,7 @@ function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {
 function resolvePrivateClipboardToken(
   token: ComposerClipboardToken,
   options: ComposerPlainTextPasteOptions
-): { token: ComposerDraftToken; file?: FileMetadata } | null {
+): { token: ComposerDraftToken; file?: ComposerAttachment } | null {
   if (token.kind === 'skill') {
     const resolvedToken = options.resolveSkillMarker?.(getPrivateTokenMarker(token, 'skill:'))
     return resolvedToken ? { token: resolvedToken } : null
@@ -92,7 +92,7 @@ function resolvePrivateClipboardToken(
   }
 
   if (token.kind === 'file') {
-    const file = createFileMetadataFromComposerClipboardToken(token)
+    const file = createComposerAttachmentFromComposerClipboardToken(token)
     if (!file) return null
 
     return {
@@ -128,7 +128,7 @@ export function getComposerClipboardPasteOverride(
   if (!fragment?.segments.length) return null
 
   const content: JSONContent[] = []
-  const files: FileMetadata[] = []
+  const files: ComposerAttachment[] = []
 
   for (const segment of fragment.segments) {
     if (segment.type === 'text') {

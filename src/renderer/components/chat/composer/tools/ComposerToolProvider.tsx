@@ -1,9 +1,6 @@
+import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
-import type { FileMetadata } from '@renderer/types'
-import {
-  type ComposerFileMetadata,
-  withComposerFileTokenSourceIds
-} from '@renderer/utils/messageUtils/composerFileTokenSource'
+import { ensureComposerFileTokenSourceIds } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -14,7 +11,7 @@ import React, { createContext, use, useCallback, useEffect, useMemo, useRef, use
  */
 export interface ComposerToolState {
   /** Attached files */
-  files: ComposerFileMetadata[]
+  files: ComposerAttachment[]
   /** Models selected by the composer model selector for the current send */
   mentionedModels: Model[]
   /** Selected knowledge base items */
@@ -52,7 +49,7 @@ export interface ComposerToolLaunchersAPI {
  */
 export interface ComposerToolDispatch {
   /** State setters */
-  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
+  setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
@@ -127,7 +124,7 @@ export const useComposerToolProvider = (): ComposerToolContextValue => {
 interface ComposerToolProviderProps {
   children: React.ReactNode
   initialState?: Partial<{
-    files: FileMetadata[]
+    files: ComposerAttachment[]
     mentionedModels: Model[]
     selectedKnowledgeBases: KnowledgeBase[]
     isExpanded: boolean
@@ -143,8 +140,8 @@ interface ComposerToolProviderProps {
 
 export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ children, initialState, actions }) => {
   // Core state
-  const [files, setComposerFiles] = useState<ComposerFileMetadata[]>(() =>
-    withComposerFileTokenSourceIds(initialState?.files || [])
+  const [files, setComposerFiles] = useState<ComposerAttachment[]>(() =>
+    ensureComposerFileTokenSourceIds(initialState?.files || [])
   )
   const [mentionedModels, setMentionedModels] = useState<Model[]>(initialState?.mentionedModels || [])
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>(
@@ -193,9 +190,9 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     []
   )
 
-  const setFiles = useCallback<React.Dispatch<React.SetStateAction<FileMetadata[]>>>((nextFiles) => {
+  const setFiles = useCallback<React.Dispatch<React.SetStateAction<ComposerAttachment[]>>>((nextFiles) => {
     setComposerFiles((previousFiles) =>
-      withComposerFileTokenSourceIds(typeof nextFiles === 'function' ? nextFiles(previousFiles) : nextFiles)
+      ensureComposerFileTokenSourceIds(typeof nextFiles === 'function' ? nextFiles(previousFiles) : nextFiles)
     )
   }, [])
 

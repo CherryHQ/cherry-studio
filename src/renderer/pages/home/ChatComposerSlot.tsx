@@ -1,7 +1,7 @@
 import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
 import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
-import type { FileMetadata, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -13,7 +13,6 @@ interface ChatComposerSlotProps {
   onSend: (
     text: string,
     options?: {
-      files?: FileMetadata[]
       mentionedModels?: UniqueModelId[]
       knowledgeBaseIds?: string[]
       userMessageParts?: CherryMessagePart[]

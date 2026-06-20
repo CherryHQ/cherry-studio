@@ -15,7 +15,7 @@ import {
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
-import type { FileMetadata, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -30,7 +30,6 @@ const logger = loggerService.withContext('useChatRuntimeState')
 export interface ChatTurnInput {
   text: string
   options?: {
-    files?: FileMetadata[]
     mentionedModels?: UniqueModelId[]
     knowledgeBaseIds?: string[]
     userMessageParts?: CherryMessagePart[]

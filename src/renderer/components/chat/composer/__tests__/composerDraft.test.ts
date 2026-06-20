@@ -354,7 +354,7 @@ describe('composer draft serialization', () => {
     expect(createComposerMessageSnapshot(draft)).toBeUndefined()
   })
 
-  it('builds user message parts with composer metadata and file parts', () => {
+  it('builds only the text part with composer metadata (file parts come from the send-time bridge)', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
       content: [
@@ -368,19 +368,7 @@ describe('composer draft serialization', () => {
       ]
     })
 
-    expect(
-      createComposerUserMessageParts(draft, {
-        files: [
-          {
-            path: '/tmp/notes.md',
-            name: 'notes.md',
-            origin_name: 'notes.md',
-            ext: '.md',
-            fileTokenSourceId: 'source-notes'
-          }
-        ]
-      })
-    ).toEqual([
+    expect(createComposerUserMessageParts(draft)).toEqual([
       {
         type: 'text',
         text: 'Read ',
@@ -392,22 +380,11 @@ describe('composer draft serialization', () => {
             }
           }
         }
-      },
-      {
-        type: 'file',
-        url: '/tmp/notes.md',
-        mediaType: '.md',
-        filename: 'notes.md',
-        providerMetadata: {
-          cherry: {
-            fileTokenSourceId: 'source-notes'
-          }
-        }
       }
     ])
   })
 
-  it('preserves existing Cherry file metadata when adding the file token source id', () => {
+  it('builds a bare text part when the draft has no restorable tokens', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
       content: [
@@ -418,35 +395,10 @@ describe('composer draft serialization', () => {
       ]
     })
 
-    expect(
-      createComposerUserMessageParts(draft, {
-        files: [
-          {
-            path: '/tmp/report.pdf',
-            name: 'report.pdf',
-            origin_name: 'report.pdf',
-            ext: '.pdf',
-            fileTokenSourceId: 'source-report',
-            providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
-          }
-        ]
-      })
-    ).toEqual([
+    expect(createComposerUserMessageParts(draft)).toEqual([
       {
         type: 'text',
         text: 'Read report'
-      },
-      {
-        type: 'file',
-        url: '/tmp/report.pdf',
-        mediaType: '.pdf',
-        filename: 'report.pdf',
-        providerMetadata: {
-          cherry: {
-            fileEntryId: 'entry-report',
-            fileTokenSourceId: 'source-report'
-          }
-        }
       }
     ])
   })

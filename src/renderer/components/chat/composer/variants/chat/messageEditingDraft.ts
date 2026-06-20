@@ -1,4 +1,4 @@
-import { FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import {
   composerFileTokenIdFromSourceId,
   createComposerFileTokenSourceId,
@@ -10,16 +10,15 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 
+import type { ComposerAttachment } from '../../composerAttachment'
 import { type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
 
 export interface EditableMessageDraft {
   text: string
   draftTokens: ComposerSerializedToken[]
-  files: FileMetadata[]
+  files: ComposerAttachment[]
 }
-
-type EditableFileMetadata = FileMetadata & Pick<Extract<CherryMessagePart, { type: 'file' }>, 'providerMetadata'>
 
 function findEditableFileToken(
   part: Extract<CherryMessagePart, { type: 'file' }>,
@@ -52,32 +51,26 @@ function getFileExtension(value: string | undefined, mediaType: string | undefin
   return ''
 }
 
-function createEditableFileMetadata(
+function createEditableAttachment(
   part: Extract<CherryMessagePart, { type: 'file' }>,
   index: number,
   fileTokenSourceId: string
-): EditableFileMetadata | null {
+): ComposerAttachment | null {
   const path = part.url
   if (!path) return null
 
   const name = part.filename || path.split(/[\\/]/).pop() || `attachment-${index + 1}`
   const ext = getFileExtension(name || path, part.mediaType)
   const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext)
-  const cherry = readCherryMeta(part)
-  const id = cherry?.fileEntryId ?? fileTokenSourceId
 
   return {
-    id,
     fileTokenSourceId,
     name,
     origin_name: name,
     path,
     size: 0,
     ext,
-    type,
-    created_at: new Date().toISOString(),
-    count: 1,
-    ...(part.providerMetadata && { providerMetadata: part.providerMetadata })
+    type
   }
 }
 
@@ -109,7 +102,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[]): Editable
       getComposerFileTokenSourceId({ fileTokenSourceId: cherry?.fileTokenSourceId }) ??
       createComposerFileTokenSourceId()
     if (token) fileTokenSourceByMatchedTokenId.set(token.id, fileTokenSourceId)
-    const file = createEditableFileMetadata(part, index, fileTokenSourceId)
+    const file = createEditableAttachment(part, index, fileTokenSourceId)
     return file ? [file] : []
   })
   const normalizedDraftTokens = draftTokens.map((token) => {

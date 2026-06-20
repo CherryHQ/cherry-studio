@@ -25,17 +25,6 @@ function isLocalSkill(value: unknown): value is LocalSkill {
   )
 }
 
-function isComposerSerializedToken(value: unknown): value is ComposerSerializedToken {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.kind === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.index === 'number' &&
-    typeof value.textOffset === 'number'
-  )
-}
-
 function getSkillFilenameFromToken(token: ComposerSerializedToken): string {
   return token.id.startsWith('skill:') ? token.id.slice('skill:'.length) : token.label
 }
@@ -63,7 +52,7 @@ export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
 
   return {
     text: cached.text,
-    tokens: getCachedSkillTokens(cached.tokens.filter(isComposerSerializedToken))
+    tokens: getCachedSkillTokens(cached.tokens)
   }
 }
 

@@ -1,11 +1,11 @@
+import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
 import PasteService from '@renderer/services/PasteService'
-import type { FileMetadata } from '@renderer/types'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 
 export interface UsePasteHandlerOptions {
   supportedExts: string[]
-  setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void
+  setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onResize?: () => void
   t: TFunction
 }

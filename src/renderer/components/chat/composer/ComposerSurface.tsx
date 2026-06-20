@@ -12,7 +12,7 @@ import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDrag
 import { usePasteHandler } from '@renderer/pages/home/Inputbar/hooks/usePasteHandler'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
-import { type FileMetadata, isPastedTextFileMetadata } from '@renderer/types'
+import { isPastedTextFileMetadata } from '@renderer/types'
 import {
   createComposerRichClipboardContentFromDraft,
   readComposerClipboardFragmentFromDataTransfer,
@@ -29,6 +29,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FileComposerToken } from '../tokens'
+import type { ComposerAttachment } from './composerAttachment'
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
@@ -103,7 +104,7 @@ export interface ComposerSurfaceProps {
   onSendDraft: (draft: ComposerSerializedDraft) => void | Promise<void>
   onPause: () => void | Promise<void>
   supportedExts: string[]
-  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
+  setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   filesCount: number
   isExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
@@ -338,15 +339,15 @@ function handleComposerCopy(
   return true
 }
 
-function mergeComposerClipboardFiles(prev: FileMetadata[], files: readonly FileMetadata[]) {
+function mergeComposerClipboardFiles(prev: ComposerAttachment[], files: readonly ComposerAttachment[]) {
   if (!files.length) return prev
 
-  const existing = new Set(prev.map((file) => `${file.id}:${file.path}`))
+  const existing = new Set(prev.map((file) => `${file.fileTokenSourceId}:${file.path}`))
   const next = [...prev]
   let changed = false
 
   for (const file of files) {
-    const key = `${file.id}:${file.path}`
+    const key = `${file.fileTokenSourceId}:${file.path}`
     if (existing.has(key)) continue
     existing.add(key)
     next.push(file)
@@ -695,7 +696,11 @@ export default function ComposerSurface({
           }
         }
 
-        setFiles((prev) => prev.filter((candidate) => candidate.id !== file.id || candidate.path !== file.path))
+        setFiles((prev) =>
+          prev.filter(
+            (candidate) => candidate.fileTokenSourceId !== file.fileTokenSourceId || candidate.path !== file.path
+          )
+        )
       } catch {
         window.toast?.error(t('chat.input.file_error'))
       }

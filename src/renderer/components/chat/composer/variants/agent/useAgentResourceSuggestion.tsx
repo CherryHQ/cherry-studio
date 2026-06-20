@@ -1,10 +1,11 @@
-import { FILE_TYPE, type FileMetadata } from '@renderer/types'
-import { withComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
+import { FILE_TYPE } from '@renderer/types'
+import { createComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerAttachment } from '../../composerAttachment'
 import { serializeComposerDocument } from '../../composerDraft'
 import type { ComposerSuggestionSource } from '../../quickPanel'
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
@@ -19,19 +20,17 @@ const getFileExtension = (fileName: string) => {
   return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
 }
 
-const createFileMetadataFromPath = (filePath: string): FileMetadata => {
+const createAttachmentFromPath = (filePath: string): ComposerAttachment => {
   const name = getBaseName(filePath)
   const ext = getFileExtension(name)
   return {
-    id: filePath,
+    fileTokenSourceId: createComposerFileTokenSourceId(),
     name,
     origin_name: name,
     path: filePath,
     size: 0,
     ext,
-    type: ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER,
-    created_at: new Date().toISOString(),
-    count: 1
+    type: ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER
   }
 }
 
@@ -52,8 +51,8 @@ const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) =
 
 interface AgentResourceSuggestionOptions {
   accessiblePaths: string[]
-  files: FileMetadata[]
-  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
+  files: ComposerAttachment[]
+  setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   /** Whether the agent session exposes any accessible workspace paths to mention. */
   enabled: boolean
 }
@@ -128,13 +127,11 @@ export function useAgentResourceSuggestion({
 
         return [...collected].slice(0, 50).map((filePath) => {
           const relativePath = getRelativePath(filePath, accessiblePaths)
-          const file = files.find((currentFile) => currentFile.path === filePath || currentFile.id === filePath)
-          const tokenFile = withComposerFileTokenSourceId(file ?? createFileMetadataFromPath(filePath))
+          const file = files.find((currentFile) => currentFile.path === filePath)
+          const tokenFile = file ?? createAttachmentFromPath(filePath)
           const token = agentFileToComposerToken(tokenFile)
-          const isSelectedFile = (currentFile: FileMetadata) =>
-            currentFile.path === filePath ||
-            currentFile.id === filePath ||
-            agentComposerTokenId.file(currentFile) === token.id
+          const isSelectedFile = (currentFile: ComposerAttachment) =>
+            currentFile.path === filePath || agentComposerTokenId.file(currentFile) === token.id
 
           return {
             id: token.id,
