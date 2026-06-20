@@ -3,6 +3,14 @@ import type { UserTheme } from '@renderer/store/settings'
 import { setUserTheme } from '@renderer/store/settings'
 import Color from 'color'
 
+const setOptionalCssVariable = (name: string, value: string) => {
+  if (value) {
+    document.documentElement.style.setProperty(name, `'${value}'`)
+  } else {
+    document.documentElement.style.removeProperty(name)
+  }
+}
+
 export default function useUserTheme() {
   const userTheme = useAppSelector((state) => state.settings.userTheme)
 
@@ -17,8 +25,8 @@ export default function useUserTheme() {
     document.body.style.setProperty('--color-primary-mute', colorPrimary.alpha(0.3).toString())
 
     // Set font family CSS variables
-    document.documentElement.style.setProperty('--user-font-family', `'${theme.userFontFamily}'`)
-    document.documentElement.style.setProperty('--user-code-font-family', `'${theme.userCodeFontFamily}'`)
+    setOptionalCssVariable('--user-font-family', theme.userFontFamily)
+    setOptionalCssVariable('--user-code-font-family', theme.userCodeFontFamily)
   }
 
   return {
