@@ -5,8 +5,8 @@
  * using the Layered Preset pattern (overrides per tool).
  */
 
-import { terminalApps } from '@shared/config/constant'
 import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
+import { terminalApps } from '@shared/types/codeCli'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import type { TransformResult } from './ComplexPreferenceMappings'

@@ -16,7 +16,7 @@ import {
   type Resource as SdkResource,
   type Tool as SdkTool
 } from '@modelcontextprotocol/sdk/types.js'
-import type { McpPrompt, McpResource, McpTool } from '@types'
+import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('SdkMcpBridge')
 

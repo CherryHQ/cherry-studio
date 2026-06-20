@@ -5,6 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import type {
   LanClientEvent,
   LanFileCompleteMessage,
@@ -12,9 +13,8 @@ import type {
   LanTransferConnectPayload,
   LanTransferPeer,
   LanTransferState
-} from '@shared/config/types'
-import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
-import { IpcChannel } from '@shared/IpcChannel'
+} from '@shared/types/lanTransfer'
+import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/types/lanTransfer'
 import type { Browser, Service } from 'bonjour-service'
 import Bonjour from 'bonjour-service'
 

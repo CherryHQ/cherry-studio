@@ -9,12 +9,12 @@ import {
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/codeProviders'
 import { formatApiHost } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
-import { codeCLI } from '@shared/config/constant'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { codeCLI } from '@shared/types/codeCli'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,

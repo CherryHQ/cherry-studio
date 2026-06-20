@@ -14,7 +14,7 @@ import type {
 import type { ChatCompletionCreateParamsBase } from '@cherrystudio/openai/resources/chat/completions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 

@@ -54,7 +54,6 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
-import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -62,7 +61,8 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
-import type { McpTool } from '@types'
+import type { McpTool } from '@shared/types/mcp'
+import { languageEnglishNameMap } from '@shared/utils/languages'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'

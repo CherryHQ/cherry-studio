@@ -129,6 +129,9 @@ export function buildPathRegistry() {
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
+    // CLI tools (code-cli) bun global install root ($BUN_INSTALL/install/global)
+    'feature.cli.install_global': path.join(CHERRY_HOME, 'install', 'global'),
+
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),

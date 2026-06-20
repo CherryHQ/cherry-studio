@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

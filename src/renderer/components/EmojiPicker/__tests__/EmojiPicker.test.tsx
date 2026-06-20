@@ -1,4 +1,4 @@
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultLanguage } from '@shared/utils/languages'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

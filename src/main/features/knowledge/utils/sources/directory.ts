@@ -2,9 +2,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import type { NotesTreeNode } from '@types'
+import type { NotesTreeNode } from '@shared/types/note'
+import { knowledgeSupportedFileExts } from '@shared/utils/file'
 import { v4 as uuidv4 } from 'uuid'
 
 import { copyFileIntoKnowledgeBaseAt } from '../storage/pathStorage'

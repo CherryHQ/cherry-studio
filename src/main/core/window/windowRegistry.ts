@@ -1,6 +1,6 @@
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 /**
  * Default window configuration.
