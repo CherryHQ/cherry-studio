@@ -1,5 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { Markdown } from '@cherrystudio/ui/composites/markdown'
+import { Button, Markdown, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'

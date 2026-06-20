@@ -31,20 +31,15 @@ vi.mock('@renderer/context/CodeStyleProvider', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui/composites/markdown', () => ({
-  Markdown: ({ id, children }: { id: string; children: ReactNode }) => (
-    <div data-testid="markdown" data-md-id={id}>
-      {children}
-    </div>
-  )
-}))
-
-vi.mock('@cherrystudio/ui/composites/markdown/styles', () => ({}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return {
     ...actual,
+    Markdown: ({ id, children }: { id: string; children: ReactNode }) => (
+      <div data-testid="markdown" data-md-id={id}>
+        {children}
+      </div>
+    ),
     CodeEditor: ({
       value,
       onChange,

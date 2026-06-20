@@ -1,5 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { useMarkdownBlockContext } from '@cherrystudio/ui/composites/markdown'
+import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'

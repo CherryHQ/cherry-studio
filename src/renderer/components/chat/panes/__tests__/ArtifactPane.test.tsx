@@ -157,6 +157,11 @@ vi.mock('@cherrystudio/ui', async () => {
       <div data-testid="tooltip" data-content={content}>
         {children}
       </div>
+    ),
+    Markdown: ({ id, children }: { id: string; children: string }) => (
+      <div data-testid="markdown" data-md-id={id}>
+        {children}
+      </div>
     )
   }
 })
@@ -247,16 +252,6 @@ interface MockFileTreeNode {
   kind: 'file' | 'folder'
   children?: MockFileTreeNode[]
 }
-
-vi.mock('@cherrystudio/ui/composites/markdown', () => ({
-  Markdown: ({ id, children }: { id: string; children: string }) => (
-    <div data-testid="markdown" data-md-id={id}>
-      {children}
-    </div>
-  )
-}))
-
-vi.mock('@cherrystudio/ui/composites/markdown/styles', () => ({}))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value, language, wrapped }: { value: string; language: string; wrapped?: boolean }) => (

@@ -147,6 +147,9 @@ vi.stubGlobal('api', {
   }
 })
 
+// Markdown stylesheet import is a side-effect no-op in tests
+vi.mock('@cherrystudio/ui/components/composites/markdown/styles', () => ({}))
+
 // Mock @cherrystudio/ui globally for renderer tests
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
@@ -155,6 +158,18 @@ vi.mock('@cherrystudio/ui', () => {
   const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
   const DropdownMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
+    // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
+    // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
+    Markdown: ({ children }) => React.createElement('div', null, children),
+    StreamingMarkdown: ({ children }) => React.createElement('div', null, children),
+    withChatPlugins: () => [],
+    withMath: (plugins) => plugins ?? [],
+    withMermaid: (plugins) => plugins ?? [],
+    withFullMarkdown: (plugins) => plugins ?? [],
+    defaultMarkdownPlugins: [],
+    useMarkdownBlockContext: () => ({ content: '' }),
+    createSlugger: () => ({ slug: (value) => String(value ?? '') }),
+    extractTextFromNode: () => '',
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,

@@ -57,10 +57,7 @@ vi.mock('@cherrystudio/ui', () => ({
     <div data-testid="tooltip" title={content || title}>
       {children}
     </div>
-  )
-}))
-
-vi.mock('@cherrystudio/ui/composites/markdown', () => ({
+  ),
   useMarkdownBlockContext: () => mocks.markdownContext
 }))
 

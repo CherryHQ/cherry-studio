@@ -1,5 +1,4 @@
-import { Scrollbar } from '@cherrystudio/ui'
-import { createSlugger, extractTextFromNode } from '@cherrystudio/ui/composites/markdown'
+import { createSlugger, extractTextFromNode, Scrollbar } from '@cherrystudio/ui'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
