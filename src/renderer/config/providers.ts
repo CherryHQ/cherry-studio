@@ -674,6 +674,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  kevoryn: {
+    id: 'kevoryn',
+    name: 'Kevoryn',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.kevoryn.com/v1',
+    anthropicApiHost: 'https://api.kevoryn.com/v1',
+    models: SYSTEM_MODELS.kevoryn,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
