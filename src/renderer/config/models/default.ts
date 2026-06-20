@@ -2063,5 +2063,127 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GLM-4.5V',
       group: 'GLM-4.5V'
     }
+  kevoryn: [
+    {
+      id: 'claude-opus-4-8',
+      provider: 'kevoryn',
+      name: 'claude-opus-4-8',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-sonnet-4-6',
+      provider: 'kevoryn',
+      name: 'claude-sonnet-4-6',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-haiku-4-5',
+      provider: 'kevoryn',
+      name: 'claude-haiku-4-5',
+      group: 'Anthropic'
+    },
+    {
+      id: 'gpt-5.5',
+      provider: 'kevoryn',
+      name: 'gpt-5.5',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5.4',
+      provider: 'kevoryn',
+      name: 'gpt-5.4',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5.4-mini',
+      provider: 'kevoryn',
+      name: 'gpt-5.4-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-image-2',
+      provider: 'kevoryn',
+      name: 'gpt-image-2',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      provider: 'kevoryn',
+      name: 'gemini-3.1-pro-preview',
+      group: 'Gemini'
+    },
+    {
+      id: 'deepseek-v4-pro',
+      provider: 'kevoryn',
+      name: 'deepseek-v4-pro',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v4-flash',
+      provider: 'kevoryn',
+      name: 'deepseek-v4-flash',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'kimi-k2.6',
+      provider: 'kevoryn',
+      name: 'kimi-k2.6',
+      group: 'Moonshot'
+    },
+    {
+      id: 'qwen3.6-plus',
+      provider: 'kevoryn',
+      name: 'qwen3.6-plus',
+      group: 'Qwen'
+    },
+    {
+      id: 'qwen3-coder-plus',
+      provider: 'kevoryn',
+      name: 'qwen3-coder-plus',
+      group: 'Qwen'
+    },
+    {
+      id: 'glm-5.1',
+      provider: 'kevoryn',
+      name: 'glm-5.1',
+      group: 'GLM'
+    },
+    {
+      id: 'MiniMax-M2.7',
+      provider: 'kevoryn',
+      name: 'MiniMax-M2.7',
+      group: 'MiniMax'
+    },
+    {
+      id: 'grok-4.20',
+      provider: 'kevoryn',
+      name: 'grok-4.20',
+      group: 'xAI'
+    },
+    {
+      id: 'llama-4-maverick',
+      provider: 'kevoryn',
+      name: 'llama-4-maverick',
+      group: 'Meta'
+    },
+    {
+      id: 'mimo-v2.5-pro',
+      provider: 'kevoryn',
+      name: 'mimo-v2.5-pro',
+      group: 'Mimo'
+    },
+    {
+      id: 'step-3.5-flash',
+      provider: 'kevoryn',
+      name: 'step-3.5-flash',
+      group: 'StepFun'
+    },
+    {
+      id: 'nemotron-3-super-120b-a12b',
+      provider: 'kevoryn',
+      name: 'nemotron-3-super-120b-a12b',
+      group: 'Nvidia'
+    }
+  ],
   ]
 }
