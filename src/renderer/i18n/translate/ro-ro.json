@@ -2144,13 +2144,13 @@
         "view_chunks": "Vezi Fragmente"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importă recursiv fișierele acceptate dintr-un dosar",
-          "title": "Faceți clic pentru a selecta un dosar"
+        "conflict_dialog": {
+          "description": "{{count}} dintre sursele pe care le adaugi au același nume ca elementele existente. Alege cum să le gestionezi.",
+          "keep_all": "Păstrează Tot",
+          "replace": "Înlocuiește",
+          "title": "Sursele există deja"
         },
         "footer": {
-          "selected_directories": "{{count}} directoare selectate",
-          "selected_files": "{{count}} fișiere selectate",
           "selected_notes": "{{count}} notițe selectate"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "Setează automat dimensiunile embedding",
     "dimensions_size_placeholder": "Lasă gol pentru a nu transmite dimensiuni",
-    "drag_file": "Trage fișierul aici",
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "Modelul de încorporare utilizat de această bază de cunoștințe nu a fost găsit în timpul migrării. Reconstruiți baza de cunoștințe și alegeți un nou model de încorporare.",
       "model_invalid": "Niciun model selectat"
     },
-    "file_hint": "Acceptă {{file_types}}",
     "groups": {
       "add": "Grup nou",
       "create_base_here": "Creează aici",
@@ -7067,10 +7065,16 @@
       "title": "Zoom pagină"
     }
   },
+  "subWindow": {
+    "back_to_main": "Înapoi la fereastra principală",
+    "pin": "Păstrează deasupra",
+    "unpin": "Anulează Păstrează deasupra"
+  },
   "tab": {
     "close": "Închide fila",
     "move_to_first": "Mută la început",
     "new": "Filă nouă",
+    "open_in_new_window": "Deschide în fereastră nouă",
     "pin": "Fixează fila",
     "unpin": "Anulați fixarea filei"
   },
