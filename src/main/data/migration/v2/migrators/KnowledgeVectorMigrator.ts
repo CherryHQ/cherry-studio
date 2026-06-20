@@ -351,6 +351,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.warnings.push(message)
   }
 
+  /**
+   * Build the execute() result's warnings: the execute-phase slice of this.warnings (prepare()'s
+   * warnings were already returned to the engine and would be double-counted by its prepare+execute
+   * merge) plus any execution errors. Without this, execute-phase degradations only reach the log,
+   * never the migration summary the engine surfaces to the user.
+   */
+  private buildExecuteWarnings(prepareWarningCount: number): string[] | undefined {
+    const merged = [...this.warnings.slice(prepareWarningCount), ...this.executionErrors]
+    return merged.length > 0 ? merged : undefined
+  }
+
   private recordSkippedWarning(reason: string, message: string): void {
     const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
     bucket.count += 1
@@ -800,7 +811,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       return {
         success: true,
         itemCount: this.sourceCount,
-        warnings: this.warnings.length > 0 ? this.warnings : undefined
+        warnings: this.warnings.length > 0 ? [...this.warnings] : undefined
       }
     } catch (error) {
       this.flushSkippedWarnings()
@@ -850,13 +861,18 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    // Warnings collected so far are prepare()'s and were already returned to the engine; capture the
+    // boundary so execute() surfaces only its own warnings (the engine merges prepare + execute, so
+    // re-returning prepare's would double-count them).
+    const prepareWarningCount = this.warnings.length
     if (this.preparedBasePlans.length === 0) {
       // No vector plan survived prepare(); still degrade items orphaned there (a base whose only
       // content was a directory expansion) before returning.
       await this.flushDirectoryDegradations(ctx)
       return {
         success: true,
-        processedCount: 0
+        processedCount: 0,
+        warnings: this.buildExecuteWarnings(prepareWarningCount)
       }
     }
 
@@ -1004,7 +1020,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     return {
       success: true,
       processedCount,
-      warnings: this.executionErrors.length > 0 ? [...this.executionErrors] : undefined
+      warnings: this.buildExecuteWarnings(prepareWarningCount)
     }
   }
 

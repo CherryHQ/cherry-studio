@@ -1267,6 +1267,87 @@ describe('KnowledgeVectorMigrator', () => {
       })
     })
 
+    it('surfaces an execute-phase degrade-flush failure in the execute result warnings', async () => {
+      // The degrade UPDATE can fail at execute time (e.g. a transient DB error); that warning lands
+      // in this.warnings, which prepare() already returned to the engine. execute() must therefore
+      // surface only its own warning slice — otherwise the failure is invisible to the migration
+      // summary. Regression for the prepare()/execute() warnings asymmetry: execute() previously
+      // returned executionErrors only, dropping degrade-flush warnings entirely.
+      const CHILD_A = '0198f3f2-7d60-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7d61-7abc-8def-123456789abc'
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
+        } as any,
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/web/README.md', relativePath: CHILD_B }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a', 'loader-dir-b'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', CHILD_A],
+              ['loader-dir-b', CHILD_B]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      expect(migrator.preparedBasePlans).toHaveLength(0)
+      // prepare() recorded the skipped base, so its warning set is non-empty — the disjointness check
+      // below is meaningful.
+      expect(prepareResult.warnings?.length ?? 0).toBeGreaterThan(0)
+
+      // Make the degrade UPDATE fail at execute time so flushDirectoryDegradations records a warning.
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => {
+            throw new Error('disk I/O error')
+          })
+        }))
+      })) as any
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      // The execute-phase flush failure is surfaced (was dropped before the fix).
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('Failed to degrade'))).toBe(true)
+      // prepare()'s warnings are not re-reported by execute() (no double-count across the engine's
+      // prepare + execute warnings merge).
+      const prepareWarnings = prepareResult.warnings ?? []
+      expect(executeResult.warnings?.some((warning: string) => prepareWarnings.includes(warning))).toBe(false)
+    })
+
     it('degrades only the directory children that got no vectors, keeping a container with a survivor', async () => {
       // The base loads, but only one of the folder's two files still has a migratable vector. The
       // child that drew chunks stays `completed` and indexes normally; the empty child is degraded
@@ -1917,7 +1998,7 @@ describe('KnowledgeVectorMigrator', () => {
       const renameSpy = vi
         .spyOn(fs.promises, 'rename')
         .mockRejectedValueOnce(Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' }))
-        .mockImplementation((...args) => realRename(...(args)))
+        .mockImplementation((...args) => realRename(...args))
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
