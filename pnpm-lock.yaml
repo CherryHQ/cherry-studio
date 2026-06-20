@@ -70,9 +70,6 @@ importers:
       '@cherrystudio/ripgrep':
         specifier: ^1.0.0
         version: 1.0.0
-      '@dagrejs/dagre':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
@@ -91,18 +88,6 @@ importers:
       '@paymoapp/electron-shutdown-handler':
         specifier: 1.1.2
         version: 1.1.2
-      '@streamdown/cjk':
-        specifier: ^1.0.3
-        version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(react@19.2.3)(unified@11.0.5)
-      '@streamdown/code':
-        specifier: ^1.1.1
-        version: 1.1.1(react@19.2.3)
-      '@streamdown/math':
-        specifier: ^1.0.2
-        version: 1.0.2(react@19.2.3)
-      '@streamdown/mermaid':
-        specifier: ^1.0.2
-        version: 1.0.2(react@19.2.3)
       '@vectorstores/core':
         specifier: ^0.1.8
         version: 0.1.8
@@ -133,9 +118,6 @@ importers:
       officeparser:
         specifier: 4.2.0
         version: 4.2.0
-      og-crd:
-        specifier: ^0.0.2
-        version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       os-proxy-config:
         specifier: 1.1.2
         version: 1.1.2
@@ -151,9 +133,6 @@ importers:
       sharp:
         specifier: 0.34.5
         version: 0.34.5
-      streamdown:
-        specifier: ^2.5.0
-        version: 2.5.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tesseract.js:
         specifier: 6.0.1
         version: 6.0.1(patch_hash=a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e)(encoding@0.1.13)
@@ -290,6 +269,9 @@ importers:
       '@codemirror/view':
         specifier: 6.39.16
         version: 6.39.16
+      '@dagrejs/dagre':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -917,6 +899,9 @@ importers:
       npx-scope-finder:
         specifier: ^1.2.0
         version: 1.3.0
+      og-crd:
+        specifier: ^0.0.2
+        version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ollama-ai-provider-v2:
         specifier: 3.3.1
         version: 3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(zod@4.3.4)
@@ -1031,6 +1016,9 @@ importers:
       stream-json:
         specifier: ^1.9.1
         version: 1.9.1
+      streamdown:
+        specifier: ^2.5.0
+        version: 2.5.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       strict-url-sanitise:
         specifier: ^0.0.1
         version: 0.0.1
