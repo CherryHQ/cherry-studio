@@ -5,7 +5,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import {
   type CreateKnowledgeItemDto,
@@ -16,6 +15,7 @@ import {
   type KnowledgeBase,
   type KnowledgeItem
 } from '@shared/data/types/knowledge'
+import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'

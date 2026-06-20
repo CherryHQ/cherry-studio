@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { Mistral } from '@mistralai/mistralai'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'

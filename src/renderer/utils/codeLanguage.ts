@@ -1,4 +1,4 @@
-import { codeLanguages } from '@shared/config/code-languages'
+import { codeLanguages } from '@shared/utils/code-languages'
 
 // Cache for extension to language mapping (built lazily)
 let extensionToLanguageCache: Map<string, string> | null = null

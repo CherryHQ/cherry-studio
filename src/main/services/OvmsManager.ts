@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@main/constants'
 import {
   BaseService,
   Conditional,
@@ -12,7 +13,6 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs-extra'
 import * as path from 'path'

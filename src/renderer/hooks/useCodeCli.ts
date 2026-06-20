@@ -1,8 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { codeCLI } from '@shared/config/constant'
 import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
 import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/code-cli'
+import { codeCLI } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')

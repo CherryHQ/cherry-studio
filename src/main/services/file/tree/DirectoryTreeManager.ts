@@ -28,20 +28,20 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { AbsolutePathSchema } from '@shared/data/types/file'
+import { IpcChannel } from '@shared/IpcChannel'
 import {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,
   DirectoryTreeOptionsSchema,
   type TreeMutationPushPayload
-} from '@shared/file/types'
-import { IpcChannel } from '@shared/IpcChannel'
+} from '@shared/utils/file'
 import type { WebContents } from 'electron'
 import * as z from 'zod'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 
 // IPC param schemas. `DirectoryTreeOptionsSchema` is the shared source of
-// truth (see `@shared/file/types/tree`); the IPC-level wrappers stay here
+// truth (see `@shared/utils/file/tree`); the IPC-level wrappers stay here
 // next to the handlers, matching the FileManager / DataApi convention where
 // leaf schemas live in shared and per-channel param schemas live in main.
 const TreeCreateParamsSchema = z.strictObject({

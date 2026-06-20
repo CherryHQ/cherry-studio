@@ -47,7 +47,7 @@ It is orthogonal to the domain axis (§1) — a `page` may be domain-owned (`fea
 **Primitive requirements** (`packages/ui` and `@shared`):
 
 - `packages/ui` (`@cherrystudio/ui`) holds app-agnostic UI primitives (Shadcn + Tailwind). It imports only third-party packages and **never** `@renderer/*`; it carries no business, domain, or data-layer knowledge.
-- `@shared` holds cross-process types, contracts, and pure logic (e.g. `@shared/command`'s `ContextKeyService`). It depends on no app layer and is importable by both `main` and `renderer`.
+- `@shared` holds **cross-process** types, contracts, and pure logic, importable by both `main` and `renderer` and depending on no app layer. **Cross-process is the entry gate, not a description**: logic reachable from only one process stays in that process's own layer. For `@shared`'s internal layout, its two invariants (cross-process; no mutable runtime state), and the closed top-level set, see [Shared Layer Architecture](./shared-layer-architecture.md).
 - Primitives are the leaves: everything may import them; they import no app code.
 
 ## 3. Directory Responsibilities
@@ -116,16 +116,18 @@ This is the renderer-specific application of [Naming Conventions §4.8](./naming
 
 Corollary — **capabilities decompose, they do not relocate as a blob**: route each part by its shape (§3) — non-component logic → `services/` (or `@shared/` if cross-process), React providers and UI → `components/`, hooks → `hooks/`, types → `@shared/`. Nothing is added to the top level.
 
-This is why a command/keybinding/menu system is not a feature and not a top-level directory: its reusable logic is a primitive and its renderer surface is React, so it decomposes into existing homes:
+This is why a command/keybinding/menu system is not a feature and not a top-level directory: it decomposes **by shape** across existing homes, one cell per type:
 
 | Part | Nature | Home |
 |---|---|---|
-| `ContextKeyService`, command/keybinding definitions, context-expression eval, types | cross-process pure logic | `@shared/command` (already there) |
-| `CommandProvider`, `ContextKeyProvider`, their hooks, `menus`, `presentation` | React provider components + hooks + shared UI | `components/command/` |
+| keybinding definitions + resolution, context-expr eval, menu resolution, `ContextKeyService`/`MenuRegistry` blueprints | cross-process pure logic + class blueprints | `@shared/utils/command` |
+| command / keybinding / menu types | cross-process types | `@shared/types/command` |
+| shortcut-label, `KeyboardEvent` → binding, display-state helpers | renderer-only pure logic | `utils/command` |
+| context objects + their accessor hooks, `useResolvedCommand`/`useResolvedCommandMenu`, `useCommandShortcuts` | React contexts + hooks | `hooks/command` |
+| `CommandProvider`/`CommandContextKeyProvider`, `CommandMenus`, `CommandControls` | React components | `components/command` |
 
-The providers are **components**, not services (a `Provider` returns JSX); the service logic already lives in `@shared/command`, so nothing goes to `services/`.
-After decomposition, a shared component that uses commands (e.g. `FileTree`, `ModelSelector`) imports from `components/command/` — an intra-tier `component → component` edge.
-The previous `component → feature` inversion disappears, and nothing is a "feature".
+A `Provider` returns JSX so it is a **component**; the contexts it fills and the hooks that read them are non-JSX and sink one tier below to `hooks/command`; pure logic sinks to `utils/command` (renderer-only) or `@shared/utils/command` (cross-process), and types to `@shared/types/command`. Nothing goes to `services/`, and `@shared` keeps only what **both** processes use — a resolver consumed only by the renderer (e.g. `getCommandShortcutLabel`) belongs in `utils/command`.
+After decomposition every edge is downward (`component → component`/`hook`, `hook → hook`); the former `component → feature` and `hook → feature` inversions are gone, and nothing is a "feature".
 
 ## 7. Anti-Patterns
 
@@ -144,7 +146,7 @@ This document describes the **target** architecture. The renderer has not yet be
 **Already aligned:**
 
 - `packages/ui` has no back-imports from `@renderer/*` (the primitive layer is clean).
-- The `command` feature already uses a curated `index.ts` barrel, and every consumer imports the barrel (no deep imports).
+- The command capability is decomposed by shape with no `component`/`hook → feature` edges: the renderer cells (`utils/command`, `hooks/command`, `components/command`) are in place, and its cross-process cell is split into `@shared/utils/command` (logic + `ContextKeyService`/`MenuRegistry` blueprints) and `@shared/types/command` (types) per [Shared Layer Architecture](./shared-layer-architecture.md).
 
 **Pending (current deviations from the target):**
 
@@ -153,7 +155,6 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 
 | Area | Current state | Target |
 |---|---|---|
-| `command` | `features/command/` holds providers + hooks + UI together (service logic already in `@shared/command`) | move the React surface (providers, hooks, UI) → `components/command/`; `@shared/command` stays |
 | App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, tab icons) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
 | `components/app/Navbar` | a shared page-header component (`Navbar`/`NavbarCenter`/…) consumed by ~10 pages, mislabeled under an `app/` (shell) subdirectory | it is shared UI, **not** shell: keep in `components/` (regroup as `components/Navbar/`) |
 | `components/app/Sidebar` | no importers found — likely dead code | verify; remove if unused, otherwise place by its actual consumer (window shell → `windows/`, reusable UI → `components/`) |
@@ -165,7 +166,7 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 | `store/`, `databases/` | v1 Redux / Dexie | removed during the v2 refactor (do not model) |
 | Boundary enforcement | none | `import/no-restricted-paths` zones (§5) |
 
-Known reverse/coupling edges at time of writing: ~7 `components → features`/`pages` imports and ~35 `pages → pages` cross-imports. These are the violations the §5 lint rules are designed to catch and prevent.
+Known reverse/coupling edges at time of writing: ~35 `pages → pages` cross-imports (the command-driven `component`/`hook → feature` edges have been resolved). These are the violations the §5 lint rules are designed to catch and prevent.
 
 ## 9. Industry References
 

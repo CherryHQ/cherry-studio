@@ -3,7 +3,6 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
 import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -11,6 +10,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ChannelAdapter } from './ChannelAdapter'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
+import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
 const logger = loggerService.withContext('ChannelManager')
 

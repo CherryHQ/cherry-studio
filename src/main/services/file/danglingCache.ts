@@ -28,7 +28,7 @@ import { loggerService } from '@logger'
 import type { Event } from '@main/core/lifecycle'
 import { Emitter } from '@main/core/lifecycle'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 const logger = loggerService.withContext('file/danglingCache')
 

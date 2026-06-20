@@ -3,8 +3,8 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CanonicalExternalPath } from '@shared/data/types/file'
-import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
+import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 
 const logger = loggerService.withContext('pathResolver')
 

@@ -35,11 +35,10 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { McpProgressEvent } from '@shared/config/types'
-import type { McpServerLogEntry } from '@shared/config/types'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
 import { defaultAppHeaders } from '@shared/utils'
 import { safeSerialize } from '@shared/utils/serialize'
 import {

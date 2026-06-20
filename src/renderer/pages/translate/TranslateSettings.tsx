@@ -25,7 +25,7 @@ import { loggerService } from '@logger'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {
   AutoDetectionMethod,
   PersistedLangCode,

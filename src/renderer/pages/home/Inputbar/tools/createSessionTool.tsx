@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { useResolvedCommand } from '@renderer/features/command'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'

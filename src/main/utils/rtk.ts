@@ -6,8 +6,8 @@ import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@main/constants'
 import { isWin } from '@main/core/platform'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { gte as semverGte } from 'semver'
 
 import { toAsarUnpackedPath } from '.'

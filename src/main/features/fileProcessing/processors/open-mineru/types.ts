@@ -1,4 +1,4 @@
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 
 export type PreparedOpenMineruContext = {
   apiHost: string

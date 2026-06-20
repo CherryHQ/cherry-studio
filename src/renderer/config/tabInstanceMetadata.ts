@@ -1,11 +1,11 @@
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import {
-  normalizeTabInstanceMetadata,
   TAB_INSTANCE_METADATA_APP_ID,
   TAB_INSTANCE_METADATA_KEY,
   type TabInstanceAppId
 } from '@shared/types/tabInstanceMetadata'
+import { normalizeTabInstanceMetadata } from '@shared/utils/tabInstanceMetadata'
 
 export interface TabInstanceMetadataInput {
   appId?: TabInstanceAppId

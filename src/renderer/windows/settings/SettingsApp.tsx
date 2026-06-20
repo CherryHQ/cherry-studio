@@ -1,11 +1,11 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
@@ -101,7 +101,7 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <ContextKeyProvider>
+                  <CommandContextKeyProvider>
                     <CommandProvider>
                       <TopViewContainer>
                         <div
@@ -115,7 +115,7 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
                         </div>
                       </TopViewContainer>
                     </CommandProvider>
-                  </ContextKeyProvider>
+                  </CommandContextKeyProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>

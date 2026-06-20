@@ -34,7 +34,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@shared/config/constant', () => ({
+vi.mock('@main/constants', () => ({
   HOME_CHERRY_DIR: '.cherrystudio'
 }))
 

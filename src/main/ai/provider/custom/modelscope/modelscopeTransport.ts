@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { parseDataUrl } from '@shared/utils'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
