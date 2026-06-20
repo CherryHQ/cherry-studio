@@ -11,7 +11,7 @@
 import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
-import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
 export * from './file'
 export * from './note'
 export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -25,6 +25,8 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 export type { TranslateLanguage }
+import type { McpResource } from '@shared/types/mcp'
+import type { ReasoningEffortOption } from '@shared/utils/reasoning'
 import * as z from 'zod'
 
 import type { FileMetadata } from './file'
@@ -40,8 +42,8 @@ export * from './notification'
 export * from './ocr'
 export * from './plugin'
 export * from './provider'
-export * from './skill'
 export * from './websearch'
+export * from '@shared/types/skill'
 
 export type Assistant = DataApiAssistant
 export type AssistantSettings = DataApiAssistantSettings
@@ -158,44 +160,18 @@ const ThinkModelTypes = [
   'mistral'
 ] as const
 
-/** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
- * It's basically based on OpenAI's reasoning effort, but we have adapted it for other models.
- *
- * Possible options:
- * - 'none': Disable reasoning for the model. (inherit from OpenAI)
- *            It's also used as "off" when the reasoning behavior of the model only could be set to "on" and "off".
- * - 'minimal': Enable minimal reasoning effort for the model. (inherit from OpenAI, only for few models, such as GPT-5.)
- * - 'low': Enable low reasoning effort for the model. (inherit from OpenAI)
- * - 'medium': Enable medium reasoning effort for the model. (inherit from OpenAI)
- * - 'high': Enable high reasoning effort for the model. (inherit from OpenAI)
- * - 'xhigh': Enable extra high reasoning effort for the model. (inherit from OpenAI)
- * - 'auto': Automatically determine the reasoning effort based on the model's capabilities.
- *            For some providers, it's same with 'default'.
- *            It's also used as "on" when the reasoning behavior of the model only could be set to "on" and "off".
- * - 'default': Depend on default behavior. It means we would not set any reasoning related settings when calling API.
- */
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
+export type { ReasoningEffortOption }
 export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
 export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
-export type EffortRatio = Record<ReasoningEffortOption, number>
+export type { EffortRatio } from '@shared/utils/reasoning'
 
 export function isThinkModelType(type: string): type is ThinkingModelType {
   return ThinkModelTypes.some((t) => t === type)
 }
 
-export const EFFORT_RATIO: EffortRatio = {
-  // 'default' is not expected to be used.
-  default: 0,
-  none: 0.01,
-  minimal: 0.05,
-  low: 0.05,
-  medium: 0.5,
-  high: 0.8,
-  xhigh: 0.9,
-  auto: 2
-}
+export { EFFORT_RATIO } from '@shared/utils/reasoning'
 
 export type LegacyMessage = {
   id: string
@@ -499,15 +475,7 @@ export enum ThemeMode {
 
 export type CodeStyleVarious = 'auto' | string
 
-export type WebDavConfig = {
-  webdavHost: string
-  webdavUser?: string
-  webdavPass?: string
-  webdavPath?: string
-  fileName?: string
-  skipBackupFile?: boolean
-  disableStream?: boolean
-}
+export type { WebDavConfig } from '@shared/types/backup'
 
 export type AppInfo = {
   version: string
@@ -541,50 +509,7 @@ export type ApiClient = {
   baseURL: string
 }
 
-export type GenerateImageParams = {
-  model: string
-  prompt: string
-  /**
-   * Input images for image-to-image / edit / remix / upscale flows. When
-   * non-empty, painting callers ({@link AiProvider.generatePaintingImage})
-   * forward these to AI SDK as `prompt: { text, images }` so the vendor
-   * image-model picks the right edit endpoint.
-   */
-  inputImages?: (Buffer | Uint8Array | string)[]
-  negativePrompt?: string
-  imageSize?: string
-  aspectRatio?: string
-  /** Optional: painting callers may omit it; `AiProvider` falls back to `n: 1`. */
-  batchSize?: number
-  /**
-   * Painting-only opt-in: when true and `imageSize` is undefined, `AiProvider`
-   * skips the `'1024x1024'` default so `size` is omitted from the request body
-   * entirely (matches the bespoke `painting.size === 'auto' → undefined`
-   * handling for models whose server-side default differs from 1024×1024).
-   * Chat callers must leave this unset to keep the legacy default.
-   */
-  allowAutoSize?: boolean
-  seed?: string
-  numInferenceSteps?: number
-  guidanceScale?: number
-  signal?: AbortSignal
-  promptEnhancement?: boolean
-  personGeneration?: PersonGeneration
-  quality?: string
-  /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
-  background?: string
-  /** OpenAI image-body field (e.g. 'low'/'auto') */
-  moderation?: string
-  /** OpenAI image-body field — DALL-E 3 only ('vivid' / 'natural') */
-  style?: string
-  /**
-   * Extra AI SDK `providerOptions` merged into the built map, keyed by the
-   * resolved provider id. Carries provider-specific params (and non-JSON
-   * callbacks like the polling `onProgress`) that the structured params can't
-   * express. Passed by reference through the plugin chain.
-   */
-  providerOptions?: Record<string, Record<string, unknown>>
-}
+export type { GenerateImageParams } from '@shared/types/image'
 
 /**
  * 图像编辑参数
@@ -738,54 +663,11 @@ export interface McpServerParameter {
 }
 
 export type { McpServer } from '@shared/data/types/mcpServer'
-
-export type BuiltinMcpServer = McpServer & {
-  type: 'inMemory'
-  name: BuiltinMcpServerName
-}
-
-export const isBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer => {
-  return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
-}
-
-export const BuiltinMcpServerNames = {
-  flomo: '@cherry/flomo',
-  mcpAutoInstall: '@cherry/mcp-auto-install',
-  memory: '@cherry/memory',
-  sequentialThinking: '@cherry/sequentialthinking',
-  braveSearch: '@cherry/brave-search',
-  fetch: '@cherry/fetch',
-  filesystem: '@cherry/filesystem',
-  difyKnowledge: '@cherry/dify-knowledge',
-  python: '@cherry/python',
-  didiMcp: '@cherry/didi-mcp',
-  browser: '@cherry/browser',
-  nowledgeMem: '@cherry/nowledge-mem',
-  hub: '@cherry/hub'
-} as const
-
-export type BuiltinMcpServerName = (typeof BuiltinMcpServerNames)[keyof typeof BuiltinMcpServerNames]
-
-export const BuiltinMcpServerNamesArray = Object.values(BuiltinMcpServerNames)
-
-export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerName => {
-  return BuiltinMcpServerNamesArray.some((n) => n === name)
-}
-
-export interface McpPromptArguments {
-  name: string
-  description?: string
-  required?: boolean
-}
-
-export interface McpPrompt {
-  id: string
-  name: string
-  description?: string
-  arguments?: McpPromptArguments[]
-  serverId: string
-  serverName: string
-}
+export type { McpPrompt, McpPromptArguments } from '@shared/types/mcp'
+export type { BuiltinMcpServer } from '@shared/utils/mcp'
+export type { BuiltinMcpServerName } from '@shared/utils/mcp'
+export { isBuiltinMcpServer } from '@shared/utils/mcp'
+export { BuiltinMcpServerNames, BuiltinMcpServerNamesArray, isBuiltinMcpServerName } from '@shared/utils/mcp'
 
 export interface GetMcpPromptResponse {
   description?: string
@@ -841,40 +723,7 @@ export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
   parentToolUseId?: string
 }
 
-export interface McpToolResultContent {
-  type: 'text' | 'image' | 'audio' | 'resource'
-  text?: string
-  data?: string
-  mimeType?: string
-  resource?: {
-    uri?: string
-    text?: string
-    mimeType?: string
-    blob?: string
-  }
-}
-
-export interface McpCallToolResponse {
-  content: McpToolResultContent[]
-  structuredContent?: unknown
-  isError?: boolean
-}
-
-export interface McpResource {
-  serverId: string
-  serverName: string
-  uri: string
-  name: string
-  description?: string
-  mimeType?: string
-  size?: number
-  text?: string
-  blob?: string
-}
-
-export interface GetResourceResponse {
-  contents: McpResource[]
-}
+export type { McpResource }
 
 export interface QuickPhrase {
   id: string
@@ -898,22 +747,9 @@ export interface Citation {
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
-export type S3Config = {
-  endpoint: string
-  region: string
-  bucket: string
-  accessKeyId: string
-  secretAccessKey: string
-  root?: string
-  fileName?: string
-  skipBackupFile: boolean
-  autoSync: boolean
-  syncInterval: number
-  maxBackups: number
-}
-
 export type { Message } from './newMessage'
 export * from './tool'
+export type { S3Config } from '@shared/types/backup'
 
 // Memory Service Types
 // ========================================================================

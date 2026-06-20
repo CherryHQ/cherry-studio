@@ -3,8 +3,8 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
+import type { NotesTreeNode } from '@shared/types/note'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
-import type { NotesTreeNode } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { copyFileIntoKnowledgeBaseAt } from '../storage/pathStorage'

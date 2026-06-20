@@ -1,6 +1,6 @@
 import { BaseService } from '@main/core/lifecycle'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import type { McpServer } from '@types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {

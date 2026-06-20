@@ -27,7 +27,7 @@ import {
   isVertexProvider,
   matchesPreset
 } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
 import { defaultHeaders, getBaseUrl } from '../utils/provider'
