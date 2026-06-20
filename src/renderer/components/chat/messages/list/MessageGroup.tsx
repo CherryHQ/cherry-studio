@@ -1,6 +1,5 @@
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -367,34 +366,32 @@ const MessageGroup = ({
   )
 
   return (
-    <MessageEditingProvider>
-      <GroupContainer
-        id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-        <GridContainer
-          $count={messageLength}
-          $gridColumns={gridColumns}
-          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-          onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
-          {messages.map(renderMessage)}
-        </GridContainer>
-        {isGrouped && (
-          <MessageGroupMenuBar
-            multiModelMessageStyle={multiModelMessageStyle}
-            setMultiModelMessageStyle={(style) => {
-              setMultiModelMessageStyle(style)
-              onMultiModelMessageStyleChange?.(style)
-              messages.forEach((message) => {
-                updateMessageUiState(message.id, { multiModelMessageStyle: style })
-              })
-            }}
-            messages={messages}
-            selectMessageId={selectedMessageId}
-            setSelectedMessage={setSelectedMessage}
-          />
-        )}
-      </GroupContainer>
-    </MessageEditingProvider>
+    <GroupContainer
+      id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
+      className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+      <GridContainer
+        $count={messageLength}
+        $gridColumns={gridColumns}
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
+        onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
+        {messages.map(renderMessage)}
+      </GridContainer>
+      {isGrouped && (
+        <MessageGroupMenuBar
+          multiModelMessageStyle={multiModelMessageStyle}
+          setMultiModelMessageStyle={(style) => {
+            setMultiModelMessageStyle(style)
+            onMultiModelMessageStyleChange?.(style)
+            messages.forEach((message) => {
+              updateMessageUiState(message.id, { multiModelMessageStyle: style })
+            })
+          }}
+          messages={messages}
+          selectMessageId={selectedMessageId}
+          setSelectedMessage={setSelectedMessage}
+        />
+      )}
+    </GroupContainer>
   )
 }
 

@@ -1,5 +1,8 @@
 import { cacheService } from '@data/CacheService'
-import { MessageEditingProvider, useMessageEditing } from '@renderer/context/MessageEditingContext'
+import {
+  MessageEditingProvider,
+  useMessageEditing
+} from '@renderer/components/chat/messages/editing/MessageEditingContext'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'

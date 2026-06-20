@@ -12,10 +12,13 @@ import {
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
+import {
+  MessageEditingProvider,
+  useMessageEditing
+} from '@renderer/components/chat/messages/editing/MessageEditingContext'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AssistantSelector } from '@renderer/components/resource'
 import { ModelSelector } from '@renderer/components/Selector'
-import { MessageEditingProvider, useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'

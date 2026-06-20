@@ -28,12 +28,6 @@ const mocks = vi.hoisted(() => ({
     off: vi.fn(),
     emit: vi.fn()
   },
-  MessageEditingProvider: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  useMessageEditing: vi.fn().mockReturnValue({
-    editingMessageId: null,
-    startEditing: vi.fn(),
-    stopEditing: vi.fn()
-  }),
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
   MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
@@ -49,7 +43,8 @@ const mocks = vi.hoisted(() => ({
   MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
   MessageOutline: vi.fn(() => null),
   messageListActions: vi.fn(),
-  messageListSelection: vi.fn()
+  messageListSelection: vi.fn(),
+  messageListEditingId: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -76,11 +71,6 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
   default: mocks.HorizontalScrollContainer
-}))
-
-vi.mock('@renderer/context/MessageEditingContext', () => ({
-  MessageEditingProvider: mocks.MessageEditingProvider,
-  useMessageEditing: () => mocks.useMessageEditing()
 }))
 
 vi.mock('@renderer/utils', () => {
@@ -189,6 +179,7 @@ vi.mock('../MessageListProvider', () => ({
     }
   },
   useMessageListSelection: () => mocks.messageListSelection(),
+  useMessageListEditingId: () => mocks.messageListEditingId(),
   useMessageListMeta: () => ({
     userProfile: { avatar: '' }
   }),
@@ -261,13 +252,7 @@ describe('MessageGroup', () => {
       updateMessageUiState: vi.fn()
     })
     mocks.messageListSelection.mockReturnValue(undefined)
-    mocks.useMessageEditing.mockReturnValue({
-      editingMessageId: null,
-      editingMessage: null,
-      startEditing: vi.fn(),
-      cancelEditing: vi.fn(),
-      stopEditing: vi.fn()
-    })
+    mocks.messageListEditingId.mockReturnValue(null)
   })
 
   it('does not apply horizontal padding on the message element itself', () => {
@@ -530,13 +515,7 @@ describe('MessageGroup', () => {
       ...createMessage('user-editing-1', 0, 'vertical'),
       role: 'user'
     } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
-    mocks.useMessageEditing.mockReturnValue({
-      editingMessageId: 'user-editing-1',
-      editingMessage: { message, parts: [{ type: 'text', text: 'hello' }] },
-      startEditing: vi.fn(),
-      cancelEditing: vi.fn(),
-      stopEditing: vi.fn()
-    })
+    mocks.messageListEditingId.mockReturnValue('user-editing-1')
 
     const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
 
@@ -558,17 +537,11 @@ describe('MessageGroup', () => {
   it('passes locked mentioned models into the editing snapshot', async () => {
     const startEditing = vi.fn()
     let runtime: { startEditing: () => void } | undefined
-    mocks.useMessageEditing.mockReturnValue({
-      editingMessageId: null,
-      editingMessage: null,
-      startEditing,
-      cancelEditing: vi.fn(),
-      stopEditing: vi.fn()
-    })
     mocks.messageListActions.mockReturnValue({
       setActiveBranch: vi.fn(),
       deleteMessageGroup: vi.fn(),
       editMessage: vi.fn(),
+      startEditing,
       regenerateMessage: vi.fn(),
       updateMessageUiState: vi.fn(),
       bindMessageRuntime: vi.fn((_id, nextRuntime) => {
@@ -644,13 +617,7 @@ describe('MessageGroup', () => {
       ...createMessage('user-bubble-editing-1', 0, 'vertical'),
       role: 'user'
     } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
-    mocks.useMessageEditing.mockReturnValue({
-      editingMessageId: 'user-bubble-editing-1',
-      editingMessage: { message, parts: [{ type: 'text', text: 'hello' }] },
-      startEditing: vi.fn(),
-      cancelEditing: vi.fn(),
-      stopEditing: vi.fn()
-    })
+    mocks.messageListEditingId.mockReturnValue('user-bubble-editing-1')
 
     const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
     const messageElement = container.querySelector('#message-user-bubble-editing-1 .message')

@@ -11,10 +11,13 @@ export type {
 } from './actions/actionTypes'
 export * from './adapters'
 export * from './composer'
-export { MessageVirtualList, type MessageVirtualListHandle } from './messages/list/MessageVirtualList'
-export { default as MessageList } from './messages/MessageList'
-export { MessageListProvider } from './messages/MessageListProvider'
-export type { MessageListProviderValue } from './messages/types'
+export {
+  MessageList,
+  MessageListProvider,
+  type MessageListProviderValue,
+  MessageVirtualList,
+  type MessageVirtualListHandle
+} from './messages'
 export * from './primitives'
 export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'
 export { default as ConversationCenterState } from './shell/ConversationCenterState'

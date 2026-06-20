@@ -1,6 +1,5 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
 import { classNames, cn } from '@renderer/utils'
@@ -20,6 +19,7 @@ import { useMessageParts } from '../blocks'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
+  useMessageListEditingId,
   useMessageListMeta,
   useMessageListSelection,
   useMessageListUiSelectors,
@@ -83,20 +83,20 @@ const MessageItem: FC<Props> = ({
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const messageParts = useMessageParts(message.id)
   const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
-  const { editingMessageId, startEditing } = useMessageEditing()
+  const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
       if (canEditMessage && messageId === message.id) {
-        startEditing(message, messageParts, {
+        actions.startEditing?.(message, messageParts, {
           lockedMentionedModels:
             lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
         })
       }
     },
-    [canEditMessage, lockedMentionedModels, message, messageParts, startEditing]
+    [actions, canEditMessage, lockedMentionedModels, message, messageParts]
   )
 
   const isLastMessage = index === 0 || !!isGrouped
