@@ -166,6 +166,12 @@ export type GetPhysicalPathIpcParams = {
 export type PermanentDeleteIpcParams = FileHandle
 
 // ─── IPC Result ───
+//
+// Exclusivity invariants below are currently enforced only by these hand-written
+// shapes (`failed` carries no `id` on create / no `sourceRef` on mutation;
+// `succeeded` carries `sourceRef` on create). When File IPC migrates onto IpcApi,
+// the Zod schema for these results MUST be a `strictObject` / `discriminatedUnion`
+// so the same exclusivity holds at runtime — otherwise the contract is lost.
 
 /**
  * Result shape for batch *mutations* on existing entries — `batchTrash`,

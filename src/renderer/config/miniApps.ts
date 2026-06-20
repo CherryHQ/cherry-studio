@@ -64,7 +64,7 @@ import {
   Zhida,
   Zhipu
 } from '@cherrystudio/ui/icons'
-import { PRESETS_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/miniApps'
 
 /**
  * Legacy mini-app entity type used by the deprecated Redux slice and config layer.

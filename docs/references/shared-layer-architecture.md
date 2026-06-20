@@ -63,11 +63,12 @@ Routing between the two follows the [Naming Conventions §5.2](./naming-conventi
 - **A single `.ts` file is the default.** Most topics are one file — `types/<topic>.ts`, `utils/<topic>.ts`, imported directly. Promote to a subdirectory only when the topic actually owns multiple files ([Naming Conventions §4.4](./naming-conventions.md)); never pre-create one.
 - **A topic subdirectory has exactly one `index.ts`** as its public API — `types/<topic>/index.ts`, `utils/<topic>/index.ts`, explicit named exports, no `export *`. The import surface is then identical whether the topic is a file or a subdir (`@shared/utils/<topic>` either way), and the subdir's other files stay private behind it.
 - **The bucket roots `types/` and `utils/` have no `index.ts`.** A bucket is a category, not a module — a root barrel re-exporting every file buys no aggregate API and only adds churn and import-cycle risk on every addition. Import the specific file or topic, never the bucket.
+- **`types/` has no runtime tests.** A declarations bucket has no runtime behavior to test, so a *behavioral* test under `types/` (`expect(fn(...))…`) signals the file holds logic — a predicate, type guard, converter, factory, or function — that belongs in `utils/` (route-by-shape, §3). Move the logic to `utils/<topic>.ts` (importing the types it needs from `types/`, the blessed `utils → types` direction) and the test follows it. Type guards (`x is T`) are runtime predicates too — co-locate them with the logic in `utils/`, not with the interface in `types/`. Schemas built from a validator function (`z.custom(isFoo)`) follow the function to `utils/`; a purely declarative schema (`z.object({…})`) may stay in `types/`. The **one** test that does belong in `types/` is a **type-level test** (`expectTypeOf` / `assertType`): it asserts a type contract itself and has no runtime to relocate. Such a test is a **transitional guard** — it earns its place only while a hand-written type is the source of truth; once a runtime schema (Zod / IpcApi) owns the contract and the type is `z.infer`-derived, the schema's own validation subsumes it and the type-level test retires with that migration.
 
 ### 3.2 Constants & static data
 
 - **Default: a constant lives in its domain/topic single-file**, beside the logic it serves (AI model defaults → `ai/`; a file-type list → `utils/file/`).
-- **`utils/constants.ts` is NOT a bucket.** It carries only the genuinely **global, cross-process** residue (`KB`/`MB`/`GB`, `APP_NAME`). Add to it only when you are 100% certain a constant is app-global and cross-cutting; if it belongs to any domain, it goes in that domain's file. — **Why**: this is precisely the guardrail the old `config/constant.ts` lacked, which is how it grew into an 82-importer junk drawer (§6.1).
+- **`utils/constants.ts` is NOT a bucket.** It carries only the genuinely **global, cross-process** residue (`KB`/`MB`/`GB`, `APP_NAME`). Add to it only when you are 100% certain a constant is app-global and cross-cutting; if it belongs to any domain, it goes in that domain's file. — **Why**: this is precisely the guardrail the old `config/constant.ts` lacked, which is how it grew into an 82-importer junk drawer (now dissolved — §6).
 - **Single-process constants → leave `@shared`** (Invariant 1.1).
 - **There is no `config/` bucket.** A constant is data; a frozen value in its domain file (or `utils/`) expresses everything a `config/` dir would, without inviting unrelated globals.
 
@@ -86,38 +87,19 @@ Two gates, in order, then categorize:
 ## 5. Anti-Patterns
 
 - **Exported instance singleton** — `export const x = new XService()`, or any registry / manager / service instance. Violates Invariant 1.2.
-- **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Current epicenter: `config/constant.ts`; see §6.)*
+- **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Former epicenter: the now-dissolved `config/constant.ts` — §6.)*
 - **Junk-drawer file or dir** — a `config/` bucket or a `constant.ts` accumulating unrelated globals across domains and processes. Decompose by domain + process; do not relocate as a blob.
 - **A new top-level dir per capability** — every capability decomposes by shape; the top level is closed (§2).
 - **A stateful "service" in `@shared`** — state has no coherent shared owner; it belongs to `main` or `renderer`.
 
 ## 6. Migration (target vs current — deferred, tracked)
 
-The structural decomposition is **done**: `command`, `file`, `shortcuts`, and `externalApp` were dissolved out of the top level into `types/` + `utils/` by shape, and `menuRegistry`'s exported instance was replaced by the pure `resolveMenu` (Invariant 1.2). Remaining deviations:
+The structural decomposition is **done**: `command`, `file`, `shortcuts`, `externalApp`, and `config` were dissolved out of the top level — cross-process slices into `types/` + `utils/` by shape, single-process code back into `main`/`renderer` (Invariant 1.1) — and `menuRegistry`'s exported instance was replaced by the pure `resolveMenu` (Invariant 1.2). `config`'s ~82-importer `constant.ts` was decomposed by domain + process (file-ext lists → `utils/file/`, `KB`/`MB`/`GB`/`APP_NAME` → `utils/constants.ts`, terminal/update/OAuth/timeout/window-sizing blocks back to their owning `main`/`renderer` modules); the actual consumer process was confirmed per item rather than trusted from a directional plan (e.g. `API_SERVER_DEFAULTS` proved renderer-only, `MIN_WINDOW_*` cross-process, `providers.ts` renderer-only). Remaining deviations:
 
 | Area | Current | Target |
 |---|---|---|
-| `config` | by-kind junk drawer | dissolve (§6.1) |
 | `utils/index.ts` | misc utilities implemented in a bucket-root file | split into topic files (`utils/<topic>.ts`); no bucket-root `index.ts` (§3.1) |
 | `IpcChannel.ts` | 18 KB v1 channel enum at the root | v1 legacy; folded into `ipc/` as the IpcApi migration retires channels — not part of this governance |
-
-### 6.1 `config` dissolution — `constant.ts` itemized
-
-`config` is a by-kind junk drawer. Only `KB`/`MB`/`GB` and `APP_NAME` are genuinely global cross-process constants; most entries move by domain, and several must **leave `@shared`** (Invariant 1.1). `constant.ts` has ~82 importers, so this is a decomposition, not a relocation. Targets below are **directional** — confirm each item's actual consumer process before moving (`ZOOM_LEVELS`, for instance, may be cross-process via the main menu and stay).
-
-| `config` content | Target | Note |
-|---|---|---|
-| `prompts.ts`, `providers.ts` | `ai/` | AI-domain data |
-| `types.ts` (LAN / MCP / webview types + `LAN_TRANSFER_*` consts) | `types/` | |
-| `logger.ts` (`LogLevel` / `LEVEL_MAP`) | `@logger` or `types/` | decide with the logger owner |
-| `code-languages.ts` (3678-line table), `languages.ts` | `utils/` | static reference data |
-| `constant.ts` → `KB`/`MB`/`GB`, `APP_NAME` | `utils/constants.ts` | the only genuinely-global residue |
-| `constant.ts` → file-ext lists (`imageExts` … `knowledge*Exts`, `textExts`, `customTextExts`) | `utils/file/` | file / knowledge domain data |
-| `constant.ts` → `API_SERVER_DEFAULTS` | api-server (main) | |
-| `constant.ts` → `ZOOM_*`, `MIN_WINDOW_*` | renderer / window | `ZOOM_OPTIONS` is antd-shaped + renderer-only → **leaves `@shared`** |
-| `constant.ts` → `FeedUrl` / `UpdateConfigUrl` / `UpdateMirror` / `DEFAULT_TIMEOUT` / `occupiedDirs` | update (main) | `occupiedDirs` is `@deprecated` v1 → delete |
-| `constant.ts` → terminal block (`MACOS_TERMINALS*`, AppleScript, ~200 lines) | main | main-only shell logic → **leaves `@shared`** |
-| `constant.ts` → `codeCLI` / `CHERRYIN_CONFIG` / `GitBashPath*` / model defaults (`DEFAULT_TEMPERATURE` …) | code-cli / auth / `ai` | by domain |
 
 ## 7. Related
 

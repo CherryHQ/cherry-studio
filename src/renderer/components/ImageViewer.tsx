@@ -8,7 +8,7 @@ import {
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import { Base64 } from 'js-base64'
 import { CopyIcon, DownloadIcon } from 'lucide-react'
 import mime from 'mime'

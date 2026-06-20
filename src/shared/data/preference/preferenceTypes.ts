@@ -238,7 +238,7 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/config/constant'
+import { codeCLI } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
   'qwen-code',

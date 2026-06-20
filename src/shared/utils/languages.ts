@@ -14,3 +14,5 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'vi-VN': 'Vietnamese',
   'zh-TW': 'Chinese (Traditional)'
 }
+
+export const defaultLanguage = 'en-US'

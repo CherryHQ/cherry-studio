@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
 import type { FileProcessingCapabilityHandler } from '../../types'

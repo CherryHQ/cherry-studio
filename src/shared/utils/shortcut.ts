@@ -326,3 +326,27 @@ export const isValidShortcut = (binding: ShortcutBinding): boolean => {
 
   return (hasModifier && hasNonModifier) || isSpecialKey
 }
+
+export const ZOOM_SHORTCUTS = [
+  {
+    key: 'zoom_in',
+    shortcut: ['CommandOrControl', '='],
+    editable: false,
+    enabled: true,
+    system: true
+  },
+  {
+    key: 'zoom_out',
+    shortcut: ['CommandOrControl', '-'],
+    editable: false,
+    enabled: true,
+    system: true
+  },
+  {
+    key: 'zoom_reset',
+    shortcut: ['CommandOrControl', '0'],
+    editable: false,
+    enabled: true,
+    system: true
+  }
+]

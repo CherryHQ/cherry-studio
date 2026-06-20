@@ -8,7 +8,7 @@ import {
   WebSearchProviderOverridesSchema,
   WebSearchProviderPresetDefinitionSchema,
   WebSearchProviderTypeSchema
-} from '../web-search-providers'
+} from '../webSearchProviders'
 
 describe('web search provider schemas', () => {
   it('accepts the current preset list', () => {

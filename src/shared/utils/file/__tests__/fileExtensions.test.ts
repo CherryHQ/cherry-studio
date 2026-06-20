@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../constant'
+import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../fileExtensions'
 
 // These three lists are easy to let drift apart (the original bug: `.xls` was a knowledge
 // processing ext but missing from `documentExts`, so its processed `.md` artifact was never

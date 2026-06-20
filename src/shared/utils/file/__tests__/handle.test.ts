@@ -1,6 +1,6 @@
+import type { FilePath } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import type { FilePath } from '../common'
 import { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from '../handle'
 
 describe('createFileEntryHandle', () => {

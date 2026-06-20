@@ -1,4 +1,4 @@
-import { codeCLI } from '@shared/config/constant'
+import { codeCLI } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'

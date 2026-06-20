@@ -1,6 +1,6 @@
 import { application } from '@application'
-import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { defaultLanguage } from '@shared/utils/languages'
 import { app } from 'electron'
 
 import EnUs from '../../renderer/i18n/locales/en-us.json'

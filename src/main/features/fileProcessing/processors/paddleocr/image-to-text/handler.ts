@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'

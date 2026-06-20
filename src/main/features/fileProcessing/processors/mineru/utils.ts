@@ -2,8 +2,8 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { MB } from '@shared/config/constant'
 import type { FileInfo } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 import {
