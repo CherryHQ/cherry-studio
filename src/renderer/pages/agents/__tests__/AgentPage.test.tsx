@@ -580,7 +580,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
-  it('starts a detached agent window with the session sidebar collapsed but still toggleable', () => {
+  it('hides the session sidebar controls in a detached agent window but keeps it toggleable by shortcut', () => {
     agentPageMocks.showSidebar = true
 
     render(
@@ -590,7 +590,8 @@ describe('AgentPage', () => {
     )
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
+    // Detached windows show no sidebar toggle / new-session button in the navbar.
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
 
     const shortcutHandler = vi
       .mocked(useCommandHandler)

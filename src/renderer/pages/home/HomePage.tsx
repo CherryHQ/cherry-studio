@@ -506,7 +506,7 @@ const HomePage: FC = () => {
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
             onDraftAssistantChange={updateDraftAssistantSelection}
             onSend={sendDraftMessage}
-            showResourceListControls={!isMessageOnlyView}
+            showResourceListControls={!isMessageOnlyView && !isWindowFrame}
             sidebarOpen={effectiveShowSidebar}
             onSidebarToggle={toggleResourceListOpen}
             welcomeText={t('chat.home.welcome_title')}
@@ -530,7 +530,7 @@ const HomePage: FC = () => {
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-          showResourceListControls={!isMessageOnlyView}
+          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
           locateMessageId={pendingLocateMessageId}

@@ -612,7 +612,7 @@ const AgentPage = () => {
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
-          showResourceListControls={!isMessageOnlyView}
+          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
           draftConversation={isMessageOnlyView ? null : visibleDraftSession}

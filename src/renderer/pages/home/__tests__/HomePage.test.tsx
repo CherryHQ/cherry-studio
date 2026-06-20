@@ -534,7 +534,7 @@ describe('HomePage', () => {
     expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)
   })
 
-  it('starts a detached chat window with the topic sidebar collapsed but still toggleable', () => {
+  it('hides the topic sidebar controls in a detached chat window but keeps it toggleable by shortcut', () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
 
     render(
@@ -544,7 +544,8 @@ describe('HomePage', () => {
     )
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
+    // Detached windows show no sidebar toggle / new-topic button in the navbar.
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
 
     const shortcutHandler = vi
       .mocked(useCommandHandler)
