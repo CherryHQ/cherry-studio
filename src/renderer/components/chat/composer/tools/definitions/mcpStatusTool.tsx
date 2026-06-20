@@ -1,3 +1,4 @@
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import {
   defineTool,
@@ -5,12 +6,7 @@ import {
   type ToolRenderContext,
   TopicType
 } from '@renderer/components/chat/composer/tools/types'
-import {
-  type QuickPanelInputAdapter,
-  type QuickPanelListItem,
-  QuickPanelReservedSymbol,
-  useQuickPanel
-} from '@renderer/components/QuickPanel'
+import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -176,7 +172,7 @@ export function createMcpStatusLauncher(
           quickPanel.open({
             title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
             list: items,
-            symbol: QuickPanelReservedSymbol.McpStatus,
+            symbol: ComposerPanelSymbol.McpStatus,
             parentPanel,
             queryAnchor,
             triggerInfo: triggerInfo ?? { type: 'button' },
@@ -212,7 +208,7 @@ const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }
   useEffect(() => launcher.registerLaunchers([mcpStatusLauncher]), [launcher, mcpStatusLauncher])
 
   useEffect(() => {
-    if (!isVisible || symbol !== QuickPanelReservedSymbol.McpStatus) return
+    if (!isVisible || symbol !== ComposerPanelSymbol.McpStatus) return
     updateList(items)
   }, [isVisible, items, symbol, updateList])
 

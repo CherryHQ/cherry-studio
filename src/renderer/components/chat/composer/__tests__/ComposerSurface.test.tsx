@@ -85,9 +85,6 @@ vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelReservedSymbol: {
-    Root: 'root'
-  },
   QuickPanelView: () => null,
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
@@ -874,7 +871,7 @@ describe('ComposerSurface', () => {
           filterText: expect.stringContaining('The model does not support generating images.')
         })
       ],
-      symbol: 'root',
+      symbol: '/',
       queryAnchor: 0,
       triggerInfo: {
         type: 'input',
@@ -1047,7 +1044,7 @@ describe('ComposerSurface', () => {
 
   it('updates the open QuickPanel root list when additional items change', async () => {
     mocks.quickPanelIsVisible = true
-    mocks.quickPanelSymbol = 'root'
+    mocks.quickPanelSymbol = '/'
 
     const getToolLaunchers = () => [
       {
@@ -1319,7 +1316,7 @@ describe('ComposerSurface', () => {
       items: []
     })
 
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(expect.objectContaining({ queryAnchor: 6, symbol: 'root' }))
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(expect.objectContaining({ queryAnchor: 6, symbol: '/' }))
   })
 
   it('uses input-layer text for slash queries after skill tokens', async () => {
@@ -2425,7 +2422,7 @@ describe('ComposerSurface', () => {
 
   it('closes the QuickPanel root when the slash suggestion exits', async () => {
     mocks.quickPanelIsVisible = true
-    mocks.quickPanelSymbol = 'root'
+    mocks.quickPanelSymbol = '/'
 
     render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
@@ -2451,7 +2448,7 @@ describe('ComposerSurface', () => {
 
   it('does not close a child panel when the slash suggestion exits', async () => {
     mocks.quickPanelIsVisible = true
-    mocks.quickPanelSymbol = 'root'
+    mocks.quickPanelSymbol = '/'
 
     const { rerender } = render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
@@ -2582,7 +2579,7 @@ describe('ComposerSurface', () => {
     const rootPanelOptions = mocks.quickPanelOpen.mock.calls[0][0]
     expect(rootPanelOptions).toMatchObject({
       title: 'settings.quickPanel.title',
-      symbol: 'root',
+      symbol: '/',
       queryAnchor: 0,
       triggerInfo: {
         type: 'input',
@@ -2618,7 +2615,7 @@ describe('ComposerSurface', () => {
         queryAnchor: 0,
         parentPanel: expect.objectContaining({
           title: 'settings.quickPanel.title',
-          symbol: 'root',
+          symbol: '/',
           queryAnchor: 0,
           triggerInfo: {
             type: 'input',

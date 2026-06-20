@@ -1,9 +1,10 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -752,7 +753,7 @@ export default function ComposerSurface({
   const rootSuggestionSource = useMemo<ComposerSuggestionSource>(
     () => ({
       pluginKey: 'composer-root-suggestion',
-      char: QuickPanelReservedSymbol.Root,
+      char: ComposerPanelSymbol.Root,
       title: t('settings.quickPanel.title'),
       renderMode: 'headless',
       allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
@@ -767,7 +768,7 @@ export default function ComposerSurface({
             range,
             query,
             text,
-            triggerChar: QuickPanelReservedSymbol.Root
+            triggerChar: ComposerPanelSymbol.Root
           }
         )
 
@@ -775,7 +776,7 @@ export default function ComposerSurface({
           !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
           cursorOffset !== queryAnchor + triggerText.length
         ) {
-          if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root) {
+          if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
             quickPanel.close('input_prefix_invalid')
           }
           return
@@ -811,7 +812,7 @@ export default function ComposerSurface({
         rootPanelOpenRefreshRequestedRef.current = false
         window.setTimeout(() => {
           const { quickPanel } = rootSuggestionStateRef.current
-          if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root) {
+          if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
             quickPanel.close()
           }
         }, 0)
@@ -1304,7 +1305,7 @@ export default function ComposerSurface({
   }, [editor])
 
   const isRootQuickPanelVisible =
-    quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root
+    quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
 
