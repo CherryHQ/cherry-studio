@@ -9,15 +9,16 @@ export const formatRelativeTime = (value: string | undefined, language: string, 
   if (!Number.isFinite(time)) return undefined
 
   const diffMs = time - now
-  const absMs = Math.abs(diffMs)
   const formatter = new Intl.RelativeTimeFormat(language, { numeric: 'auto' })
 
-  if (absMs < HOUR_MS) {
-    return formatter.format(Math.round(diffMs / MINUTE_MS), 'minute')
+  const minutes = Math.round(diffMs / MINUTE_MS)
+  if (Math.abs(minutes) < 60) {
+    return formatter.format(minutes, 'minute')
   }
 
-  if (absMs < DAY_MS) {
-    return formatter.format(Math.round(diffMs / HOUR_MS), 'hour')
+  const hours = Math.round(diffMs / HOUR_MS)
+  if (Math.abs(hours) < 24) {
+    return formatter.format(hours, 'hour')
   }
 
   return formatter.format(Math.round(diffMs / DAY_MS), 'day')
