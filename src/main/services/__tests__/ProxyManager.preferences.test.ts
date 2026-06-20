@@ -6,7 +6,7 @@ const { nodeProxyConfigureMock, sessionSetProxyMock, webviewSetProxyMock, appSet
     nodeProxyConfigureMock: vi.fn(),
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
-    appSetProxyMock: vi.fn(),
+    appSetProxyMock: vi.fn().mockResolvedValue(undefined),
     getSystemProxyMock: vi.fn()
   }))
 
