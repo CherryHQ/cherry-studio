@@ -1,11 +1,19 @@
 # Chat Adapters
 
-The chat **adapters** (`src/renderer/components/chat/adapters/`) are the contract layer
-used by shared chat UI slices. They are intentionally thin: they project current business
-entities into stable UI-facing shapes, but they do not fetch data, own cache, read
-preferences, or replace existing UI components.
+> **Status: target architecture (design).** This describes the chat layer's intended
+> contract layer, which lands incrementally across carve PRs. As of this PR, only
+> `layout/`, `primitives/`, `tokens/`, `utils/` are on `main`; the `adapters/` module, the
+> symbols, and the `@renderer/components/chat` package barrel referenced below are the
+> design target and arrive in a later carve. The imports and code below illustrate the
+> intended API, not code that compiles on `main` today.
 
-Import from the chat package entry unless you are working inside that folder:
+The chat **adapters** (`src/renderer/components/chat/adapters/`) are the planned contract
+layer used by shared chat UI slices. They are intentionally thin: they will project
+business entities into stable UI-facing shapes, but they do not fetch data, own cache,
+read preferences, or replace existing UI components.
+
+The target is to import from the chat package entry unless you are working inside that
+folder:
 
 ```ts
 import { ComposerAdapter, ResourceListAdapter } from '@renderer/components/chat'
@@ -65,7 +73,7 @@ Registering the same id replaces the previous descriptor. Disposing an older reg
 
 ## Message Action Registry
 
-Use `createMessageActionRegistry()` to register message action providers. The current command/action model is defined by `actions/actionTypes.ts`, including `ActionDescriptor`, `CommandDescriptor`, and `ResolvedAction`.
+Use `createMessageActionRegistry()` to register message action providers. The command/action model will be defined by `actions/actionTypes.ts`, including `ActionDescriptor`, `CommandDescriptor`, and `ResolvedAction`.
 
 ```ts
 const registry = createMessageActionRegistry()
@@ -98,7 +106,7 @@ Do not map resources inline in JSX:
 <ResourceList items={topics.map((topic) => ResourceListAdapter.fromTopic(topic))} />
 ```
 
-For messages, use the `MessageListItem` contract from `components/chat/messages`. Project once at the message-list data boundary; virtualized lists rely on stable item identity and measurement caches.
+For messages, the target is to use the `MessageListItem` contract from `components/chat/messages` (planned). Project once at the message-list data boundary; virtualized lists rely on stable item identity and measurement caches.
 
 For composer contracts, wrap `ComposerAdapter.createChat()` and `ComposerAdapter.createSession()` in `useMemo`, and keep `send` / `stop` callbacks stable with the existing business hook output or `useCallback`.
 

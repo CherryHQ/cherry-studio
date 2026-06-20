@@ -1,27 +1,36 @@
 # Chat UI Design & Conventions
 
+> **Status: target architecture (design).** This describes the chat layer's intended
+> structure, which lands incrementally across carve PRs. As of this PR, only `layout/`,
+> `primitives/`, `tokens/`, `utils/` are on `main`; the other layers and the
+> `@renderer/components/chat` package barrel referenced below are the design target and
+> arrive in later carves.
+
 How the renderer chat UI under `src/renderer/components/chat` is divided by
-responsibility, and the conventions every module follows. Import from the package entry
-`@renderer/components/chat`, not deep paths, except when working inside a module.
+responsibility, and the conventions every module follows. The target is to import from the
+package entry `@renderer/components/chat`, not deep paths, except when working inside a
+module — that barrel is added as the layers below land.
 
 ## Design division
 
 The UI is split by responsibility, not by feature. Each kind of module owns one concern
-and nothing else:
+and nothing else. The tree below is the target; the *landed* note marks what exists on
+`main` today, everything else is *planned* and arrives in later carves:
 
-- **Presentation** (`primitives/`, `tokens/`) — stateless, themed through
+- **Presentation** (`primitives/`, `tokens/`) — *landed.* Stateless, themed through
   `@cherrystudio/ui`. No business logic, no data access; everything arrives through props.
-- **View state** (React contexts such as `layout/`) — small, self-contained pieces of
-  *interface* state (layout mode, viewport insets, navbar visibility). Never holds
-  business or persisted data.
-- **Contracts** (`adapters/`) — pure projections of business entities (topic / session /
-  message) into stable UI shapes, plus the pane / action registries. Fetches nothing,
-  owns no cache; it is the single boundary between business hooks and shared UI. See
+- **View state** (React contexts such as `layout/`) — *landed.* Small, self-contained
+  pieces of *interface* state (layout mode, viewport insets, navbar visibility). Never
+  holds business or persisted data.
+- **Contracts** (`adapters/`) — *planned.* Pure projections of business entities (topic /
+  session / message) into stable UI shapes, plus the pane / action registries. Will fetch
+  nothing and own no cache; the single boundary between business hooks and shared UI. See
   [Chat Adapters](./adapters.md).
-- **Content** (`messages/`, `composer/`) — renders a conversation from the projected
-  shapes; owns no send/stop/persistence, only the rendering.
+- **Content** (`messages/`, `composer/`) — *planned.* Renders a conversation from the
+  projected shapes; owns no send/stop/persistence, only the rendering.
 - **Orchestration** (`shell/`, `panes/`, `resources/`, `settings/`, `actions/`, and the
-  `pages/`) — wires the above into screens. Owns composition, not rendering details.
+  `pages/`) — *planned.* Wires the above into screens. Owns composition, not rendering
+  details.
 
 State flows one way: business hooks → a contract projection → presentation. Presentation
 never reaches back for business state.
