@@ -1,5 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
-import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import { Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind } from '@renderer/components/chat/tokens'
 import { ComposerToken } from '@renderer/components/chat/tokens'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'

@@ -1,5 +1,4 @@
-import { Divider } from '@cherrystudio/ui'
-import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import { Divider, type MarkdownSource } from '@cherrystudio/ui'
 import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'

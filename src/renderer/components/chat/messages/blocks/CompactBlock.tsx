@@ -1,5 +1,4 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
-import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, type MarkdownSource } from '@cherrystudio/ui'
 import { ChevronDown } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

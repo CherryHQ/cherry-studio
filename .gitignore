@@ -33,6 +33,7 @@ Thumbs.db
 
 # Project
 node_modules
+.pnpm-store/
 dist
 out
 mcp_server
