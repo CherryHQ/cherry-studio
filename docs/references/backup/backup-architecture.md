@@ -161,7 +161,7 @@ flowchart TB
 
 > 精简模式（§三.1）：10 域含、4 域（KNOWLEDGE / TRANSLATE_HISTORY / PAINTINGS / FILE_STORAGE）排除。junction 表（`agent_channel_task` / `agent_skill`）不计入聚合成员，走独立 junction reference。
 >
-> `note` 暂归 PREFERENCES（配置/状态类域）：它是各模块（含 Notes）的 sparse metadata（starred/expanded/path overlay），非 `preference(scope,key)` 表的一部分；按 `(rootPath,path)` natural-key + FIELD_MERGE 处理。**内容范围**：备份仅含 `note` 表的 metadata 行；Notes 模块的笔记正文内容（若独立存储于别处）不在此域，实现前须确认其存储位置并决定归属（纳入对应域或排除）。如需语义更清晰可后续拆独立 SETTINGS 域，本期不拆。
+> `note` 暂归 PREFERENCES（配置/状态类域）：它是各模块（含 Notes）的 sparse metadata（starred/expanded/path overlay），非 `preference(scope,key)` 表的一部分；按 `(rootPath,path)` natural-key + FIELD_MERGE 处理。**内容范围**：`note` 表只存 sparse metadata（备份仅这些 metadata 行）；**Notes 笔记正文是 `knowledge_item`(type='note')，归 KNOWLEDGE 域**——精简排除 KNOWLEDGE 时不备份正文（符合精简语义），完整模式随 KNOWLEDGE 域备份。如需语义更清晰可后续拆独立 SETTINGS 域，本期不拆。
 
 ### 4. TOPICS contributor 示例
 
@@ -391,7 +391,7 @@ flowchart TB
 | 精简模式排除 | KNOWLEDGE、TRANSLATE_HISTORY、PAINTINGS、FILE_STORAGE；不导出/恢复 file_entry、file_ref、文件 blob、知识库源文件 |
 | BootConfig（文件型 pre-lifecycle 配置） | **排除**（完整/精简均不含）：`~/.cherrystudio/boot-config.json` 是 pre-lifecycle 配置（影响 userData 路径、硬件加速等启动行为），恢复需特殊时机（不能等普通 DB restore 事务）；换机场景用户通常希望保留目标机自己的启动配置。如未来需纳入，须作独立非 SQLite contributor 单独设计（恢复时机早于 DB restore） |
 | API key | 自用完整/精简备份默认含模型服务 API key / auth config；结果页统一展示备份范围 **+ 明文凭证警告**（与 §3 威胁模型一致）；不做分享/排障脱敏模式 |
-| 恢复冲突默认（按 identityClass） | uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot **强制默认** FIELD_MERGE（非可选偏好——降级 SKIP 会撞 UNIQUE 或丢数据，如 PROVIDERS 丢 API key）；偏离须显式声明 + reason + 不变量 21 校验 |
+| 恢复冲突默认（按 identityClass） | uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot **默认 FIELD_MERGE**（降级 SKIP 会撞 UNIQUE 或丢数据，如 PROVIDERS 丢 API key，故是强默认、非随便可选）；偏离默认须显式声明 + reason + 不变量 21 校验（与 §6.2 派生规则一致：默认可偏离，但须绑定事实+reason） |
 | 用户显式覆盖（不依赖 identityClass） | RENAME 显式保留两边（仅 `renamable:true`，否则退化 SKIP + 统一告知）；OVERWRITE 显式以备份为准（行级整替换：identityKey 撞的成员行整行覆盖，本机独有成员保留、不删） |
 | 恢复语义 | 合并语义：仅本地存在记录一律保留，不差集删除 |
 | 结果页 | SKIP 后不展示跳过/未导入明细；缺失文件点击 Toast「无法加载文件」 |
