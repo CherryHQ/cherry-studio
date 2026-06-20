@@ -1,10 +1,10 @@
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
-  QuickPanelReservedSymbol,
   useQuickPanel
 } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
@@ -138,7 +138,7 @@ const useKnowledgeBaseToolController = ({
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
 
   useEffect(() => {
-    if (isQuickPanelVisible && quickPanelSymbol === QuickPanelReservedSymbol.KnowledgeBase) {
+    if (isQuickPanelVisible && quickPanelSymbol === ComposerPanelSymbol.KnowledgeBase) {
       updateQuickPanelList(knowledgeBaseItems)
     }
   }, [isQuickPanelVisible, knowledgeBaseItems, quickPanelSymbol, updateQuickPanelList])
@@ -163,7 +163,7 @@ const useKnowledgeBaseToolController = ({
       actionQuickPanel.open({
         title: t('chat.input.knowledge_base'),
         list: knowledgeBaseItems,
-        symbol: QuickPanelReservedSymbol.KnowledgeBase,
+        symbol: ComposerPanelSymbol.KnowledgeBase,
         parentPanel,
         queryAnchor: inputQueryCleared ? undefined : queryAnchor,
         triggerInfo: inputQueryCleared ? { type: 'button' } : (triggerInfo ?? { type: 'button' }),

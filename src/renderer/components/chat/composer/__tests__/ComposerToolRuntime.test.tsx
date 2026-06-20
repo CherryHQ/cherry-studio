@@ -39,9 +39,6 @@ vi.mock('@renderer/components/chat/composer/tools/types', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelReservedSymbol: {
-    Root: 'root'
-  },
   useQuickPanel: () => mockUseQuickPanel()
 }))
 

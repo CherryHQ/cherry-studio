@@ -31,9 +31,6 @@ vi.mock('@renderer/components/resource/dialogs/PromptEditDialog', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelReservedSymbol: {
-    QuickPhrases: 'quick-phrases'
-  },
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     isVisible: false,

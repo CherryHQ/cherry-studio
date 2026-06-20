@@ -1,11 +1,11 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelListItem,
-  type QuickPanelOpenOptions,
-  QuickPanelReservedSymbol
+  type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
@@ -130,7 +130,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     () => ({
       title: t('settings.prompts.title'),
       list: phraseItems,
-      symbol: QuickPanelReservedSymbol.QuickPhrases
+      symbol: ComposerPanelSymbol.QuickPhrases
     }),
     [phraseItems, t]
   )
@@ -142,7 +142,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   }, [quickPanelOpenOptions])
 
   useEffect(() => {
-    if (isQuickPanelVisible && quickPanelSymbol === QuickPanelReservedSymbol.QuickPhrases) {
+    if (isQuickPanelVisible && quickPanelSymbol === ComposerPanelSymbol.QuickPhrases) {
       updateQuickPanelList(phraseItems)
     }
   }, [isQuickPanelVisible, phraseItems, quickPanelSymbol, updateQuickPanelList])

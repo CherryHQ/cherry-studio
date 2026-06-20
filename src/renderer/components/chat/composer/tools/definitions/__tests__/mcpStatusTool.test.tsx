@@ -1,4 +1,4 @@
-import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import type { Assistant } from '@renderer/types'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -188,7 +188,7 @@ describe('mcpStatusTool', () => {
       expect.objectContaining({
         list: items,
         readOnly: true,
-        symbol: QuickPanelReservedSymbol.McpStatus,
+        symbol: ComposerPanelSymbol.McpStatus,
         title: 'MCP'
       })
     )

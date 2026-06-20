@@ -5,9 +5,9 @@ import type {
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher } from '../toolLauncher'
+import { ComposerPanelSymbol } from './symbols'
 
 export type ComposerRootPanelSelectHandler = (
   launcher: ComposerToolLauncher,
@@ -193,7 +193,7 @@ export function createRootQuickPanelOpenOptions(
         }),
       ...(options.additionalItems ?? [])
     ],
-    symbol: QuickPanelReservedSymbol.Root,
+    symbol: ComposerPanelSymbol.Root,
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
     trackInputQuery: options.triggerInfo?.type === 'input'

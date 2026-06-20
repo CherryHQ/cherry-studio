@@ -1,16 +1,5 @@
 import React from 'react'
 
-export enum QuickPanelReservedSymbol {
-  Root = '/',
-  File = 'file',
-  KnowledgeBase = '#',
-  QuickPhrases = 'quick-phrases',
-  Thinking = 'thinking',
-  WebSearch = '?',
-  SlashCommands = 'slash-commands',
-  McpStatus = 'mcp-status'
-}
-
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
 export type QuickPanelTriggerInfo = {
   type: 'input' | 'button'

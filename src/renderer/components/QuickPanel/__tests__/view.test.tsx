@@ -6,7 +6,6 @@ import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PAN
 import { useQuickPanel } from '../hook'
 import { QuickPanelProvider } from '../provider'
 import type { QuickPanelContextType, QuickPanelInputAdapter, QuickPanelListItem, QuickPanelTriggerInfo } from '../types'
-import { QuickPanelReservedSymbol } from '../types'
 import { QuickPanelView } from '../view'
 
 const virtualListMocks = vi.hoisted(() => ({
@@ -81,7 +80,7 @@ function PanelHarness({
   items,
   manageListExternally,
   readOnly,
-  symbol = QuickPanelReservedSymbol.Root,
+  symbol = '/',
   title = 'Actions',
   trackInputQuery,
   fill = false
@@ -151,7 +150,7 @@ function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: bool
   useEffect(() => {
     open({
       list: [],
-      symbol: QuickPanelReservedSymbol.Root
+      symbol: '/'
     })
 
     onHandled(dispatchKeyDown(createKeyDownEvent('Escape').event))

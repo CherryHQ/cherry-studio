@@ -1,5 +1,5 @@
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,9 +18,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelReservedSymbol: {
-    KnowledgeBase: '#'
-  },
   useQuickPanel: () => mocks.quickPanel
 }))
 
@@ -130,7 +127,7 @@ describe('KnowledgeBaseToolRuntime', () => {
       expect.objectContaining({
         multiple: true,
         parentPanel: { list: [], symbol: '/' },
-        symbol: QuickPanelReservedSymbol.KnowledgeBase,
+        symbol: ComposerPanelSymbol.KnowledgeBase,
         title: 'Knowledge Base',
         triggerInfo: { type: 'button' }
       })
@@ -169,7 +166,7 @@ describe('KnowledgeBaseToolRuntime', () => {
 
   it('refreshes the open knowledge panel when selected bases change', async () => {
     mocks.quickPanel.isVisible = true
-    mocks.quickPanel.symbol = QuickPanelReservedSymbol.KnowledgeBase
+    mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase
     const launcher = createLauncherApi()
     const onSelect = vi.fn()
 
@@ -210,7 +207,7 @@ describe('KnowledgeBaseToolRuntime', () => {
 
   it('refreshes the open knowledge panel when translations change', async () => {
     mocks.quickPanel.isVisible = true
-    mocks.quickPanel.symbol = QuickPanelReservedSymbol.KnowledgeBase
+    mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase
     const launcher = createLauncherApi()
     const onSelect = vi.fn()
     const configuredKnowledgeBaseIds = ['kb-1', 'kb-2']
