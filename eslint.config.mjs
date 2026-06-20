@@ -333,6 +333,28 @@ export default defineConfig([
       ]
     }
   },
+  {
+    // Boundary guard: the main process and preload must not import renderer code.
+    // Cross-process symbols belong in `@shared`; main-only symbols in `src/main`.
+    // (The relative `../../renderer/i18n` imports in src/main/utils/language.ts are
+    // a known remaining violation, deferred to the i18n migration PR — once that
+    // lands, add `**/renderer/**` to the banned group below.)
+    files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@types', '@renderer', '@renderer/**'],
+              message:
+                'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+            }
+          ]
+        }
+      ]
+    }
+  },
   // renderer legacy css var migration warnings
   {
     files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],

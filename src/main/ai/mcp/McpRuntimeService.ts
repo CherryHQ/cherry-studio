@@ -38,18 +38,12 @@ import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
-import {
-  BuiltinMcpServerNames,
-  type GetResourceResponse,
-  isBuiltinMcpServer,
-  type McpCallToolResponse,
-  type McpPrompt,
-  type McpResource,
-  type McpServer
-} from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
@@ -59,6 +53,7 @@ import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
+import type { GetResourceResponse, McpCallToolResponse } from './types'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
