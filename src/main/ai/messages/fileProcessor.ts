@@ -15,55 +15,26 @@
  * lands, large PDFs / media fall back to inline base64 here.
  */
 
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { read as fsRead } from '@main/utils/file/fs'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import type { FilePath } from '@shared/file/types'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 
-/** Common media-type inference by extension — covers what providers actually accept. */
-const EXT_TO_MEDIA_TYPE: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.bmp': 'image/bmp',
-  '.svg': 'image/svg+xml',
-  '.pdf': 'application/pdf',
-  '.mp3': 'audio/mpeg',
-  '.wav': 'audio/wav',
-  '.mp4': 'video/mp4',
-  '.mov': 'video/quicktime',
-  '.webm': 'video/webm'
-}
-
-function inferMediaType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase()
-  return EXT_TO_MEDIA_TYPE[ext] ?? 'application/octet-stream'
-}
-
-async function pathToDataUrl(absPath: string, mediaTypeHint?: string): Promise<string> {
-  const bytes = await fs.readFile(absPath)
-  const mediaType = mediaTypeHint ?? inferMediaType(absPath)
-  return `data:${mediaType};base64,${bytes.toString('base64')}`
-}
-
 /**
- * Resolve a FileEntryId via FileManager → read bytes → base64 data URL.
+ * Resolve a FileEntryId via FileManager → base64 data URL + its on-disk MIME.
  * Returns `null` on missing entry / unreadable file so the caller can fall
  * through to the `file://` URL branch.
  */
-async function fileEntryIdToDataUrl(fileEntryId: string, mediaTypeHint?: string): Promise<string | null> {
+async function fileEntryIdToDataUrl(fileEntryId: string) {
   try {
-    const fileManager = application.get('FileManager')
-    const absPath = await fileManager.getPhysicalPath(fileEntryId)
-    return await pathToDataUrl(absPath, mediaTypeHint)
+    const { content, mime } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
+    return { url: `data:${mime};base64,${content}`, mediaType: mime }
   } catch (error) {
     logger.warn('Failed to inline file from fileEntryId', {
       fileEntryId,
@@ -74,14 +45,15 @@ async function fileEntryIdToDataUrl(fileEntryId: string, mediaTypeHint?: string)
 }
 
 /**
- * Read a `file://` URL's contents from disk and return a base64 data URL.
- * Returns `null` on failure so callers can drop the part rather than abort
- * the whole request.
+ * Read a `file://` URL's contents from disk → base64 data URL + its on-disk
+ * MIME. Returns `null` on failure so callers can drop the part rather than
+ * abort the whole request.
  */
-async function fileUrlToDataUrl(fileUrl: string, mediaTypeHint?: string): Promise<string | null> {
+async function fileUrlToDataUrl(fileUrl: string) {
   try {
-    const absPath = fileURLToPath(fileUrl)
-    return await pathToDataUrl(absPath, mediaTypeHint)
+    const absPath = fileURLToPath(fileUrl) as FilePath
+    const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
+    return { url: `data:${mime};base64,${data}`, mediaType: mime }
   } catch (error) {
     logger.warn('Failed to inline file:// URL', { fileUrl, error: error instanceof Error ? error.message : error })
     return null
@@ -91,26 +63,23 @@ async function fileUrlToDataUrl(fileUrl: string, mediaTypeHint?: string): Promis
 export async function resolveFileUIPart(part: FileUIPart): Promise<FileUIPart | null> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
   if (fileEntryId) {
-    const dataUrl = await fileEntryIdToDataUrl(fileEntryId, part.mediaType)
-    if (dataUrl) return { ...part, url: dataUrl }
+    const inlined = await fileEntryIdToDataUrl(fileEntryId)
+    if (inlined) return { ...part, ...inlined }
     // fileEntry missing / unreadable — try to rescue from a still-valid
     // `file://` snapshot (legacy / migrated rows). If no usable file:// URL
     // is available, drop the part rather than emit `{type:'file', data:''}`.
     const url = part.url
     if (!url || !url.startsWith('file://')) return null
-    const rescued = await fileUrlToDataUrl(url, part.mediaType)
-    return rescued ? { ...part, url: rescued } : null
+    const rescued = await fileUrlToDataUrl(url)
+    return rescued ? { ...part, ...rescued } : null
   }
 
   const url = part.url
   if (!url) return part
   if (!url.startsWith('file://')) return part
 
-  const dataUrl = await fileUrlToDataUrl(url, part.mediaType)
-  if (!dataUrl) return null
+  const inlined = await fileUrlToDataUrl(url)
+  if (!inlined) return null
 
-  return {
-    ...part,
-    url: dataUrl
-  }
+  return { ...part, ...inlined }
 }

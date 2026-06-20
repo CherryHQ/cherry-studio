@@ -10,16 +10,16 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getPhysicalPathMock } = vi.hoisted(() => ({ getPhysicalPathMock: vi.fn<(id: string) => Promise<string>>() }))
+const { readMock } = vi.hoisted(() => ({
+  readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>()
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   // FileManager isn't in the default mock ServiceOverrides type — cast the
   // overrides object to bypass the closed key set so we can stub it for
   // the fileEntryId resolution path.
-  const overrides = { FileManager: { getPhysicalPath: getPhysicalPathMock } } as Parameters<
-    typeof mockApplicationFactory
-  >[0]
+  const overrides = { FileManager: { read: readMock } } as Parameters<typeof mockApplicationFactory>[0]
   return mockApplicationFactory(overrides)
 })
 
@@ -120,6 +120,30 @@ describe('prepareUIMessages — file:// URL resolution', () => {
     expect(ui.parts[0]).toMatchObject({ type: 'text', text: 'keep me' })
   })
 
+  it('normalizes a bare-extension mediaType (.png) to a real MIME from the on-disk file', async () => {
+    const msg = makeMessage({
+      parts: [
+        { type: 'file', url: `file://${imgPath}`, mediaType: '.png', filename: 'pixel.png' }
+      ] as CherryMessagePart[]
+    })
+    const [ui] = await prepareUIMessages([msg])
+    const filePart = ui.parts[0] as { type: 'file'; url: string; mediaType: string }
+    expect(filePart.mediaType).toBe('image/png')
+    expect(filePart.url.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('upgrades a generic application/octet-stream mediaType to a real MIME from the on-disk file', async () => {
+    const msg = makeMessage({
+      parts: [
+        { type: 'file', url: `file://${imgPath}`, mediaType: 'application/octet-stream', filename: 'pixel.png' }
+      ] as CherryMessagePart[]
+    })
+    const [ui] = await prepareUIMessages([msg])
+    const filePart = ui.parts[0] as { type: 'file'; url: string; mediaType: string }
+    expect(filePart.mediaType).toBe('image/png')
+    expect(filePart.url.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
   it('leaves non-file parts unchanged', async () => {
     const msg = makeMessage({
       parts: [
@@ -153,14 +177,14 @@ describe('prepareUIMessages — fileEntryId resolution', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('resolves a FileUIPart with providerMetadata.cherry.fileEntryId via FileManager', async () => {
-    getPhysicalPathMock.mockReset()
-    getPhysicalPathMock.mockResolvedValueOnce(imgPath)
+  it('resolves a FileUIPart via FileManager.read and applies its MIME (overriding a bad hint)', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValueOnce({ content: 'QUJD', mime: 'image/png' })
     const msg = makeMessage({
       parts: [
         {
           type: 'file',
-          mediaType: 'image/png',
+          mediaType: '.png', // bad hint — FileManager.read's on-disk MIME wins
           filename: 'pixel.png',
           url: '',
           providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
@@ -168,14 +192,15 @@ describe('prepareUIMessages — fileEntryId resolution', () => {
       ] as CherryMessagePart[]
     })
     const [ui] = await prepareUIMessages([msg])
-    const filePart = ui.parts[0] as { type: 'file'; url: string }
-    expect(filePart.url.startsWith('data:image/png;base64,')).toBe(true)
-    expect(getPhysicalPathMock).toHaveBeenCalledWith('entry-1')
+    const filePart = ui.parts[0] as { type: 'file'; url: string; mediaType: string }
+    expect(filePart.mediaType).toBe('image/png')
+    expect(filePart.url).toBe('data:image/png;base64,QUJD')
+    expect(readMock).toHaveBeenCalledWith('entry-1', { encoding: 'base64' })
   })
 
   it('falls back to url when fileEntryId resolution throws', async () => {
-    getPhysicalPathMock.mockReset()
-    getPhysicalPathMock.mockRejectedValueOnce(new Error('entry not found'))
+    readMock.mockReset()
+    readMock.mockRejectedValueOnce(new Error('entry not found'))
     const msg = makeMessage({
       parts: [
         {
@@ -189,12 +214,12 @@ describe('prepareUIMessages — fileEntryId resolution', () => {
     const [ui] = await prepareUIMessages([msg])
     const filePart = ui.parts[0] as { type: 'file'; url: string }
     expect(filePart.url.startsWith('data:image/png;base64,')).toBe(true)
-    expect(getPhysicalPathMock).toHaveBeenCalledWith('entry-gone')
+    expect(readMock).toHaveBeenCalledWith('entry-gone', { encoding: 'base64' })
   })
 
   it('drops the part when both fileEntryId and url are unreadable', async () => {
-    getPhysicalPathMock.mockReset()
-    getPhysicalPathMock.mockRejectedValueOnce(new Error('entry not found'))
+    readMock.mockReset()
+    readMock.mockRejectedValueOnce(new Error('entry not found'))
     const msg = makeMessage({
       parts: [
         { type: 'text', text: 'keep me' },
@@ -212,8 +237,8 @@ describe('prepareUIMessages — fileEntryId resolution', () => {
   })
 
   it('drops the part when fileEntryId is unresolvable and there is no file:// url to rescue', async () => {
-    getPhysicalPathMock.mockReset()
-    getPhysicalPathMock.mockRejectedValueOnce(new Error('entry not found'))
+    readMock.mockReset()
+    readMock.mockRejectedValueOnce(new Error('entry not found'))
     const msg = makeMessage({
       parts: [
         { type: 'text', text: 'keep me' },
@@ -228,15 +253,15 @@ describe('prepareUIMessages — fileEntryId resolution', () => {
     const [ui] = await prepareUIMessages([msg])
     expect(ui.parts).toHaveLength(1)
     expect(ui.parts[0]).toMatchObject({ type: 'text', text: 'keep me' })
-    expect(getPhysicalPathMock).toHaveBeenCalledWith('entry-gone')
+    expect(readMock).toHaveBeenCalledWith('entry-gone', { encoding: 'base64' })
   })
 
   it('does not call FileManager when the part has only a url (no cherry meta)', async () => {
-    getPhysicalPathMock.mockReset()
+    readMock.mockReset()
     const msg = makeMessage({
       parts: [{ type: 'file', url: `file://${imgPath}`, mediaType: 'image/png' }] as CherryMessagePart[]
     })
     await prepareUIMessages([msg])
-    expect(getPhysicalPathMock).not.toHaveBeenCalled()
+    expect(readMock).not.toHaveBeenCalled()
   })
 })
