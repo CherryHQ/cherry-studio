@@ -465,6 +465,7 @@ vi.mock('react-i18next', () => ({
         'common.open_in': `Open in ${options?.name ?? ''}`,
         'common.open_in_new_tab': 'Open in new tab',
         'common.rename': 'Rename',
+        'tab.open_in_new_window': 'Open in New Window',
         'common.required_field': 'Required field',
         'common.retry': 'Retry',
         'common.save': 'Save',

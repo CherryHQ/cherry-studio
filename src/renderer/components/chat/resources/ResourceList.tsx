@@ -221,15 +221,19 @@ function GroupHeaderActionButton({
   )
 }
 
-type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label'> & {
+type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' | 'icon'> & {
+  collapseIcon?: ReactNode
   collapseLabel: string
+  expandIcon?: ReactNode
   expandLabel: string
   sectionId: string
 }
 
 function SectionToggleMenuItem({
+  collapseIcon,
   collapseLabel,
   disabled,
+  expandIcon,
   expandLabel,
   onClick,
   sectionId,
@@ -246,6 +250,7 @@ function SectionToggleMenuItem({
 
   return (
     <MenuItem
+      icon={hasExpandedGroup ? collapseIcon : expandIcon}
       label={hasExpandedGroup ? collapseLabel : expandLabel}
       disabled={isDisabled}
       onClick={(event) => {

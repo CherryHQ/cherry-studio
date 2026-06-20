@@ -10,7 +10,9 @@ import {
 } from '@renderer/config/sidebar'
 import { type TabsContextValue, useOptionalTabsContext } from '@renderer/context/TabsContext'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'
+import { v4 as uuid } from 'uuid'
 
 export interface ConversationNavigation {
   /**
@@ -24,6 +26,11 @@ export interface ConversationNavigation {
    * `forceNew` skips the focus step and always opens a fresh duplicate tab.
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
+  /**
+   * Open conversation `key` in a fresh detached window, leaving the current window's
+   * tabs untouched. Unlike a tab detach this does not require `key` to be an open tab.
+   */
+  openConversationWindow: (key: string, title?: string) => void
 }
 
 /**
@@ -90,6 +97,21 @@ function openConversationTabImpl(
   return openedId
 }
 
+function openConversationWindowImpl(appId: SidebarIcon, key: string, title?: string): void {
+  const app = getSidebarApp(appId)
+  if (!app?.instanceKey) return
+  const metadata = buildSidebarAppOpenMetadata(app, key)
+  // Mirrors TabsContext.detachTab's Tab_Detach payload, but with a fresh tab id and
+  // without closing any current-window tab — this is "open elsewhere", not "move".
+  window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+    id: uuid(),
+    url: app.instanceKey.urlForKey(key),
+    title,
+    type: 'route',
+    ...(metadata && { metadata })
+  })
+}
+
 /**
  * Single boundary for "navigate to a conversation tab" intents (chat topic / agent
  * session), bound to one app. Built on the SIDEBAR_APPS registry's identity↔url mapping
@@ -105,7 +127,8 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
   return useMemo<ConversationNavigation>(
     () => ({
       focusExistingTab: (key, options) => focusConversationTabImpl(tabs, appId, key, options?.excludeTabId),
-      openConversationTab: (key, title, options) => openConversationTabImpl(tabs, appId, key, title, options?.forceNew)
+      openConversationTab: (key, title, options) => openConversationTabImpl(tabs, appId, key, title, options?.forceNew),
+      openConversationWindow: (key, title) => openConversationWindowImpl(appId, key, title)
     }),
     [appId, tabs]
   )

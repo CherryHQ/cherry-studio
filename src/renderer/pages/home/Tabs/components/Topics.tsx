@@ -45,8 +45,20 @@ import { cn } from '@renderer/utils/style'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { Bot, ListFilter, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
-import type { MouseEvent, RefObject } from 'react'
+import {
+  Bot,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Clock,
+  History,
+  ListFilter,
+  MoreHorizontal,
+  PinIcon,
+  SquarePen,
+  Trash2,
+  XIcon
+} from 'lucide-react'
+import type { MouseEvent, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -91,6 +103,11 @@ interface Props {
 }
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
+
+const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
+  time: <Clock size={16} />,
+  assistant: <Bot size={16} />
+}
 
 function buildCreateTopicPayload(
   topic: Topic | null | undefined,
@@ -157,17 +174,16 @@ function TopicListOptionsMenu({
           <ListFilter className="block" />
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-32 rounded-lg border-border p-1 shadow-lg">
-        <MenuList className="gap-0.5">
-          <div className="px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground/60">
-            {t('chat.topics.display.title')}
-          </div>
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
+        <MenuList>
+          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">{t('chat.topics.display.title')}</div>
           {TOPIC_DISPLAY_OPTIONS.map((option) => (
             <MenuItem
               key={option}
+              size="sm"
+              icon={TOPIC_DISPLAY_ICONS[option]}
               label={t(`chat.topics.display.${option}`)}
               active={mode === option}
-              className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
@@ -176,12 +192,14 @@ function TopicListOptionsMenu({
           ))}
           {sectionId && (
             <>
-              <MenuDivider className="my-0.5" />
+              <MenuDivider />
               <ResourceList.SectionToggleMenuItem
+                size="sm"
+                expandIcon={<ChevronsUpDown size={16} />}
+                collapseIcon={<ChevronsDownUp size={16} />}
                 sectionId={sectionId}
                 expandLabel={t('chat.topics.group.expand_all')}
                 collapseLabel={t('chat.topics.group.collapse_all')}
-                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
                 onClick={() => {
                   setOpen(false)
                 }}
@@ -190,10 +208,11 @@ function TopicListOptionsMenu({
           )}
           {onOpenHistory && (
             <>
-              <MenuDivider className="my-0.5" />
+              <MenuDivider />
               <MenuItem
+                size="sm"
+                icon={<History size={16} />}
                 label={t('history.records.shortTitle')}
-                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
                 onClick={(event) => {
                   onOpenHistory(event.currentTarget.getBoundingClientRect())
                   setOpen(false)
@@ -669,7 +688,13 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   }, [])
   const openTopicInNewTab = useCallback(
     (topic: Topic) => {
-      conversationNav.openConversationTab(topic.id, topic.name || t('common.unnamed'), { forceNew: true })
+      conversationNav.openConversationTab(topic.id, topic.name, { forceNew: true })
+    },
+    [conversationNav, t]
+  )
+  const openTopicInNewWindow = useCallback(
+    (topic: Topic) => {
+      conversationNav.openConversationWindow(topic.id, topic.name)
     },
     [conversationNav, t]
   )
@@ -1101,6 +1126,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           onDeleteClick={handleDeleteTopicClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
+          onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
           onSwitchTopic={setActiveTopic}
@@ -1210,6 +1236,7 @@ interface TopicListBodyProps {
   onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
+  onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
   onSwitchTopic: (topic: Topic) => void
@@ -1236,6 +1263,7 @@ function TopicListBody(props: TopicListBodyProps) {
     onDeleteClick,
     onDeleteFromMenu,
     onOpenInNewTab,
+    onOpenInNewWindow,
     onPinTopic,
     onRequestTopicImageAction,
     onSwitchTopic,
@@ -1258,6 +1286,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onDeleteClick,
       onDeleteFromMenu,
       onOpenInNewTab,
+      onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
       onSwitchTopic,
@@ -1277,6 +1306,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onDeleteClick,
       onDeleteFromMenu,
       onOpenInNewTab,
+      onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
       onSwitchTopic,
@@ -1326,6 +1356,7 @@ function TopicRow({
   onDeleteClick,
   onDeleteFromMenu,
   onOpenInNewTab,
+  onOpenInNewWindow,
   onPinTopic,
   onRequestTopicImageAction,
   onSwitchTopic,
@@ -1374,6 +1405,7 @@ function TopicRow({
     onDelete: onDeleteFromMenu,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onOpenInNewTab,
+    onOpenInNewWindow,
     onPinTopic,
     onStartRename: startMenuRename,
     t,

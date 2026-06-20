@@ -1,6 +1,6 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { DeleteIcon, EditIcon, OpenInNewWindowIcon } from '@renderer/components/Icons'
 import type { TFunction } from 'i18next'
 import { ExternalLink, PinIcon, PinOffIcon } from 'lucide-react'
 
@@ -8,6 +8,7 @@ export interface SessionActionContext {
   isActiveInCurrentTab: boolean
   onDelete: () => void
   onOpenInNewTab?: () => void
+  onOpenInNewWindow?: () => void
   onTogglePin?: () => void
   pinned?: boolean
   sessionName: string
@@ -35,6 +36,15 @@ sessionActionRegistry.registerCommand({
     enabled: !!onOpenInNewTab && !isActiveInCurrentTab
   }),
   run: ({ onOpenInNewTab }) => onOpenInNewTab?.()
+})
+
+sessionActionRegistry.registerCommand({
+  id: 'session.open-in-new-window',
+  availability: ({ onOpenInNewWindow }) => ({
+    visible: !!onOpenInNewWindow,
+    enabled: !!onOpenInNewWindow
+  }),
+  run: ({ onOpenInNewWindow }) => onOpenInNewWindow?.()
 })
 
 sessionActionRegistry.registerCommand({
@@ -66,6 +76,15 @@ sessionActionRegistry.registerAction({
   label: ({ t }) => t('common.open_in_new_tab'),
   icon: () => <ExternalLink size={14} />,
   order: 30,
+  surface: 'menu'
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.open-in-new-window',
+  commandId: 'session.open-in-new-window',
+  label: ({ t }) => t('tab.open_in_new_window'),
+  icon: () => <OpenInNewWindowIcon size={14} />,
+  order: 35,
   surface: 'menu'
 })
 

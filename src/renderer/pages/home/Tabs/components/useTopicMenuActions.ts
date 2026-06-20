@@ -38,6 +38,7 @@ export interface TopicMenuActionOptions {
   onDelete: TopicMenuHandler
   onExportImage?: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
+  onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onStartRename: TopicMenuHandler
   t: TFunction
@@ -56,6 +57,7 @@ export function createTopicActionContext({
   onDelete,
   onExportImage,
   onOpenInNewTab,
+  onOpenInNewWindow,
   onPinTopic,
   onStartRename,
   t,
@@ -98,6 +100,7 @@ export function createTopicActionContext({
       void exportMarkdownToYuque(topic.name, markdown)
     },
     onOpenInNewTab,
+    onOpenInNewWindow,
     onPinTopic,
     onSaveToKnowledge: async (topic) => {
       try {
@@ -181,6 +184,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onDelete,
     onExportImage,
     onOpenInNewTab,
+    onOpenInNewWindow,
     onPinTopic,
     onStartRename,
     t,
@@ -200,6 +204,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onDelete,
         onExportImage,
         onOpenInNewTab,
+        onOpenInNewWindow,
         onPinTopic,
         onStartRename,
         t,
@@ -217,6 +222,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onDelete,
       onExportImage,
       onOpenInNewTab,
+      onOpenInNewWindow,
       onPinTopic,
       onStartRename,
       t,

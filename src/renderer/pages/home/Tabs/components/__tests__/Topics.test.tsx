@@ -261,6 +261,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.delete') return 'Delete'
       if (key === 'common.more') return 'More'
       if (key === 'common.open_in_new_tab') return 'Open in new tab'
+      if (key === 'tab.open_in_new_window') return 'Open in New Window'
       if (key === 'common.cancel') return 'Cancel'
       if (key === 'common.copy_failed') return 'Copy failed'
       if (key === 'common.name') return 'Name'
@@ -443,7 +444,7 @@ function renderTopicList({
 
 function openTopicListOptions() {
   fireEvent.click(screen.getByLabelText('Display mode'))
-  return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-32'))
+  return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-44'))
 }
 
 function getTopicRow(topicName: string) {
@@ -800,6 +801,7 @@ describe('Topics', () => {
       'Generate conversation name',
       'Edit conversation name',
       'Pin Conversation',
+      'Open in New Window',
       'Clear messages',
       '',
       'Save to notes',
@@ -1213,7 +1215,9 @@ describe('Topics', () => {
     expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    const collapseAllButton = screen.getByRole('button', { name: 'Collapse all' })
+    expect(collapseAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-down-up')
+    fireEvent.click(collapseAllButton)
     await vi.waitFor(() => {
       expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).not.toEqual(
         expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
@@ -1233,7 +1237,10 @@ describe('Topics', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
+    const expandAllButton = screen.getByRole('button', { name: 'Expand all' })
+    expect(expandAllButton).toBeInTheDocument()
+    // Icon flips with the action: expand state shows the opposite chevrons.
+    expect(expandAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-up-down')
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -1375,13 +1382,13 @@ describe('Topics', () => {
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
 
     const displayModeContent = openTopicListOptions()
-    expect(displayModeContent).toHaveClass('w-32', 'p-1')
-    expect(displayModeContent?.querySelector('svg')).toBeNull()
-    expect(screen.getByText('Display mode')).toHaveClass('text-[10px]')
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toHaveClass(
-      'h-6',
-      'text-[11px]',
-      'font-normal'
+    expect(displayModeContent).toHaveClass('w-44', 'p-1')
+    // Each options item now renders a leading icon.
+    expect(displayModeContent?.querySelector('svg')).not.toBeNull()
+    expect(screen.getByText('Display mode')).toHaveClass('text-xs', 'font-medium', 'text-muted-foreground')
+    // Options items rely on MenuItem's built-in `size="sm"` styling; the ad-hoc 11px override is gone.
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).not.toHaveClass(
+      'text-[11px]'
     )
     expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
@@ -1408,8 +1415,8 @@ describe('Topics', () => {
 
     const optionsContent = screen
       .getAllByTestId('popover-content')
-      .find((element) => element.className.includes('w-32'))
-    expect(optionsContent?.querySelector('svg')).toBeNull()
+      .find((element) => element.className.includes('w-44'))
+    expect(optionsContent?.querySelector('svg')).not.toBeNull()
 
     const historyButton = screen.getByRole('button', { name: 'History' })
     vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({

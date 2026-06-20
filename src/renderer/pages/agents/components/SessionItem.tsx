@@ -22,6 +22,7 @@ interface SessionItemProps {
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
+  onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
   onSelectItem?: () => void
   onTogglePin?: (id: string) => void | Promise<void>
@@ -35,6 +36,7 @@ const SessionItem = ({
   channelType,
   onDelete,
   onOpenInNewTab,
+  onOpenInNewWindow,
   onPress,
   onSelectItem,
   onTogglePin,
@@ -88,12 +90,16 @@ const SessionItem = ({
   const handleOpenInNewTab = useCallback(() => {
     onOpenInNewTab?.(session)
   }, [onOpenInNewTab, session])
+  const handleOpenInNewWindow = useCallback(() => {
+    onOpenInNewWindow?.(session)
+  }, [onOpenInNewWindow, session])
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
       isActiveInCurrentTab: active,
       onDelete: handleDelete,
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
+      onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
       sessionName: session.name ?? '',
@@ -103,9 +109,11 @@ const SessionItem = ({
     [
       handleDelete,
       handleOpenInNewTab,
+      handleOpenInNewWindow,
       handleTogglePin,
       active,
       onOpenInNewTab,
+      onOpenInNewWindow,
       onTogglePin,
       pinned,
       session.name,

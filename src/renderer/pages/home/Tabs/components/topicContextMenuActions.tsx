@@ -1,5 +1,6 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import type { Topic } from '@renderer/types'
 import type { TFunction } from 'i18next'
 import {
@@ -55,6 +56,7 @@ export interface TopicActionContext {
   onExportWord: TopicMenuHandler
   onExportYuque: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
+  onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onSaveToKnowledge: TopicMenuHandler
   onSaveToNotes: TopicMenuHandler
@@ -99,6 +101,15 @@ topicActionRegistry.registerCommand({
     enabled: !!onOpenInNewTab && !isActiveInCurrentTab
   }),
   run: ({ onOpenInNewTab, topic }) => onOpenInNewTab?.(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.open-in-new-window',
+  availability: ({ onOpenInNewWindow }) => ({
+    visible: !!onOpenInNewWindow,
+    enabled: !!onOpenInNewWindow
+  }),
+  run: ({ onOpenInNewWindow, topic }) => onOpenInNewWindow?.(topic)
 })
 
 topicActionRegistry.registerCommand({
@@ -216,6 +227,15 @@ topicActionRegistry.registerAction({
   label: ({ t }) => t('common.open_in_new_tab'),
   icon: () => <ExternalLink size={14} />,
   order: 35,
+  surface: 'menu'
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.open-in-new-window',
+  commandId: 'topic.open-in-new-window',
+  label: ({ t }) => t('tab.open_in_new_window'),
+  icon: () => <OpenInNewWindowIcon size={14} />,
+  order: 37,
   surface: 'menu'
 })
 

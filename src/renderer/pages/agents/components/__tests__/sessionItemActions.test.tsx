@@ -54,6 +54,25 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
   })
 
+  it('keeps open-in-new-window available even when the session is active in the current tab', async () => {
+    const onOpenInNewWindow = vi.fn()
+    const actionContext = createSessionActionFixture({
+      isActiveInCurrentTab: true,
+      onOpenInNewWindow
+    })
+    const actions = resolveSessionMenuActions(actionContext)
+
+    expect(actions.map((action) => action.id)).toEqual([
+      'session.rename',
+      'session.open-in-new-window',
+      'session.delete'
+    ])
+
+    const action = actions.find((candidate) => candidate.id === 'session.open-in-new-window')
+    await executeSessionMenuAction(action as (typeof actions)[number], actionContext)
+    expect(onOpenInNewWindow).toHaveBeenCalled()
+  })
+
   it('uses localized cancel text for the delete confirmation', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
     const deleteAction = actions.find((action) => action.id === 'session.delete')

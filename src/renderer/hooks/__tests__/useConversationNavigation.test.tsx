@@ -180,4 +180,30 @@ describe('useConversationNavigation', () => {
     expect(result.current.focusExistingTab('t1')).toBe(false)
     expect(() => result.current.openConversationTab('t1')).not.toThrow()
   })
+
+  it('openConversationWindow detaches a fresh window for the conversation key without touching tabs', () => {
+    const send = vi.fn()
+    ;(window as unknown as { electron: { ipcRenderer: { send: typeof send } } }).electron = {
+      ipcRenderer: { send }
+    }
+    const ctx = makeCtx([{ id: 'tab-1', type: 'route', url: '/app/chat?topicId=t1' }])
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation('assistants'))
+
+    result.current.openConversationWindow('t1', 'Topic 1')
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const [channel, payload] = send.mock.calls[0] as [string, Record<string, unknown>]
+    expect(channel).toBe('tab:detach')
+    expect(payload).toMatchObject({
+      url: '/app/chat?topicId=t1',
+      title: 'Topic 1',
+      type: 'route',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't1' }
+    })
+    expect(typeof payload.id).toBe('string')
+    // Opening elsewhere must not focus or duplicate a tab in the current window.
+    expect(ctx.openTab).not.toHaveBeenCalled()
+    expect(ctx.setActiveTab).not.toHaveBeenCalled()
+  })
 })

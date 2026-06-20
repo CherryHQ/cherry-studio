@@ -42,8 +42,19 @@ import {
   type AgentSessionWorkspaceSource,
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Bot,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Clock,
+  Folder,
+  FolderOpen,
+  History,
+  ListFilter,
+  MoreHorizontal,
+  SquarePen
+} from 'lucide-react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
@@ -103,6 +114,11 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
+const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
+  agent: <Bot size={16} />,
+  time: <Clock size={16} />,
+  workdir: <Folder size={16} />
+}
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
 type CreateSessionSeed = {
   agentId: string
@@ -133,21 +149,18 @@ function SessionListOptionsMenu({
           <ListFilter className="block" />
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        side="bottom"
-        sideOffset={4}
-        className="w-32 rounded-lg border-border/80 p-1 shadow-lg">
-        <MenuList className="gap-0.5">
-          <div className="px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground/60">
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
+        <MenuList>
+          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">
             {t('agent.session.display.title')}
           </div>
           {SESSION_DISPLAY_OPTIONS.map((option) => (
             <MenuItem
               key={option}
+              size="sm"
+              icon={SESSION_DISPLAY_ICONS[option]}
               label={t(SESSION_DISPLAY_LABEL_KEYS[option])}
               active={mode === option}
-              className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
@@ -156,22 +169,25 @@ function SessionListOptionsMenu({
           ))}
           {sectionId && (
             <>
-              <MenuDivider className="my-0.5" />
+              <MenuDivider />
               <ResourceList.SectionToggleMenuItem
+                size="sm"
+                expandIcon={<ChevronsUpDown size={16} />}
+                collapseIcon={<ChevronsDownUp size={16} />}
                 sectionId={sectionId}
                 expandLabel={t('agent.session.group.expand_all')}
                 collapseLabel={t('agent.session.group.collapse_all')}
-                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
                 onClick={() => {
                   setOpen(false)
                 }}
               />
             </>
           )}
-          <MenuDivider className="my-0.5" />
+          <MenuDivider />
           <MenuItem
+            size="sm"
+            icon={<History size={16} />}
             label={historyLabel}
-            className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
             onClick={(event) => {
               onOpenHistory(event.currentTarget.getBoundingClientRect())
               setOpen(false)
@@ -898,6 +914,12 @@ const Sessions = ({
     },
     [conversationNav, t]
   )
+  const openSessionInNewWindow = useCallback(
+    (session: AgentSessionEntity) => {
+      conversationNav.openConversationWindow(session.id, session.name || t('common.unnamed'))
+    },
+    [conversationNav, t]
+  )
 
   const handleToggleAgentPin = useCallback(
     async (agentId: string) => {
@@ -1428,6 +1450,7 @@ const Sessions = ({
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
         onOpenInNewTab={openSessionInNewTab}
+        onOpenInNewWindow={openSessionInNewWindow}
         onRetry={handleRetry}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
@@ -1466,6 +1489,7 @@ interface SessionListBodyProps {
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
+  onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
   onTogglePin: (id: string) => Promise<void>
@@ -1482,6 +1506,7 @@ function SessionListBody({
   listRef,
   onDeleteSession,
   onOpenInNewTab,
+  onOpenInNewWindow,
   onRetry,
   onSelectItem,
   onTogglePin,
@@ -1503,6 +1528,7 @@ function SessionListBody({
         onTogglePin={onTogglePin}
         onDelete={onDeleteSession}
         onOpenInNewTab={onOpenInNewTab}
+        onOpenInNewWindow={onOpenInNewWindow}
         onPress={setActiveSessionId}
         onSelectItem={onSelectItem}
       />
@@ -1513,6 +1539,7 @@ function SessionListBody({
       displayMode,
       onDeleteSession,
       onOpenInNewTab,
+      onOpenInNewWindow,
       onSelectItem,
       onTogglePin,
       setActiveSessionId
