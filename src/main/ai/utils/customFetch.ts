@@ -2,13 +2,13 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { net } from 'electron'
 
 /**
- * Base `fetch` for AI provider HTTP calls, routed through Electron's `net.fetch`.
+ * Base `fetch` for AI provider HTTP calls.
  *
- * `net.fetch` issues requests on Chromium's network stack, so it honours the app
- * proxy configured by `ProxyManager` via `session.setProxy()` / `app.setProxy()`
- * (see `src/main/services/proxy`). Node's `globalThis.fetch` (undici) only obeys
- * the separately-patched undici dispatcher, so provider requests must go through
- * this to pick up the session proxy consistently.
+ * Proxy policy is applied centrally by `ProxyManager`, which configures both the
+ * Electron session/app proxy and the Node network stack (see
+ * `src/main/services/proxy`). AI provider traffic intentionally uses Electron
+ * `net.fetch` here so it runs on Chromium's network stack and benefits from
+ * session-proxy handling (PAC, SOCKS, proxy auth).
  *
  * Shaped as the AI SDK {@link FetchFunction} (`typeof globalThis.fetch`) so it
  * composes as the innermost layer: higher-level wrappers (HTTP trace, provider
