@@ -6,7 +6,7 @@
 import type { ProviderV3 } from '@ai-sdk/provider'
 
 import type { CoreProviderSettingsMap, RegisteredProviderId, ToolCapability, ToolFactory } from '../index'
-import { type ProviderExtension } from './ProviderExtension'
+import { type ProviderCreationOptions, type ProviderExtension } from './ProviderExtension'
 import { ProviderCreationError } from './utils'
 
 /**
@@ -483,9 +483,13 @@ export class ExtensionRegistry {
    * @param settings - Provider 配置
    * @returns Provider 实例
    */
-  async createProvider<T extends RegisteredProviderId>(id: T, settings: CoreProviderSettingsMap[T]): Promise<ProviderV3>
-  async createProvider(id: string, settings?: unknown): Promise<ProviderV3>
-  async createProvider(id: string, settings?: unknown): Promise<ProviderV3> {
+  async createProvider<T extends RegisteredProviderId>(
+    id: T,
+    settings: CoreProviderSettingsMap[T],
+    creationOptions?: ProviderCreationOptions
+  ): Promise<ProviderV3>
+  async createProvider(id: string, settings?: unknown, creationOptions?: ProviderCreationOptions): Promise<ProviderV3>
+  async createProvider(id: string, settings?: unknown, creationOptions?: ProviderCreationOptions): Promise<ProviderV3> {
     const parsed = this.parseProviderId(id)
     if (!parsed) {
       throw new Error(`Provider extension "${id}" not found. Did you forget to register it?`)
@@ -499,7 +503,7 @@ export class ExtensionRegistry {
     }
 
     try {
-      return await extension.createProvider(settings, variantSuffix)
+      return await extension.createProvider(settings, variantSuffix, creationOptions)
     } catch (error) {
       throw new ProviderCreationError(
         `Failed to create provider "${id}"`,

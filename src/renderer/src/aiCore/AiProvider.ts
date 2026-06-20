@@ -247,14 +247,23 @@ export default class AiProvider {
     // Wrap fetch to re-inject custom provider params that AI SDK adapters strip
     // via zod schema. See issue #16041.
     let providerSettings = providerConfig.providerSettings
-    if (middlewareConfig.customProviderParams && Object.keys(middlewareConfig.customProviderParams).length > 0) {
+    const customProviderParams = middlewareConfig.customProviderParams ?? {}
+    const hasCustomProviderParams = Object.keys(customProviderParams).length > 0
+    if (hasCustomProviderParams) {
       const existingFetch = (providerSettings as Record<string, any>).fetch ?? globalThis.fetch
-      const wrappedFetch = createCustomParamsFetch(existingFetch, middlewareConfig.customProviderParams)
+      const wrappedFetch = createCustomParamsFetch(existingFetch, customProviderParams)
       providerSettings = { ...providerSettings, fetch: wrappedFetch }
     }
 
     // 用构建好的插件数组创建executor
-    const executor = await createExecutor<AppProviderSettingsMap>(providerConfig.providerId, providerSettings, plugins)
+    const executor = await createExecutor<AppProviderSettingsMap>(
+      providerConfig.providerId,
+      providerSettings,
+      plugins,
+      {
+        cache: !hasCustomProviderParams
+      }
+    )
 
     // 创建带有中间件的执行器
     if (middlewareConfig.onChunk) {
