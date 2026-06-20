@@ -94,14 +94,17 @@ vi.mock('@renderer/components/Icons', () => ({
 
 const shortcutHandlers = new Map<string, () => void>()
 
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: (key: string, callback: () => void, options?: { enabled?: boolean }) => {
     if (options?.enabled === false) {
       shortcutHandlers.delete(key)
       return
     }
     shortcutHandlers.set(key, callback)
-  },
+  }
+}))
+
+vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children?: ReactNode }) => children
 }))
 

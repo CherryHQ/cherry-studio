@@ -299,7 +299,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false, markSeen: () => {} })
 }))
 
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
     mocks.shortcutHandlers.set(key, handler)
     mocks.shortcutOptions.set(key, options)

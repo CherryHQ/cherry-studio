@@ -76,7 +76,7 @@ const homeMocks = vi.hoisted(() => ({
   streamOpen: vi.fn()
 }))
 
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: vi.fn()
 }))
 

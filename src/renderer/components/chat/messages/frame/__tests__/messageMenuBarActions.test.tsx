@@ -48,7 +48,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/features/command', async () => {
+vi.mock('@renderer/components/command', async () => {
   const React = await import('react')
 
   return {

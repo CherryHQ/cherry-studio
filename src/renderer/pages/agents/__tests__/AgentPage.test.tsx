@@ -79,7 +79,7 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: vi.fn()
 }))
 

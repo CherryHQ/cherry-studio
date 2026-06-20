@@ -31,7 +31,7 @@ vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
 
-vi.mock('@renderer/features/command', () => ({
+vi.mock('@renderer/components/command', () => ({
   CommandContextMenu: ({
     children,
     extraItems
