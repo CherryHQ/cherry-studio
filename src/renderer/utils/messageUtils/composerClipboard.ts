@@ -2,8 +2,9 @@ import { loggerService } from '@logger'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { type FileURLString, getFileTypeByExt } from '@shared/file/types'
-import { fileUrlToPath } from '@shared/file/urlUtil'
+import { type FileURLString } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file/fileType'
+import { fileUrlToPath } from '@shared/utils/file/urlUtil'
 
 import {
   createComposerSecureRandomId,

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { SerializedTreeNode } from '@shared/file/types'
+import type { SerializedTreeNode } from '@shared/utils/file/tree'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'

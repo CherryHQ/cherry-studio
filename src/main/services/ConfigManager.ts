@@ -14,7 +14,7 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
-import { ZOOM_SHORTCUTS } from '@shared/config/constant'
+import { ZOOM_SHORTCUTS } from '@shared/utils/shortcut'
 import type { Shortcut } from '@types'
 import Store from 'electron-store'
 

@@ -1,6 +1,6 @@
-import type { CommandId } from '@shared/command'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CommandId } from '@shared/utils/command'
 import type { ReactNode } from 'react'
 
 import type { ModelSelectorTag } from './filters'

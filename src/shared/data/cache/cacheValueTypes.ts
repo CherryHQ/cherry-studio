@@ -3,7 +3,7 @@ import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
-import type { ExternalAppId } from '../../externalApp/types'
+import type { ExternalAppId } from '../../types/externalApp'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 

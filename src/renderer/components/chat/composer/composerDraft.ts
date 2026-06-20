@@ -1,3 +1,4 @@
+import { FileTypeSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type {
   CherryProviderMetadata,
@@ -6,7 +7,6 @@ import type {
   ComposerMessageTokenPayload
 } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import { FileTypeSchema } from '@shared/file/types'
 import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'

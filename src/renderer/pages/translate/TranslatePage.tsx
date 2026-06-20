@@ -26,7 +26,6 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import { documentExts, imageExts, MB, textExts } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import {
   isUniqueModelId,
@@ -36,6 +35,8 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
+import { MB } from '@shared/utils/constants'
+import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
 import { isEmpty } from 'lodash'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'

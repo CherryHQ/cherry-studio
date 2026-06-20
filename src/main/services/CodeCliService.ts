@@ -19,23 +19,21 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@main/constants'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import {
+  MACOS_TERMINALS,
+  MACOS_TERMINALS_WITH_COMMANDS,
+  WINDOWS_TERMINALS,
+  WINDOWS_TERMINALS_WITH_COMMANDS
+} from '@main/services/codeCliTerminals'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
-import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
-import {
-  codeCLI,
-  HOME_CHERRY_DIR,
-  MACOS_TERMINALS,
-  MACOS_TERMINALS_WITH_COMMANDS,
-  terminalApps,
-  WINDOWS_TERMINALS,
-  WINDOWS_TERMINALS_WITH_COMMANDS
-} from '@shared/config/constant'
-import type { CodeToolsRunResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
+import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
 import semver from 'semver'

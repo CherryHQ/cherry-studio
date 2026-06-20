@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@main/constants'
 import { isWin } from '@main/core/platform'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
 import { isImageFileMetadata } from '@types'
 import { exec } from 'child_process'

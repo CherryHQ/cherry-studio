@@ -1,6 +1,6 @@
 import { FILE_TYPE, type FileMetadata } from '@renderer/types'
 import { withComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
-import { getFileTypeByExt } from '@shared/file/types'
+import { getFileTypeByExt } from '@shared/utils/file/fileType'
 import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'

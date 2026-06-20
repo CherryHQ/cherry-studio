@@ -5,7 +5,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { fileUrlToPath } from '@shared/file/urlUtil'
+import { fileUrlToPath } from '@shared/utils/file/urlUtil'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')

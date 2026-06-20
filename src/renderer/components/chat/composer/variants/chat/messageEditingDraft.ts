@@ -8,7 +8,7 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getFileTypeByExt } from '@shared/file/types'
+import { getFileTypeByExt } from '@shared/utils/file/fileType'
 
 import { type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'

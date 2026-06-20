@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
-import type { TreeDirRoot, TreeNode } from '@shared/file/types'
+import type { TreeDirRoot, TreeNode } from '@shared/utils/file'
 
 const logger = loggerService.withContext('NotesService')
 

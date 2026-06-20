@@ -1,6 +1,6 @@
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
-import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { Model } from '@shared/data/types/model'
+import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
 import { useMemo } from 'react'
 
 export interface ComposerFileCapabilities {

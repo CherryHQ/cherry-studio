@@ -6,12 +6,12 @@ import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import type OpenAI from '@cherrystudio/openai'
 import type { OpenAIReasoningEffort } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
+import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import {
   computeBudgetTokens,
   FALLBACK_TOKEN_LIMIT,
   getThinkingBudget as sharedGetThinkingBudget
 } from '@shared/ai/reasoningBudget'
-import { DEFAULT_MAX_TOKENS } from '@shared/config/constant'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'

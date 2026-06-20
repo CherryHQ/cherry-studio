@@ -1,4 +1,4 @@
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 import { readFile } from 'fs/promises'
 
 const preprocessImage = async (buffer: Buffer): Promise<Buffer> => {

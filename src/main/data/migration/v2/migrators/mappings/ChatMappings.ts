@@ -63,7 +63,7 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/file/types/common'
+import type { Base64String, FilePath } from '@shared/types/file/common'
 import type { FileMetadata } from '@types'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'

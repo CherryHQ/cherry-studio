@@ -14,7 +14,7 @@ import type {
   ModelSnapshot
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import type { ExternalAppInfo } from '@shared/externalApp/types'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { ReactNode } from 'react'
 
 export interface MessageUiState {

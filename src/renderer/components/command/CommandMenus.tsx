@@ -29,16 +29,14 @@ import {
   useResolvedCommandMenu
 } from '@renderer/hooks/command'
 import { getCommandShortcutLabel } from '@renderer/utils/command'
-import {
-  type CommandId,
-  findKeybindingRule,
-  type MenuLocation,
-  type NativePopupMenuItem,
-  type NativePopupMenuModel,
-  type ResolvedMenuItem,
-  resolveMenuPresentationMode,
-  type SupportedPlatform
-} from '@shared/command'
+import type {
+  MenuLocation,
+  NativePopupMenuItem,
+  NativePopupMenuModel,
+  ResolvedMenuItem,
+  SupportedPlatform
+} from '@shared/types/command'
+import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode

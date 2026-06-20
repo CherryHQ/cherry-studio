@@ -1,4 +1,4 @@
-import { codeLanguages as languages } from '@shared/config/code-languages'
+import { codeLanguages as languages } from '@shared/utils/code-languages'
 import * as cmThemes from '@uiw/codemirror-themes-all'
 import type { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'

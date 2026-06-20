@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 
-import { codeCLI, terminalApps } from '@shared/config/constant'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { codeCLI, terminalApps } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

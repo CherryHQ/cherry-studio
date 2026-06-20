@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import type { FilePath } from '@shared/file/types/common'
-import { createFilePathHandle } from '@shared/file/types/handle'
+import type { FilePath } from '@shared/types/file/common'
+import { createFilePathHandle } from '@shared/utils/file/handle'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useFileSize')
