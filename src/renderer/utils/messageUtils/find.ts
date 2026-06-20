@@ -1,40 +1,14 @@
 /**
  * `Message` content readers.
  *
- * Synthesise V1-shaped `MessageBlock`s from `Message.parts` so block-shape
- * consumers (export, knowledge analysis, etc.) keep their signatures. Pure
- * — no Redux, no DataApi. The v1 message-blocks Redux slice is gone, parts
- * are the single source of truth.
+ * Plain-text extractors over `Message.parts` for export / copy / context
+ * building. Pure — no Redux, no DataApi, no v1 block shapes. Parts are the
+ * single source of truth.
  */
-import type { FileMetadata } from '@renderer/types'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type {
-  CitationMessageBlock,
-  CodeMessageBlock,
-  ErrorMessageBlock,
-  FileMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  MessageBlock,
-  ThinkingMessageBlock,
-  TranslationMessageBlock
-} from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-
-function syntheticBase(
-  messageId: string,
-  index: number
-): Pick<MessageBlock, 'id' | 'messageId' | 'createdAt' | 'status'> {
-  return {
-    id: `${messageId}-part-${index}`,
-    messageId,
-    createdAt: '',
-    status: MessageBlockStatus.SUCCESS
-  }
-}
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
@@ -76,163 +50,6 @@ function getRenderableTextContent(part: CherryMessagePart): string {
 
 // ── Public API ───────────────────────────────────────────────────────
 
-export const findAllBlocks = (message: ExportableMessage): MessageBlock[] => {
-  const parts = getParts(message)
-  if (parts.length === 0) return []
-  const out: MessageBlock[] = []
-  parts.forEach((part, i) => {
-    const base = syntheticBase(message.id, i)
-    const partType = part.type as string
-    switch (partType) {
-      case 'text':
-        out.push({
-          ...base,
-          type: MessageBlockType.MAIN_TEXT,
-          content: (part as { text?: string }).text ?? ''
-        } as MainTextMessageBlock)
-        break
-      case 'reasoning': {
-        const reasoningPart = part as Extract<CherryMessagePart, { type: 'reasoning' }>
-        out.push({
-          ...base,
-          type: MessageBlockType.THINKING,
-          content: reasoningPart.text ?? '',
-          thinking_millsec: readCherryMeta(reasoningPart)?.thinkingMs ?? 0
-        } as ThinkingMessageBlock)
-        break
-      }
-      case 'data-code': {
-        const data = getDataPart<CodePartData>(part)
-        out.push({
-          ...base,
-          type: MessageBlockType.CODE,
-          content: data?.content ?? '',
-          language: data?.language ?? ''
-        } as CodeMessageBlock)
-        break
-      }
-      case 'data-error': {
-        const data = getDataPart<ErrorPartData>(part)
-        out.push({
-          ...base,
-          type: MessageBlockType.ERROR,
-          error: data
-            ? {
-                name: data.name ?? undefined,
-                message: data.message ?? data.code ?? 'Error occurred',
-                stack: data.stack ?? undefined
-              }
-            : undefined
-        } as ErrorMessageBlock)
-        break
-      }
-      case 'data-translation': {
-        const data = getDataPart<TranslationPartData>(part)
-        out.push({
-          ...base,
-          type: MessageBlockType.TRANSLATION,
-          content: data?.content ?? '',
-          sourceBlockId: data?.sourceBlockId,
-          sourceLanguage: data?.sourceLanguage,
-          targetLanguage: data?.targetLanguage ?? ''
-        } as TranslationMessageBlock)
-        break
-      }
-      case 'file': {
-        const filePart = part as { mediaType?: string; url?: string; filename?: string }
-        if (filePart.mediaType?.startsWith('image/')) {
-          out.push({
-            ...base,
-            type: MessageBlockType.IMAGE,
-            url: filePart.url,
-            file: filePart.url
-              ? ({ name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType } as FileMetadata)
-              : undefined
-          } as ImageMessageBlock)
-        } else if (filePart.url) {
-          out.push({
-            ...base,
-            type: MessageBlockType.FILE,
-            file: { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
-          } as FileMessageBlock)
-        }
-        break
-      }
-      default:
-        if (partType.startsWith('tool-') || partType === 'dynamic-tool') {
-          out.push({
-            ...base,
-            type: MessageBlockType.TOOL,
-            toolId: (part as { toolCallId?: string }).toolCallId ?? base.id
-          } as MessageBlock)
-        }
-        break
-    }
-  })
-  return out
-}
-
-export const findMainTextBlocks = (message: ExportableMessage): MainTextMessageBlock[] => {
-  const out: MainTextMessageBlock[] = []
-  getParts(message).forEach((part, i) => {
-    if (part.type !== 'text') return
-    out.push({
-      ...syntheticBase(message.id, i),
-      type: MessageBlockType.MAIN_TEXT,
-      content: part.text ?? ''
-    })
-  })
-  return out
-}
-
-export const findThinkingBlocks = (message: ExportableMessage): ThinkingMessageBlock[] => {
-  const out: ThinkingMessageBlock[] = []
-  getParts(message).forEach((part, i) => {
-    if (part.type !== 'reasoning') return
-    out.push({
-      ...syntheticBase(message.id, i),
-      type: MessageBlockType.THINKING,
-      content: part.text ?? '',
-      thinking_millsec: readCherryMeta(part)?.thinkingMs ?? 0
-    })
-  })
-  return out
-}
-
-export const findImageBlocks = (message: ExportableMessage): ImageMessageBlock[] => {
-  const out: ImageMessageBlock[] = []
-  getParts(message).forEach((part, i) => {
-    if (part.type !== 'file') return
-    const filePart = part as { mediaType?: string; url?: string; filename?: string }
-    if (!filePart.mediaType?.startsWith('image/')) return
-    out.push({
-      ...syntheticBase(message.id, i),
-      type: MessageBlockType.IMAGE,
-      url: filePart.url,
-      file: filePart.url
-        ? ({ name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType } as FileMetadata)
-        : undefined
-    })
-  })
-  return out
-}
-
-export const findFileBlocks = (message: ExportableMessage): FileMessageBlock[] => {
-  const out: FileMessageBlock[] = []
-  getParts(message).forEach((part, i) => {
-    if (part.type !== 'file') return
-    const filePart = part as { mediaType?: string; url?: string; filename?: string }
-    if (filePart.mediaType?.startsWith('image/')) return
-    if (!filePart.url) return
-    out.push({
-      ...syntheticBase(message.id, i),
-      type: MessageBlockType.FILE,
-      file: { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
-    })
-  })
-  return out
-}
-
 export const getMainTextContent = (message: ExportableMessage): string => {
   return getParts(message)
     .map(getRenderableTextContent)
@@ -273,19 +90,3 @@ export const getCitationContent = (message: ExportableMessage): string => {
   }
   return lines.join('\n\n')
 }
-
-export const getFileContent = (message: ExportableMessage): FileMetadata[] => {
-  const files: FileMetadata[] = []
-  for (const block of findFileBlocks(message)) {
-    if (block.file) files.push(block.file)
-  }
-  for (const block of findImageBlocks(message)) {
-    if (block.file) files.push(block.file)
-  }
-  return files
-}
-
-// `findCitationBlocks` from the v1 path is no longer exposed — V2 has no
-// standalone citation blocks; consumers wanting the formatted text should
-// call `getCitationContent` directly.
-export type { CitationMessageBlock }

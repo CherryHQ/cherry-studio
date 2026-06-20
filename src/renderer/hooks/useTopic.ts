@@ -24,8 +24,8 @@ import {
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Message, Topic as RendererTopic } from '@renderer/types'
-import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
+import type { Topic as RendererTopic } from '@renderer/types'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import { ErrorCode } from '@shared/data/api/apiErrors'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
@@ -69,9 +69,9 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
 
 export async function getTopicById(topicId: string): Promise<RendererTopic> {
   const apiTopic = await dataApiService.get(`/topics/${topicId}`)
-  const topic = mapApiTopicToRendererTopic(apiTopic)
-  const messages = await getTopicMessages(topicId)
-  return { ...topic, messages }
+  // `messages` stays empty — the sole caller reads only topic metadata
+  // (`topic.id`); message history is fetched on demand via `getTopicMessages`.
+  return mapApiTopicToRendererTopic(apiTopic)
 }
 
 /**
@@ -136,9 +136,9 @@ const MESSAGES_PAGE_SIZE = 200
  * Used by one-off consumers (export, knowledge analysis, topic rename
  * pre-check). The main chat UI reads messages via `useTopicMessages`.
  */
-export async function getTopicMessages(id: string): Promise<Message[]> {
+export async function getTopicMessages(id: string): Promise<MessageExportView[]> {
   try {
-    const pages: Message[][] = []
+    const pages: MessageExportView[][] = []
     let assistantId = ''
     let cursor: string | undefined
 
@@ -150,7 +150,7 @@ export async function getTopicMessages(id: string): Promise<Message[]> {
       // Topic-level fields are stable across pages; first response wins.
       if (!cursor) assistantId = response.assistantId ?? ''
 
-      const pageMessages: Message[] = []
+      const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
         pageMessages.push(convertSharedMessage(item.message, assistantId))
         if (item.siblingsGroup) {
@@ -176,28 +176,24 @@ export async function getTopicMessages(id: string): Promise<Message[]> {
 }
 
 /**
- * Project a shared `Message` (Data API) onto the renderer's `Message`. The
- * `parts` field carries the V2 source-of-truth straight through; `blocks`
- * is left empty because the legacy Redux blocks slice is no longer
- * consulted by `find.ts` / `filters.ts` when `parts` is present.
+ * Project a shared `Message` (Data API) onto the export-oriented
+ * `MessageExportView`. The `parts` field carries the V2 source-of-truth
+ * straight through — these messages flow only into export / knowledge /
+ * topic-rename readers, which read `parts` (never v1 blocks).
  */
-function convertSharedMessage(shared: SharedMessage, assistantId: string): Message {
+function convertSharedMessage(shared: SharedMessage, assistantId: string): MessageExportView {
   return {
     id: shared.id,
     assistantId,
     topicId: shared.topicId,
     role: toContentRole(shared.role),
-    status: shared.status as Message['status'],
-    blocks: [],
+    status: shared.status,
     parts: shared.data?.parts ?? [],
     createdAt: shared.createdAt,
     updatedAt: shared.updatedAt,
-    askId: shared.parentId ?? undefined,
+    parentId: shared.parentId ?? undefined,
     modelId: shared.modelId ?? undefined,
-    ...(shared.stats && {
-      usage: statsToUsage(shared.stats),
-      metrics: statsToMetrics(shared.stats)
-    })
+    ...(shared.stats && { stats: shared.stats })
   }
 }
 

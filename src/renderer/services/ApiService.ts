@@ -10,9 +10,10 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
-import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { isFileUIPart } from 'ai'
 import { isEmpty, takeRight } from 'lodash'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
@@ -47,8 +48,11 @@ export async function fetchMessagesSummary({
   // 取最后5条消息，结构化为 JSON
   const contextMessages = takeRight(messages, 5)
   const structuredMessages = contextMessages.map((message) => {
-    const fileBlocks = findFileBlocks(message)
-    const fileList = fileBlocks.map((b) => b.file.origin_name).filter(Boolean)
+    const fileList = (message.parts ?? [])
+      .filter(isFileUIPart)
+      .filter((p) => !p.mediaType?.startsWith('image/'))
+      .map((p) => p.filename)
+      .filter((name): name is string => Boolean(name))
     return {
       role: message.role,
       mainText: purifyMarkdownImages(getMainTextContent(message)),
