@@ -34,14 +34,23 @@ const {
   mockHoverCardContentProps: [] as Array<{ portalContainer?: unknown; side?: string; align?: string }>
 }))
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: mockLoggerError,
-      warn: vi.fn()
-    })
+vi.mock('@logger', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    loggerService: {
+      ...actual.loggerService,
+      withContext: () => ({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: mockLoggerError,
+        verbose: vi.fn(),
+        silly: vi.fn()
+      })
+    }
   }
-}))
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },

@@ -124,7 +124,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     .tab::after {
       content: '';
       position: absolute;
-      right: 0;
+      inset-inline-end: 0;
       top: 8px;
       bottom: 8px;
       width: 1px;

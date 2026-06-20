@@ -18,7 +18,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   >
     <button
       aria-label="Get Embedding Dimension"
-      class="-ml-px rounded-l-none"
+      class="-ms-px rounded-start-none"
       data-testid="button"
       role="button"
       type="button"
@@ -54,7 +54,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   >
     <button
       aria-label="Get Embedding Dimension"
-      class="-ml-px rounded-l-none opacity-80"
+      class="-ms-px rounded-start-none opacity-80"
       data-testid="button"
       disabled=""
       role="button"

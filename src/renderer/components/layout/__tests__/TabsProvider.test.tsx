@@ -25,15 +25,23 @@ const PINNED_FILES_TAB: Tab = {
 // i18n.language dependency in the tabs useMemo.
 const STABLE_PINNED: [Tab[], () => void] = [[PINNED_FILES_TAB], vi.fn()]
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn()
-    })
+vi.mock('@logger', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    loggerService: {
+      ...actual.loggerService,
+      withContext: () => ({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        verbose: vi.fn(),
+        silly: vi.fn()
+      })
+    }
   }
-}))
+})
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   usePersistCache: () => STABLE_PINNED

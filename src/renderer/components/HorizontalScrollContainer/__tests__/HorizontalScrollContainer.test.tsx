@@ -66,7 +66,7 @@ describe('HorizontalScrollContainer', () => {
 
     triggerResizeObserver()
 
-    const scrollButton = document.querySelector('.scroll-right-button')
+    const scrollButton = document.querySelector('.scroll-end-button')
 
     expect(content).toHaveClass('relative', 'z-0')
     expect(scrollButton).toHaveClass('z-10')
@@ -86,7 +86,7 @@ describe('HorizontalScrollContainer', () => {
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
 
     triggerResizeObserver()
-    fireEvent.click(document.querySelector('.scroll-right-button') as HTMLElement)
+    fireEvent.click(document.querySelector('.scroll-end-button') as HTMLElement)
 
     expect(scrollBy).toHaveBeenCalledWith({ left: 180, behavior: 'smooth' })
   })

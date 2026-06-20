@@ -243,7 +243,7 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const panel = container.querySelector('.slide-in-from-left-2')
+    const panel = container.querySelector('.slide-in-from-start-2')
 
     expect(panel).toHaveClass('bg-sidebar')
     expect(panel).not.toHaveClass('bg-sidebar/70')

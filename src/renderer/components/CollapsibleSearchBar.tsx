@@ -117,7 +117,7 @@ const CollapsibleSearchBar = ({
         }}
         style={{
           position: 'absolute',
-          right: 0,
+          insetInlineEnd: 0,
           width: collapsedWidth,
           height: collapsedWidth,
           cursor: 'pointer',

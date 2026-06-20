@@ -884,7 +884,7 @@ const MigrationApp: React.FC = () => {
             progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
           )}>
           {progress.stage === 'introduction' && (
-            <div className="absolute top-2 right-3 z-10">
+            <div className="absolute top-2 start-3 z-10">
               <MigrationToolsMenu
                 open={skipMenuOpen}
                 onOpenChange={setSkipMenuOpen}
