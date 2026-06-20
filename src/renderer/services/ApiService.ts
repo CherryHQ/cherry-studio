@@ -5,7 +5,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import type { Assistant } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
@@ -22,7 +22,7 @@ const logger = loggerService.withContext('ApiService')
 export async function fetchMessagesSummary({
   messages
 }: {
-  messages: Message[]
+  messages: ExportableMessage[]
 }): Promise<{ text: string | null; error?: string }> {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = await readQuickModel()

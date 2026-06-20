@@ -19,6 +19,11 @@ import { isKnowledgeCitation, isMemoryCitation, isWebCitation, ReferenceCategory
 
 const logger = loggerService.withContext('partsToBlocks')
 
+export type CitationReferenceView = {
+  citationBlockId?: string
+  citationBlockSource?: WebSearchSource
+}
+
 /**
  * Convert ContentReference[] (new format) to legacy citationReferences shape.
  * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
@@ -36,6 +41,33 @@ export function convertReferencesToLegacyCitations(
   const nonWebCitations = citations.filter((ref) => !isWebCitation(ref))
   if (nonWebCitations.length > 0) {
     logger.warn('Non-web citations dropped during legacy conversion (knowledge/memory not supported)', {
+      droppedCount: nonWebCitations.length
+    })
+  }
+
+  return citations.filter(isWebCitation).map((ref) => ({
+    citationBlockId: blockId,
+    citationBlockSource: (ref.content?.source ?? undefined) as WebSearchSource | undefined
+  }))
+}
+
+/**
+ * Convert ContentReference[] (new format) to inline citationReferences shape.
+ * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
+ *
+ * Note: Only web citations are converted. Knowledge and memory citations are not
+ * supported by this inline reference format and are silently dropped.
+ */
+export function convertReferencesToCitationReferences(
+  references: ContentReference[],
+  blockId: string
+): CitationReferenceView[] | undefined {
+  const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
+  if (citations.length === 0) return undefined
+
+  const nonWebCitations = citations.filter((ref) => !isWebCitation(ref))
+  if (nonWebCitations.length > 0) {
+    logger.warn('Non-web citations dropped during inline citation conversion (knowledge/memory not supported)', {
       droppedCount: nonWebCitations.length
     })
   }
