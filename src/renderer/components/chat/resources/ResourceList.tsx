@@ -164,7 +164,7 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         className={cn(
           'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
           icon ? 'px-1.5' : 'px-2.5',
-          command ? 'w-full' : 'flex-1',
+          command ? 'w-full shrink' : 'flex-1',
           className
         )}
         {...props}>
@@ -192,7 +192,7 @@ function HeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'text-foreground/70! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block',
+        'text-foreground/70! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
         className
       )}
       {...props}

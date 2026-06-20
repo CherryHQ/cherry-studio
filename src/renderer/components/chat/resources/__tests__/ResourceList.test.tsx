@@ -109,6 +109,13 @@ vi.mock('@dnd-kit/utilities', () => ({
   }
 }))
 
+import type * as Commands from '@renderer/components/command'
+
+vi.mock('@renderer/components/command', async (importActual) => ({
+  ...(await importActual<typeof Commands>()),
+  CommandHint: () => null
+}))
+
 import type { ResolvedAction } from '../../actions/actionTypes'
 import { ResourceListActionContextMenu } from '../../actions/ResourceListActionContextMenu'
 import {
@@ -2480,7 +2487,9 @@ describe('ResourceList', () => {
       'text-foreground/70!',
       'hover:text-foreground!',
       'data-[state=open]:text-foreground!',
-      '[&_.lucide:not(.lucide-custom)]:text-current!'
+      '[&_.lucide:not(.lucide-custom)]:text-current!',
+      // 16px icon to match the new-topic SquarePen, not icon-navbar's default 18px.
+      '[&_svg]:size-4!'
     )
     expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('px-1.5')
     expect(screen.getByRole('listbox')).not.toHaveClass('px-1.5')
@@ -2503,6 +2512,33 @@ describe('ResourceList', () => {
       'opacity-0',
       'group-hover:opacity-100'
     )
+  })
+
+  it('keeps a command HeaderItem shrinkable so its actions stay visible', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.Header>
+            <ResourceList.HeaderItem
+              command="topic.create"
+              aria-label="Create"
+              icon={<span />}
+              label="Create"
+              actions={<button type="button" aria-label="Filter" />}
+            />
+          </ResourceList.Header>
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    // Button's base class is `shrink-0`; the command branch (w-full) must re-add `shrink`
+    // so the full-width button yields space to the actions slot instead of clipping it.
+    const createButton = screen.getByRole('button', { name: 'Create' })
+    expect(createButton).toHaveClass('w-full', 'shrink')
+    expect(createButton).not.toHaveClass('flex-1')
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
   })
 
   it('does not reveal item actions just because a row is selected', () => {
