@@ -1653,10 +1653,10 @@
       "claude_code": "Asistentul oficial de programare cu linie de comandă al companiei Anthropic",
       "gemini_cli": "Asistentul oficial de linie de comandă Gemini al Google",
       "github_copilot_cli": "Companion oficial de linie de comandă Copilot al GitHub",
-      "iflow_cli": "asistentul în linie de comandă multi-model al iFlow",
       "kimi_cli": "Asistentul de linie de comandă Kimi de la Moonshot",
       "openai_codex": "CLI-ul oficial de generare de cod al OpenAI",
       "opencode": "Agent de codare multi-model cu sursă deschisă",
+      "qoder_cli": "Instrumentul de codare în linia de comandă cu agenți al Alibaba Qoder",
       "qwen_code": "Instrumentul CLI de codare open-source al Alibaba Tongyi"
     },
     "update_options": "Opțiuni de actualizare",
@@ -2157,7 +2157,7 @@
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Notele selectabile vor apărea aici după ce lista reală de note va fi conectată. Deocamdată, folosiți fișiere, foldere, URL-uri sau hărți de site.",
           "empty_title": "Notele nu sunt încă conectate",
-          "loading": "[to be translated]:Loading notes…"
+          "loading": "Se încarcă notițele…"
         },
         "placeholder": {
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2174,6 +2174,7 @@
           "success": "Sursa de date adăugată la baza de cunoștințe"
         },
         "title": "Adăugare sursă de date",
+        "unsupported_files_skipped": "S-au omis {{count}} fișier(e) neacceptate",
         "url": {
           "description": "Introduceți un URL de pagină web:",
           "help": "Textul paginii va fi preluat, împărțit în fragmente și indexat automat",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "Anulează",
         "delete": "Șterge",
         "delete_confirm_description": "Ștergeți cele {{count}} surse de date selectate? Această acțiune nu poate fi anulată.",
         "delete_confirm_title": "Șterge sursele de date selectate?",
@@ -2241,9 +2241,7 @@
         "select_row": "Selectați rândul"
       },
       "toolbar": {
-        "add": "Adaugă sursă de date",
-        "no_search_results": "Nu există surse de date corespunzătoare",
-        "search_placeholder": "Căutați surse de date"
+        "add": "Adaugă sursă de date"
       }
     },
     "dimensions_auto_set": "Setează automat dimensiunile embedding",
@@ -2253,6 +2251,7 @@
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
     "error": {
+      "directory_not_migrated": "Migrarea folderului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
       "failed_base_unknown": "Această bază de cunoștințe a eșuat în timpul migrării. Reconstruiește-o și alege un nou model de încorporare.",
       "failed_to_create": "Nu s-a reușit crearea bazei de cunoștințe",
       "failed_to_delete": "Nu s-a reușit ștergerea bazei de cunoștințe",
@@ -2328,7 +2327,7 @@
         "bm25": "Căutare în text complet",
         "hybrid": "Căutare hibridă (recomandat)",
         "title": "Mod de căutare",
-        "vector": "[to be translated]:Vector Search"
+        "vector": "Căutare Vectorială"
       },
       "separator_rule": "Regula Separator",
       "threshold": "Prag de similaritate",
@@ -3573,7 +3572,28 @@
     "tip": "Dacă răspunsul este de succes, atunci doar mesajele care depășesc 30 de secunde vor declanșa un memento"
   },
   "ocr": {
-    "processing": "Procesare OCR..."
+    "builtin": {
+      "system": "OCR de sistem"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Nu se poate șterge furnizorul integrat",
+        "existing": "Furnizorul există deja",
+        "get_providers": "Nu s-au putut obține furnizorii disponibili",
+        "not_found": "Furnizorul OCR nu există",
+        "update_failed": "Nu s-a putut actualiza configurația"
+      },
+      "unknown": "A apărut o eroare în timpul procesului OCR"
+    },
+    "file": {
+      "not_supported": "Tip de fișier neacceptat {{type}}"
+    },
+    "processing": "Procesare OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "S-a recurs la {{name}}, ceea ce poate cauza probleme"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -6035,7 +6055,7 @@
       "disabled": "Mini Aplicații Ascunse",
       "display_title": "Setări de afișare Mini App",
       "empty": "Apasă pictograma de ascundere pe o aplicație din stânga și aceasta va fi mutată aici",
-      "hide_app": "[to be translated]:Hide {{name}}",
+      "hide_app": "Ascunde {{name}}",
       "open_link_external": {
         "title": "Deschide linkurile în fereastră nouă în browser"
       },
@@ -6047,7 +6067,7 @@
         "title": "Filtru Mini Program"
       },
       "reset_tooltip": "Resetare la valorile implicite",
-      "show_app": "[to be translated]:Show {{name}}",
+      "show_app": "Arată {{name}}",
       "sidebar_description": "Afișează miniaplicațiile active în bara laterală",
       "sidebar_title": "Afișare Mini Aplicații Active în Bara Laterală",
       "title": "Setări Mini Apps",
@@ -6348,7 +6368,8 @@
       "add": {
         "name": {
           "label": "Nume furnizor",
-          "placeholder": "Exemplu: OpenAI"
+          "placeholder": "Exemplu: OpenAI",
+          "required": "Vă rugăm să introduceți numele furnizorului"
         },
         "title": "Adaugă furnizor",
         "type": "Tip furnizor"
@@ -6459,7 +6480,8 @@
       "balance": "Echilibru",
       "base_url": {
         "label": "URL de bază",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Vă rugăm să introduceți URL-ul de bază"
       },
       "basic_auth": {
         "label": "Autentificare HTTP",
@@ -6634,7 +6656,7 @@
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Selectați locația",
         "service_account": {
           "auth_success": "Cont de serviciu autentificat cu succes",
           "client_email": "E-mail client",
@@ -6651,9 +6673,9 @@
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",
           "title": "Configurare Cont de Serviciu",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Comută vizibilitatea e-mailului clientului",
+          "toggle_private_key_visibility": "Comută vizibilitatea cheii private",
+          "toggle_project_id_visibility": "Comută vizibilitatea ID-ului proiectului"
         }
       }
     },
@@ -6723,7 +6745,7 @@
       },
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
-      "close_tab": "[to be translated]:Close Tab",
+      "close_tab": "Închide fila",
       "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
@@ -6731,11 +6753,11 @@
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "Mută fila pe prima poziție",
       "new_topic": "Subiect nou",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "open_tab_in_new_window": "Deschide fila într-o fereastră nouă",
+      "pin_tab": "Comutare fixare filă",
       "press_shortcut": "Apasă comanda rapidă",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
@@ -7172,7 +7194,6 @@
         "too_large": "Fișier prea mare",
         "unknown": "Citirea conținutului fișierului a eșuat"
       },
-      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Se citește conținutul fișierului...",
       "upload": "Trageți sau faceți clic pentru a încărca imaginea/documentul"
     },

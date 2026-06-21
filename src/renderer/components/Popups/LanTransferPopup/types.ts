@@ -1,4 +1,4 @@
-import type { LanHandshakeAckMessage, LanTransferPeer, LanTransferState } from '@shared/config/types'
+import type { LanHandshakeAckMessage, LanTransferPeer, LanTransferState } from '@shared/types/lanTransfer'
 
 // ==========================================
 // Transfer Status

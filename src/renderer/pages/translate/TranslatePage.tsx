@@ -14,6 +14,7 @@ import { useJob } from '@renderer/hooks/useJob'
 import { useModels } from '@renderer/hooks/useModel'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import { isImageFileMetadata } from '@renderer/types'
@@ -27,7 +28,6 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import { documentExts, imageExts, MB, textExts } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
@@ -38,7 +38,9 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { createFilePathHandle, type FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
+import { createFilePathHandle, documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isEmpty, throttle } from 'lodash'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -506,7 +508,7 @@ const TranslatePage: FC = () => {
     async (file: FileMetadata) => {
       let jobId: string
       try {
-        const snapshot = await window.api.fileProcessing.startJob({
+        const snapshot = await ipcApi.request('file_processing.start_job', {
           feature: 'image_to_text',
           file: createFilePathHandle(file.path as FilePath)
         })

@@ -1653,10 +1653,10 @@
       "claude_code": "Το επίσημο εργαλείο γραμμής εντολών κώδικα AI της Anthropic",
       "gemini_cli": "Επίσημη γραμμή εντολών βοηθού Gemini της Google",
       "github_copilot_cli": "Το επίσημο συνοδευτικό εργαλείο γραμμής εντολών του GitHub Copilot",
-      "iflow_cli": "ο πολυμοντέλος βηχανικός βοηθός γραμμής εντολών του iFlow",
       "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
       "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
       "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
+      "qoder_cli": "Το εργαλείο κωδικοποίησης γραμμής εντολών με δυνατότητες πρακτόρων της Alibaba Qoder",
       "qwen_code": "Το εργαλείο κωδικοποίησης CLI ανοικτού κώδικα της Alibaba Tongyi"
     },
     "update_options": "Ενημέρωση επιλογών",
@@ -2157,7 +2157,7 @@
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
           "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
-          "loading": "[to be translated]:Loading notes…"
+          "loading": "Φόρτωση σημειώσεων…"
         },
         "placeholder": {
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2174,6 +2174,7 @@
           "success": "Πηγή δεδομένων προστέθηκε στη βάση γνώσεων"
         },
         "title": "Προσθήκη Πηγής Δεδομένων",
+        "unsupported_files_skipped": "Παραλείφθηκαν {{count}} μη υποστηριζόμενα αρχεία",
         "url": {
           "description": "Εισάγετε διεύθυνση ιστοσελίδας:",
           "help": "Το κείμενο της σελίδας θα ανακτηθεί, θα τεμαχιστεί και θα ευρετηριαστεί αυτόματα",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "Ακύρωση",
         "delete": "Διαγραφή",
         "delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
@@ -2241,9 +2241,7 @@
         "select_row": "Επιλογή γραμμής"
       },
       "toolbar": {
-        "add": "Προσθήκη Πηγής Δεδομένων",
-        "no_search_results": "Δεν υπάρχουν αντίστοιχες πηγές δεδομένων",
-        "search_placeholder": "Αναζήτηση πηγών δεδομένων"
+        "add": "Προσθήκη Πηγής Δεδομένων"
       }
     },
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
@@ -2253,6 +2251,7 @@
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
     "error": {
+      "directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",
       "failed_base_unknown": "Αυτή η βάση γνώσεων απέτυχε κατά τη μετεγκατάσταση. Ανακατασκευάστε την και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
       "failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
       "failed_to_delete": "Αποτυχία διαγραφής της βάσης γνώσεων",
@@ -2328,7 +2327,7 @@
         "bm25": "Πλήρης αναζήτηση κειμένου",
         "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
         "title": "Λειτουργία Αναζήτησης",
-        "vector": "[to be translated]:Vector Search"
+        "vector": "Αναζήτηση Διανυσμάτων"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "threshold": "Κατώφλι Ομοιότητας",
@@ -3573,7 +3572,28 @@
     "tip": "Εάν η απάντηση είναι επιτυχής, η ειδοποίηση εμφανίζεται μόνο για μηνύματα που υπερβαίνουν τα 30 δευτερόλεπτα"
   },
   "ocr": {
-    "processing": "Η επεξεργασία OCR βρίσκεται σε εξέλιξη..."
+    "builtin": {
+      "system": "σύστημα OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Δεν είναι δυνατή η διαγραφή του ενσωματωμένου παρόχου",
+        "existing": "Ο πάροχος υπηρεσιών υπάρχει ήδη",
+        "get_providers": "Αποτυχία λήψης διαθέσιμων παρόχων",
+        "not_found": "Ο πάροχος OCR δεν υπάρχει",
+        "update_failed": "Αποτυχία ενημέρωσης της διαμόρφωσης"
+      },
+      "unknown": "Η διαδικασία OCR εμφάνισε σφάλμα"
+    },
+    "file": {
+      "not_supported": "Μη υποστηριζόμενος τύπος αρχείου {{type}}"
+    },
+    "processing": "Η επεξεργασία OCR βρίσκεται σε εξέλιξη...",
+    "warning": {
+      "provider": {
+        "fallback": "Επαναφέρθηκε στο {{name}}, το οποίο μπορεί να προκαλέσει προβλήματα"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -6035,7 +6055,7 @@
       "disabled": "Κρυμμένα Μίνι Εφαρμογές",
       "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
       "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
-      "hide_app": "[to be translated]:Hide {{name}}",
+      "hide_app": "Απόκρυψη {{name}}",
       "open_link_external": {
         "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
       },
@@ -6047,7 +6067,7 @@
         "title": "Φίλτρο Mini Program"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλογές",
-      "show_app": "[to be translated]:Show {{name}}",
+      "show_app": "Εμφάνιση {{name}}",
       "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
       "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
       "title": "Ρυθμίσεις Mini Apps",
@@ -6348,7 +6368,8 @@
       "add": {
         "name": {
           "label": "Όνομα παρόχου",
-          "placeholder": "π.χ. OpenAI"
+          "placeholder": "π.χ. OpenAI",
+          "required": "Παρακαλώ εισάγετε το όνομα του παρόχου"
         },
         "title": "Προσθήκη παρόχου",
         "type": "Τύπος παρόχου"
@@ -6459,7 +6480,8 @@
       "balance": "Υπόλοιπο",
       "base_url": {
         "label": "Βασικό URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Παρακαλώ εισάγετε το Base URL"
       },
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
@@ -6634,7 +6656,7 @@
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Επιλέξτε τοποθεσία",
         "service_account": {
           "auth_success": "Η πιστοποίηση λογαριασμού υπηρεσίας ήταν επιτυχής",
           "client_email": "Email Πελάτη",
@@ -6651,9 +6673,9 @@
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
           "title": "Διαμόρφωση λογαριασμού υπηρεσίας",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Εναλλαγή ορατότητας email του πελάτη",
+          "toggle_private_key_visibility": "Εναλλαγή ορατότητας ιδιωτικού κλειδιού",
+          "toggle_project_id_visibility": "Εναλλαγή ορατότητας αναγνωριστικού έργου"
         }
       }
     },
@@ -6723,7 +6745,7 @@
       },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
-      "close_tab": "[to be translated]:Close Tab",
+      "close_tab": "Κλείσιμο Καρτέλας",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
@@ -6731,11 +6753,11 @@
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
       "new_topic": "Νέο θέμα",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
+      "pin_tab": "Εναλλαγή Καρφίτσωμα Καρτέλας",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
@@ -7172,7 +7194,6 @@
         "too_large": "Το αρχείο είναι πολύ μεγάλο",
         "unknown": "Αποτυχία ανάγνωσης του περιεχομένου του αρχείου"
       },
-      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "Διαβάζοντας το περιεχόμενο του αρχείου...",
       "upload": "Αποθέστε ή κάντε κλικ για μεταφόρτωση εικόνας/εγγράφου"
     },

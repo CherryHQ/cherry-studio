@@ -1,25 +1,50 @@
 import '@renderer/databases'
 
+import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
+import { useCommandHandler } from '@renderer/hooks/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { useCallback } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import SearchPopup from '../Popups/SearchPopup'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, pinTab, unpinTab } = useTabs()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
+    useTabs()
 
-  // Sync internal navigation back to tab state. Clear the per-entity icon
-  // override too — it was supplied for a specific URL (e.g. a mini-app's
-  // logo on /app/mini-app/<id>) and no longer applies once the user
-  // navigates elsewhere inside the same tab.
+  const handleOpenGlobalSearch = useCallback(() => {
+    void SearchPopup.show()
+  }, [])
+
+  useCommandHandler('app.search', handleOpenGlobalSearch)
+
+  // Sync internal navigation back to tab state. For route-titled tabs we also
+  // refresh the title and clear the per-entity icon (it was supplied for a
+  // specific URL, e.g. a mini-app logo on /app/mini-app/<id>, and no longer
+  // applies once the user navigates elsewhere inside the tab). Chat / agent
+  // tabs are page-titled — their HomePage/AgentPage owns title + icon (topic /
+  // session name + assistant / agent emoji), so we only sync the url and leave
+  // title/icon alone, or navigating between topics would wipe them.
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
+    const isPageTitled = isPageTitledRoute(url)
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    const patch = isPageTitled
+      ? { url, lastAccessTime: Date.now() }
+      : {
+          url,
+          title: getDefaultRouteTitle(url),
+          icon: undefined,
+          lastAccessTime: Date.now(),
+          metadata: clearTabInstanceMetadata(tab?.metadata)
+        }
+    updateTab(tabId, patch)
   }
 
   return (
@@ -34,10 +59,11 @@ export const AppShell = () => {
         activeTabId={activeTabId}
         setActiveTab={setActiveTab}
         closeTab={closeTab}
-        addTab={addTab}
         reorderTabs={reorderTabs}
         pinTab={pinTab}
         unpinTab={unpinTab}
+        detachTab={detachTab}
+        openTab={openTab}
       />
 
       {/* Zone 2: Main Area (Sidebar + Content) */}
@@ -47,7 +73,7 @@ export const AppShell = () => {
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[16px] bg-background">
+          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             {tabs
               .filter((t) => t.type === 'route' && !t.isDormant)

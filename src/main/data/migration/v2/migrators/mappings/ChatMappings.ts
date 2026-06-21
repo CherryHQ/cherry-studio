@@ -45,6 +45,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -63,8 +64,7 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/file/types/common'
-import type { FileMetadata } from '@types'
+import type { Base64String, FilePath } from '@shared/types/file/common'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'

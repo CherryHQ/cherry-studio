@@ -36,7 +36,7 @@ const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
  * by the running process on Windows) from the rest, and copy them in two
  * separate phases. v2 abandons that distinction: the entire directory is
  * copied at startup, when the previous process has fully exited and no
- * file is locked. See `src/shared/config/constant.ts:occupiedDirs`
+ * file is locked. See `src/renderer/config/constant.ts:occupiedDirs`
  * for the deprecated v1 constant.
  */
 

@@ -1,16 +1,11 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions, JobHandle } from '@main/core/job/types'
+import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import {
-  ListAvailableFileProcessorsResultSchema,
-  StartFileProcessingJobInputSchema
-} from '@shared/data/types/fileProcessing'
-import { IpcChannel } from '@shared/IpcChannel'
+import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
-import { resolveDefaultImageToTextProcessor } from './config/defaultImageToTextProcessor'
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
@@ -25,28 +20,13 @@ const logger = loggerService.withContext('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['FileManager', 'JobManager'])
 export class FileProcessingService extends BaseService {
-  protected async onInit(): Promise<void> {
+  protected onInit(): void {
     // Register handlers in onInit (NOT onReady) so JobManager.onAllReady's
     // startup recovery sweep sees them when re-dispatching non-terminal jobs.
     const jobManager = application.get('JobManager')
     jobManager.registerHandler('file-processing.background', backgroundJobHandler)
     jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
-    // Initialize the default image-to-text processor BEFORE registering IPC
-    // handlers, so a renderer call landing right after startup never observes a
-    // null default (transient "not configured").
-    await this.initializeDefaultImageToTextProcessor()
-    this.registerIpcHandlers()
     logger.info('File processing service initialized')
-  }
-
-  private async initializeDefaultImageToTextProcessor(): Promise<void> {
-    const preferenceService = application.get('PreferenceService')
-
-    if (preferenceService.get('feature.file_processing.default_image_to_text') !== null) {
-      return
-    }
-
-    await preferenceService.set('feature.file_processing.default_image_to_text', resolveDefaultImageToTextProcessor())
   }
 
   /**
@@ -66,14 +46,6 @@ export class FileProcessingService extends BaseService {
     input: StartFileProcessingJobInput,
     options: Pick<EnqueueOptions, 'parentId'> = {}
   ): Promise<JobSnapshot> {
-    const handle = await this.enqueueJob(input, options)
-    return handle.snapshot
-  }
-
-  private async enqueueJob(
-    input: StartFileProcessingJobInput,
-    options: Pick<EnqueueOptions, 'parentId'> = {}
-  ): Promise<JobHandle> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -107,7 +79,7 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle
+    return handle.snapshot
   }
 
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
@@ -115,14 +87,5 @@ export class FileProcessingService extends BaseService {
       .filter(([, processor]) => processor.isAvailable())
       .map(([processorId]) => processorId as FileProcessorId)
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
-      return await this.startJob(StartFileProcessingJobInputSchema.parse(payload))
-    })
-    this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
-      return this.listAvailableProcessors()
-    })
   }
 }

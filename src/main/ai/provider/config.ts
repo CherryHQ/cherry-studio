@@ -7,21 +7,24 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
+import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
+import { isGenerateImageModel } from '@shared/utils/model'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
+import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
 interface BaseConfig {
@@ -108,6 +111,29 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: buildDashScopeConfig
     },
+    // modelscope / ppio / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // generation needs the bespoke submit/poll transport inside the extension provider
+    // (createXProvider().imageModel()). Override the resolved `openai-compatible` id to
+    // the extension id for image models only — chat/embedding fall through to the generic
+    // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
+    // id here, since the match requires it.
+    {
+      match: (p, id) =>
+        id === 'openai-compatible' &&
+        isGenerateImageModel(model) &&
+        (p.id === SystemProviderIds.modelscope ||
+          p.id === SystemProviderIds.ppio ||
+          (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
+      // provider.id is guaranteed to be one of these by the match above.
+      build: (ctx) => ({
+        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'dmxapi',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      })
+    },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
@@ -123,14 +149,22 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
+  let config: ProviderConfig
   if (builder) {
-    return builder.build(ctx)
+    config = await builder.build(ctx)
+  } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
+    config = buildGenericProviderConfig(ctx)
+  } else {
+    config = buildOpenAICompatibleConfig(ctx)
   }
 
-  if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
-    return buildGenericProviderConfig(ctx)
-  }
-  return buildOpenAICompatibleConfig(ctx)
+  // Default every provider to the proxy-aware net.fetch base so the app proxy
+  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
+  // that install their own fetch wrapper (e.g. CherryAI request signing) compose
+  // on top of customFetch; `??=` preserves them rather than clobbering them.
+  config.providerSettings.fetch ??= customFetch
+
+  return config
 }
 
 // ── Config Builders ──
@@ -168,7 +202,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           query: '',
           body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
-        return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+        return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
     }
   }

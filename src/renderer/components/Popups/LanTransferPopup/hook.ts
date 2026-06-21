@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getBackupData } from '@renderer/services/BackupService'
-import type { LanTransferPeer } from '@shared/config/types'
+import type { LanTransferPeer } from '@shared/types/lanTransfer'
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

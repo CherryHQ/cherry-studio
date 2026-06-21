@@ -1653,10 +1653,10 @@
       "claude_code": "Anthropicの公式コマンドラインAIコーディングアシスタント",
       "gemini_cli": "Googleの公式Geminiコマンドラインアシスタント",
       "github_copilot_cli": "GitHubの公式Copilotコマンドラインコンパニオン",
-      "iflow_cli": "iFlowのマルチモデルコマンドラインアシスタント",
       "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
       "openai_codex": "OpenAIの公式コード生成CLI",
       "opencode": "オープンソースのマルチモデルコーディングエージェント",
+      "qoder_cli": "Alibaba Qoderの自律型コマンドラインコーディングツール",
       "qwen_code": "Alibaba TongyiのオープンソースCLIコーディングツール"
     },
     "update_options": "更新オプション",
@@ -2157,7 +2157,7 @@
           "description": "既存のノートをナレッジベースのソースとして選択",
           "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダ、URL、またはサイトマップを使用してください。",
           "empty_title": "ノートはまだ接続されていません",
-          "loading": "[to be translated]:Loading notes…"
+          "loading": "メモを読み込んでいます…"
         },
         "placeholder": {
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
@@ -2174,6 +2174,7 @@
           "success": "ナレッジベースにデータソースが追加されました"
         },
         "title": "データソースを追加",
+        "unsupported_files_skipped": "サポートされていないファイル {{count}} 個をスキップしました",
         "url": {
           "description": "ウェブページのURLを入力してください：",
           "help": "ページのテキストは自動的に取得され、チャンク化され、インデックスされます",
@@ -2183,7 +2184,6 @@
         }
       },
       "bulk": {
-        "cancel": "キャンセル",
         "delete": "削除",
         "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
         "delete_confirm_title": "選択したデータソースを削除しますか？",
@@ -2241,9 +2241,7 @@
         "select_row": "行を選択"
       },
       "toolbar": {
-        "add": "データソースを追加",
-        "no_search_results": "一致するデータソースがありません",
-        "search_placeholder": "データソースを検索"
+        "add": "データソースを追加"
       }
     },
     "dimensions_auto_set": "埋め込み次元を自動設定",
@@ -2253,6 +2251,7 @@
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
     "error": {
+      "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
       "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_delete": "ナレッジベースの削除に失敗しました",
@@ -2328,7 +2327,7 @@
         "bm25": "全文検索",
         "hybrid": "ハイブリッド検索（推奨）",
         "title": "検索モード",
-        "vector": "[to be translated]:Vector Search"
+        "vector": "ベクトル検索"
       },
       "separator_rule": "セパレータルール",
       "threshold": "類似度閾値",
@@ -3573,7 +3572,28 @@
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
   "ocr": {
-    "processing": "OCR処理中..."
+    "builtin": {
+      "system": "システム OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
+        "existing": "プロバイダーはすでに存在します",
+        "get_providers": "利用可能なプロバイダーの取得に失敗しました",
+        "not_found": "OCRプロバイダーが存在しません",
+        "update_failed": "更新構成に失敗しました"
+      },
+      "unknown": "OCR処理中にエラーが発生しました"
+    },
+    "file": {
+      "not_supported": "サポートされていないファイルタイプ {{type}}"
+    },
+    "processing": "OCR処理中...",
+    "warning": {
+      "provider": {
+        "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -6035,7 +6055,7 @@
       "disabled": "隠しミニアプリ",
       "display_title": "ミニアプリ表示設定",
       "empty": "左側のアプリの非表示アイコンをクリックすると、ここに移動します",
-      "hide_app": "[to be translated]:Hide {{name}}",
+      "hide_app": "{{name}}を隠す",
       "open_link_external": {
         "title": "ブラウザで新しいウィンドウのリンクを開く"
       },
@@ -6047,7 +6067,7 @@
         "title": "ミニプログラムフィルター"
       },
       "reset_tooltip": "デフォルトにリセット",
-      "show_app": "[to be translated]:Show {{name}}",
+      "show_app": "{{name}}を表示",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示",
       "sidebar_title": "サイドバー アクティブ ミニアプリ表示",
       "title": "ミニアプリの設定",
@@ -6348,7 +6368,8 @@
       "add": {
         "name": {
           "label": "プロバイダー名",
-          "placeholder": "例：OpenAI"
+          "placeholder": "例：OpenAI",
+          "required": "プロバイダー名を入力してください"
         },
         "title": "プロバイダーを追加",
         "type": "プロバイダータイプ"
@@ -6459,7 +6480,8 @@
       "balance": "バランス",
       "base_url": {
         "label": "ベースURL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Base URLを入力してください"
       },
       "basic_auth": {
         "label": "HTTP 認証",
@@ -6634,7 +6656,7 @@
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "場所を選択",
         "service_account": {
           "auth_success": "サービスアカウントの認証が成功しました",
           "client_email": "クライアントメール",
@@ -6651,9 +6673,9 @@
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
           "title": "サービスアカウント設定",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "クライアントのメールアドレスの表示を切り替える",
+          "toggle_private_key_visibility": "秘密鍵の表示を切り替える",
+          "toggle_project_id_visibility": "プロジェクトIDの表示を切り替える"
         }
       }
     },
@@ -6723,7 +6745,7 @@
       },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
-      "close_tab": "[to be translated]:Close Tab",
+      "close_tab": "タブを閉じる",
       "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
@@ -6731,11 +6753,11 @@
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "タブを最初に移動",
       "new_topic": "新しいトピック",
       "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "open_tab_in_new_window": "新しいウィンドウでタブを開く",
+      "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
@@ -7172,7 +7194,6 @@
         "too_large": "ファイルが大きすぎます",
         "unknown": "ファイルの内容を読み取るのに失敗しました"
       },
-      "ocr_completed": "[to be translated]:Image OCR complete",
       "reading": "ファイルの内容を読み込んでいます...",
       "upload": "画像またはドキュメントをドロップするか、クリックしてアップロード"
     },

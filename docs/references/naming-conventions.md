@@ -234,6 +234,8 @@ is **closed by default**. Adding one is a structural commitment.
 
 If either is in doubt, place the files inside an existing bucket. Subdirectories under existing buckets are unrestricted.
 
+For the per-root applications of this rule, see [Main Process Architecture §4](./main-process-architecture.md) (`/src/main/`), [Renderer Architecture §6](./renderer-architecture.md) (`/src/renderer/`), and [Shared Layer Architecture §2](./shared-layer-architecture.md) (`/src/shared/`).
+
 ### 4.9 Singular vs Plural
 
 Choose number based on what the directory **conceptually contains**, not on which sounds nicer.
@@ -262,7 +264,7 @@ A **feature module** is a self-contained domain directory under a process root's
 
 This is the §4.4 promotion rule applied at the top level: a domain graduates from "a file (plus maybe one util) in a bucket" to "its own `features/` module" only once the additional files actually arrive and span more than one concern.
 Do not pre-create a `features/<domain>/` for an anticipated module.
-`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
+`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `services/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
 A large, multi-file domain left scattered across the `services/` and `utils/` buckets instead of gathered into one `features/<domain>/` is the §6.7 scattered/impure anti-pattern.
 
 **Canonical example** — `src/main/features/apiGateway/`:
@@ -275,6 +277,8 @@ features/apiGateway/
 ├── routes/
 └── utils/                 # domain-local utils, not the global src/main/utils/ bucket
 ```
+
+For the main process, [Main Process Architecture](./main-process-architecture.md) covers `features/` vs the type-buckets (`services/` / `utils/`) and the dependency direction; for the renderer, [Renderer Architecture](./renderer-architecture.md) places `features/` within the full layering (windows → pages → features → components → packages/ui), with per-directory responsibilities and dependency rules.
 
 ---
 

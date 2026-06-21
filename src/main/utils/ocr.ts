@@ -1,4 +1,4 @@
-import type { ImageFileMetadata } from '@types'
+import type { ImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { readFile } from 'fs/promises'
 
 const preprocessImage = async (buffer: Buffer): Promise<Buffer> => {

@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const openPathSpy = vi.fn(async () => '')

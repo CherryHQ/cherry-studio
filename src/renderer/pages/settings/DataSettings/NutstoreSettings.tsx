@@ -18,7 +18,7 @@ import {
 } from '@renderer/services/NutstoreService'
 import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
-import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'

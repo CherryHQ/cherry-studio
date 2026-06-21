@@ -15,6 +15,7 @@ const fileMock = vi.hoisted(() => ({
 
 const useJobMock = vi.hoisted(() => vi.fn())
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 const dropMock = vi.hoisted(() => ({
   getFilesFromDropEvent: vi.fn(),
@@ -129,6 +130,10 @@ vi.mock('@renderer/hooks/useTemporaryValue', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
 }))
 
 vi.mock('@logger', () => ({
@@ -279,6 +284,10 @@ describe('TranslatePage', () => {
       type: 'file-processing.background',
       status: 'pending'
     })
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation((channel: string, payload?: unknown) =>
+      channel === 'file_processing.start_job' ? fileMock.startJob(payload) : Promise.resolve(undefined)
+    )
     fileMock.readExternal.mockResolvedValue('document content')
     uuidMock.mockReset()
     uuidMock.mockReturnValue('abort-key')
@@ -327,9 +336,6 @@ describe('TranslatePage', () => {
       },
       fs: {
         readText: fileMock.readText
-      },
-      fileProcessing: {
-        startJob: fileMock.startJob
       }
     }
   })

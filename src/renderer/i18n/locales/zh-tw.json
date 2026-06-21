@@ -2144,13 +2144,13 @@
         "view_chunks": "查看 Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "将递归导入文件夹中的支持文件",
-          "title": "点击选择文件夹"
+        "conflict_dialog": {
+          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
+          "keep_all": "[to be translated]:Keep All",
+          "replace": "[to be translated]:Replace",
+          "title": "[to be translated]:Sources already exist"
         },
         "footer": {
-          "selected_directories": "已选 {{count}} 个目录",
-          "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "自動設定嵌入維度",
     "dimensions_size_placeholder": "留空表示不設定",
-    "drag_file": "拖曳檔案到這裡",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
       "model_invalid": "未選擇模型"
     },
-    "file_hint": "支援 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -6347,7 +6345,8 @@
       "add": {
         "name": {
           "label": "提供者名稱",
-          "placeholder": "例如：OpenAI"
+          "placeholder": "例如：OpenAI",
+          "required": "請輸入提供者名稱"
         },
         "title": "新增提供者",
         "type": "供應商類型"
@@ -6458,7 +6457,8 @@
       "balance": "餘額",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "請輸入 Base URL"
       },
       "basic_auth": {
         "label": "HTTP 認證",
@@ -6633,7 +6633,7 @@
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "選擇位置",
         "service_account": {
           "auth_success": "服務帳戶驗證成功",
           "client_email": "Client Email",
@@ -6650,9 +6650,9 @@
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
           "title": "服務帳戶設定",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "切換客戶電子郵件可見性",
+          "toggle_private_key_visibility": "切換私鑰可見性",
+          "toggle_project_id_visibility": "切換專案 ID 顯示"
         }
       }
     },
@@ -6722,7 +6722,7 @@
       },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
-      "close_tab": "[to be translated]:Close Tab",
+      "close_tab": "關閉分頁",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
@@ -6730,11 +6730,11 @@
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "將分頁移至最前",
       "new_topic": "新增話題",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "open_tab_in_new_window": "在新視窗中開啟分頁",
+      "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
@@ -7044,10 +7044,16 @@
       "title": "縮放"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "關閉分頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
   },

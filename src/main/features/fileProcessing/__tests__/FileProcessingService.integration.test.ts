@@ -16,14 +16,11 @@ const {
   appGetMock,
   enqueueMock,
   registerHandlerMock,
-  preferenceGetMock,
-  preferenceSetMock,
   fileManagerGetByIdMock,
   fileManagerGetMetadataMock,
   toFileInfoMock,
   processorRegistryMock,
   resolveProcessorConfigByFeatureMock,
-  resolveDefaultImageToTextProcessorMock,
   isAvailableTesseractMock,
   isAvailableDoc2xMock,
   isAvailableSystemMock
@@ -31,14 +28,11 @@ const {
   appGetMock: vi.fn(),
   enqueueMock: vi.fn(),
   registerHandlerMock: vi.fn(),
-  preferenceGetMock: vi.fn(),
-  preferenceSetMock: vi.fn(),
   fileManagerGetByIdMock: vi.fn(),
   fileManagerGetMetadataMock: vi.fn(),
   toFileInfoMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   resolveProcessorConfigByFeatureMock: vi.fn(),
-  resolveDefaultImageToTextProcessorMock: vi.fn(() => 'system'),
   isAvailableTesseractMock: vi.fn(() => true),
   isAvailableDoc2xMock: vi.fn(() => true),
   isAvailableSystemMock: vi.fn(() => false)
@@ -59,7 +53,6 @@ vi.mock('@main/services/file/toFileInfo', () => ({
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
   class MockBaseService {
-    ipcHandle = vi.fn()
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
       this._disposables.push(d)
@@ -71,10 +64,6 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock
-}))
-
-vi.mock('../config/defaultImageToTextProcessor', () => ({
-  resolveDefaultImageToTextProcessor: resolveDefaultImageToTextProcessorMock
 }))
 
 vi.mock('../processors/registry', () => ({
@@ -182,10 +171,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'JobManager') {
-      return {
-        enqueue: enqueueMock,
-        registerHandler: registerHandlerMock
-      }
+      return { enqueue: enqueueMock, registerHandler: registerHandlerMock }
     }
     if (name === 'FileManager') {
       return {
@@ -193,15 +179,9 @@ beforeEach(() => {
         getMetadata: fileManagerGetMetadataMock
       }
     }
-    if (name === 'PreferenceService') {
-      return { get: preferenceGetMock, set: preferenceSetMock }
-    }
     throw new Error(`Unexpected application.get(${name})`)
   })
   setupFileInfo()
-  preferenceGetMock.mockReturnValue('tesseract')
-  preferenceSetMock.mockResolvedValue(undefined)
-  resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
   isAvailableTesseractMock.mockReturnValue(true)
   isAvailableDoc2xMock.mockReturnValue(true)
   isAvailableSystemMock.mockReturnValue(false)
@@ -215,64 +195,21 @@ describe('FileProcessingService — lifecycle metadata', () => {
 })
 
 describe('FileProcessingService.onInit', () => {
-  it('registers both job handlers on JobManager', async () => {
+  it('registers both job handlers on JobManager', () => {
     const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
+    ;(svc as unknown as { onInit(): void }).onInit()
 
     expect(registerHandlerMock).toHaveBeenCalledTimes(2)
     const types = registerHandlerMock.mock.calls.map((c) => c[0])
     expect(types).toContain('file-processing.background')
     expect(types).toContain('file-processing.remote-poll')
   })
-
-  it('registers IPC handlers for starting jobs and listing processors', async () => {
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    const channels = ipcHandle.mock.calls.map((c) => c[0])
-    expect(channels).toEqual([
-      expect.stringContaining('start-job'),
-      expect.stringContaining('list-available-processors')
-    ])
-  })
-
-  it('initializes an empty default image OCR processor to the platform default', async () => {
-    preferenceGetMock.mockReturnValue(null)
-    resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
-
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-
-    expect(preferenceSetMock).toHaveBeenCalledWith('feature.file_processing.default_image_to_text', 'system')
-  })
-
-  it('initializes the default image OCR processor before registering IPC handlers', async () => {
-    preferenceGetMock.mockReturnValue(null)
-    resolveDefaultImageToTextProcessorMock.mockReturnValue('system')
-
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    expect(preferenceSetMock).toHaveBeenCalled()
-    expect(ipcHandle).toHaveBeenCalled()
-    expect(preferenceSetMock.mock.invocationCallOrder[0]).toBeLessThan(ipcHandle.mock.invocationCallOrder[0])
-  })
-
-  it('does not overwrite an existing default image OCR processor', async () => {
-    preferenceGetMock.mockReturnValue('paddleocr')
-
-    const svc = new FileProcessingService()
-    await (svc as unknown as { onInit(): Promise<void> }).onInit()
-
-    expect(preferenceSetMock).not.toHaveBeenCalled()
-  })
 })
 
 describe('FileProcessingService.startJob — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingService()
+    ;(svc as unknown as { onInit(): void }).onInit()
     enqueueMock.mockResolvedValue({
       id: 'job-test-1',
       snapshot: {

@@ -1,4 +1,4 @@
-import type { McpCallToolResponse } from '@types'
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToolRegistry } from '../../registry'

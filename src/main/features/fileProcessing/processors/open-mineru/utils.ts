@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
-import { MB } from '@shared/config/constant'
+import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 import FormData from 'form-data'
 

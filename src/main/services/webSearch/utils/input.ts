@@ -1,4 +1,4 @@
-import { isValidUrl } from '@shared/utils'
+import { isValidUrl } from '@main/utils/http'
 
 export const MAX_WEB_SEARCH_INPUTS = 20
 

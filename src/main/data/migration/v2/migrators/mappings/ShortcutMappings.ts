@@ -15,7 +15,7 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
+import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
 

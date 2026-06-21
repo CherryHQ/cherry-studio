@@ -17,10 +17,10 @@
 // @ts-nocheck
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSelector, createSlice } from '@reduxjs/toolkit'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS, getDefaultAssistant } from '@renderer/services/AssistantService'
 import type { LegacyAssistant as Assistant, LegacyAssistant as AssistantPreset, Model, Topic } from '@renderer/types'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@shared/config/constant'
 import { isEmpty, uniqBy } from 'lodash'
 import { v4 as uuid } from 'uuid'
 
