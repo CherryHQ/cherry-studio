@@ -1,26 +1,12 @@
 import type { FileMetadata } from '@renderer/types'
+import { v4 as uuidv4 } from 'uuid'
 
 const FILE_COMPOSER_TOKEN_ID_PREFIX = 'file:'
 
 export type ComposerFileMetadata = FileMetadata & { fileTokenSourceId: string }
 
-function createSecureRandomHex(byteLength = 16): string | null {
-  const crypto = globalThis.crypto
-  const getRandomValues = crypto?.getRandomValues?.bind(crypto)
-  if (!getRandomValues) return null
-
-  const bytes = new Uint8Array(byteLength)
-  getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
-export function createComposerSecureRandomId(prefix: string): string | null {
-  const crypto = globalThis.crypto
-  const randomUUID = crypto?.randomUUID?.bind(crypto)
-  if (randomUUID) return randomUUID()
-
-  const randomHex = createSecureRandomHex()
-  return randomHex ? `${prefix}-${randomHex}` : null
+export function createComposerSecureRandomId(prefix: string): string {
+  return `${prefix}-${uuidv4()}`
 }
 
 export function isComposerFileTokenPathLike(value: string) {
@@ -38,11 +24,7 @@ export function isComposerFileTokenSourceId(value: unknown): value is string {
 }
 
 export function createComposerFileTokenSourceId(): string {
-  const sourceId = createComposerSecureRandomId('file-token')
-  if (!sourceId) {
-    throw new Error('Secure random generation is required to create a composer file token source id')
-  }
-  return sourceId
+  return createComposerSecureRandomId('file-token')
 }
 
 export function withComposerFileTokenSourceId<T extends FileMetadata>(file: T): T & ComposerFileMetadata {

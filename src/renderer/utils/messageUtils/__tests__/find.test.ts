@@ -2,7 +2,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { describe, expect, it } from 'vitest'
 
-import { findAllBlocks, getMainTextContent } from '../find'
+import { findAllBlocks, getMainTextContent, getNamingTextContent } from '../find'
 
 function createExportView(parts: MessageExportView['parts']): MessageExportView {
   return {
@@ -55,5 +55,33 @@ describe('messageUtils/find', () => {
     expect(getMainTextContent(message)).toBe(
       ['Main answer', '```ts\nconsole.log("ok")\n```', 'Request failed', 'Translated answer'].join('\n\n')
     )
+  })
+
+  it('joins all three error fields (name, code, message) in order', () => {
+    const message = createExportView([
+      { type: 'data-error', data: { name: 'HttpError', code: '401', message: 'Unauthorized' } }
+    ] as MessageExportView['parts'])
+
+    expect(getMainTextContent(message)).toBe('HttpError\n401\nUnauthorized')
+  })
+
+  it('omits a code part whose content is empty or whitespace', () => {
+    const message = createExportView([
+      { type: 'text', text: 'Answer' },
+      { type: 'data-code', data: { content: '   ', language: 'ts' } }
+    ] as MessageExportView['parts'])
+
+    expect(getMainTextContent(message)).toBe('Answer')
+  })
+
+  it('getNamingTextContent drops error and translation parts but keeps text and code', () => {
+    const message = createExportView([
+      { type: 'text', text: 'Main answer' },
+      { type: 'data-code', data: { content: 'console.log("ok")', language: 'ts' } },
+      { type: 'data-error', data: { name: 'HttpError', code: '401', message: 'Unauthorized' } },
+      { type: 'data-translation', data: { content: 'Translated answer', targetLanguage: 'en' } }
+    ] as MessageExportView['parts'])
+
+    expect(getNamingTextContent(message)).toBe(['Main answer', '```ts\nconsole.log("ok")\n```'].join('\n\n'))
   })
 })

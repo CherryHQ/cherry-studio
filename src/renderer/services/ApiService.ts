@@ -9,7 +9,7 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
-import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getNamingTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,7 +41,7 @@ export async function fetchMessagesSummary({
     const fileList = fileBlocks.map((b) => b.file.origin_name).filter(Boolean)
     return {
       role: message.role,
-      mainText: purifyMarkdownImages(getMainTextContent(message)),
+      mainText: purifyMarkdownImages(getNamingTextContent(message)),
       files: fileList.length > 0 ? fileList : undefined
     }
   })

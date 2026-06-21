@@ -188,12 +188,11 @@ function pruneExpiredFileRestorationHandles(now = Date.now()) {
   }
 }
 
-function registerFileRestorationHandle(file: FileMetadata): string | null {
+function registerFileRestorationHandle(file: FileMetadata): string {
   pruneExpiredFileRestorationHandles()
 
   const restorableFile = withComposerFileTokenSourceId(file)
   const handle = createFileRestorationHandle()
-  if (!handle) return null
 
   fileRestorationRegistry.set(handle, {
     sourceId: restorableFile.fileTokenSourceId,

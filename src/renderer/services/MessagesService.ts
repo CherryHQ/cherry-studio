@@ -7,7 +7,7 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Message } from '@renderer/types/newMessage'
 import { getTitleFromString } from '@renderer/utils/export'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getNamingTextContent } from '@renderer/utils/messageUtils/find'
 import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
@@ -39,7 +39,7 @@ export function getMessageModelId(message: ExportableMessage) {
 }
 
 export async function getMessageTitle(message: ExportableMessage, length = 30): Promise<string> {
-  const content = getMainTextContent(message)
+  const content = getNamingTextContent(message)
 
   // Read from v2 Preference (`data.export.markdown.use_topic_naming_for_message_title`)
   // — the v1 Redux key was migrated; the renderer settings page reads the
