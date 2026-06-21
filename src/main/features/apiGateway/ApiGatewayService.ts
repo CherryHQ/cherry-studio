@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@shared/types/apiGateway'
@@ -17,60 +18,47 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
   private desiredEnabled = false
   /**
-   * True while a `reconcile()` loop is converging. `reconcile()` is the SOLE caller of
-   * activate/deactivate — start/stop/restart route through it too — so transitions are
-   * never concurrent and the lifecycle's `_activating` short-circuit can't race two
-   * owners and leave the running state diverged from `desiredEnabled`.
+   * Converges the gateway's running state to `desiredEnabled`. The reconciler is the SOLE caller
+   * of activate/deactivate (start/stop/restart route through it too), so transitions are never
+   * concurrent and the lifecycle's `_activating` short-circuit can't race two owners and leave the
+   * running state diverged from `desiredEnabled`. It is level-triggered against the ACTUAL
+   * `isActivated` state, latest-wins (an opposing toggle landing mid-transition is honoured on the
+   * next pass), and a transition that throws for a still-current target is recorded — see
+   * {@link LatestReconciler.getLastError} — and not retried, so a persistent failure (e.g. port in
+   * use) can't spin the loop.
    */
-  private reconciling = false
-  /** Error from the most recent transition, surfaced to the IPC start/stop/restart callers. */
-  private lastTransitionError: unknown = null
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+    name: 'apiGateway',
+    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    isSettled: ({ desired, actual }) => desired === actual,
+    apply: async ({ desired }) => {
+      // Discard activate/deactivate's returned state — the reconciler re-reads `isActivated`.
+      if (desired) {
+        await this.activate()
+      } else {
+        await this.deactivate()
+      }
+    }
+  })
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
+    // The reconciler holds no OS resources (only closures + flags), so it is not disposed on stop:
+    // it is a construct-once field that is NOT recreated on restart (`start()` re-runs `onInit`), and
+    // disposing it would permanently no-op `request()` after a stop→restart. After stop, the pref
+    // subscription and IPC handlers below are cleaned up, so nothing calls `request()` anyway.
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('feature.api_gateway.enabled', (enabled) => {
         this.desiredEnabled = enabled
-        void this.reconcile()
+        this.reconciler.request()
       })
     )
   }
 
   protected async onReady(): Promise<void> {
     this.desiredEnabled = await this.shouldAutoStart()
-    await this.reconcile()
-  }
-
-  /**
-   * Converge the gateway's running state to `desiredEnabled`. Single-flight: a
-   * re-entrant call (e.g. an opposing toggle that lands mid-transition) just updates
-   * `desiredEnabled` and returns, and the running loop picks it up on its next pass.
-   * It loops against the ACTUAL `isActivated` state, not the attempted target. A
-   * transition that throws for a still-current target is recorded and not retried, so a
-   * persistent failure (e.g. port in use) can't spin the loop.
-   */
-  private async reconcile(): Promise<void> {
-    if (this.reconciling) return
-    this.reconciling = true
-    try {
-      while (this.isActivated !== this.desiredEnabled) {
-        const target = this.desiredEnabled
-        this.lastTransitionError = null
-        try {
-          if (target) {
-            await this.activate()
-          } else {
-            await this.deactivate()
-          }
-        } catch (error) {
-          this.lastTransitionError = error
-          logger.error(`API gateway ${target ? 'activation' : 'deactivation'} during reconcile failed`, error as Error)
-          if (this.desiredEnabled === target) return
-        }
-      }
-    } finally {
-      this.reconciling = false
-    }
+    this.reconciler.request()
+    await this.reconciler.flush()
   }
 
   async onActivate(): Promise<void> {
@@ -114,10 +102,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async start(): Promise<void> {
-    // Set the desired state and converge through the single queue — never transition
-    // directly, so this can't race an opposing reconcile (see `transitionQueue`).
+    // Set the desired state and converge through the reconciler — never transition directly, so
+    // this can't race an opposing toggle; `flush()` waits for the loop to go quiescent.
     this.desiredEnabled = true
-    await this.reconcile()
+    this.reconciler.request()
+    await this.reconciler.flush()
     if (!this.isActivated) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
@@ -128,7 +117,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async stop(): Promise<void> {
     this.desiredEnabled = false
-    await this.reconcile()
+    this.reconciler.request()
+    await this.reconciler.flush()
     if (this.isActivated) {
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
@@ -139,15 +129,16 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async restart(): Promise<void> {
     // Re-create the server (e.g. to apply a new host/port) as a stop→start, so it goes
-    // through the same single reconcile owner — no direct, race-prone transition.
+    // through the same single reconciler — no direct, race-prone transition.
     await this.stop()
     await this.start()
     logger.info('API Gateway restarted successfully')
   }
 
-  /** Surface the recorded transition error to an IPC caller, or a generic fallback. */
+  /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */
   private failureError(fallback: string): Error {
-    return this.lastTransitionError instanceof Error ? this.lastTransitionError : new Error(fallback)
+    const lastError = this.reconciler.getLastError()
+    return lastError instanceof Error ? lastError : new Error(fallback)
   }
 
   isRunning(): boolean {
