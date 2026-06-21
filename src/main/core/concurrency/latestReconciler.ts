@@ -179,15 +179,18 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
 
         if (disposed) break
 
-        if (isSettled(snap)) {
-          // Converged. Re-loop only if a newer request raced the snapshot read.
-          if (dirty) continue
-          break
-        }
+        // A request landed during the (possibly async) snapshot read, so `snap` may already be
+        // stale: re-read instead of acting on a superseded intent. This makes the snapshot window
+        // coalesce exactly like the apply window (latest-wins) — settled or not.
+        if (dirty) continue
 
-        lastError = null
+        if (isSettled(snap)) break
+
         try {
           await apply(snap)
+          // Cleared only after a clean pass actually completes, so `getLastError()` keeps reporting
+          // the last failure until a success overwrites it (never a premature null mid-apply).
+          lastError = null
         } catch (error) {
           lastError = error
           onError(error, snap)

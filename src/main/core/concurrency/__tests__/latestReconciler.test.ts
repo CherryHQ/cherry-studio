@@ -315,4 +315,77 @@ describe('createLatestReconciler', () => {
     expect(reconciler.getLastError()).toBeInstanceOf(Error)
     expect((reconciler.getLastError() as Error).message).toBe('snapshot boom')
   })
+
+  it('coalesces a request during an async getSnapshot even when the stale snapshot is not settled', async () => {
+    let desired = 'A'
+    let actual = 'none'
+    const applied: string[] = []
+    const snapGate = createDeferred()
+    let snapCalls = 0
+
+    const reconciler = createLatestReconciler<{ desired: string; actual: string }>({
+      name: 'test',
+      getSnapshot: async () => {
+        const captured = { desired, actual } // capture at entry → a late request reads as stale
+        snapCalls++
+        if (snapCalls === 1) await snapGate.promise
+        return captured
+      },
+      isSettled: (snap) => snap.desired === snap.actual,
+      apply: (snap) => {
+        applied.push(snap.desired)
+        actual = snap.desired
+      }
+    })
+
+    reconciler.request() // desired=A, actual=none → NOT settled
+    await vi.waitFor(() => expect(snapCalls).toBe(1)) // parked in the slow read, captured {A,none}
+
+    desired = 'B' // superseded during the read
+    reconciler.request() // dirty
+    snapGate.resolve() // the first read returns the stale, NOT-settled {A,none}
+
+    await reconciler.flush()
+    expect(applied).toEqual(['B']) // stale 'A' must never be applied (latest-wins)
+    expect(actual).toBe('B')
+  })
+
+  it('keeps getLastError as the last failure until a clean pass completes (no transient null mid-apply)', async () => {
+    let target = 0
+    let settled = -1
+    let failNext = false
+    let gateApply = false
+    let applyStarts = 0
+    const applyGate = createDeferred()
+
+    const reconciler = createLatestReconciler<number>({
+      name: 'test',
+      getSnapshot: () => target,
+      isSettled: (t) => t === settled,
+      apply: async (t) => {
+        applyStarts++
+        if (failNext) throw new Error('boom')
+        if (gateApply) await applyGate.promise
+        settled = t
+      },
+      onError: vi.fn()
+    })
+
+    failNext = true
+    target = 1
+    reconciler.request()
+    await reconciler.flush()
+    expect(reconciler.getLastError()).toBeInstanceOf(Error)
+
+    // A fresh pass whose apply is in flight must not prematurely clear the prior failure.
+    failNext = false
+    gateApply = true
+    reconciler.request()
+    await vi.waitFor(() => expect(applyStarts).toBe(2))
+    expect(reconciler.getLastError()).toBeInstanceOf(Error) // still the last failure, mid-apply
+
+    applyGate.resolve()
+    await reconciler.flush()
+    expect(reconciler.getLastError()).toBeNull() // cleared only after the clean pass completed
+  })
 })
