@@ -1,3 +1,17 @@
+import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
+import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
+import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
+import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
+import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
+import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
+import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import {
+  pickMessageHeaderActions,
+  pickMessageLeafActions,
+  pickMessageLeafState
+} from '@renderer/components/chat/messages/messageListProviderBuilder'
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type {
   MessageGroupRuntime,
@@ -10,20 +24,6 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/pages/shared/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/pages/shared/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
-import {
-  pickMessageHeaderActions,
-  pickMessageLeafActions,
-  pickMessageLeafState
-} from '@renderer/pages/shared/messages/messageListProviderBuilder'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'

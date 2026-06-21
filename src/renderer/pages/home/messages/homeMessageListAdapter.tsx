@@ -3,6 +3,20 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
 import { useMessageEditing } from '@renderer/components/chat/messages/editing/MessageEditingContext'
+import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
+import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
+import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
+import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
+import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
+import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
+import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import {
+  pickMessageHeaderActions,
+  pickMessageLeafActions,
+  pickMessageLeafState
+} from '@renderer/components/chat/messages/messageListProviderBuilder'
 import type {
   MessageGroupRuntime,
   MessageListActions,
@@ -25,20 +39,6 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/pages/shared/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/pages/shared/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
-import {
-  pickMessageHeaderActions,
-  pickMessageLeafActions,
-  pickMessageLeafState
-} from '@renderer/pages/shared/messages/messageListProviderBuilder'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { Topic, TranslateLangCode } from '@renderer/types'

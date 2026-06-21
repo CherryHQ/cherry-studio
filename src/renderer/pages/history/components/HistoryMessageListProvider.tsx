@@ -6,16 +6,16 @@ import {
   type MessageListProviderValue,
   type MessageListState
 } from '@renderer/components/chat/messages'
-import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
-import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
-import { useMessageUiStateCache } from '@renderer/pages/shared/messages/hooks/useMessageUiStateCache'
+import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
+import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
+import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
   pickMessageLeafState
-} from '@renderer/pages/shared/messages/messageListProviderBuilder'
+} from '@renderer/components/chat/messages/messageListProviderBuilder'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
