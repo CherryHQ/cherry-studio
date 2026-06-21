@@ -5,25 +5,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel } from './fileDisplay'
-
-const typeIcons: Record<string, FC<{ size?: number; className?: string }>> = {
-  image: ImageIcon,
-  document: FileText,
-  text: FileText,
-  audio: Music,
-  video: Video,
-  other: File
-}
-
-const typeIconColors: Record<string, string> = {
-  image: 'text-pink-500/50',
-  document: 'text-blue-500/50',
-  text: 'text-cyan-500/50',
-  audio: 'text-amber-500/50',
-  video: 'text-violet-500/50',
-  other: 'text-muted-foreground/40'
-}
+import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
 
 function DetailRow({
   icon: Icon,
@@ -47,7 +29,7 @@ function DetailRow({
 
 export const FilePreview = memo(function FilePreview({ file, onClose }: { file: FileItem; onClose: () => void }) {
   const { t } = useTranslation()
-  const Icon = typeIcons[file.type] || File
+  const Icon = typeIcons[file.type]
 
   const renderPreviewContent = () => {
     if (file.type === 'image') {
@@ -101,7 +83,7 @@ export const FilePreview = memo(function FilePreview({ file, onClose }: { file: 
         className="flex max-h-[85vh] w-[680px] max-w-[90vw] flex-col overflow-hidden p-0"
         showCloseButton={false}>
         <div className="flex items-center gap-3 border-border/30 border-b px-5 py-3">
-          <Icon size={15} className={typeIconColors[file.type] || typeIconColors.other} />
+          <Icon size={15} className={typeIconColors[file.type]} />
           <div className="min-w-0 flex-1">
             <h3 className="truncate font-medium text-foreground text-sm">{file.name}</h3>
             <p className="mt-0.5 text-muted-foreground/60 text-xs">

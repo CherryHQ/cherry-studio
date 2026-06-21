@@ -1,38 +1,11 @@
-import { Button, ImagePreviewTrigger, Input } from '@cherrystudio/ui'
-import { File, FileCode, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, ImagePreviewTrigger } from '@cherrystudio/ui'
+import { Trash2 } from 'lucide-react'
+import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel } from './fileDisplay'
-
-const typeIcons: Record<string, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {
-  image: ImageIcon,
-  video: Video,
-  audio: Music,
-  text: FileCode,
-  document: FileText,
-  other: File
-}
-
-const typeIconColors: Record<string, string> = {
-  image: 'text-pink-500/50',
-  video: 'text-violet-500/50',
-  audio: 'text-amber-500/50',
-  text: 'text-cyan-500/50',
-  document: 'text-blue-500/50',
-  other: 'text-muted-foreground/50'
-}
-
-const typeBgColors: Record<string, string> = {
-  image: 'bg-pink-500/[0.04]',
-  video: 'bg-violet-500/[0.04]',
-  audio: 'bg-amber-500/[0.04]',
-  text: 'bg-cyan-500/[0.04]',
-  document: 'bg-blue-500/[0.04]',
-  other: 'bg-muted/20'
-}
+import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
+import { InlineRename } from './InlineRename'
 
 const GALLERY_GRADIENTS = [
   'linear-gradient(135deg,#ffd3a5,#fd6585)',
@@ -105,9 +78,11 @@ export const FileGrid = memo(function FileGrid({
     <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 p-3">
       {files.map((file) => {
         const selected = selectedIds.has(file.id)
-        const Icon = typeIcons[file.type] || File
+        const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const isImage = file.type === 'image'
+        const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
+        const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
           <div
             key={file.id}
@@ -124,7 +99,7 @@ export const FileGrid = memo(function FileGrid({
               selected ? 'border-border/50 bg-accent/50' : 'border-border/30 hover:border-border/50 hover:bg-accent/50'
             }`}>
             <div
-              className={`${isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'} relative flex items-center justify-center overflow-hidden ${isImage ? '' : typeBgColors[file.type] || typeBgColors.other}`}
+              className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}
               style={isImage ? { backgroundImage: gradientFor(file.name) } : undefined}>
               {file.type === 'image' ? (
                 <ImagePreviewTrigger
@@ -137,7 +112,7 @@ export const FileGrid = memo(function FileGrid({
                   onDoubleClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type] || typeIconColors.other} />
+                <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type]} />
               )}
               {!isImage && (
                 <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">
@@ -164,6 +139,7 @@ export const FileGrid = memo(function FileGrid({
                     value={file.name}
                     onConfirm={(v) => onRenameConfirm(file.id, v)}
                     onCancel={onRenameCancel}
+                    className="w-full px-1.5 text-center"
                   />
                 ) : (
                   <p className="truncate text-foreground text-sm" title={file.name}>
@@ -181,40 +157,3 @@ export const FileGrid = memo(function FileGrid({
     </div>
   )
 })
-
-function InlineRename({
-  value,
-  onConfirm,
-  onCancel
-}: {
-  value: string
-  onConfirm: (v: string) => void
-  onCancel: () => void
-}) {
-  const [text, setText] = useState(value)
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.focus()
-      const dotIdx = value.lastIndexOf('.')
-      ref.current.setSelectionRange(0, dotIdx > 0 ? dotIdx : value.length)
-    }
-  }, [value])
-  return (
-    <Input
-      ref={ref}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && text.trim()) onConfirm(text.trim())
-        if (e.key === 'Escape') onCancel()
-      }}
-      onBlur={() => {
-        if (text.trim()) onConfirm(text.trim())
-        else onCancel()
-      }}
-      className="h-auto w-full rounded-md border border-border bg-background px-1.5 py-0.5 text-center text-foreground text-xs shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15"
-      onClick={(e) => e.stopPropagation()}
-    />
-  )
-}

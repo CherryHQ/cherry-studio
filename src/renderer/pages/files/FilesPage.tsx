@@ -5,6 +5,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { FileEntry } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
+import type { FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
 import { FolderClosed, Pencil, RotateCcw, Trash2, Upload, X } from 'lucide-react'
@@ -50,6 +51,21 @@ function stripCurrentExtension(name: string, format: string): string {
   if (!format) return name
   const suffix = `.${format}`
   return name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length) : name
+}
+
+function compareFiles(a: FileItem, b: FileItem, sortKey: SortKey): number {
+  switch (sortKey) {
+    case 'name':
+      return a.name.localeCompare(b.name)
+    case 'size':
+      return a.sizeBytes - b.sizeBytes
+    case 'updatedAt':
+      return a.updatedAt.localeCompare(b.updatedAt)
+    case 'type':
+      return a.type.localeCompare(b.type)
+    default:
+      return 0
+  }
 }
 
 function toFileItem(
@@ -171,19 +187,18 @@ function CMenuItem({
   onClick: () => void
   disabled?: boolean
 }) {
+  const colorClasses = disabled
+    ? 'cursor-not-allowed text-muted-foreground/30'
+    : danger
+      ? 'text-destructive/70 hover:bg-destructive/[0.08]'
+      : 'text-popover-foreground/70 hover:bg-accent'
   return (
     <Button
       size="sm"
       variant="ghost"
       onClick={onClick}
       disabled={disabled}
-      className={`flex w-full items-center justify-start gap-1.5 rounded-md px-2 py-[5px] text-left text-xs transition-colors ${
-        disabled
-          ? 'cursor-not-allowed text-muted-foreground/30'
-          : danger
-            ? 'text-destructive/70 hover:bg-destructive/[0.08]'
-            : 'text-popover-foreground/70 hover:bg-accent'
-      }`}>
+      className={`flex w-full items-center justify-start gap-1.5 rounded-md px-2 py-[5px] text-left text-xs transition-colors ${colorClasses}`}>
       <Icon size={11} className={disabled ? 'opacity-30' : ''} />
       <span>{label}</span>
     </Button>
@@ -362,11 +377,7 @@ function FilesPage() {
     }
 
     result = [...result].sort((a, b) => {
-      let cmp = 0
-      if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
-      else if (sortKey === 'size') cmp = a.sizeBytes - b.sizeBytes
-      else if (sortKey === 'updatedAt') cmp = a.updatedAt.localeCompare(b.updatedAt)
-      else if (sortKey === 'type') cmp = a.type.localeCompare(b.type)
+      const cmp = compareFiles(a, b, sortKey)
       return sortDir === 'asc' ? cmp : -cmp
     })
 
@@ -377,13 +388,10 @@ function FilesPage() {
     const active = files.filter((f) => !f.trashed)
     const counts: Record<string, number> = {
       all: active.length,
-      trash: files.filter((f) => f.trashed).length,
-      type_image: active.filter((f) => f.type === 'image').length,
-      type_video: active.filter((f) => f.type === 'video').length,
-      type_audio: active.filter((f) => f.type === 'audio').length,
-      type_text: active.filter((f) => f.type === 'text').length,
-      type_document: active.filter((f) => f.type === 'document').length,
-      type_other: active.filter((f) => f.type === 'other').length
+      trash: files.filter((f) => f.trashed).length
+    }
+    for (const type of ['image', 'video', 'audio', 'text', 'document', 'other'] as FileType[]) {
+      counts[`type_${type}`] = active.filter((f) => f.type === type).length
     }
     for (const f of active) {
       if (f.origin === 'external' && f.folder) {
@@ -395,14 +403,14 @@ function FilesPage() {
   }, [files])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
-  const batchDeleteLabel = useMemo(() => {
+  const batchDeleteLabel = (() => {
     if (isTrash) return t('files.permanent_delete')
     if (selectedFiles.length > 0 && selectedFiles.every((file) => file.origin === 'external')) {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
     return t('files.delete.label')
-  }, [isTrash, selectedFiles, t])
+  })()
 
   const handleSelect = useCallback((id: string, multi: boolean) => {
     setSelectedIds((prev) => {

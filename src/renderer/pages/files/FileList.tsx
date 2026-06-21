@@ -1,39 +1,11 @@
-import { Button, Input } from '@cherrystudio/ui'
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  File,
-  FileCode,
-  FileText,
-  Image as ImageIcon,
-  Music,
-  Video
-} from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useEffect, useRef, useState } from 'react'
+import { Button } from '@cherrystudio/ui'
+import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel } from './fileDisplay'
-
-const typeIcons: Record<string, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {
-  image: ImageIcon,
-  video: Video,
-  audio: Music,
-  text: FileCode,
-  document: FileText,
-  other: File
-}
-
-const typeIconColors: Record<string, string> = {
-  image: 'text-pink-500/50',
-  video: 'text-violet-500/50',
-  audio: 'text-amber-500/50',
-  text: 'text-cyan-500/50',
-  document: 'text-blue-500/50',
-  other: 'text-muted-foreground/40'
-}
+import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
+import { InlineRename } from './InlineRename'
 
 export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
 export type SortDir = 'asc' | 'desc'
@@ -54,6 +26,8 @@ function SortHeader({
   className?: string
 }) {
   const active = sortKey === field
+  const SortIcon = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
+  const iconClass = active ? 'shrink-0' : 'shrink-0 text-muted-foreground/30'
   return (
     <Button
       variant="ghost"
@@ -63,15 +37,7 @@ function SortHeader({
         active ? 'text-muted-foreground' : 'text-muted-foreground/40 hover:text-foreground'
       } ${cn || ''}`}>
       <span>{label}</span>
-      {active ? (
-        sortDir === 'asc' ? (
-          <ChevronUp size={9} className="shrink-0" />
-        ) : (
-          <ChevronDown size={9} className="shrink-0" />
-        )
-      ) : (
-        <ChevronsUpDown size={9} className="shrink-0 text-muted-foreground/30" />
-      )}
+      <SortIcon size={9} className={iconClass} />
     </Button>
   )
 }
@@ -127,7 +93,7 @@ export const FileList = memo(function FileList({
       </div>
       {files.map((file) => {
         const selected = selectedIds.has(file.id)
-        const Icon = typeIcons[file.type] || File
+        const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         return (
           <div
@@ -143,16 +109,13 @@ export const FileList = memo(function FileList({
               selected ? 'bg-accent/50' : 'hover:bg-accent/50'
             }`}>
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Icon
-                size={13}
-                strokeWidth={1.4}
-                className={`shrink-0 ${typeIconColors[file.type] || typeIconColors.other}`}
-              />
+              <Icon size={13} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
               {isRenaming ? (
                 <InlineRename
                   value={file.name}
                   onConfirm={(v) => onRenameConfirm(file.id, v)}
                   onCancel={onRenameCancel}
+                  className="flex-1 px-2"
                 />
               ) : (
                 <span className="truncate text-foreground text-sm">{file.name}</span>
@@ -167,40 +130,3 @@ export const FileList = memo(function FileList({
     </div>
   )
 })
-
-function InlineRename({
-  value,
-  onConfirm,
-  onCancel
-}: {
-  value: string
-  onConfirm: (v: string) => void
-  onCancel: () => void
-}) {
-  const [text, setText] = useState(value)
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.focus()
-      const dotIdx = value.lastIndexOf('.')
-      ref.current.setSelectionRange(0, dotIdx > 0 ? dotIdx : value.length)
-    }
-  }, [value])
-  return (
-    <Input
-      ref={ref}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && text.trim()) onConfirm(text.trim())
-        if (e.key === 'Escape') onCancel()
-      }}
-      onBlur={() => {
-        if (text.trim()) onConfirm(text.trim())
-        else onCancel()
-      }}
-      className="h-auto flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-foreground text-xs shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15"
-      onClick={(e) => e.stopPropagation()}
-    />
-  )
-}
