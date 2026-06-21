@@ -1025,6 +1025,9 @@ importers:
       stream-json:
         specifier: ^1.9.1
         version: 1.9.1
+      streamdown:
+        specifier: ^2.5.0
+        version: 2.5.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       strict-url-sanitise:
         specifier: ^0.0.1
         version: 0.0.1
@@ -1082,6 +1085,9 @@ importers:
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
+      virtua:
+        specifier: ^0.49.1
+        version: 0.49.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       vite:
         specifier: npm:rolldown-vite@7.3.0
         version: rolldown-vite@7.3.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
@@ -14448,6 +14454,26 @@ packages:
 
   vimeo-video-element@1.6.3:
     resolution: {integrity: sha512-pSBMYV+7KbChvtzuXGR3Sg7ZqaAZuTOnHrlZxrauIH2GWMLDnOEK5D0o7yWCcnswtQHVlIz6hXeJYbvQC+gAkw==}
+
+  virtua@0.49.1:
+    resolution: {integrity: sha512-6f79msqg3jzNFdqJiS0FSzhRN1EHlDhR7EvW7emp6z5qQ22VdsReiDHflkpMEMhoAyUuYr69nwT0aagiM7NrUg==}
+    peerDependencies:
+      react: '>=16.14.0'
+      react-dom: '>=16.14.0'
+      solid-js: '>=1.0'
+      svelte: '>=5.0'
+      vue: '>=3.2'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      solid-js:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
 
   vite-code-inspector-plugin@0.20.17:
     resolution: {integrity: sha512-WdAEvVZCtvJR/xFGaObdI23ic9umqf8BIAaROetsICsJaXnS0AqvtbAONGgfQ7zLXOBv9PJAuIgICkIDFsCnZA==}
@@ -29758,6 +29784,11 @@ snapshots:
   vimeo-video-element@1.6.3:
     dependencies:
       '@vimeo/player': 2.29.0
+
+  virtua@0.49.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    optionalDependencies:
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   vite-code-inspector-plugin@0.20.17:
     dependencies:
