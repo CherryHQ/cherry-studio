@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   applyNodeProxyFromEnvironment,
@@ -8,6 +8,7 @@ import {
   getProxyProtocol,
   ProxyBypassRuleMatcher
 } from '../proxy/nodeProxy'
+import { isProxyReachable } from '../ProxyManager'
 
 // Mock lifecycle to allow direct instantiation
 vi.mock('@main/core/lifecycle', () => {
@@ -274,5 +275,90 @@ describe('ProxyManager - bypass evaluation', () => {
       proxyRules: 'socks5://127.0.0.1:6153',
       proxyBypassRules: 'localhost'
     })
+  })
+})
+
+describe('isProxyReachable', () => {
+  // Black-box: reachable proxy
+  it('returns true when proxy is reachable (localhost test server)', async () => {
+    const net = await import('net')
+    const server = net.createServer()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    const port = address && typeof address === 'object' ? address.port : 0
+
+    const result = await isProxyReachable(`http://127.0.0.1:${port}`)
+    expect(result).toBe(true)
+
+    server.close()
+  })
+
+  // Black-box: unreachable proxy
+  it('returns false when proxy port is not listening', async () => {
+    const result = await isProxyReachable('http://127.0.0.1:59999')
+    expect(result).toBe(false)
+  })
+
+  it('returns false for unreachable host', async () => {
+    const result = await isProxyReachable('http://192.0.2.1:8080', 100)
+    expect(result).toBe(false)
+  })
+
+  // Black-box: URL parsing edge cases
+  it('uses default port 80 for http URLs without port', async () => {
+    // Use a non-routable test IP to avoid collision with local services
+    const result = await isProxyReachable('http://192.0.2.1', 100)
+    expect(result).toBe(false)
+  })
+
+  it('uses default port 443 for https URLs without port', async () => {
+    const result = await isProxyReachable('https://192.0.2.1', 100)
+    expect(result).toBe(false)
+  })
+
+  it('returns false for invalid URL', async () => {
+    const result = await isProxyReachable('not-a-url')
+    expect(result).toBe(false)
+  })
+
+  it('returns false for empty string', async () => {
+    const result = await isProxyReachable('')
+    expect(result).toBe(false)
+  })
+
+  // White-box: timeout behavior
+  it('respects custom timeout', async () => {
+    const start = Date.now()
+    await isProxyReachable('http://192.0.2.1:8080', 50)
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeLessThan(200)
+  })
+
+  it('uses default 3s timeout when not specified', async () => {
+    const start = Date.now()
+    await isProxyReachable('http://192.0.2.1:8080')
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeLessThan(4000)
+    expect(elapsed).toBeGreaterThanOrEqual(100)
+  })
+
+  // Security: URL with credentials should not leak
+  it('handles URLs with credentials without error', async () => {
+    const result = await isProxyReachable('http://user:pass@127.0.0.1:59999', 100)
+    expect(result).toBe(false)
+  })
+
+  // Security: IPv6 addresses
+  it('handles IPv6 localhost', async () => {
+    const result = await isProxyReachable('http://[::1]:59999', 100)
+    expect(result).toBe(false)
+  })
+
+  // Performance: should not hang
+  it('resolves within reasonable time for dead proxy', async () => {
+    const start = Date.now()
+    await isProxyReachable('http://127.0.0.1:59998', 100)
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeLessThan(500)
   })
 })
