@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
+import { useCurrentTab, useCurrentTabId } from '@renderer/context/TabIdContext'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
@@ -18,10 +20,23 @@ import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
+const BASE_URL = 'https://www.cherry-ai.com/'
+
+function isMiniAppTabUrl(url: string, appId: string): boolean {
+  try {
+    return new URL(url, BASE_URL).pathname === `/app/mini-app/${encodeURIComponent(appId)}`
+  } catch {
+    return url === `/app/mini-app/${encodeURIComponent(appId)}`
+  }
+}
 
 const MiniAppPage: FC = () => {
   const { t } = useTranslation()
   const { appId } = useParams({ strict: false })
+  const currentTabId = useCurrentTabId()
+  const currentTab = useCurrentTab()
+  const tabsContext = useOptionalTabsContext()
+  const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
 
@@ -33,6 +48,22 @@ const MiniAppPage: FC = () => {
     // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
     return openedKeepAliveMiniApps.find((a) => a.appId === appId) ?? null
   }, [appId, allApps, openedKeepAliveMiniApps])
+
+  const displayName = useMemo(() => {
+    if (!app) return null
+    return app.nameKey ? t(app.nameKey) : app.name
+  }, [app, t])
+
+  useEffect(() => {
+    if (!app || !displayName || !currentTabId || !currentTab || !updateTab) return
+    if (!isMiniAppTabUrl(currentTab.url, app.appId)) return
+    if (currentTab.title === displayName && currentTab.icon === app.logo) return
+
+    updateTab(currentTabId, {
+      title: displayName,
+      icon: app.logo
+    })
+  }, [app, currentTab, currentTabId, displayName, updateTab])
 
   useEffect(() => {
     if (isLoading) return
