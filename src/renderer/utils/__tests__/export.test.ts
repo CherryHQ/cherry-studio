@@ -54,6 +54,19 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
     const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
     return mainTextBlock?.content || '' // Assuming content exists on MainTextBlock
   }),
+  // Gated copy/naming variant — text-only here (the mock never synthesises
+  // code/error/translation), which already matches dropping error/translation.
+  getNamingTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
+    if (message.parts?.length) {
+      return message.parts
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text || '')
+        .filter((text) => text.trim().length > 0)
+        .join('\n\n')
+    }
+    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    return mainTextBlock?.content || ''
+  }),
   getThinkingContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
     if (message.parts?.length) {
       return message.parts

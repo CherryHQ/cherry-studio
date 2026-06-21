@@ -12,7 +12,12 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getComposerTextFromMessage } from '@renderer/utils/messageUtils/composerTokens'
-import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
+import {
+  getCitationContent,
+  getMainTextContent,
+  getNamingTextContent,
+  getThinkingContent
+} from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
@@ -349,13 +354,17 @@ export const messagesToMarkdown = async (
 
 const formatMessageAsPlainText = (message: ExportableMessage): string => {
   const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
-  const content = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Copy path: use the gated text (drops error/translation) so copying an
+  // errored or translated message yields the clean answer, not an error dump.
+  // Full-fidelity export keeps `getMainTextContent`.
+  const content = getComposerTextFromMessage(message, getNamingTextContent(message))
   const plainTextContent = markdownToPlainText(content).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
 export const messageToPlainText = (message: ExportableMessage): string => {
-  const content = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Copy path — gated, see `formatMessageAsPlainText`.
+  const content = getComposerTextFromMessage(message, getNamingTextContent(message))
   return markdownToPlainText(content).trim()
 }
 

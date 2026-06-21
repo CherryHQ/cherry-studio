@@ -66,9 +66,11 @@ function collectText(message: ExportableMessage, excludedTypes?: ReadonlySet<Che
 export const getMainTextContent = (message: ExportableMessage): string => collectText(message)
 
 /**
- * Plain text for topic-naming / summary prompts. Same as `getMainTextContent`
- * but drops `data-error` / `data-translation` parts so error text and
- * translations don't reach the naming model. Both kinds stay in the full export.
+ * Clean plain text for paths that want the answer only — topic-naming / summary
+ * prompts and copy-to-clipboard. Same as `getMainTextContent` but drops
+ * `data-error` / `data-translation` parts, so error dumps and translations don't
+ * reach the naming model or the clipboard. Full-fidelity **export** keeps
+ * `getMainTextContent` (both kinds included).
  */
 export const getNamingTextContent = (message: ExportableMessage): string =>
   collectText(message, NAMING_EXCLUDED_PART_TYPES)
