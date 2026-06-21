@@ -197,11 +197,13 @@ running state.
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
 `feature.api_gateway.api_key` the first time it is missing.
 
-All activation/deactivation flows through one `reconcile()` loop — the **sole**
-caller of `activate`/`deactivate`, driven by `onReady`, the
-`feature.api_gateway.enabled` subscription, and the IPC `start`/`stop`/`restart`.
-It converges the running state to the latest desired value (looping against the
-actual activated state), so an opposing toggle that lands mid-transition can't
+All activation/deactivation flows through a self-held
+[`createLatestReconciler`](../../../src/main/core/concurrency/README.md) — the
+**sole** caller of `activate`/`deactivate`, driven by `onReady`, the
+`feature.api_gateway.enabled` subscription, and the IPC `start`/`stop`/`restart`
+(which set `desiredEnabled`, then `request()` + `await flush()`). It converges the
+running state to the latest desired value (`getSnapshot` re-reads the actual
+activated state every pass), so an opposing toggle that lands mid-transition can't
 leave the gateway diverged from intent; a still-current failure isn't retried (no
 spin). `restart()` is `stop()` then `start()`.
 
