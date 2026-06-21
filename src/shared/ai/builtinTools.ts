@@ -146,3 +146,56 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
   'if the task produced no files.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
+
+// ── read_file ────────────────────────────────────────────────────
+
+export const READ_FILE_TOOL_NAME = 'read_file'
+
+export const readFileInputSchema = z.object({
+  filename: z
+    .string()
+    .trim()
+    .min(1)
+    .describe(
+      'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
+    ),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'For text results: 0-based character offset to start from. Page through long documents with offset+limit. ' +
+        'Ignored for files returned as native media (image/PDF).'
+    ),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(200_000)
+    .optional()
+    .describe('For text results: max characters to return. Ignored for files returned as native media (image/PDF).')
+})
+
+export const readFileTextResultSchema = z.object({
+  kind: z.literal('text'),
+  text: z.string(),
+  /** Total characters available in the extracted text (for paging). */
+  totalChars: z.number().int().nonnegative(),
+  /** Next `offset` to pass to continue reading, omitted when the end was reached. */
+  nextOffset: z.number().int().nonnegative().optional()
+})
+
+export const readFileMediaResultSchema = z.object({
+  kind: z.literal('media'),
+  fileEntryId: z.string(),
+  mediaType: z.string(),
+  filename: z.string().optional()
+})
+
+export const readFileOutputSchema = z.discriminatedUnion('kind', [readFileTextResultSchema, readFileMediaResultSchema])
+
+export type ReadFileInput = z.infer<typeof readFileInputSchema>
+export type ReadFileTextResult = z.infer<typeof readFileTextResultSchema>
+export type ReadFileMediaResult = z.infer<typeof readFileMediaResultSchema>
+export type ReadFileOutput = z.infer<typeof readFileOutputSchema>

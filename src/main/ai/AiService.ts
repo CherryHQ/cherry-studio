@@ -21,7 +21,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String, URLString } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
-import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -32,7 +32,7 @@ import {
 import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
-import { resolveUIMessageFileUrls } from './messages/messageConverter'
+import { prepareChatMessages } from './messages/attachmentManifest'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -379,7 +379,7 @@ export class AiService extends BaseService {
       extraFeatures
     )
 
-    const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
+    const preparedMessages = await prepareChatMessages(request.messages ?? [], isFunctionCallingModel(model))
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,

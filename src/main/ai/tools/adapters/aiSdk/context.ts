@@ -3,6 +3,34 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { ModelMessage } from 'ai'
 
 /**
+ * What the target model/provider can do with a file the `read_file` tool hands
+ * back, deciding native-media vs extracted-text per attachment. Resolved once
+ * per request from (provider, model) — see `resolveFileToolCapabilities`.
+ */
+export interface FileToolCapabilities {
+  /** Provider accepts media inside a tool result (OpenAI-Responses / Anthropic / Gemini). */
+  readonly acceptsMediaInToolResult: boolean
+  /** Model can natively understand images. */
+  readonly isVision: boolean
+  /** Model can natively understand audio. */
+  readonly isAudio: boolean
+  /** Model can natively understand video. */
+  readonly isVideo: boolean
+}
+
+/**
+ * One attachment the `read_file` tool may read this request. The model
+ * references files by `filename` (from the manifest) — the internal
+ * `fileEntryId` never reaches the model. Doubles as an allow-list: the tool
+ * only resolves files attached to the current conversation.
+ */
+export interface FileAttachmentRef {
+  readonly fileEntryId: string
+  readonly filename: string
+  readonly mediaType: string
+}
+
+/**
  * Per-request context constructed once in `buildAgentParams` and
  * threaded through AI SDK's `experimental_context`. Kept minimal — add
  * fields only when a tool actually needs them.
@@ -18,6 +46,12 @@ export interface RequestContext {
   readonly assistant?: Assistant
 
   readonly abortSignal?: AbortSignal
+
+  /** Capability gate for the `read_file` tool's file-vs-text decision. */
+  readonly fileToolCaps?: FileToolCapabilities
+
+  /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
+  readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

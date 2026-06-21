@@ -6,7 +6,7 @@
 
 import { loggerService } from '@logger'
 import type { CherryMessagePart, CherryUIMessage, Message } from '@shared/data/types/message'
-import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
+import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveFileUIPart } from './fileProcessor'
 
@@ -47,9 +47,10 @@ export async function resolveUIMessageFileUrls<T extends UIMessage = UIMessage>(
   return Promise.all(messages.map(resolveMessageParts))
 }
 
-export async function prepareModelMessages(messages: Message[]): Promise<ModelMessage[]> {
+export async function prepareModelMessages(messages: Message[], tools?: ToolSet): Promise<ModelMessage[]> {
   const uiMessages = await resolveUIMessageFileUrls(messages.map(toCherryUIMessage))
-  return convertToModelMessages(uiMessages)
+  // `tools` lets persisted tool outputs re-materialize via `toModelOutput` on resend.
+  return convertToModelMessages(uiMessages, tools ? { tools } : undefined)
 }
 
 export async function prepareUIMessages(messages: Message[]): Promise<CherryUIMessage[]> {

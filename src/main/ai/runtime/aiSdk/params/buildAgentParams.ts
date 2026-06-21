@@ -1,4 +1,4 @@
-import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
@@ -6,8 +6,9 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
+import { collectFileAttachments } from '../../../messages/attachmentManifest'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
@@ -33,12 +34,14 @@ import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import type { RequestFeature } from './feature'
 import { INTERNAL_FEATURES } from './features'
+import { resolveFileToolCapabilities } from './fileToolCapabilities'
 import type { RequestScope, SdkConfig } from './scope'
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
     chatId?: string
     messageId?: string
+    messages?: UIMessage[]
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -63,8 +66,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const sdkConfig = await resolveSdkConfig(provider, model)
   applyHttpTrace(sdkConfig, request.chatId, model)
+  const fileAttachments = collectFileAttachments(request.messages)
+  const hasFileAttachments = fileAttachments.length > 0
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model)
+    ? await resolveTools(request, assistant, model, hasFileAttachments)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
@@ -75,7 +80,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
     assistant,
-    abortSignal: signal
+    abortSignal: signal,
+    fileToolCaps: resolveFileToolCapabilities(provider, model, aiSdkProviderId),
+    fileAttachments
   }
 
   const scope: RequestScope = {
@@ -90,7 +97,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType,
     aiSdkProviderId,
     requestContext,
-    mcpToolIds
+    mcpToolIds,
+    hasFileAttachments
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
@@ -118,7 +126,7 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
 
 export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
+  const settings = sdkConfig.providerSettings
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
     topicId,
     modelName: model.name ?? model.id
@@ -147,7 +155,8 @@ function canModelConsumeTools(model: Model): boolean {
 async function resolveTools(
   request: BuildAgentParamsInput['request'],
   assistant: Assistant | undefined,
-  model: Model
+  model: Model,
+  hasFileAttachments: boolean
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -165,7 +174,7 @@ async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds })
+  const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
