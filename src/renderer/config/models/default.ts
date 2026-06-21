@@ -2063,5 +2063,43 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GLM-4.5V',
       group: 'GLM-4.5V'
     }
+  ],
+  kevoryn: [
+    {
+      id: 'claude-opus-4-8',
+      provider: 'kevoryn',
+      name: 'Claude Opus 4.8',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-sonnet-4-6',
+      provider: 'kevoryn',
+      name: 'Claude Sonnet 4.6',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-haiku-4-5',
+      provider: 'kevoryn',
+      name: 'Claude Haiku 4.5',
+      group: 'Claude'
+    },
+    {
+      id: 'gpt-5.5',
+      provider: 'kevoryn',
+      name: 'GPT-5.5',
+      group: 'GPT'
+    },
+    {
+      id: 'deepseek-v4-pro',
+      provider: 'kevoryn',
+      name: 'DeepSeek V4 Pro',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      provider: 'kevoryn',
+      name: 'Gemini 3.1 Pro',
+      group: 'Gemini'
+    }
   ]
 }

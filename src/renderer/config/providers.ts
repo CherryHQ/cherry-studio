@@ -16,6 +16,17 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
 }
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
+  kevoryn: {
+    id: 'kevoryn',
+    name: 'Kevoryn',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.kevoryn.com/v1',
+    models: SYSTEM_MODELS.kevoryn,
+    isSystem: true,
+    enabled: false,
+    docs: 'https://kevoryn.com'
+  },
   cherryin: {
     id: 'cherryin',
     name: 'CherryIN',
