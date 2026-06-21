@@ -6,10 +6,13 @@
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
  * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
- * `…__kb_read`, `…__kb_grep`, `…__kb_list`, and `…__report_artifacts`.
+ * `…__kb_read`, `…__kb_grep`, `…__kb_tree`, `…__kb_list`, `…__kb_manage`, and
+ * `…__report_artifacts`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
- * knowledge selection — the agent sees all of the user's knowledge bases.
+ * knowledge selection — the agent sees all of the user's knowledge bases. The
+ * destructive `kb_manage` tool relies on Claude Code's own per-call permission
+ * prompt for approval (the AI-SDK path uses the tool's `needsApproval` instead).
  */
 
 import { loggerService } from '@logger'
@@ -17,15 +20,18 @@ import {
   grepConcept,
   KNOWLEDGE_GREP_DESCRIPTION,
   KNOWLEDGE_LIST_DESCRIPTION,
+  KNOWLEDGE_MANAGE_DESCRIPTION,
   KNOWLEDGE_READ_DESCRIPTION,
   KNOWLEDGE_SEARCH_DESCRIPTION,
   KNOWLEDGE_TREE_DESCRIPTION,
   knowledgeGrepModelOutput,
   knowledgeListModelOutput,
+  knowledgeManageModelOutput,
   knowledgeReadModelOutput,
   knowledgeSearchModelOutput,
   knowledgeTreeModelOutput,
   listKnowledgeBases,
+  manageKnowledge,
   readConcept,
   readTree,
   searchKnowledge
@@ -48,11 +54,13 @@ import {
 import {
   KB_GREP_TOOL_NAME,
   KB_LIST_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   KB_TREE_TOOL_NAME,
   kbGrepInputSchema,
   kbListInputSchema,
+  kbManageInputSchema,
   kbReadInputSchema,
   kbSearchInputSchema,
   kbTreeInputSchema,
@@ -139,6 +147,14 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args) => {
       const input = kbListInputSchema.parse(args)
       return knowledgeListModelOutput(await listKnowledgeBases(input.query, input.groupId, KB_ALLOWED_IDS), input)
+    }
+  },
+  [KB_MANAGE_TOOL_NAME]: {
+    description: KNOWLEDGE_MANAGE_DESCRIPTION,
+    inputSchema: kbManageInputSchema,
+    run: async (args) => {
+      const input = kbManageInputSchema.parse(args)
+      return knowledgeManageModelOutput(await manageKnowledge(input, KB_ALLOWED_IDS))
     }
   },
   // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the

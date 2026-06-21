@@ -6,6 +6,9 @@ const kbSearch = vi.fn()
 const kbReadConcept = vi.fn()
 const kbGrepConcept = vi.fn()
 const kbGetOrganizationTree = vi.fn()
+const kbAddItems = vi.fn()
+const kbDeleteConcepts = vi.fn()
+const kbRefreshConcepts = vi.fn()
 const listBases = vi.fn()
 const listRootItems = vi.fn()
 
@@ -25,6 +28,9 @@ vi.mock('@main/core/application', () => ({
           readConcept: kbReadConcept,
           grepConcept: kbGrepConcept,
           getOrganizationTree: kbGetOrganizationTree,
+          addItems: kbAddItems,
+          deleteConcepts: kbDeleteConcepts,
+          refreshConcepts: kbRefreshConcepts,
           listBases,
           listRootItems
         }
@@ -61,6 +67,9 @@ describe('cherryBuiltinTools', () => {
     kbReadConcept.mockReset()
     kbGrepConcept.mockReset()
     kbGetOrganizationTree.mockReset()
+    kbAddItems.mockReset()
+    kbDeleteConcepts.mockReset()
+    kbRefreshConcepts.mockReset()
     listBases.mockReset()
     listRootItems.mockReset()
   })
@@ -70,6 +79,7 @@ describe('cherryBuiltinTools', () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       'kb_grep',
       'kb_list',
+      'kb_manage',
       'kb_read',
       'kb_search',
       'kb_tree',
@@ -303,6 +313,47 @@ describe('cherryBuiltinTools', () => {
 
     expect(result.isError).toBeFalsy()
     expect(textOf(result)).toMatch(/no items/i)
+  })
+
+  it('runs kb_manage add unscoped, building the add input from an absolute file path', async () => {
+    kbAddItems.mockResolvedValue({ status: 'added' })
+
+    const result = await callCherryBuiltinTool(
+      'kb_manage',
+      { baseId: 'b1', action: 'add', type: 'file', path: '/Users/me/docs/report.pdf' },
+      signal
+    )
+
+    expect(kbAddItems).toHaveBeenCalledWith('b1', [
+      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+    ])
+    expect(result.isError).toBeFalsy()
+    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['report.pdf'] })
+  })
+
+  it('runs kb_manage delete unscoped, forwarding conceptIds and the applied/notFound split', async () => {
+    kbDeleteConcepts.mockResolvedValue({ applied: ['docs/a.md'], notFound: ['docs/gone.md'] })
+
+    const result = await callCherryBuiltinTool(
+      'kb_manage',
+      { baseId: 'b1', action: 'delete', conceptIds: ['docs/a.md', 'docs/gone.md'] },
+      signal
+    )
+
+    expect(kbDeleteConcepts).toHaveBeenCalledWith('b1', ['docs/a.md', 'docs/gone.md'])
+    expect(JSON.parse(textOf(result))).toEqual({
+      action: 'delete',
+      deleted: ['docs/a.md'],
+      notFound: ['docs/gone.md']
+    })
+  })
+
+  it('steers kb_manage (not an error) when a required add field is missing', async () => {
+    const result = await callCherryBuiltinTool('kb_manage', { baseId: 'b1', action: 'add', type: 'note' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(kbAddItems).not.toHaveBeenCalled()
+    expect(textOf(result)).toContain('content')
   })
 
   it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {

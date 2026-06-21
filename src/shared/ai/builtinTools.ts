@@ -211,6 +211,70 @@ export type KbTreeInput = z.infer<typeof kbTreeInputSchema>
 export type KbTreeNode = z.infer<typeof kbTreeNodeSchema>
 export type KbTreeOutput = z.infer<typeof kbTreeOutputSchema>
 
+// ── kb_manage ────────────────────────────────────────────────────
+
+export const KB_MANAGE_TOOL_NAME = 'kb_manage'
+
+export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh'] as const
+export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
+
+// One flat object, not a discriminated union: which fields apply depends on `action`
+// (and, for add, on `type`). The core validates the combination and returns a steer
+// string on a missing field, so the model gets a clear error rather than a schema reject.
+export const kbManageInputSchema = z.object({
+  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
+  action: z
+    .enum(KB_MANAGE_ACTIONS)
+    .describe(
+      'add: import a new source (set `type` + its field). delete: remove documents by `conceptIds`. ' +
+        'refresh: re-index documents by `conceptIds`. All actions modify the base and require user approval.'
+    ),
+  type: z
+    .enum(KB_MANAGE_ADD_TYPES)
+    .optional()
+    .describe(
+      'For action="add" only: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'
+    ),
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('For action="add", type="file": absolute local filesystem path of the file to import.'),
+  url: z.string().trim().min(1).optional().describe('For action="add", type="url": the URL to fetch and index.'),
+  content: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('For action="add", type="note": the plain-text note content to index.'),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('For action="add", type="note": optional display title (defaults to the note\'s first line).'),
+  conceptIds: z
+    .array(z.string().trim().min(1))
+    .optional()
+    .describe(
+      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search / kb_tree / kb_list result) to operate on.'
+    )
+})
+
+export const kbManageOutputSchema = z.object({
+  action: z.enum(KB_MANAGE_ACTIONS),
+  // add: the source identifiers that were imported (one per add call).
+  added: z.array(z.string()).optional(),
+  // delete / refresh: the Concept IDs that resolved to a document and were applied.
+  deleted: z.array(z.string()).optional(),
+  refreshed: z.array(z.string()).optional(),
+  // delete / refresh: Concept IDs that did not resolve to a document in this base (no-op for those).
+  notFound: z.array(z.string()).optional()
+})
+
+export type KbManageInput = z.infer<typeof kbManageInputSchema>
+export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
+
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'

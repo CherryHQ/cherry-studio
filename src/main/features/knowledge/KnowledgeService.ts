@@ -140,6 +140,17 @@ export interface KnowledgeOrganizationTree {
 }
 
 /**
+ * Result of a Concept ID-addressed mutation ({@link KnowledgeService.deleteConcepts} /
+ * {@link KnowledgeService.refreshConcepts}). `applied` are the Concept IDs that resolved
+ * to a visible document and were acted on; `notFound` are those that did not resolve in
+ * this base (a no-op, reported back so the agent can re-check the id rather than assume success).
+ */
+export interface KnowledgeConceptMutationResult {
+  applied: string[]
+  notFound: string[]
+}
+
+/**
  * Concept ID (relative path, OKF §2) of a search hit's source document, or
  * undefined when it has none: a directory (no material), or a url/note whose
  * snapshot relativePath was not captured yet. A completed leaf normally has one,
@@ -542,6 +553,84 @@ export class KnowledgeService extends BaseService {
       totalMatches,
       matches
     }
+  }
+
+  /**
+   * Delete knowledge documents addressed by Concept ID (the deep-read/kb_manage
+   * write counterpart to {@link readConcept}). Each Concept ID is resolved to its
+   * knowledge item and deleted via {@link deleteItems} (which expands to the
+   * outermost selected subtree); an id that does not resolve to a visible document
+   * in this base is reported in `notFound` rather than failing the whole batch.
+   */
+  async deleteConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
+    const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'deleteConcepts')
+    if (found.length > 0) {
+      await this.deleteItems(
+        baseId,
+        found.map((entry) => entry.itemId)
+      )
+    }
+    return { applied: found.map((entry) => entry.conceptId), notFound }
+  }
+
+  /**
+   * Re-index knowledge documents addressed by Concept ID. Each Concept ID is
+   * resolved to its knowledge item and re-indexed via {@link reindexItems}; an id
+   * that does not resolve to a visible document in this base is reported in
+   * `notFound` rather than failing the whole batch.
+   */
+  async refreshConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
+    const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'refreshConcepts')
+    if (found.length > 0) {
+      await this.reindexItems(
+        baseId,
+        found.map((entry) => entry.itemId)
+      )
+    }
+    return { applied: found.map((entry) => entry.conceptId), notFound }
+  }
+
+  /**
+   * Resolve a batch of Concept IDs to their knowledge item ids for a Concept
+   * ID-addressed mutation. Mirrors {@link resolveConcept}'s identity boundary —
+   * each relative path is looked up in this base's index store, then re-validated
+   * against the visible knowledge_item (same base, completed) — but resolves many
+   * ids and partitions them into resolved (`found`) vs unresolved (`notFound`)
+   * instead of throwing, so one bad id does not sink the batch. Duplicate ids in
+   * the input are collapsed to a single resolution.
+   */
+  private async resolveConceptItemIds(
+    baseId: string,
+    conceptIds: string[],
+    operation: string
+  ): Promise<{ found: Array<{ conceptId: string; itemId: string }>; notFound: string[] }> {
+    const base = await knowledgeBaseService.getById(baseId)
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const store = await vectorStoreService.getIndexStore(base)
+
+    const found: Array<{ conceptId: string; itemId: string }> = []
+    const notFound: string[] = []
+    const seen = new Set<string>()
+
+    for (const conceptId of conceptIds) {
+      if (seen.has(conceptId)) {
+        continue
+      }
+      seen.add(conceptId)
+
+      const ref = await this.runStoreOperation(store, baseId, operation, () =>
+        store.getMaterialByRelativePath(conceptId)
+      )
+      // Identity re-check: the resolved material id must still be a visible item in this base.
+      const item = ref ? (await this.loadVisibleItems(baseId, [ref.materialId])).get(ref.materialId) : undefined
+      if (ref && item) {
+        found.push({ conceptId, itemId: ref.materialId })
+      } else {
+        notFound.push(conceptId)
+      }
+    }
+
+    return { found, notFound }
   }
 
   /**

@@ -1824,6 +1824,107 @@ describe('KnowledgeService', () => {
     })
   })
 
+  describe('deleteConcepts', () => {
+    const CONCEPT_ID = 'docs/intro.md'
+
+    function arrangeResolvable(itemBaseId = 'kb-1') {
+      getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
+        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID, contentHash: 'h' } : null
+      )
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
+    }
+
+    it('resolves a Concept ID to its item and deletes it, reporting it applied', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID])
+
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledWith(CONCEPT_ID)
+      expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID])
+      expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID], 'deleting')
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
+    })
+
+    it('partitions unresolved Concept IDs into notFound without failing the batch', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID, 'docs/missing.md'])
+
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: ['docs/missing.md'] })
+    })
+
+    it('treats a resolved material in another base as notFound (identity re-check)', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable('other-base')
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID])
+
+      expect(result).toEqual({ applied: [], notFound: [CONCEPT_ID] })
+      expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+    })
+
+    it('collapses duplicate Concept IDs to a single resolution', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID, CONCEPT_ID])
+
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledTimes(1)
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
+    })
+
+    it('is a no-op deletion when nothing resolves', async () => {
+      const service = new KnowledgeService()
+
+      const result = await service.deleteConcepts('kb-1', ['docs/missing.md'])
+
+      expect(result).toEqual({ applied: [], notFound: ['docs/missing.md'] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('refreshConcepts', () => {
+    const CONCEPT_ID = 'docs/intro.md'
+
+    function arrangeResolvable() {
+      getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
+        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID, contentHash: 'h' } : null
+      )
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    }
+
+    it('resolves a Concept ID to its item and re-indexes it, reporting it applied', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.refreshConcepts('kb-1', [CONCEPT_ID])
+
+      expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID])
+      expect(enqueueMock.mock.calls.map((call) => call[0])).toContain('knowledge.reindex-subtree')
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
+    })
+
+    it('partitions unresolved Concept IDs into notFound without failing the batch', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.refreshConcepts('kb-1', [CONCEPT_ID, 'docs/missing.md'])
+
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: ['docs/missing.md'] })
+    })
+
+    it('is a no-op refresh when nothing resolves', async () => {
+      const service = new KnowledgeService()
+
+      const result = await service.refreshConcepts('kb-1', ['docs/missing.md'])
+
+      expect(result).toEqual({ applied: [], notFound: ['docs/missing.md'] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+  })
+
   it('applies rerank results before applying relevance threshold', async () => {
     const service = new KnowledgeService()
     const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })

@@ -17,18 +17,28 @@
  * `WebSearchService` honours one). Add one here only once the service does.
  */
 
+import { basename } from 'node:path'
+
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type {
   KbGrepOutput,
   KbListOutput,
   KbListOutputItem,
+  KbManageInput,
+  KbManageOutput,
   KbReadOutput,
   KbSearchOutput,
   KbTreeOutput
 } from '@shared/ai/builtinTools'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
-import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeAddItemInput,
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
+import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('KnowledgeLookup')
@@ -61,6 +71,15 @@ export const KNOWLEDGE_TREE_DESCRIPTION = `Outline a knowledge base's structure 
 
 Use this to see what a base contains and how it is organized before searching or reading: it returns the base's organization tree as a flat top-down list of nodes, each with a \`depth\` (folder nesting), title, type, and — for a readable document — a \`conceptId\` you can pass to kb_read / kb_grep. Prefer kb_search when you have a specific question; use kb_tree to browse or when the user asks "what's in my knowledge base".`
 
+export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
+
+Set \`action\`:
+- "add": import one new source. Set \`type\` and its field — "file" (\`path\`: an absolute local file path), "url" (\`url\`), or "note" (\`content\`, optional \`title\`). The source is copied in and indexed.
+- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search / kb_tree / kb_list result) to remove.
+- "refresh": re-index documents (re-read the source, rebuild chunks/embeddings). Set \`conceptIds\`.
+
+Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search / kb_tree first; ids that don't resolve come back in \`notFound\`.`
+
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
  * would otherwise be `[]`. Success returns the results array (matching
@@ -73,6 +92,7 @@ export type KnowledgeListResultOrError = KbListOutput | KnowledgeLookupError
 export type KnowledgeReadResultOrError = KbReadOutput | KnowledgeLookupError
 export type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
 export type KnowledgeTreeResultOrError = KbTreeOutput | KnowledgeLookupError
+export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
 
 /**
  * Every targeted base failed (revoked embedding key, corrupt vector DB, deleted base): a real
@@ -337,6 +357,137 @@ export function knowledgeTreeModelOutput(
     return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
   }
   return { type: 'json', value: output }
+}
+
+/** Longest a derived note title (its first line) may be before it is truncated. */
+const NOTE_TITLE_MAX_CHARS = 80
+
+/**
+ * Apply a destructive knowledge-base change (add / delete / refresh). Like the
+ * read cores it never throws: an out-of-scope base, a missing required field, an
+ * unknown base, or a service error all return `{ error }` with a message the model
+ * can act on. `allowedIds` scopes which bases are reachable (empty = all).
+ *
+ * The caller is responsible for gating the call behind user approval — this core
+ * executes the mutation unconditionally once invoked.
+ */
+export async function manageKnowledge(
+  input: KbManageInput,
+  allowedIds: string[]
+): Promise<KnowledgeManageResultOrError> {
+  if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
+    logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
+    return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
+  }
+  try {
+    const service = application.get('KnowledgeService')
+    switch (input.action) {
+      case 'add': {
+        const built = buildAddInput(input)
+        if (!built.ok) return { error: built.error }
+        await service.addItems(input.baseId, [built.input])
+        return { action: 'add', added: [built.source] }
+      }
+      case 'delete': {
+        const conceptIds = input.conceptIds ?? []
+        if (conceptIds.length === 0) {
+          return { error: 'kb_manage delete requires `conceptIds` — one or more Concept IDs to remove.' }
+        }
+        const { applied, notFound } = await service.deleteConcepts(input.baseId, conceptIds)
+        return { action: 'delete', deleted: applied, notFound }
+      }
+      case 'refresh': {
+        const conceptIds = input.conceptIds ?? []
+        if (conceptIds.length === 0) {
+          return { error: 'kb_manage refresh requires `conceptIds` — one or more Concept IDs to re-index.' }
+        }
+        const { applied, notFound } = await service.refreshConcepts(input.baseId, conceptIds)
+        return { action: 'refresh', refreshed: applied, notFound }
+      }
+      default:
+        return { error: 'kb_manage requires `action` to be "add", "delete", or "refresh".' }
+    }
+  } catch (error) {
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      return { error: `Knowledge base "${input.baseId}" not found. Call kb_list to see the available bases.` }
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    logger.warn('KnowledgeService kb_manage operation failed', {
+      baseId: input.baseId,
+      action: input.action,
+      error: message
+    })
+    return { error: message }
+  }
+}
+
+export function knowledgeManageModelOutput(
+  output: KnowledgeManageResultOrError
+): { type: 'text'; value: string } | { type: 'json'; value: KbManageOutput } {
+  if (isConceptLookupError(output)) {
+    return { type: 'text', value: output.error }
+  }
+  return { type: 'json', value: output }
+}
+
+/** Either a validated add input plus the source identifier to report, or a steer string for a missing/invalid field. */
+type AddInputResult = { ok: true; input: KnowledgeAddItemInput; source: string } | { ok: false; error: string }
+
+/**
+ * Turn the flat kb_manage `add` payload into a validated {@link KnowledgeAddItemInput}.
+ * The per-type required field is checked first (a clear steer when it is missing),
+ * then the assembled item is run through {@link KnowledgeAddItemInputSchema} so an
+ * invalid value (e.g. a non-absolute file path) is rejected before it reaches the
+ * filesystem boundary. `source` is the identifier reported back as `added`.
+ */
+function buildAddInput(input: KbManageInput): AddInputResult {
+  switch (input.type) {
+    case 'file': {
+      if (!input.path) {
+        return { ok: false, error: 'kb_manage add with type "file" requires `path` — an absolute local file path.' }
+      }
+      const source = basename(input.path)
+      return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
+    }
+    case 'url': {
+      if (!input.url) {
+        return { ok: false, error: 'kb_manage add with type "url" requires `url`.' }
+      }
+      return validateAddInput({ type: 'url', data: { source: input.url, url: input.url } }, input.url)
+    }
+    case 'note': {
+      if (!input.content) {
+        return { ok: false, error: 'kb_manage add with type "note" requires `content`.' }
+      }
+      const source = deriveNoteSource(input.content, input.title)
+      return validateAddInput({ type: 'note', data: { source, content: input.content } }, source)
+    }
+    default:
+      return { ok: false, error: 'kb_manage add requires `type` to be "file", "url", or "note".' }
+  }
+}
+
+function validateAddInput(candidate: unknown, source: string): AddInputResult {
+  const parsed = KnowledgeAddItemInputSchema.safeParse(candidate)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `Invalid knowledge item to add: ${parsed.error.issues[0]?.message ?? 'validation failed'}`
+    }
+  }
+  return { ok: true, input: parsed.data, source }
+}
+
+/** A note's display source: the caller-supplied title, else its first non-empty line (truncated), else a placeholder. */
+function deriveNoteSource(content: string, title?: string): string {
+  const explicit = title?.trim()
+  if (explicit) return explicit
+  const firstLine = content
+    .split('\n')
+    .find((line) => line.trim().length > 0)
+    ?.trim()
+  if (!firstLine) return 'Untitled note'
+  return firstLine.length > NOTE_TITLE_MAX_CHARS ? firstLine.slice(0, NOTE_TITLE_MAX_CHARS) : firstLine
 }
 
 export async function listKnowledgeBases(
