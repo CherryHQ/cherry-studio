@@ -2,17 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getNormalizedExtension } from '../utils'
 
-const hoisted = vi.hoisted(() => ({
-  languages: {
-    svg: { extensions: ['.svg'] },
-    TypeScript: { extensions: ['.ts'] }
-  }
-}))
-
-vi.mock('@shared/config/languages', () => ({
-  languages: hoisted.languages
-}))
-
 describe('getNormalizedExtension', () => {
   beforeEach(() => {
     vi.clearAllMocks()

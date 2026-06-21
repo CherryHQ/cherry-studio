@@ -12,7 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { Upload } from 'lucide-react'
 import type { ChangeEvent, FC } from 'react'
 import { useMemo, useRef, useState } from 'react'
@@ -121,8 +121,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
 
         <div className="grid gap-4 py-4">
           <Field>
-            <FieldLabel htmlFor="miniapp-id">
-              <span className="text-destructive">*</span> {t('settings.miniApps.custom.id')}
+            <FieldLabel htmlFor="miniapp-id" required>
+              {t('settings.miniApps.custom.id')}
             </FieldLabel>
             <Input
               id="miniapp-id"
@@ -133,8 +133,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="miniapp-name">
-              <span className="text-destructive">*</span> {t('settings.miniApps.custom.name')}
+            <FieldLabel htmlFor="miniapp-name" required>
+              {t('settings.miniApps.custom.name')}
             </FieldLabel>
             <Input
               id="miniapp-name"
@@ -145,8 +145,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="miniapp-url">
-              <span className="text-destructive">*</span> {t('settings.miniApps.custom.url')}
+            <FieldLabel htmlFor="miniapp-url" required>
+              {t('settings.miniApps.custom.url')}
             </FieldLabel>
             <Input
               id="miniapp-url"

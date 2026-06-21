@@ -32,7 +32,7 @@ export type IpcEventName = keyof IpcEventSchemas
 
 The dot structure is a naming convention, not type syntax — `IpcRoute` is the strong-typed union `keyof IpcRequestSchemas`; an undeclared route is a compile error. Reuse Preference's `data-schema-key`/`valid-key` ESLint rule for the snake-case keys.
 
-> **ESLint glob (must do on first domain migration):** the `data-schema-key`/`valid-key` rule's `files` glob is currently hard-limited to `cacheSchemas.ts`/`preferenceSchemas.ts`/`pathRegistry.ts`. Add `src/shared/ipc/schemas/**` to that glob, otherwise the naming convention has no lint enforcement here.
+> **ESLint enforcement:** the `data-schema-key`/`valid-key` rule's `files` glob includes `src/shared/ipc/schemas/**/*.ts`, so every route/event key in this directory is lint-enforced and any new domain file is covered automatically. zod *data-field* names are exempt — keys inside a `z.*(...)` object literal (e.g. `z.object({ 'content-type': ... })`) are skipped, so only the route/event strings are constrained. This relies on zod being imported as `z` (the repo convention).
 
 ## Types Derived From Schemas
 

@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { useResolvedCommand } from '@renderer/features/command'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import { MessageSquareDiff } from 'lucide-react'

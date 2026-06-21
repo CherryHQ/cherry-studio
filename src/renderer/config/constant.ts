@@ -33,3 +33,25 @@ export const MAX_CONTEXT_COUNT = 100
 export const UNLIMITED_CONTEXT_COUNT = 100000
 
 export const MAX_COLLAPSED_CODE_HEIGHT = 350
+
+export const DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE = true
+
+export const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+}
+
+export const defaultByPassRules = 'localhost,127.0.0.1,::1'
+
+/**
+ * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
+ * userData directory tree at startup (in `src/main/core/preboot/userDataLocation.ts`),
+ * after the previous process has fully exited and no file is locked. The
+ * distinction between "occupied" and "non-occupied" directories has no meaning
+ * in v2 — the entire tree is opaque and copied as one unit.
+ *
+ * Still referenced only by `BasicDataSettings.tsx` (v1 in-process migration flow,
+ * to be rewritten to the new BootConfig `temp.user_data_relocation` protocol).
+ * This constant should be removed at the same time.
+ */
+export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']

@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Link > should match snapshot 1`] = `
+<div>
+  <div
+    data-href="https://example.com"
+    data-testid="hyperlink"
+  >
+    <a
+      class="text-primary hover:underline"
+      href="https://example.com"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <span
+        aria-hidden="true"
+        class="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
+      >
+        <span
+          data-alt=""
+          data-hostname="example.com"
+          data-testid="favicon"
+        />
+      </span>
+      Example
+    </a>
+  </div>
+</div>
+`;

@@ -32,7 +32,7 @@ import {
   DEFAULT_ASSISTANT_EMOJI,
   DEFAULT_ASSISTANT_NAME,
   DEFAULT_ASSISTANT_PROMPT
-} from '@shared/data/presets/default-assistant'
+} from '@shared/data/presets/defaultAssistant'
 import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'

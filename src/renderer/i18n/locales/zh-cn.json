@@ -2144,13 +2144,13 @@
         "view_chunks": "查看 Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "将递归导入文件夹中的支持文件",
-          "title": "点击选择文件夹"
+        "conflict_dialog": {
+          "description": "有 {{count}} 个数据源与知识库中已存在的项目同名，请选择处理方式。",
+          "keep_all": "全部保留",
+          "replace": "替换",
+          "title": "存在同名数据源"
         },
         "footer": {
-          "selected_directories": "已选 {{count}} 个目录",
-          "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "自动设置嵌入维度",
     "dimensions_size_placeholder": "留空表示不设置",
-    "drag_file": "拖拽文件到这里",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。",
       "model_invalid": "未选择模型"
     },
-    "file_hint": "支持 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -6368,7 +6366,8 @@
       "add": {
         "name": {
           "label": "提供商名称",
-          "placeholder": "例如 OpenAI"
+          "placeholder": "例如 OpenAI",
+          "required": "请输入提供商名称"
         },
         "title": "添加提供商",
         "type": "提供商类型"
@@ -6479,7 +6478,8 @@
       "balance": "余额",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "请输入 Base URL"
       },
       "basic_auth": {
         "label": "HTTP 认证",
@@ -7065,10 +7065,16 @@
       "title": "缩放"
     }
   },
+  "subWindow": {
+    "back_to_main": "回到主窗口",
+    "pin": "窗口置顶",
+    "unpin": "取消置顶"
+  },
   "tab": {
     "close": "关闭标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
+    "open_in_new_window": "从新窗口打开",
     "pin": "固定标签页",
     "unpin": "取消固定"
   },

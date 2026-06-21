@@ -1,4 +1,4 @@
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 import type { LanguageCode } from 'tesseract.js'
 import * as z from 'zod'
 

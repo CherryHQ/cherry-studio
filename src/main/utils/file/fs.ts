@@ -42,7 +42,7 @@ import path from 'node:path'
 import { Writable } from 'node:stream'
 
 import { loggerService } from '@logger'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
 

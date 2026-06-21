@@ -4,61 +4,92 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const tabs = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
+const mocks = vi.hoisted(() => ({
+  isMac: false,
+  setRecentItems: vi.fn(),
+  commandHandlers: new Map<string, () => void>(),
+  showSearchPopup: vi.fn()
+}))
 
-async function renderAppShell(isMac: boolean) {
-  vi.resetModules()
-  vi.doMock('@renderer/config/constant', () => ({ isMac }))
-  vi.doMock('@renderer/databases', () => ({}))
-  vi.doMock('@renderer/hooks/useMacTransparentWindow', () => ({
-    default: () => false
-  }))
-  vi.doMock('@renderer/hooks/useTabs', () => ({
-    useTabs: () => ({
-      tabs,
-      activeTabId: 'home',
-      setActiveTab: vi.fn(),
-      closeTab: vi.fn(),
-      updateTab: vi.fn(),
-      addTab: vi.fn(),
-      reorderTabs: vi.fn(),
-      pinTab: vi.fn(),
-      unpinTab: vi.fn()
-    })
-  }))
-  vi.doMock('@renderer/utils/routeTitle', () => ({
-    getDefaultRouteTitle: (url: string) => url
-  }))
-  vi.doMock('@renderer/components/app/Sidebar', () => ({
-    default: () => <aside data-testid="sidebar" />
-  }))
-  vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
-    default: () => <div data-testid="mini-app-pool" />
-  }))
-  vi.doMock('../AppShellTabBar', () => ({
-    AppShellTabBar: () => <header data-testid="tab-bar" />
-  }))
-  vi.doMock('../TabRouter', () => ({
-    TabRouter: ({ isActive }: { isActive: boolean }) => (
-      <section data-testid="tab-router">
-        {!isMac && isActive ? <div data-page-side-panel-root="true" data-testid="scoped-root" /> : null}
-      </section>
-    )
-  }))
+vi.mock('@renderer/databases', () => ({}))
 
-  const { AppShell } = await import('../AppShell')
-  render(<AppShell />)
-}
+vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
+  default: () => false
+}))
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void) => {
+    mocks.commandHandlers.set(command, handler)
+  }
+}))
+
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  usePersistCache: () => [[], mocks.setRecentItems]
+}))
+
+vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+  default: {
+    show: mocks.showSearchPopup
+  }
+}))
+
+vi.mock('../../../hooks/useTabs', () => ({
+  useTabs: () => ({
+    activeTabId: 'home',
+    closeTab: vi.fn(),
+    openTab: vi.fn(),
+    pinTab: vi.fn(),
+    reorderTabs: vi.fn(),
+    setActiveTab: vi.fn(),
+    tabs: [
+      {
+        id: 'home',
+        isDormant: false,
+        title: 'Chat',
+        type: 'route',
+        url: '/app/chat'
+      }
+    ],
+    unpinTab: vi.fn(),
+    updateTab: vi.fn()
+  })
+}))
+
+vi.mock('../../app/Sidebar', () => ({
+  default: () => <aside data-testid="sidebar" />
+}))
+
+vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
+  default: () => null
+}))
+
+vi.mock('../AppShellTabBar', () => ({
+  AppShellTabBar: () => <header data-testid="tab-bar" />
+}))
+
+// Mirror TabRouter's real scoped-root marking so AppShell's chrome layout can be
+// asserted without mounting the full router tree.
+vi.mock('../TabRouter', () => ({
+  TabRouter: ({ isActive }: { isActive: boolean }) => (
+    <section data-testid="tab-router">
+      {!mocks.isMac && isActive ? <div data-page-side-panel-root="true" data-testid="scoped-root" /> : null}
+    </section>
+  )
+}))
+
+import { AppShell } from '../AppShell'
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  vi.resetModules()
+  mocks.isMac = false
+  mocks.commandHandlers.clear()
 })
 
 describe('AppShell page side panel root', () => {
-  it('scopes the page side panel root to the tab content area, excluding app chrome, outside macOS', async () => {
-    await renderAppShell(false)
+  it('scopes the page side panel root to the tab content area, excluding app chrome, outside macOS', () => {
+    mocks.isMac = false
+    render(<AppShell />)
 
     const root = document.querySelector('[data-page-side-panel-root="true"]')
     expect(root).toBeInTheDocument()
@@ -67,9 +98,20 @@ describe('AppShell page side panel root', () => {
     expect(screen.getByTestId('tab-router')).toContainElement(root as HTMLElement)
   })
 
-  it('does not mark a scoped page side panel root on macOS', async () => {
-    await renderAppShell(true)
+  it('does not mark a scoped page side panel root on macOS', () => {
+    mocks.isMac = true
+    render(<AppShell />)
 
     expect(document.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
+  })
+})
+
+describe('AppShell', () => {
+  it('opens global search from the shell-level shortcut', () => {
+    render(<AppShell />)
+
+    mocks.commandHandlers.get('app.search')?.()
+
+    expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 })

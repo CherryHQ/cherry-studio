@@ -9,8 +9,8 @@ import path from 'node:path'
 // goes through `application.get('DirectoryTreeManager')` so it only constructs
 // once anyway.)
 import type * as lifecycleModule from '@main/core/lifecycle'
-import type { TreeMutationPushPayload } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { TreeMutationPushPayload } from '@shared/utils/file'
 import type { WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

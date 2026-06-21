@@ -1,4 +1,4 @@
-import type { McpTool, Topic } from '@types'
+import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
@@ -23,7 +23,15 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
-export type CacheTopic = Topic
+/**
+ * `'topic.active'` caches the renderer's v1 chat topic — renderer-only state.
+ * The v2 chat migration removes this outright (feat/chat-page drops both the
+ * `'topic.active'` cache key and `CacheTopic`; active topic is managed via
+ * DataApi instead). Typed loosely here so the cross-process cache schema does
+ * not depend on the renderer's throwaway v1 `Topic` graph; the renderer's own
+ * read sites cast the result to `Topic`.
+ */
+export type CacheTopic = unknown
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
@@ -78,6 +86,22 @@ export type TranslatingState =
     }
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
+
+/**
+ * Saved scroll position for a chat topic / agent-session message list.
+ *
+ * Stored per topic id in the Memory cache so switching topics or sessions
+ * restores the previous reading position instead of jumping to the first
+ * message. A `null` cache value (the schema default) means "follow the
+ * latest message" — the user was at the bottom or never scrolled, so the
+ * list restores to the newest message.
+ */
+export interface ChatScrollAnchor {
+  /** Stable group key of the top-most visible message group at save time. */
+  key: string
+  /** Pixels scrolled past the top of that group. */
+  offset: number
+}
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'

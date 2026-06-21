@@ -10,22 +10,22 @@ type ResourceTypeMeta = ResourceTypeUIConfig & { labelKey: string }
 export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
   agent: {
     icon: Bot,
-    color: 'text-violet-500 bg-violet-500/10',
+    color: 'bg-secondary text-foreground',
     labelKey: 'library.type.agent'
   },
   assistant: {
     icon: MessageCircle,
-    color: 'text-sky-500 bg-sky-500/10',
+    color: 'bg-secondary text-foreground',
     labelKey: 'library.type.assistant'
   },
   skill: {
     icon: Zap,
-    color: 'text-amber-500 bg-amber-500/10',
+    color: 'bg-warning-bg text-warning-text',
     labelKey: 'library.type.skill'
   },
   prompt: {
     icon: FileText,
-    color: 'text-emerald-500 bg-emerald-500/10',
+    color: 'bg-secondary text-foreground',
     labelKey: 'library.type.prompt'
   }
 }

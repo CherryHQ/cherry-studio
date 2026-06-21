@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { FileProcessorFeature, FileProcessorId, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 
 const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
   document_to_markdown: 'feature.file_processing.default_document_to_markdown',
