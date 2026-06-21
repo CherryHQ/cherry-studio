@@ -37,7 +37,9 @@ function userMessage(parts: CherryMessagePart[]): ExportableMessage {
 
 describe('getComposerTokenClipboardText', () => {
   it('strips the skill: prefix and wraps with slashes', () => {
-    expect(getComposerTokenClipboardText(token({ kind: 'skill', id: 'skill:review', label: 'Review' }))).toBe('/review/')
+    expect(getComposerTokenClipboardText(token({ kind: 'skill', id: 'skill:review', label: 'Review' }))).toBe(
+      '/review/'
+    )
   })
 
   it('falls back to the label when a skill token has no skill: prefix', () => {
