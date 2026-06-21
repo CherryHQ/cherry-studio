@@ -70,7 +70,7 @@ vi.mock('@renderer/components/chat/messages/editing/MessageEditingContext', () =
   useMessageEditing: () => ({ editingMessageId: null, editingMessage: null, startEditing: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/ChatWriteContext', () => ({
+vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
   useChatWrite: () => undefined
 }))
 

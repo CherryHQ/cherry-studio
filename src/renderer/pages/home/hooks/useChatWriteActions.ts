@@ -14,7 +14,7 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { ChatWriteActions } from '@renderer/hooks/ChatWriteContext'
+import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { Topic } from '@renderer/types'
 import { resolveUniqueModelId } from '@renderer/utils/messageUtils/modelIdentity'

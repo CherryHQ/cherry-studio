@@ -8,7 +8,7 @@ import { MessageEditingProvider } from '@renderer/components/chat/messages/editi
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
-import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
+import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'

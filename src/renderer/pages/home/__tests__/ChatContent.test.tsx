@@ -24,7 +24,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: (...args: unknown[]) => mockUseChatWithHistory(...args)
 }))
 
-vi.mock('@renderer/hooks/ChatWriteContext', () => ({
+vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
   ChatWriteProvider: ({ value, children }: { value: unknown; children: ReactNode }) => {
     mockChatWriteValue.current = value
     return children

@@ -361,7 +361,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/ChatWriteContext', () => ({
+vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
   useChatWrite: () => mocks.chatWrite ?? { pause: vi.fn() }
 }))
 
