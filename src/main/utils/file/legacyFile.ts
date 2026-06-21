@@ -5,16 +5,18 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
-import { sanitizeFilename, validateFileName } from '@shared/file/types/filename'
-import type { FileMetadata, FileType } from '@types'
-import { FILE_TYPE } from '@types'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileType } from '@shared/types/file'
+import { FILE_TYPE } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
+import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+import { sanitizeFilename, validateFileName } from '@shared/utils/file/filename'
 
 // Re-export the promoted utilities so existing import sites
 // (`@main/utils/file → sanitizeFilename / validateFileName`) keep working.
-// SoT lives in `@shared/file/types/filename` per `utils-file-migration.md`
+// SoT lives in `@shared/utils/file/filename` per `utils-file-migration.md`
 // Phase 1b.1; callers migrate to the shared path opportunistically.
-export { sanitizeFilename, validateFileName } from '@shared/file/types/filename'
+export { sanitizeFilename, validateFileName } from '@shared/utils/file/filename'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { v4 as uuidv4 } from 'uuid'

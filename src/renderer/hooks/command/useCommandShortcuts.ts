@@ -1,18 +1,17 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/config/constant'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'
+import type { ResolvedShortcut } from '@shared/types/shortcut'
 import {
   type CommandId,
-  type CommandShortcutPreferenceKey,
   evaluateContextExpr,
   findCommandDefinition,
   getCommandDefaultShortcutPreference,
   REGISTERED_KEYBINDINGS,
-  resolveCommandShortcutPreference,
-  type SupportedPlatform
-} from '@shared/command'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
-import type { ResolvedShortcut } from '@shared/shortcuts/types'
+  resolveCommandShortcutPreference
+} from '@shared/utils/command'
+import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

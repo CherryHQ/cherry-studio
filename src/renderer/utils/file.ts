@@ -1,6 +1,7 @@
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
-import { audioExts, documentExts, GB, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
+import { GB, KB, MB } from '@shared/utils/constants'
+import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import mime from 'mime-types'
 
 /**

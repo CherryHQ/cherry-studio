@@ -4,7 +4,7 @@ import {
   FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '@shared/data/types/fileProcessing'
-import { FileHandleSchema } from '@shared/file/types'
+import { FileHandleSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'

@@ -7,7 +7,8 @@ import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
-import type { McpPrompt, McpResource, McpServer, McpTool } from '@types'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('McpCatalogService')

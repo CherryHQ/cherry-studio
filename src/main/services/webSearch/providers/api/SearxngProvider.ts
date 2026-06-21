@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import { defaultAppHeaders, isValidUrl } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
-import { defaultAppHeaders, isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 

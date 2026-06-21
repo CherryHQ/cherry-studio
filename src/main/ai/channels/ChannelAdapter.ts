@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from '@shared/config/types'
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import { EventEmitter } from 'events'
+
+import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
 
 export type ChannelMessageEvent = {
   chatId: string

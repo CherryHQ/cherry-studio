@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
-import type { Notification } from '@types'
+import type { Notification } from '@shared/types/notification'
 import { Notification as ElectronNotification } from 'electron'
 
 class NotificationService {

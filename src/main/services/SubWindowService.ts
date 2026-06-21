@@ -6,7 +6,7 @@ import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { normalizeTabInstanceMetadata } from '@shared/types/tabInstanceMetadata'
+import { normalizeTabInstanceMetadata } from '@shared/utils/tabInstanceMetadata'
 import { BrowserWindow, nativeImage, nativeTheme } from 'electron'
 
 import iconPath from '../../../build/icon.png?asset'

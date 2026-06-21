@@ -22,7 +22,7 @@ import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file/fs'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 

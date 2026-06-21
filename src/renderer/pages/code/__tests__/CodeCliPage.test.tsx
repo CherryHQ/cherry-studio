@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { codeCLI, terminalApps } from '@shared/config/constant'
+import { codeCLI, terminalApps } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,7 +117,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-vi.mock('@shared/config/providers', () => ({
+vi.mock('@renderer/config/codeProviders', () => ({
   CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS: [],
   isSiliconAnthropicCompatibleModel: () => false
 }))

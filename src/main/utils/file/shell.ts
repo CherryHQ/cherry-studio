@@ -8,7 +8,7 @@
  * callers and stays a stub until those consumers migrate in Phase 2.
  */
 
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/shell.${op}: not implemented (deferred to Phase 2)`)

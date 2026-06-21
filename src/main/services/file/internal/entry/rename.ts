@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'

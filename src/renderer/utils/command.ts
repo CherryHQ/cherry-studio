@@ -1,19 +1,13 @@
-import {
-  type CommandId,
-  type ContextReader,
-  evaluateContextExpr,
-  type RegisteredCommandDefinition,
-  resolveCommandKeybinding,
-  type SupportedPlatform
-} from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { ContextReader, RegisteredCommandDefinition, SupportedPlatform } from '@shared/types/command'
+import { type CommandId, evaluateContextExpr, resolveCommandKeybinding } from '@shared/utils/command'
 import {
   convertKeyToAccelerator,
   formatShortcutDisplay,
   normalizeShortcutBinding,
   type ShortcutBinding,
   type ShortcutToken
-} from '@shared/shortcuts/tokens'
+} from '@shared/utils/shortcut'
 
 /**
  * Renderer-only command presentation / DOM-input helpers. The cross-process

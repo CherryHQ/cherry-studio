@@ -11,7 +11,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { FileHandle } from '@shared/file/types'
+import type { FileHandle } from '@shared/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
