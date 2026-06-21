@@ -3,6 +3,9 @@ import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CopyIcon } from '@renderer/components/Icons'
+// Direct `Selector/model` path: the `Selector` barrel's nested `export *` doesn't
+// resolve `ModelSelector` under tsgo on main's program (resolves on feat's; the
+// dir is byte-identical). Revert to the barrel once main converges with feat.
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
