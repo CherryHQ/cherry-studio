@@ -1,6 +1,7 @@
 import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import {
+  buildTabInstanceMetadata,
   getTabInstanceAppId,
   getTabInstanceKey,
   hasTabInstanceMetadataForApp
@@ -196,6 +197,34 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
 }
 
 /**
+ * The tab id to focus on a sidebar click, or undefined if none exists. Apps with
+ * sub-instances narrow the match to the last-focused key (so clicking returns to
+ * that one); keyless apps focus any tab they own.
+ */
+export function findAppTabToFocus(app: SidebarApp, tabs: Tab[], ctx: SidebarNavContext): string | undefined {
+  const key = app.instanceKey?.defaultKey(ctx)
+  const existing = tabs.find(
+    (t) =>
+      t.type === 'route' &&
+      (app.exactRouteFocus ? t.url === app.routePrefix : tabBelongsToApp(app, t.url)) &&
+      (app.instanceKey && key ? getSidebarAppTabInstanceKey(app, t) === key : true)
+  )
+  return existing?.id
+}
+
+/** The url to open when no owned tab exists yet (base route, resolveUrl, or routePrefix). */
+export function resolveAppOpenUrl(app: SidebarApp, ctx: SidebarNavContext): string {
+  const key = app.instanceKey?.defaultKey(ctx)
+  return app.instanceKey && key ? app.routePrefix : (app.resolveUrl?.(ctx) ?? app.routePrefix)
+}
+
+export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab['metadata'] {
+  if (!app.instanceKey || !key) return undefined
+  if (app.id !== 'assistants' && app.id !== 'agents') return undefined
+  return buildTabInstanceMetadata(undefined, { appId: app.id, key })
+}
+
+/**
  * 侧边栏支持的完整菜单顺序。
  * Preference 默认值可能不包含新菜单，管理态列表仍需要覆盖当前全部支持项。
  */
@@ -209,6 +238,14 @@ export const SIDEBAR_ICON_ORDER: SidebarIcon[] = SIDEBAR_APPS.map((app) => app.i
 export const REQUIRED_SIDEBAR_ICONS: SidebarIcon[] = ['assistants']
 
 const sidebarIconSet = new Set<SidebarIcon>(SIDEBAR_ICON_ORDER)
+
+export const SIDEBAR_ROUTE_PREFIX_MAP: Record<SidebarIcon, string> = SIDEBAR_APPS.reduce(
+  (acc, app) => {
+    acc[app.id] = app.routePrefix
+    return acc
+  },
+  {} as Record<SidebarIcon, string>
+)
 
 export const SIDEBAR_ICON_COMPONENTS: Record<SidebarIcon, SidebarMenuItem['icon']> = SIDEBAR_APPS.reduce(
   (acc, app) => {
@@ -240,6 +277,16 @@ export function sanitizeSidebarIcons(icons: readonly SidebarIcon[] | undefined):
     seen.add(icon)
     return true
   })
+}
+
+export function getRequiredSidebarIconsVisible(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
+  const visible = new Set(sanitizeSidebarIcons(icons))
+
+  for (const icon of REQUIRED_SIDEBAR_ICONS) {
+    visible.add(icon)
+  }
+
+  return SIDEBAR_ICON_ORDER.filter((icon) => visible.has(icon))
 }
 
 export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
