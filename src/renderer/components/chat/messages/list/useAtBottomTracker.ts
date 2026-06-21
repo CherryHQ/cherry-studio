@@ -15,7 +15,7 @@ export interface AtBottomTracker {
     viewportSize: number
     direction: 'up' | 'down' | 'none'
   }): void
-  notifySizeChange(input: { offset: number; scrollSize: number; viewportSize: number; prevScrollSize: number }): void
+  notifySizeChange(input: { offset: number; scrollSize: number; viewportSize: number }): void
   notifyProgrammaticStick(): void
   reset(): void
 }

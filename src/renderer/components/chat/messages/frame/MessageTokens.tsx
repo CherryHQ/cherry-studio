@@ -34,9 +34,11 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       return usage.cost
     }
 
-    if (!model || model.pricing?.input_per_million_tokens === 0 || model.pricing?.output_per_million_tokens === 0) {
+    if (!model) {
       return 0
     }
+    // Compute each side independently — a model can be free on one side and
+    // priced on the other; the sum already contributes 0 for a free side.
     return (
       (inputTokens * (model.pricing?.input_per_million_tokens ?? 0) +
         outputTokens * (model.pricing?.output_per_million_tokens ?? 0)) /
