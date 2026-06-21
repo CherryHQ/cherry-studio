@@ -76,7 +76,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
   useMessageListRenderConfig: () => ({
     renderConfig: {
       userName: '',
@@ -97,7 +97,7 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () =
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageMenuConfig', () => ({
   useMessageMenuConfig: () => ({
     confirmDeleteMessage: false,
     enableDeveloperMode: false,
@@ -116,19 +116,19 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageExportActions', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () => ({
   useMessageExportActions: useMessageExportActionsMock
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageErrorActions', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
   useMessageErrorActions: () => errorActionsMock
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', () => ({
   useMessageLeafCapabilities: () => leafCapabilitiesMock
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities', () => ({
   useMessageHeaderCapabilities: () => headerCapabilitiesMock
 }))
 

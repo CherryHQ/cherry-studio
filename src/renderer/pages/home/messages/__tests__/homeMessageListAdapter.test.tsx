@@ -88,29 +88,29 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageActivityState', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
   useMessageActivityState: () => vi.fn(() => undefined)
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageErrorActions', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
   useMessageErrorActions: () => ({})
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageExportActions', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () => ({
   useMessageExportActions: () => exportActionsMock
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities', () => ({
   useMessageHeaderCapabilities: () => ({
     userProfile: undefined
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', () => ({
   useMessageLeafCapabilities: () => leafCapabilitiesMock
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
   useMessageListRenderConfig: () => ({
     renderConfig: {
       fontSize: 14,
@@ -122,11 +122,11 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () =
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageMenuConfig', () => ({
   useMessageMenuConfig: () => ({})
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageSelectionController', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageSelectionController', () => ({
   useMessageSelectionController: () => ({
     actions: {},
     selection: {
@@ -136,14 +136,14 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageSelectionController', (
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageUiStateCache', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageUiStateCache', () => ({
   useMessageUiStateCache: () => ({
     getMessageUiState: vi.fn(() => ({})),
     updateMessageUiState: vi.fn()
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/messageListProviderBuilder', () => ({
+vi.mock('@renderer/components/chat/messages/messageListProviderBuilder', () => ({
   pickMessageHeaderActions: vi.fn(() => ({})),
   pickMessageLeafActions: vi.fn(() => ({})),
   pickMessageLeafState: vi.fn(() => ({}))

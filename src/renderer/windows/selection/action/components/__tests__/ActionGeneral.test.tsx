@@ -48,11 +48,11 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({ liveAssistants: [] })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
   useMessageListRenderConfig: () => ({ renderConfig: {} })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessagePlatformActions', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessagePlatformActions', () => ({
   useMessagePlatformActions: () => ({})
 }))
 

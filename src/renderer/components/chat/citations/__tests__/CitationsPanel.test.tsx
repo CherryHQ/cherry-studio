@@ -55,7 +55,7 @@ vi.mock('@renderer/components/chat/messages/blocks/CitationsList', () => ({
   }
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessagePlatformActions', () => ({
+vi.mock('@renderer/components/chat/messages/hooks/useMessagePlatformActions', () => ({
   useMessagePlatformActions: () => ({
     copyText: vi.fn(),
     notifyError: vi.fn()
