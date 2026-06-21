@@ -10,10 +10,9 @@ import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provid
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { customFetch } from '../../utils/customFetch'
-
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { customFetch } from '../../utils/customFetch'
 
 // providerToAiSdkConfig reads the rotated API key and (for Vertex/Bedrock) the
 // auth config off the direct-import ProviderService singleton. Mock both at the
