@@ -2063,6 +2063,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GLM-4.5V',
       group: 'GLM-4.5V'
     }
+  ],
   kevoryn: [
     {
       id: 'claude-opus-4-8',
@@ -2184,6 +2185,5 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'nemotron-3-super-120b-a12b',
       group: 'Nvidia'
     }
-  ],
   ]
 }
