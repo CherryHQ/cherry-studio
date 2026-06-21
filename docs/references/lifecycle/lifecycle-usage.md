@@ -522,3 +522,18 @@ If `onActivate()` throws after partially allocating resources, it **must** clean
 
 - `_doStop()` auto-deactivates before calling `onStop()` (failure does not block stop)
 - `_doDestroy()` auto-deactivates as a safety net (for destroy-without-stop scenarios)
+
+### Fast Toggling — When You Need a Reconciler
+
+`_doActivate()`'s concurrency guard is **drop-style**: a call that arrives while an activation is
+in flight is short-circuited, not queued. That is correct for the common case, but if a service is
+toggled at runtime and its `onActivate`/`onDeactivate` is **async**, a quick opposite toggle that
+lands mid-transition is **dropped** — the running state can settle diverged from the latest intent.
+
+This is **not** a `BaseService` change (the guard and the `onActivate` failure contract above stay as
+documented). Instead, an affected service **self-holds** a
+[`createLatestReconciler`](../../../src/main/core/concurrency/README.md) and routes its toggles
+through it (`getSnapshot: () => ({ desired, actual: this.isActivated })`,
+`apply: ({ desired }) => desired ? this.activate() : this.deactivate()`). See that README's judgment
+table for exactly when it is needed (async activate/deactivate **and** a runtime toggle source; a
+fully-synchronous or startup-only service does not need it). `ApiGatewayService` is the reference.
