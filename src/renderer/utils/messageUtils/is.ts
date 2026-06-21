@@ -16,6 +16,7 @@ import {
   type TranslationMessageBlock,
   type VideoMessageBlock
 } from '@renderer/types/newMessage'
+import type { MessageStatus } from '@shared/data/types/message'
 
 /**
  * Checks if a message block is a Main Text block.
@@ -161,7 +162,7 @@ export function isCompactBlock(block: MessageBlock): block is CompactMessageBloc
   return block.type === MessageBlockType.COMPACT
 }
 
-export function isMessageProcessing(message: Message): boolean {
+export function isMessageProcessing(message: Pick<Message, 'status'> | { status: MessageStatus }): boolean {
   return (
     message.status === AssistantMessageStatus.PROCESSING ||
     message.status === AssistantMessageStatus.PENDING ||

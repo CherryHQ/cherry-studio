@@ -36,6 +36,7 @@ import { Route as AppTranslateRouteImport } from './routes/app/translate'
 import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppLibraryRouteImport } from './routes/app/library'
+import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
@@ -190,6 +191,11 @@ const AppLibraryRoute = AppLibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLaunchpadRoute = AppLaunchpadRouteImport.update({
+  id: '/launchpad',
+  path: '/launchpad',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/launchpad': typeof AppLaunchpadRoute
   '/app/library': typeof AppLibraryRoute
   '/app/notes': typeof AppNotesRoute
   '/app/openclaw': typeof AppOpenclawRoute
@@ -332,6 +339,7 @@ export interface FileRoutesByTo {
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/launchpad': typeof AppLaunchpadRoute
   '/app/library': typeof AppLibraryRoute
   '/app/notes': typeof AppNotesRoute
   '/app/openclaw': typeof AppOpenclawRoute
@@ -378,6 +386,7 @@ export interface FileRoutesById {
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/launchpad': typeof AppLaunchpadRoute
   '/app/library': typeof AppLibraryRoute
   '/app/notes': typeof AppNotesRoute
   '/app/openclaw': typeof AppOpenclawRoute
@@ -426,6 +435,7 @@ export interface FileRouteTypes {
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
+    | '/app/launchpad'
     | '/app/library'
     | '/app/notes'
     | '/app/openclaw'
@@ -471,6 +481,7 @@ export interface FileRouteTypes {
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
+    | '/app/launchpad'
     | '/app/library'
     | '/app/notes'
     | '/app/openclaw'
@@ -516,6 +527,7 @@ export interface FileRouteTypes {
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
+    | '/app/launchpad'
     | '/app/library'
     | '/app/notes'
     | '/app/openclaw'
@@ -751,6 +763,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLibraryRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/launchpad': {
+      id: '/app/launchpad'
+      path: '/launchpad'
+      fullPath: '/app/launchpad'
+      preLoaderRoute: typeof AppLaunchpadRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/knowledge': {
       id: '/app/knowledge'
       path: '/knowledge'
@@ -879,6 +898,7 @@ interface AppRouteChildren {
   AppCodeRoute: typeof AppCodeRoute
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
+  AppLaunchpadRoute: typeof AppLaunchpadRoute
   AppLibraryRoute: typeof AppLibraryRoute
   AppNotesRoute: typeof AppNotesRoute
   AppOpenclawRoute: typeof AppOpenclawRoute
@@ -895,6 +915,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCodeRoute: AppCodeRoute,
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
+  AppLaunchpadRoute: AppLaunchpadRoute,
   AppLibraryRoute: AppLibraryRoute,
   AppNotesRoute: AppNotesRoute,
   AppOpenclawRoute: AppOpenclawRoute,
