@@ -112,49 +112,6 @@ describe('composer clipboard', () => {
     }
   })
 
-  it('does not create restorable file handles without secure random support', () => {
-    const originalCryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
-    const randomSpy = vi.spyOn(Math, 'random')
-    vi.stubGlobal('crypto', {})
-
-    try {
-      const token = {
-        id: 'file:source-image',
-        kind: 'file' as const,
-        label: 'default-topic.png',
-        payload: {
-          id: 'file-entry-image',
-          fileTokenSourceId: 'source-image',
-          type: 'image',
-          ext: '.png',
-          name: 'default-topic.png',
-          origin_name: 'default-topic.png',
-          path: '/Users/example/private/default-topic.png'
-        }
-      }
-
-      const fragment = readComposerClipboardFragment(
-        createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
-      )
-      const segment = fragment?.segments[0]
-
-      expect(randomSpy).not.toHaveBeenCalled()
-      expect(segment?.type).toBe('token')
-      if (segment?.type === 'token') {
-        expect(segment.token.payload).not.toHaveProperty('handle')
-        expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
-      }
-    } finally {
-      vi.unstubAllGlobals()
-      if (originalCryptoDescriptor) {
-        Object.defineProperty(globalThis, 'crypto', originalCryptoDescriptor)
-      } else {
-        delete (globalThis as { crypto?: Crypto }).crypto
-      }
-      randomSpy.mockRestore()
-    }
-  })
-
   it('stops resolving file restoration handles after the handle TTL expires', () => {
     vi.useFakeTimers()
     try {

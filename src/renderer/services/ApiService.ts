@@ -10,7 +10,7 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getNamingTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isFileUIPart } from 'ai'
@@ -55,7 +55,7 @@ export async function fetchMessagesSummary({
       .filter((name): name is string => Boolean(name))
     return {
       role: message.role,
-      mainText: purifyMarkdownImages(getMainTextContent(message)),
+      mainText: purifyMarkdownImages(getNamingTextContent(message)),
       files: fileList.length > 0 ? fileList : undefined
     }
   })

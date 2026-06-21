@@ -48,14 +48,30 @@ function getRenderableTextContent(part: CherryMessagePart): string {
   }
 }
 
-// ── Public API ───────────────────────────────────────────────────────
+// Auxiliary part types whose text belongs in a full export but must NOT steer
+// the topic-naming / summary prompt — error dumps and raw translations would
+// pollute the generated title.
+const NAMING_EXCLUDED_PART_TYPES = new Set<CherryMessagePart['type']>(['data-error', 'data-translation'])
 
-export const getMainTextContent = (message: ExportableMessage): string => {
+function collectText(message: ExportableMessage, excludedTypes?: ReadonlySet<CherryMessagePart['type']>): string {
   return getParts(message)
+    .filter((part) => !excludedTypes?.has(part.type))
     .map(getRenderableTextContent)
     .filter((t) => t.trim().length > 0)
     .join('\n\n')
 }
+
+// ── Public API ───────────────────────────────────────────────────────
+
+export const getMainTextContent = (message: ExportableMessage): string => collectText(message)
+
+/**
+ * Plain text for topic-naming / summary prompts. Same as `getMainTextContent`
+ * but drops `data-error` / `data-translation` parts so error text and
+ * translations don't reach the naming model. Both kinds stay in the full export.
+ */
+export const getNamingTextContent = (message: ExportableMessage): string =>
+  collectText(message, NAMING_EXCLUDED_PART_TYPES)
 
 export const getThinkingContent = (message: ExportableMessage): string => {
   return getParts(message)

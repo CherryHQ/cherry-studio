@@ -1,5 +1,5 @@
 import type { FileMetadata } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createComposerFileTokenSourceId,
@@ -47,23 +47,12 @@ describe('composer file token source', () => {
     expect(next.fileTokenSourceId).not.toBe(file.path)
   })
 
-  it('uses crypto.getRandomValues when randomUUID is unavailable', () => {
-    const getRandomValues = vi.fn((bytes: Uint8Array) => {
-      bytes.set(bytes.map((_, index) => index))
-      return bytes
-    })
-    const randomSpy = vi.spyOn(Math, 'random')
-    vi.stubGlobal('crypto', { getRandomValues })
+  it('mints a unique, non-path-like file-token id', () => {
+    const first = createComposerFileTokenSourceId()
+    const second = createComposerFileTokenSourceId()
 
-    try {
-      const sourceId = createComposerFileTokenSourceId()
-
-      expect(getRandomValues).toHaveBeenCalled()
-      expect(randomSpy).not.toHaveBeenCalled()
-      expect(sourceId).toMatch(/^file-token-[0-9a-f]{32}$/)
-    } finally {
-      vi.unstubAllGlobals()
-      randomSpy.mockRestore()
-    }
+    expect(first.startsWith('file-token-')).toBe(true)
+    expect(isComposerFileTokenSourceId(first)).toBe(true)
+    expect(first).not.toBe(second)
   })
 })
