@@ -14,13 +14,18 @@ export interface RecoveryStats {
   singletonKept: number
 }
 
+interface StartupRecoveryOptions {
+  isJobInFlight?: (jobId: string) => boolean
+}
+
 /**
  * Per-processor declarative recovery. Walks the registered handlers, applies
  * each type's `recovery` strategy to its non-terminal jobs, then handles
  * orphan running jobs whose handler is no longer registered.
  *
- * Step order matters: cancelRequested=true overrides any strategy — those
- * jobs are cancelled regardless. The strategy then applies to the rest.
+ * Step order matters: JobManager-owned in-flight rows are left to the current
+ * process. For the remaining recoverable rows, cancelRequested=true overrides
+ * any strategy. The strategy then applies to the rest.
  *
  * Write serialization note: `jobService.cancelByIds` / `resetToPendingByIds`
  * are thin wrappers over `DbService.withWriteTx`, so each call below is
@@ -29,8 +34,12 @@ export interface RecoveryStats {
  * needed here — recovery is restartable and per-handler iterations do not
  * require cross-call atomicity.
  */
-export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandler>): Promise<RecoveryStats> {
+export async function runStartupRecovery(
+  handlers: ReadonlyMap<string, JobHandler>,
+  options: StartupRecoveryOptions = {}
+): Promise<RecoveryStats> {
   const stats: RecoveryStats = { cancelled: 0, pendingReset: 0, delayedKept: 0, singletonKept: 0 }
+  const isJobInFlight = options.isJobInFlight ?? (() => false)
   const cancelledByRecovery: JobError = {
     code: JOB_ERROR_CODES.CANCELLED,
     message: 'Cancelled by startup recovery',
@@ -47,7 +56,9 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
     //    next dispatch tick (the WHERE in claimNextPendingTx now excludes
     //    cancelRequested=true rows from being claimed, but a leftover row
     //    must still be reduced to a terminal state here).
-    const cancelRequestedIds = active
+    const recoverable = active.filter((r) => !isJobInFlight(r.id))
+
+    const cancelRequestedIds = recoverable
       .filter((r) => r.cancelRequested && (r.status === 'running' || r.status === 'delayed' || r.status === 'pending'))
       .map((r) => r.id)
     if (cancelRequestedIds.length) {
@@ -57,7 +68,7 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
     }
 
     const cancelRequestedSet = new Set(cancelRequestedIds)
-    const remaining = active.filter((r) => !cancelRequestedSet.has(r.id))
+    const remaining = recoverable.filter((r) => !cancelRequestedSet.has(r.id))
 
     // 2. Apply strategy to the rest.
     if (handler.recovery === 'abandon') {
