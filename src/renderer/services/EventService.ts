@@ -4,6 +4,8 @@ export const EventEmitter = new Emittery()
 
 export const EVENT_NAMES = {
   SEND_MESSAGE: 'SEND_MESSAGE',
+  // v2 knowledge page: global-search selects a knowledge base.
+  GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE: 'GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE',
   CLEAR_MESSAGES: 'CLEAR_MESSAGES',
   EDIT_MESSAGE: 'EDIT_MESSAGE',
   CHAT_COMPLETION_PAUSED: 'CHAT_COMPLETION_PAUSED',
