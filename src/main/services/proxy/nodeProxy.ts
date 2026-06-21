@@ -3,6 +3,7 @@ import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
 import * as ipaddr from 'ipaddr.js'
+import * as net from 'net'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
@@ -290,6 +291,48 @@ export const getNodeProxyConfigFromEnvironment = (env: NodeJS.ProcessEnv = proce
     proxyRules,
     proxyBypassRules: proxyEnv[CHERRY_NODE_PROXY_BYPASS_RULES_ENV] || proxyEnv.NO_PROXY || proxyEnv.no_proxy
   }
+}
+
+/**
+ * TCP-probe a proxy URL to detect a stale/dead proxy — e.g. a macOS system
+ * proxy entry left enabled after the proxy client (Clash, etc.) was closed
+ * without clearing the OS proxy setting. Returns `false` when nothing is
+ * listening on the proxy port so the caller can direct-connect instead of
+ * failing with ECONNREFUSED (#16016). Returns `true` (conservative) when the
+ * URL cannot be parsed or probed, preserving existing behavior for those cases.
+ */
+export const isProxyReachable = async (proxyUrl: string): Promise<boolean> => {
+  let url: URL
+  try {
+    url = new URL(proxyUrl)
+  } catch {
+    return true
+  }
+
+  const host = url.hostname
+  const port = Number(url.port || getDefaultPortForProtocol(url.protocol))
+  if (!host || !port) {
+    return true
+  }
+
+  return new Promise((resolve) => {
+    const socket = new net.Socket()
+    const timer = setTimeout(() => {
+      socket.destroy()
+      resolve(false)
+    }, 2000)
+    socket.once('connect', () => {
+      clearTimeout(timer)
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => {
+      clearTimeout(timer)
+      socket.destroy()
+      resolve(false)
+    })
+    socket.connect(port, host)
+  })
 }
 
 export const getProxyProtocol = (proxyRules?: string): string | null => {

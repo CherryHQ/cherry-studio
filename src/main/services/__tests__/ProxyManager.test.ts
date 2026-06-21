@@ -1,3 +1,4 @@
+import * as net from 'net'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
@@ -6,6 +7,7 @@ import {
   getNodeProxyConfigFromEnvironment,
   getProxyEnvironment,
   getProxyProtocol,
+  isProxyReachable,
   ProxyBypassRuleMatcher
 } from '../proxy/nodeProxy'
 
@@ -274,5 +276,32 @@ describe('ProxyManager - bypass evaluation', () => {
       proxyRules: 'socks5://127.0.0.1:6153',
       proxyBypassRules: 'localhost'
     })
+  })
+})
+
+describe('isProxyReachable', () => {
+  it('returns false when nothing is listening on the proxy port (stale system proxy)', async () => {
+    // Port 1 is almost certainly not listening — simulates a dead proxy left behind by a
+    // closed proxy client (e.g. Clash closed without clearing the macOS proxy entry).
+    await expect(isProxyReachable('http://127.0.0.1:1')).resolves.toBe(false)
+  })
+
+  it('returns true when the proxy port is listening', async () => {
+    const server = net.createServer()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const addr = server.address() as net.AddressInfo
+    try {
+      await expect(isProxyReachable(`http://127.0.0.1:${addr.port}`)).resolves.toBe(true)
+    } finally {
+      server.close()
+    }
+  })
+
+  it('returns true (conservative) for an unparseable proxy URL', async () => {
+    await expect(isProxyReachable('not-a-url')).resolves.toBe(true)
+  })
+
+  it('returns true (conservative) for a URL without a determinable port', async () => {
+    await expect(isProxyReachable('socks5://127.0.0.1')).resolves.toBe(true)
   })
 })

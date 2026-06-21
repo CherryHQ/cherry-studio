@@ -41,7 +41,7 @@ import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/cla
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
-import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
+import { getNodeProxyConfigFromEnvironment, getProxyEnvironment, isProxyReachable } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
@@ -483,9 +483,23 @@ async function buildEnvironment(
   const sonnetApiModelId = await resolveApiModelId(sonnetProviderId, sonnetModelId)
   const haikuApiModelId = await resolveApiModelId(haikuProviderId, haikuModelId)
 
+  // Skip stale/dead proxy: TCP-probe the proxy port before injecting it into the
+  // Claude Code subprocess. If nothing is listening (common after a proxy client
+  // like Clash is closed without clearing the OS proxy entry), direct-connect
+  // instead of failing with ECONNREFUSED (#16016).
+  const proxyEnv = getProxyEnvironment(process.env)
+  const proxyConfig = getNodeProxyConfigFromEnvironment(process.env)
+  const effectiveProxyEnv =
+    proxyConfig?.proxyRules && (await isProxyReachable(proxyConfig.proxyRules)) ? proxyEnv : {}
+  if (proxyConfig?.proxyRules && Object.keys(effectiveProxyEnv).length === 0) {
+    logger.warn('Proxy is not reachable, skipping proxy for Claude Code subprocess', {
+      proxyUrl: proxyConfig.proxyRules
+    })
+  }
+
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
-    ...getProxyEnvironment(process.env),
+    ...effectiveProxyEnv,
     CLAUDE_CODE_USE_BEDROCK: '0',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
     // not duplicated here.
