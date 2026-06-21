@@ -534,7 +534,7 @@ describe('HomePage', () => {
     expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)
   })
 
-  it('hides the topic sidebar controls in a detached chat window but keeps it toggleable by shortcut', () => {
+  it('removes the topic sidebar entirely in a detached chat window, shortcut included', () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
 
     render(
@@ -555,7 +555,8 @@ describe('HomePage', () => {
       void shortcutHandler?.()
     })
 
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    // The sidebar-toggle shortcut is inert in a detached window — the pane stays closed.
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 

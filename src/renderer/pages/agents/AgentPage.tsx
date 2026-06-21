@@ -51,8 +51,8 @@ const AgentPage = () => {
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [windowSidebarOpen, setWindowSidebarOpen] = useState(false)
-  const effectiveShowSidebar = !isMessageOnlyView && (isWindowFrame ? windowSidebarOpen : showSidebar)
+  // Detached windows are single-conversation: no session list, so no sidebar at all.
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -165,14 +165,9 @@ const AgentPage = () => {
 
   const setResourceListOpen = useCallback(
     (open: boolean) => {
-      if (isWindowFrame) {
-        setWindowSidebarOpen(open)
-        return
-      }
-
       void setShowSidebar(open)
     },
-    [isWindowFrame, setShowSidebar]
+    [setShowSidebar]
   )
   const toggleResourceListOpen = useCallback(() => {
     setResourceListOpen(!effectiveShowSidebar)
@@ -180,7 +175,7 @@ const AgentPage = () => {
   useCommandHandler(
     'app.sidebar.toggle',
     () => {
-      if (isMessageOnlyView) return
+      if (isMessageOnlyView || isWindowFrame) return
 
       toggleResourceListOpen()
     },

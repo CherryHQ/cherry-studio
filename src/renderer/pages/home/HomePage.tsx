@@ -87,11 +87,9 @@ const HomePage: FC = () => {
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
-  // Detached windows start focused on one topic, but users can still reopen the
-  // list locally to switch topics inside that window.
+  // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [windowSidebarOpen, setWindowSidebarOpen] = useState(false)
-  const effectiveShowSidebar = !isMessageOnlyView && (isWindowFrame ? windowSidebarOpen : showSidebar)
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -300,17 +298,12 @@ const HomePage: FC = () => {
   )
   const setResourceListOpen = useCallback(
     (open: boolean) => {
-      if (isWindowFrame) {
-        setWindowSidebarOpen(open)
-        return
-      }
-
       void setShowSidebar(open)
     },
-    [isWindowFrame, setShowSidebar]
+    [setShowSidebar]
   )
   const toggleResourceListOpen = useCallback(() => {
-    if (isMessageOnlyView) return
+    if (isMessageOnlyView || isWindowFrame) return
 
     if (effectiveShowSidebar) {
       setResourceListOpen(false)
@@ -321,7 +314,7 @@ const HomePage: FC = () => {
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
+  }, [effectiveShowSidebar, isMessageOnlyView, isWindowFrame, setResourceListOpen])
   useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {

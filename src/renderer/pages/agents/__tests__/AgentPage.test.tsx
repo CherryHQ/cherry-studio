@@ -580,7 +580,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
-  it('hides the session sidebar controls in a detached agent window but keeps it toggleable by shortcut', () => {
+  it('removes the session sidebar entirely in a detached agent window, shortcut included', () => {
     agentPageMocks.showSidebar = true
 
     render(
@@ -601,7 +601,8 @@ describe('AgentPage', () => {
       void shortcutHandler?.()
     })
 
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    // The sidebar-toggle shortcut is inert in a detached window — the pane stays closed.
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
     expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
