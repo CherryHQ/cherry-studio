@@ -10,6 +10,8 @@ import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provid
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { customFetch } from '../../utils/customFetch'
+
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 
@@ -475,6 +477,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.includeUsage).toBe(true)
       expect(settings.apiKey).toBe('sk-test-key')
       expect(settings.name).toBeUndefined()
+      // A builder that installs no fetch of its own must default to the proxy-aware customFetch
+      // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
+      expect(settings.fetch).toBe(customFetch)
     })
 
     it('routes ModelScope IMAGE models through ModelScope config (so the async submit/poll transport is used)', async () => {
