@@ -155,6 +155,7 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
+  const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -237,19 +238,67 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     AccordionContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
-    ContextMenu: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children),
-    ContextMenuTrigger: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu-trigger' }, children),
-    ContextMenuContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children),
+    ContextMenu: ({ children, open = true, onOpenChange, ...props }) =>
+      React.createElement(
+        ContextMenuContext.Provider,
+        { value: { open, onOpenChange } },
+        React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children)
+      ),
+    ContextMenuTrigger: ({ children, asChild, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      const triggerProps = {
+        ...props,
+        'data-testid': 'context-menu-trigger',
+        onContextMenu: (event: React.MouseEvent) => {
+          props.onContextMenu?.(event)
+          if (!event.defaultPrevented) {
+            context.onOpenChange?.(true)
+            event.preventDefault()
+          }
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = children.props || {}
+        return React.cloneElement(children, {
+          ...triggerProps,
+          ...childProps,
+          onContextMenu: (event: React.MouseEvent) => {
+            childProps.onContextMenu?.(event)
+            if (!event.defaultPrevented) {
+              triggerProps.onContextMenu(event)
+            }
+          }
+        })
+      }
+      return React.createElement('div', triggerProps, children)
+    },
+    ContextMenuContent: ({ children, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      return context.open
+        ? React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children)
+        : null
+    },
     ContextMenuItem: ({ children, onSelect, ...props }) =>
       React.createElement(
         'button',
         { ...props, type: 'button', onClick: onSelect, 'data-testid': 'context-menu-item' },
         children
       ),
+    ContextMenuItemContent: ({ badge, children, icon, shortcut, ...props }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('span', { ...props }, icon, children),
+        badge,
+        shortcut ? React.createElement('span', null, shortcut) : null
+      ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
+    ContextMenuSub: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-sub' }, children),
+    ContextMenuSubTrigger: ({ children, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'context-menu-sub-trigger' }, children),
+    ContextMenuSubContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-sub-content' }, children),
     ImagePreviewContextMenu: ({ actions = [], children, context, item }) =>
       React.createElement(
         'div',
