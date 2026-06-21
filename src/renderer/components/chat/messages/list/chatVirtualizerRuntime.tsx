@@ -279,7 +279,6 @@ export function useChatVirtualizerRuntime<T>({
           offset: el.scrollTop,
           scrollSize: el.scrollHeight,
           viewportSize: el.clientHeight,
-          prevScrollSize: 0
         })
       }
       updateScrollToBottomButtonVisibility()
