@@ -37,6 +37,7 @@ Each cluster doc:
 | Composer Tool Surface | `+` menu, `/` panel, active chips, assistant/agent tool discoverability and disabled-state rules | [composer-tool-surface-design.md](./composer-tool-surface-design.md) |
 | Package Changes | `packages/aiCore`, `packages/provider-registry`, shared types | [packages-cluster.md](./packages-cluster.md) |
 | Data Layer | Agent / session / workspace schema rewrite, MessageService, migrators, DataApi handlers, shared types/schemas | [data-cluster.md](./data-cluster.md) |
+| Agents Core Carve | Renderer agent-session stack onto `main` (`types/agent.ts` enriched shape + `hooks/agents` + `pages/agents` + v2 `utils/export`); the **history** page rides this — measured *not* an independent page split | [agents-core-carve.md](./agents-core-carve.md) |
 
 ## Already-documented sub-features
 
