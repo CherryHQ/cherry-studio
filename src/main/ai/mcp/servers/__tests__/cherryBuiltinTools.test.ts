@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const searchKeywords = vi.fn()
 const fetchUrls = vi.fn()
 const kbSearch = vi.fn()
+const kbReadConcept = vi.fn()
+const kbGrepConcept = vi.fn()
 const listBases = vi.fn()
 const listRootItems = vi.fn()
 
@@ -16,7 +18,9 @@ vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
-      if (name === 'KnowledgeService') return { search: kbSearch, listBases, listRootItems }
+      if (name === 'KnowledgeService') {
+        return { search: kbSearch, readConcept: kbReadConcept, grepConcept: kbGrepConcept, listBases, listRootItems }
+      }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -46,6 +50,8 @@ describe('cherryBuiltinTools', () => {
     searchKeywords.mockReset()
     fetchUrls.mockReset()
     kbSearch.mockReset()
+    kbReadConcept.mockReset()
+    kbGrepConcept.mockReset()
     listBases.mockReset()
     listRootItems.mockReset()
   })
@@ -53,7 +59,9 @@ describe('cherryBuiltinTools', () => {
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
     const tools = listCherryBuiltinTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
+      'kb_grep',
       'kb_list',
+      'kb_read',
       'kb_search',
       'report_artifacts',
       'web_fetch',
@@ -177,6 +185,86 @@ describe('cherryBuiltinTools', () => {
 
     expect(result.isError).toBeFalsy()
     expect(textOf(result)).toContain('Knowledge base search failed')
+  })
+
+  it('runs kb_read unscoped and returns the document json with itemType mapped to type', async () => {
+    kbReadConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'file',
+      totalChars: 11,
+      charStart: 0,
+      charEnd: 11,
+      content: 'hello world',
+      truncated: false
+    })
+
+    const result = await callCherryBuiltinTool(
+      'kb_read',
+      { baseId: 'b1', conceptId: 'docs/intro.md', charStart: 0, charEnd: 11 },
+      signal
+    )
+
+    expect(kbReadConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
+    expect(result.isError).toBeFalsy()
+    expect(JSON.parse(textOf(result))).toMatchObject({
+      conceptId: 'docs/intro.md',
+      type: 'file',
+      content: 'hello world'
+    })
+  })
+
+  it('steers kb_read to re-check the conceptId when the document is not found', async () => {
+    const { DataApiErrorFactory } = await import('@shared/data/api')
+    kbReadConcept.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge concept', 'docs/gone.md'))
+
+    const result = await callCherryBuiltinTool('kb_read', { baseId: 'b1', conceptId: 'docs/gone.md' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('docs/gone.md')
+    expect(textOf(result)).toContain('conceptId')
+  })
+
+  it('runs kb_grep unscoped and returns matches json', async () => {
+    kbGrepConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'note',
+      totalMatches: 1,
+      matches: [{ line: 2, charStart: 9, charEnd: 14, snippet: 'match' }]
+    })
+
+    const result = await callCherryBuiltinTool(
+      'kb_grep',
+      { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'match' },
+      signal
+    )
+
+    expect(kbGrepConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', {
+      pattern: 'match',
+      ignoreCase: undefined,
+      maxMatches: undefined
+    })
+    expect(JSON.parse(textOf(result))).toMatchObject({ conceptId: 'docs/intro.md', type: 'note', totalMatches: 1 })
+  })
+
+  it('returns a no-matches hint (not an error) when kb_grep finds nothing', async () => {
+    kbGrepConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'note',
+      totalMatches: 0,
+      matches: []
+    })
+
+    const result = await callCherryBuiltinTool(
+      'kb_grep',
+      { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'zzz' },
+      signal
+    )
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('No matches')
   })
 
   it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {

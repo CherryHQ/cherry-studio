@@ -5,8 +5,8 @@
  * use, so Claude Code's web search/fetch and knowledge-base tools run identical
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
- * these five tools as `mcp__cherry-tools__web_search`, `…__web_fetch`,
- * `…__kb_search`, `…__kb_list`, and `…__report_artifacts`.
+ * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
+ * `…__kb_read`, `…__kb_grep`, `…__kb_list`, and `…__report_artifacts`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
  * knowledge selection — the agent sees all of the user's knowledge bases.
@@ -14,11 +14,17 @@
 
 import { loggerService } from '@logger'
 import {
+  grepConcept,
+  KNOWLEDGE_GREP_DESCRIPTION,
   KNOWLEDGE_LIST_DESCRIPTION,
+  KNOWLEDGE_READ_DESCRIPTION,
   KNOWLEDGE_SEARCH_DESCRIPTION,
+  knowledgeGrepModelOutput,
   knowledgeListModelOutput,
+  knowledgeReadModelOutput,
   knowledgeSearchModelOutput,
   listKnowledgeBases,
+  readConcept,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
 import {
@@ -37,9 +43,13 @@ import {
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
 import {
+  KB_GREP_TOOL_NAME,
   KB_LIST_TOOL_NAME,
+  KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  kbGrepInputSchema,
   kbListInputSchema,
+  kbReadInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
@@ -90,6 +100,24 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args) => {
       const { query, baseIds } = kbSearchInputSchema.parse(args)
       return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS))
+    }
+  },
+  [KB_READ_TOOL_NAME]: {
+    description: KNOWLEDGE_READ_DESCRIPTION,
+    inputSchema: kbReadInputSchema,
+    run: async (args) => {
+      const { baseId, conceptId, charStart, charEnd } = kbReadInputSchema.parse(args)
+      return knowledgeReadModelOutput(await readConcept(baseId, conceptId, { charStart, charEnd }, KB_ALLOWED_IDS))
+    }
+  },
+  [KB_GREP_TOOL_NAME]: {
+    description: KNOWLEDGE_GREP_DESCRIPTION,
+    inputSchema: kbGrepInputSchema,
+    run: async (args) => {
+      const { baseId, conceptId, pattern, ignoreCase, maxMatches } = kbGrepInputSchema.parse(args)
+      return knowledgeGrepModelOutput(
+        await grepConcept(baseId, conceptId, { pattern, ignoreCase, maxMatches }, KB_ALLOWED_IDS)
+      )
     }
   },
   [KB_LIST_TOOL_NAME]: {

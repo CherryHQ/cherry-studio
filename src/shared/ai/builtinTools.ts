@@ -66,6 +66,12 @@ export const kbSearchInputSchema = z.object({
 
 export const kbSearchOutputItemSchema = z.object({
   id: z.number().int().positive(),
+  // Concept ID (the source document's relative path, OKF §2), display title, and
+  // item type, so the model can follow a hit with kb_read / kb_grep. Optional:
+  // older persisted tool results predate these fields and must still parse.
+  conceptId: z.string().optional(),
+  title: z.string().optional(),
+  type: z.string().optional(),
   content: z.string(),
   score: z.number().min(0).max(1)
 })
@@ -75,6 +81,100 @@ export const kbSearchOutputSchema = z.array(kbSearchOutputItemSchema)
 export type KbSearchInput = z.infer<typeof kbSearchInputSchema>
 export type KbSearchOutputItem = z.infer<typeof kbSearchOutputItemSchema>
 export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
+
+// ── kb_read ──────────────────────────────────────────────────────
+
+export const KB_READ_TOOL_NAME = 'kb_read'
+
+export const kbReadInputSchema = z.object({
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('ID of the knowledge base to read from — a base id from kb_list or a kb_search hit.'),
+  conceptId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Concept ID of the document to read — the `conceptId` field of a kb_search hit (its relative path).'),
+  charStart: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('0-based start offset of the slice to read. Omit to start at the beginning of the document.'),
+  charEnd: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'End offset (exclusive) of the slice. Omit to read to the end. Long reads are capped; when `totalChars` ' +
+        'exceeds the returned `charEnd`, page on by calling again with `charStart` set to the previous `charEnd`.'
+    )
+})
+
+export const kbReadOutputSchema = z.object({
+  conceptId: z.string(),
+  title: z.string(),
+  type: z.string(),
+  totalChars: z.number().int().nonnegative(),
+  charStart: z.number().int().nonnegative(),
+  charEnd: z.number().int().nonnegative(),
+  content: z.string(),
+  truncated: z.boolean()
+})
+
+export type KbReadInput = z.infer<typeof kbReadInputSchema>
+export type KbReadOutput = z.infer<typeof kbReadOutputSchema>
+
+// ── kb_grep ──────────────────────────────────────────────────────
+
+export const KB_GREP_TOOL_NAME = 'kb_grep'
+
+export const kbGrepInputSchema = z.object({
+  baseId: z.string().trim().min(1).describe('ID of the knowledge base — a base id from kb_list or a kb_search hit.'),
+  conceptId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Concept ID of the document to search within — the `conceptId` field of a kb_search hit.'),
+  pattern: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe(
+      'JavaScript regular expression to find in the document text. Matches exact text — use kb_search for ' +
+        'semantic/meaning-based lookup.'
+    ),
+  ignoreCase: z.boolean().optional().describe('Case-insensitive matching. Defaults to true.'),
+  maxMatches: z
+    .number()
+    .int()
+    .positive()
+    .max(200)
+    .optional()
+    .describe('Maximum matches to return (default 50, hard cap 200). `totalMatches` always reports the full count.')
+})
+
+export const kbGrepMatchSchema = z.object({
+  line: z.number().int().positive(),
+  charStart: z.number().int().nonnegative(),
+  charEnd: z.number().int().nonnegative(),
+  snippet: z.string()
+})
+
+export const kbGrepOutputSchema = z.object({
+  conceptId: z.string(),
+  title: z.string(),
+  type: z.string(),
+  totalMatches: z.number().int().nonnegative(),
+  matches: z.array(kbGrepMatchSchema)
+})
+
+export type KbGrepInput = z.infer<typeof kbGrepInputSchema>
+export type KbGrepMatch = z.infer<typeof kbGrepMatchSchema>
+export type KbGrepOutput = z.infer<typeof kbGrepOutputSchema>
 
 // ── web_search ───────────────────────────────────────────────────
 

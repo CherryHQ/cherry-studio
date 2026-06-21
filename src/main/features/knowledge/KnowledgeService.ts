@@ -8,6 +8,7 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  getKnowledgeItemDisplayTitle,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
@@ -16,6 +17,7 @@ import {
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
+  type KnowledgeItemType,
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
@@ -40,6 +42,7 @@ import {
   toKnowledgeItemIds
 } from './types'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
+import { toMaterialRelativePath } from './utils/indexing/materialFields'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { classifyKnowledgeItemSource } from './utils/items'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
@@ -61,6 +64,123 @@ const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
+
+/** Max characters {@link KnowledgeService.readConcept} returns in one slice, so a large document can't flood the agent's context. */
+const CONCEPT_READ_MAX_CHARS = 20_000
+/** Default returned-match cap for {@link KnowledgeService.grepConcept} (the agent may raise it up to {@link CONCEPT_GREP_MAX_MATCHES}). */
+const CONCEPT_GREP_DEFAULT_MAX_MATCHES = 50
+/** Hard ceiling on returned grep matches, bounding the response size. */
+const CONCEPT_GREP_MAX_MATCHES = 200
+/** Characters of context kept on each side of a grep match in its snippet. */
+const CONCEPT_GREP_SNIPPET_PAD = 60
+
+/** Verbatim slice of a knowledge concept's indexed text, addressed by Concept ID (the material's relative path, OKF §2). */
+export interface KnowledgeConceptContent {
+  conceptId: string
+  title: string
+  itemType: KnowledgeItemType
+  /** Length of the full document text, so the caller can tell when a slice is partial and page through it. */
+  totalChars: number
+  charStart: number
+  charEnd: number
+  content: string
+  /** True when the returned slice was capped at {@link CONCEPT_READ_MAX_CHARS} and the document continues past `charEnd`. */
+  truncated: boolean
+}
+
+/** One exact-pattern match within a concept's indexed text. */
+export interface KnowledgeConceptGrepMatch {
+  /** 1-based line number of the match start within the document text. */
+  line: number
+  charStart: number
+  charEnd: number
+  /** The matched text with a little surrounding context (see {@link CONCEPT_GREP_SNIPPET_PAD}). */
+  snippet: string
+}
+
+/** Result of grepping a knowledge concept's indexed text for a regular expression. */
+export interface KnowledgeConceptGrep {
+  conceptId: string
+  title: string
+  itemType: KnowledgeItemType
+  /** Total matches found in the document (may exceed `matches.length` when the cap was hit). */
+  totalMatches: number
+  matches: KnowledgeConceptGrepMatch[]
+}
+
+/**
+ * Concept ID (relative path, OKF §2) of a search hit's source document, or
+ * undefined when it has none: a directory (no material), or a url/note whose
+ * snapshot relativePath was not captured yet. A completed leaf normally has one,
+ * so this only swallows the rare unindexed-snapshot case rather than throwing
+ * out of the whole search.
+ */
+function deriveConceptId(item: KnowledgeItem): string | undefined {
+  if (item.type === 'directory') {
+    return undefined
+  }
+  try {
+    return toMaterialRelativePath(item)
+  } catch {
+    return undefined
+  }
+}
+
+/** Compile a kb_grep pattern (always global; case-insensitive unless told otherwise), turning a bad pattern into a validation error. */
+function compileGrepRegex(pattern: string, ignoreCase: boolean): RegExp {
+  try {
+    return new RegExp(pattern, ignoreCase ? 'gi' : 'g')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw DataApiErrorFactory.validation({ pattern: [message] }, `Invalid kb_grep regular expression: ${message}`)
+  }
+}
+
+/**
+ * Scan `text` for every match of the global `regex`, returning the total count
+ * and the first `limit` matches with 1-based line numbers and padded snippets.
+ * Line numbers are tracked in a single forward pass (matches arrive in order);
+ * `lastIndex` is advanced past zero-width matches so an empty-matching pattern
+ * cannot spin. `regex` MUST carry the global flag (the caller compiles it so).
+ */
+function scanConceptMatches(
+  text: string,
+  regex: RegExp,
+  limit: number
+): { totalMatches: number; matches: KnowledgeConceptGrepMatch[] } {
+  const matches: KnowledgeConceptGrepMatch[] = []
+  let totalMatches = 0
+  // Forward line cursor: `line` is the 1-based line at offset `lineScanIndex`.
+  let line = 1
+  let lineScanIndex = 0
+
+  for (let result = regex.exec(text); result !== null; result = regex.exec(text)) {
+    totalMatches++
+    const start = result.index
+    const end = start + result[0].length
+
+    if (matches.length < limit) {
+      // Count only the newlines in the gap since the previous match — O(n) total.
+      for (; lineScanIndex < start; lineScanIndex++) {
+        if (text[lineScanIndex] === '\n') line++
+      }
+      matches.push({
+        line,
+        charStart: start,
+        charEnd: end,
+        snippet: text.slice(
+          Math.max(0, start - CONCEPT_GREP_SNIPPET_PAD),
+          Math.min(text.length, end + CONCEPT_GREP_SNIPPET_PAD)
+        )
+      })
+    }
+
+    // Zero-width match: bump lastIndex so exec() advances past the same position.
+    regex.lastIndex = end > start ? end : end + 1
+  }
+
+  return { totalMatches, matches }
+}
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
@@ -332,6 +452,105 @@ export class KnowledgeService extends BaseService {
   }
 
   /**
+   * Read a knowledge concept's indexed text by its Concept ID (the material's
+   * relative path, OKF §2), optionally a `[charStart, charEnd)` slice. The slice
+   * is capped at {@link CONCEPT_READ_MAX_CHARS}; `totalChars` + `truncated` let
+   * the caller page through a longer document. Throws NOT_FOUND when the Concept
+   * ID does not resolve to a readable, visible document in this base.
+   */
+  async readConcept(
+    baseId: string,
+    conceptId: string,
+    range?: { charStart?: number; charEnd?: number }
+  ): Promise<KnowledgeConceptContent> {
+    const { item, text } = await this.resolveConcept(baseId, conceptId, 'readConcept')
+
+    const totalChars = text.length
+    const start = Math.min(Math.max(range?.charStart ?? 0, 0), totalChars)
+    // Where the caller would have ended without the cap (an omitted charEnd reads to the document end).
+    const naturalEnd = Math.min(range?.charEnd ?? totalChars, totalChars)
+    const end = Math.max(start, Math.min(naturalEnd, start + CONCEPT_READ_MAX_CHARS))
+
+    return {
+      conceptId,
+      title: getKnowledgeItemDisplayTitle(item),
+      itemType: item.type,
+      totalChars,
+      charStart: start,
+      charEnd: end,
+      content: text.slice(start, end),
+      truncated: end < naturalEnd
+    }
+  }
+
+  /**
+   * Search a knowledge concept's indexed text for a regular expression, returning
+   * the total match count and the first `maxMatches` matches (line, offsets, a
+   * padded snippet). The pattern is compiled global, case-insensitive by default;
+   * an invalid pattern throws a validation error. Throws NOT_FOUND when the
+   * Concept ID does not resolve to a readable, visible document in this base.
+   */
+  async grepConcept(
+    baseId: string,
+    conceptId: string,
+    options: { pattern: string; ignoreCase?: boolean; maxMatches?: number }
+  ): Promise<KnowledgeConceptGrep> {
+    const { item, text } = await this.resolveConcept(baseId, conceptId, 'grepConcept')
+
+    const limit = Math.min(
+      Math.max(options.maxMatches ?? CONCEPT_GREP_DEFAULT_MAX_MATCHES, 1),
+      CONCEPT_GREP_MAX_MATCHES
+    )
+    const regex = compileGrepRegex(options.pattern, options.ignoreCase ?? true)
+    const { totalMatches, matches } = scanConceptMatches(text, regex, limit)
+
+    return {
+      conceptId,
+      title: getKnowledgeItemDisplayTitle(item),
+      itemType: item.type,
+      totalMatches,
+      matches
+    }
+  }
+
+  /**
+   * Resolve a Concept ID to its content text for the deep-read tools. The tools
+   * address by relative path (a transparent DB key, never an fs path), so this
+   * re-validates the resolved material against the visible knowledge_item (same
+   * base, completed) before returning any text — the identity boundary that keeps
+   * a relative path from reaching another base's or a deleted item's content.
+   * Throws NOT_FOUND when the concept does not resolve to a readable, visible document.
+   */
+  private async resolveConcept(
+    baseId: string,
+    conceptId: string,
+    operation: string
+  ): Promise<{ item: KnowledgeItem; text: string }> {
+    await this.assertBaseCanRunRuntimeOperation(baseId, operation)
+
+    const base = await knowledgeBaseService.getById(baseId)
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const store = await vectorStoreService.getIndexStore(base)
+
+    const ref = await this.runStoreOperation(store, baseId, operation, () => store.getMaterialByRelativePath(conceptId))
+    if (!ref) {
+      throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
+    }
+
+    const item = (await this.loadVisibleItems(baseId, [ref.materialId])).get(ref.materialId)
+    if (!item) {
+      throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
+    }
+
+    const text = await this.runStoreOperation(store, baseId, operation, () => store.readMaterialContent(ref.materialId))
+    if (text == null) {
+      throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
+    }
+
+    return { item, text }
+  }
+
+  /**
    * Turn raw index matches into visible search results: fetch each match's
    * knowledge item once, drop any that is missing, in another base, or not
    * completed, and reconstruct the chunk metadata (item type / source from the
@@ -366,7 +585,10 @@ export class KnowledgeService extends BaseService {
           tokenCount: estimateTokenCount(match.text)
         },
         itemId: match.materialId,
-        chunkId: match.unitId
+        chunkId: match.unitId,
+        // Concept ID + title so a hit can be followed up with kb_read / kb_grep.
+        conceptId: deriveConceptId(item),
+        title: getKnowledgeItemDisplayTitle(item)
       })
     }
     return results

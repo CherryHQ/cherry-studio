@@ -10,7 +10,9 @@
  */
 
 import { registry, type ToolRegistry } from '../registry'
+import { createKbGrepToolEntry } from './KnowledgeGrepTool'
 import { createKbListToolEntry } from './KnowledgeListTool'
+import { createKbReadToolEntry } from './KnowledgeReadTool'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
 import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
@@ -18,6 +20,8 @@ import { createWebSearchToolEntry } from './WebSearchTool'
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
+  reg.register(createKbReadToolEntry())
+  reg.register(createKbGrepToolEntry())
   reg.register(createWebFetchToolEntry())
   reg.register(createWebSearchToolEntry())
 }

@@ -19,7 +19,14 @@
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import type { KbListOutput, KbListOutputItem, KbSearchOutput } from '@shared/ai/builtinTools'
+import type {
+  KbGrepOutput,
+  KbListOutput,
+  KbListOutputItem,
+  KbReadOutput,
+  KbSearchOutput
+} from '@shared/ai/builtinTools'
+import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
@@ -41,6 +48,14 @@ export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's available knowledge
 
 Returns each base's name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb_search with the chosen baseIds.`
 
+export const KNOWLEDGE_READ_DESCRIPTION = `Read the full text (or a slice) of a single knowledge base document by its Concept ID.
+
+Use this after kb_search to read the source behind a promising hit: kb_search returns short matching chunks, kb_read returns the whole document so you can quote it accurately and read the surrounding context. Pass the \`conceptId\` and \`baseId\` from a kb_search result. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to the previous \`charEnd\` to page on.`
+
+export const KNOWLEDGE_GREP_DESCRIPTION = `Find exact text (a regular expression) inside a single knowledge base document by its Concept ID.
+
+Use this for precise lookups within a document you found via kb_search — locating a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet with surrounding context. Pass the \`conceptId\` and \`baseId\` from a kb_search result. For meaning-based search across documents, use kb_search instead.`
+
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
  * would otherwise be `[]`. Success returns the results array (matching
@@ -50,6 +65,8 @@ export const knowledgeLookupErrorSchema = z.object({ error: z.string() })
 export type KnowledgeLookupError = z.infer<typeof knowledgeLookupErrorSchema>
 export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
 export type KnowledgeListResultOrError = KbListOutput | KnowledgeLookupError
+export type KnowledgeReadResultOrError = KbReadOutput | KnowledgeLookupError
+export type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
 
 /**
  * Every targeted base failed (revoked embedding key, corrupt vector DB, deleted base): a real
@@ -67,6 +84,15 @@ export function isKnowledgeLookupError(
 ): output is KnowledgeLookupError {
   // Success is always the results array; the error object is the only non-array shape.
   return !Array.isArray(output)
+}
+
+/**
+ * kb_read / kb_grep return a single object on success (NOT an array), so the
+ * array check above can't tell success from error — the `error` key is the
+ * discriminant instead (a success object never carries one).
+ */
+function isConceptLookupError(output: object): output is KnowledgeLookupError {
+  return 'error' in output
 }
 
 export async function searchKnowledge(
@@ -117,6 +143,13 @@ export async function searchKnowledge(
 
   return sorted.map((result, index) => ({
     id: index + 1,
+    // Provenance so the model can follow a hit with kb_read / kb_grep. conceptId
+    // is absent only for a not-yet-indexed snapshot (no relativePath); title is
+    // always set. type is the item kind (file / url / note); `?.` keeps the map
+    // resilient to a result without metadata (none in production).
+    conceptId: result.conceptId,
+    title: result.title,
+    type: result.metadata?.itemType,
     content: result.pageContent,
     // Clamp to the schema's [0, 1] range. This is the ONLY enforcement of that contract: ai@6.0.143
     // does not validate a tool's `outputSchema` on the execute path, and the MCP bridge doesn't either.
@@ -138,6 +171,116 @@ export function knowledgeSearchModelOutput(
     }
   }
   return { type: 'json', value: output }
+}
+
+/**
+ * Read a document's text by Concept ID. Like {@link searchKnowledge} this never
+ * throws: a base outside the assistant scope, an unknown Concept ID, or a service
+ * error all return `{ error }` with a message the model can act on (re-check the
+ * id, or stop). `allowedIds` scopes which bases are reachable (empty = all).
+ */
+export async function readConcept(
+  baseId: string,
+  conceptId: string,
+  range: { charStart?: number; charEnd?: number },
+  allowedIds: string[]
+): Promise<KnowledgeReadResultOrError> {
+  if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
+    logger.warn('kb_read targeted a base outside the assistant scope', { baseId, allowedIds })
+    return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
+  }
+  try {
+    const result = await application.get('KnowledgeService').readConcept(baseId, conceptId, range)
+    return {
+      conceptId: result.conceptId,
+      title: result.title,
+      type: result.itemType,
+      totalChars: result.totalChars,
+      charStart: result.charStart,
+      charEnd: result.charEnd,
+      content: result.content,
+      truncated: result.truncated
+    }
+  } catch (error) {
+    return conceptLookupError(error, baseId, conceptId, 'read')
+  }
+}
+
+export function knowledgeReadModelOutput(
+  output: KnowledgeReadResultOrError
+): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput } {
+  if (isConceptLookupError(output)) {
+    return { type: 'text', value: output.error }
+  }
+  return { type: 'json', value: output }
+}
+
+/**
+ * Grep a document's text for a regular expression by Concept ID. Never throws —
+ * scope/not-found/invalid-pattern/service errors all return `{ error }`. An
+ * invalid pattern surfaces the regex error so the model can fix it.
+ */
+export async function grepConcept(
+  baseId: string,
+  conceptId: string,
+  options: { pattern: string; ignoreCase?: boolean; maxMatches?: number },
+  allowedIds: string[]
+): Promise<KnowledgeGrepResultOrError> {
+  if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
+    logger.warn('kb_grep targeted a base outside the assistant scope', { baseId, allowedIds })
+    return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
+  }
+  try {
+    const result = await application.get('KnowledgeService').grepConcept(baseId, conceptId, options)
+    return {
+      conceptId: result.conceptId,
+      title: result.title,
+      type: result.itemType,
+      totalMatches: result.totalMatches,
+      matches: result.matches
+    }
+  } catch (error) {
+    return conceptLookupError(error, baseId, conceptId, 'grep')
+  }
+}
+
+export function knowledgeGrepModelOutput(
+  output: KnowledgeGrepResultOrError
+): { type: 'text'; value: string } | { type: 'json'; value: KbGrepOutput } {
+  if (isConceptLookupError(output)) {
+    return { type: 'text', value: output.error }
+  }
+  if (output.totalMatches === 0) {
+    return {
+      type: 'text',
+      value: `No matches for that pattern in "${output.conceptId}". Try a broader pattern, or kb_read to scan the document directly.`
+    }
+  }
+  return { type: 'json', value: output }
+}
+
+/**
+ * Map a thrown KnowledgeService error to the `{ error }` shape. A NOT_FOUND (bad
+ * Concept ID / not visible in this base) becomes a steer to re-check the id —
+ * the model can recover by picking another kb_search hit, so it is not logged as
+ * a failure. Anything else (invalid regex, infra) surfaces its own message.
+ */
+function conceptLookupError(
+  error: unknown,
+  baseId: string,
+  conceptId: string,
+  verb: 'read' | 'grep'
+): KnowledgeLookupError {
+  if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+    return {
+      error:
+        `No document with conceptId "${conceptId}" in knowledge base "${baseId}". ` +
+        'Verify the conceptId against a kb_search result (its conceptId field) and the baseId.'
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  logger.warn(`KnowledgeService.${verb}Concept failed`, { baseId, conceptId, error: message })
+  return { error: message }
 }
 
 export async function listKnowledgeBases(

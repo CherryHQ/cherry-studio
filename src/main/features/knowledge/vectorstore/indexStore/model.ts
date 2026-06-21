@@ -42,6 +42,19 @@ export interface RebuildMaterialInput {
   embeddings: RebuildMaterialEmbeddingInput[]
 }
 
+/**
+ * A material identified by its Concept ID (the `relative_path`, OKF §2). The
+ * relative path is UNIQUE per index, so this is the addressing primitive behind
+ * the deep-read tools (kb_read / kb_grep); the caller re-validates the resolved
+ * material against the visible knowledge_item before exposing any content.
+ */
+export interface KnowledgeMaterialRef {
+  materialId: string
+  relativePath: string
+  /** Hash of the material's current content, or null while it is mid-index (no content yet). */
+  contentHash: string | null
+}
+
 /** A retrieval unit read back from the index, with its body text. */
 export interface KnowledgeSearchUnit {
   unitId: string
