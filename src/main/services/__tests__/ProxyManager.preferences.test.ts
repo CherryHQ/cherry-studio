@@ -128,4 +128,30 @@ describe('ProxyManager — preference wiring', () => {
     )
     expect(sessionSetProxyMock).toHaveBeenLastCalledWith({ mode: 'direct' })
   })
+
+  it('coalesces to the latest change when one lands while an apply is in flight', async () => {
+    // Block the first apply mid-flight so a newer change arrives before it finishes.
+    let releaseFirstApply!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseFirstApply = resolve
+    })
+    sessionSetProxyMock.mockReturnValueOnce(gate.then(() => undefined))
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
+
+    const manager = new ProxyManager()
+    const ready = (manager as any).onReady()
+
+    // Newer change lands while the first apply is gated.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+
+    releaseFirstApply()
+    await ready
+
+    // Latest wins: the final applied config targets the second URL (not dropped).
+    expect(sessionSetProxyMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: 'fixed_servers', proxyRules: 'http://second:2' })
+    )
+  })
 })
