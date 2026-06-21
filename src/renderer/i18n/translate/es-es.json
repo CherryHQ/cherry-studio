@@ -2144,13 +2144,13 @@
         "view_chunks": "Ver Fragmentos"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importar recursivamente archivos compatibles desde una carpeta",
-          "title": "Haz clic para seleccionar una carpeta"
+        "conflict_dialog": {
+          "description": "{{count}} de las fuentes que estás agregando tienen el mismo nombre que elementos existentes. Elige cómo manejarlas.",
+          "keep_all": "Mantener Todo",
+          "replace": "Reemplazar",
+          "title": "Las fuentes ya existen"
         },
         "footer": {
-          "selected_directories": "{{count}} directorios seleccionados",
-          "selected_files": "{{count}} archivos seleccionados",
           "selected_notes": "{{count}} notas seleccionadas"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
     "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
-    "drag_file": "Arrastre archivos aquí",
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "El modelo de incrustación utilizado por esta base de conocimientos no se encontró durante la migración. Reconstruye la base de conocimientos y elige un nuevo modelo de incrustación.",
       "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
     },
-    "file_hint": "Formatos soportados: {{file_types}}",
     "groups": {
       "add": "Nuevo Grupo",
       "create_base_here": "Crea aquí",
@@ -7067,10 +7065,16 @@
       "title": "Escala"
     }
   },
+  "subWindow": {
+    "back_to_main": "Volver a la ventana principal",
+    "pin": "Mantener encima",
+    "unpin": "Cancelar Mantener en la parte superior"
+  },
   "tab": {
     "close": "Cerrar pestaña",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
+    "open_in_new_window": "Abrir en Nueva Ventana",
     "pin": "Anclar pestaña",
     "unpin": "Desanclar pestaña"
   },

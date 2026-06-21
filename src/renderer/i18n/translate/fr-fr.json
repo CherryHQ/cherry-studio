@@ -2144,13 +2144,13 @@
         "view_chunks": "Afficher les morceaux"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importer récursivement les fichiers pris en charge depuis un dossier",
-          "title": "Cliquez pour sélectionner un dossier"
+        "conflict_dialog": {
+          "description": "{{count}} des sources que vous ajoutez ont le même nom que des éléments existants. Choisissez comment les traiter.",
+          "keep_all": "Conserver tout",
+          "replace": "Remplacer",
+          "title": "Les sources existent déjà"
         },
         "footer": {
-          "selected_directories": "{{count}} répertoires sélectionnés",
-          "selected_files": "{{count}} fichiers sélectionnés",
           "selected_notes": "{{count}} notes sélectionnées"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "Réglage automatique des dimensions d'incorporation",
     "dimensions_size_placeholder": " Taille de dimension d'incorporation, ex. 1024",
-    "drag_file": "Glissez-déposez un fichier ici",
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "Le modèle d'embedding utilisé par cette base de connaissances n'a pas été trouvé lors de la migration. Reconstruisez la base de connaissances et choisissez un nouveau modèle d'embedding.",
       "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
     },
-    "file_hint": "Format supporté : {{file_types}}",
     "groups": {
       "add": "Nouveau Groupe",
       "create_base_here": "Créez ici",
@@ -7067,10 +7065,16 @@
       "title": "Zoom"
     }
   },
+  "subWindow": {
+    "back_to_main": "Retour à la fenêtre principale",
+    "pin": "Garder au-dessus",
+    "unpin": "Annuler Garder au-dessus"
+  },
   "tab": {
     "close": "Fermer l'onglet",
     "move_to_first": "Déplacer vers le premier",
     "new": "Nouvel onglet",
+    "open_in_new_window": "Ouvrir dans une nouvelle fenêtre",
     "pin": "Épingler l'onglet",
     "unpin": "Détacher l'onglet"
   },
