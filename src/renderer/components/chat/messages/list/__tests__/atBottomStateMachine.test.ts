@@ -130,7 +130,7 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 1495,
         scrollSize: 2000,
-        viewportSize: 500,
+        viewportSize: 500
       })
       expect(next).toBe(prev)
     })
@@ -141,7 +141,7 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 995,
         scrollSize: 2000,
-        viewportSize: 500,
+        viewportSize: 500
       })
       expect(next).toEqual({ atBottom: false, reason: 'size-grew-past-viewport' })
     })
@@ -152,7 +152,7 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 100,
         scrollSize: 2000,
-        viewportSize: 500,
+        viewportSize: 500
       })
       expect(next).toBe(prev)
     })
@@ -163,7 +163,7 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 1495,
         scrollSize: 2000,
-        viewportSize: 500,
+        viewportSize: 500
       })
       expect(next).toEqual({ atBottom: true, reason: 'size-stayed-at-bottom' })
     })
@@ -192,7 +192,7 @@ describe('reduceAtBottom', () => {
       type: 'size-change',
       offset: 495,
       scrollSize: 1200,
-      viewportSize: 500,
+      viewportSize: 500
     })
     expect(s).toEqual({ atBottom: false, reason: 'size-grew-past-viewport' })
 
@@ -210,7 +210,7 @@ describe('reduceAtBottom', () => {
       type: 'size-change',
       offset: 400,
       scrollSize: 1500,
-      viewportSize: 500,
+      viewportSize: 500
     })
     expect(s).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
 

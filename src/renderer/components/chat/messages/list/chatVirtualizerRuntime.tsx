@@ -278,7 +278,7 @@ export function useChatVirtualizerRuntime<T>({
         atBottom.notifySizeChange({
           offset: el.scrollTop,
           scrollSize: el.scrollHeight,
-          viewportSize: el.clientHeight,
+          viewportSize: el.clientHeight
         })
       }
       updateScrollToBottomButtonVisibility()
