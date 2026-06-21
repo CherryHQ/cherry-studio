@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import type { TFunction } from 'i18next'
 import {
   FileCode,
   FileQuestion,
@@ -11,6 +12,7 @@ import {
   Video
 } from 'lucide-react'
 import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export type SidebarFilter =
   | { kind: 'library'; value: 'all' | 'trash' }
@@ -20,23 +22,23 @@ export type SidebarFilter =
 type SidebarEntry = {
   kind: string
   value: string
-  label: string
+  label: (t: TFunction) => string
   icon: FC<{ size?: number; strokeWidth?: number; className?: string }>
   countKey: string
 }
 
 const TYPE_ENTRIES: SidebarEntry[] = [
-  { kind: 'type', value: 'image', label: '图片', icon: ImageIcon, countKey: 'type_image' },
-  { kind: 'type', value: 'video', label: '视频', icon: Video, countKey: 'type_video' },
-  { kind: 'type', value: 'audio', label: '音频', icon: Music, countKey: 'type_audio' },
-  { kind: 'type', value: 'text', label: '文本', icon: FileCode, countKey: 'type_text' },
-  { kind: 'type', value: 'document', label: '文档', icon: FileText, countKey: 'type_document' },
-  { kind: 'type', value: 'other', label: '其他', icon: FileQuestion, countKey: 'type_other' }
+  { kind: 'type', value: 'image', label: (t) => t('files.image'), icon: ImageIcon, countKey: 'type_image' },
+  { kind: 'type', value: 'video', label: (t) => t('files.video'), icon: Video, countKey: 'type_video' },
+  { kind: 'type', value: 'audio', label: (t) => t('files.audio'), icon: Music, countKey: 'type_audio' },
+  { kind: 'type', value: 'text', label: (t) => t('files.text'), icon: FileCode, countKey: 'type_text' },
+  { kind: 'type', value: 'document', label: (t) => t('files.document'), icon: FileText, countKey: 'type_document' },
+  { kind: 'type', value: 'other', label: (t) => t('files.other'), icon: FileQuestion, countKey: 'type_other' }
 ]
 
 const LIBRARY_ENTRIES: SidebarEntry[] = [
-  { kind: 'library', value: 'all', label: '全部文件', icon: Files, countKey: 'all' },
-  { kind: 'library', value: 'trash', label: '回收站', icon: Trash2, countKey: 'trash' }
+  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' },
+  { kind: 'library', value: 'trash', label: (t) => t('files.trash'), icon: Trash2, countKey: 'trash' }
 ]
 
 export function FileSidebar({
@@ -50,6 +52,7 @@ export function FileSidebar({
   fileCounts: Record<string, number>
   folders: string[]
 }) {
+  const { t } = useTranslation()
   const isActive = (kind: string, value: string) => filter.kind === kind && filter.value === value
 
   const renderEntry = (entry: SidebarEntry) => {
@@ -66,18 +69,18 @@ export function FileSidebar({
           active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
         }`}>
         <Icon size={13} strokeWidth={1.5} className="shrink-0 text-muted-foreground/60" />
-        <span className="flex-1 truncate text-left">{entry.label}</span>
-        {count !== undefined && count > 0 && <span className="text-xs text-muted-foreground/40">{count}</span>}
+        <span className="flex-1 truncate text-left">{entry.label(t)}</span>
+        {count !== undefined && count > 0 && <span className="text-muted-foreground/40 text-xs">{count}</span>}
       </Button>
     )
   }
 
   return (
-    <div className="flex w-[180px] shrink-0 select-none flex-col overflow-y-auto border-r border-border/30">
+    <div className="flex w-[180px] shrink-0 select-none flex-col overflow-y-auto border-border/30 border-r">
       <div className="space-y-[1px] px-1.5 pt-2 pb-1">{TYPE_ENTRIES.map(renderEntry)}</div>
       {folders.length > 0 && (
         <>
-          <div className="mx-2.5 border-t border-border/20" />
+          <div className="mx-2.5 border-border/20 border-t" />
           <div className="space-y-[1px] px-1.5 pt-1 pb-1">
             {folders.map((folder) => {
               const active = isActive('folder', folder)
@@ -97,7 +100,7 @@ export function FileSidebar({
                   <FolderClosed size={13} strokeWidth={1.5} className="shrink-0 text-muted-foreground/60" />
                   <span className="flex-1 truncate text-left">{displayName}</span>
                   {count !== undefined && count > 0 && (
-                    <span className="text-xs text-muted-foreground/40">{count}</span>
+                    <span className="text-muted-foreground/40 text-xs">{count}</span>
                   )}
                 </Button>
               )
@@ -105,7 +108,7 @@ export function FileSidebar({
           </div>
         </>
       )}
-      <div className="mx-2.5 border-t border-border/20" />
+      <div className="mx-2.5 border-border/20 border-t" />
       <div className="space-y-[1px] px-1.5 pt-1 pb-2">{LIBRARY_ENTRIES.map(renderEntry)}</div>
     </div>
   )

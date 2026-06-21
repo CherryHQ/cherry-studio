@@ -1,10 +1,11 @@
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, ImagePreviewTrigger, Input } from '@cherrystudio/ui'
 import { File, FileCode, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import type { FileItem } from './mockData'
-import { getFormatLabel } from './mockData'
+import type { FileItem } from './fileDisplay'
+import { getFormatLabel } from './fileDisplay'
 
 const typeIcons: Record<string, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {
   image: ImageIcon,
@@ -75,6 +76,31 @@ export const FileGrid = memo(function FileGrid({
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
 }) {
+  const { t } = useTranslation()
+  const imagePreviewItems = useMemo(
+    () =>
+      files.flatMap((file) =>
+        file.type === 'image' ? [{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }] : []
+      ),
+    [files]
+  )
+  const previewLabels = useMemo(
+    () => ({
+      close: t('preview.close'),
+      dialogTitle: t('preview.label'),
+      flipHorizontal: t('preview.flip_horizontal'),
+      flipVertical: t('preview.flip_vertical'),
+      next: t('preview.next'),
+      previous: t('preview.previous'),
+      reset: t('preview.reset'),
+      rotateLeft: t('preview.rotate_left'),
+      rotateRight: t('preview.rotate_right'),
+      zoomIn: t('preview.zoom_in'),
+      zoomOut: t('preview.zoom_out')
+    }),
+    [t]
+  )
+
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 p-3">
       {files.map((file) => {
@@ -87,12 +113,12 @@ export const FileGrid = memo(function FileGrid({
             key={file.id}
             onClick={(e) => {
               if (isRenaming) return
-              if (isImage) onOpen(file)
-              else onSelect(file.id, e.metaKey || e.ctrlKey)
+              if (isImage) return
+              onSelect(file.id, e.metaKey || e.ctrlKey)
             }}
             onContextMenu={(e) => onContextMenu(e, file.id)}
             onDoubleClick={() => {
-              if (!isRenaming) onOpen(file)
+              if (!isRenaming && !isImage) onOpen(file)
             }}
             className={`group relative cursor-pointer rounded-lg border transition-all ${
               selected ? 'border-border/50 bg-accent/50' : 'border-border/30 hover:border-border/50 hover:bg-accent/50'
@@ -100,11 +126,21 @@ export const FileGrid = memo(function FileGrid({
             <div
               className={`${isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'} relative flex items-center justify-center overflow-hidden ${isImage ? '' : typeBgColors[file.type] || typeBgColors.other}`}
               style={isImage ? { backgroundImage: gradientFor(file.name) } : undefined}>
-              {!isImage && (
+              {file.type === 'image' ? (
+                <ImagePreviewTrigger
+                  item={{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }}
+                  items={imagePreviewItems}
+                  alt={file.name}
+                  dialogProps={{ labels: previewLabels }}
+                  className="h-full w-full cursor-zoom-in object-cover"
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                />
+              ) : (
                 <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type] || typeIconColors.other} />
               )}
               {!isImage && (
-                <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] text-xs font-medium tracking-wide text-muted-foreground/60">
+                <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">
                   {getFormatLabel(file.format)}
                 </span>
               )}
@@ -115,7 +151,7 @@ export const FileGrid = memo(function FileGrid({
                     e.stopPropagation()
                     onDelete(file.id)
                   }}
-                  title="删除"
+                  title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
                   className="flex h-5 w-5 items-center justify-center rounded p-0 text-muted-foreground/35 transition-colors hover:text-destructive/80">
                   <Trash2 size={10} />
                 </Button>
@@ -130,12 +166,12 @@ export const FileGrid = memo(function FileGrid({
                     onCancel={onRenameCancel}
                   />
                 ) : (
-                  <p className="truncate text-sm text-foreground" title={file.name}>
+                  <p className="truncate text-foreground text-sm" title={file.name}>
                     {file.name}
                   </p>
                 )}
                 <div className="mt-0.5 flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground/50">{file.size}</span>
+                  <span className="text-muted-foreground/50 text-xs">{file.size}</span>
                 </div>
               </div>
             )}
@@ -177,7 +213,7 @@ function InlineRename({
         if (text.trim()) onConfirm(text.trim())
         else onCancel()
       }}
-      className="h-auto w-full rounded-md border border-border bg-background px-1.5 py-0.5 text-center text-xs text-foreground shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15"
+      className="h-auto w-full rounded-md border border-border bg-background px-1.5 py-0.5 text-center text-foreground text-xs shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15"
       onClick={(e) => e.stopPropagation()}
     />
   )

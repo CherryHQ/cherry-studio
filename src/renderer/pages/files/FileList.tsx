@@ -12,9 +12,10 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import type { FileItem } from './mockData'
-import { getFormatLabel } from './mockData'
+import type { FileItem } from './fileDisplay'
+import { getFormatLabel } from './fileDisplay'
 
 const typeIcons: Record<string, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {
   image: ImageIcon,
@@ -100,20 +101,28 @@ export const FileList = memo(function FileList({
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <div className="flex flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border/30 bg-background px-4 py-1.5">
+      <div className="sticky top-0 z-10 flex items-center gap-2 border-border/30 border-b bg-background px-4 py-1.5">
         <div className="min-w-0 flex-1">
-          <SortHeader label="名称" field="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+          <SortHeader label={t('files.name')} field="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
         </div>
         <div className="w-[70px]">
-          <SortHeader label="大小" field="size" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+          <SortHeader label={t('files.size')} field="size" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
         </div>
         <div className="w-[55px]">
-          <SortHeader label="类型" field="type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+          <SortHeader label={t('files.type')} field="type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
         </div>
         <div className="w-[110px]">
-          <SortHeader label="修改时间" field="updatedAt" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+          <SortHeader
+            label={t('files.modified_at')}
+            field="updatedAt"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={onSort}
+          />
         </div>
       </div>
       {files.map((file) => {
@@ -130,7 +139,7 @@ export const FileList = memo(function FileList({
             onDoubleClick={() => {
               if (!isRenaming) onOpen(file)
             }}
-            className={`flex cursor-pointer items-center gap-2 border-b border-border/15 px-4 py-[6px] transition-colors ${
+            className={`flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
               selected ? 'bg-accent/50' : 'hover:bg-accent/50'
             }`}>
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -146,12 +155,12 @@ export const FileList = memo(function FileList({
                   onCancel={onRenameCancel}
                 />
               ) : (
-                <span className="truncate text-sm text-foreground">{file.name}</span>
+                <span className="truncate text-foreground text-sm">{file.name}</span>
               )}
             </div>
-            <span className="w-[70px] shrink-0 text-xs text-muted-foreground/50">{file.size}</span>
-            <span className="w-[55px] shrink-0 text-xs text-muted-foreground/50">{getFormatLabel(file.format)}</span>
-            <span className="w-[110px] shrink-0 text-xs text-muted-foreground/50">{file.updatedAt}</span>
+            <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
+            <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
+            <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
           </div>
         )
       })}
@@ -190,7 +199,7 @@ function InlineRename({
         if (text.trim()) onConfirm(text.trim())
         else onCancel()
       }}
-      className="h-auto flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs text-foreground shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15"
+      className="h-auto flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-foreground text-xs shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15"
       onClick={(e) => e.stopPropagation()}
     />
   )

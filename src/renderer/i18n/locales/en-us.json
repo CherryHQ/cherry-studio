@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "Actions",
     "all": "All Files",
+    "audio": "Audio",
     "batch_delete": "Batch delete",
     "batch_operation": "Select All",
     "count": "files",
@@ -2358,22 +2359,42 @@
       },
       "title": "Delete File"
     },
+    "delete_or_remove": "Delete / remove",
+    "details": "Details",
     "document": "Document",
+    "drag_upload": "Drag files here to upload",
     "edit": "Edit",
+    "empty": {
+      "no_match_description": "No files match the current filters",
+      "no_match_title": "No matching files found"
+    },
     "error": {
       "open_path": "Failed to open path {{path}}"
     },
     "file": "File",
+    "footer_count": "{{count}} files",
+    "footer_selected_count": "{{count}} selected",
+    "format": "Format",
     "image": "Image",
+    "modified_at": "Modified At",
     "name": "Name",
     "open": "Open",
+    "other": "Other",
+    "permanent_delete": "Permanently delete",
     "preview": {
       "error": "Failed to open file"
     },
+    "remove_from_library": "Remove from library",
+    "rename": "Rename",
+    "restore": "Restore",
+    "selected_count": "{{count}} files selected",
+    "show_in_folder": "Show in folder",
     "size": "Size",
     "text": "Text",
     "title": "Files",
-    "type": "Type"
+    "trash": "Trash",
+    "type": "Type",
+    "video": "Video"
   },
   "globalSearch": {
     "clear": "Clear search",

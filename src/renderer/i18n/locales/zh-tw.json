@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "audio": "音訊",
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
     "count": "個檔案",
@@ -2358,22 +2359,42 @@
       },
       "title": "刪除檔案"
     },
+    "delete_or_remove": "刪除/移除",
+    "details": "詳細資訊",
     "document": "文件",
+    "drag_upload": "拖曳檔案到此處上傳",
     "edit": "編輯",
+    "empty": {
+      "no_match_description": "目前篩選條件下沒有檔案",
+      "no_match_title": "找不到符合的檔案"
+    },
     "error": {
       "open_path": "無法開啟路徑：{{path}}"
     },
     "file": "檔案",
+    "footer_count": "{{count}} 個檔案",
+    "footer_selected_count": "{{count}} 個已選",
+    "format": "格式",
     "image": "圖片",
+    "modified_at": "修改時間",
     "name": "名稱",
     "open": "開啟",
+    "other": "其他",
+    "permanent_delete": "永久刪除",
     "preview": {
       "error": "開啟檔案失敗"
     },
+    "remove_from_library": "從庫中移除",
+    "rename": "重新命名",
+    "restore": "還原",
+    "selected_count": "已選取 {{count}} 個檔案",
+    "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
-    "type": "類型"
+    "trash": "回收站",
+    "type": "類型",
+    "video": "影片"
   },
   "globalSearch": {
     "clear": "清除搜尋",
