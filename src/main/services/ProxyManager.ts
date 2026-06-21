@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ProxyMode } from '@shared/data/preference/preferenceTypes'
+import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
@@ -12,17 +12,30 @@ import { NodeProxyController } from './proxy/nodeProxy'
 const logger = loggerService.withContext('ProxyManager')
 
 /** Proxy preferences that drive the global proxy. Changing any of them re-applies it. */
-const PROXY_PREFERENCE_KEYS = ['app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'] as const
+const PROXY_PREFERENCE_KEYS = [
+  'app.proxy.mode',
+  'app.proxy.url',
+  'app.proxy.bypass_rules'
+] as const satisfies readonly UnifiedPreferenceKeyType[]
 
 /** Identity of an applied proxy config, for latest-wins settle detection. */
-const proxyConfigKey = (c: ProxyConfig): string => `${c.mode}|${c.proxyRules ?? ''}|${c.proxyBypassRules ?? ''}`
+const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypassRules'>): string =>
+  `${c.mode}|${c.proxyRules ?? ''}|${c.proxyBypassRules ?? ''}`
 
 /**
  * Map the user-facing proxy mode to an Electron {@link ProxyConfig}. `system` returns the bare
  * `system` mode; the concrete system proxy URL is resolved from the OS later. A `custom` mode
  * without a URL can't form a fixed-servers config, so it falls back to direct.
  */
-export function resolveProxyConfig(mode: ProxyMode, url: string, bypassRules: string): ProxyConfig {
+export function resolveProxyConfig({
+  mode,
+  url,
+  bypassRules
+}: {
+  mode: ProxyMode
+  url: string
+  bypassRules: string
+}): ProxyConfig {
   switch (mode) {
     case 'none':
       return { mode: 'direct' }
@@ -66,21 +79,31 @@ export class ProxyManager extends BaseService {
     )
     this.proxyReconciler.request()
     await this.proxyReconciler.flush()
+    const error = this.proxyReconciler.getLastError()
+    if (error) {
+      logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
+    }
   }
 
   /** Latest intent from preferences, resolving the concrete OS proxy for `system` mode. */
   private async snapshotProxyConfig(): Promise<ProxyConfig> {
     const preferenceService = application.get('PreferenceService')
-    const config = resolveProxyConfig(
-      preferenceService.get('app.proxy.mode'),
-      preferenceService.get('app.proxy.url'),
-      preferenceService.get('app.proxy.bypass_rules')
-    )
+    const config = resolveProxyConfig({
+      mode: preferenceService.get('app.proxy.mode'),
+      url: preferenceService.get('app.proxy.url'),
+      bypassRules: preferenceService.get('app.proxy.bypass_rules')
+    })
     if (config.mode === 'system') {
-      const currentProxy = await getSystemProxy()
-      if (currentProxy) {
-        config.proxyRules = currentProxy.proxyUrl.toLowerCase()
-        config.proxyBypassRules = currentProxy.noProxy.join(',')
+      // A failed OS read must not abort the apply — fall back to bare system mode so Electron
+      // still applies something instead of leaving the proxy unconfigured.
+      try {
+        const currentProxy = await getSystemProxy()
+        if (currentProxy) {
+          config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+          config.proxyBypassRules = currentProxy.noProxy.join(',')
+        }
+      } catch (error) {
+        logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
       }
     }
     return config
