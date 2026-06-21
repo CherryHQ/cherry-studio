@@ -19,12 +19,15 @@ import {
   KNOWLEDGE_LIST_DESCRIPTION,
   KNOWLEDGE_READ_DESCRIPTION,
   KNOWLEDGE_SEARCH_DESCRIPTION,
+  KNOWLEDGE_TREE_DESCRIPTION,
   knowledgeGrepModelOutput,
   knowledgeListModelOutput,
   knowledgeReadModelOutput,
   knowledgeSearchModelOutput,
+  knowledgeTreeModelOutput,
   listKnowledgeBases,
   readConcept,
+  readTree,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
 import {
@@ -47,10 +50,12 @@ import {
   KB_LIST_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  KB_TREE_TOOL_NAME,
   kbGrepInputSchema,
   kbListInputSchema,
   kbReadInputSchema,
   kbSearchInputSchema,
+  kbTreeInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
@@ -118,6 +123,14 @@ const HANDLERS: Record<string, ToolHandler> = {
       return knowledgeGrepModelOutput(
         await grepConcept(baseId, conceptId, { pattern, ignoreCase, maxMatches }, KB_ALLOWED_IDS)
       )
+    }
+  },
+  [KB_TREE_TOOL_NAME]: {
+    description: KNOWLEDGE_TREE_DESCRIPTION,
+    inputSchema: kbTreeInputSchema,
+    run: async (args) => {
+      const { baseId, maxDepth } = kbTreeInputSchema.parse(args)
+      return knowledgeTreeModelOutput(await readTree(baseId, { maxDepth }, KB_ALLOWED_IDS))
     }
   },
   [KB_LIST_TOOL_NAME]: {

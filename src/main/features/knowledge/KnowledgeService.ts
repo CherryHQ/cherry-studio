@@ -73,6 +73,8 @@ const CONCEPT_GREP_DEFAULT_MAX_MATCHES = 50
 const CONCEPT_GREP_MAX_MATCHES = 200
 /** Characters of context kept on each side of a grep match in its snippet. */
 const CONCEPT_GREP_SNIPPET_PAD = 60
+/** Hard ceiling on nodes {@link KnowledgeService.getOrganizationTree} returns, bounding the response for a huge base. */
+const KNOWLEDGE_TREE_MAX_NODES = 1000
 
 /** Verbatim slice of a knowledge concept's indexed text, addressed by Concept ID (the material's relative path, OKF §2). */
 export interface KnowledgeConceptContent {
@@ -106,6 +108,35 @@ export interface KnowledgeConceptGrep {
   /** Total matches found in the document (may exceed `matches.length` when the cap was hit). */
   totalMatches: number
   matches: KnowledgeConceptGrepMatch[]
+}
+
+/**
+ * One node of a knowledge base's organization tree, emitted in pre-order DFS so
+ * the flat list reads top-down like an outline. `depth` (0 at the base root)
+ * carries the hierarchy without a recursive shape. `conceptId` is set only for a
+ * readable leaf (a completed file/url/note) so it can be passed to kb_read /
+ * kb_grep; directories and not-yet-indexed leaves have none.
+ */
+export interface KnowledgeTreeNode {
+  depth: number
+  title: string
+  itemType: KnowledgeItemType
+  status: KnowledgeItemStatus
+  conceptId?: string
+}
+
+/**
+ * A knowledge base's organization tree — the logical groupId hierarchy of
+ * knowledge_item (directories as folders, file/url/note as leaves), NOT the flat
+ * physical `raw/` layout. The synthesized view OKF surfaces as an `index.md`.
+ */
+export interface KnowledgeOrganizationTree {
+  baseId: string
+  /** Count of non-deleting items in the base (may exceed `nodes.length` when capped). */
+  totalItems: number
+  /** True when the emitted node list was capped at {@link KNOWLEDGE_TREE_MAX_NODES}. */
+  truncated: boolean
+  nodes: KnowledgeTreeNode[]
 }
 
 /**
@@ -548,6 +579,66 @@ export class KnowledgeService extends BaseService {
     }
 
     return { item, text }
+  }
+
+  /**
+   * Build a knowledge base's organization tree from the `knowledge_item.groupId`
+   * hierarchy — directories are folders, file/url/note are leaves carrying a
+   * readable `conceptId` (when completed) for kb_read / kb_grep. This is the
+   * logical org layer the OKF `index.md` surfaces, deliberately decoupled from
+   * the flat physical `raw/` layout: no material scan, no path joins. Emitted as
+   * a pre-order DFS node list (each node's `depth` carries the hierarchy),
+   * capped at {@link KNOWLEDGE_TREE_MAX_NODES}. Throws NOT_FOUND if the base does
+   * not exist; available regardless of the base's runtime (search) state.
+   */
+  async getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): Promise<KnowledgeOrganizationTree> {
+    await knowledgeBaseService.getById(baseId)
+
+    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+
+    // Index children by their parent groupId (null = base root); each bucket keeps
+    // getItemsByBaseId's createdAt/id order, so siblings emit in a stable order.
+    const childrenByGroupId = new Map<string | null, KnowledgeItem[]>()
+    for (const item of items) {
+      const key = item.groupId ?? null
+      const bucket = childrenByGroupId.get(key)
+      if (bucket) {
+        bucket.push(item)
+      } else {
+        childrenByGroupId.set(key, [item])
+      }
+    }
+
+    const maxDepth = options.maxDepth
+    const nodes: KnowledgeTreeNode[] = []
+    let truncated = false
+
+    const walk = (groupId: string | null, depth: number): void => {
+      if (truncated || (maxDepth !== undefined && depth > maxDepth)) {
+        return
+      }
+      for (const item of childrenByGroupId.get(groupId) ?? []) {
+        if (nodes.length >= KNOWLEDGE_TREE_MAX_NODES) {
+          truncated = true
+          return
+        }
+        nodes.push({
+          depth,
+          title: getKnowledgeItemDisplayTitle(item),
+          itemType: item.type,
+          status: item.status,
+          // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
+          conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
+        })
+        if (item.type === 'directory') {
+          walk(item.id, depth + 1)
+        }
+      }
+    }
+
+    walk(null, 0)
+
+    return { baseId, totalItems: items.length, truncated, nodes }
   }
 
   /**

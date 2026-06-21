@@ -1778,6 +1778,52 @@ describe('KnowledgeService', () => {
     })
   })
 
+  describe('getOrganizationTree', () => {
+    it('builds the groupId hierarchy as a pre-order DFS node list with conceptId for completed leaves', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+        createDirectoryItem('docs', null, 'completed'),
+        { ...createFileItem('f1', 'kb-1', '/src/report.pdf', 'completed'), groupId: 'docs' },
+        createNoteItem('root-note', 'kb-1', null, 'completed')
+      ])
+
+      const tree = await service.getOrganizationTree('kb-1')
+
+      expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('kb-1')
+      expect(tree).toMatchObject({ baseId: 'kb-1', totalItems: 3, truncated: false })
+      expect(tree.nodes).toEqual([
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'report.pdf', itemType: 'file', status: 'completed', conceptId: 'report.pdf' },
+        { depth: 0, title: expect.any(String), itemType: 'note', status: 'completed', conceptId: undefined }
+      ])
+    })
+
+    it('omits conceptId for a leaf that is not completed (not readable yet)', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([createFileItem('f1', 'kb-1', '/a.pdf', 'idle')])
+
+      const tree = await service.getOrganizationTree('kb-1')
+
+      expect(tree.nodes[0]).toMatchObject({ depth: 0, itemType: 'file', status: 'idle' })
+      expect(tree.nodes[0].conceptId).toBeUndefined()
+    })
+
+    it('respects maxDepth, dropping folders deeper than the limit', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+        createDirectoryItem('docs', null, 'completed'),
+        createDirectoryItem('sub', 'docs', 'completed'),
+        { ...createFileItem('deep', 'kb-1', '/deep.pdf', 'completed'), groupId: 'sub' }
+      ])
+
+      const tree = await service.getOrganizationTree('kb-1', { maxDepth: 0 })
+
+      // maxDepth 0 keeps only the top level; the nested folder and its file are dropped.
+      expect(tree.nodes.map((node) => node.title)).toEqual(['docs'])
+      expect(tree.totalItems).toBe(3)
+    })
+  })
+
   it('applies rerank results before applying relevance threshold', async () => {
     const service = new KnowledgeService()
     const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })

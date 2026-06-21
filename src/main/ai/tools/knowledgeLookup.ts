@@ -24,7 +24,8 @@ import type {
   KbListOutput,
   KbListOutputItem,
   KbReadOutput,
-  KbSearchOutput
+  KbSearchOutput,
+  KbTreeOutput
 } from '@shared/ai/builtinTools'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
@@ -56,6 +57,10 @@ export const KNOWLEDGE_GREP_DESCRIPTION = `Find exact text (a regular expression
 
 Use this for precise lookups within a document you found via kb_search — locating a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet with surrounding context. Pass the \`conceptId\` and \`baseId\` from a kb_search result. For meaning-based search across documents, use kb_search instead.`
 
+export const KNOWLEDGE_TREE_DESCRIPTION = `Outline a knowledge base's structure — its folders and documents — without searching.
+
+Use this to see what a base contains and how it is organized before searching or reading: it returns the base's organization tree as a flat top-down list of nodes, each with a \`depth\` (folder nesting), title, type, and — for a readable document — a \`conceptId\` you can pass to kb_read / kb_grep. Prefer kb_search when you have a specific question; use kb_tree to browse or when the user asks "what's in my knowledge base".`
+
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
  * would otherwise be `[]`. Success returns the results array (matching
@@ -67,6 +72,7 @@ export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
 export type KnowledgeListResultOrError = KbListOutput | KnowledgeLookupError
 export type KnowledgeReadResultOrError = KbReadOutput | KnowledgeLookupError
 export type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
+export type KnowledgeTreeResultOrError = KbTreeOutput | KnowledgeLookupError
 
 /**
  * Every targeted base failed (revoked embedding key, corrupt vector DB, deleted base): a real
@@ -281,6 +287,56 @@ function conceptLookupError(
   const message = error instanceof Error ? error.message : String(error)
   logger.warn(`KnowledgeService.${verb}Concept failed`, { baseId, conceptId, error: message })
   return { error: message }
+}
+
+/**
+ * Outline a base's organization tree by Concept ID-addressable nodes. Never
+ * throws: an out-of-scope base or a service error returns `{ error }`; a missing
+ * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
+ */
+export async function readTree(
+  baseId: string,
+  options: { maxDepth?: number },
+  allowedIds: string[]
+): Promise<KnowledgeTreeResultOrError> {
+  if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
+    logger.warn('kb_tree targeted a base outside the assistant scope', { baseId, allowedIds })
+    return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
+  }
+  try {
+    const tree = await application.get('KnowledgeService').getOrganizationTree(baseId, options)
+    return {
+      baseId: tree.baseId,
+      totalItems: tree.totalItems,
+      truncated: tree.truncated,
+      nodes: tree.nodes.map((node) => ({
+        depth: node.depth,
+        title: node.title,
+        type: node.itemType,
+        status: node.status,
+        conceptId: node.conceptId
+      }))
+    }
+  } catch (error) {
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    logger.warn('KnowledgeService.getOrganizationTree failed', { baseId, error: message })
+    return { error: message }
+  }
+}
+
+export function knowledgeTreeModelOutput(
+  output: KnowledgeTreeResultOrError
+): { type: 'text'; value: string } | { type: 'json'; value: KbTreeOutput } {
+  if (isConceptLookupError(output)) {
+    return { type: 'text', value: output.error }
+  }
+  if (output.nodes.length === 0) {
+    return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+  }
+  return { type: 'json', value: output }
 }
 
 export async function listKnowledgeBases(

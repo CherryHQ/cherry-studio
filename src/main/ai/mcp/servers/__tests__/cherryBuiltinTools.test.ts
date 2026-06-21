@@ -5,6 +5,7 @@ const fetchUrls = vi.fn()
 const kbSearch = vi.fn()
 const kbReadConcept = vi.fn()
 const kbGrepConcept = vi.fn()
+const kbGetOrganizationTree = vi.fn()
 const listBases = vi.fn()
 const listRootItems = vi.fn()
 
@@ -19,7 +20,14 @@ vi.mock('@main/core/application', () => ({
     get: (name: string) => {
       if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
       if (name === 'KnowledgeService') {
-        return { search: kbSearch, readConcept: kbReadConcept, grepConcept: kbGrepConcept, listBases, listRootItems }
+        return {
+          search: kbSearch,
+          readConcept: kbReadConcept,
+          grepConcept: kbGrepConcept,
+          getOrganizationTree: kbGetOrganizationTree,
+          listBases,
+          listRootItems
+        }
       }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -52,6 +60,7 @@ describe('cherryBuiltinTools', () => {
     kbSearch.mockReset()
     kbReadConcept.mockReset()
     kbGrepConcept.mockReset()
+    kbGetOrganizationTree.mockReset()
     listBases.mockReset()
     listRootItems.mockReset()
   })
@@ -63,6 +72,7 @@ describe('cherryBuiltinTools', () => {
       'kb_list',
       'kb_read',
       'kb_search',
+      'kb_tree',
       'report_artifacts',
       'web_fetch',
       'web_search'
@@ -265,6 +275,34 @@ describe('cherryBuiltinTools', () => {
 
     expect(result.isError).toBeFalsy()
     expect(textOf(result)).toContain('No matches')
+  })
+
+  it('runs kb_tree unscoped and returns the outline json with itemType mapped to type', async () => {
+    kbGetOrganizationTree.mockResolvedValue({
+      baseId: 'b1',
+      totalItems: 2,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'report.pdf', itemType: 'file', status: 'completed', conceptId: 'report.pdf' }
+      ]
+    })
+
+    const result = await callCherryBuiltinTool('kb_tree', { baseId: 'b1', maxDepth: 2 }, signal)
+
+    expect(kbGetOrganizationTree).toHaveBeenCalledWith('b1', { maxDepth: 2 })
+    const json = JSON.parse(textOf(result))
+    expect(json.totalItems).toBe(2)
+    expect(json.nodes[1]).toMatchObject({ type: 'file', conceptId: 'report.pdf' })
+  })
+
+  it('returns an empty-base hint (not an error) when kb_tree finds no items', async () => {
+    kbGetOrganizationTree.mockResolvedValue({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] })
+
+    const result = await callCherryBuiltinTool('kb_tree', { baseId: 'b1' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toMatch(/no items/i)
   })
 
   it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {

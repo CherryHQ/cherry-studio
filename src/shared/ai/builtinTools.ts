@@ -176,6 +176,41 @@ export type KbGrepInput = z.infer<typeof kbGrepInputSchema>
 export type KbGrepMatch = z.infer<typeof kbGrepMatchSchema>
 export type KbGrepOutput = z.infer<typeof kbGrepOutputSchema>
 
+// ── kb_tree ──────────────────────────────────────────────────────
+
+export const KB_TREE_TOOL_NAME = 'kb_tree'
+
+export const kbTreeInputSchema = z.object({
+  baseId: z.string().trim().min(1).describe('ID of the knowledge base to outline — a base id from kb_list.'),
+  maxDepth: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Limit the outline to this many folder levels (0 = top level only). Omit for the whole tree.')
+})
+
+// Flat pre-order DFS list: `depth` carries the hierarchy (no recursive shape). A leaf with a
+// `conceptId` is readable — pass it to kb_read / kb_grep. Folders and pending items have none.
+export const kbTreeNodeSchema = z.object({
+  depth: z.number().int().nonnegative(),
+  title: z.string(),
+  type: z.string(),
+  status: z.string(),
+  conceptId: z.string().optional()
+})
+
+export const kbTreeOutputSchema = z.object({
+  baseId: z.string(),
+  totalItems: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  nodes: z.array(kbTreeNodeSchema)
+})
+
+export type KbTreeInput = z.infer<typeof kbTreeInputSchema>
+export type KbTreeNode = z.infer<typeof kbTreeNodeSchema>
+export type KbTreeOutput = z.infer<typeof kbTreeOutputSchema>
+
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
