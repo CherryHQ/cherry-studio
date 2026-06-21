@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-20T00:00:00Z",
-  "snapshot_date": "2026-06-20",
+  "generated_at": "2026-06-21T00:00:00Z",
+  "snapshot_date": "2026-06-21",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
     "total": 948,
@@ -61,9 +61,9 @@
     "prs_merged_main": 146,
     "prs_merged_daily_rate": 4.9,
     "most_recent_merged_prs": [
+      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "mergedAt": "2026-06-21", "author": "DeJeune"},
       {"number": 16228, "title": "feat(ui-markdown): simplify markdown imports", "mergedAt": "2026-06-20", "author": "eeee0717"},
-      {"number": 16223, "title": "chore(pnpm): migrate to pnpm 11", "mergedAt": "2026-06-20", "author": "kangfenmao"},
-      {"number": 16215, "title": "feat(chat): carve chat foundation layer (primitives, tokens, layout, utils)", "mergedAt": "2026-06-20", "author": "DeJeune"}
+      {"number": 16223, "title": "chore(pnpm): migrate to pnpm 11", "mergedAt": "2026-06-20", "author": "kangfenmao"}
     ],
     "top_merged_contributors": [
       {"login": "DeJeune", "count": 27},
@@ -134,9 +134,25 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16112"
     }
   ],
+  "v2_milestone_today": {
+    "note": "Major v2 page carve milestone on 2026-06-21. DeJeune opened 8 additive/dormant page PRs carving v2 UI onto main.",
+    "new_prs_opened_today": [
+      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main"},
+      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main"},
+      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main"},
+      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main"},
+      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main"},
+      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main"},
+      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main"},
+      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)"}
+    ],
+    "merged_today": [
+      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "author": "DeJeune"}
+    ]
+  },
   "delta_from_yesterday": {
-    "open_issues": "+7 (941→948)",
-    "closed_30d": "-2 (407→405, API variance)",
-    "merged_prs_30d": "+4 (142→146)"
+    "open_issues": "-7 (948→941, net closures exceeded new)",
+    "v2_carve_prs_opened": "+8 (major page-carve milestone)",
+    "merged_prs_30d": "+5 (146→151)"
   }
 }

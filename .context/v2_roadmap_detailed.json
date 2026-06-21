@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-20T00:00:00Z",
-  "snapshot_date": "2026-06-20",
+  "generated_at": "2026-06-21T00:00:00Z",
+  "snapshot_date": "2026-06-21",
   "repository": "CherryHQ/cherry-studio",
   "v2_status": {
     "branch_strategy": "v2 merged into main as of April 2026 (#13984). All active v2 development proceeds on main. v1 branch is hotfix-only.",
@@ -92,19 +92,30 @@
       {"login": "ousugo", "merged_prs": 6, "focus": "settings, tab UX, mini-apps"}
     ]
   },
+  "v2_page_carve_milestone_2026_06_21": {
+    "note": "DeJeune opened 8 PRs in one day carving v2 UI pages onto main as additive/dormant code. These represent the full v2 UI surface being staged on main before the v2 feature flag is flipped.",
+    "prs": [
+      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main"},
+      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main"},
+      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main"},
+      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main"},
+      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main"},
+      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main"},
+      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main"},
+      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)"}
+    ],
+    "merged_today": [
+      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "author": "DeJeune"}
+    ]
+  },
   "in_flight_open_prs": {
     "ready_to_merge": [
-      {
-        "number": 16220,
-        "title": "chore(i18n): add i18next-cli extraction and lint tooling",
-        "author": "EurFelux",
-        "base": "main"
-      },
       {
         "number": 16104,
         "title": "refactor(ui): v2 UI overhaul — design system, focus-aware shell, settings",
         "author": "SiinXu",
-        "base": "main"
+        "base": "main",
+        "note": "Large PR — needs review before merge"
       }
     ],
     "notable_drafts": [

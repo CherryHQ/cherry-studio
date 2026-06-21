@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-20T00:00:00Z",
-  "snapshot_date": "2026-06-20",
+  "generated_at": "2026-06-21T00:00:00Z",
+  "snapshot_date": "2026-06-21",
   "methodology": "Active=updated<7d; Aging=updated 7-90d; Stale=not updated 90-180d; Zombie=not updated 180d+",
   "health_distribution": {
     "total_open": 948,

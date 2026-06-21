@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-20T00:00:00Z",
-  "snapshot_date": "2026-06-20",
+  "generated_at": "2026-06-21T00:00:00Z",
+  "snapshot_date": "2026-06-21",
   "data_source": "GitHub Issues API (discussion-labeled issues) + high-engagement issue threads",
   "note": "GitHub Discussions GraphQL not available in remote execution environment. Analysis derived from issues with 'discussion' / 'help wanted' labels and high-engagement issue threads.",
   "discussion_labeled_issues": {
