@@ -21,7 +21,7 @@ function KnowledgePage() {
 }
 ```
 
-After running `yarn dev`, TanStack Router will automatically update `routeTree.gen.ts`.
+After running `pnpm dev`, TanStack Router will automatically update `routeTree.gen.ts`.
 
 ### 2. Routes with Parameters
 

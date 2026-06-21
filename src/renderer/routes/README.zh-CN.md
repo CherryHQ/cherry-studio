@@ -21,7 +21,7 @@ function KnowledgePage() {
 }
 ```
 
-运行 `yarn dev` 后，TanStack Router 会自动更新 `routeTree.gen.ts`。
+运行 `pnpm dev` 后，TanStack Router 会自动更新 `routeTree.gen.ts`。
 
 ### 2. 带参数的路由
 
