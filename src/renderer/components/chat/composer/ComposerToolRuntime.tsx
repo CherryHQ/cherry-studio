@@ -11,6 +11,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import type { QuickPanelInputAdapter } from '@renderer/components/chat/composer/panelEngine'
+import { useQuickPanel } from '@renderer/components/chat/composer/panelEngine'
 import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
@@ -31,8 +33,6 @@ import type {
   ToolStateMap
 } from '@renderer/components/chat/composer/tools/types'
 import { getAllTools, getToolsForScope } from '@renderer/components/chat/composer/tools/types'
-import type { QuickPanelInputAdapter } from '@renderer/components/chat/composer/panelEngine'
-import { useQuickPanel } from '@renderer/components/chat/composer/panelEngine'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'

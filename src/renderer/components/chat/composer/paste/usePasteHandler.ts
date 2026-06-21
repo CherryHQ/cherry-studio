@@ -1,8 +1,8 @@
 import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
 import type { TFunction } from 'i18next'
+import { useCallback } from 'react'
 
 import PasteService from './PasteService'
-import { useCallback } from 'react'
 
 export interface UsePasteHandlerOptions {
   supportedExts: string[]
