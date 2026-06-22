@@ -162,7 +162,10 @@ export class AgentSessionMessageService {
             .limit(1)
         : []
     if (!options.cursor && options.messageId && !anchor) {
-      throw DataApiErrorFactory.notFound('Message', options.messageId)
+      logger.warn('Session message anchor not found, falling back to newest page', {
+        sessionId,
+        messageId: options.messageId
+      })
     }
 
     const filters = [eq(sessionMessagesTable.sessionId, sessionId)]

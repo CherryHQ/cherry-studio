@@ -261,8 +261,10 @@ export function GlobalSearchMessagePreviewPanel({
     if (!container || previousDistanceFromBottom === null) return
 
     container.scrollTop = container.scrollHeight - previousDistanceFromBottom
-    pendingOlderAnchorRef.current = null
-  }, [messages])
+    if (!isLoadingMore) {
+      pendingOlderAnchorRef.current = null
+    }
+  }, [isLoadingMore, messages])
 
   useEffect(() => {
     setActiveMessageId(target.messageId)

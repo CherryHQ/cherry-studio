@@ -14,6 +14,7 @@ import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import {
   type DynamicVirtualListRef,
@@ -78,6 +79,7 @@ const SEARCH_FILTERS: Exclude<GlobalSearchFilter, 'all'>[] = ['topic', 'session'
 const MESSAGE_SOURCE_FILTER_BUTTONS: Exclude<GlobalMessageSearchSourceFilter, 'all'>[] = ['topic', 'session']
 const SEARCH_SCOPE_CONTROL_CLASS_NAME =
   'h-7 shrink-0 border-border-subtle bg-muted/40 p-0.5 [&_[role=radio]]:h-6 [&_[role=radio]]:px-2 [&_[role=radio]]:text-xs [&_[role=radio]]:leading-none'
+const logger = loggerService.withContext('GlobalSearchPanel')
 const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
   all: 'globalSearch.filters.all',
   topic: 'globalSearch.filters.topic',
@@ -181,6 +183,27 @@ function getPreviewMessageJumpTarget(
     sessionId: target.sessionId,
     messageId
   }
+}
+
+function getOpenItemLogContext(item: GlobalSearchKeyboardItem) {
+  switch (item.kind) {
+    case 'footer':
+      return { itemKind: item.kind, footerKind: item.footer.kind }
+    case 'message':
+      return {
+        itemKind: item.kind,
+        sourceType: item.result.sourceType,
+        messageId: item.result.messageId
+      }
+    case 'recent':
+      return { itemKind: item.kind, recentKind: item.recent.kind }
+    case 'result':
+      return { itemKind: item.kind, resultType: item.result.type }
+  }
+}
+
+function logOpenFailure(error: unknown, context: Record<string, unknown>) {
+  logger.error('Failed to open global search result', error as Error, context)
 }
 
 function getGroupedVirtualListRowIndex<TGroup, TItem, TFooter>(
@@ -413,13 +436,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const jumpToMessage = useCallback(
     (target: GlobalSearchMessageJumpTarget) => {
       if (target.sourceType === 'topic') {
-        void openTopicMessageById(target.topicId, target.messageId).catch(() => {
+        void openTopicMessageById(target.topicId, target.messageId).catch((error) => {
+          logOpenFailure(error, target)
           window.toast?.error(t('globalSearch.open_failed'))
         })
         return
       }
 
-      void openSessionMessageById(target.sessionId, target.messageId).catch(() => {
+      void openSessionMessageById(target.sessionId, target.messageId).catch((error) => {
+        logOpenFailure(error, target)
         window.toast?.error(t('globalSearch.open_failed'))
       })
     },
@@ -561,7 +586,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           default:
             return
         }
-      } catch {
+      } catch (error) {
+        logOpenFailure(error, getOpenItemLogContext(item))
         window.toast?.error(t('globalSearch.open_failed'))
       }
     },

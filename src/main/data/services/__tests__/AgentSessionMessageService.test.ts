@@ -246,25 +246,38 @@ describe('AgentSessionMessageService', () => {
     expect(secondPage.nextCursor).toBeUndefined()
   })
 
-  it('rejects a messageId outside the requested session when anchoring list pagination', async () => {
+  it('falls back to the newest page when the anchor messageId is outside the requested session', async () => {
     const otherSessionId = 'session-other'
     const otherMessageId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d305'
+    const newestMessageId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d306'
     await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
-    await dbh.db.insert(agentSessionMessageTable).values({
-      id: otherMessageId,
-      sessionId: otherSessionId,
-      role: 'assistant',
-      data: { parts: [{ type: 'text', text: 'other' }] },
-      status: 'success',
-      createdAt: 100,
-      updatedAt: 100
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: otherMessageId,
+        sessionId: otherSessionId,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'other' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: newestMessageId,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newest' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: otherMessageId
     })
 
-    await expect(
-      agentSessionMessageService.listSessionMessages(SESSION_ID, {
-        messageId: otherMessageId
-      })
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(result.items.map((item) => item.id)).toEqual([newestMessageId])
+    expect(result.nextCursor).toBeUndefined()
   })
 
   it('keeps searchable_text and FTS index in sync from message data', async () => {

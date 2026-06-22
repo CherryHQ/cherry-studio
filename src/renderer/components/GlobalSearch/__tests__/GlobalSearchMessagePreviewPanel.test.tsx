@@ -14,12 +14,15 @@ const mocks = vi.hoisted(() => ({
   sessionPages: [] as any[],
   topicHasNext: false,
   sessionHasNext: false,
+  topicIsRefreshing: false,
+  sessionIsRefreshing: false,
   topicLoadNext: vi.fn(),
   sessionLoadNext: vi.fn(),
   useInfiniteQuery: vi.fn(),
   onClose: vi.fn(),
   onOpenMessage: vi.fn()
 }))
+const flatItemsCache = vi.hoisted(() => new WeakMap<any[], Map<string, any[]>>())
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, type = 'button', ...props }: any) => (
@@ -32,8 +35,19 @@ vi.mock('@cherrystudio/ui', () => ({
 vi.mock('@data/hooks/useDataApi', () => ({
   useInfiniteQuery: (...args: unknown[]) => mocks.useInfiniteQuery(...args),
   useInfiniteFlatItems: (pages: any[] = [], options?: { reversePages?: boolean; reverseItems?: boolean }) => {
+    const key = `${Boolean(options?.reversePages)}:${Boolean(options?.reverseItems)}`
+    const cached = flatItemsCache.get(pages)?.get(key)
+    if (cached) return cached
+
     const orderedPages = options?.reversePages ? [...pages].reverse() : pages
-    return orderedPages.flatMap((page) => (options?.reverseItems ? [...page.items].reverse() : page.items))
+    const items = orderedPages.flatMap((page) => (options?.reverseItems ? [...page.items].reverse() : page.items))
+    let optionCache = flatItemsCache.get(pages)
+    if (!optionCache) {
+      optionCache = new Map()
+      flatItemsCache.set(pages, optionCache)
+    }
+    optionCache.set(key, items)
+    return items
   }
 }))
 
@@ -42,7 +56,7 @@ function mockPreviewInfiniteQuery(path: string) {
     return {
       pages: mocks.topicPages,
       isLoading: false,
-      isRefreshing: false,
+      isRefreshing: mocks.topicIsRefreshing,
       error: undefined,
       hasNext: mocks.topicHasNext,
       loadNext: mocks.topicLoadNext
@@ -52,7 +66,7 @@ function mockPreviewInfiniteQuery(path: string) {
   return {
     pages: mocks.sessionPages,
     isLoading: false,
-    isRefreshing: false,
+    isRefreshing: mocks.sessionIsRefreshing,
     error: undefined,
     hasNext: mocks.sessionHasNext,
     loadNext: mocks.sessionLoadNext
@@ -146,6 +160,8 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionPages = []
     mocks.topicHasNext = false
     mocks.sessionHasNext = false
+    mocks.topicIsRefreshing = false
+    mocks.sessionIsRefreshing = false
     mocks.useInfiniteQuery.mockImplementation(mockPreviewInfiniteQuery)
   })
 
@@ -336,6 +352,60 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4000 })
     fireEvent.scroll(scroller)
     expect(mocks.topicLoadNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the older-page scroll anchor while the loading spinner is visible', async () => {
+    mocks.topicHasNext = true
+
+    const props = {
+      searchQuery: 'needle',
+      target: {
+        sourceType: 'topic' as const,
+        topicId: 'topic-1',
+        title: 'Topic A',
+        messageId: 'topic-message-2'
+      },
+      onClose: mocks.onClose,
+      onOpenMessage: mocks.onOpenMessage
+    }
+    const { container, rerender } = render(<GlobalSearchMessagePreviewPanel {...props} />)
+
+    await screen.findByText('message-content:topic-message-2')
+    const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4000 })
+    fireEvent.scroll(scroller)
+    expect(mocks.topicLoadNext).toHaveBeenCalledTimes(1)
+
+    mocks.topicIsRefreshing = true
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4020 })
+    rerender(<GlobalSearchMessagePreviewPanel {...props} />)
+    expect(scroller.scrollTop).toBe(20)
+
+    mocks.topicIsRefreshing = false
+    mocks.topicPages = [
+      ...mocks.topicPages,
+      {
+        items: [
+          {
+            message: {
+              id: 'topic-message-older',
+              topicId: 'topic-1',
+              parentId: null,
+              role: 'user',
+              data: { parts: [{ type: 'text', text: 'older' }] },
+              status: 'success',
+              siblingsGroupId: 0,
+              createdAt: '2025-12-31T23:59:59.000Z',
+              updatedAt: '2025-12-31T23:59:59.000Z'
+            }
+          }
+        ]
+      }
+    ]
+    setScrollGeometry(scroller, { scrollTop: 20, scrollHeight: 4600 })
+    rerender(<GlobalSearchMessagePreviewPanel {...props} />)
+    expect(scroller.scrollTop).toBe(600)
   })
 
   it('does not load older pages on scroll when there are none left', async () => {

@@ -48,6 +48,8 @@ const mocks = vi.hoisted(() => ({
   invalidateCache: vi.fn(),
   eventEmit: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
+  loggerError: vi.fn(),
+  toastError: vi.fn(),
   activeTab: {
     id: 'chat',
     type: 'route',
@@ -374,6 +376,14 @@ vi.mock('@data/DataApiService', () => ({
   dataApiService: { get: mocks.dataApiGet, put: mocks.dataApiPut }
 }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: mocks.loggerError
+    })
+  }
+}))
+
 vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic
 }))
@@ -555,6 +565,7 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
+    window.toast = { error: mocks.toastError } as typeof window.toast
     mocks.useQuery.mockImplementation(
       (
         path: string,
@@ -1614,6 +1625,45 @@ describe('GlobalSearchPanel', () => {
       })
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs and toasts when opening a message result fails', async () => {
+    const user = userEvent.setup()
+    const openError = new Error('missing session')
+    mocks.dataApiGet.mockRejectedValueOnce(openError)
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          agentId: 'agent-1',
+          agentName: 'Agent',
+          role: 'assistant',
+          snippet: 'needle session reply',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'needle'
+    )
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
+
+    await waitFor(() => {
+      expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open global search result', openError, {
+        sourceType: 'session',
+        sessionId: 'session-1',
+        messageId: 'session-message-1'
+      })
+      expect(mocks.toastError).toHaveBeenCalledWith('Failed to open search result')
+    })
+    expect(mocks.onClose).not.toHaveBeenCalled()
   })
 
   it('closes the message preview from the panel and when clearing search', async () => {
