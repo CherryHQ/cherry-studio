@@ -100,18 +100,19 @@ const KnowledgeBaseRow = ({
 
   return (
     <>
-      <div className="group/kb group relative w-full" onContextMenu={handleContextMenu}>
-        <div
-          className={cn(
-            'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',
-            selected ? 'bg-secondary' : 'hover:bg-accent'
-          )}>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onSelectBase(base.id)}
-            className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-start shadow-none hover:bg-transparent">
-            <KnowledgeBaseIcon />
+      <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+        <div className="group/kb group relative w-full">
+          <div
+            className={cn(
+              'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',
+              selected ? 'bg-secondary' : 'hover:bg-accent'
+            )}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onSelectBase(base.id)}
+              className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-left shadow-none hover:bg-transparent">
+              <KnowledgeBaseIcon />
 
               <div className="min-w-0">
                 <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
@@ -151,16 +152,16 @@ const KnowledgeBaseRow = ({
       </CommandContextMenu>
 
       <ConfirmDialog
-  open = { isDeleteDialogOpen }
-  onOpenChange = { setIsDeleteDialogOpen }
-  title={t('knowledge.context.delete_confirm_title')}
-  description={t('knowledge.context.delete_confirm_description')}
-  confirmText={t('common.delete')}
-  cancelText={t('common.cancel')}
-  destructive
-  onConfirm={handleDeleteBase}
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title={t('knowledge.context.delete_confirm_title')}
+        description={t('knowledge.context.delete_confirm_description')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={handleDeleteBase}
       />
-  </>
+    </>
   )
 }
 

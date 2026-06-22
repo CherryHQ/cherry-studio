@@ -49,7 +49,7 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
     const overlay = document.createElement('div')
     overlay.className = 'highlight-overlay animation-locate-highlight'
     overlay.style.position = 'fixed'
-    overlay.style.left = `${rect.left}px`
+    overlay.style.insetInlineStart = `${rect.left}px`
     overlay.style.top = `${rect.top}px`
     overlay.style.width = `${rect.width}px`
     overlay.style.height = `${rect.height}px`
@@ -65,7 +65,7 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
       const newContainerRect = container.getBoundingClientRect()
 
       // Update position
-      overlay.style.left = `${newRect.left}px`
+      overlay.style.insetInlineStart = `${newRect.left}px`
       overlay.style.top = `${newRect.top}px`
       overlay.style.width = `${newRect.width}px`
       overlay.style.height = `${newRect.height}px`

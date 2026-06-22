@@ -46,7 +46,6 @@ export const setDocumentDirection = (language: string) => {
   const dir = rtlLanguages.includes(language) || rtlLanguages.includes(language.split('-')[0]) ? 'rtl' : 'ltr'
   document.documentElement.setAttribute('dir', dir)
   document.documentElement.setAttribute('lang', language)
-  logger.debug(`Document direction set to ${dir} for language ${language}`)
 }
 
 const resources = Object.fromEntries(

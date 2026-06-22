@@ -82,7 +82,7 @@ export const PlusButtonPlugin = ({
     void computePosition(virtualElement, element, computePositionConfig).then((val) => {
       Object.assign(element.style, {
         position: val.strategy,
-        left: `${val.x}px`,
+        insetInlineStart: `${val.x}px`,
         top: `${val.y}px`
       })
     })
@@ -119,7 +119,7 @@ export const PlusButtonPlugin = ({
 
         wrapper.style.position = 'absolute'
         wrapper.style.top = '0'
-        wrapper.style.left = '0'
+        wrapper.style.insetInlineStart = '0'
         wrapper.style.pointerEvents = 'none'
         return {
           update: (_, prevState) => {

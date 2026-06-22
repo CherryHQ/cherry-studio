@@ -118,7 +118,8 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'fixed top-3 bottom-3 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
+              isScopedPortal ? 'absolute' : 'fixed',
+              'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
               side === 'right' ? 'end-3' : 'start-3',
               contentClassName
             )}>
@@ -150,7 +151,7 @@ function PageSidePanel({
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(
-                      'ms-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
                       closeButtonClassName
                     )}>
                     <XIcon size={16} />

@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "المزودون المدعومون",
-        "tooltip": "النماذج المتاحة الآن هي Anthropic فقط.",
+        "tooltip": "النماذج المتاحة: Anthropic فقط.",
         "view_providers": "عرض المزودين"
       },
       "title": "إضافة وكيل",
@@ -18,13 +18,16 @@
     },
     "askUserQuestion": {
       "answered": "تمت الإجابة",
-      "customPlaceholder": "أدخل إجابتك...",
-      "loading": "جاري التحميل...",
+      "close": "إغلاق",
+      "customPlaceholder": "أدخل إجابتك",
+      "loading": "جارٍ التحميل",
       "multiSelect": "تحديد متعدد",
       "next": "التالي",
       "noQuestions": "لا توجد أسئلة",
       "other": "أخرى",
       "previous": "السابق",
+      "progress": "{{current}} من {{total}}",
+      "skip": "تخطى",
       "submit": "إرسال",
       "title": "أسئلة الوكيل"
     },
@@ -32,20 +35,20 @@
       "channels": {
         "add": "إضافة",
         "bindAgent": "ربط الوكيل",
-        "chatIdsAutoTrackHint": "اتركه فارغاً ليتتبع النظام معرف الدردشة تلقائياً: أرسل رسالة للبوت أولاً، ثم سيسجل النظام المعرف.",
+        "chatIdsAutoTrackHint": "اتركه فارغًا لتتبع المعرف تلقائيًا.",
         "comingSoon": "قريباً",
         "connected": "متصل",
         "connecting": "جاري الاتصال",
         "createError": "فشل إنشاء القناة",
         "deleteConfirm": "حذف القناة \"{{name}}\"؟",
         "deleteError": "فشل حذف القناة",
-        "description": "اربط وكيلك بمنصات المراسلة.",
+        "description": "اربط الوكيل بمنصات المراسلة.",
         "disconnected": "غير متصل",
         "discord": {
           "botToken": "رمز البوت",
           "botTokenPlaceholder": "أدخل رمز بوت Discord",
           "channelIds": "معرفات القنوات المسموح بها",
-          "channelIdsHint": "الصيغة: channel:id أو dm:id. اتركها فارغة للسماح للكل.",
+          "channelIdsHint": "الصيغة: channel:id أو dm:id. اتركها فارغة للسماح للجميع.",
           "channelIdsPlaceholder": "channel:123456789, dm:987654321",
           "description": "استلم الرسائل ورد عليها عبر بوت Discord باستخدام WebSocket.",
           "title": "Discord",
@@ -58,7 +61,7 @@
           "appSecret": "سر التطبيق",
           "appSecretPlaceholder": "أدخل سر تطبيق Feishu",
           "chatIds": "معرفات الدردشة المسموح بها",
-          "chatIdsHint": "معرفات دردشة مفصولة بفواصل. اتركها فارغة للسماح للكل.",
+          "chatIdsHint": "معرفات دردشة مفصولة بفواصل. اتركها فارغة للسماح للجميع.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
           "connected": "متصل",
           "description": "استلم الرسائل ورد عليها عبر بوت Feishu/Lark باستخدام WebSocket.",
@@ -77,15 +80,15 @@
           "verificationTokenPlaceholder": "أدخل رمز التحقق من تطبيق Feishu"
         },
         "logs": "السجلات",
-        "noInstances": "لم يتم إعداد قنوات {{type}}. انقر على \"+ إضافة\" لإنشاء واحدة.",
+        "noInstances": "لا توجد قنوات {{type}}. انقر \"+ إضافة\" لإنشاء واحدة.",
         "noLogs": "لا توجد سجلات بعد",
-        "notifyReceiver": "استلم إشعارات المهام",
-        "notifyReceiverHint": "أرسل نتائج مهام المجدول إلى هذه القناة.",
+        "notifyReceiver": "تلقي إشعارات المهام",
+        "notifyReceiverHint": "أرسل نتائج المهام إلى هذه القناة.",
         "qq": {
           "appId": "معرف التطبيق",
           "appIdPlaceholder": "أدخل معرف تطبيق بوت QQ",
           "chatIds": "معرفات الدردشة المسموح بها",
-          "chatIdsHint": "الصيغة: c2c:openid، group:groupid، channel:channelid. اتركها فارغة للسماح للكل.",
+          "chatIdsHint": "الصيغة: c2c:openid، group:groupid، channel:channelid. اتركها فارغة للسماح للجميع.",
           "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
           "clientSecret": "سر العميل",
           "clientSecretPlaceholder": "أدخل سر عميل بوت QQ",
@@ -105,7 +108,7 @@
           "botToken": "رمز البوت",
           "botTokenPlaceholder": "xoxb-...",
           "channelIds": "معرفات القنوات المسموح بها",
-          "channelIdsHint": "معرفات قنوات Slack. اتركها فارغة للسماح بالكل.",
+          "channelIdsHint": "قنوات Slack. اتركها فارغة للسماح للجميع.",
           "channelIdsPlaceholder": "C01234567, D89012345",
           "description": "استلم الرسائل ورد عليها عبر بوت Slack باستخدام وضع Socket.",
           "title": "Slack",
@@ -117,7 +120,7 @@
           "botToken": "رمز البوت",
           "botTokenPlaceholder": "أدخل رمز بوت Telegram",
           "chatIds": "معرفات الدردشة المسموح بها",
-          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح بالكل.",
+          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح للجميع.",
           "chatIdsPlaceholder": "123456789, 987654321",
           "description": "استلم الرسائل ورد عليها عبر بوت Telegram.",
           "title": "Telegram"
@@ -127,7 +130,7 @@
         "wechat": {
           "addAccount": "إضافة حساب WeChat",
           "chatIds": "معرفات المستخدمين المسموح بها",
-          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح بالكل.",
+          "chatIdsHint": "مفصولة بفواصل. اتركها فارغة للسماح للجميع.",
           "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
           "connected": "تم تسجيل الدخول",
           "description": "استقبل ورد على الرسائل عبر WeChat باستخدام iLink Bot API.",
@@ -140,25 +143,25 @@
         }
       },
       "heartbeat": {
-        "enabled": "تفعيل النبض",
+        "enabled": "تفعيل heartbeat",
         "enabledHelper": "عند التفعيل، يقرأ المجدول ملف heartbeat.md ويرسله للجلسة الرئيسية على الفاصل المحدد.",
-        "interval": "الفاصل الزمني (دقائق)",
-        "intervalHelper": "معدل تكرار النبض بالدقائق."
+        "interval": "الفاصل (دقائق)",
+        "intervalHelper": "معدل النبض بالدقائق."
       },
       "sandbox": {
-        "description": "يقيّد وصول الوكيل إلى نظام الملفات والشبكة باستخدام Sandbox.",
-        "helper": "تقييد الوصول إلى نظام الملفات والأوامر في مساحة العمل.",
-        "label": "وضع Sandbox"
+        "description": "يقيّد وصول الوكيل إلى الملفات والشبكة.",
+        "helper": "تقييد الوصول إلى الملفات والأوامر في مساحة العمل.",
+        "label": "وضع عزل"
       },
       "scheduler": {
         "cron": {
-          "helper": "تعبير cron قياسي (مثال: '*/30 * * * *' لكل 30 دقيقة).",
+          "helper": "تعبير cron (مثال: '*/30 * * * *' كل 30 دقيقة).",
           "label": "تعبير Cron",
           "placeholder": "*/30 * * * *"
         },
-        "description": "يُشغل الوكيل ذاتياً حسب جدول زمني.",
+        "description": "يشغل الوكيل تلقائيًا وفق جدول.",
         "enabled": "تفعيل المجدول",
-        "enabledHelper": "عند التفعيل، سيعمل الوكيل تلقائياً حسب الجدول المحدد.",
+        "enabledHelper": "عند التفعيل، سيعمل الوكيل تلقائيًا وفق الجدول.",
         "errors": {
           "invalidCron": "تعبير cron غير صالح",
           "invalidDelay": "يجب أن يكون التأخير رقماً موجباً",
@@ -190,8 +193,8 @@
         }
       },
       "soul": {
-        "description": "يحدد Soul شخصية الوكيل وسلوكه. يُقرأ من ملف soul.md في مساحة العمل.",
-        "empty": "لم يتم العثور على soul.md. أنشئ واحداً لتحديد شخصية الوكيل.",
+        "description": "يحدد Soul شخصية الوكيل وسلوكه. يُقرأ من ملف soul.md.",
+        "empty": "لم يُعثر على soul.md. أنشئ ملفًا لتحديد شخصية الوكيل.",
         "enabled": "تفعيل Soul",
         "enabledHelper": "عند التفعيل، يقرأ الوكيل ملف soul.md ويضيفه في بداية التوجيه.",
         "fileLabel": "soul.md",
@@ -204,7 +207,7 @@
         "cancel": "إلغاء",
         "channels": {
           "label": "إرسال إلى القنوات",
-          "noActiveChatIds": "القنوات المحددة ليس لها مستلمون متاحون. قد لا تصل نتائج المهمة. أرسل رسالة للبوت على المنصة أولاً.",
+          "noActiveChatIds": "القنوات المحددة لا يوجد لها مستلمون. قد لا تصل النتائج. أرسل رسالة للبوت أولاً.",
           "placeholder": "اختر القنوات لاستلام النتائج"
         },
         "cronPlaceholder": "مثلاً 0 9 * * * (كل يوم 9 صباحاً)",
@@ -213,7 +216,7 @@
           "label": "حذف"
         },
         "edit": "تعديل",
-        "empty": "لا توجد مهام مجدولة. أضف واحدة.",
+        "empty": "لا مهام مجدولة. أضف واحدة.",
         "error": {
           "loadFailed": "فشل تحميل المهام"
         },
@@ -224,7 +227,7 @@
           "cancelled": "ملغاة",
           "completed": "مكتملة",
           "duration": "المدة",
-          "empty": "لا سجل تشغيل بعد.",
+          "empty": "لا سجل تشغيل.",
           "failed": "فشل",
           "justNow": "الآن",
           "label": "سجل التشغيل",
@@ -280,7 +283,7 @@
       }
     },
     "delete": {
-      "content": "حذف الوكيل سيوقف ويحذف جميع الجلسات المرتبطة به. هل أنت متأكد؟",
+      "content": "حذف الوكيل سيوقف جميع الجلسات المرتبطة. متأكد؟",
       "error": {
         "failed": "فشل حذف الوكيل"
       },
@@ -290,7 +293,7 @@
       "title": "تعديل الوكيل"
     },
     "empty": {
-      "description": "أنشئ وكيلاً للمهام المعقدة بأدوات الذكاء الاصطناعي",
+      "description": "أنشئ وكيلًا للمهام المعقدة بالأدوات الذكية",
       "title": "لا يوجد وكلاء بعد"
     },
     "get": {
@@ -300,14 +303,14 @@
       }
     },
     "gitBash": {
-      "autoDetected": "استخدم Git Bash المكتشف تلقائياً",
-      "autoDiscoveredHint": "مكتشف تلقائياً",
+      "autoDetected": "Git Bash المكتشف",
+      "autoDiscoveredHint": "مكتشف",
       "clear": {
         "button": "مسح المسار المخصص"
       },
       "customPath": "المسار المخصص: {{path}}",
       "error": {
-        "description": "يلزم Git Bash لتشغيل الوكلاء على Windows. ثبته من",
+        "description": "Git Bash مطلوب لتشغيل الوكلاء على Windows. ثبته من",
         "recheck": "إعادة فحص Git Bash",
         "required": "مسار Git Bash مطلوب على Windows",
         "title": "Git Bash مطلوب"
@@ -315,19 +318,19 @@
       "found": {
         "title": "تم إعداد Git Bash"
       },
-      "notFound": "لم يتم العثور على Git Bash. تثبيته أولاً.",
+      "notFound": "Git Bash غير موجود. يرجى تثبيته.",
       "pick": {
         "button": "اختر مسار Git Bash",
         "failed": "فشل تعيين مسار Git Bash",
         "invalidPath": "الملف المحدد ليس bash.exe صالحاً.",
         "title": "اختر ملف Git Bash التنفيذي"
       },
-      "placeholder": "اختر مسار bash.exe",
+      "placeholder": "اختر مسار bash",
       "success": "تم اكتشاف Git Bash!",
-      "tooltip": "يلزم Git Bash على Windows. ثبته من git-scm.com."
+      "tooltip": "Git Bash مطلوب على Windows. ثبته من git-scm.com."
     },
     "input": {
-      "placeholder": "اكتب رسالتك هنا، أرسل بـ {{key}} - @ للمسار، / للأمر",
+      "placeholder": "اكتب رسالتك، {{key}} للإرسال، @ للمسار، / للأمر",
       "soul_placeholder": "ساعدني في الاتصال بـ Telegram"
     },
     "list": {
@@ -340,6 +343,11 @@
         "failed": "فشل إعادة ترتيب الوكلاء"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "استخدام السياق"
+      }
+    },
     "server": {
       "error": {
         "not_running": "خادم API مفعّل ولكن لا يعمل."
@@ -348,9 +356,9 @@
     "session": {
       "accessible_paths": {
         "add": "إضافة دليل",
-        "default_hint": "ستنشأ مساحة عمل افتراضية تلقائياً إذا لم تحدد واحدة.",
+        "default_hint": "ستُنشئ مساحة عمل افتراضية إذا لم تحدد واحدة.",
         "duplicate": "هذا الدليل مدرج بالفعل.",
-        "empty": "اختر دليلاً واحداً على الأقل يمكن للوكيل الوصول إليه.",
+        "empty": "اختر دليلًا ليصل إليه الوكيل.",
         "error": {
           "at_least_one": "اختيار دليل واحد على الأقل."
         },
@@ -361,8 +369,8 @@
         "title": "إضافة جلسة"
       },
       "allowed_tools": {
-        "empty": "لا توجد أدوات متاحة لهذا الوكيل.",
-        "helper": "الأدوات المعتمدة تعمل دون موافقة. الأدوات الأخرى تتطلب موافقة.",
+        "empty": "لا أدوات متاحة.",
+        "helper": "الأدوات المعتمدة تعمل بدون موافقة؛ غيرها تحتاج موافقة.",
         "label": "أدوات معتمدة مسبقاً",
         "placeholder": "اختر الأدوات المعتمدة"
       },
@@ -375,12 +383,17 @@
         "content": "حذف هذه الجلسة؟",
         "error": {
           "failed": "فشل حذف الجلسة",
-          "last": "يجب الاحتفاظ بجلسة واحدة على الأقل"
+          "last": "يجب إبقاء جلسة واحدة على الأقل"
         },
         "title": "حذف الجلسة"
       },
       "edit": {
         "title": "تعديل الجلسة"
+      },
+      "file_manager": {
+        "file_explorer": "مستكشف الملفات",
+        "files": "ملفات",
+        "finder": "مستكشف"
       },
       "get": {
         "error": {
@@ -400,10 +413,14 @@
           "failed": "فشل تحديث الجلسة"
         }
       },
+      "workspace_selector": {
+        "no_project": "لا دليل عمل",
+        "placeholder": "اختر دليل عمل"
+      },
       "workspace_status": {
         "inaccessible": "مسار مساحة العمل غير قابل للوصول: {{path}}",
         "missing": "مسار مساحة العمل غير موجود: {{path}}",
-        "not_directory": "مسار مساحة العمل ليس دليلاً: {{path}}"
+        "not_directory": "مسار مساحة العمل ليس مجلدًا"
       }
     },
     "settings": {
@@ -414,8 +431,8 @@
           "label": "متغيرات البيئة"
         },
         "maxTurns": {
-          "description": "عدد دورات الطلب/الاستجابة التي ينفذها الوكيل تلقائياً.",
-          "helper": "القيم الأعلى تسمح بتشغيل أطول، والأقل تبقي الجلسات قصيرة.",
+          "description": "عدد دورات الوكيل تلقائيًا.",
+          "helper": "القيم الأعلى تزيد مدة الجلسة، الأدنى تقصّرها.",
           "label": "حد المحادثات"
         },
         "permissionMode": {
@@ -695,8 +712,10 @@
         "showDetails": "إظهار تفاصيل الأداة"
       },
       "button": {
+        "allow": "السماح",
         "allowAll": "اسمح دائماً",
         "cancel": "ألغِ",
+        "deny": "الرفض",
         "run": "شغّل"
       },
       "confirmation": "هل أنت متأكد من تشغيل أداة Claude هذه؟",
@@ -1125,6 +1144,7 @@
     "download": "تنزيل",
     "includes_user_questions": "تضمين أسئلتك",
     "manage": "إدارة",
+    "select_assistant": "اختر المساعد",
     "select_model": "اختيار النموذج",
     "show": {
       "all": "عرض الكل"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "تغيير الحجم تلقائياً",
+      "cancel_editing": "إلغاء التحرير",
       "clear": {
         "content": "هل تريد مسح جميع رسائل الموضوع الحالي؟",
         "label": "مسح {{Command}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "السياق / أقصى سياق"
       },
+      "editing": "قيد التحرير",
+      "editing_message": "تحرير الرسالة المرسلة",
       "estimated_tokens": {
         "tip": "الرموز التقديرية"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "خطأ في معالجة الملف",
       "file_not_supported": "النموذج لا يدعم نوع الملف هذا",
       "file_not_supported_count": "{{count}} ملفات غير مدعومة",
+      "followup_queue": {
+        "edit": "تحرير",
+        "pause": "إيقاف الإرسال التلقائي مؤقتًا",
+        "remove": "إزالة",
+        "resume": "استئناف الإرسال التلقائي",
+        "steer": "إرسال إلى الدور الحالي",
+        "title": "قائمة الانتظار ({{count}})"
+      },
       "generate_image": "توليد صورة",
       "generate_image_not_supported": "النموذج لا يدعم توليد الصور.",
       "knowledge_base": "قاعدة المعرفة",
+      "knowledge_base_disabled_by_files": "إزالة الملفات المرفقة لاستخدام قاعدة المعرفة",
+      "knowledge_base_unavailable": "اختر نموذجًا يدعم الأدوات أو فعّل استخدام أدوات المطالبة",
+      "locate_editing_message": "تحديد الرسالة الأصلية",
       "new": {
         "context": "مسح السياق {{Command}}"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "ميزانية التفكير تتجاوز الحد الأقصى للرموز",
+        "fixed_model": "النموذج ثابت في التفكير لهذا النموذج",
         "label": "تفكير",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "حدد عدد رموز التفكير المستخدمة."
           }
-        }
+        },
+        "unsupported_model": "النموذج الحالي لا يدعم تعديل التفكير"
       },
       "tools": {
         "collapse": "طي",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "رفع مرفق",
         "document": "رفع ملف مستند (النموذج لا يدعم الصور)",
+        "document_only": "ملفات فقط",
+        "image_not_supported": "هذا النموذج لا يدعم رفع الصور. ملفات فقط.",
         "image_or_document": "رفع صورة أو ملف مستند",
         "upload_from_local": "رفع ملف محلي..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "مسح الكل",
     "click_to_replace": "انقر للاستبدال",
     "close": "إغلاق",
+    "close_sidebar": "إغلاق الشريط الجانبي",
     "collapse": "طيّ",
     "completed": "مكتمل",
     "confirm": "تأكيد",
@@ -1772,7 +1811,9 @@
     "invalid_value": "قيمة غير صالحة",
     "knowledge_base": "قاعدة المعرفة",
     "language": "اللغة",
-    "loading": "جاري التحميل...",
+    "loading": "جارٍ التحميل",
+    "maximize": "تكبير",
+    "minimize": "تصغير",
     "model": "نموذج",
     "models": "نماذج",
     "more": "المزيد",
@@ -1785,6 +1826,7 @@
     "on": "تشغيل",
     "open": "افتح",
     "open_in": "افتح في {{name}}",
+    "open_sidebar": "فتح الشريط الجانبي",
     "paste": "الصق",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "أعد التسمية",
     "required_field": "حقل مطلوب",
     "reset": "أعد الضبط",
+    "resize_panel": "تغيير حجم اللوحة",
     "retry": "أعد المحاولة",
     "save": "حفظ",
     "save_failed": "فشل الحفظ",
@@ -2257,6 +2300,7 @@
       "failed_to_edit": "فشل تعديل قاعدة المعرفة",
       "failed_to_move": "فشل نقل قاعدة المعرفة",
       "missing_embedding_model": "نموذج التضمين الذي تستخدمه قاعدة المعرفة هذه لم يُعثر عليه أثناء الترحيل. أعد بناء قاعدة المعرفة واختر نموذج تضمين جديد.",
+      "missing_vector_store": "تعذر قراءة مخزن المتجهات لقاعدة المعرفة أثناء الترحيل (مفقود، فارغ، أو مقفل). تم الاحتفاظ بقاعدة المعرفة؛ أعد فهرستها للاستعادة.",
       "model_invalid": "لم يتم اختيار نموذج"
     },
     "groups": {
@@ -2356,6 +2400,8 @@
       "action": "إعادة بناء قاعدة المعرفة",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "فشل إعادة بناء قاعدة المعرفة",
+      "skipped_missing_sources_one": "تم تخطي عنصر واحد مصدره لم يعد موجودًا",
+      "skipped_missing_sources_other": "تم تخطي {{count}} عناصر مصدرها لم تعد موجودة",
       "submit": "إعادة البناء",
       "title": "إعادة بناء قاعدة المعرفة"
     },
@@ -2403,7 +2449,9 @@
   "launchpad": {
     "apps": "تطبيقات",
     "minapps": "تطبيقات مصغرة",
-    "miniApps": "التطبيقات المصغرة"
+    "miniApps": "التطبيقات المصغرة",
+    "pin_to_sidebar": "تثبيت في الشريط الجانبي",
+    "unpin_from_sidebar": "إلغاء تثبيت من الشريط الجانبي"
   },
   "library": {
     "action": {
@@ -2996,6 +3044,7 @@
         "no_api_key": "مفتاح Notion API أو معرف قاعدة بيانات Notion غير مهيأ",
         "no_content": "لا يوجد شيء لتصديره إلى Notion."
       },
+      "operation_unavailable": "عملية الرسالة غير متاحة. يرجى المحاولة مرة أخرى.",
       "siyuan": {
         "export": "فشل التصدير إلى Siyuan Note، التحقق من حالة الاتصال والتكوين وفقاً للوثائق",
         "no_config": "عنوان API أو رمز Siyuan Note غير مهيأ"
@@ -3403,6 +3452,12 @@
       "placeholder": "ابحث عن النماذج...",
       "tooltip": "ابحث عن النماذج"
     },
+    "selection": {
+      "context_window": "السياق {{count}}",
+      "remove_model": "إزالة {{name}}",
+      "restore_default": "استعادة نموذج المساعد الافتراضي",
+      "selected_models": "النماذج المختارة"
+    },
     "stream_output": "إخراج متدفق",
     "type": {
       "audio": "صوت",
@@ -3576,28 +3631,7 @@
     "tip": "إذا كان الرد ناجحاً، فسيتم تفعيل التذكير فقط للرسائل التي تتجاوز 30 ثانية"
   },
   "ocr": {
-    "builtin": {
-      "system": "التعرف الضوئي للنظام (OCR)"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "لا يمكن حذف المزود المدمج",
-        "existing": "المزود موجود بالفعل",
-        "get_providers": "فشل جلب المزودين المتاحين",
-        "not_found": "مزود OCR غير موجود",
-        "update_failed": "فشل تحديث التكوين"
-      },
-      "unknown": "حدث خطأ أثناء عملية OCR"
-    },
-    "file": {
-      "not_supported": "نوع الملف {{type}} غير مدعوم"
-    },
-    "processing": "جاري معالجة OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "تم الرجوع إلى {{name}}، مما قد يسبب مشاكل"
-      }
-    }
+    "processing": "جاري معالجة OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -4765,117 +4799,6 @@
       "description": "اربط الوكلاء بمنصات المراسلة مثل تلغرام، Feishu، ديسكورد، وغيرها.",
       "title": "القنوات"
     },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "مسح",
-        "configDescription": "بدّل الخصائص لمعاينة سلوك المكون",
-        "configTitle": "إعدادات",
-        "currentProps": "الخصائص الحالية",
-        "description": "AgentSelector يقرأ الآن بيانات DataApi الحقيقية من /agents للتحقق من اختيار المعرف/العنصر والتثبيت والترتيب والبحث.",
-        "emptyShellNotice": "هذه المعاينة تستخدم قائمة الوكلاء الحقيقية التي ترجعها DataApi من /agents.",
-        "lastOnChange": "آخر onChange",
-        "previewDescription": "انقر على الزر لفتح المحدد",
-        "previewTitle": "معاينة",
-        "title": "محدد الوكيل",
-        "triggerPlaceholder": "اختر وكيلاً",
-        "valueProp": "القيمة الحالية"
-      },
-      "agentTodoList": {
-        "title": "قائمة مهام الوكيل"
-      },
-      "assistantSelector": {
-        "clearSelection": "مسح",
-        "configDescription": "بدّل الخصائص لمعاينة سلوك المكون",
-        "configTitle": "إعدادات",
-        "currentProps": "الخصائص الحالية",
-        "description": "يثبت مكون AssistantSelector التجاري مباشرة للتحقق من السلوك المتعدد/الفردي والمعرف/العنصر والتثبيت والترتيب والبحث.",
-        "lastOnChange": "آخر onChange",
-        "previewDescription": "انقر على الزر لفتح المحدد",
-        "previewTitle": "معاينة",
-        "title": "محدد المساعد",
-        "triggerPlaceholder": "اختر مساعداً",
-        "triggerSelectedCount": "تم اختيار {{count}} مساعدين",
-        "valueProp": "القيمة الحالية"
-      },
-      "description": "مرئي فقط في وضع التطوير لاختبار مكونات v2 الجديدة (المحددات وما شابهها) مباشرة داخل التطبيق.",
-      "fileProcessing": {
-        "artifact": {
-          "file": "ملف Markdown",
-          "text": "نتيجة نصية"
-        },
-        "description": "شغّل كل معالج ملفات مُعدّ عبر IPC لمعالجة الملفات الحقيقي وقارن النتائج.",
-        "duration": "{{seconds}}ث",
-        "jobId": "معرف المهمة",
-        "markdown": {
-          "description": "اختر مستنداً وشغّل جميع معالجات تحويل المستندات إلى Markdown.",
-          "fileFilterName": "المستندات",
-          "noFile": "لم يتم اختيار مستند",
-          "select": "اختر مستنداً",
-          "start": "اختبر Markdown",
-          "title": "Markdown"
-        },
-        "noProcessors": "لا توجد معالجات تدعم هذه الميزة.",
-        "ocr": {
-          "description": "اختر صورة وشغّل جميع معالجات OCR.",
-          "fileFilterName": "الصور",
-          "noFile": "لم يتم اختيار صورة",
-          "select": "اختر صورة",
-          "start": "اختبر OCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} معالجات",
-        "status": {
-          "cancelled": "ملغاة",
-          "completed": "مكتملة",
-          "delayed": "متأخر",
-          "failed": "فشل",
-          "idle": "خامل",
-          "pending": "قيد الانتظار",
-          "processing": "قيد المعالجة",
-          "running": "قيد التشغيل",
-          "starting": "قيد البدء"
-        },
-        "title": "تحليل المستندات"
-      },
-      "label": "مختبر المكونات",
-      "modelSelector": {
-        "behaviorConfig": "إعدادات السلوك والعرض",
-        "callbackEmpty": "لم يتم استلام رد اتصال من المكون بعد",
-        "clearSelection": "مسح التحديد",
-        "configDescription": "بدّل خصائص ModelSelector الرئيسية أعلاه وافحص قيمة الإدخال بالإضافة إلى حمولات رد الاتصال أدناه.",
-        "configTitle": "ملعب الخصائص",
-        "controlMultiSelectMode": "controlMultiSelectMode",
-        "currentProps": "الخصائص الحالية",
-        "defaultMultiSelectMode": "defaultMultiSelectMode",
-        "description": "تثبت هذه الصفحة مكون ModelSelector التجاري الحالي مباشرة حتى نتمكن من التحقق من سلوك التحديد والتصفية والبحث والتثبيت.",
-        "empty": "لا توجد نماذج متاحة حالياً، لذا لا يمكن عرض المحدد بعد.",
-        "lastModeChangeReturn": "آخر إرجاع لـ onMultiSelectModeChange",
-        "lastSelectReturn": "آخر إرجاع لـ onSelect",
-        "loading": "جاري تحميل النماذج...",
-        "modelId": "معرف النموذج",
-        "multiSelectMode": "multiSelectMode",
-        "multiple": "تعدد",
-        "normalizedIds": "المعرفات المحددة المعيارية",
-        "outputEmpty": "لا توجد بيانات للعرض بعد",
-        "provider": "المزود",
-        "resetOutputs": "إعادة تعيين المخرجات",
-        "resultsDescription": "يعرض هذا قيمة الخاصية الحالية والمعرفات المحددة المعيارية وآخر مخرج لرد الاتصال من المكون.",
-        "resultsTitle": "المخرجات والحالة",
-        "selected": "التحديد الحالي",
-        "selectedEmpty": "لم يتم اختيار نموذج بعد",
-        "selectionConfig": "إعدادات قيمة التحديد",
-        "selectionType": "selectionType",
-        "selectionTypeId": "إرجاع معرفات النماذج",
-        "selectionTypeModel": "إرجاع كائنات النماذج",
-        "showPinnedModels": "showPinnedModels",
-        "showTagFilter": "showTagFilter",
-        "title": "محدد النموذج",
-        "triggerPlaceholder": "اختر نموذجاً",
-        "triggerSelectedCount": "تم اختيار {{count}} نماذج",
-        "valueProp": "خاصية القيمة الحالية"
-      },
-      "title": "مختبر مكونات التطوير"
-    },
     "data": {
       "app_data": {
         "copy_data_option": "نسخ البيانات، سيعاد التشغيل تلقائياً بعد نسخ بيانات المجلد الأصلي إلى المجلد الجديد",
@@ -5570,7 +5493,19 @@
         "title": "نسخ البيانات احتياطياً واستعادتها"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "محلي",
+            "restart": {
+              "content": "تغيير نمط القائمة يتطلب إعادة تشغيل التطبيق لتفعيل التغييرات. هل تريد إعادة التشغيل الآن؟",
+              "title": "إعادة تشغيل مطلوبة"
+            },
+            "title": "نمط قائمة السياق"
+          }
+        },
         "sections": {
+          "chat_settings": "إعدادات الدردشة",
           "custom_css": "CSS مخصص",
           "display_language": "العرض واللغة",
           "privacy_advanced": "الخصوصية والخيارات المتقدمة",
@@ -6706,6 +6641,14 @@
       "close": "أغلق",
       "confirm": "أكد",
       "forward": "قدم",
+      "mcp": {
+        "agentEmpty": "لم يتم تكوين خوادم MCP لهذا الوكيل",
+        "assistantEmpty": "لم يتم تكوين خوادم MCP لهذا المساعد",
+        "autoEmpty": "لا توجد خوادم MCP مفعلة",
+        "description": "عرض حالة خادم MCP الحالي",
+        "disabled": "MCP معطل لهذا المساعد",
+        "unknownServer": "خادم MCP غير معروف"
+      },
       "multiple": "تحديد متعدد",
       "noResult": "لم يتم العثور على نتائج",
       "page": "صفحة",
@@ -7204,6 +7147,7 @@
         "too_large": "الملف كبير جداً",
         "unknown": "فشل قراءة محتوى الملف"
       },
+      "ocr_completed": "اكتمل التعرف الضوئي على الصورة",
       "reading": "جاري قراءة محتوى الملف...",
       "upload": "أفلت أو انقر لرفع صورة/مستند"
     },
