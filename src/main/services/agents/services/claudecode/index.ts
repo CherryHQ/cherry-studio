@@ -9,7 +9,6 @@ import path from 'node:path'
 import type {
   CanUseTool,
   HookCallback,
-  McpHttpServerConfig,
   Options,
   SDKMessage,
   SdkPluginConfig,
@@ -20,10 +19,12 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
+import { mcpApiService } from '@main/apiServer/services/mcp'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
+import { FileSystemSdkServer } from '@main/mcpServers/filesystem'
 import SkillsServer from '@main/mcpServers/skills'
 import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
 import { configManager } from '@main/services/ConfigManager'
@@ -59,6 +60,7 @@ import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { buildAgentMcpServerConfig } from './mcp-config'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 import { with1mContextSuffix } from './utils'
@@ -568,19 +570,15 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
-      // mcp configs
-      const mcpList: Record<string, McpHttpServerConfig> = {}
-      for (const mcpId of session.mcps) {
-        mcpList[mcpId] = {
-          type: 'http',
-          url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
-          headers: {
-            Authorization: `Bearer ${apiConfig.apiKey}`
-          }
-        }
-      }
-      options.mcpServers = mcpList
-      options.strictMcpConfig = true
+      const mcpConfig = await buildAgentMcpServerConfig({
+        mcpIds: session.mcps,
+        cwd,
+        apiConfig,
+        getServerById: (mcpId) => mcpApiService.getServerById(mcpId),
+        createFilesystemServer: (workspace) => new FileSystemSdkServer(workspace).mcpServer
+      })
+      options.mcpServers = mcpConfig.mcpServers
+      options.strictMcpConfig = mcpConfig.strictMcpConfig
     }
 
     if (!options.mcpServers) options.mcpServers = {}
