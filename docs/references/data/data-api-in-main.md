@@ -133,6 +133,11 @@ Contract and rationale: `src/main/data/services/dataServiceRegistry.ts`.
 
 ### Example Service
 
+> The `list()` below shows the **offset** pagination shape for illustration. The
+> real `TopicService` is cursor-paginated (`listByCursor`); a production offset
+> list looks like `AssistantService.list`. See the
+> [Pagination Guide](./data-pagination-guide.md) for both server patterns.
+
 ```typescript
 // services/TopicService.ts
 import { eq, desc, sql } from 'drizzle-orm'
@@ -276,7 +281,7 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 
 For function signature details and design-decision history (e.g. why shallow-not-recursive, why not `dnull`), see [services/utils/README.md](../../../src/main/data/services/utils/README.md).
 
-**Cursor (keyset) pagination.** List endpoints that page by a `(sortKey, id)` tuple use the shared codec + ordering helper in `services/utils/keysetCursor.ts` — `decodeListCursor` / `encodeCursor` for the `<key>:<id>` wire format, and `keysetOrdering(keyCol, idCol, { major, tie })` which returns both the strict-tuple WHERE predicate (`.where(cursor)`) and its matching `orderBy`, derived from one direction spec. Do NOT hand-write cursor encode/decode, the keyset WHERE tuple, or the `ORDER BY` in a service. See [services/utils/README.md](../../../src/main/data/services/utils/README.md) for the list-vs-search decode policy split and boundaries.
+**Cursor (keyset) pagination.** List endpoints that page by a `(sortKey, id)` tuple use the shared codec + ordering helper in `services/utils/keysetCursor.ts` — `decodeListCursor` / `encodeCursor` for the `<key>:<id>` wire format, and `keysetOrdering(keyCol, idCol, { major, tie })` which returns both the strict-tuple WHERE predicate (`.where(cursor)`) and its matching `orderBy`, derived from one direction spec. Do NOT hand-write cursor encode/decode, the keyset WHERE tuple, or the `ORDER BY` in a service. See [services/utils/README.md](../../../src/main/data/services/utils/README.md) for the list-vs-search decode policy split and boundaries, and the [Pagination Guide](./data-pagination-guide.md) for the end-to-end pagination model (offset + cursor).
 
 ### Service with Transaction
 
