@@ -22,9 +22,6 @@ const translateCoreMock = vi.hoisted(() => ({
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
   determineTargetLanguage: vi.fn(),
-  addAbortController: vi.fn(),
-  abortCompletion: vi.fn(),
-  removeAbortController: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
@@ -151,12 +148,6 @@ vi.mock('@renderer/utils', () => ({
   uuid: () => 'abort-key'
 }))
 
-vi.mock('@renderer/utils/abortController', () => ({
-  abortCompletion: translateCoreMock.abortCompletion,
-  addAbortController: translateCoreMock.addAbortController,
-  removeAbortController: translateCoreMock.removeAbortController
-}))
-
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: translateCoreMock.formatErrorMessageWithPrefix,
   isAbortError: translateCoreMock.isAbortError
@@ -267,7 +258,6 @@ describe('TranslatePage', () => {
     translateCoreMock.translateText.mockResolvedValue('translated text')
     translateCoreMock.determineTargetLanguage.mockReset()
     translateCoreMock.determineTargetLanguage.mockReturnValue({ success: true, language: 'zh-cn' })
-    translateCoreMock.abortCompletion.mockReset()
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
@@ -546,6 +536,16 @@ describe('TranslatePage', () => {
     await waitFor(() =>
       expect(translateCoreMock.setTimeoutTimer).toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
     )
+
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'zh-cn',
+        targetLanguage: 'zh-cn'
+      })
+    )
+    expect((window as any).toast.success).toHaveBeenCalledWith('translate.complete')
 
     const autoCopyCallback = translateCoreMock.setTimeoutTimer.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
     expect(autoCopyCallback).toBeTypeOf('function')
