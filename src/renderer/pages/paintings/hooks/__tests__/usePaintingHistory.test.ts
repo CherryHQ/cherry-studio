@@ -24,6 +24,7 @@ import { usePaintingHistory } from '../usePaintingHistory'
 function createRecord(id: string): Painting {
   return {
     id,
+    kind: 'image',
     providerId: 'silicon',
     modelId: 'silicon:model-1',
     prompt: 'draw a cat',
@@ -66,7 +67,7 @@ describe('usePaintingHistory', () => {
     const { result } = renderHook(() => usePaintingHistory())
 
     await waitFor(() => expect(result.current.items).toHaveLength(30))
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/paintings', { limit: 30 })
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/creations', { query: { kind: 'image' }, limit: 30 })
     expect(result.current.hasMore).toBe(true)
 
     act(() => {

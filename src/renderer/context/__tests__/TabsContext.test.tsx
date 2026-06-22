@@ -8,11 +8,11 @@ const { languageState, translate } = vi.hoisted(() => {
   const translations: Record<string, Record<string, string>> = {
     'en-US': {
       'title.home': 'Home',
-      'title.paintings': 'Paintings'
+      'title.creation': 'Creation'
     },
     'zh-CN': {
       'title.home': '首页',
-      'title.paintings': '绘画'
+      'title.creation': '创作'
     }
   }
 
@@ -106,7 +106,7 @@ describe('TabsContext language refresh', () => {
     expect(screen.getByTestId('home-tab-title')).toHaveTextContent('Home')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open paintings tab' }))
-    expect(screen.getByTestId('paintings-tab-title')).toHaveTextContent('Paintings')
+    expect(screen.getByTestId('paintings-tab-title')).toHaveTextContent('Creation')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open custom tab' }))
     expect(screen.getByTestId('custom-tab-title')).toHaveTextContent('Weather App')
@@ -119,7 +119,7 @@ describe('TabsContext language refresh', () => {
     )
 
     expect(screen.getByTestId('home-tab-title')).toHaveTextContent('首页')
-    expect(screen.getByTestId('paintings-tab-title')).toHaveTextContent('绘画')
+    expect(screen.getByTestId('paintings-tab-title')).toHaveTextContent('创作')
     expect(screen.getByTestId('custom-tab-title')).toHaveTextContent('Weather App')
   })
 })

@@ -1,5 +1,6 @@
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import type { CreationKind } from '@shared/data/types/creation'
 import { useEffect, useState } from 'react'
 
 import { recordsToPaintingDataList } from '../model/mappers/recordToPaintingData'
@@ -10,13 +11,17 @@ const logger = loggerService.withContext('usePaintingHistory')
 
 export type PaintingStripEntry = PaintingData
 
-export function usePaintingHistory(): {
+export function usePaintingHistory(kind: CreationKind = 'image'): {
   items: PaintingStripEntry[]
   isLoading: boolean
   hasMore: boolean
   loadMore: () => void
 } {
-  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
+  // Image | video history, both `creation` rows (Creation page Image/Video tabs).
+  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/creations', {
+    query: { kind },
+    limit: PAGE_SIZE
+  })
   const records = useInfiniteFlatItems(pages)
 
   const [items, setItems] = useState<PaintingStripEntry[]>([])

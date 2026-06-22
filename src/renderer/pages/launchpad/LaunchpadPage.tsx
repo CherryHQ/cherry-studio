@@ -2,7 +2,7 @@ import { OpenClawIcon } from '@renderer/components/Icons/SvgIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavigate } from '@tanstack/react-router'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, Library, NotepadText, Palette } from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, LayoutGrid, Library, NotepadText, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,10 +27,10 @@ const LaunchpadPage: FC = () => {
       bgColor: 'linear-gradient(135deg, #10B981, #34D399)' // 知识库：翠绿色，代表生长和知识
     },
     {
-      icon: <Palette size={32} className="icon" />,
-      text: t('title.paintings'),
+      icon: <Sparkles size={32} className="icon" />,
+      text: t('title.creation'),
       path: '/app/paintings',
-      bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
+      bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 创作：活力粉色，代表创造力和艺术
     },
     {
       icon: <Languages size={32} className="icon" />,

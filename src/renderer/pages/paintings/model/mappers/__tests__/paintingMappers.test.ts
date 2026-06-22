@@ -40,6 +40,7 @@ describe('paintingMappers', () => {
 
   const record: PaintingRecord = {
     id: 'painting-1',
+    kind: 'image',
     providerId: 'silicon',
     modelId: 'silicon::model-1',
     prompt: 'draw a cat',

@@ -15,8 +15,8 @@ import {
   MessageCircle,
   MousePointerClick,
   NotepadText,
-  Palette,
-  Sparkle
+  Sparkle,
+  Sparkles
 } from 'lucide-react'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -49,7 +49,7 @@ const iconMap: Record<SidebarFavoriteType, SidebarMenuItem['icon']> = {
   assistants: MessageCircle,
   agents: MousePointerClick,
   store: Sparkle,
-  paintings: Palette,
+  paintings: Sparkles,
   translate: Languages,
   mini_app: LayoutGrid,
   knowledge: FileSearch,
