@@ -363,7 +363,7 @@ export default function ProviderEditorDrawer({
         )}
 
         {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-          <p className="text-(length:--font-size-body-xs) text-muted-foreground/80 leading-[1.4]">
+          <p className="text-muted-foreground/80 text-xs leading-[1.4]">
             {t('settings.provider.duplicate.fill_after_create')}
           </p>
         )}
@@ -377,7 +377,7 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const presetId = source.presetProviderId
   const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-(--section-border) bg-muted/40 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border-muted bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
       <span className="truncate text-foreground/85 text-sm">{label}</span>
     </div>
@@ -604,7 +604,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           type="button"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-(--color-surface-fg-subtle) hover:text-foreground">
+          className="-translate-y-1/2 absolute top-1/2 right-2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground">
           {visible ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>
