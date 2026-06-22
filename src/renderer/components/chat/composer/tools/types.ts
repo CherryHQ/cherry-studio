@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import { type Assistant, type ThinkingOption, TopicType } from '@renderer/types'
-import type { InputBarToolType } from '@renderer/types/chat'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
@@ -17,7 +16,6 @@ const logger = loggerService.withContext('ComposerToolRegistry')
 export type ComposerToolScope = TopicType | 'quick-assistant'
 
 export interface ComposerToolScopeConfig {
-  placeholder?: string
   minRows?: number
   maxRows?: number
   showTokenCount?: boolean
@@ -199,10 +197,4 @@ export const getToolsForScope = (
 
     return true
   })
-}
-
-// Tool order configuration
-export interface ToolOrderConfig {
-  visible: InputBarToolType[]
-  hidden: InputBarToolType[]
 }

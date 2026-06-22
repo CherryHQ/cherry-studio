@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 
-import type { ComposerAttachment } from '../../composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000

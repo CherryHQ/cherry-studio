@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { type ComposerAttachment, toComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
+import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'

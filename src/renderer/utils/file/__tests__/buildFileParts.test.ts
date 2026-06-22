@@ -1,4 +1,4 @@
-import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { FILE_TYPE } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -1,6 +1,6 @@
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import {
   getQuoteTooltipContent,
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
