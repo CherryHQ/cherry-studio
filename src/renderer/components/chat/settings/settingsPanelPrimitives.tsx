@@ -1,6 +1,6 @@
 import { Divider as SettingDivider, Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { SettingRow as BaseSettingRow, SettingRowTitle } from '@renderer/pages/settings'
+import { SettingRow as BaseSettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { Info } from 'lucide-react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
