@@ -59,17 +59,15 @@ const SKIP_WARNING_SAMPLE_LIMIT = 3
 // on the index.sqlite family; `recursive` is required for fs.rm to honor the retries.
 const REMOVE_RETRY_OPTIONS = { recursive: true, force: true, maxRetries: 5, retryDelay: 100 } as const
 
-// rename / writeFile / mkdir face the same transient Windows locks as fs.rm — Defender or the
-// Search Indexer briefly opens a just-written file, so MoveFileEx / open throws
-// EPERM / EACCES / EBUSY — but fs.rm's built-in retry does not cover them, and its errno set
-// notably omits EACCES. Wrap these mutations in a retry (plus EACCES) so a single momentary lock no
-// longer fails the whole migration (the user-reported symptom). The earlier flat 5×100ms (~400ms)
-// budget proved too short for the index.sqlite rename: a real Windows install kept the just-closed
-// libsql handle / an AV scan on the file long enough to outlast it, so the rename failed and the
-// base was left without its store. Back off exponentially up to FS_RETRY_MAX_DELAY_MS so early
-// retries stay fast (most locks clear in <500ms) while the tail stretches to a few seconds for the
-// stubborn ones, before finally surfacing the failure to the per-base catch (which marks the base
-// `failed`/restorable rather than leaving it silently empty).
+// writeFile / mkdir face the same transient Windows locks as fs.rm — Defender or the Search Indexer
+// briefly opens a just-written file, so open throws EPERM / EACCES / EBUSY — but fs.rm's built-in
+// retry does not cover them, and its errno set notably omits EACCES. Wrap these mutations in a retry
+// (plus EACCES) so a single momentary lock no longer fails the whole migration. Back off
+// exponentially up to FS_RETRY_MAX_DELAY_MS so early retries stay fast (most scans clear in <500ms)
+// while the tail stretches to a few seconds for stubborn ones, before surfacing the failure to the
+// per-base catch. (The store itself is now built in place — no rename — so the WAL-mode handle that
+// close() leaves locked on Windows no longer has to be released for a file move; this retry only
+// guards the raw/ snapshot writeFile and the mkdir, which a transient AV scan can still block.)
 const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
 const FS_RETRY_MAX_ATTEMPTS = 8
 const FS_RETRY_BASE_DELAY_MS = 100
@@ -266,10 +264,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   // virtual path with no raw/ file, so reindex is rejected and they would be invisible empty
   // docs; execute() degrades them to `failed`/directory_not_migrated so the UI prompts a re-add.
   private directoryItemsToDegrade = new Set<string>()
-  // Bases whose vector store was built into the temp index but could not be promoted onto the
-  // runtime index.sqlite (the rename outlived the transient-lock retry budget). flushBaseFailures()
-  // marks each `failed`/missing_vector_store after the loop so the UI surfaces a restore entry
-  // instead of leaving a `completed` base with a missing/empty store and forever-empty search.
+  // Bases whose vector store never finished building at its runtime index.sqlite (the rebuild threw
+  // partway). flushBaseFailures() marks each `failed`/missing_vector_store after the loop so the UI
+  // surfaces a restore entry instead of leaving a `completed` base with a missing/partial store and
+  // forever-empty search.
   private basesToMarkFailed = new Set<string>()
 
   override reset(): void {
@@ -351,10 +349,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         this.directoryItemsToDegrade.add(containerId)
       }
     }
-  }
-
-  private getTempVectorStorePath(dbPath: string): string {
-    return `${dbPath}.vectorstore.tmp`
   }
 
   private getRuntimeVectorStorePath(knowledgeBaseDir: string, baseId: string): string {
@@ -876,14 +870,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
-   * Mark every base whose vector store could not be promoted (collected in execute()'s per-base
-   * catch) as a restorable `failed` row. The temp index was built but the rename onto the runtime
-   * index.sqlite failed — typically a transient Windows lock that outlived the retry budget — so the
-   * store is missing/empty. Without this the base stays `completed` and the runtime mounts an empty
-   * store: search and the chunk list return nothing forever, and nothing reindexes on its own
-   * (KnowledgeVectorStoreService only logs the empty-store state). `missing_vector_store` is the same
-   * restorable error prepare()'s unreadable-store branch sets, so the UI offers a re-index that
-   * rebuilds from the migrated raw/ files. Best-effort and chunked like flushDirectoryDegradations:
+   * Mark every base whose vector store never finished building (collected in execute()'s per-base
+   * catch when the rebuild threw before completion) as a restorable `failed` row, after wiping the
+   * partial index it left behind. Without this the base stays `completed` and the runtime mounts an
+   * empty/partial store: search and the chunk list return nothing forever, and nothing reindexes on
+   * its own (KnowledgeVectorStoreService only logs the empty-store state). `missing_vector_store` is
+   * the same restorable error prepare()'s unreadable-store branch sets, so the UI offers a re-index
+   * that rebuilds from the migrated raw/ files. Best-effort and chunked like flushDirectoryDegradations:
    * a failed UPDATE is recorded as a warning, never thrown, so it cannot abort the surviving bases.
    */
   private async flushBaseFailures(ctx: MigrationContext): Promise<void> {
@@ -934,29 +927,49 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     let processedCount = 0
 
     for (const plan of this.preparedBasePlans) {
-      const tempPath = this.getTempVectorStorePath(plan.targetDbPath)
-      // Did the rebuilt store actually land on its runtime path? Flipped true the instant the rename
-      // succeeds. It gates the per-base catch's mark-failed: a failure BEFORE promotion (rebuild or
-      // rename) means no store exists, so the base must become restorable `failed`; a failure AFTER
-      // (the snapshot-pin UPDATE) leaves a present, searchable store, so marking it failed would
-      // force a needless full re-index.
+      // Did the store finish building at its runtime path? Flipped true once the build + close
+      // succeeds. It gates the per-base catch: a failure BEFORE the store is complete (rebuild threw)
+      // leaves a partial/empty index that must be wiped and the base marked restorable `failed`; a
+      // failure AFTER (the snapshot-pin UPDATE) leaves a complete, searchable store that must be kept
+      // and the base left as-is.
       let storePromoted = false
 
       try {
         await retryOnTransientFsLock(() => fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true }))
-        await this.removeIndexStoreFiles(tempPath)
+        // Defensive clear before building: the runtime path is normally fresh (KnowledgeMigrator mints
+        // a new uuid dir per run), but wipe any stale store + WAL sidecars so a build always starts
+        // clean. It lives under the migrated base's new uuid dir (never the legacy flat path), so the
+        // v1 embedjs DB is untouched and a failed migration leaves v1 fully usable.
+        await this.removeIndexStoreFiles(plan.targetDbPath)
 
-        // Rebuild into a temp store through the exact runtime open sequence
-        // (driver → schema → ensureIndexMeta → KnowledgeIndexStore.rebuildMaterial), so the
-        // migrated store is byte-for-byte a store the runtime would produce.
+        // Build the store DIRECTLY at its runtime index.sqlite — no temp file, no rename. The rebuild
+        // runs the exact runtime open sequence (driver → schema → ensureIndexMeta →
+        // KnowledgeIndexStore.rebuildMaterial), so the result is byte-for-byte a store the runtime
+        // would produce.
         //
-        // serializedSingleConnection: the per-material rebuild loop runs one transaction per
-        // material. With libsql's client.transaction('write') each would orphan a still-open
-        // handle on this temp store (released only by GC), and on Windows those leaked handles
-        // block the rename below — the intermittent "file lock". Manual BEGIN keeps every write on
-        // the single connection, so driver.close() releases all of it before the rename. Safe here
-        // because migration is the sole writer and nothing reads this temp store concurrently.
-        const driver = await openLibsqlIndexDriver(tempPath, { serializedSingleConnection: true })
+        // Why not build a temp store and rename it on? The rename was the migration's single most
+        // fragile step on Windows. libsql opens index.sqlite in WAL mode, and WAL mode on Windows is
+        // known to keep a lock on the MAIN db file past close() — wal_checkpoint(TRUNCATE), PERSIST_WAL
+        // and multi-second waits do NOT release it (oven-sh/bun#25964) — on top of the AV/Search-
+        // Indexer scan that opens the just-written file without DELETE share. MoveFileEx needs DELETE
+        // access on the source, so the rename threw EBUSY/EPERM and the base lost its store. A retry
+        // only helps the transient AV case; it cannot wait out a handle that close() never released.
+        // Building in place removes the move entirely: whatever lock lingers after close() is harmless
+        // because nothing here moves or reopens the file; the runtime opens it only after bootstrap
+        // (well after migration finishes), by which point the lock is gone.
+        //
+        // This trades the rename's crash-atomicity (an interrupted build leaves a partial index at the
+        // runtime path) for that robustness — safe because the migration gate re-runs from scratch on
+        // any non-completed run: verifyAndClearNewTables() wipes the rows, KnowledgeMigrator re-mints a
+        // fresh uuid dir, the runtime never opens a store mid-migration, and the catch below wipes a
+        // partial on a caught failure. A crash-orphaned dir is never referenced by a knowledge_base row
+        // so it is never mounted (it is dead disk, the same as the rename path produced).
+        //
+        // serializedSingleConnection: the per-material rebuild loop runs one transaction per material.
+        // With libsql's client.transaction('write') each would orphan a still-open handle (released
+        // only by GC); manual BEGIN keeps every write on the single connection so driver.close()
+        // releases it. Safe here because migration is the sole writer and nothing reads it concurrently.
+        const driver = await openLibsqlIndexDriver(plan.targetDbPath, { serializedSingleConnection: true })
         try {
           await createKnowledgeIndexSchema(driver)
           await ensureIndexMeta(driver, { baseId: plan.baseId })
@@ -969,34 +982,24 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             await yieldToEventLoop()
           }
 
-          // Fold the WAL back into the main db file: only the main file is renamed
-          // onto the target, and libsql does not reliably checkpoint on close — without
-          // this the renamed store reads short (SQLITE_IOERR_SHORT_READ) because its
-          // committed pages still live in the now-orphaned `${tempPath}-wal` sidecar.
+          // Fold the WAL back into the main db file so the committed pages are durable in index.sqlite
+          // itself (libsql does not reliably checkpoint on close); the runtime then opens a
+          // self-contained store.
           await driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
         } finally {
-          // Close before the rename so the file handle is released (a leaked handle
-          // would block the rename and the later base-dir deletion on Windows).
+          // Close so the file handle is released (a leaked handle would block a re-run's
+          // removeIndexStoreFiles and the later base-dir deletion on Windows).
           await driver.close()
         }
+        // Build + close succeeded: the complete store sits at its runtime path. A later failure
+        // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
+        storePromoted = true
 
         if (plan.materials.length === 0) {
           processedWork += 1
           this.reportRebuildProgress(processedWork, totalWork)
           await yieldToEventLoop()
         }
-
-        // Leave the v1 legacy embedjs DB untouched in place: a user who rolls back to v1 after a
-        // failed or abandoned migration must keep a working knowledge base. The rebuilt V2 store
-        // lives under the migrated base's new uuid directory, so it never collides with the legacy
-        // flat path and the v1 source needs no relocation. Runtime may have auto-created an empty
-        // store at the target; remove it (and its WAL sidecars) first so the rename succeeds on
-        // Windows (POSIX rename overwrites, Windows throws on an existing target).
-        await this.removeIndexStoreFiles(plan.targetDbPath)
-        await retryOnTransientFsLock(() => fs.promises.rename(tempPath, plan.targetDbPath))
-        // The store is now on its runtime path: any later failure (snapshot-pin) leaves it present
-        // and searchable, so it must NOT be marked missing_vector_store in the catch.
-        storePromoted = true
 
         // Materialize each migrated url/note snapshot file under the base's `raw/`
         // material root (overwriting a previous partial run's copy) and pin the item
@@ -1035,15 +1038,20 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        // Cleanup must not throw past the loop: on Windows a locked index.sqlite can make rm reject
-        // even after retries, which would mask the real errorMessage and abort the whole migration.
-        try {
-          await this.removeIndexStoreFiles(tempPath)
-        } catch (cleanupError) {
-          logger.warn('Temp index store cleanup failed after base execution error', {
-            baseId: plan.baseId,
-            cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-          })
+        // If the store never finished building, wipe the partial/empty index left at the runtime path
+        // so the runtime cannot later mount a half-built store (a complete store from a post-build
+        // snapshot-pin failure is kept — storePromoted). Cleanup must not throw past the loop: on
+        // Windows a locked index.sqlite can make rm reject even after retries, which would mask the
+        // real errorMessage and abort the whole migration.
+        if (!storePromoted) {
+          try {
+            await this.removeIndexStoreFiles(plan.targetDbPath)
+          } catch (cleanupError) {
+            logger.warn('Partial index store cleanup failed after base execution error', {
+              baseId: plan.baseId,
+              cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+            })
+          }
         }
 
         // A per-base failure is non-fatal: skip this base (it stays out of successfulBaseIds, so
@@ -1061,14 +1069,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // unreindexable virtual-path orphan).
         //
         // Mark the base itself `failed`/missing_vector_store (flushed after the loop) ONLY when its
-        // store never landed (rebuild or rename failed; storePromoted still false). Leaving such a
-        // base `completed` makes the runtime mount an empty store and return empty search/chunk
+        // store never finished building (the rebuild threw; storePromoted still false). Leaving such a
+        // base `completed` makes the runtime mount an empty/partial store and return empty search/chunk
         // results forever — there is NO auto-reindex (KnowledgeVectorStoreService only logs the
         // empty-store state, it does not rebuild). A `failed` base is kept out of the runtime's open
         // path and surfaces a restore/re-index entry, matching prepare()'s restorable
         // unreadable-store branch. Regular file/url/note rows stay `completed`; restore re-reads them
         // from their migrated raw/ files regardless of status, so they need no per-item degrade.
-        // If the rename already succeeded (storePromoted) and only the snapshot-pin threw, the store
+        // If the build already completed (storePromoted) and only the snapshot-pin threw, the store
         // is present and searchable — do not mark it failed and force a needless full re-index.
         this.skippedCount += plan.expectedUnitCount
         this.markDirectoryGroupsFullyOrphaned(plan.directoryGroups)
@@ -1142,8 +1150,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         }
 
         // Reopen through openLibsqlIndexDriver, not a bare createClient: the driver sets
-        // busy_timeout=5000, so this post-rename re-read waits out a transient Windows lock
-        // (Defender / indexer scanning the just-renamed store) instead of throwing SQLITE_BUSY /
+        // busy_timeout=5000, so this re-read of the just-built store waits out a transient Windows lock
+        // (Defender / indexer scanning the freshly-written file) instead of throwing SQLITE_BUSY /
         // EACCES and failing validation for an already-correct store.
         const driver = await openLibsqlIndexDriver(plan.targetDbPath)
         try {

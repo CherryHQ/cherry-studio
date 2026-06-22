@@ -1536,7 +1536,8 @@ describe('KnowledgeVectorMigrator', () => {
     it('opens the rebuild store with serializedSingleConnection so a refactor cannot silently drop it (P0-2b)', async () => {
       // P0-2b eliminated the per-material libsql connection leak by opting the rebuild driver into
       // single-connection mode. Assert the migrator actually passes the flag — without this a
-      // refactor that dropped the option would reintroduce the Windows rename lock yet stay green.
+      // refactor that dropped the option would leak a handle on the just-built store that, on Windows,
+      // blocks the catch's removeIndexStoreFiles and the later base-dir deletion, yet stay green.
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -1818,7 +1819,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
     })
 
-    it('removes the target store with EBUSY-survivable retry options before renaming', async () => {
+    it('removes the target store with EBUSY-survivable retry options before building in place', async () => {
       const migrator = new KnowledgeVectorMigrator() as any
       const dbPath = path.join(knowledgeBaseDir, 'ebusy', '.cherry', 'index.sqlite')
 
@@ -1915,11 +1916,13 @@ describe('KnowledgeVectorMigrator', () => {
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(true)
       expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
-      expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
+      // The failed build's partial v2 store at the runtime path is wiped, and the v1 legacy store is
+      // left untouched so a user can keep using v1 after a failed migration.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
       expect(fs.existsSync(dbPath)).toBe(true)
     })
 
-    it('surfaces the real execution error when temp-store cleanup itself throws', async () => {
+    it('surfaces the real execution error when partial-store cleanup itself throws', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -1952,8 +1955,8 @@ describe('KnowledgeVectorMigrator', () => {
 
       // The rebuild fails (the real error), sending execute into its catch block...
       vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
-      // ...where the temp-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
-      // The first call (pre-rebuild temp clear) must still succeed so the rebuild is reached.
+      // ...where the partial-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
+      // The first call (pre-build target clear) must still succeed so the rebuild is reached.
       migrator.removeIndexStoreFiles = vi
         .fn()
         .mockResolvedValueOnce(undefined)
@@ -1968,11 +1971,12 @@ describe('KnowledgeVectorMigrator', () => {
       expect(executeResult.warnings?.some((warning: string) => warning.includes('EPERM'))).toBe(false)
     })
 
-    it('retries rename on a transient Windows lock instead of failing the base', async () => {
-      // The just-closed temp store can be momentarily locked by Defender / the Search Indexer, so
-      // the first rename throws EPERM. retryOnTransientFsLock retries (a bare fs.rename would not),
-      // so a single momentary lock no longer fails the base. The same helper guards the snapshot
-      // writeFile and the mkdir calls.
+    it('builds the store in place at the runtime index.sqlite — no temp file, no rename', async () => {
+      // Direct-build: the store is written straight to its runtime path instead of being built in a
+      // temp file and renamed on. The rename was the migration's most fragile step on Windows — libsql
+      // opens index.sqlite in WAL mode, which keeps the file locked past close() (oven-sh/bun#25964),
+      // so MoveFileEx threw EBUSY. Removing the move removes the failure mode. Prove the store lands
+      // fully at the runtime path, no temp file is left, and fs.rename is never called.
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -2003,23 +2007,25 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      const realRename = fs.promises.rename.bind(fs.promises)
-      const renameSpy = vi
-        .spyOn(fs.promises, 'rename')
-        .mockRejectedValueOnce(Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' }))
-        .mockImplementation((...args) => realRename(...args))
+      const renameSpy = vi.spyOn(fs.promises, 'rename')
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(true)
-      // First attempt threw EPERM, the retry succeeded → at least two attempts.
-      expect(renameSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+      // No rename, and no temp store beside the runtime one.
+      expect(renameSpy).not.toHaveBeenCalled()
+      expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
+      // The runtime store exists in place and holds the migrated material.
       expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material).toHaveLength(1)
     })
 
-    it('does not retry rename on a non-transient error and skips only that base', async () => {
-      // ENOENT is not a transient lock — retryOnTransientFsLock must rethrow immediately (no retry),
-      // and the per-base failure stays non-fatal (P1-6).
+    it('wipes the partial store and skips the base when the build throws mid-rebuild', async () => {
+      // Direct-build trades the rename's crash-atomicity for a re-run guarantee, but a build that
+      // throws partway still leaves a partial index at the runtime path. The per-base catch must wipe
+      // it (storePromoted is still false) so the runtime never mounts a half-built store, while the
+      // migration stays alive (P1-6 non-fatal).
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -2050,30 +2056,22 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      const renameSpy = vi
-        .spyOn(fs.promises, 'rename')
-        .mockRejectedValue(Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }))
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
-      expect(renameSpy.mock.calls.length).toBe(1)
-      expect(executeResult.warnings?.some((warning: string) => warning.includes('ENOENT'))).toBe(true)
-      // The store never landed, so the base must not stay `completed` (which would mount an empty
-      // store with forever-empty search); it is marked failed/missing_vector_store so the UI offers
-      // a restore. No directory items here, so this is the only `failed` write.
-      const baseFailures = migrationCtx.db.updateCalls.filter(
-        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
-      )
-      expect(baseFailures).toHaveLength(1)
-      expect(baseFailures[0].values).toEqual({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('rebuild failed'))).toBe(true)
+      // The partial store left at the runtime path by the failed build is wiped — nothing half-built
+      // is left for the runtime to mount.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
     })
 
-    it('marks the base failed/missing_vector_store when the rebuilt store cannot be promoted', async () => {
-      // The headline of the user-reported Windows bug: the temp index builds, but promoting it onto
-      // the runtime index.sqlite fails. The base must NOT stay `completed` — there is no runtime
-      // auto-reindex, so a `completed` base with a missing store searches empty forever. Instead it
-      // becomes a restorable failed row, and the rest of the migration still succeeds.
+    it('marks the base failed/missing_vector_store when the store build fails', async () => {
+      // The base must NOT stay `completed` when its index never finished building — there is no
+      // runtime auto-reindex, so a `completed` base with a missing/partial store searches empty
+      // forever. Instead it becomes a restorable failed row, and the rest of the migration still
+      // succeeds.
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -2104,8 +2102,8 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      // Fail the rebuild itself (deterministic, no rename retry timing): the per-base catch is the
-      // same path a promote failure reaches, so this exercises the mark-failed logic directly.
+      // Fail the rebuild itself: the per-base catch marks the base failed when its store never
+      // finished building (storePromoted stays false).
       vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
 
       const executeResult = await migrator.execute(migrationCtx as any)
@@ -2342,14 +2340,14 @@ describe('KnowledgeVectorMigrator', () => {
       expect(validateResult.errors).toStrictEqual([])
     })
 
-    it('keeps the rebuilt store and credits skippedCount when the snapshot-pin UPDATE throws after rename', async () => {
-      // The url snapshot store is rebuilt and renamed to its runtime path and the snapshot file is
-      // written before the row-pin UPDATE runs. If that UPDATE throws, the per-base catch credits the
-      // base's units to skippedCount and drops it from successfulBaseIds, so the engine reconciliation
-      // still balances and the migration survives — but the rebuilt store is left in place at the
-      // runtime path with the row unpinned (removeIndexStoreFiles(tempPath) is a no-op since tempPath
-      // was already renamed away). Narrow, recoverable window: the next migration re-run re-pins it.
-      // Pin the behavior so it can't regress into an aborted migration or a silently dropped base.
+    it('keeps the built store and credits skippedCount when the snapshot-pin UPDATE throws after the build', async () => {
+      // The url snapshot store is built in place at its runtime path and the snapshot file is written
+      // before the row-pin UPDATE runs. If that UPDATE throws, the per-base catch credits the base's
+      // units to skippedCount and drops it from successfulBaseIds, so the engine reconciliation still
+      // balances and the migration survives — but the built store is left in place at the runtime path
+      // with the row unpinned (storePromoted is already true, so the catch does not wipe it). Narrow,
+      // recoverable window: the next migration re-run re-pins it. Pin the behavior so it can't regress
+      // into an aborted migration or a silently dropped base.
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {
           id: 'legacy-url-0',
@@ -2380,7 +2378,7 @@ describe('KnowledgeVectorMigrator', () => {
           }
         }
       })
-      // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is renamed.
+      // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is built.
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
           where: vi.fn().mockRejectedValue(new Error('pin update failed'))
@@ -2396,8 +2394,8 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
       expect(migrator.executionErrors.some((message: string) => message.includes('pin update failed'))).toBe(true)
 
-      // The rebuilt store survives at the runtime path (rename already happened; the catch only cleans
-      // the now-renamed temp path), so the vectors are not lost — merely left unpinned until a re-run.
+      // The built store survives at the runtime path (storePromoted is true, so the catch does not
+      // wipe it), so the vectors are not lost — merely left unpinned until a re-run.
       expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
       // The store DID land, so the base must NOT be marked missing_vector_store — that would force a
       // needless full re-index of a present, searchable store (storePromoted gate).
