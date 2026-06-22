@@ -3,6 +3,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost } from '@shared/utils/api'
@@ -34,8 +35,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const provider = await providerService.getByProviderId(providerId)
   const model = await modelService.getByKey(providerId, modelId)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
-  const anthropicBaseUrl = resolveAnthropicBaseUrl(provider, baseUrl)
+  // The Claude Code login provider carries no API key and no custom base URL:
+  // the Agent SDK uses the user's CLI subscription login + Anthropic defaults.
+  // Injecting either here would override that (ANTHROPIC_BASE_URL would also
+  // re-add what `buildEnvironment` deliberately stripped).
+  const isLoginProvider = isClaudeCodeProviderId(provider.id)
+  const apiKey = isLoginProvider ? undefined : await providerService.getRotatedApiKey(provider.id)
+  const anthropicBaseUrl = isLoginProvider ? undefined : resolveAnthropicBaseUrl(provider, baseUrl)
   const resumeSessionId =
     effectiveResume ?? (await agentSessionMessageService.getLastRuntimeResumeToken(session.id)) ?? undefined
   const settings = mergeRuntimeSettings(

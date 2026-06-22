@@ -97,6 +97,33 @@ export class CodeCliService extends BaseService {
     this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
       this.removeCustomTerminalPath(terminalId)
     )
+    this.ipcHandle(IpcChannel.CodeCli_CheckClaudeLogin, () => this.checkClaudeLogin())
+  }
+
+  /**
+   * Read-only probe of whether the user already has a Claude Code CLI
+   * subscription login (Claude Pro/Max OAuth) usable by the Agent SDK. Never
+   * reads or stores the credential value itself — only its presence.
+   *
+   * macOS: the OAuth token lives in the global login Keychain under the generic
+   * password service `Claude Code-credentials` (independent of CLAUDE_CONFIG_DIR);
+   * we query existence without `-w` so no secret is read and no ACL prompt fires.
+   * Linux/Windows: it lives in `<CLAUDE_CONFIG_DIR>/.credentials.json` (default
+   * `~/.claude`). A present token may still be expired — the SDK refreshes on use;
+   * this is a best-effort "is the user signed in" hint for the settings UI.
+   */
+  public async checkClaudeLogin(): Promise<boolean> {
+    try {
+      if (isMac) {
+        await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
+        return true
+      }
+      const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
+      return fs.existsSync(path.join(configDir, '.credentials.json'))
+    } catch {
+      // `security` exits non-zero when the item is absent (not signed in).
+      return false
+    }
   }
 
   protected async onStop(): Promise<void> {

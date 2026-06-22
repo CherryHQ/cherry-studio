@@ -40,7 +40,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
-import { isLinux, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
@@ -57,6 +57,7 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -449,10 +450,7 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
     : t('agent.session.workspace_status.inaccessible', { path })
 }
 
-async function buildEnvironment(
-  _provider: Provider, // retained for API compat; providerId resolved from agent.model
-  agent: AgentEntity
-): Promise<Record<string, string | undefined>> {
+async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getLoginShellEnvironment()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
@@ -533,6 +531,24 @@ async function buildEnvironment(
       } else if (typeof value === 'string') {
         env[key] = value
       }
+    }
+  }
+
+  // Claude Code (login) provider: reuse the user's Claude Code CLI subscription
+  // login (Claude Pro/Max OAuth) instead of an API key. The Claude Agent SDK
+  // falls back to the stored OAuth credential ONLY when no ANTHROPIC_API_KEY /
+  // ANTHROPIC_AUTH_TOKEN is present, so strip any inherited from the login shell
+  // (the warm-query builder already skips injecting them for this provider).
+  // macOS keeps the credential in the global Keychain (independent of
+  // CLAUDE_CONFIG_DIR); elsewhere it lives in <CLAUDE_CONFIG_DIR>/.credentials.json,
+  // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
+  // ~/.claude) rather than Cherry's relocated agent config.
+  if (isClaudeCodeProviderId(provider.id)) {
+    delete env.ANTHROPIC_API_KEY
+    delete env.ANTHROPIC_AUTH_TOKEN
+    delete env.ANTHROPIC_BASE_URL
+    if (!isMac) {
+      env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR ?? path.join(application.getPath('sys.home'), '.claude')
     }
   }
 

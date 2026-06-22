@@ -1,5 +1,6 @@
 import type { ISeeder } from '../types'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
+import { ClaudeCodeProviderSeeder } from './seeders/claudeCodeProviderSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
@@ -22,5 +23,6 @@ export const seeders: ISeeder[] = [
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
+  new ClaudeCodeProviderSeeder(),
   new MiniAppSeeder()
 ]

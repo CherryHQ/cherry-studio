@@ -95,4 +95,22 @@ describe('CodeCliService', () => {
     // so creating another should throw
     expect(() => new CodeCliService()).toThrow(/already been instantiated/)
   })
+
+  // macOS keeps the Claude Code login credential in the global Keychain; existence is probed via
+  // `security find-generic-password` WITHOUT `-w` so we never read the secret or trip the ACL prompt.
+  it('checkClaudeLogin returns true when the macOS keychain entry exists', async () => {
+    const { codeCliService } = await loadModules()
+    await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
+  })
+
+  it('checkClaudeLogin returns false when the macOS keychain lookup fails', async () => {
+    const util = await import('util')
+    const { codeCliService } = await loadModules()
+    // CodeCliService promisifies exec once at module load; grab that resolver and make it reject.
+    const execAsync = (
+      util.promisify as unknown as { mock: { results: { value: ReturnType<typeof vi.fn> }[] } }
+    ).mock.results.at(-1)?.value
+    execAsync?.mockRejectedValueOnce(new Error('not found'))
+    await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
+  })
 })

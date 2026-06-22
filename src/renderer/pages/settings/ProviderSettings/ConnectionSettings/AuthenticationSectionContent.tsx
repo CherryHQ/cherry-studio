@@ -1,3 +1,5 @@
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
+
 import { useProviderConnectionCheck } from '../hooks/providerSetting/useProviderConnectionCheck'
 import ApiHost from './ApiHost'
 import ApiKey from './ApiKey'
@@ -13,6 +15,12 @@ export function AuthenticationSectionContent({
   onOpenModelHealthCheck
 }: AuthenticationSectionContentProps) {
   const connectionCheck = useProviderConnectionCheck(providerId)
+
+  // claude-code authenticates via the Claude Code CLI login, not an API key — its
+  // login panel renders through the provider-specific registry instead.
+  if (isClaudeCodeProviderId(providerId)) {
+    return null
+  }
 
   return (
     <>

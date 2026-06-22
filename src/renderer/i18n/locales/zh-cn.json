@@ -7036,6 +7036,15 @@
           "international": "国际域名"
         }
       },
+      "claude_code": {
+        "description": "使用 Claude 订阅登录",
+        "description_detail": "该提供商复用 Claude Code CLI 的登录信息（Claude Pro/Max），仅供 Agent 使用。请打开终端运行 `claude` 完成登录。",
+        "launch_failed": "打开终端失败，请手动运行 `claude` 登录。",
+        "logged_in": "已登录 Claude Code",
+        "logged_in_detail": "Agent 将使用你的 Claude Code CLI 订阅凭据。",
+        "open_terminal": "打开终端登录",
+        "recheck": "重新检测"
+      },
       "copilot": {
         "add_request_header": "添加请求头",
         "auth_failed": "Github Copilot 认证失败",

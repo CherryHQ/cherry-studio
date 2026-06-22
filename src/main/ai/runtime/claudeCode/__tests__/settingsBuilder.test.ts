@@ -104,7 +104,8 @@ vi.mock('@main/core/application', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
-  isWin: false
+  isWin: false,
+  isMac: false
 }))
 
 vi.mock('@main/services/proxy/nodeProxy', () => ({
@@ -572,6 +573,52 @@ describe('buildClaudeCodeSessionSettings', () => {
       disposeToolPolicySnapshot('warm-d')
       await buildClaudeCodeSessionSettings(sessionWith('warm-d'), {} as never)
       expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  // The claude-code login provider must NOT inject an API key — it relies on the Claude Agent SDK
+  // falling back to the Claude Code CLI subscription credential, which only happens when no
+  // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN is present in the environment.
+  describe('claude-code login provider env', () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    it('strips inherited Anthropic credentials and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
+      mocks.getLoginShellEnvironment.mockResolvedValue({
+        ANTHROPIC_API_KEY: 'sk-shell',
+        ANTHROPIC_AUTH_TOKEN: 'tok-shell',
+        ANTHROPIC_BASE_URL: 'https://shell.example',
+        CLAUDE_CONFIG_DIR: '/home/me/.claude'
+      })
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN')
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+      // Non-mac (platform mock has no isMac): reuse the user's real config dir from the login shell.
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/home/me/.claude')
+    })
+
+    it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
+      mocks.getLoginShellEnvironment.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+      // application.getPath('sys.home') is mocked to '/app/sys.home'.
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+    })
+
+    it('leaves inherited Anthropic credentials intact for a non-login provider', async () => {
+      mocks.getLoginShellEnvironment.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
+
+      expect(settings.env!.ANTHROPIC_API_KEY).toBe('sk-shell')
     })
   })
 })

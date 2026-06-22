@@ -7036,6 +7036,15 @@
           "international": "International domain"
         }
       },
+      "claude_code": {
+        "description": "Sign in with your Claude subscription",
+        "description_detail": "This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude` to sign in.",
+        "launch_failed": "Failed to open the terminal. Run `claude` manually to sign in.",
+        "logged_in": "Signed in to Claude Code",
+        "logged_in_detail": "Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "Open terminal to sign in",
+        "recheck": "Recheck"
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
