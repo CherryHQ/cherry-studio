@@ -1,6 +1,9 @@
+import * as fs from 'node:fs'
 import type * as NodeModule from 'node:module'
+import os from 'node:os'
+import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -150,6 +153,12 @@ vi.mock('../ToolApprovalRegistry', () => ({
 
 const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
 
+const tempRoots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((tempRoot) => fs.promises.rm(tempRoot, { recursive: true, force: true })))
+})
+
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -211,6 +220,37 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+  })
+
+  it('exposes managed skills under Claude config and passes SDK skill names, not paths', async () => {
+    const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'settings-builder-skills-'))
+    tempRoots.push(tempRoot)
+    const dataSkillsRoot = path.join(tempRoot, 'Data', 'Skills')
+    const claudeRoot = path.join(tempRoot, '.claude')
+    const sourceDir = path.join(dataSkillsRoot, 'pdf')
+    await fs.promises.mkdir(sourceDir, { recursive: true })
+    await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# PDF\n')
+    mocks.applicationGetPath.mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.claude.root') return filename ? path.join(claudeRoot, filename) : claudeRoot
+      if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
+      return `/app/${key}`
+    })
+    mocks.listSkills.mockResolvedValue([
+      { id: 'skill-1', folderName: 'pdf', name: 'pdf', isEnabled: true },
+      { id: 'skill-2', folderName: 'docx', name: 'docx', isEnabled: false }
+    ])
+    mocks.getSkillDirectory.mockImplementation((folderName: string) => path.join(dataSkillsRoot, folderName))
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.skills).toEqual(['pdf'])
+    expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+    await expect(fs.promises.access(path.join(claudeRoot, 'skills', 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {

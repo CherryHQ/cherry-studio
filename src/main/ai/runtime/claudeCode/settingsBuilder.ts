@@ -563,21 +563,51 @@ async function readSkillDirectories(root: string): Promise<string[]> {
   )
 }
 
+async function ensureSkillInClaudeConfig(
+  sourceDir: string,
+  configSkillsRoot: string,
+  folderName: string
+): Promise<void> {
+  const targetDir = path.join(configSkillsRoot, folderName)
+  try {
+    await fs.promises.access(path.join(targetDir, 'SKILL.md'), fs.constants.R_OK)
+    return
+  } catch {
+    // SDK discovers app-managed skills only from CLAUDE_CONFIG_DIR/skills; keep Data/Skills inert.
+  }
+
+  try {
+    await fs.promises.mkdir(configSkillsRoot, { recursive: true })
+    if (isWin) {
+      await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
+    } else {
+      await fs.promises.rm(targetDir, { recursive: true, force: true })
+      await fs.promises.symlink(sourceDir, targetDir, 'dir')
+    }
+  } catch (error) {
+    logger.warn('Failed to expose managed skill to Claude config', { folderName, sourceDir, targetDir, error })
+  }
+}
+
 export async function buildSkillWhitelist(agentId: string): Promise<string[]> {
   const configSkillsRoot = application.getPath('feature.agents.claude.root', 'skills')
   const installedSkills = await skillService.list({ agentId })
   const disabledNames = new Set(
     installedSkills.filter((skill) => !skill.isEnabled).flatMap((skill) => [skill.folderName, skill.name])
   )
-  const enabledInstalledSkillPaths = await filterReadableSkillDirectories(
-    installedSkills.filter((skill) => skill.isEnabled).map((skill) => skillService.getSkillDirectory(skill.folderName))
-  )
-  const configSkillPaths = (await readSkillDirectories(configSkillsRoot)).filter((skillPath) => {
-    const folderName = path.basename(skillPath)
-    return !disabledNames.has(folderName)
-  })
+  const enabledInstalledSkills = installedSkills.filter((skill) => skill.isEnabled)
+  for (const skill of enabledInstalledSkills) {
+    const sourceDir = skillService.getSkillDirectory(skill.folderName)
+    const [sourceReadable] = await filterReadableSkillDirectories([sourceDir])
+    if (sourceReadable) await ensureSkillInClaudeConfig(sourceReadable, configSkillsRoot, skill.folderName)
+  }
 
-  return Array.from(new Set([...configSkillPaths, ...enabledInstalledSkillPaths]))
+  const configSkillNames = (await readSkillDirectories(configSkillsRoot))
+    .map((skillPath) => path.basename(skillPath))
+    .filter((folderName) => !disabledNames.has(folderName))
+  const enabledInstalledSkillNames = enabledInstalledSkills.flatMap((skill) => [skill.folderName, skill.name])
+
+  return Array.from(new Set([...configSkillNames, ...enabledInstalledSkillNames]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
