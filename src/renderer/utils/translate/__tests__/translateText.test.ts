@@ -6,7 +6,7 @@ vi.mock('i18next', () => ({
   t: (key: string) => `t(${key})`
 }))
 
-import { translateText } from '../TranslateService'
+import { translateText } from '../translateText'
 
 /**
  * `translateText` is a thin renderer bridge over the main translate IPC.

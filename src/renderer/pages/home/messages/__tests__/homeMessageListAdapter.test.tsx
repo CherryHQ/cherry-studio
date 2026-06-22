@@ -162,11 +162,11 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: eventMocks
 }))
 
-vi.mock('@renderer/services/TranslateCommandService', () => ({
+vi.mock('@renderer/utils/translate/translateInputText', () => ({
   translateInputText: vi.fn()
 }))
 
-vi.mock('@renderer/services/TranslateService', () => ({
+vi.mock('@renderer/utils/translate/translateText', () => ({
   translateText: vi.fn()
 }))
 

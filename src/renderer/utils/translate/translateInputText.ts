@@ -1,4 +1,4 @@
-import { translateText } from '@renderer/services/TranslateService'
+import { translateText } from './translateText'
 import type { TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { TFunction } from 'i18next'
 

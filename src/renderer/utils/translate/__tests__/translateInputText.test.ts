@@ -6,11 +6,11 @@ const mocks = vi.hoisted(() => ({
   translateText: vi.fn()
 }))
 
-vi.mock('@renderer/services/TranslateService', () => ({
+vi.mock('../translateText', () => ({
   translateText: mocks.translateText
 }))
 
-import { translateInputText } from '../TranslateCommandService'
+import { translateInputText } from '../translateInputText'
 
 const TARGET_LANG_CODE = parseTranslateLangCode('en-us')
 const TARGET_LANGUAGE = {
