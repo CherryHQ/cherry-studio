@@ -2375,82 +2375,82 @@
     "type": "類型"
   },
   "globalSearch": {
-    "clear": "[to be translated]:Clear search",
-    "error": "[to be translated]:Search failed",
+    "clear": "清除搜尋",
+    "error": "搜尋失敗",
     "filters": {
-      "agent": "[to be translated]:Agent",
-      "all": "[to be translated]:All",
-      "assistant": "[to be translated]:Assistant",
+      "agent": "智能體",
+      "all": "全部",
+      "assistant": "助手",
       "conversation": "對話",
-      "knowledge": "[to be translated]:Knowledge",
-      "label": "[to be translated]:Search type",
+      "knowledge": "知識庫",
+      "label": "搜尋類型",
       "session": "任務",
       "topic": "對話"
     },
     "groups": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
+      "agent": "智能體",
+      "assistant": "助手",
       "conversation": "對話",
-      "knowledge-base": "[to be translated]:Knowledge",
-      "message": "[to be translated]:Messages",
-      "recent": "[to be translated]:Recent",
+      "knowledge-base": "知識庫",
+      "message": "訊息",
+      "recent": "最近",
       "session": "任務",
       "topic": "對話"
     },
     "keyboard": {
-      "select": "[to be translated]:Select"
+      "select": "選擇"
     },
     "messageSearch": {
-      "entry": "[to be translated]:Messages",
-      "hint": "[to be translated]:Type to search message content",
-      "jumpToMessage": "[to be translated]:Jump to message",
-      "more": "[to be translated]:Show {{count}} more results",
-      "open": "[to be translated]:Search messages",
+      "entry": "訊息",
+      "hint": "輸入關鍵字搜尋訊息內容",
+      "jumpToMessage": "跳轉到訊息",
+      "more": "查看更多 {{count}} 筆結果",
+      "open": "搜尋訊息",
       "roles": {
-        "assistant": "[to be translated]:Assistant",
-        "system": "[to be translated]:System",
-        "tool": "[to be translated]:Tool",
-        "user": "[to be translated]:User"
+        "assistant": "助手",
+        "system": "系統",
+        "tool": "工具",
+        "user": "使用者"
       },
-      "sourceLabel": "[to be translated]:Message source",
+      "sourceLabel": "訊息來源",
       "sources": {
-        "all": "[to be translated]:All messages",
+        "all": "全部訊息",
         "session": "任務訊息",
         "topic": "對話訊息"
       },
-      "viewMore": "[to be translated]:View more in Messages"
+      "viewMore": "前往訊息查看更多"
     },
-    "no_recent": "[to be translated]:No recent routes",
-    "open": "[to be translated]:Open global search",
-    "open_failed": "[to be translated]:Failed to open search result",
-    "placeholder": "搜尋對話、任務、助手、Agent 和知識庫...",
+    "no_recent": "暫無最近訪問",
+    "open": "開啟全域搜尋",
+    "open_failed": "開啟搜尋結果失敗",
+    "placeholder": "搜尋對話、任務、助手、智能體和知識庫...",
     "quickApps": {
-      "hide": "[to be translated]:Hide {{name}}",
-      "manage": "[to be translated]:Manage",
-      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
-      "manager_title": "[to be translated]:Manage quick apps",
-      "reset": "[to be translated]:Reset",
-      "save_failed": "[to be translated]:Failed to save quick apps",
-      "show": "[to be translated]:Show {{name}}",
-      "title": "[to be translated]:Quick apps"
+      "hide": "隱藏 {{name}}",
+      "manage": "管理",
+      "manager_description": "拖曳排序，點擊眼睛隱藏或顯示",
+      "manager_title": "管理快捷應用",
+      "reset": "重設",
+      "save_failed": "儲存快捷應用失敗",
+      "show": "顯示 {{name}}",
+      "title": "快捷應用"
     },
-    "recent_hint": "輸入以搜尋對話、任務、助手、Agent 和知識庫",
+    "recent_hint": "輸入以搜尋對話、任務、助手、智能體和知識庫",
     "resultTypes": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "knowledge-base": "[to be translated]:Knowledge",
+      "agent": "智能體",
+      "assistant": "助手",
+      "knowledge-base": "知識庫",
       "session": "任務",
       "topic": "對話"
     },
-    "showMore": "[to be translated]:Show {{count}} more",
+    "showMore": "查看更多 {{count}} 筆",
     "timeFilters": {
-      "any": "[to be translated]:Any time",
-      "label": "[to be translated]:Updated time",
-      "messageLabel": "[to be translated]:Created time",
-      "month": "[to be translated]:Last month",
-      "quarter": "[to be translated]:Last 3 months",
-      "today": "[to be translated]:Today",
-      "week": "[to be translated]:Last 7 days"
+      "any": "不限時間",
+      "label": "更新時間",
+      "messageLabel": "建立時間",
+      "month": "最近 1 個月",
+      "quarter": "最近 3 個月",
+      "today": "今天",
+      "week": "最近 1 週"
     }
   },
   "gpustack": {
