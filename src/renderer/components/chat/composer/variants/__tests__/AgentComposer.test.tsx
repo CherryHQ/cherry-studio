@@ -369,7 +369,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
-    setTimeoutTimer: vi.fn()
+    setTimeoutTimer: vi.fn(),
+    clearTimeoutTimer: vi.fn()
   })
 }))
 
@@ -481,6 +482,33 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
+  })
+
+  it('restores the draft instead of silently dropping it when a direct send fails', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('draft message')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft message'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'draft message', tokens: [] })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalled()
+    // Without the restore the optimistic clear would leave this '' — the user's text is kept.
+    expect(mocks.surfaceProps?.text).toBe('draft message')
   })
 
   it('passes the chat model shortcut to the model selector', () => {

@@ -538,7 +538,7 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
-  const { setTimeoutTimer } = useTimer()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
@@ -789,7 +789,8 @@ const AgentComposerInner = ({
     scopeKey: sessionTopicId,
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
@@ -804,7 +805,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
         window.toast?.error(t('code.model_required'))
@@ -825,20 +826,41 @@ const AgentComposerInner = ({
         return
       }
 
+      // Optimistically clear the draft so the cleared input doubles as the re-entry guard,
+      // but snapshot it first: a pre-stream failure never reaches the streaming UI, so
+      // restore the draft (text + files + skills; tokens re-derive) and surface the failure
+      // instead of silently discarding what the user typed. Mirrors ChatComposer.
+      const previousText = text
+      const previousFiles = files
+      const previousSkills = selectedSkills
+
       clearCurrentDraft()
-      void sendQueuedPayload(payload).catch((error: unknown) => {
-        logger.warn('Failed to send message:', error as Error)
-      })
+      const sent = await sendQueuedPayload(payload)
+      if (!sent) {
+        // `clearCurrentDraft` schedules a 500ms re-clear guard; cancel it so it doesn't
+        // wipe the draft we're restoring.
+        clearTimeoutTimer('agentComposerSendMessage')
+        setText(previousText)
+        setFiles(previousFiles)
+        setSelectedSkills(previousSkills)
+        window.toast?.error(t('chat.input.send_failed'))
+      }
     },
     [
       buildQueuedPayload,
       clearCurrentDraft,
+      clearTimeoutTimer,
       enqueueFollowup,
+      files,
       isStreaming,
       model,
+      selectedSkills,
       sendDisabled,
       sendQueuedPayload,
+      setFiles,
+      setText,
       t,
+      text,
       workspaceWarning
     ]
   )

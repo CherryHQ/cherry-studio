@@ -737,7 +737,8 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
     markSeen,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the whole draft (text + tokens + files + knowledge bases) into the

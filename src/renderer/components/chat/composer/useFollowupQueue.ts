@@ -31,6 +31,11 @@ interface UseFollowupQueueParams {
   markSeen: () => void
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
+  /**
+   * Called when an auto-drain attempt fails. The completion edge was already consumed by
+   * `markSeen`, so the head stays stuck with no auto-retry — surface it (e.g. a toast).
+   */
+  onDrainFailed?: () => void
 }
 
 export interface FollowupQueueController {
@@ -52,7 +57,8 @@ export function useFollowupQueue({
   scopeKey,
   isFulfilled,
   markSeen,
-  onDrain
+  onDrain,
+  onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
   const [items, setItems] = useState<FollowupQueueItem[]>(() => loadQueue(scopeKey))
   const [paused, setPaused] = useState(false)
@@ -63,6 +69,8 @@ export function useFollowupQueue({
   itemsRef.current = items
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
+  const onDrainFailedRef = useRef(onDrainFailed)
+  onDrainFailedRef.current = onDrainFailed
 
   const persist = useCallback((next: FollowupQueueItem[]) => {
     cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
@@ -115,6 +123,7 @@ export function useFollowupQueue({
     markSeen()
     void onDrainRef.current(head.payload).then((sent) => {
       if (sent) removeId(head.id)
+      else onDrainFailedRef.current?.()
     })
   }, [isFulfilled, paused, markSeen, removeId])
 
