@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
-import { useCallback, useEffect, useId, useRef } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import Scrollbar from '../scrollbar'
@@ -16,6 +16,12 @@ import Scrollbar from '../scrollbar'
  * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
  */
 type PageSidePanelPlacement = 'left' | 'right'
+const PAGE_SIDE_PANEL_ROOT_SELECTOR = '[data-page-side-panel-root="true"]'
+
+function resolvePortalContainer() {
+  if (typeof document === 'undefined') return null
+  return document.querySelector<HTMLElement>(PAGE_SIDE_PANEL_ROOT_SELECTOR) ?? document.body
+}
 
 interface PageSidePanelProps {
   open: boolean
@@ -59,7 +65,16 @@ function PageSidePanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
-  const portalContainer = typeof document === 'undefined' ? null : document.body
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(resolvePortalContainer)
+  const isScopedPortal =
+    typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
+
+  useLayoutEffect(() => {
+    const nextPortalContainer = resolvePortalContainer()
+    setPortalContainer((currentPortalContainer) =>
+      currentPortalContainer === nextPortalContainer ? currentPortalContainer : nextPortalContainer
+    )
+  }, [])
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -94,7 +109,7 @@ function PageSidePanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             data-slot="page-side-panel-backdrop"
-            className={cn('fixed inset-0 z-[60] bg-black/50', backdropClassName)}
+            className={cn(isScopedPortal ? 'absolute inset-0' : 'fixed inset-0', 'z-60 bg-black/50', backdropClassName)}
             onClick={handleClose}
           />
           <motion.aside
@@ -113,7 +128,8 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'fixed top-3 bottom-3 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
+              isScopedPortal ? 'absolute' : 'fixed',
+              'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
