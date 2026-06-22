@@ -372,7 +372,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
 
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
-      await invalidateCache(`/topics/${topicId}/messages`)
+      await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`])
       chatNav.openConversationTab(topic.id)
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, { topic, messageId })

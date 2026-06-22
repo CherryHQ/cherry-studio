@@ -1380,7 +1380,7 @@ describe('GlobalSearchPanel', () => {
       expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', {
         body: { nodeId: 'message-leaf' }
       })
-      expect(mocks.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
+      expect(mocks.invalidateCache).toHaveBeenCalledWith(['/topics/topic-1/messages', '/topics/topic-1/tree'])
       expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
         forceNew: true,
         metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
