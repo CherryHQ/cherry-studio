@@ -1,4 +1,5 @@
 import { ButtonGroup } from '@cherrystudio/ui'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import React, { memo } from 'react'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -24,7 +25,11 @@ function ModelListContent({ providerId }: { providerId: string }) {
         disabled={disabled}
         actions={({ disabled: toolbarDisabled }) => (
           <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
-            <ProviderModelPullReconcile providerId={providerId} disabled={toolbarDisabled} />
+            {/* claude-code authenticates via the CLI subscription (no API key) so it cannot list
+                models over the API — only the seeded set + manual add apply. */}
+            {!isClaudeCodeProviderId(providerId) && (
+              <ProviderModelPullReconcile providerId={providerId} disabled={toolbarDisabled} />
+            )}
             {providerId === 'ovms' ? (
               <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
             ) : (
