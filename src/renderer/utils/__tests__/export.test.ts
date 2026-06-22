@@ -34,9 +34,9 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-// Mock getProviderLabel
+// Mock getProviderLabelKey
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((providerId: string) => providerId || 'Unknown Provider')
+  getProviderLabelKey: vi.fn((providerId: string) => providerId || 'Unknown Provider')
 }))
 
 // Mock the find utility functions - crucial for the test
@@ -45,6 +45,12 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
     const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
     return mainTextBlock?.content || '' // Assuming content exists on MainTextBlock
+  }),
+  // Gated copy/naming variant — block mock has no error/translation synthesis,
+  // so the main-text body already matches dropping those parts.
+  getNamingTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    return mainTextBlock?.content || ''
   }),
   getThinkingContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
     const thinkingBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.THINKING)

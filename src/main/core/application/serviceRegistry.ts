@@ -6,12 +6,12 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
-import { DxtService } from '@main/ai/mcp/DxtService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
+import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService } from '@main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService'
-import { SpanCacheService } from '@main/ai/observability/cache/SpanCacheService'
 import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceService'
+import { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
@@ -21,11 +21,12 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService } from '@main/features/knowledge'
 import { KnowledgeVectorStoreService } from '@main/features/knowledge/vectorstore/KnowledgeVectorStoreService'
+import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
-import { CodeCliService } from '@main/services/CodeCliService'
+import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
@@ -80,6 +81,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  IpcApiService,
   SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
@@ -96,7 +98,7 @@ export const services = {
   SettingsWindowService,
   ShortcutService,
   ThemeService,
-  SpanCacheService,
+  TraceStorageService,
   NodeTraceService,
   ClaudeCodeTraceBridgeService,
   OcrService,
@@ -111,7 +113,7 @@ export const services = {
   CherryInOauthService,
   MainWindowService,
   QuickAssistantService,
-  DxtService,
+  McpPackageService,
   McpRuntimeService,
   McpCatalogService,
   OpenClawService,

@@ -13,7 +13,14 @@ import {
   KnowledgeItemSchema,
   RestoreKnowledgeBaseSchema
 } from '../../../types/knowledge'
-import { ListKnowledgeBasesQuerySchema, ListKnowledgeItemsQuerySchema, UpdateKnowledgeBaseSchema } from '../knowledges'
+import {
+  KNOWLEDGE_BASES_DEFAULT_LIMIT,
+  KNOWLEDGE_BASES_DEFAULT_PAGE,
+  KNOWLEDGE_BASES_MAX_LIMIT,
+  ListKnowledgeBasesQuerySchema,
+  ListKnowledgeItemsQuerySchema,
+  UpdateKnowledgeBaseSchema
+} from '../knowledges'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
@@ -447,7 +454,7 @@ describe('Knowledge base schemas', () => {
       baseId: KNOWLEDGE_BASE_ID,
       groupId: null,
       type: 'directory' as const,
-      data: { source: '/docs', path: '/docs' },
+      data: { source: '/docs' },
       status: 'processing' as const,
       error: null,
       createdAt: '2026-04-10T00:00:00.000Z',
@@ -638,5 +645,47 @@ describe('isCompletedKnowledgeBase', () => {
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       } as KnowledgeBase)
     ).toBe(false)
+  })
+})
+
+describe('ListKnowledgeBasesQuerySchema', () => {
+  it('trims search and applies pagination defaults', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
+      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+      search: 'docs'
+    })
+  })
+
+  it('accepts max limit and rejects blank search', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
+      page: 2,
+      limit: KNOWLEDGE_BASES_MAX_LIMIT
+    })
+    expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
+  })
+
+  it('accepts sort and updatedAtFrom query fields', () => {
+    expect(
+      ListKnowledgeBasesQuerySchema.parse({
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        updatedAtFrom: '2026-05-01T00:00:00.000Z'
+      })
+    ).toEqual({
+      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+      updatedAtFrom: '2026-05-01T00:00:00.000Z'
+    })
+  })
+
+  it('rejects invalid sort and updatedAtFrom query fields', () => {
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ sortBy: 'bogus' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ sortOrder: 'bogus' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ updatedAtFrom: 'today' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ updatedAtFrom: 1 }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ orderBy: 'desc' }).success).toBe(false)
   })
 })

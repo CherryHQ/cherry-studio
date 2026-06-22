@@ -12,6 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
@@ -242,9 +243,11 @@ const KnowledgeItemRow = ({
     i18n: { language },
     t
   } = useTranslation()
-  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
+  const { icon, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
-  const failureReason = item.status === 'failed' ? item.error : null
+  // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
+  // be migrated); surface it as the badge tooltip.
+  const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
@@ -274,28 +277,13 @@ const KnowledgeItemRow = ({
         />
       </TableCell>
       <TableCell className="min-w-0 py-3">
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 truncate text-foreground text-sm" title={fullTitle}>
-                {title}
-              </span>
-              {suffix ? <span className="shrink-0 text-foreground-muted text-xs uppercase">{suffix}</span> : null}
-            </div>
-            {metaParts.length > 0 ? (
-              <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-foreground-muted text-xs leading-4">
-                {metaParts.map((part, index) => (
-                  <span key={`${part}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
-                    {index > 0 ? <span aria-hidden="true">·</span> : null}
-                    <span className="truncate">{part}</span>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
+            {title}
+          </span>
         </div>
       </TableCell>
       <TableCell className="w-24 text-foreground-secondary text-xs">{typeLabel}</TableCell>

@@ -168,6 +168,114 @@ describe('FileRefService', () => {
     })
   })
 
+  describe('copyBySourceIdMapTx', () => {
+    it('duplicates refs for mapped source ids inside the provided transaction', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000cc04' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      await fileRefService.createMany([
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
+        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-b', role: 'pending' }
+      ])
+
+      await dbh.db.transaction((tx) =>
+        fileRefService.copyBySourceIdMapTx(
+          tx,
+          'temp_session',
+          new Map([
+            ['source-a', 'copy-a'],
+            ['missing-source', 'copy-missing']
+          ])
+        )
+      )
+
+      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })).resolves.toEqual([
+        expect.objectContaining({
+          fileEntryId: entryA,
+          sourceType: 'temp_session',
+          sourceId: 'copy-a',
+          role: 'pending'
+        })
+      ])
+      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-missing' })).toEqual([])
+    })
+
+    it('fails the transaction when the copied target ref already exists', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000cc07' as FileEntryId
+      const sentinelSourceId = 'same-tx-sentinel'
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      await fileRefService.createMany([
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'copy-a', role: 'pending' },
+        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-b', role: 'pending' }
+      ])
+
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          const now = Date.now()
+          await tx.insert(fileRefTable).values({
+            id: uuidv4(),
+            fileEntryId: entryB,
+            sourceType: 'temp_session',
+            sourceId: sentinelSourceId,
+            role: 'pending',
+            createdAt: now,
+            updatedAt: now
+          })
+
+          await fileRefService.copyBySourceIdMapTx(
+            tx,
+            'temp_session',
+            new Map([
+              ['source-a', 'copy-a'],
+              ['source-b', 'copy-b']
+            ])
+          )
+        })
+      ).rejects.toThrow()
+
+      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: sentinelSourceId })).toEqual([])
+      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-b' })).toEqual([])
+    })
+
+    it('copies multiple refs for a mapped source id', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000cc08' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000cc09' as FileEntryId
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      await fileRefService.createMany([
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
+        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' }
+      ])
+
+      await dbh.db.transaction((tx) =>
+        fileRefService.copyBySourceIdMapTx(tx, 'temp_session', new Map([['source-a', 'copy-a']]))
+      )
+
+      const copied = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })
+      expect(copied).toHaveLength(2)
+      expect(copied).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fileEntryId: entryA,
+            sourceType: 'temp_session',
+            sourceId: 'copy-a',
+            role: 'pending'
+          }),
+          expect.objectContaining({
+            fileEntryId: entryB,
+            sourceType: 'temp_session',
+            sourceId: 'copy-a',
+            role: 'pending'
+          })
+        ])
+      )
+    })
+  })
+
   describe('cleanupBySource / cleanupBySourceBatch', () => {
     it('removes all refs owned by a single source', async () => {
       const entryA = '019606a0-0000-7000-8000-00000000dd01' as FileEntryId

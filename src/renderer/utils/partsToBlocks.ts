@@ -19,23 +19,44 @@ import { isKnowledgeCitation, isMemoryCitation, isWebCitation, ReferenceCategory
 
 const logger = loggerService.withContext('partsToBlocks')
 
+export type CitationReferenceView = {
+  citationBlockId?: string
+  citationBlockSource?: WebSearchSource
+}
+
 /**
- * Convert ContentReference[] (new format) to legacy citationReferences shape.
- * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
+ * Convert `ContentReference[]` to the v1 block's `citationReferences` shape.
  *
- * Note: Only web citations are converted. Knowledge and memory citations are not
- * supported by the legacy citationReferences format and are silently dropped.
+ * `CitationReferenceView` is structurally identical to the legacy element, so
+ * the v1 block path (`PartsRenderer`) reuses the single converter below instead
+ * of duplicating the projection — only the return type is re-stated for v1
+ * callers, keeping them decoupled from the v2-native view type.
  */
 export function convertReferencesToLegacyCitations(
   references: ContentReference[],
   blockId: string
 ): MainTextMessageBlock['citationReferences'] {
+  return convertReferencesToCitationReferences(references, blockId)
+}
+
+/**
+ * Convert `ContentReference[]` (V2 storage format) to the renderer's inline
+ * `citationReferences` shape. The single source of truth for citation-reference
+ * projection.
+ *
+ * Note: Only web citations are converted — knowledge and memory citations are
+ * not representable in this inline reference format and are silently dropped.
+ */
+export function convertReferencesToCitationReferences(
+  references: ContentReference[],
+  blockId: string
+): CitationReferenceView[] | undefined {
   const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
   if (citations.length === 0) return undefined
 
   const nonWebCitations = citations.filter((ref) => !isWebCitation(ref))
   if (nonWebCitations.length > 0) {
-    logger.warn('Non-web citations dropped during legacy conversion (knowledge/memory not supported)', {
+    logger.warn('Non-web citations dropped during inline citation conversion (knowledge/memory not supported)', {
       droppedCount: nonWebCitations.length
     })
   }

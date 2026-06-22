@@ -1,5 +1,5 @@
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
-import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'

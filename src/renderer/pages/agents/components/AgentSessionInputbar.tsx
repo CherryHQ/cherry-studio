@@ -29,10 +29,10 @@ import type { FileMetadata } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
-import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -101,6 +101,7 @@ const AgentSessionInputbar = ({
       description: '',
       settings: DEFAULT_ASSISTANT_SETTINGS,
       modelId: sessionModel ? sessionModel.id : null,
+      orderKey: '',
       modelName: sessionModel?.name ?? null,
       mcpServerIds: [],
       knowledgeBaseIds: [],

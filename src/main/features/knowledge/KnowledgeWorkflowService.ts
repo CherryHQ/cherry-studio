@@ -5,9 +5,17 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { documentExts } from '@shared/config/constant'
-import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
-import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
+import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
+import {
+  type CreateKnowledgeItemDto,
+  DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,
+  type KnowledgeAddConflictStrategy,
+  type KnowledgeAddItemInput,
+  type KnowledgeAddItemsResult,
+  type KnowledgeBase,
+  type KnowledgeItem
+} from '@shared/data/types/knowledge'
+import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -24,43 +32,95 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
+import { resolveKnowledgeAddConflicts } from './utils/addConflicts'
 import { markUnscheduledKnowledgeItemsFailed } from './utils/cleanup/statusCleanup'
+import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from './utils/cleanup/subtreePurge'
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
-  copyFileIntoKnowledgeBase,
+  collectKnowledgeReservedRelativePaths,
+  copyFileIntoKnowledgeBaseAt,
   deleteKnowledgeItemFilesBestEffort,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
-  getProcessedMarkdownRelativePath
+  getProcessedMarkdownRelativePath,
+  needsProcessedArtifactReservation,
+  reserveImportedFileRelativePath
 } from './utils/storage/pathStorage'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
+const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
-  async addItems(baseId: string, inputs: KnowledgeAddItemInput[]): Promise<void> {
+  async addItems(
+    baseId: string,
+    inputs: KnowledgeAddItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
+  ): Promise<KnowledgeAddItemsResult> {
     if (inputs.length === 0) {
-      return
+      return { status: 'added' }
     }
 
     const base = await knowledgeBaseService.getById(baseId)
+
+    // rename (the default, and every internal caller — restore/migrator): keep all,
+    // auto-rename on collision. detect/replace first resolve same-name conflicts
+    // against the existing root items and earlier items in the same batch.
+    let itemsToAdd = inputs
+    if (conflictStrategy !== 'rename') {
+      const existingRoots = await knowledgeItemService.getRootItemsByBaseId(base.id)
+      const resolution = resolveKnowledgeAddConflicts(inputs, existingRoots)
+      if (conflictStrategy === 'detect') {
+        if (resolution.conflicts.length > 0) {
+          // Report and add nothing — the UI asks the user how to resolve.
+          return { status: 'conflicts', conflicts: resolution.conflicts }
+        }
+      } else {
+        // replace: incoming sources win. Drop earlier same-name batch items (last
+        // wins) and cancel any in-flight job on the conflicting existing subtrees
+        // BEFORE taking the lock — cancel awaits handler settlement and the
+        // index/prepare handlers take this same base lock, so cancelling while
+        // holding it would deadlock.
+        itemsToAdd = resolution.keptInputs
+        if (resolution.conflictingExistingRootIds.length > 0) {
+          await cancelActiveKnowledgeSubtreeJobs(
+            base.id,
+            resolution.conflictingExistingRootIds,
+            'knowledge-add-replace'
+          )
+        }
+      }
+    }
+
     const acceptedItems: KnowledgeItem[] = []
     const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
     await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
-        const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
-        for (const input of inputs) {
-          this.reserveRuntimeAddItemInputPaths(base.fileProcessorId, input, reservedPaths)
+        if (conflictStrategy === 'replace') {
+          // Purge the conflicting existing items synchronously inside the lock and
+          // BEFORE reserving paths, so the freed name is claimed by the incoming
+          // source instead of being auto-renamed with a numeric suffix.
+          await this.purgeConflictingExistingItems(base, itemsToAdd)
         }
-        for (const input of inputs) {
-          const createInput = await this.prepareRuntimeAddItemInput(base.id, input)
-          if (createInput.type === 'file') {
+
+        // Reserve every existing on-disk path up front, then let each new file
+        // claim a collision-free name (auto-renaming with a numeric suffix)
+        // against the same growing set, so a same-named batch add no longer
+        // throws — earlier inputs are visible when deduping later ones.
+        const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
+        for (const input of itemsToAdd) {
+          const createInput = await this.prepareRuntimeAddItemInput(base.id, base.fileProcessorId, input, reservedPaths)
+          // A url restore copies its snapshot to raw/{relativePath} under type 'url',
+          // so track it for rollback too — otherwise a mid-batch failure orphans the
+          // snapshot and a same-titled re-restore later hard-fails on the leftover file
+          // (the add-side twin of the delete-side leak fixed in deleteKnowledgeItemFiles).
+          if (createInput.type === 'file' || (createInput.type === 'url' && createInput.data.relativePath)) {
             copiedFileItems.push(createInput)
           }
           const createdItem = await knowledgeItemService.create(base.id, createInput)
@@ -93,6 +153,27 @@ export class KnowledgeWorkflowService {
       await this.markUnscheduledAcceptedItemsFailed(base.id, acceptedItems, completedSchedulingItemIds, error)
       throw error
     }
+
+    return { status: 'added' }
+  }
+
+  /**
+   * Remove the existing root items (and their subtrees) whose name an incoming
+   * source collides with, for the `replace` strategy. MUST run inside the base
+   * mutation lock. Re-resolves conflicts against the current roots so a change in
+   * the cancel->lock gap is honored; the in-flight jobs were already cancelled by
+   * the caller outside the lock.
+   */
+  private async purgeConflictingExistingItems(base: KnowledgeBase, itemsToAdd: KnowledgeAddItemInput[]): Promise<void> {
+    const currentRoots = await knowledgeItemService.getRootItemsByBaseId(base.id)
+    const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+    if (conflictingExistingRootIds.length === 0) {
+      return
+    }
+    const subtreeItems = await knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
+      includeRoots: true
+    })
+    await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId: base.id, reason: 'knowledge-add-replace' })
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -295,13 +376,52 @@ export class KnowledgeWorkflowService {
 
   private async prepareRuntimeAddItemInput(
     baseId: string,
-    input: KnowledgeAddItemInput
+    fileProcessorId: string | null | undefined,
+    input: KnowledgeAddItemInput,
+    reservedPaths: Set<string>
   ): Promise<CreateKnowledgeItemDto> {
+    if (input.type === 'url') {
+      if (!input.data.snapshotPath) {
+        return input
+      }
+      // Restore: copy the captured snapshot markdown into this base under a
+      // collision-free name and pin the item to it, so the first index reads the
+      // snapshot offline (see ensureUrlSnapshot) instead of re-fetching the page.
+      const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
+      const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.snapshotPath, relativePath)
+      return {
+        groupId: input.groupId,
+        type: 'url',
+        data: { source: input.data.source, url: input.data.url, relativePath }
+      }
+    }
+
     if (input.type !== 'file') {
       return input
     }
 
-    const relativePath = await copyFileIntoKnowledgeBase(baseId, input.data.path)
+    assertSupportedKnowledgeFilePath(input.data.path)
+    const fileName = getKnowledgeSourceRelativePath(input.data.path)
+    // A restore that carries a processed artifact reserves the artifact slot too, even if
+    // the destination base has no processor configured, so the copied `.md` cannot collide.
+    const reserveArtifact =
+      needsProcessedArtifactReservation(fileProcessorId, fileName) || Boolean(input.data.indexedPath)
+    const relativePath = reserveImportedFileRelativePath(fileName, reserveArtifact, reservedPaths)
+    await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, relativePath)
+
+    if (input.data.indexedPath) {
+      // Copy the already-processed artifact next to the source under the reserved name
+      // and pin the item to it, so indexing skips the file processor (see needsFileProcessing).
+      const indexedRelativePath = getProcessedMarkdownRelativePath(relativePath)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.indexedPath, indexedRelativePath)
+      return {
+        groupId: input.groupId,
+        type: 'file',
+        data: { source: input.data.source, relativePath, indexedRelativePath }
+      }
+    }
+
     return {
       groupId: input.groupId,
       type: 'file',
@@ -312,51 +432,12 @@ export class KnowledgeWorkflowService {
     }
   }
 
-  private reserveRuntimeAddItemInputPaths(
-    fileProcessorId: string | null | undefined,
-    input: KnowledgeAddItemInput,
-    reservedPaths: Set<string>
-  ): void {
-    if (input.type !== 'file') {
-      return
-    }
-
-    const relativePath = getKnowledgeSourceRelativePath(input.data.path)
-    this.reserveKnowledgeFilePath(reservedPaths, relativePath)
-    if (needsProcessedArtifactReservation(fileProcessorId, relativePath)) {
-      this.reserveKnowledgeFilePath(reservedPaths, getProcessedMarkdownRelativePath(relativePath))
-    }
-  }
-
   private async loadReservedKnowledgeFilePaths(
     baseId: string,
     fileProcessorId: string | null | undefined
   ): Promise<Set<string>> {
-    const reservedPaths = new Set<string>()
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
-
-    for (const item of items) {
-      if (item.type !== 'file') {
-        continue
-      }
-
-      reservedPaths.add(item.data.relativePath)
-      if (item.data.indexedRelativePath) {
-        reservedPaths.add(item.data.indexedRelativePath)
-      } else if (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath)) {
-        reservedPaths.add(getProcessedMarkdownRelativePath(item.data.relativePath))
-      }
-    }
-
-    return reservedPaths
-  }
-
-  private reserveKnowledgeFilePath(reservedPaths: Set<string>, relativePath: string): void {
-    if (reservedPaths.has(relativePath)) {
-      throw new Error(`Knowledge file already exists: ${relativePath}`)
-    }
-
-    reservedPaths.add(relativePath)
+    return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
   }
 
   private async assertKnowledgeRelativePathNotReserved(
@@ -366,20 +447,8 @@ export class KnowledgeWorkflowService {
     relativePath: string
   ): Promise<void> {
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
-    const conflictingItem = items.find((item) => {
-      if (item.id === itemId || item.type !== 'file') {
-        return false
-      }
-
-      return (
-        item.data.relativePath === relativePath ||
-        item.data.indexedRelativePath === relativePath ||
-        (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath) &&
-          getProcessedMarkdownRelativePath(item.data.relativePath) === relativePath)
-      )
-    })
-
-    if (conflictingItem) {
+    const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
+    if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }
   }
@@ -404,10 +473,8 @@ export class KnowledgeWorkflowService {
   }
 }
 
-function needsProcessedArtifactReservation(fileProcessorId: string | null | undefined, relativePath: string): boolean {
-  if (!fileProcessorId) {
-    return false
+function assertSupportedKnowledgeFilePath(filePath: string): void {
+  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(getFileExt(filePath).toLowerCase())) {
+    throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }
-
-  return documentExts.includes(getFileExt(relativePath).toLowerCase())
 }

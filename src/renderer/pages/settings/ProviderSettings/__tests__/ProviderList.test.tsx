@@ -286,6 +286,22 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
+  it('places add in the header and filter in the search row', () => {
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    const addButton = screen.getByRole('button', { name: /添加/i })
+    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
+    const searchWrap = screen.getByPlaceholderText('搜索模型平台...').closest('div')
+
+    expect(addButton.compareDocumentPosition(filterButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(addButton).toHaveClass('size-7', 'text-primary')
+    expect(searchWrap).toContainElement(filterButton)
+    expect(searchWrap).not.toContainElement(addButton)
+    expect(filterButton).toHaveClass('size-[22px]')
+    expect(filterButton).not.toHaveClass('bg-primary/10')
+    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
+  })
+
   it('surfaces reorder persistence errors', async () => {
     reorderSpy.mockRejectedValueOnce(new Error('persist failed'))
 
@@ -309,6 +325,9 @@ describe('ProviderList', () => {
 
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
+    expect(filterButton).not.toHaveClass('bg-primary/10')
+    expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

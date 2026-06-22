@@ -10,11 +10,14 @@ import BaseNavigator from '../navigator'
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
 
-  const PopoverContext = React.createContext<{
-    open: boolean
-    onOpenChange?: (open: boolean) => void
-  }>({
-    open: false
+  const PopoverContext = React.createContext<{ open: boolean; onOpenChange?: (open: boolean) => void }>({ open: false })
+  const DropdownMenuContext = React.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
+    open: false,
+    setOpen: () => undefined
+  })
+  const ContextMenuContext = React.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
+    open: false,
+    setOpen: () => undefined
   })
   const AccordionContext = React.createContext<{
     openValues: string[]
@@ -208,6 +211,175 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
+    DropdownMenu: ({
+      children,
+      open: controlledOpen,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [uncontrolled, setUncontrolled] = React.useState(false)
+      const open = controlledOpen ?? uncontrolled
+      const setOpen = (next: boolean) => {
+        setUncontrolled(next)
+        onOpenChange?.(next)
+      }
+      return React.createElement(DropdownMenuContext, { value: { open, setOpen } }, children)
+    },
+    DropdownMenuTrigger: ({
+      asChild,
+      children,
+      ...props
+    }: {
+      asChild?: boolean
+      children?: ReactNode
+      [key: string]: unknown
+    }) => {
+      const ctx = React.use(DropdownMenuContext)
+      const triggerProps = {
+        ...props,
+        onClick: (event: ReactMouseEvent<HTMLElement>) => {
+          ;(props.onClick as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+          ctx.setOpen(true)
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, triggerProps)
+      }
+      return (
+        <button type="button" {...triggerProps}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuContent: ({ children }: { children?: ReactNode }) => {
+      const ctx = React.use(DropdownMenuContext)
+      return ctx.open ? <div>{children}</div> : null
+    },
+    DropdownMenuItem: ({
+      children,
+      onSelect,
+      variant,
+      ...props
+    }: {
+      children?: ReactNode
+      onSelect?: () => void
+      variant?: string
+      [key: string]: unknown
+    }) => (
+      <button type="button" data-active="false" data-variant={variant} onClick={() => onSelect?.()} {...props}>
+        {children}
+      </button>
+    ),
+    DropdownMenuSeparator: () => <hr />,
+    DropdownMenuLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubTrigger: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenu: ({ children, onOpenChange }: { children?: ReactNode; onOpenChange?: (open: boolean) => void }) => {
+      const [open, setOpenState] = React.useState(false)
+      const setOpen = (next: boolean) => {
+        setOpenState(next)
+        onOpenChange?.(next)
+      }
+      return React.createElement(ContextMenuContext, { value: { open, setOpen } }, children)
+    },
+    ContextMenuTrigger: ({
+      asChild,
+      children,
+      ...props
+    }: {
+      asChild?: boolean
+      children?: ReactNode
+      [key: string]: unknown
+    }) => {
+      const ctx = React.use(ContextMenuContext)
+      const handleContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
+        ;(props.onContextMenu as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+        event.preventDefault()
+        ctx.setOpen(true)
+      }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = (children.props ?? {}) as Record<string, unknown>
+        const merged: Record<string, unknown> = {
+          ...props,
+          ...childProps,
+          onContextMenu: (event: ReactMouseEvent<HTMLElement>) => {
+            ;(childProps.onContextMenu as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+            if (!event.defaultPrevented) {
+              handleContextMenu(event)
+            }
+          }
+        }
+        return React.cloneElement(children, merged)
+      }
+      return (
+        <div onContextMenu={handleContextMenu} {...props}>
+          {children}
+        </div>
+      )
+    },
+    ContextMenuContent: ({ children }: { children?: ReactNode }) => {
+      const ctx = React.use(ContextMenuContext)
+      return ctx.open ? <div>{children}</div> : null
+    },
+    ContextMenuItem: ({
+      children,
+      onSelect,
+      variant,
+      ...props
+    }: {
+      children?: ReactNode
+      onSelect?: () => void
+      variant?: string
+      [key: string]: unknown
+    }) => (
+      <button type="button" data-active="false" data-variant={variant} onClick={() => onSelect?.()} {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenuCheckboxItem: ({
+      children,
+      onCheckedChange,
+      ...props
+    }: {
+      children?: ReactNode
+      onCheckedChange?: (next: boolean) => void
+      [key: string]: unknown
+    }) => (
+      <button type="button" onClick={() => onCheckedChange?.(true)} {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenuItemContent: ({
+      children,
+      icon,
+      shortcut
+    }: {
+      children?: ReactNode
+      icon?: ReactNode
+      shortcut?: string
+    }) => (
+      <span>
+        {icon}
+        <span>{children}</span>
+        {shortcut ? <span>{shortcut}</span> : null}
+      </span>
+    ),
+    ContextMenuSeparator: () => <hr />,
+    ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    ContextMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    ContextMenuSubTrigger: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
     Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
     ),
@@ -233,6 +405,11 @@ vi.mock('@cherrystudio/ui', () => {
     )
   }
 })
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [undefined, () => undefined],
+  useMultiplePreferences: () => [{}, () => undefined]
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -285,7 +462,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -621,10 +797,6 @@ describe('BaseNavigator', () => {
 
     fireEvent.click(getBaseMoreButton('Alpha'))
 
-    expect(screen.getByRole('button', { name: '重命名' }).parentElement?.parentElement).toHaveAttribute(
-      'data-popover-align',
-      'end'
-    )
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
   })
@@ -650,13 +822,10 @@ describe('BaseNavigator', () => {
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
 
-    expect(screen.getByRole('button', { name: '重命名' }).parentElement?.parentElement).toHaveAttribute(
-      'data-popover-align',
-      'start'
-    )
+    expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument()
   })
 
-  it('calls onRenameBase with the current knowledge base id and name', () => {
+  it('calls onRenameBase with the current knowledge base id and name', async () => {
     const onRenameBase = vi.fn()
 
     render(
@@ -680,9 +849,11 @@ describe('BaseNavigator', () => {
     fireEvent.click(getBaseMoreButton('Alpha'))
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
 
-    expect(onRenameBase).toHaveBeenCalledWith({
-      id: 'base-1',
-      name: 'Alpha'
+    await waitFor(() => {
+      expect(onRenameBase).toHaveBeenCalledWith({
+        id: 'base-1',
+        name: 'Alpha'
+      })
     })
   })
 
@@ -710,7 +881,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
     fireEvent.click(screen.getByRole('button', { name: '删除知识库' }))
 
-    expect(screen.getByText('确认删除知识库')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('确认删除知识库')).toBeInTheDocument())
     expect(screen.getByText('删除后无法恢复')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
@@ -745,7 +916,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '删除分组' })).toBeInTheDocument()
   })
 
-  it('calls onRenameGroup with the current group id and name', () => {
+  it('calls onRenameGroup with the current group id and name', async () => {
     const onRenameGroup = vi.fn()
 
     render(
@@ -769,9 +940,11 @@ describe('BaseNavigator', () => {
     fireEvent.click(getGroupMoreButton('Research'))
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
 
-    expect(onRenameGroup).toHaveBeenCalledWith({
-      id: 'group-1',
-      name: 'Research'
+    await waitFor(() => {
+      expect(onRenameGroup).toHaveBeenCalledWith({
+        id: 'group-1',
+        name: 'Research'
+      })
     })
   })
 
@@ -826,7 +999,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Research/ }))
     fireEvent.click(screen.getByRole('button', { name: '删除分组' }))
 
-    expect(screen.getByText('确认删除分组')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('确认删除分组')).toBeInTheDocument())
     expect(screen.getByText('删除后，该分组下的知识库将移至默认分组。')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
@@ -836,7 +1009,7 @@ describe('BaseNavigator', () => {
     })
   })
 
-  it('opens create knowledge base with the current group id from the group menu', () => {
+  it('opens create knowledge base with the current group id from the group menu', async () => {
     const onCreateBase = vi.fn()
 
     render(
@@ -860,7 +1033,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Research/ }))
     fireEvent.click(screen.getByRole('button', { name: '在此分组新建' }))
 
-    expect(onCreateBase).toHaveBeenCalledWith('group-1')
+    await waitFor(() => expect(onCreateBase).toHaveBeenCalledWith('group-1'))
   })
 
   it('does not render a group menu trigger for the default knowledge group', () => {
@@ -952,7 +1125,7 @@ describe('BaseNavigator', () => {
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('forwards group creation from the search-row create menu on hover', () => {
+  it('forwards group creation from the search-row create menu on click', () => {
     const onCreateGroup = vi.fn()
     const onCreateBase = vi.fn()
 
@@ -974,7 +1147,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '新建分组' }))
 
     expect(onCreateGroup).toHaveBeenCalledTimes(1)
@@ -982,7 +1155,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByText('Research')).toBeInTheDocument()
   })
 
-  it('forwards knowledge base creation from the search-row create menu on hover', () => {
+  it('forwards knowledge base creation from the search-row create menu on click', () => {
     const onCreateBase = vi.fn()
 
     render(
@@ -1003,7 +1176,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '新建知识库' }))
 
     expect(onCreateBase).toHaveBeenCalledTimes(1)

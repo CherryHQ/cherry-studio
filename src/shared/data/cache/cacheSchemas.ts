@@ -123,6 +123,9 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // Message-list scroll position memory, keyed per topic / agent session.
+  // `null` = follow the latest message (at bottom or never scrolled).
+  'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -206,6 +209,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
@@ -261,6 +265,8 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -282,6 +288,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'agent.session.compaction.${sessionId}': null,
+  'agent.session.context_usage.${sessionId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',

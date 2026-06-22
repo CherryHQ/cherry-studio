@@ -1,4 +1,4 @@
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Model } from '@renderer/types'
 import { ArrowUpRight } from 'lucide-react'
@@ -47,7 +47,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
           size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {getProviderLabel(providerId)}
+          {t(getProviderLabelKey(providerId))}
           <ArrowUpRight size={12} />
         </CustomTag>
       </div>
@@ -59,7 +59,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
       <span className="text-[12px] text-foreground-secondary">{t('common.powered_by')}</span>
       <a className="text-[12px] text-primary" onClick={onSelectProvider}>
-        {getProviderLabel(providerId)}
+        {t(getProviderLabelKey(providerId))}
       </a>
     </div>
   )

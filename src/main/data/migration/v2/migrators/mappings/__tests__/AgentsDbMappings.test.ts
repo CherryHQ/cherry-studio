@@ -39,7 +39,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -69,7 +69,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -114,8 +114,37 @@ describe('AgentsDbMappings', () => {
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
     const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
 
+    expect(channelsInsert).toContain(
+      'INSERT INTO agent_channel (id, type, name, agent_id, session_id, workspace, config'
+    )
+    expect(channelsInsert).toContain('\'{"type":"system"}\' AS workspace')
     expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agent))')
     expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))')
+  })
+
+  it('coalesces nullable legacy channel workspace when the column is present', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.channels.exists = true
+    schemaInfo.channels.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'agent_id',
+      'session_id',
+      'workspace',
+      'config',
+      'is_active',
+      'active_chat_ids',
+      'permission_mode',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
+
+    expect(channelsInsert).toContain('COALESCE(workspace, \'{"type":"system"}\') AS workspace')
+    expect(channelsInsert).not.toContain('\'{"type":"system"}\' AS workspace')
   })
 
   it('maps agent_skills → agent_skill with FK-safe WHERE clause', () => {
@@ -270,8 +299,8 @@ describe('AgentsDbMappings', () => {
     const agentInsert = find('agent')
     expect(agentInsert).toContain("COALESCE(description, '') AS description")
     expect(agentInsert).not.toContain('accessible_paths')
-    expect(agentInsert).toContain("COALESCE(mcps, '[]') AS mcps")
-    expect(agentInsert).toContain("COALESCE(allowed_tools, '[]') AS allowed_tools")
+    expect(agentInsert).toContain("'[]' AS disabled_tools")
+    expect(agentInsert).not.toContain('allowed_tools')
     expect(agentInsert).toContain("COALESCE(configuration, '{}') AS configuration")
     expect(agentInsert).toContain("'' AS order_key")
 
@@ -296,6 +325,7 @@ describe('AgentsDbMappings', () => {
     expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
 
     const channelInsert = find('agent_channel')
+    expect(channelInsert).toContain('\'{"type":"system"}\' AS workspace')
     expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
     expect(channelInsert).toContain("COALESCE(active_chat_ids, '[]') AS active_chat_ids")
     expect(channelInsert).toContain("COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS created_at")
@@ -307,8 +337,7 @@ describe('AgentsDbMappings', () => {
     const EXPECTED_DEFAULTS: Record<string, Record<string, ColumnDefault>> = {
       agent: {
         description: { defaultExpr: "''" },
-        mcps: { defaultExpr: "'[]'" },
-        allowed_tools: { defaultExpr: "'[]'" },
+        disabled_tools: { defaultExpr: "'[]'" },
         configuration: { defaultExpr: "'{}'" },
         order_key: { defaultExpr: "''" }
       },
@@ -326,6 +355,7 @@ describe('AgentsDbMappings', () => {
         is_enabled: { defaultExpr: '0' }
       },
       agent_channel: {
+        workspace: { defaultExpr: '\'{"type":"system"}\'' },
         is_active: { defaultExpr: '1' },
         active_chat_ids: { defaultExpr: "'[]'" }
       }

@@ -15,7 +15,7 @@ import type {
   SkillInstallFromZipOptions,
   SkillInstallOptions,
   SkillToggleOptions
-} from '@types'
+} from '@shared/types/skill'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 

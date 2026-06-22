@@ -1,17 +1,6 @@
+import i18n from '@renderer/i18n'
 import type { Provider, SystemProvider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
-
-// Mock i18n to return English provider labels
-vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((id: string) => {
-    const labelMap: Record<string, string> = {
-      dashscope: 'Alibaba Cloud',
-      openai: 'OpenAI',
-      anthropic: 'Anthropic'
-    }
-    return labelMap[id] || id
-  })
-}))
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import {
   firstLetter,
@@ -29,6 +18,17 @@ import {
   truncateText
 } from '../naming'
 
+// 测试环境的 mock 偏好默认语言是 zh-CN，显式切到 en-US 以匹配英文断言
+const previousLanguage = i18n.language
+
+beforeAll(async () => {
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
+
 describe('naming', () => {
   describe('firstLetter', () => {
     it('should return first letter of string', () => {
@@ -39,6 +39,14 @@ describe('naming', () => {
     it('should return first emoji of string', () => {
       // 验证包含表情符号的字符串
       expect(firstLetter('😊Hello')).toBe('😊')
+    })
+
+    it('should return full emoji sequence from string', () => {
+      // 验证 ZWJ/keycap/flag/skin-tone 表情不会被截断
+      expect(firstLetter('🧛‍♂️Bob')).toBe('🧛‍♂️')
+      expect(firstLetter('1️⃣First')).toBe('1️⃣')
+      expect(firstLetter('🇺🇸USA')).toBe('🇺🇸')
+      expect(firstLetter('👍🏽User')).toBe('👍🏽')
     })
 
     it('should return empty string for empty input', () => {
@@ -62,6 +70,16 @@ describe('naming', () => {
       // 验证全表情符号字符串
       expect(removeLeadingEmoji('😊😊')).toBe('')
     })
+
+    it('should remove leading ZWJ emoji sequence', () => {
+      // 验证移除开头的 ZWJ 组合表情（含 joiner/gender 后缀）
+      expect(removeLeadingEmoji('🧛‍♂️Alice')).toBe('Alice')
+    })
+
+    it('should remove leading keycap emoji', () => {
+      // 验证移除开头的 keycap 表情
+      expect(removeLeadingEmoji('1️⃣First')).toBe('First')
+    })
   })
 
   describe('getLeadingEmoji', () => {
@@ -79,12 +97,29 @@ describe('naming', () => {
       // 验证全表情符号字符串
       expect(getLeadingEmoji('😊😊')).toBe('😊😊')
     })
+
+    it('should return full ZWJ emoji sequence', () => {
+      // 验证完整提取 ZWJ 组合表情，而非半个
+      expect(getLeadingEmoji('🧛‍♂️Assistant')).toBe('🧛‍♂️')
+    })
+
+    it('should return keycap emoji', () => {
+      // 验证提取 keycap 表情
+      expect(getLeadingEmoji('1️⃣First')).toBe('1️⃣')
+    })
   })
 
   describe('isEmoji', () => {
     it('should return true for pure emoji string', () => {
       // 验证纯表情符号字符串返回 true
       expect(isEmoji('😊')).toBe(true)
+      expect(isEmoji('🧛‍♂️')).toBe(true)
+      expect(isEmoji('1️⃣')).toBe(true)
+      expect(isEmoji('👨‍👩‍👧‍👦')).toBe(true) // multi-person ZWJ family
+      expect(isEmoji('🇺🇸')).toBe(true) // regional-indicator flag
+      expect(isEmoji('👍🏽')).toBe(true) // skin-tone modifier
+      expect(isEmoji('#️⃣')).toBe(true) // non-digit keycap
+      expect(isEmoji('😊🌈')).toBe(true) // multi-emoji string
     })
 
     it('should return false for mixed emoji and text string', () => {
@@ -95,6 +130,7 @@ describe('naming', () => {
     it('should return false for non-emoji string', () => {
       // 验证非表情符号字符串返回 false
       expect(isEmoji('Hello')).toBe(false)
+      expect(isEmoji('1')).toBe(false)
     })
 
     it('should return false for data URI or URL', () => {
@@ -320,7 +356,7 @@ describe('naming', () => {
         models: [],
         isSystem: true
       }
-      // 默认 i18n 环境是 en-us
+      // beforeAll 已将 i18n 切到 en-US
       expect(getFancyProviderName(mockSystemProvider)).toBe('Alibaba Cloud')
     })
 

@@ -24,7 +24,7 @@
  */
 
 import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import type { FileManagerDeps } from './deps'
 

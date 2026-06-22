@@ -88,7 +88,7 @@ export class AgentSessionMessageService {
             sm.role,
             sm.created_at AS "createdAt"
           FROM agent_session_message sm
-          JOIN agent_session_message_fts fts ON sm.rowid = fts.rowid
+          JOIN agent_session_message_fts fts ON sm.fts_rowid = fts.rowid
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
           WHERE sm.searchable_text != ''
@@ -235,7 +235,6 @@ export class AgentSessionMessageService {
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
       modelSnapshot: row.modelSnapshot,
-      traceId: row.traceId,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
       createdAt: timestampToISO(row.createdAt),
@@ -307,7 +306,6 @@ export class AgentSessionMessageService {
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const modelSnapshot = message.modelSnapshot === undefined ? existingRow.modelSnapshot : message.modelSnapshot
-      const traceId = message.traceId === undefined ? existingRow.traceId : message.traceId
       const stats = message.stats === undefined ? existingRow.stats : message.stats
 
       await withSqliteErrors(
@@ -320,7 +318,6 @@ export class AgentSessionMessageService {
               data: message.data,
               modelId,
               modelSnapshot,
-              traceId,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
               updatedAt: updatedAtMs
@@ -337,7 +334,6 @@ export class AgentSessionMessageService {
         searchableText: existingRow.searchableText,
         modelId,
         modelSnapshot,
-        traceId,
         stats,
         runtimeResumeToken: runtimeResumeTokenToPersist,
         updatedAt: updatedAtMs
@@ -352,7 +348,6 @@ export class AgentSessionMessageService {
       data: message.data,
       modelId: message.modelId,
       modelSnapshot: message.modelSnapshot,
-      traceId: message.traceId,
       stats: message.stats,
       runtimeResumeToken,
       createdAt: timestampMs,

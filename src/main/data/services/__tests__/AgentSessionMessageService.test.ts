@@ -209,7 +209,7 @@ describe('AgentSessionMessageService', () => {
     const thinkingMatches = await dbh.client.execute({
       sql: `SELECT m.id
             FROM agent_session_message m
-            JOIN agent_session_message_fts fts ON m.rowid = fts.rowid
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
             WHERE agent_session_message_fts MATCH ?`,
       args: ['thinking']
     })
@@ -223,14 +223,14 @@ describe('AgentSessionMessageService', () => {
     const staleMatches = await dbh.client.execute({
       sql: `SELECT m.id
             FROM agent_session_message m
-            JOIN agent_session_message_fts fts ON m.rowid = fts.rowid
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
             WHERE agent_session_message_fts MATCH ?`,
       args: ['thinking']
     })
     const targetMatches = await dbh.client.execute({
       sql: `SELECT m.id
             FROM agent_session_message m
-            JOIN agent_session_message_fts fts ON m.rowid = fts.rowid
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
             WHERE agent_session_message_fts MATCH ?`,
       args: ['target']
     })
@@ -417,7 +417,7 @@ describe('AgentSessionMessageService', () => {
     })
 
     const ftsRow = await dbh.client.execute({
-      sql: 'SELECT rowid, searchable_text FROM agent_session_message WHERE id = ?',
+      sql: 'SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = ?',
       args: ['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab']
     })
     await dbh.client.execute({

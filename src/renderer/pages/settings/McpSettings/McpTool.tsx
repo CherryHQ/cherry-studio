@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@cherrystudio/ui'
-import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, ColFlex, DataTable, Flex, InfoTooltip, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpServer, McpTool } from '@renderer/types'
@@ -8,7 +8,7 @@ import type { Key } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
+import { McpDetailItem, McpDetailList } from './McpDetailList'
 
 interface McpToolsSectionProps {
   tools: McpTool[]

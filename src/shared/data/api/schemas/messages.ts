@@ -8,8 +8,8 @@
 import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
 import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
+  ContentMessageRoleSchema,
   MessageDataSchema,
-  MessageRoleSchema,
   MessageStatsSchema,
   MessageStatusSchema,
   ModelSnapshotSchema
@@ -32,19 +32,17 @@ export const CreateMessageSchema = z.strictObject({
   /**
    * Parent message ID for positioning this message in the conversation tree.
    *
-   * Behavior:
-   * - `undefined` (omitted): Auto-resolve parent based on topic state:
-   *   - If topic has no messages: create as root (parentId = null)
-   *   - If topic has messages and activeNodeId is set: attach to activeNodeId
-   *   - If topic has messages but no activeNodeId: throw INVALID_OPERATION error
-   * - `null` (explicit): Create as root message. Throws INVALID_OPERATION if
-   *   topic already has a root message (only one root allowed per topic).
+   * Behavior (every topic owns a content-less virtual root; see message-tree.md):
+   * - `undefined` (omitted): attach to `activeNodeId`, or to the virtual root on an
+   *   empty topic (a first-turn message).
+   * - `null` (explicit): first-turn message — resolved to the topic's virtual root, so
+   *   first turns and their resends are ordinary siblings under it.
    * - `string` (message ID): Attach to specified parent. Throws NOT_FOUND if
-   *   parent doesn't exist, or INVALID_OPERATION if parent belongs to different topic.
+   *   parent doesn't exist, or INVALID_OPERATION if parent belongs to a different topic.
    */
   parentId: z.string().nullable().optional(),
-  /** Message role */
-  role: MessageRoleSchema,
+  /** Message role — content roles only; the virtual root is created internally, not via this DTO */
+  role: ContentMessageRoleSchema,
   /** Message content */
   data: MessageDataSchema,
   /** Message status */
@@ -55,8 +53,6 @@ export const CreateMessageSchema = z.strictObject({
   modelId: z.string().optional(),
   /** Model snapshot captured at message creation time */
   modelSnapshot: ModelSnapshotSchema.optional(),
-  /** Trace ID */
-  traceId: z.string().optional(),
   /** Statistics */
   stats: MessageStatsSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */
@@ -76,8 +72,6 @@ export const UpdateMessageSchema = z.strictObject({
   siblingsGroupId: z.number().optional(),
   /** Update status */
   status: MessageStatusSchema.optional(),
-  /** Update trace ID */
-  traceId: z.string().nullable().optional(),
   /** Update statistics */
   stats: MessageStatsSchema.nullable().optional()
 })
@@ -99,6 +93,16 @@ export interface DeleteMessageResponse {
   reparentedIds?: string[]
   /** New activeNodeId for the topic (only if activeNodeId was affected by deletion) */
   newActiveNodeId?: string | null
+}
+
+/**
+ * Response for "clear all messages" — deletes every content message of a topic
+ * (the virtual root's whole subtree) in one transaction, keeping the content-less
+ * virtual root and clearing activeNodeId.
+ */
+export interface ClearTopicMessagesResponse {
+  /** IDs of the deleted (live) messages */
+  deletedIds: string[]
 }
 
 // ============================================================================
@@ -200,6 +204,11 @@ export type MessageSchemas = {
       params: { topicId: string }
       body: CreateMessageDto
       response: Message
+    }
+    /** Clear all of the topic's messages, keeping the (content-less) virtual root */
+    DELETE: {
+      params: { topicId: string }
+      response: ClearTopicMessagesResponse
     }
   }
 

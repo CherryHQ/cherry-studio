@@ -1653,10 +1653,10 @@
       "claude_code": "Anthropic 官方 CLI 程式助理",
       "gemini_cli": "Google Gemini 命令列助理",
       "github_copilot_cli": "GitHub Copilot 命令列版本",
-      "iflow_cli": "iFlow 推出的多模型 CLI 助理",
       "kimi_cli": "Moonshot Kimi 命令列助理",
       "openai_codex": "OpenAI 官方程式碼產生 CLI",
       "opencode": "開源社群的多模型程式碼 Agent",
+      "qoder_cli": "阿里 Qoder 的智慧體命令列程式設計工具",
       "qwen_code": "阿里通義出品的開源 CLI 程式設計工具"
     },
     "update_options": "更新選項",
@@ -2144,19 +2144,20 @@
         "view_chunks": "查看 Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "将递归导入文件夹中的支持文件",
-          "title": "点击选择文件夹"
+        "conflict_dialog": {
+          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
+          "keep_all": "[to be translated]:Keep All",
+          "replace": "[to be translated]:Replace",
+          "title": "[to be translated]:Sources already exist"
         },
         "footer": {
-          "selected_directories": "已选 {{count}} 个目录",
-          "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
-          "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真實筆記清單接入後，將在這裡展示可多選的筆記。當前可先使用檔案、目錄或連結。",
-          "empty_title": "暂未接入笔记数据源"
+          "description": "選擇現有筆記作為知識庫資料來源",
+          "empty_description": "請先在「筆記」功能中建立筆記，再回到這裡選擇。",
+          "empty_title": "找不到筆記",
+          "loading": "正在載入筆記…"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2173,6 +2174,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "unsupported_files_skipped": "已跳過 {{count}} 個不支援的檔案",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2182,15 +2184,12 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
         "delete_confirm_title": "確認批次刪除",
         "reindex": "重新索引",
         "selected_count": "已選 {{count}} 項"
       },
-      "chunk_delete_confirm_description": "删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。",
-      "chunk_delete_confirm_title": "确认删除 Chunk",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
       "delete_confirm_title": "确认删除数据源",
@@ -2242,20 +2241,16 @@
         "select_row": "選取列"
       },
       "toolbar": {
-        "add": "新增資料來源",
-        "no_search_results": "未找到符合的資料來源",
-        "search_placeholder": "搜尋資料來源"
+        "add": "新增資料來源"
       }
     },
-    "dimensions": "嵌入维度",
     "dimensions_auto_set": "自動設定嵌入維度",
-    "dimensions_error_invalid": "無效的嵌入維度",
     "dimensions_size_placeholder": "留空表示不設定",
-    "drag_file": "拖曳檔案到這裡",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
       "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知識庫刪除失敗",
@@ -2264,7 +2259,6 @@
       "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
       "model_invalid": "未選擇模型"
     },
-    "file_hint": "支援 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -2301,7 +2295,6 @@
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
-      "dimensions": "向量維度",
       "document_count": "請求文件片段數 (Top K)",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
@@ -2310,7 +2303,6 @@
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
-        "dimensions": "当前嵌入模型输出的向量维度，用于创建和匹配向量索引。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
         "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
@@ -2321,9 +2313,7 @@
         "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "仅在 Hybrid 检索模式下可配置",
       "processor": "处理服务商",
-      "refresh_dimensions": "刷新向量維度",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型 (Rerank)",
       "reset_action": "恢復預設",
@@ -2333,9 +2323,9 @@
       "saved": "已儲存",
       "search_mode": {
         "bm25": "全文检索",
-        "default": "向量检索",
         "hybrid": "混合检索（推荐）",
-        "title": "检索模式"
+        "title": "检索模式",
+        "vector": "向量檢索"
       },
       "separator_rule": "分隔符规则",
       "threshold": "相似度阈值",
@@ -2413,7 +2403,9 @@
   "launchpad": {
     "apps": "應用",
     "minapps": "小程式",
-    "miniApps": "小程式"
+    "miniApps": "小程式",
+    "pin_to_sidebar": "固定到側邊欄",
+    "unpin_from_sidebar": "取消固定"
   },
   "library": {
     "action": {
@@ -5679,12 +5671,18 @@
           },
           "invalid": "無效的輸入，請檢查 JSON 格式",
           "json": "從 JSON 匯入",
+          "mcpb": "匯入 MCPB 套件",
+          "mcpbFile": "MCPB 套件檔案",
+          "mcpbHelp": "選擇包含 MCP 伺服器的 .mcpb 檔案",
+          "mcpbProcessFailed": "處理 MCPB 檔案失敗",
           "method": "匯入方式",
           "nameExists": "伺服器已存在：{{name}}",
           "noDxtFile": "請選擇一個 DXT 檔案",
+          "noMcpbFile": "請選擇一個 MCPB 檔案",
           "oneServer": "每次只能儲存一個 MCP 伺服器設定",
           "placeholder": "貼上 MCP 伺服器 JSON 設定",
           "selectDxtFile": "選擇 DXT 檔案",
+          "selectMcpbFile": "選擇 MCPB 檔案",
           "tooltip": "請從 MCP Servers 的介紹頁面複製設定 JSON（優先使用 NPX 或 UVX 設定），並貼上到輸入框中"
         },
         "label": "新增伺服器"
@@ -6057,6 +6055,7 @@
       "disabled": "隱藏的小程式",
       "display_title": "小程式顯示設定",
       "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
+      "hide_app": "隱藏 {{name}}",
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },
@@ -6068,6 +6067,7 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
+      "show_app": "顯示 {{name}}",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
       "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
@@ -6368,7 +6368,8 @@
       "add": {
         "name": {
           "label": "提供者名稱",
-          "placeholder": "例如：OpenAI"
+          "placeholder": "例如：OpenAI",
+          "required": "請輸入提供者名稱"
         },
         "title": "新增提供者",
         "type": "供應商類型"
@@ -6479,7 +6480,8 @@
       "balance": "餘額",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "請輸入 Base URL"
       },
       "basic_auth": {
         "label": "HTTP 認證",
@@ -6654,6 +6656,7 @@
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "選擇位置",
         "service_account": {
           "auth_success": "服務帳戶驗證成功",
           "client_email": "Client Email",
@@ -6669,7 +6672,10 @@
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
-          "title": "服務帳戶設定"
+          "title": "服務帳戶設定",
+          "toggle_client_email_visibility": "切換客戶電子郵件可見性",
+          "toggle_private_key_visibility": "切換私鑰可見性",
+          "toggle_project_id_visibility": "切換專案 ID 顯示"
         }
       }
     },
@@ -6739,6 +6745,7 @@
       },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
+      "close_tab": "關閉分頁",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
@@ -6746,8 +6753,11 @@
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
+      "move_tab_to_first": "將分頁移至最前",
       "new_topic": "新增話題",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
+      "open_tab_in_new_window": "在新視窗中開啟分頁",
+      "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
@@ -6838,10 +6848,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文件處理"
+            "title": "文件處理",
+            "tooltip": "用於知識庫解析文件"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用於識別圖片內文字內容"
           }
         },
         "fields": {
@@ -7055,10 +7067,16 @@
       "title": "縮放"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "關閉分頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
   },
@@ -7076,6 +7094,36 @@
     "settings": "設定",
     "store": "助手庫",
     "translate": "翻譯"
+  },
+  "trace": {
+    "agent": "智能體",
+    "backList": "回到清單",
+    "cachedTokens": "快取",
+    "endTime": "結束時間",
+    "inputs": "輸入",
+    "label": "呼叫鏈",
+    "model": "模型",
+    "name": "節點名稱",
+    "noTraceList": "沒有找到 Trace 資訊",
+    "operation": "操作",
+    "outputs": "輸出",
+    "pollError": "輪詢失敗",
+    "reasoningTokens": "推理",
+    "requestHeaders": "請求標頭",
+    "requestMethod": "請求方法",
+    "requestUrl": "請求 URL",
+    "responseHeaders": "回應標頭",
+    "responseStatus": "回應狀態",
+    "serverDescription": "伺服器描述",
+    "serverName": "伺服器名稱",
+    "serverType": "伺服器類型",
+    "spanDetail": "Span 詳細資訊",
+    "spendTime": "消耗時間",
+    "startTime": "開始時間",
+    "status": "狀態",
+    "tag": "標籤",
+    "tokenUsage": "Token 使用量",
+    "toolCalls": "工具呼叫"
   },
   "translate": {
     "alter_language": "備用語言",

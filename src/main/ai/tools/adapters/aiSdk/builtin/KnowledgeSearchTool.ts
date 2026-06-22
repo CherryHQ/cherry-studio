@@ -1,99 +1,41 @@
 /**
  * Knowledge base search tool — agentic.
  *
- * The model picks the query and the target `baseIds` (typically after calling
- * `kb__list` to discover which bases are relevant). Per-request
- * `assistant.knowledgeBaseIds` flows in via RequestContext: when non-empty it
- * scopes which base IDs the tool will accept. The tool itself is stateless;
- * registered once during AiService startup via `registerBuiltinTools(...)`.
+ * The model picks the query and target `baseIds` (typically after `kb_list`).
+ * Per-request `assistant.knowledgeBaseIds` flows in via RequestContext and
+ * scopes which base IDs are accepted. The search itself lives in the shared
+ * `knowledgeLookup` core so the Claude Code MCP bridge runs identical logic;
+ * this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import {
-  KB_SEARCH_TOOL_NAME,
-  kbSearchInputSchema,
-  type KbSearchOutput,
-  kbSearchOutputSchema
-} from '@shared/ai/builtinTools'
-import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import { KB_SEARCH_TOOL_NAME, kbSearchInputSchema, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
+import * as z from 'zod'
 
+import {
+  KNOWLEDGE_SEARCH_DESCRIPTION,
+  knowledgeLookupErrorSchema,
+  knowledgeSearchModelOutput,
+  searchKnowledge
+} from '../../../knowledgeLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
-const logger = loggerService.withContext('KnowledgeSearchTool')
-
 export { KB_SEARCH_TOOL_NAME }
 
+// Mirror the web tool: an all-bases-failed lookup returns `{ error }`, so the output is a union.
+const knowledgeSearchResultSchema = z.union([kbSearchOutputSchema, knowledgeLookupErrorSchema])
+
 const kbSearchTool = tool({
-  description: `Search the user's private knowledge base — local documents, notes, web clippings.
-
-Use this when:
-- The user references "my notes" / "my documents" / their own materials
-- The question references topics likely covered in stored documents
-- Specific factual lookup that isn't general knowledge
-
-Workflow: call kb__list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`,
+  description: KNOWLEDGE_SEARCH_DESCRIPTION,
   inputSchema: kbSearchInputSchema,
-  outputSchema: kbSearchOutputSchema,
+  outputSchema: knowledgeSearchResultSchema,
   strict: true,
-  execute: async ({ query, baseIds }, options): Promise<KbSearchOutput> => {
+  execute: async ({ query, baseIds }, options) => {
     const { request } = getToolCallContext(options)
-    const allowedIds = request.assistant?.knowledgeBaseIds ?? []
-    const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
-
-    if (targetIds.length === 0) return []
-
-    if (allowedIds.length > 0 && targetIds.length < baseIds.length) {
-      const rejected = baseIds.filter((id) => !allowedIds.includes(id))
-      logger.warn('Dropped baseIds outside the assistant scope', { rejected, allowedIds })
-    }
-
-    const knowledgeService = application.get('KnowledgeService')
-    const perBaseResults = await Promise.all(
-      targetIds.map(async (baseId) => {
-        try {
-          return await knowledgeService.search(baseId, query)
-        } catch (error) {
-          logger.warn('KnowledgeService.search failed', {
-            baseId,
-            query,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          return [] as KnowledgeSearchResult[]
-        }
-      })
-    )
-
-    const merged = perBaseResults.flat()
-    const dedupedByContent = new Map<string, KnowledgeSearchResult>()
-    for (const result of merged) {
-      const existing = dedupedByContent.get(result.pageContent)
-      if (!existing || result.score > existing.score) {
-        dedupedByContent.set(result.pageContent, result)
-      }
-    }
-    const sorted = [...dedupedByContent.values()].sort((a, b) => b.score - a.score)
-
-    return sorted.map((result, index) => ({
-      id: index + 1,
-      content: result.pageContent,
-      // Clamp to the schema's [0, 1] range; AI SDK validates the final array
-      // against `outputSchema` after this returns.
-      score: Math.max(0, Math.min(1, result.score))
-    }))
+    return searchKnowledge(query, baseIds, request.assistant?.knowledgeBaseIds ?? [])
   },
-  toModelOutput: ({ output }) => {
-    if (output.length === 0) {
-      return {
-        type: 'text' as const,
-        value:
-          'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb__list first to inspect available bases and their sample sources, then retry kb__search with refined baseIds or query.'
-      }
-    }
-    return { type: 'json' as const, value: output }
-  }
+  toModelOutput: ({ output }) => knowledgeSearchModelOutput(output)
 })
 
 export function createKbSearchToolEntry(): ToolEntry {

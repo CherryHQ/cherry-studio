@@ -16,8 +16,7 @@ mini-tab list) and the preference that toggled it
 
 **Kept**: the mini-app entry itself (the launchpad-style icon in the sidebar
 nav). Routing to `/app/mini-app`, the icon mapping, the default
-`ui.sidebar.icons.visible` membership, the SidebarIconsManager toggle, the
-i18n label, and the migration that rewrites the v1 sidebar literal
+`ui.sidebar.favorites` membership, the i18n label, and the migration that rewrites the v1 sidebar literal
 `'minapp'` → `'mini_app'` are all unchanged.
 
 Switching between opened mini-apps now lives exclusively in the AppShell

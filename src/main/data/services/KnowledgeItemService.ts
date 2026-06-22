@@ -530,6 +530,92 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
+  /**
+   * Pin a captured url/note snapshot's base-relative path onto the item's `data`.
+   * url and note store the snapshot identically — the `type` guards the call site
+   * against writing the path onto the wrong item kind.
+   */
+  async updateSnapshotRelativePath(id: string, type: 'url' | 'note', relativePath: string): Promise<KnowledgeItem> {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
+      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
+      }
+
+      const existingItem = rowToKnowledgeItem(existingRow)
+      if (existingItem.type !== type) {
+        throw DataApiErrorFactory.validation({
+          type: [`Knowledge item must be a ${type} to store a snapshot relative path: ${id}`]
+        })
+      }
+
+      const [updatedRow] = await tx
+        .update(knowledgeItemTable)
+        .set({
+          data: { ...existingItem.data, relativePath } as KnowledgeItemData
+        })
+        .where(eq(knowledgeItemTable.id, id))
+        .returning()
+
+      if (!updatedRow) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item ${type} snapshot path update result missing for id '${id}'`
+        )
+      }
+
+      return updatedRow
+    })
+
+    logger.info(`Updated knowledge ${type} snapshot relative path`, { id, relativePath })
+    return rowToKnowledgeItem(row)
+  }
+
+  /**
+   * Pin the deduped `raw/` directory prefix chosen during expansion onto a directory
+   * container's `data.relativePath` (e.g. `docs` or `docs_2`). The original folder stays
+   * in `data.source`; this prefix is what the UI shows and what delete removes the shell by.
+   */
+  async updateDirectoryRelativePath(id: string, relativePath: string): Promise<KnowledgeItem> {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
+      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
+      }
+
+      const existingItem = rowToKnowledgeItem(existingRow)
+      if (existingItem.type !== 'directory') {
+        throw DataApiErrorFactory.validation({
+          type: [`Knowledge item must be a directory to store a directory relative path: ${id}`]
+        })
+      }
+
+      const [updatedRow] = await tx
+        .update(knowledgeItemTable)
+        .set({
+          data: { ...existingItem.data, relativePath } as KnowledgeItemData
+        })
+        .where(eq(knowledgeItemTable.id, id))
+        .returning()
+
+      if (!updatedRow) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item directory relative path update result missing for id '${id}'`
+        )
+      }
+
+      return updatedRow
+    })
+
+    logger.info('Updated knowledge directory relative path', { id, relativePath })
+    return rowToKnowledgeItem(row)
+  }
+
   private async reconcileContainers(
     baseId: string,
     startContainerIds: Array<string | null | undefined>

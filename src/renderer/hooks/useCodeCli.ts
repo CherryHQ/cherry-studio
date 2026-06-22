@@ -1,8 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { codeCLI } from '@shared/config/constant'
 import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
-import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/code-cli'
+import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/codeCli'
+import { codeCLI } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
@@ -46,7 +46,9 @@ export const useCodeCli = () => {
   const currentDirectory = currentConfig.currentDirectory
 
   const canLaunch = Boolean(
-    selectedCliTool && currentDirectory && (selectedCliTool === codeCLI.githubCopilotCli || selectedModel)
+    selectedCliTool &&
+      currentDirectory &&
+      (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || selectedModel)
   )
 
   const updateCurrentTool = useCallback(

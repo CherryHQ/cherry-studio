@@ -1,12 +1,13 @@
 import { primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
+import { agentTable } from './agent'
 import { assistantTable } from './assistant'
 import { knowledgeBaseTable } from './knowledge'
 import { mcpServerTable } from './mcpServer'
 
 // NOTE: assistant-model relationship is 1:1 (default model) stored as assistant.modelId.
-// Multi-model (@mention) list is ephemeral UI state stored in persist-cache.
+// Multi-model selector list is ephemeral UI state stored in persist-cache.
 
 /**
  * Assistant-McpServer junction table
@@ -46,4 +47,24 @@ export const assistantKnowledgeBaseTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [primaryKey({ columns: [t.assistantId, t.knowledgeBaseId] })]
+)
+
+/**
+ * Agent-McpServer junction table
+ *
+ * Associates agents with MCP servers.
+ * Both sides CASCADE: deleting either removes the association.
+ */
+export const agentMcpServerTable = sqliteTable(
+  'agent_mcp_server',
+  {
+    agentId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
+    mcpServerId: text()
+      .notNull()
+      .references(() => mcpServerTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [primaryKey({ columns: [t.agentId, t.mcpServerId] })]
 )

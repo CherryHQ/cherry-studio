@@ -24,10 +24,7 @@ const isProd = process.env.NODE_ENV === 'production'
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
-const bundledMainDependencies = new Set(['@vectorstores/libsql'])
-const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
-  (dependency) => !bundledMainDependencies.has(dependency)
-)
+const mainExternalDependencies = Object.keys(pkg.dependencies)
 
 export default defineConfig({
   main: {
@@ -36,7 +33,6 @@ export default defineConfig({
       alias: {
         '@main': resolve('src/main'),
         '@application': resolve('src/main/core/application'),
-        '@types': resolve('src/renderer/types'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('src/shared'),
         '@logger': resolve('src/main/core/logger/LoggerService'),
@@ -46,7 +42,6 @@ export default defineConfig({
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
-        '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@test-mocks': resolve('tests/__mocks__'),

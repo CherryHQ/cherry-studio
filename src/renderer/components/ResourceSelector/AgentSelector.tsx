@@ -1,12 +1,6 @@
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import {
-  buildLibraryCreateSearch,
-  buildLibraryEditSearch,
-  buildLibraryRouteUrl
-} from '@renderer/pages/library/routeSearch'
 import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +36,6 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
-  const openTab = useOptionalTabsContext()?.openTab
 
   const { data, isLoading } = useQuery('/agents', { query: { limit: 500 } })
   const {
@@ -95,14 +88,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     pinnedIds,
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    ...(openTab && {
-      onEditItem: (id: string) => {
-        openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', id)), { forceNew: true })
-      },
-      onCreateNew: () => {
-        openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('agent')), { forceNew: true })
-      }
-    }),
     loading: isLoading || isPinnedLoading,
     labels: {
       searchPlaceholder: t('selector.agent.search_placeholder'),

@@ -17,6 +17,13 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
+import {
+  API_SERVER_DEFAULTS,
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+  DEFAULT_TEMPERATURE,
+  defaultByPassRules
+} from '@renderer/config/constant'
 import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { toSharedCompatModel } from '@renderer/config/models/bridge'
@@ -39,14 +46,7 @@ import type {
 } from '@renderer/types'
 import { isBuiltinMcpServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
-import {
-  API_SERVER_DEFAULTS,
-  DEFAULT_CONTEXTCOUNT,
-  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
-  DEFAULT_TEMPERATURE
-} from '@shared/config/constant'
-import { defaultByPassRules } from '@shared/config/constant'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'

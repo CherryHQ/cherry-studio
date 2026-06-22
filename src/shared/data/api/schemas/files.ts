@@ -10,7 +10,7 @@
  *
  * The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY /
  * COUNT), because that stays in the DB layer. Anything that requires FS IO or main-side
- * computation lives in **File IPC** (see `src/shared/file/types/ipc.ts`).
+ * computation lives in **File IPC** (see `src/shared/types/file/ipc.ts`).
  *
  * Endpoints:
  * - `GET /files/entries`            — FileEntry list (fixed shape)
@@ -31,7 +31,7 @@
  * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (still DataApi, dedicated)|
  * | `includeDangling`   | File IPC `getDanglingState` / `batchGetDanglingStates` (FS-backed)     |
  * | `includePath`       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` (main resolver)   |
- * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
+ * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/urlUtil`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
  *
  * Renderers compose data by fetching the entry list here, then calling the relevant
  * batch IPC methods with the retrieved ids. Wrap the two-step pattern in a dedicated

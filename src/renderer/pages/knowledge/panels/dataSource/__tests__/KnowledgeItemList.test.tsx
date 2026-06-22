@@ -75,7 +75,6 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'common.loading': '加载中...',
-          'knowledge.data_source.toolbar.no_search_results': '未找到匹配的数据源',
           'knowledge.data_source.table.select_all': '全选'
         }) as Record<string, string>
       )[key] ?? key
@@ -95,29 +94,21 @@ const noopProps = {
 
 describe('KnowledgeItemList', () => {
   it('renders the loading state before item rows', () => {
-    render(<KnowledgeItemList items={[]} allItemsCount={0} isLoading {...noopProps} />)
+    render(<KnowledgeItemList items={[]} isLoading {...noopProps} />)
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
   })
 
-  it('renders no empty shortcut group when no items exist at all', () => {
-    render(<KnowledgeItemList items={[]} allItemsCount={0} isLoading={false} {...noopProps} />)
+  it('renders nothing when there are no items and it is not loading', () => {
+    render(<KnowledgeItemList items={[]} isLoading={false} {...noopProps} />)
 
-    expect(screen.queryByText('未找到匹配的数据源')).not.toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  })
-
-  it('renders the no-search-results message when items exist but the filter hides them', () => {
-    render(<KnowledgeItemList items={[]} allItemsCount={3} isLoading={false} {...noopProps} />)
-
-    expect(screen.getByText('未找到匹配的数据源')).toBeInTheDocument()
   })
 
   it('renders rows when items are available', () => {
     render(
       <KnowledgeItemList
         items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
-        allItemsCount={2}
         isLoading={false}
         {...noopProps}
       />
@@ -131,15 +122,7 @@ describe('KnowledgeItemList', () => {
     const handleItemClick = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(
-      <KnowledgeItemList
-        items={[item]}
-        allItemsCount={1}
-        isLoading={false}
-        {...noopProps}
-        onItemClick={handleItemClick}
-      />
-    )
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onItemClick={handleItemClick} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'note-1' }))
 
@@ -150,9 +133,7 @@ describe('KnowledgeItemList', () => {
     const handleDelete = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(
-      <KnowledgeItemList items={[item]} allItemsCount={1} isLoading={false} {...noopProps} onDelete={handleDelete} />
-    )
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onDelete={handleDelete} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'delete-note-1' }))
 
@@ -163,9 +144,7 @@ describe('KnowledgeItemList', () => {
     const handleReindex = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(
-      <KnowledgeItemList items={[item]} allItemsCount={1} isLoading={false} {...noopProps} onReindex={handleReindex} />
-    )
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onReindex={handleReindex} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
 
@@ -176,15 +155,7 @@ describe('KnowledgeItemList', () => {
     const handlePreviewSource = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(
-      <KnowledgeItemList
-        items={[item]}
-        allItemsCount={1}
-        isLoading={false}
-        {...noopProps}
-        onPreviewSource={handlePreviewSource}
-      />
-    )
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onPreviewSource={handlePreviewSource} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'preview-note-1' }))
 
@@ -195,15 +166,7 @@ describe('KnowledgeItemList', () => {
     const handleViewChunks = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(
-      <KnowledgeItemList
-        items={[item]}
-        allItemsCount={1}
-        isLoading={false}
-        {...noopProps}
-        onViewChunks={handleViewChunks}
-      />
-    )
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onViewChunks={handleViewChunks} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'chunks-note-1' }))
 

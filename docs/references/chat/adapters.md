@@ -1,0 +1,126 @@
+# Chat Adapters
+
+> **Status: target architecture (design).** This describes the chat layer's intended
+> contract layer, which lands incrementally across carve PRs. As of this PR, only
+> `layout/`, `primitives/`, `tokens/`, `utils/` are on `main`; the `adapters/` module, the
+> symbols, and the `@renderer/components/chat` package barrel referenced below are the
+> design target and arrive in a later carve. The imports and code below illustrate the
+> intended API, not code that compiles on `main` today.
+
+The chat **adapters** (`src/renderer/components/chat/adapters/`) are the planned contract
+layer used by shared chat UI slices. They are intentionally thin: they will project
+business entities into stable UI-facing shapes, but they do not fetch data, own cache,
+read preferences, or replace existing UI components.
+
+The target is to import from the chat package entry unless you are working inside that
+folder:
+
+```ts
+import { ComposerAdapter, ResourceListAdapter } from '@renderer/components/chat'
+import { createMessageActionRegistry, createRightPaneRegistry } from '@renderer/components/chat'
+```
+
+## Resource List
+
+Use `ResourceListAdapter` before passing topic or session data into future `ResourceList` components. The output is `ChatResourceItem`, which only contains UI fields such as `id`, `kind`, `title`, `subtitle`, `status`, `pinned`, `active`, `disabled`, and optional `meta`.
+
+```ts
+const item = ResourceListAdapter.fromTopic(topic, {
+  active: topic.id === activeTopicId,
+  pinned: topic.pinned,
+  status: isStreaming ? 'streaming' : undefined
+})
+```
+
+Callers still own active state, pin state, streaming state, and persistence. The adapter should not call DataApi, Cache, Preference, Redux, or service hooks.
+
+## Composer
+
+Use `ComposerAdapter` to describe the minimum contract a future composer needs: target, draft, send, optional stop, streaming state, disabled state, and capability flags.
+
+```ts
+const composer = ComposerAdapter.createChat({
+  assistantId,
+  topicId,
+  draft: { text, attachments },
+  streaming: isPending,
+  capabilities: { attachments: true, stop: true },
+  send: ({ draft }) => sendMessage(draft.text),
+  stop: () => stopStreaming()
+})
+```
+
+The adapter only delegates callbacks. The existing chat/session hooks keep ownership of send, stop, attachments, tool selection, and draft state.
+
+## Right Pane Registry
+
+Use `createRightPaneRegistry()` when a feature needs to register pane descriptors by id. A descriptor contains `id`, `title`, and `render(payload)`.
+
+```ts
+const registry = createRightPaneRegistry()
+
+const dispose = registry.register({
+  id: 'references',
+  title: 'References',
+  render: (payload: { messageId: string }) => <ReferencePanel messageId={payload.messageId} />
+})
+
+const pane = registry.get<{ messageId: string }>('references')
+dispose()
+```
+
+Registering the same id replaces the previous descriptor. Disposing an older registration does not remove a newer replacement.
+
+## Message Action Registry
+
+Use `createMessageActionRegistry()` to register message action providers. The command/action model will be defined by `actions/actionTypes.ts`, including `ActionDescriptor`, `CommandDescriptor`, and `ResolvedAction`.
+
+```ts
+const registry = createMessageActionRegistry()
+
+const dispose = registry.register({
+  id: 'copy-message',
+  resolve: ({ message }) => [{ id: `copy:${message.id}`, label: 'Copy' }]
+})
+
+const actions = registry.resolve({ message })
+dispose()
+```
+
+## Render Stability
+
+Adapters are pure projection helpers, so they do not cause rerenders by themselves. Rerender risk comes from creating fresh arrays, objects, callbacks, or registries on every React render. When these contracts are wired into real UI, keep the projection boundary stable.
+
+Use `useMemo` for list projections:
+
+```tsx
+const items = useMemo(
+  () => topics.map((topic) => ResourceListAdapter.fromTopic(topic, { active: topic.id === activeTopicId })),
+  [topics, activeTopicId]
+)
+```
+
+Do not map resources inline in JSX:
+
+```tsx
+<ResourceList items={topics.map((topic) => ResourceListAdapter.fromTopic(topic))} />
+```
+
+For messages, the target is to use the `MessageListItem` contract from `components/chat/messages` (planned). Project once at the message-list data boundary; virtualized lists rely on stable item identity and measurement caches.
+
+For composer contracts, wrap `ComposerAdapter.createChat()` and `ComposerAdapter.createSession()` in `useMemo`, and keep `send` / `stop` callbacks stable with the existing business hook output or `useCallback`.
+
+Create registries at module scope, provider initialization, or in `useRef`. Register providers or pane descriptors from effects, not during render:
+
+```tsx
+const registryRef = useRef(createMessageActionRegistry())
+```
+
+Keep adapter output small. Do not place raw `topic`, `session`, or `message` objects in `meta`; that would re-couple components to private business shapes and make downstream memoization depend on raw object identity.
+
+## Boundaries
+
+- Do not import these adapters into data hooks to create a second source of truth.
+- Do not add business reads or writes inside adapters.
+- Do not replace `TopicItem`, `SessionItem`, `InputbarTools`, or context menus.
+- Add tests alongside adapter changes in `__tests__/adapters.test.ts`.
