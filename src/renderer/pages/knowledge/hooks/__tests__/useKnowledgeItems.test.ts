@@ -147,6 +147,44 @@ describe('useKnowledgeItems', () => {
     expect(loadNext).toHaveBeenCalledTimes(2)
   })
 
+  it('resets the in-flight load-more when the knowledge base changes', () => {
+    // Regression: the hook instance is reused across base switches. An in-flight load-more from
+    // the previous base used to leak in and wedge `loadMore` for the new base, because the
+    // land/end/error clear can't fire when the new base loaded fewer pages and still has a next.
+    const loadNext = vi.fn()
+    let queryResult = {
+      pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryResult)
+
+    const { result, rerender } = renderHook(({ baseId }) => useKnowledgeItems(baseId), {
+      initialProps: { baseId: 'base-1' }
+    })
+
+    act(() => result.current.loadMore())
+    expect(result.current.isLoadingMore).toBe(true)
+
+    // Switch base: the new base's first page has no more loaded pages than the in-flight base and
+    // still has a next cursor, so only the base-change reset can settle the stuck flag.
+    queryResult = {
+      ...queryResult,
+      pages: [{ items: [makeItem({ id: 'b-1' })], total: 9, nextCursor: 'cursor-b' }]
+    }
+    rerender({ baseId: 'base-2' })
+
+    expect(result.current.isLoadingMore).toBe(false)
+
+    // The new base can paginate again.
+    act(() => result.current.loadMore())
+    expect(loadNext).toHaveBeenCalledTimes(2)
+  })
+
   it('does not load more when there is no next page', () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue({

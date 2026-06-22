@@ -79,8 +79,7 @@ export const ListKnowledgeItemsQuerySchema = z.strictObject({
 })
 
 // This schema declares `cursor` + `limit` inline (above), so `z.input` already covers the
-// cursor-pagination params — no `& CursorPaginationParams` intersection needed. (Sibling
-// cursor-paginated schemas keep the intersection because they don't declare those fields.)
+// cursor-pagination params and the `& CursorPaginationParams` intersection would be redundant.
 export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema>
 export type ListKnowledgeItemsQuery = z.output<typeof ListKnowledgeItemsQuerySchema>
 

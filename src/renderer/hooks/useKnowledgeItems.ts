@@ -12,7 +12,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const KNOWLEDGE_V2_ITEMS_QUERY = { groupId: null } as const
-const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
+export const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 
 const KNOWLEDGE_ITEMS_POLLING_INTERVAL = 2000
 const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
@@ -89,6 +89,16 @@ export const useKnowledgeItems = (baseId: string) => {
       setIsLoadingMore(false)
     }
   }, [isLoadingMore, pages.length, hasNext, error])
+
+  // The hook instance is reused across knowledge-base switches (the detail section doesn't
+  // remount), so an in-flight load-more from the previous base would otherwise leak into the
+  // next one and wedge `loadMore` — the clear effect above can't fire when the new base loaded
+  // fewer pages than `loadStartPagesRef` and has more pages with no error. Reset the in-flight
+  // bookkeeping whenever the base changes so each base starts clean.
+  useEffect(() => {
+    setIsLoadingMore(false)
+    loadStartPagesRef.current = 0
+  }, [baseId])
 
   return {
     items,

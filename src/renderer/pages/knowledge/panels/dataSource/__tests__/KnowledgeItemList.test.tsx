@@ -215,10 +215,10 @@ describe('KnowledgeItemList', () => {
     render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} hasMore onLoadMore={handleLoadMore} />)
 
     fireEvent.scroll(screen.getByTestId('virtual-list'))
-    // loadMore is scheduled via queueMicrotask; let it flush.
-    await Promise.resolve()
 
-    expect(handleLoadMore).toHaveBeenCalledTimes(1)
+    // loadMore is scheduled via queueMicrotask; poll until it flushes rather than assuming a fixed
+    // number of microtask ticks (a single `await Promise.resolve()` flaked under act scheduling).
+    await vi.waitFor(() => expect(handleLoadMore).toHaveBeenCalledTimes(1))
   })
 
   it('does not request more items when there are no further pages', async () => {
@@ -288,9 +288,8 @@ describe('KnowledgeItemList', () => {
     setScrollGeometry(list, { scrollHeight: 1000, clientHeight: 400, scrollTop: 800 })
     fireEvent.scroll(list)
     fireEvent.scroll(list)
-    await Promise.resolve()
 
-    expect(handleLoadMore).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(handleLoadMore).toHaveBeenCalledTimes(1))
   })
 
   it('does not load more while a load-more is already in flight', async () => {
@@ -316,30 +315,17 @@ describe('KnowledgeItemList', () => {
   })
 
   it('shows a loading indicator while loading more and an end-of-list note once fully paged', () => {
+    // More than one page worth of rows (a page is 50), i.e. a multi-page base that has been paged in.
+    const items = Array.from({ length: 60 }, (_, index) => createNoteItem({ id: `note-${index}` }))
     const { rerender } = render(
-      <KnowledgeItemList
-        items={[createNoteItem({ id: 'note-1' })]}
-        isLoading={false}
-        {...noopProps}
-        hasMore
-        isLoadingMore
-      />
+      <KnowledgeItemList items={items} isLoading={false} {...noopProps} hasMore isLoadingMore />
     )
 
     expect(screen.getByText('加载更多…')).toBeInTheDocument()
     expect(screen.queryByText('没有更多了')).not.toBeInTheDocument()
 
-    // Final page landed: not loading, no more pages — and a load-more actually happened above,
-    // so the end-of-list note is allowed to show.
-    rerender(
-      <KnowledgeItemList
-        items={[createNoteItem({ id: 'note-1' })]}
-        isLoading={false}
-        {...noopProps}
-        hasMore={false}
-        isLoadingMore={false}
-      />
-    )
+    // Final page landed: not loading, no more pages, and more than one page is loaded.
+    rerender(<KnowledgeItemList items={items} isLoading={false} {...noopProps} hasMore={false} isLoadingMore={false} />)
 
     expect(screen.getByText('没有更多了')).toBeInTheDocument()
   })
@@ -349,6 +335,31 @@ describe('KnowledgeItemList', () => {
       <KnowledgeItemList items={[createNoteItem({ id: 'note-1' })]} isLoading={false} {...noopProps} hasMore={false} />
     )
 
+    expect(screen.queryByText('没有更多了')).not.toBeInTheDocument()
+  })
+
+  it('drops the end-of-list note when switching from a paged base to a single-page base', () => {
+    // The list instance is reused across base switches; the note is derived from the live row count
+    // (not a sticky ref), so it must not linger when a single-page base replaces a paged-in one.
+    const pagedItems = Array.from({ length: 60 }, (_, index) => createNoteItem({ id: `a-${index}` }))
+    const { rerender } = render(
+      <KnowledgeItemList items={pagedItems} isLoading={false} {...noopProps} hasMore isLoadingMore />
+    )
+
+    rerender(
+      <KnowledgeItemList items={pagedItems} isLoading={false} {...noopProps} hasMore={false} isLoadingMore={false} />
+    )
+    expect(screen.getByText('没有更多了')).toBeInTheDocument()
+
+    rerender(
+      <KnowledgeItemList
+        items={[createNoteItem({ id: 'b-1' })]}
+        isLoading={false}
+        {...noopProps}
+        hasMore={false}
+        isLoadingMore={false}
+      />
+    )
     expect(screen.queryByText('没有更多了')).not.toBeInTheDocument()
   })
 

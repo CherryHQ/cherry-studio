@@ -141,11 +141,15 @@ describe('KnowledgeItemService', () => {
       }
 
       const seen: string[] = []
+      const pageSizes: number[] = []
+      let lastNextCursor: string | undefined
       let cursor: string | undefined
       for (let guard = 0; guard < 10; guard++) {
         const page = await service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor })
         expect(page.total).toBe(4)
         seen.push(...page.items.map((item) => item.id))
+        pageSizes.push(page.items.length)
+        lastNextCursor = page.nextCursor
         if (!page.nextCursor) break
         cursor = page.nextCursor
       }
@@ -153,6 +157,10 @@ describe('KnowledgeItemService', () => {
       // Exactly once each: no overlap (a cursor re-emitting a row) and no gap (a cursor
       // skipping one). Within an equal createdAt the order is id ASC.
       expect(seen).toEqual([...ids].sort())
+      // The 4 rows divide evenly into pages of `limit` (2), so the final page holds exactly `limit`
+      // rows yet must still report no next cursor — the limit+1 probe finds no row past the boundary.
+      expect(pageSizes).toEqual([2, 2])
+      expect(lastNextCursor).toBeUndefined()
     })
 
     it('falls back to the first page when the cursor is malformed', async () => {
