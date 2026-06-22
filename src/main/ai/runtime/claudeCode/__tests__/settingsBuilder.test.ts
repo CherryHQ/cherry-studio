@@ -586,11 +586,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    it('strips inherited Anthropic credentials and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
+    it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
       mocks.getLoginShellEnvironment.mockResolvedValue({
         ANTHROPIC_API_KEY: 'sk-shell',
         ANTHROPIC_AUTH_TOKEN: 'tok-shell',
         ANTHROPIC_BASE_URL: 'https://shell.example',
+        ANTHROPIC_CUSTOM_HEADERS: 'Authorization: Bearer sk-shell',
+        CLAUDE_CODE_OAUTH_TOKEN: 'oauth-shell',
         CLAUDE_CONFIG_DIR: '/home/me/.claude'
       })
 
@@ -599,6 +601,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
       expect(settings.env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN')
       expect(settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+      // Any of these could silently override the subscription OAuth fallback, so they must be stripped too.
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN')
+      expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
       // Non-mac (platform mock has no isMac): reuse the user's real config dir from the login shell.
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/home/me/.claude')
     })

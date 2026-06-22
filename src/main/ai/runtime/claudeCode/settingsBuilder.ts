@@ -485,6 +485,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ...loginShellEnv,
     ...getProxyEnvironment(process.env),
     CLAUDE_CODE_USE_BEDROCK: '0',
+    CLAUDE_CODE_USE_VERTEX: '0',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
     // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,
@@ -536,9 +537,12 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
 
   // Claude Code (login) provider: reuse the user's Claude Code CLI subscription
   // login (Claude Pro/Max OAuth) instead of an API key. The Claude Agent SDK
-  // falls back to the stored OAuth credential ONLY when no ANTHROPIC_API_KEY /
-  // ANTHROPIC_AUTH_TOKEN is present, so strip any inherited from the login shell
-  // (the warm-query builder already skips injecting them for this provider).
+  // falls back to the stored OAuth credential ONLY when no credential is forced
+  // via env, so strip every auth channel that could ride in from the login shell
+  // or user env_vars (which merged above) and silently override it: the API key
+  // / auth token, a base-URL redirect, custom headers (e.g. an inherited
+  // Authorization / x-api-key), and a directly-supplied OAuth token. The
+  // warm-query builder already skips injecting the API key for this provider.
   // macOS keeps the credential in the global Keychain (independent of
   // CLAUDE_CONFIG_DIR); elsewhere it lives in <CLAUDE_CONFIG_DIR>/.credentials.json,
   // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
@@ -547,6 +551,8 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     delete env.ANTHROPIC_API_KEY
     delete env.ANTHROPIC_AUTH_TOKEN
     delete env.ANTHROPIC_BASE_URL
+    delete env.ANTHROPIC_CUSTOM_HEADERS
+    delete env.CLAUDE_CODE_OAUTH_TOKEN
     if (!isMac) {
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR ?? path.join(application.getPath('sys.home'), '.claude')
     }
