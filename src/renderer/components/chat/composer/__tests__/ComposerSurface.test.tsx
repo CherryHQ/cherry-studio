@@ -607,7 +607,7 @@ describe('ComposerSurface', () => {
   })
 
   it('keeps token structure when an external text update matches the current content', async () => {
-    // Reproduces the long-text paste flow: the editor holds a quote token, PasteService converts
+    // Reproduces the long-text paste flow: the editor holds a quote token, pasteHandling converts
     // the pasted text into a file and re-applies the unchanged serialized text. The rebuild only
     // re-tokenizes prompt variables, so it must be skipped or the quote token degrades to text.
     mocks.getJSON.mockReturnValue({

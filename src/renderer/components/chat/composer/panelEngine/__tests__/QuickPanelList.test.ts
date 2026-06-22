@@ -22,6 +22,17 @@ describe('QuickPanel list primitives', () => {
     expect(moveQuickPanelSelectableIndex(items, 0, -1, { wrap: true })).toBe(4)
   })
 
+  it('wraps a page-jump larger than the selectable count to a valid index (not undefined)', () => {
+    const items = createItems() // 4 selectable: [0, 2, 3, 4]
+
+    // |offset| > selectable count — e.g. Cmd/Ctrl+ArrowUp page-jump (pageSize 7) with 4 rows.
+    expect(moveQuickPanelSelectableIndex(items, 0, -7, { wrap: true })).toBe(2)
+    expect(moveQuickPanelSelectableIndex(items, 0, 7, { wrap: true })).toBe(4)
+    for (const start of [0, 2, 3, 4]) {
+      expect(moveQuickPanelSelectableIndex(items, start, -7, { wrap: true })).not.toBeUndefined()
+    }
+  })
+
   it('moves by page without wrapping', () => {
     const items = createItems()
 

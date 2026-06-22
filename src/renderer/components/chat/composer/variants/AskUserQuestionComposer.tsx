@@ -10,7 +10,6 @@ import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
 
 export type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
-export { findLatestPendingAskUserQuestionRequest } from './askUserQuestionComposerRequest'
 
 const logger = loggerService.withContext('AskUserQuestionComposer')
 

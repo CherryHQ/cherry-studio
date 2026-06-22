@@ -551,7 +551,7 @@ export default function ComposerSurface({
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
       // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update (e.g.
-      // PasteService re-applying the text after a long paste becomes a file) must skip the rebuild
+      // pasteHandling re-applying the text after a long paste becomes a file) must skip the rebuild
       // or quote/file/knowledge tokens degrade to their serialized text.
       if (limitedText === currentText) return
       textRef.current = limitedText
