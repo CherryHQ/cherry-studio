@@ -1,8 +1,8 @@
 import { Button, EmptyState } from '@cherrystudio/ui'
-import { useQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { FileEntry } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import type { FileType } from '@shared/types/file'
@@ -26,6 +26,34 @@ const FILES_PAGE_LIMIT = 100
 type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
+type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
+
+const FILE_IPC_BATCH_SIZE = 500
+
+async function requestBatchedFileRecords<Route extends FileBatchRoute>(
+  route: Route,
+  ids: readonly FileEntryId[]
+): Promise<OutputFor<Route>> {
+  if (ids.length === 0) return {} as OutputFor<Route>
+
+  const chunks: FileEntryId[][] = []
+  for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
+    chunks.push(ids.slice(i, i + FILE_IPC_BATCH_SIZE))
+  }
+  const results = await Promise.all(
+    chunks.map((chunk) => {
+      switch (route) {
+        case 'file.batch_get_metadata':
+          return ipcApi.request('file.batch_get_metadata', { ids: chunk })
+        case 'file.batch_get_physical_paths':
+          return ipcApi.request('file.batch_get_physical_paths', { ids: chunk })
+        case 'file.batch_get_dangling_states':
+          return ipcApi.request('file.batch_get_dangling_states', { ids: chunk })
+      }
+    })
+  )
+  return Object.assign({}, ...results) as OutputFor<Route>
+}
 
 function formatDateTime(timestamp: number): string {
   const date = new Date(timestamp)
@@ -244,19 +272,6 @@ const BatchBar = memo(function BatchBar({
 
 function FilesPage() {
   const { t } = useTranslation()
-  const {
-    data: activeFilesPage,
-    isLoading: isActiveFilesLoading,
-    error: activeFilesError,
-    refetch: refetchActiveFiles
-  } = useQuery('/files/entries', { query: { limit: FILES_PAGE_LIMIT } })
-  const {
-    data: trashedFilesPage,
-    isLoading: isTrashedFilesLoading,
-    error: trashedFilesError,
-    refetch: refetchTrashedFiles
-  } = useQuery('/files/entries', { query: { inTrash: true, limit: FILES_PAGE_LIMIT } })
-
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -268,11 +283,52 @@ function FilesPage() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const pendingLoadMoreRef = useRef(false)
 
-  const entries = useMemo(
-    () => [...(activeFilesPage?.items ?? []), ...(trashedFilesPage?.items ?? [])],
-    [activeFilesPage?.items, trashedFilesPage?.items]
+  const serverSortKey = sortKey === 'type' ? 'updatedAt' : sortKey
+  const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
+  const trashedFilesQuery = useMemo(
+    () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
+    [serverSortKey, sortDir]
   )
+
+  const {
+    pages: activeFilePages,
+    isLoading: isActiveFilesLoading,
+    isRefreshing: isActiveFilesRefreshing,
+    error: activeFilesError,
+    hasNext: hasMoreActiveFiles,
+    loadNext: loadMoreActiveFiles,
+    refresh: refreshActiveFiles,
+    reset: resetActiveFiles
+  } = useInfiniteQuery('/files/entries', {
+    query: activeFilesQuery,
+    limit: FILES_PAGE_LIMIT,
+    swrOptions: { keepPreviousData: false }
+  })
+  const {
+    pages: trashedFilePages,
+    isLoading: isTrashedFilesLoading,
+    isRefreshing: isTrashedFilesRefreshing,
+    error: trashedFilesError,
+    hasNext: hasMoreTrashedFiles,
+    loadNext: loadMoreTrashedFiles,
+    refresh: refreshTrashedFiles,
+    reset: resetTrashedFiles
+  } = useInfiniteQuery('/files/entries', {
+    query: trashedFilesQuery,
+    limit: FILES_PAGE_LIMIT,
+    swrOptions: { keepPreviousData: false }
+  })
+
+  const activeEntries = useInfiniteFlatItems(activeFilePages)
+  const trashedEntries = useInfiniteFlatItems(trashedFilePages)
+  const entries = useMemo(() => [...activeEntries, ...trashedEntries], [activeEntries, trashedEntries])
+
+  useEffect(() => {
+    resetActiveFiles()
+    resetTrashedFiles()
+  }, [resetActiveFiles, resetTrashedFiles, serverSortKey, sortDir])
 
   useEffect(() => {
     if (activeFilesError) logger.error('Failed to load active files', activeFilesError)
@@ -294,9 +350,9 @@ function FilesPage() {
     const ids = entries.map((entry) => entry.id)
     const imageIds = entries.filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image').map((entry) => entry.id)
     void Promise.all([
-      ipcApi.request('file.batch_get_metadata', { ids }),
-      imageIds.length > 0 ? ipcApi.request('file.batch_get_physical_paths', { ids: imageIds }) : Promise.resolve({}),
-      ipcApi.request('file.batch_get_dangling_states', { ids })
+      requestBatchedFileRecords('file.batch_get_metadata', ids),
+      requestBatchedFileRecords('file.batch_get_physical_paths', imageIds),
+      requestBatchedFileRecords('file.batch_get_dangling_states', ids)
     ])
       .then(([metadata, physicalPaths, danglingStates]) => {
         if (cancelled) return
@@ -324,10 +380,44 @@ function FilesPage() {
   )
 
   const refetchFiles = useCallback(async () => {
-    await Promise.all([refetchActiveFiles(), refetchTrashedFiles()])
-  }, [refetchActiveFiles, refetchTrashedFiles])
+    resetActiveFiles()
+    resetTrashedFiles()
+    await Promise.all([refreshActiveFiles(), refreshTrashedFiles()])
+  }, [refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
+  const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
+  const isLoadingMoreCurrentFiles = isTrash
+    ? isTrashedFilesRefreshing && trashedFilePages.length > 0
+    : isActiveFilesRefreshing && activeFilePages.length > 0
+
+  useEffect(() => {
+    pendingLoadMoreRef.current = false
+  }, [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, entries.length])
+
+  const handleContentScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget
+      if (
+        hasMoreCurrentFiles &&
+        !isLoadingMoreCurrentFiles &&
+        !pendingLoadMoreRef.current &&
+        el.scrollHeight - el.scrollTop - el.clientHeight < 160
+      ) {
+        pendingLoadMoreRef.current = true
+        const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
+        queueMicrotask(() => {
+          try {
+            loadMoreFiles()
+          } catch (error) {
+            pendingLoadMoreRef.current = false
+            logger.error('Failed to load more files', error as Error)
+          }
+        })
+      }
+    },
+    [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, isTrash, loadMoreActiveFiles, loadMoreTrashedFiles]
+  )
 
   const handleOpen = useCallback((file: FileItem) => {
     void ipcApi.request('file.open', { id: file.id }).catch((error) => {
@@ -580,6 +670,7 @@ function FilesPage() {
 
         <div
           className="relative flex-1 overflow-y-auto"
+          onScroll={handleContentScroll}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setSelectedIds(new Set())

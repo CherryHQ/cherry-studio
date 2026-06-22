@@ -22,6 +22,7 @@ import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { FileEntryListResponse } from '@shared/data/api/schemas/files'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
@@ -64,21 +65,15 @@ export interface FindEntriesQuery {
   readonly offset?: number
 }
 
-export type ListPagedSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size'
+export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size'
 
-export interface ListPagedQuery {
+export interface ListCursorQuery {
   readonly origin?: FileEntryOrigin
   readonly inTrash?: boolean
-  readonly sortBy?: ListPagedSortBy
+  readonly sortBy?: ListFilesSortBy
   readonly sortOrder?: 'asc' | 'desc'
-  readonly page?: number
+  readonly cursor?: string
   readonly limit?: number
-}
-
-export interface ListPagedResult {
-  readonly items: FileEntry[]
-  readonly total: number
-  readonly page: number
 }
 
 export interface FileEntryService {
@@ -132,11 +127,11 @@ export interface FileEntryService {
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
 
   /**
-   * Page-and-count list backing `GET /files/entries`. Returns `{ items, total, page }`
-   * matching the DataApi `OffsetPaginationResponse<FileEntry>` shape, doing the
-   * select + count in a single round-trip via `Promise.all`.
+   * Cursor-and-count list backing `GET /files/entries`. Returns
+   * `{ items, total, nextCursor }` matching the DataApi cursor response shape,
+   * doing the select + count in a single round-trip via `Promise.all`.
    *
-   * Defaults: `page = 1`, `limit = 50`, `sortBy = 'createdAt'`, `sortOrder = 'asc'`.
+   * Defaults: `limit = 50`, `sortBy = 'createdAt'`, `sortOrder = 'asc'`.
    * Trashed filter defaults to "active only" when `inTrash` is omitted, matching
    * `findMany`.
    *
@@ -148,7 +143,7 @@ export interface FileEntryService {
    * `total` is a SQL count and may exceed `items.length` when corrupted
    * rows were skipped.
    */
-  listPaged(query?: ListPagedQuery): Promise<ListPagedResult>
+  listCursor(query?: ListCursorQuery): Promise<FileEntryListResponse>
 
   /**
    * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
@@ -266,6 +261,83 @@ function rowToFileEntrySafe(row: FileEntryRow): FileEntry | null {
   }
 }
 
+type ListSortBy = NonNullable<ListCursorQuery['sortBy']>
+type ListSortOrder = NonNullable<ListCursorQuery['sortOrder']>
+type FileEntryCursorPayload = {
+  sortBy: ListSortBy
+  sortOrder: ListSortOrder
+  value: string | number
+  id: FileEntryId
+}
+
+const DEFAULT_LIST_SORT_BY: ListSortBy = 'createdAt'
+const DEFAULT_LIST_SORT_ORDER: ListSortOrder = 'asc'
+const FILE_ENTRY_SIZE_NULL_SORT_VALUE = -1
+
+function getListSortValue(row: FileEntryRow, sortBy: ListSortBy): string | number {
+  switch (sortBy) {
+    case 'name':
+      return row.name
+    case 'updatedAt':
+      return row.updatedAt
+    case 'size':
+      return row.size ?? FILE_ENTRY_SIZE_NULL_SORT_VALUE
+    case 'createdAt':
+      return row.createdAt
+  }
+}
+
+function getListSortExpression(sortBy: ListSortBy): SQL<string | number> {
+  switch (sortBy) {
+    case 'name':
+      return sql<string>`${fileEntryTable.name}`
+    case 'updatedAt':
+      return sql<number>`${fileEntryTable.updatedAt}`
+    case 'size':
+      return sql<number>`coalesce(${fileEntryTable.size}, ${FILE_ENTRY_SIZE_NULL_SORT_VALUE})`
+    case 'createdAt':
+      return sql<number>`${fileEntryTable.createdAt}`
+  }
+}
+
+function encodeListCursor(row: FileEntryRow, sortBy: ListSortBy, sortOrder: ListSortOrder): string {
+  return Buffer.from(JSON.stringify({ sortBy, sortOrder, value: getListSortValue(row, sortBy), id: row.id })).toString(
+    'base64url'
+  )
+}
+
+function warnAndIgnoreListCursor(raw: string, reason: string): null {
+  logger.warn('listCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
+  return null
+}
+
+function decodeListCursor(
+  raw: string | undefined,
+  sortBy: ListSortBy,
+  sortOrder: ListSortOrder
+): FileEntryCursorPayload | null {
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<FileEntryCursorPayload>
+    if (parsed.sortBy !== sortBy || parsed.sortOrder !== sortOrder) {
+      return warnAndIgnoreListCursor(raw, 'cursor sort does not match current query')
+    }
+    if (!parsed.id || typeof parsed.id !== 'string') {
+      return warnAndIgnoreListCursor(raw, 'missing id')
+    }
+    const value = parsed.value
+    if (sortBy === 'name') {
+      if (typeof value !== 'string') return warnAndIgnoreListCursor(raw, 'sort value has wrong type')
+      return { sortBy, sortOrder, value, id: parsed.id }
+    }
+    if (typeof value !== 'number') return warnAndIgnoreListCursor(raw, 'sort value has wrong type')
+    return { sortBy, sortOrder, value, id: parsed.id }
+  } catch (error) {
+    return warnAndIgnoreListCursor(raw, error instanceof Error ? error.message : String(error))
+  }
+}
+
 class FileEntryServiceImpl implements FileEntryService {
   private getDb() {
     return application.get('DbService').getDb()
@@ -340,51 +412,58 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
-  async listPaged(query: ListPagedQuery = {}): Promise<ListPagedResult> {
-    const conditions: SQL[] = []
+  async listCursor(query: ListCursorQuery = {}): Promise<FileEntryListResponse> {
+    const filterConditions: SQL[] = []
     if (query.origin) {
-      conditions.push(eq(fileEntryTable.origin, query.origin))
+      filterConditions.push(eq(fileEntryTable.origin, query.origin))
     }
     if (query.inTrash === true) {
-      conditions.push(isNotNull(fileEntryTable.deletedAt))
+      filterConditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
-      conditions.push(isNull(fileEntryTable.deletedAt))
+      filterConditions.push(isNull(fileEntryTable.deletedAt))
     }
-    const where = and(...conditions)
 
-    const sortColumn = (() => {
-      switch (query.sortBy) {
-        case 'name':
-          return fileEntryTable.name
-        case 'updatedAt':
-          return fileEntryTable.updatedAt
-        case 'size':
-          return fileEntryTable.size
-        default:
-          return fileEntryTable.createdAt
-      }
-    })()
+    const sortBy = query.sortBy ?? DEFAULT_LIST_SORT_BY
+    const sortOrder = query.sortOrder ?? DEFAULT_LIST_SORT_ORDER
+    const sortExpression = getListSortExpression(sortBy)
+    const cursor = decodeListCursor(query.cursor, sortBy, sortOrder)
+    const conditions = [...filterConditions]
+    if (cursor) {
+      conditions.push(
+        sortOrder === 'desc'
+          ? sql`(${sortExpression} < ${cursor.value} OR (${sortExpression} = ${cursor.value} AND ${fileEntryTable.id} < ${cursor.id}))`
+          : sql`(${sortExpression} > ${cursor.value} OR (${sortExpression} = ${cursor.value} AND ${fileEntryTable.id} > ${cursor.id}))`
+      )
+    }
+
     // Stable ORDER BY: append `id` as a tie-breaker so rows that share the
     // user-selected sort value (same createdAt, same name, etc.) have a
-    // deterministic relative order across pages. Without this, limit/offset
-    // pagination over ties may surface a row on page 1 and again (or not
-    // at all) on page 2 depending on SQLite's internal row order.
-    const tieBreaker = query.sortOrder === 'desc' ? desc(fileEntryTable.id) : asc(fileEntryTable.id)
-    const order = query.sortOrder === 'desc' ? desc(sortColumn) : asc(sortColumn)
+    // deterministic relative order across cursor pages.
+    const tieBreaker = sortOrder === 'desc' ? desc(fileEntryTable.id) : asc(fileEntryTable.id)
+    const order = sortOrder === 'desc' ? desc(sortExpression) : asc(sortExpression)
 
-    const page = query.page ?? 1
     const pageSize = query.limit ?? 50
-    const offset = (page - 1) * pageSize
+    const where = and(...conditions)
+    const filterWhere = and(...filterConditions)
 
     const [rows, totalRow] = await Promise.all([
-      this.getDb().select().from(fileEntryTable).where(where).orderBy(order, tieBreaker).limit(pageSize).offset(offset),
-      this.getDb().select({ value: count() }).from(fileEntryTable).where(where)
+      this.getDb()
+        .select()
+        .from(fileEntryTable)
+        .where(where)
+        .orderBy(order, tieBreaker)
+        .limit(pageSize + 1),
+      this.getDb().select({ value: count() }).from(fileEntryTable).where(filterWhere)
     ])
+    const pageRows = rows.slice(0, pageSize)
 
     return {
-      items: rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null),
+      items: pageRows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null),
       total: totalRow[0]?.value ?? 0,
-      page
+      nextCursor:
+        rows.length > pageSize && pageRows.length > 0
+          ? encodeListCursor(pageRows[pageRows.length - 1], sortBy, sortOrder)
+          : undefined
     }
   }
 

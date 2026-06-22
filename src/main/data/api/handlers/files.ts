@@ -28,7 +28,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
     GET: async ({ query }) => {
       const validated = ListFilesQuerySchema.parse(query ?? {})
-      return fileEntryService.listPaged(validated)
+      return fileEntryService.listCursor(validated)
     }
   },
 

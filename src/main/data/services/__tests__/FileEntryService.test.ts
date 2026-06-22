@@ -325,7 +325,7 @@ describe('FileEntryService', () => {
     })
   })
 
-  describe('listPaged', () => {
+  describe('listCursor', () => {
     async function seed5(): Promise<void> {
       const now = Date.now()
       const rows = Array.from({ length: 5 }, (_, i) => ({
@@ -342,7 +342,7 @@ describe('FileEntryService', () => {
       await dbh.db.insert(fileEntryTable).values(rows)
     }
 
-    it('returns { items, total, page } with active-only filtering by default', async () => {
+    it('returns { items, total, nextCursor } with active-only filtering by default', async () => {
       const now = Date.now()
       await dbh.db.insert(fileEntryTable).values([
         {
@@ -369,36 +369,38 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const result = await fileEntryService.listPaged()
+      const result = await fileEntryService.listCursor()
       expect(result.items).toHaveLength(1)
       expect(result.items[0].name).toBe('a')
       expect(result.total).toBe(1)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
     })
 
-    it('paginates with page+limit and reports the true total across pages', async () => {
+    it('paginates with cursor+limit and reports the true total across pages', async () => {
       await seed5()
 
-      const page1 = await fileEntryService.listPaged({ page: 1, limit: 2 })
-      const page2 = await fileEntryService.listPaged({ page: 2, limit: 2 })
-      const page3 = await fileEntryService.listPaged({ page: 3, limit: 2 })
+      const page1 = await fileEntryService.listCursor({ limit: 2 })
+      const page2 = await fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
+      const page3 = await fileEntryService.listCursor({ cursor: page2.nextCursor, limit: 2 })
 
-      expect(page1.items).toHaveLength(2)
+      expect(page1.items.map((e) => e.name)).toEqual(['name0', 'name1'])
       expect(page1.total).toBe(5)
-      expect(page2.items).toHaveLength(2)
+      expect(page1.nextCursor).toBeDefined()
+      expect(page2.items.map((e) => e.name)).toEqual(['name2', 'name3'])
       expect(page2.total).toBe(5)
-      expect(page3.items).toHaveLength(1)
+      expect(page2.nextCursor).toBeDefined()
+      expect(page3.items.map((e) => e.name)).toEqual(['name4'])
       expect(page3.total).toBe(5)
-      expect(page3.page).toBe(3)
+      expect(page3.nextCursor).toBeUndefined()
     })
 
     it('sorts ascending by createdAt by default; reverses with sortOrder=desc', async () => {
       await seed5()
 
-      const asc = await fileEntryService.listPaged({})
+      const asc = await fileEntryService.listCursor({})
       expect(asc.items.map((e) => e.name)).toEqual(['name0', 'name1', 'name2', 'name3', 'name4'])
 
-      const desc = await fileEntryService.listPaged({ sortOrder: 'desc' })
+      const desc = await fileEntryService.listCursor({ sortOrder: 'desc' })
       expect(desc.items.map((e) => e.name)).toEqual(['name4', 'name3', 'name2', 'name1', 'name0'])
     })
 
@@ -441,24 +443,24 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const result = await fileEntryService.listPaged({ sortBy: 'name' })
+      const result = await fileEntryService.listCursor({ sortBy: 'name' })
       expect(result.items.map((e) => e.name)).toEqual(['alpha', 'bravo', 'charlie'])
     })
 
     it('returns { items: [], total: 0 } on an empty table', async () => {
-      const result = await fileEntryService.listPaged()
+      const result = await fileEntryService.listCursor()
       expect(result.items).toEqual([])
       expect(result.total).toBe(0)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
     })
 
     /**
      * Tie-breaker coverage: without a secondary `ORDER BY id`, SQLite's row
-     * order for equal sort values is unspecified, so `limit/offset`
-     * pagination over ties can surface the same row twice across pages or
-     * drop a row entirely. These tests pin the deterministic-across-pages
-     * contract — page1 ∪ page2 must equal the full row set, no duplicates,
-     * no misses — for both sort directions.
+     * order for equal sort values is unspecified, so cursor pagination over
+     * ties can surface the same row twice across pages or drop a row entirely.
+     * These tests pin the deterministic-across-pages contract — page1 ∪ page2
+     * must equal the full row set, no duplicates, no misses — for both sort
+     * directions.
      */
     describe('stable pagination over tied sort values', () => {
       async function seedSameCreatedAt(): Promise<string[]> {
@@ -487,8 +489,8 @@ describe('FileEntryService', () => {
 
       it('asc: pages over rows with identical createdAt have no overlap and miss nothing', async () => {
         const ids = await seedSameCreatedAt()
-        const page1 = await fileEntryService.listPaged({ page: 1, limit: 2 })
-        const page2 = await fileEntryService.listPaged({ page: 2, limit: 2 })
+        const page1 = await fileEntryService.listCursor({ limit: 2 })
+        const page2 = await fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
 
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
@@ -523,8 +525,13 @@ describe('FileEntryService', () => {
           }))
         )
 
-        const page1 = await fileEntryService.listPaged({ sortBy: 'name', sortOrder: 'desc', page: 1, limit: 2 })
-        const page2 = await fileEntryService.listPaged({ sortBy: 'name', sortOrder: 'desc', page: 2, limit: 2 })
+        const page1 = await fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'desc', limit: 2 })
+        const page2 = await fileEntryService.listCursor({
+          sortBy: 'name',
+          sortOrder: 'desc',
+          cursor: page1.nextCursor,
+          limit: 2
+        })
 
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
@@ -1010,9 +1017,9 @@ describe('FileEntryService', () => {
       await expect(fileEntryService.findById(goodId)).resolves.toMatchObject({ id: goodId })
     })
 
-    it('listPaged excludes bad rows from items while total still counts them', async () => {
+    it('listCursor excludes bad rows from items while total still counts them', async () => {
       await seedOneGoodOneBad()
-      const page = await fileEntryService.listPaged()
+      const page = await fileEntryService.listCursor()
       expect(page.items.map((e) => e.id)).toEqual([goodId])
       expect(page.total).toBe(2)
     })

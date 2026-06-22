@@ -46,7 +46,7 @@
  * call File IPC `getMetadata(id)` which performs a single `fs.stat`.
  */
 
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
 import { FileEntryIdSchema, FileEntryOriginSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
 import * as z from 'zod'
@@ -65,7 +65,6 @@ export interface FileEntryRefCount {
 
 // ─── Pagination & batch caps ───
 
-export const LIST_FILES_DEFAULT_PAGE = 1
 export const LIST_FILES_DEFAULT_LIMIT = 50
 export const LIST_FILES_MAX_LIMIT = 100
 /**
@@ -84,15 +83,19 @@ export const ListFilesQuerySchema = z
     inTrash: z.boolean().optional(),
     sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size']).optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),
-    page: z.int().positive().default(LIST_FILES_DEFAULT_PAGE),
+    cursor: z.string().optional(),
     limit: z.int().positive().max(LIST_FILES_MAX_LIMIT).default(LIST_FILES_DEFAULT_LIMIT)
   })
   .refine(
     (q) => !(q.inTrash === true && q.origin === 'external'),
     'inTrash=true is incompatible with origin=external — external entries cannot be trashed (DB CHECK fe_external_no_delete)'
   )
-export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema>
+export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema> & CursorPaginationParams
 export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
+
+export interface FileEntryListResponse extends CursorPaginationResponse<FileEntry> {
+  total: number
+}
 
 export const RefCountsQuerySchema = z.strictObject({
   entryIds: z.array(FileEntryIdSchema).max(REF_COUNTS_MAX_ENTRY_IDS)
@@ -117,12 +120,16 @@ export type FileSchemas = {
    * dangling state, absolute paths, or safe URLs, call the dedicated endpoint
    * (for ref counts) or the corresponding File IPC method.
    *
+   * Cursor semantics: an absent `cursor` returns the first page in the selected
+   * order; `nextCursor` is opaque and walks to the next page with the same
+   * filter/sort query. The response also includes `total` for the filtered set.
+   *
    * Sorting caveat: `sortBy: 'size'` is only meaningful within an
    * `origin='internal'` filter. External rows have `size IS NULL` (no DB
    * snapshot by design), so a mixed-origin size sort collates all externals
-   * at one end (SQLite NULLs last for ASC, first for DESC). Callers that need
-   * a live size-sorted view of external entries must fetch unsorted and sort
-   * in the renderer after calling `getMetadata`.
+   * using the service's null sentinel before/after sized rows by sort order.
+   * Callers that need a live size-sorted view of external entries must fetch
+   * unsorted and sort in the renderer after calling `getMetadata`.
    *
    * Trash + origin caveat: the combination `inTrash=true & origin='external'`
    * is rejected by the schema (`ListFilesQuerySchema` `.refine` rule),
@@ -139,7 +146,7 @@ export type FileSchemas = {
   '/files/entries': {
     GET: {
       query?: ListFilesQueryParams
-      response: OffsetPaginationResponse<FileEntry>
+      response: FileEntryListResponse
     }
   }
 

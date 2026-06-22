@@ -47,14 +47,14 @@ describe('fileHandlers (DataApi)', () => {
       const result = (await fileHandlers['/files/entries'].GET({ query: {} } as never)) as {
         items: unknown[]
         total: number
-        page: number
+        nextCursor?: string
       }
       expect(result.items.length).toBe(2)
       expect(result.total).toBe(2)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
     })
 
-    it('filters by origin and applies pagination', async () => {
+    it('filters by origin and applies cursor pagination', async () => {
       await Promise.all([
         seedEntry('019606a0-0000-7000-8000-000000000a10', { origin: 'internal', name: 'a' }),
         seedEntry('019606a0-0000-7000-8000-000000000a11', { origin: 'internal', name: 'b' }),
@@ -67,22 +67,23 @@ describe('fileHandlers (DataApi)', () => {
       ])
 
       const result = (await fileHandlers['/files/entries'].GET({
-        query: { origin: 'external', limit: 10, page: 1 }
-      } as never)) as { items: Array<{ origin: string }>; total: number; page: number }
+        query: { origin: 'external', limit: 10 }
+      } as never)) as { items: Array<{ origin: string }>; total: number; nextCursor?: string }
       expect(result.items.length).toBe(1)
       expect(result.items[0].origin).toBe('external')
+      expect(result.nextCursor).toBeUndefined()
     })
 
     it('rejects limit above the MAX cap with ZodError', async () => {
       // Without a `.max()` on the query schema, a caller could ask for an
-      // unbounded page (DoS surface against the SELECT). Pin the upper bound.
+      // unbounded cursor page (DoS surface against the SELECT). Pin the upper bound.
       await expect(fileHandlers['/files/entries'].GET({ query: { limit: 999 } } as never)).rejects.toHaveProperty(
         'name',
         'ZodError'
       )
     })
 
-    it('rejects non-positive limit and page with ZodError', async () => {
+    it('rejects non-positive limit and unknown page with ZodError', async () => {
       await expect(fileHandlers['/files/entries'].GET({ query: { limit: 0 } } as never)).rejects.toHaveProperty(
         'name',
         'ZodError'
