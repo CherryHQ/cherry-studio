@@ -9,7 +9,7 @@ import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type GlobalSearchMessagePreviewTarget =
@@ -40,6 +40,8 @@ interface GlobalSearchMessagePreviewPanelProps {
 }
 
 const PREVIEW_PAGE_SIZE = 50
+// Distance (px) from the top of the scroll container at which scrolling up loads an older page.
+const LOAD_OLDER_SCROLL_THRESHOLD = 200
 const PREVIEW_MATCH_MODE = 'substring'
 const HIGHLIGHT_MARK_SELECTOR = 'mark[data-global-search-preview-highlight="true"]'
 const MESSAGE_BODY_SELECTOR = '[data-global-search-preview-message-body="true"]'
@@ -75,7 +77,16 @@ function getTargetMessageType(target: GlobalSearchMessagePreviewTarget) {
 }
 
 function getMessageRoleLabelKey(role: string) {
-  return role === 'assistant' ? 'globalSearch.messageSearch.roles.assistant' : 'globalSearch.messageSearch.roles.user'
+  switch (role) {
+    case 'assistant':
+      return 'globalSearch.messageSearch.roles.assistant'
+    case 'system':
+      return 'globalSearch.messageSearch.roles.system'
+    case 'tool':
+      return 'globalSearch.messageSearch.roles.tool'
+    default:
+      return 'globalSearch.messageSearch.roles.user'
+  }
 }
 
 function unwrapPreviewHighlights(root: HTMLElement) {
@@ -165,6 +176,12 @@ export function GlobalSearchMessagePreviewPanel({
 }: GlobalSearchMessagePreviewPanelProps) {
   const { t } = useTranslation()
   const contentRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  // Distance from the bottom captured before an older page is prepended, used to restore the scroll
+  // position. Distance-from-bottom is invariant to content prepended at the top (incl. the spinner).
+  const pendingOlderAnchorRef = useRef<number | null>(null)
+  // The active message id we have already auto-scrolled to, so prepending older pages does not yank back.
+  const scrolledActiveMessageIdRef = useRef<string | null>(null)
   const [activeMessageId, setActiveMessageId] = useState(target.messageId)
   const topicId = target.sourceType === 'topic' ? target.topicId : ''
   const sessionId = target.sourceType === 'session' ? target.sessionId : ''
@@ -190,23 +207,10 @@ export function GlobalSearchMessagePreviewPanel({
     loadNext: loadNextSessionPage
   } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
+    query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'session'
   })
-
-  useEffect(() => {
-    if (target.sourceType !== 'topic') return
-    if (hasNextTopicPage && !isTopicLoading && !isTopicRefreshing) {
-      loadNextTopicPage()
-    }
-  }, [hasNextTopicPage, isTopicLoading, isTopicRefreshing, loadNextTopicPage, target.sourceType])
-
-  useEffect(() => {
-    if (target.sourceType !== 'session') return
-    if (hasNextSessionPage && !isSessionLoading && !isSessionRefreshing) {
-      loadNextSessionPage()
-    }
-  }, [hasNextSessionPage, isSessionLoading, isSessionRefreshing, loadNextSessionPage, target.sourceType])
 
   const topicBranchItems = useInfiniteFlatItems(topicPages, { reversePages: true })
   const sessionRows = useInfiniteFlatItems(sessionPages, { reversePages: true, reverseItems: true })
@@ -235,6 +239,30 @@ export function GlobalSearchMessagePreviewPanel({
       ? isTopicRefreshing && messages.length > 0
       : isSessionRefreshing && messages.length > 0
   const error = target.sourceType === 'topic' ? topicError : sessionError
+  const hasMoreOlder = target.sourceType === 'topic' ? hasNextTopicPage : hasNextSessionPage
+  const loadOlder = target.sourceType === 'topic' ? loadNextTopicPage : loadNextSessionPage
+
+  // Scrolling near the top loads the next (older) page. Topic and session share this path because
+  // both endpoints walk newest-first via the same hasNext/loadNext contract.
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container || !hasMoreOlder) return
+    if (pendingOlderAnchorRef.current !== null) return
+    if (container.scrollTop > LOAD_OLDER_SCROLL_THRESHOLD) return
+
+    pendingOlderAnchorRef.current = container.scrollHeight - container.scrollTop
+    loadOlder()
+  }, [hasMoreOlder, loadOlder])
+
+  // After an older page is prepended, restore the scroll position so the view does not jump.
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current
+    const previousDistanceFromBottom = pendingOlderAnchorRef.current
+    if (!container || previousDistanceFromBottom === null) return
+
+    container.scrollTop = container.scrollHeight - previousDistanceFromBottom
+    pendingOlderAnchorRef.current = null
+  }, [messages])
 
   useEffect(() => {
     setActiveMessageId(target.messageId)
@@ -263,8 +291,11 @@ export function GlobalSearchMessagePreviewPanel({
   }, [messageItems, searchQuery])
 
   useEffect(() => {
+    // Only auto-scroll once per active message; prepending older pages must not pull the view back.
+    if (scrolledActiveMessageIdRef.current === activeMessageId) return
     if (!messages.some((message) => message.id === activeMessageId)) return
 
+    scrolledActiveMessageIdRef.current = activeMessageId
     const frame = window.requestAnimationFrame(() => {
       const element = document.getElementById(`global-search-preview-message-${activeMessageId}`)
       const highlight = element?.querySelector(`${MESSAGE_BODY_SELECTOR} ${HIGHLIGHT_MARK_SELECTOR}`)
@@ -300,7 +331,7 @@ export function GlobalSearchMessagePreviewPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-20">
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-20">
         {isLoading && messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
             {t('common.loading')}
@@ -320,6 +351,9 @@ export function GlobalSearchMessagePreviewPanel({
             topic={previewTopic}
             renderConfig={{ narrowMode: false, showMessageOutline: false }}>
             <div ref={contentRef} className="flex flex-col gap-4">
+              {isLoadingMore && (
+                <div className="py-2 text-center text-muted-foreground text-xs">{t('common.loading')}</div>
+              )}
               {messageItems.map((message) => (
                 <div
                   key={message.id}
@@ -345,9 +379,6 @@ export function GlobalSearchMessagePreviewPanel({
                   </div>
                 </div>
               ))}
-              {isLoadingMore && (
-                <div className="py-2 text-center text-muted-foreground text-xs">{t('common.loading')}</div>
-              )}
             </div>
           </MessageContentProvider>
         )}

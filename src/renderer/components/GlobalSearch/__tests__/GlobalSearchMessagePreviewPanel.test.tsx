@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,6 +85,8 @@ vi.mock('react-i18next', () => ({
         'common.unnamed': 'Unnamed',
         'globalSearch.error': 'Search failed',
         'globalSearch.messageSearch.roles.assistant': 'Assistant',
+        'globalSearch.messageSearch.roles.system': 'System',
+        'globalSearch.messageSearch.roles.tool': 'Tool',
         'globalSearch.messageSearch.roles.user': 'User',
         'globalSearch.messageSearch.sources.session': 'Task messages',
         'globalSearch.messageSearch.sources.topic': 'Conversation messages'
@@ -93,6 +95,12 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { GlobalSearchMessagePreviewPanel } from '../GlobalSearchMessagePreviewPanel'
+
+// jsdom does not lay out, so scroll geometry has to be stubbed for the scroll-to-load-older handler.
+function setScrollGeometry(scroller: HTMLElement, geometry: { scrollTop: number; scrollHeight: number }) {
+  Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: geometry.scrollHeight })
+  scroller.scrollTop = geometry.scrollTop
+}
 
 describe('GlobalSearchMessagePreviewPanel', () => {
   beforeEach(() => {
@@ -192,8 +200,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('loads session preview messages and continues loading available context', async () => {
-    vi.mocked(mocks.sessionLoadNext).mockClear()
+  it('loads the anchored session preview page without auto-loading more context', async () => {
     mocks.topicPages = []
     mocks.sessionHasNext = true
     mocks.sessionPages = [
@@ -219,8 +226,6 @@ describe('GlobalSearchMessagePreviewPanel', () => {
       }
     ]
 
-    vi.mocked(mocks.sessionLoadNext).mockImplementation(() => undefined)
-
     render(
       <GlobalSearchMessagePreviewPanel
         searchQuery="needle"
@@ -235,9 +240,9 @@ describe('GlobalSearchMessagePreviewPanel', () => {
       />
     )
 
+    expect(await screen.findByText('message-content:session-message-1')).toBeInTheDocument()
     expect(screen.getByText('Session A')).toBeInTheDocument()
     expect(screen.getByText('Task messages')).toBeInTheDocument()
-    await waitFor(() => expect(mocks.sessionLoadNext).toHaveBeenCalledTimes(1))
     expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(
       '/agent-sessions/:sessionId/messages',
       expect.objectContaining({
@@ -249,6 +254,151 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     const sessionQueryOptions = vi
       .mocked(mocks.useInfiniteQuery)
       .mock.calls.find(([path]) => path === '/agent-sessions/:sessionId/messages')?.[1] as Record<string, unknown>
-    expect(sessionQueryOptions).not.toHaveProperty('query')
+    expect(sessionQueryOptions).toMatchObject({
+      query: { messageId: 'session-message-1' }
+    })
+    // Anchored at the matched message; older context is never auto-paginated even when available.
+    expect(mocks.sessionLoadNext).not.toHaveBeenCalled()
+  })
+
+  it('loads an older session page when the user scrolls near the top', async () => {
+    mocks.topicPages = []
+    mocks.sessionHasNext = true
+    mocks.sessionPages = [
+      {
+        items: [
+          {
+            id: 'session-message-1',
+            sessionId: 'session-1',
+            role: 'assistant',
+            data: { parts: [{ type: 'text', text: 'session reply' }] },
+            status: 'success',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            modelId: null,
+            modelSnapshot: null,
+            traceId: null,
+            stats: null,
+            runtimeResumeToken: null,
+            searchableText: 'session reply'
+          }
+        ],
+        nextCursor: 'cursor-1'
+      }
+    ]
+
+    const { container } = render(
+      <GlobalSearchMessagePreviewPanel
+        searchQuery="needle"
+        target={{
+          sourceType: 'session',
+          sessionId: 'session-1',
+          title: 'Session A',
+          messageId: 'session-message-1'
+        }}
+        onClose={mocks.onClose}
+        onOpenMessage={mocks.onOpenMessage}
+      />
+    )
+
+    await screen.findByText('message-content:session-message-1')
+    const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+
+    setScrollGeometry(scroller, { scrollTop: 1000, scrollHeight: 4000 })
+    fireEvent.scroll(scroller)
+    expect(mocks.sessionLoadNext).not.toHaveBeenCalled()
+
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4000 })
+    fireEvent.scroll(scroller)
+    expect(mocks.sessionLoadNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads an older topic page when the user scrolls near the top', async () => {
+    mocks.topicHasNext = true
+
+    const { container } = render(
+      <GlobalSearchMessagePreviewPanel
+        searchQuery="needle"
+        target={{
+          sourceType: 'topic',
+          topicId: 'topic-1',
+          title: 'Topic A',
+          messageId: 'topic-message-2'
+        }}
+        onClose={mocks.onClose}
+        onOpenMessage={mocks.onOpenMessage}
+      />
+    )
+
+    await screen.findByText('message-content:topic-message-2')
+    const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4000 })
+    fireEvent.scroll(scroller)
+    expect(mocks.topicLoadNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not load older pages on scroll when there are none left', async () => {
+    mocks.topicHasNext = false
+
+    const { container } = render(
+      <GlobalSearchMessagePreviewPanel
+        searchQuery="needle"
+        target={{
+          sourceType: 'topic',
+          topicId: 'topic-1',
+          title: 'Topic A',
+          messageId: 'topic-message-2'
+        }}
+        onClose={mocks.onClose}
+        onOpenMessage={mocks.onOpenMessage}
+      />
+    )
+
+    await screen.findByText('message-content:topic-message-2')
+    const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4000 })
+    fireEvent.scroll(scroller)
+    expect(mocks.topicLoadNext).not.toHaveBeenCalled()
+  })
+
+  it('uses the system role label for system preview messages', async () => {
+    mocks.topicPages = [
+      {
+        items: [
+          {
+            message: {
+              id: 'topic-message-system',
+              topicId: 'topic-1',
+              parentId: null,
+              role: 'system',
+              data: { parts: [{ type: 'text', text: 'system prompt' }] },
+              status: 'success',
+              siblingsGroupId: 0,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            }
+          }
+        ]
+      }
+    ]
+
+    render(
+      <GlobalSearchMessagePreviewPanel
+        searchQuery="needle"
+        target={{
+          sourceType: 'topic',
+          topicId: 'topic-1',
+          title: 'Topic A',
+          messageId: 'topic-message-system'
+        }}
+        onClose={mocks.onClose}
+        onOpenMessage={mocks.onOpenMessage}
+      />
+    )
+
+    expect(await screen.findByText('System')).toBeInTheDocument()
+    expect(screen.queryByText('User')).not.toBeInTheDocument()
   })
 })
