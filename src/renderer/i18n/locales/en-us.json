@@ -4740,6 +4740,10 @@
         "title": "Official Website"
       }
     },
+    "advanced": {
+      "auto_switch_to_topics": "Auto switch to topic",
+      "title": "Advanced Settings"
+    },
     "assistant": {
       "icon": {
         "type": {

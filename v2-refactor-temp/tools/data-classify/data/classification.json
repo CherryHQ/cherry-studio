@@ -1089,7 +1089,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "assistant.click_to_show_topic"
         },
         {
           "originalKey": "autoCheckUpdate",

@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-06-22T07:37:53.572Z
+ * Generated at: 2026-06-02T09:40:02.540Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -177,6 +177,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'pasteLongTextThreshold',
       targetKey: 'chat.input.paste_long_text_threshold'
+    },
+    {
+      originalKey: 'clickAssistantToShowTopic',
+      targetKey: 'assistant.click_to_show_topic'
     },
     {
       originalKey: 'renderInputMessageAsMarkdown',
@@ -827,11 +831,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 183
+ * - Redux Store项: 184
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 188
+ * - 总配置项: 189
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

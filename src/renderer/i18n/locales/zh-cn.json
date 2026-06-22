@@ -4740,6 +4740,10 @@
         "title": "官方网站"
       }
     },
+    "advanced": {
+      "auto_switch_to_topics": "自动切换到话题",
+      "title": "高级设置"
+    },
     "assistant": {
       "icon": {
         "type": {
