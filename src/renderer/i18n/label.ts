@@ -33,6 +33,7 @@ const providerKeyMap = {
   cephalon: 'provider.cephalon',
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
+  'claude-code': 'provider.claude-code',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',
