@@ -26,6 +26,7 @@ import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
   type KnowledgeItemData,
   type KnowledgeItemType
@@ -61,11 +62,18 @@ const REMOVE_RETRY_OPTIONS = { recursive: true, force: true, maxRetries: 5, retr
 // rename / writeFile / mkdir face the same transient Windows locks as fs.rm — Defender or the
 // Search Indexer briefly opens a just-written file, so MoveFileEx / open throws
 // EPERM / EACCES / EBUSY — but fs.rm's built-in retry does not cover them, and its errno set
-// notably omits EACCES. Wrap these mutations in a retry with the same 5×100ms budget plus EACCES,
-// so a single momentary lock no longer fails the whole migration (the user-reported symptom).
+// notably omits EACCES. Wrap these mutations in a retry (plus EACCES) so a single momentary lock no
+// longer fails the whole migration (the user-reported symptom). The earlier flat 5×100ms (~400ms)
+// budget proved too short for the index.sqlite rename: a real Windows install kept the just-closed
+// libsql handle / an AV scan on the file long enough to outlast it, so the rename failed and the
+// base was left without its store. Back off exponentially up to FS_RETRY_MAX_DELAY_MS so early
+// retries stay fast (most locks clear in <500ms) while the tail stretches to a few seconds for the
+// stubborn ones, before finally surfacing the failure to the per-base catch (which marks the base
+// `failed`/restorable rather than leaving it silently empty).
 const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
-const FS_RETRY_MAX_ATTEMPTS = 5
-const FS_RETRY_DELAY_MS = 100
+const FS_RETRY_MAX_ATTEMPTS = 8
+const FS_RETRY_BASE_DELAY_MS = 100
+const FS_RETRY_MAX_DELAY_MS = 1500
 
 // inArray() binds one SQL variable per id; a single UPDATE over the whole degrade set would
 // overflow SQLite's bound-variable cap once a corpus accumulates enough orphaned directory items.
@@ -82,7 +90,8 @@ async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T
       if (attempt >= FS_RETRY_MAX_ATTEMPTS || code === undefined || !TRANSIENT_FS_LOCK_CODES.has(code)) {
         throw error
       }
-      await new Promise((resolve) => setTimeout(resolve, FS_RETRY_DELAY_MS))
+      const delay = Math.min(FS_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), FS_RETRY_MAX_DELAY_MS)
+      await new Promise((resolve) => setTimeout(resolve, delay))
     }
   }
 }
@@ -257,6 +266,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   // virtual path with no raw/ file, so reindex is rejected and they would be invisible empty
   // docs; execute() degrades them to `failed`/directory_not_migrated so the UI prompts a re-add.
   private directoryItemsToDegrade = new Set<string>()
+  // Bases whose vector store was built into the temp index but could not be promoted onto the
+  // runtime index.sqlite (the rename outlived the transient-lock retry budget). flushBaseFailures()
+  // marks each `failed`/missing_vector_store after the loop so the UI surfaces a restore entry
+  // instead of leaving a `completed` base with a missing/empty store and forever-empty search.
+  private basesToMarkFailed = new Set<string>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -267,6 +281,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.successfulBaseIds = new Set<string>()
     this.executionErrors = []
     this.directoryItemsToDegrade = new Set<string>()
+    this.basesToMarkFailed = new Set<string>()
   }
 
   /**
@@ -860,6 +875,44 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     })
   }
 
+  /**
+   * Mark every base whose vector store could not be promoted (collected in execute()'s per-base
+   * catch) as a restorable `failed` row. The temp index was built but the rename onto the runtime
+   * index.sqlite failed — typically a transient Windows lock that outlived the retry budget — so the
+   * store is missing/empty. Without this the base stays `completed` and the runtime mounts an empty
+   * store: search and the chunk list return nothing forever, and nothing reindexes on its own
+   * (KnowledgeVectorStoreService only logs the empty-store state). `missing_vector_store` is the same
+   * restorable error prepare()'s unreadable-store branch sets, so the UI offers a re-index that
+   * rebuilds from the migrated raw/ files. Best-effort and chunked like flushDirectoryDegradations:
+   * a failed UPDATE is recorded as a warning, never thrown, so it cannot abort the surviving bases.
+   */
+  private async flushBaseFailures(ctx: MigrationContext): Promise<void> {
+    if (this.basesToMarkFailed.size === 0) {
+      return
+    }
+    const ids = [...this.basesToMarkFailed]
+    let failedCount = 0
+    for (let offset = 0; offset < ids.length; offset += DEGRADE_UPDATE_CHUNK) {
+      const batch = ids.slice(offset, offset + DEGRADE_UPDATE_CHUNK)
+      try {
+        await ctx.db
+          .update(knowledgeBaseTable)
+          .set({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
+          .where(inArray(knowledgeBaseTable.id, batch))
+        failedCount += batch.length
+      } catch (error) {
+        // Best-effort per batch: one failed batch must not abort the rest of the pass.
+        this.recordWarning(
+          `Failed to mark ${batch.length} knowledge base(s) failed after vector store promotion failed: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    }
+    logger.info('Marked knowledge bases failed after vector store promotion failed', {
+      failedCount,
+      totalCount: ids.length
+    })
+  }
+
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     // Warnings collected so far are prepare()'s and were already returned to the engine; capture the
     // boundary so execute() surfaces only its own warnings (the engine merges prepare + execute, so
@@ -882,6 +935,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
     for (const plan of this.preparedBasePlans) {
       const tempPath = this.getTempVectorStorePath(plan.targetDbPath)
+      // Did the rebuilt store actually land on its runtime path? Flipped true the instant the rename
+      // succeeds. It gates the per-base catch's mark-failed: a failure BEFORE promotion (rebuild or
+      // rename) means no store exists, so the base must become restorable `failed`; a failure AFTER
+      // (the snapshot-pin UPDATE) leaves a present, searchable store, so marking it failed would
+      // force a needless full re-index.
+      let storePromoted = false
 
       try {
         await retryOnTransientFsLock(() => fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true }))
@@ -935,6 +994,9 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // Windows (POSIX rename overwrites, Windows throws on an existing target).
         await this.removeIndexStoreFiles(plan.targetDbPath)
         await retryOnTransientFsLock(() => fs.promises.rename(tempPath, plan.targetDbPath))
+        // The store is now on its runtime path: any later failure (snapshot-pin) leaves it present
+        // and searchable, so it must NOT be marked missing_vector_store in the catch.
+        storePromoted = true
 
         // Materialize each migrated url/note snapshot file under the base's `raw/`
         // material root (overwriting a previous partial run's copy) and pin the item
@@ -996,10 +1058,23 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // lockstep — the genuine per-base skip the engine then accepts. And degrade this base's
         // directory-expanded items the same way a prepare-time skip does, so once the migration is
         // allowed to succeed its children are not left `completed` with no vectors (an
-        // unreindexable virtual-path orphan); regular file items keep their real raw/ file and
-        // self-heal via runtime reindex, so they need no degrade here.
+        // unreindexable virtual-path orphan).
+        //
+        // Mark the base itself `failed`/missing_vector_store (flushed after the loop) ONLY when its
+        // store never landed (rebuild or rename failed; storePromoted still false). Leaving such a
+        // base `completed` makes the runtime mount an empty store and return empty search/chunk
+        // results forever — there is NO auto-reindex (KnowledgeVectorStoreService only logs the
+        // empty-store state, it does not rebuild). A `failed` base is kept out of the runtime's open
+        // path and surfaces a restore/re-index entry, matching prepare()'s restorable
+        // unreadable-store branch. Regular file/url/note rows stay `completed`; restore re-reads them
+        // from their migrated raw/ files regardless of status, so they need no per-item degrade.
+        // If the rename already succeeded (storePromoted) and only the snapshot-pin threw, the store
+        // is present and searchable — do not mark it failed and force a needless full re-index.
         this.skippedCount += plan.expectedUnitCount
         this.markDirectoryGroupsFullyOrphaned(plan.directoryGroups)
+        if (!storePromoted) {
+          this.basesToMarkFailed.add(plan.baseId)
+        }
         continue
       }
     }
@@ -1009,6 +1084,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     // than before) is what lets a failed base's directory items reach `failed` once the per-base
     // skip keeps the overall migration alive.
     await this.flushDirectoryDegradations(ctx)
+    // Mark every base whose store could not be promoted as a restorable `failed` row (same deferral
+    // rationale as the degrade pass: after the loop, so a per-base promote failure does not abort
+    // the surviving bases).
+    await this.flushBaseFailures(ctx)
 
     logger.info('KnowledgeVectorMigrator.execute completed', {
       processedCount,

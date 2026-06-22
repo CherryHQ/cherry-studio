@@ -11,6 +11,7 @@ import * as libsqlDriverModule from '@main/features/knowledge/vectorstore/indexS
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1488,12 +1489,20 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
       // I2: container + child are degraded once the base fails, not left silently `completed`.
       expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, MIGRATED_DIRECTORY_ITEM_ID].sort())
-      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      const degradeWrites = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      )
       expect(degradeWrites).toHaveLength(1)
       expect(degradeWrites[0].values).toEqual({
         status: 'failed',
         error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
       })
+      // The store never landed, so the base is also marked failed/missing_vector_store (restorable).
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+      const baseFailures = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+      )
+      expect(baseFailures).toEqual([{ values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }])
       // C1: the failed base's expected unit is credited so the engine reconciliation balances.
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(true)
@@ -2050,6 +2059,70 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
       expect(renameSpy.mock.calls.length).toBe(1)
       expect(executeResult.warnings?.some((warning: string) => warning.includes('ENOENT'))).toBe(true)
+      // The store never landed, so the base must not stay `completed` (which would mount an empty
+      // store with forever-empty search); it is marked failed/missing_vector_store so the UI offers
+      // a restore. No directory items here, so this is the only `failed` write.
+      const baseFailures = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+      )
+      expect(baseFailures).toHaveLength(1)
+      expect(baseFailures[0].values).toEqual({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
+    })
+
+    it('marks the base failed/missing_vector_store when the rebuilt store cannot be promoted', async () => {
+      // The headline of the user-reported Windows bug: the temp index builds, but promoting it onto
+      // the runtime index.sqlite fails. The base must NOT stay `completed` — there is no runtime
+      // auto-reindex, so a `completed` base with a missing store searches empty forever. Instead it
+      // becomes a restorable failed row, and the rest of the migration still succeeds.
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // Fail the rebuild itself (deterministic, no rename retry timing): the per-base catch is the
+      // same path a promote failure reaches, so this exercises the mark-failed logic directly.
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+
+      const baseFailures = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+      )
+      expect(baseFailures).toHaveLength(1)
+      expect(baseFailures[0].values).toEqual({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
+
+      // The failed base's unit is still credited to skippedCount so the engine reconciliation balances.
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
     })
 
     it('keeps a healthy base when another base fails (per-base failure is non-fatal)', async () => {
@@ -2326,6 +2399,9 @@ describe('KnowledgeVectorMigrator', () => {
       // The rebuilt store survives at the runtime path (rename already happened; the catch only cleans
       // the now-renamed temp path), so the vectors are not lost — merely left unpinned until a re-run.
       expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+      // The store DID land, so the base must NOT be marked missing_vector_store — that would force a
+      // needless full re-index of a present, searchable store (storePromoted gate).
+      expect([...migrator.basesToMarkFailed]).toEqual([])
 
       // The skipped base's units are credited, so the engine's count reconciliation still balances.
       const failedValidateResult = await migrator.validate(migrationCtx as any)
