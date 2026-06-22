@@ -395,9 +395,6 @@
           "failed": "Αποτυχία αναδιάταξης συνεδριών"
         }
       },
-      "tool": {
-        "disabled": "Το εργαλείο {{toolName}} είναι απενεργοποιημένο για αυτόν τον agent."
-      },
       "update": {
         "error": {
           "failed": "Αποτυχία ενημέρωσης της συνεδρίας"
@@ -1656,10 +1653,10 @@
       "claude_code": "Το επίσημο εργαλείο γραμμής εντολών κώδικα AI της Anthropic",
       "gemini_cli": "Επίσημη γραμμή εντολών βοηθού Gemini της Google",
       "github_copilot_cli": "Το επίσημο συνοδευτικό εργαλείο γραμμής εντολών του GitHub Copilot",
-      "iflow_cli": "ο πολυμοντέλος βηχανικός βοηθός γραμμής εντολών του iFlow",
       "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
       "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
       "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Το εργαλείο κωδικοποίησης CLI ανοικτού κώδικα της Alibaba Tongyi"
     },
     "update_options": "Ενημέρωση επιλογών",
@@ -2159,7 +2156,8 @@
         "note": {
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
-          "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα"
+          "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2174,7 @@
           "success": "Πηγή δεδομένων προστέθηκε στη βάση γνώσεων"
         },
         "title": "Προσθήκη Πηγής Δεδομένων",
+        "unsupported_files_skipped": "[to be translated]:Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Εισάγετε διεύθυνση ιστοσελίδας:",
           "help": "Το κείμενο της σελίδας θα ανακτηθεί, θα τεμαχιστεί και θα ευρετηριαστεί αυτόματα",
@@ -2185,15 +2184,12 @@
         }
       },
       "bulk": {
-        "cancel": "Ακύρωση",
         "delete": "Διαγραφή",
         "delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
         "reindex": "Επανεισαγωγή ευρετηρίου",
         "selected_count": "{{count}} επιλεγμένα"
       },
-      "chunk_delete_confirm_description": "Μετά τη διαγραφή, αυτό το τμήμα δεν θα χρησιμοποιείται πλέον για ανάκτηση. Η επανευρετηρίαση της πηγής δεδομένων θα το δημιουργήσει ξανά.",
-      "chunk_delete_confirm_title": "Διαγραφή Κομματιού;",
       "chunks_count": "{{count}} κομμάτια",
       "delete_confirm_description": "Αυτή η πηγή δεδομένων και τα δεδομένα ευρετηρίου της δεν μπορούν να ανακτηθούν μετά τη διαγραφή.",
       "delete_confirm_title": "Διαγραφή Πηγής Δεδομένων;",
@@ -2245,20 +2241,17 @@
         "select_row": "Επιλογή γραμμής"
       },
       "toolbar": {
-        "add": "Προσθήκη Πηγής Δεδομένων",
-        "no_search_results": "Δεν υπάρχουν αντίστοιχες πηγές δεδομένων",
-        "search_placeholder": "Αναζήτηση πηγών δεδομένων"
+        "add": "Προσθήκη Πηγής Δεδομένων"
       }
     },
-    "dimensions": "Διαστάσεις Ενσωμάτωσης",
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
-    "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
     "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
     "drag_file": "Βάλτε το αρχείο εδώ",
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
     "error": {
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Αυτή η βάση γνώσεων απέτυχε κατά τη μετεγκατάσταση. Ανακατασκευάστε την και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
       "failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
       "failed_to_delete": "Αποτυχία διαγραφής της βάσης γνώσεων",
@@ -2304,7 +2297,6 @@
       "chunk_size_invalid": "Το μέγεθος του τμήματος πρέπει να είναι μεγαλύτερο από 0",
       "chunking": "Κατάτμηση",
       "default_separator": "Αυτόματη (συνιστάται)",
-      "dimensions": "Διανυσματικές Διαστάσεις",
       "document_count": "Καταμέτρηση Εγγράφων",
       "embedding_model": "Μοντέλο Ενσωμάτωσης",
       "embedding_model_select": "Επιλογή Μοντέλου",
@@ -2313,7 +2305,6 @@
       "hints": {
         "chunk_overlap": "Αριθμός επικαλυπτόμενων διακριτικών που διατηρούνται μεταξύ γειτονικών τμημάτων για τη μείωση των σημασιολογικών διακοπών.",
         "chunk_size": "Στόχος αριθμού token για κάθε τμήμα εγγράφου. Αυτό επηρεάζει την κοκκοποίηση ανάκτησης και το μήκος του πλαισίου.",
-        "dimensions": "Η διάσταση διανύσματος που εξάγεται από το τρέχον μοντέλο ενσωμάτωσης, που χρησιμοποιείται για τη δημιουργία και την αντιστοίχιση δεικτών διανυσμάτων.",
         "document_count": "Μέγιστος αριθμός τμημάτων εγγράφων που επιστρέφονται για κάθε ανάκτηση. Υψηλότερες τιμές καλύπτουν περισσότερο περιεχόμενο αλλά χρησιμοποιούν περισσότερο πλαίσιο.",
         "embedding_model": "Χρησιμοποιείται για τη μετατροπή του περιεχομένου της βάσης γνώσης σε διανύσματα. Η αλλαγή του μοντέλου συνήθως απαιτεί επανευρετηρίαση του υπάρχοντος περιεχομένου.",
         "hybrid_alpha": "Βάρος βαθμολογίας διανύσματος στην υβριδική ανάκτηση. Υψηλότερες τιμές ευνοούν τη σημασιολογική αντιστοίχιση.",
@@ -2324,9 +2315,7 @@
         "threshold_disabled": "Αυτή η λειτουργία ανάκτησης επιστρέφει ταξινομημένα αποτελέσματα και δεν χρησιμοποιεί κατώφλι ομοιότητας."
       },
       "hybrid_alpha": "Υβριδικό Άλφα",
-      "hybrid_alpha_hint": "Ρυθμίζεται μόνο σε λειτουργία υβριδικής ανάκτησης",
       "processor": "Πάροχος Επεξεργασίας",
-      "refresh_dimensions": "Ανανέωση διαστάσεων διανύσματος",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο Ανατάξης",
       "reset_action": "Επαναφορά Προεπιλογών",
@@ -2336,9 +2325,9 @@
       "saved": "Αποθηκεύτηκε",
       "search_mode": {
         "bm25": "Πλήρης αναζήτηση κειμένου",
-        "default": "Αναζήτηση Διανυσμάτων",
         "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
-        "title": "Λειτουργία Αναζήτησης"
+        "title": "Λειτουργία Αναζήτησης",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "threshold": "Κατώφλι Ομοιότητας",
@@ -4019,6 +4008,44 @@
       "resemblance": "Ομοιότητα",
       "resemblance_tip": "Ρυθμίστε την ομοιότητα της μεγεθυσμένης εικόνας με την αρχική",
       "seed_tip": "Ελέγχει την τυχαιότητα του αποτελέσματος μεγέθυνσης"
+    },
+    "video": {
+      "camera_fixed": "[to be translated]:Fixed Camera",
+      "camera_fixed_tip": "[to be translated]:Keep the camera static (no pan/zoom/movement).",
+      "duration": "[to be translated]:Duration (s)",
+      "duration_tip": "[to be translated]:Length of the generated video in seconds.",
+      "first_frame": "[to be translated]:First Frame",
+      "fps": "[to be translated]:Frame Rate",
+      "generate_audio": "[to be translated]:Generate Audio",
+      "generate_audio_tip": "[to be translated]:Generate a synced audio track embedded in the video.",
+      "generate_failed": "[to be translated]:Failed to generate video",
+      "last_frame": "[to be translated]:Last Frame",
+      "mode": "[to be translated]:Mode",
+      "mode_options": {
+        "edit": "[to be translated]:Edit",
+        "extend": "[to be translated]:Extend",
+        "i2v": "[to be translated]:Image to Video",
+        "keyframe": "[to be translated]:Keyframes",
+        "multishot": "[to be translated]:Multi-shot",
+        "reference": "[to be translated]:Reference",
+        "t2v": "[to be translated]:Text to Video"
+      },
+      "movement_amplitude": "[to be translated]:Movement Amplitude",
+      "movement_amplitude_options": {
+        "auto": "[to be translated]:Auto",
+        "large": "[to be translated]:Large",
+        "medium": "[to be translated]:Medium",
+        "small": "[to be translated]:Small"
+      },
+      "new": "[to be translated]:New",
+      "resolution": "[to be translated]:Resolution",
+      "shot_type": "[to be translated]:Shot Type",
+      "shot_type_options": {
+        "multi": "[to be translated]:Multi-shot",
+        "single": "[to be translated]:Single shot"
+      },
+      "size": "[to be translated]:Size",
+      "title": "[to be translated]:Videos"
     },
     "watermark": "Προσθήκη υδατογραφήματος",
     "zhipu": {
@@ -6066,6 +6093,7 @@
       "disabled": "Κρυμμένα Μίνι Εφαρμογές",
       "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
       "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
+      "hide_app": "[to be translated]:Hide {{name}}",
       "open_link_external": {
         "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
       },
@@ -6077,6 +6105,7 @@
         "title": "Φίλτρο Mini Program"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλογές",
+      "show_app": "[to be translated]:Show {{name}}",
       "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
       "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
       "title": "Ρυθμίσεις Mini Apps",
@@ -6377,7 +6406,8 @@
       "add": {
         "name": {
           "label": "Όνομα παρόχου",
-          "placeholder": "π.χ. OpenAI"
+          "placeholder": "π.χ. OpenAI",
+          "required": "[to be translated]:Please enter the provider name"
         },
         "title": "Προσθήκη παρόχου",
         "type": "Τύπος παρόχου"
@@ -6488,7 +6518,8 @@
       "balance": "Υπόλοιπο",
       "base_url": {
         "label": "Βασικό URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "[to be translated]:Please enter the Base URL"
       },
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
@@ -6752,6 +6783,7 @@
       },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
@@ -6759,8 +6791,11 @@
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Νέο θέμα",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
@@ -7080,6 +7115,7 @@
   "title": {
     "apps": "Εφαρμογές",
     "code": "Κώδικας",
+    "creation": "[to be translated]:Creation",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",
     "knowledge": "Βάση Γνώσης",

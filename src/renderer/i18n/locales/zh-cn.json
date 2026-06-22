@@ -4009,6 +4009,44 @@
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
     },
+    "video": {
+      "camera_fixed": "固定镜头",
+      "camera_fixed_tip": "保持镜头静止（不平移、缩放或移动）。",
+      "duration": "时长（秒）",
+      "duration_tip": "生成视频的时长，单位为秒。",
+      "first_frame": "首帧",
+      "fps": "帧率",
+      "generate_audio": "生成音频",
+      "generate_audio_tip": "生成与视频同步的内嵌音轨。",
+      "generate_failed": "视频生成失败",
+      "last_frame": "尾帧",
+      "mode": "模式",
+      "mode_options": {
+        "edit": "编辑",
+        "extend": "延长",
+        "i2v": "图生视频",
+        "keyframe": "关键帧",
+        "multishot": "多镜头",
+        "reference": "参考",
+        "t2v": "文生视频"
+      },
+      "movement_amplitude": "运动幅度",
+      "movement_amplitude_options": {
+        "auto": "自动",
+        "large": "大",
+        "medium": "中",
+        "small": "小"
+      },
+      "new": "新建",
+      "resolution": "分辨率",
+      "shot_type": "镜头类型",
+      "shot_type_options": {
+        "multi": "多镜头",
+        "single": "单镜头"
+      },
+      "size": "尺寸",
+      "title": "视频"
+    },
     "watermark": "添加水印",
     "zhipu": {
       "custom_size_divisible": "自定义尺寸必须能被16整除",
@@ -7077,6 +7115,7 @@
   "title": {
     "apps": "小程序",
     "code": "Code",
+    "creation": "创作",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",

@@ -4009,6 +4009,44 @@
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
     },
+    "video": {
+      "camera_fixed": "[to be translated]:Fixed Camera",
+      "camera_fixed_tip": "[to be translated]:Keep the camera static (no pan/zoom/movement).",
+      "duration": "[to be translated]:Duration (s)",
+      "duration_tip": "[to be translated]:Length of the generated video in seconds.",
+      "first_frame": "[to be translated]:First Frame",
+      "fps": "[to be translated]:Frame Rate",
+      "generate_audio": "[to be translated]:Generate Audio",
+      "generate_audio_tip": "[to be translated]:Generate a synced audio track embedded in the video.",
+      "generate_failed": "[to be translated]:Failed to generate video",
+      "last_frame": "[to be translated]:Last Frame",
+      "mode": "[to be translated]:Mode",
+      "mode_options": {
+        "edit": "[to be translated]:Edit",
+        "extend": "[to be translated]:Extend",
+        "i2v": "[to be translated]:Image to Video",
+        "keyframe": "[to be translated]:Keyframes",
+        "multishot": "[to be translated]:Multi-shot",
+        "reference": "[to be translated]:Reference",
+        "t2v": "[to be translated]:Text to Video"
+      },
+      "movement_amplitude": "[to be translated]:Movement Amplitude",
+      "movement_amplitude_options": {
+        "auto": "[to be translated]:Auto",
+        "large": "[to be translated]:Large",
+        "medium": "[to be translated]:Medium",
+        "small": "[to be translated]:Small"
+      },
+      "new": "[to be translated]:New",
+      "resolution": "[to be translated]:Resolution",
+      "shot_type": "[to be translated]:Shot Type",
+      "shot_type_options": {
+        "multi": "[to be translated]:Multi-shot",
+        "single": "[to be translated]:Single shot"
+      },
+      "size": "[to be translated]:Size",
+      "title": "[to be translated]:Videos"
+    },
     "watermark": "添加浮水印",
     "zhipu": {
       "custom_size_divisible": "自訂尺寸必須能被 16 整除",
@@ -7077,6 +7115,7 @@
   "title": {
     "apps": "小程式",
     "code": "程式碼",
+    "creation": "創作",
     "files": "檔案",
     "home": "首頁",
     "knowledge": "知識庫",

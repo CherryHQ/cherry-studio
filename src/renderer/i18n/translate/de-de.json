@@ -395,9 +395,6 @@
           "failed": "Fehler beim Neuordnen der Sitzungen"
         }
       },
-      "tool": {
-        "disabled": "Das Tool {{toolName}} ist für diesen Agenten deaktiviert."
-      },
       "update": {
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
@@ -1656,10 +1653,10 @@
       "claude_code": "Anthropics offizieller KI-Coding-Assistent für die Kommandozeile",
       "gemini_cli": "Googles offizieller Gemini-Befehlszeilenassistent",
       "github_copilot_cli": "Offizieller Copilot-Befehlszeilenbegleiter von GitHub",
-      "iflow_cli": "iFlows Multi-Model-Kommandozeilenassistent",
       "kimi_cli": "Moonshots Kommandozeilenassistent Kimi",
       "openai_codex": "Offizielle Code-Generierungs-CLI von OpenAI",
       "opencode": "Open-Source-Multi-Model-Coding-Agent",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Alibaba Tongyis Open-Source-CLI-Coding-Tool"
     },
     "update_options": "Update-Optionen",
@@ -2159,7 +2156,8 @@
         "note": {
           "description": "Wählen Sie vorhandene Notizen als Wissensbasisquellen aus",
           "empty_description": "Auswählbare Notizen erscheinen hier, nachdem die echte Notizenliste verbunden wurde. Verwenden Sie bis dahin Dateien, Ordner, URLs oder Sitemaps.",
-          "empty_title": "Notizen sind noch nicht verbunden"
+          "empty_title": "Notizen sind noch nicht verbunden",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2174,7 @@
           "success": "Datenquelle zur Wissensbasis hinzugefügt"
         },
         "title": "Datenquelle hinzufügen",
+        "unsupported_files_skipped": "[to be translated]:Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Gib eine Webseiten-URL ein:",
           "help": "Der Seitentext wird automatisch abgerufen, in Blöcke unterteilt und indiziert.",
@@ -2185,15 +2184,12 @@
         }
       },
       "bulk": {
-        "cancel": "Abbrechen",
         "delete": "Löschen",
         "delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",
         "delete_confirm_title": "Ausgewählte Datenquellen löschen?",
         "reindex": "Neuindizierung",
         "selected_count": "{{count}} ausgewählt"
       },
-      "chunk_delete_confirm_description": "Nach dem Löschen wird dieser Chunk nicht mehr für die Abfrage verwendet. Die erneute Indizierung der Datenquelle wird ihn erneut generieren.",
-      "chunk_delete_confirm_title": "Chunk löschen?",
       "chunks_count": "{{count}} Chunks",
       "delete_confirm_description": "Diese Datenquelle und ihre Indexdaten können nach dem Löschen nicht wiederhergestellt werden.",
       "delete_confirm_title": "Datenquelle löschen?",
@@ -2245,20 +2241,17 @@
         "select_row": "Zeile auswählen"
       },
       "toolbar": {
-        "add": "Datenquelle hinzufügen",
-        "no_search_results": "Keine übereinstimmenden Datenquellen",
-        "search_placeholder": "Datenquellen durchsuchen"
+        "add": "Datenquelle hinzufügen"
       }
     },
-    "dimensions": "Einbettungsdimensionen",
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
-    "dimensions_error_invalid": "Ungültige Embedding-Dimensionen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
     "drag_file": "Datei hierher ziehen",
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
     "error": {
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
       "failed_to_create": "Fehler beim Erstellen der Wissensdatenbank",
       "failed_to_delete": "Fehler beim Löschen der Wissensdatenbank",
@@ -2304,7 +2297,6 @@
       "chunk_size_invalid": "Die Chunk-Größe muss größer als 0 sein",
       "chunking": "Chunking",
       "default_separator": "Auto (empfohlen)",
-      "dimensions": "Vektordimensionen",
       "document_count": "Dokumentanzahl",
       "embedding_model": "Einbettungsmodell",
       "embedding_model_select": "Modellauswahl",
@@ -2313,7 +2305,6 @@
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
-        "dimensions": "Die Vektordimension, die vom aktuellen Einbettungsmodell ausgegeben wird, wird verwendet, um Vektorindizes zu erstellen und abzugleichen.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
         "hybrid_alpha": "Vektor-Bewertungsgewicht in der hybriden Suche. Höhere Werte bevorzugen semantische Übereinstimmung.",
@@ -2324,9 +2315,7 @@
         "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Nur im Hybrid-Retrieval-Modus konfigurierbar",
       "processor": "Verarbeitungsanbieter",
-      "refresh_dimensions": "Vektordimensionen aktualisieren",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -2336,9 +2325,9 @@
       "saved": "G",
       "search_mode": {
         "bm25": "Volltextsuche",
-        "default": "Vektorsuche",
         "hybrid": "Hybrid-Suche (empfohlen)",
-        "title": "Suchmodus"
+        "title": "Suchmodus",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Trennregel",
       "threshold": "Ähnlichkeitsschwelle",
@@ -4019,6 +4008,44 @@
       "resemblance": "Ähnlichkeit",
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
+    },
+    "video": {
+      "camera_fixed": "[to be translated]:Fixed Camera",
+      "camera_fixed_tip": "[to be translated]:Keep the camera static (no pan/zoom/movement).",
+      "duration": "[to be translated]:Duration (s)",
+      "duration_tip": "[to be translated]:Length of the generated video in seconds.",
+      "first_frame": "[to be translated]:First Frame",
+      "fps": "[to be translated]:Frame Rate",
+      "generate_audio": "[to be translated]:Generate Audio",
+      "generate_audio_tip": "[to be translated]:Generate a synced audio track embedded in the video.",
+      "generate_failed": "[to be translated]:Failed to generate video",
+      "last_frame": "[to be translated]:Last Frame",
+      "mode": "[to be translated]:Mode",
+      "mode_options": {
+        "edit": "[to be translated]:Edit",
+        "extend": "[to be translated]:Extend",
+        "i2v": "[to be translated]:Image to Video",
+        "keyframe": "[to be translated]:Keyframes",
+        "multishot": "[to be translated]:Multi-shot",
+        "reference": "[to be translated]:Reference",
+        "t2v": "[to be translated]:Text to Video"
+      },
+      "movement_amplitude": "[to be translated]:Movement Amplitude",
+      "movement_amplitude_options": {
+        "auto": "[to be translated]:Auto",
+        "large": "[to be translated]:Large",
+        "medium": "[to be translated]:Medium",
+        "small": "[to be translated]:Small"
+      },
+      "new": "[to be translated]:New",
+      "resolution": "[to be translated]:Resolution",
+      "shot_type": "[to be translated]:Shot Type",
+      "shot_type_options": {
+        "multi": "[to be translated]:Multi-shot",
+        "single": "[to be translated]:Single shot"
+      },
+      "size": "[to be translated]:Size",
+      "title": "[to be translated]:Videos"
     },
     "watermark": "Wasserzeichen hinzufügen",
     "zhipu": {
@@ -6066,6 +6093,7 @@
       "disabled": "Versteckte Mini-Apps",
       "display_title": "Mini-App-Anzeigeeinstellungen",
       "empty": "Klicke auf das Ausblenden-Symbol bei einer App links, und sie wird hierher verschoben",
+      "hide_app": "[to be translated]:Hide {{name}}",
       "open_link_external": {
         "title": "Neue-Fenster-Links im Browser öffnen"
       },
@@ -6077,6 +6105,7 @@
         "title": "Mini-Programm-Filter"
       },
       "reset_tooltip": "Auf Standard zurücksetzen",
+      "show_app": "[to be translated]:Show {{name}}",
       "sidebar_description": "Aktive Mini-Apps in der Seitenleiste anzeigen",
       "sidebar_title": "Seitenleiste Aktive Mini-Apps-Anzeige",
       "title": "Mini-Apps-Einstellungen",
@@ -6377,7 +6406,8 @@
       "add": {
         "name": {
           "label": "Anbietername",
-          "placeholder": "Beispiel: OpenAI"
+          "placeholder": "Beispiel: OpenAI",
+          "required": "[to be translated]:Please enter the provider name"
         },
         "title": "Anbieter hinzufügen",
         "type": "Anbietertyp"
@@ -6488,7 +6518,8 @@
       "balance": "Guthaben",
       "base_url": {
         "label": "Basis-URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "[to be translated]:Please enter the Base URL"
       },
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
@@ -6752,6 +6783,7 @@
       },
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Bereits von \"{{name}}\" verwendet",
       "copy_last_message": "Letzte Nachricht kopieren",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
@@ -6759,8 +6791,11 @@
       "enabled": "Aktivieren",
       "exit_fullscreen": "Vollbildmodus beenden",
       "label": "Taste",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Neues Thema",
       "occupied_by_other_application": "Dieses Kürzel wird bereits vom System oder einer anderen Anwendung verwendet",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Shortcut drücken",
       "quick_assistant": "Schnellassistent",
       "rename_topic": "Thema umbenennen",
@@ -7080,6 +7115,7 @@
   "title": {
     "apps": "Mini-Apps",
     "code": "Code",
+    "creation": "[to be translated]:Creation",
     "files": "Datei",
     "home": "Startseite",
     "knowledge": "Wissensdatenbank",
