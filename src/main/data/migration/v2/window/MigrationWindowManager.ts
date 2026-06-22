@@ -11,6 +11,9 @@ const logger = loggerService.withContext('MigrationWindowManager')
 
 export class MigrationWindowManager {
   private window: BrowserWindow | null = null
+  // Guards the user-initiated-close handler so our own programmatic close()
+  // calls (cancel / skip / restart) don't trigger a second app quit.
+  private programmaticClose = false
 
   /**
    * Check if migration window exists and is not destroyed
@@ -38,19 +41,28 @@ export class MigrationWindowManager {
     logger.info('Creating migration window')
 
     this.window = new BrowserWindow({
-      width: 640,
-      height: 480,
+      width: 900,
+      height: 620,
       resizable: false,
       maximizable: false,
       minimizable: false,
       show: false,
-      frame: false,
       autoHideMenuBar: true,
+      frame: false,
       webPreferences: {
         preload: join(__dirname, '../preload/simplest.js'),
         sandbox: false,
         webSecurity: false,
         contextIsolation: true
+      }
+    })
+
+    // User-initiated window close uses cancel semantics: quit the app.
+    // Programmatic close() calls set the guard so they don't double-quit.
+    this.window.on('close', () => {
+      if (!this.programmaticClose) {
+        logger.info('Migration window closed by user; quitting app')
+        app.quit()
       }
     })
 
@@ -94,6 +106,7 @@ export class MigrationWindowManager {
    */
   close(): void {
     if (this.hasWindow()) {
+      this.programmaticClose = true
       this.window!.close()
       this.window = null
     }
