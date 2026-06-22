@@ -17,9 +17,7 @@ import {
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ChatPreferenceSections, {
-  type ChatPreferenceSectionsFeatures
-} from '@renderer/components/chat/settings/ChatPreferenceSections'
+import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -72,12 +70,20 @@ type MenuPresentationModeChangeOptions = {
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
-const chatPreferenceFeatures: ChatPreferenceSectionsFeatures = {
-  showPrompt: true,
-  showMessageOutline: true,
-  showMultiModelStyle: true,
-  showInputEstimatedTokens: true
-}
+
+const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
+  { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { value: 'pt', label: 'Português', flag: '🇵🇹' },
+  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+  { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
+  { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
+]
 
 export function confirmMenuPresentationModeChange({
   currentMode,
@@ -112,20 +118,6 @@ export function confirmMenuPresentationModeChange({
     }
   })
 }
-
-const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
-  { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
-  { value: 'es', label: 'Español', flag: '🇪🇸' },
-  { value: 'fr', label: 'Français', flag: '🇫🇷' },
-  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { value: 'pt', label: 'Português', flag: '🇵🇹' },
-  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
-  { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
-  { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
-]
 
 const CommonSettings: FC = () => {
   const { t } = useTranslation()
@@ -753,7 +745,7 @@ const CommonSettings: FC = () => {
     </>
   )
 
-  const renderChatSettingsSection = () => <ChatPreferenceSections features={chatPreferenceFeatures} />
+  const renderChatSettingsSection = () => <ChatPreferenceSections />
 
   const renderPrivacyAdvancedSection = () => (
     <>
