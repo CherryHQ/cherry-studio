@@ -2,22 +2,81 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ClaudeCodeProviderSeeder } from '@data/db/seeding/seeders/claudeCodeProviderSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import {
-  CLAUDE_CODE_API_BASE_URL,
-  CLAUDE_CODE_DEFAULT_MODELS,
-  CLAUDE_CODE_DEFAULT_UNIQUE_MODEL_ID,
-  CLAUDE_CODE_PROVIDER_ID,
-  CLAUDE_CODE_PROVIDER_NAME
-} from '@shared/data/presets/claudeCode'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { CLAUDE_CODE_PROVIDER_ID } from '@shared/data/presets/claudeCode'
+import type { Model } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// claude-code resolves its catalog through the registry service (provider-models.json
+// → models.json). Mock it so the seeder is tested in isolation from the shipped data.
+const { listProviderRegistryModels } = vi.hoisted(() => ({ listProviderRegistryModels: vi.fn() }))
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { listProviderRegistryModels }
+}))
+
+const REGISTRY_MODELS = [
+  // Tier alias synthesized from provider-models.json (no models.json entry).
+  {
+    id: 'claude-code::opus',
+    apiModelId: 'opus',
+    presetModelId: 'opus',
+    name: 'Claude Opus (Latest)',
+    family: 'claude-opus',
+    capabilities: ['function-call'],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  },
+  // Concrete model inheriting rich metadata from models.json.
+  {
+    id: 'claude-code::claude-opus-4-8',
+    apiModelId: 'claude-opus-4-8',
+    presetModelId: 'claude-opus-4-8',
+    name: 'Claude Opus 4.8',
+    family: 'claude-opus',
+    capabilities: ['function-call', 'reasoning'],
+    contextWindow: 1_000_000,
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  },
+  // family 'claude' (Fable) → group falls back to 'Claude'.
+  {
+    id: 'claude-code::claude-fable-5',
+    apiModelId: 'claude-fable-5',
+    presetModelId: 'claude-fable-5',
+    name: 'Claude Fable 5',
+    family: 'claude',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+] as unknown as Model[]
+
+/** Mirror PresetProviderSeeder: insert the registry provider row, disabled. */
+async function seedDisabledProvider(db: ReturnType<typeof setupTestDatabase>['db']) {
+  await db.insert(userProviderTable).values({
+    providerId: CLAUDE_CODE_PROVIDER_ID,
+    presetProviderId: CLAUDE_CODE_PROVIDER_ID,
+    name: 'Claude Code',
+    isEnabled: false,
+    orderKey: generateOrderKeyBetween(null, null)
+  })
+}
 
 describe('ClaudeCodeProviderSeeder', () => {
   const dbh = setupTestDatabase()
 
-  it('seeds the agent-only Claude Code provider with no auth config and its default models', async () => {
+  beforeEach(() => {
+    listProviderRegistryModels.mockReset()
+    listProviderRegistryModels.mockResolvedValue(REGISTRY_MODELS)
+  })
+
+  it('enables the disabled registry provider and materializes its registry models', async () => {
+    await seedDisabledProvider(dbh.db)
+
     await new ClaudeCodeProviderSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
@@ -30,27 +89,23 @@ describe('ClaudeCodeProviderSeeder', () => {
       .from(userModelTable)
       .where(eq(userModelTable.providerId, CLAUDE_CODE_PROVIDER_ID))
 
-    expect(provider).toMatchObject({
-      providerId: CLAUDE_CODE_PROVIDER_ID,
-      presetProviderId: CLAUDE_CODE_PROVIDER_ID,
-      name: CLAUDE_CODE_PROVIDER_NAME,
-      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      isEnabled: true
+    expect(provider?.isEnabled).toBe(true)
+    expect(models).toHaveLength(REGISTRY_MODELS.length)
+
+    const byId = new Map(models.map((m) => [m.id, m]))
+    // Bare model id (not the unique id) lands in modelId; group derives from family.
+    expect(byId.get('claude-code::opus')).toMatchObject({ modelId: 'opus', group: 'Claude Opus', isEnabled: true })
+    expect(byId.get('claude-code::claude-opus-4-8')).toMatchObject({
+      modelId: 'claude-opus-4-8',
+      group: 'Claude Opus',
+      contextWindow: 1_000_000
     })
-    // Login-based provider: no API key/auth so the SDK falls back to the Claude Code CLI subscription.
-    expect(provider?.authConfig).toBeNull()
-    expect(provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe(CLAUDE_CODE_API_BASE_URL)
-    expect(models).toHaveLength(CLAUDE_CODE_DEFAULT_MODELS.length)
-    expect(models.some((m) => m.id === CLAUDE_CODE_DEFAULT_UNIQUE_MODEL_ID)).toBe(true)
+    expect(byId.get('claude-code::claude-fable-5')?.group).toBe('Claude')
   })
 
-  it('is idempotent — a second run neither duplicates models nor overwrites a renamed provider', async () => {
+  it('is idempotent — a second run neither duplicates models nor re-disables the provider', async () => {
+    await seedDisabledProvider(dbh.db)
     await new ClaudeCodeProviderSeeder().run(dbh.db)
-    await dbh.db
-      .update(userProviderTable)
-      .set({ name: 'Renamed Claude Code' })
-      .where(eq(userProviderTable.providerId, CLAUDE_CODE_PROVIDER_ID))
-
     await new ClaudeCodeProviderSeeder().run(dbh.db)
 
     const providers = await dbh.db
@@ -63,25 +118,7 @@ describe('ClaudeCodeProviderSeeder', () => {
       .where(eq(userModelTable.providerId, CLAUDE_CODE_PROVIDER_ID))
 
     expect(providers).toHaveLength(1)
-    expect(providers[0]?.name).toBe('Renamed Claude Code')
-    expect(models).toHaveLength(CLAUDE_CODE_DEFAULT_MODELS.length)
-  })
-
-  it('preserves an existing Claude Code provider row', async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: CLAUDE_CODE_PROVIDER_ID,
-      presetProviderId: CLAUDE_CODE_PROVIDER_ID,
-      name: 'User Claude Code',
-      orderKey: generateOrderKeyBetween(null, null)
-    })
-
-    await new ClaudeCodeProviderSeeder().run(dbh.db)
-
-    const [provider] = await dbh.db
-      .select()
-      .from(userProviderTable)
-      .where(eq(userProviderTable.providerId, CLAUDE_CODE_PROVIDER_ID))
-      .limit(1)
-    expect(provider?.name).toBe('User Claude Code')
+    expect(providers[0]?.isEnabled).toBe(true)
+    expect(models).toHaveLength(REGISTRY_MODELS.length)
   })
 })

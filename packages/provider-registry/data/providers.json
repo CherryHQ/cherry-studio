@@ -534,6 +534,24 @@
       }
     },
     {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "description": "Claude Code - agent-only provider that reuses your Claude Code CLI subscription login",
+      "defaultChatEndpoint": "anthropic-messages",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "baseUrl": "https://api.anthropic.com",
+          "adapterFamily": "anthropic"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://www.anthropic.com/claude-code",
+          "docs": "https://docs.claude.com/en/docs/claude-code/overview"
+        }
+      }
+    },
+    {
       "id": "openai",
       "name": "OpenAI",
       "description": "OpenAI - AI model provider",
