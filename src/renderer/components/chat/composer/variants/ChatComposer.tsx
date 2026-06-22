@@ -31,7 +31,6 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -57,6 +56,7 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
+import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
@@ -102,20 +102,6 @@ interface ChatComposerProps {
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-}
-
-type ProviderActionHandlers = ComposerSurfaceActions & {
-  addNewTopic: (payload?: AddNewTopicPayload) => void
-}
-
-const emptyActions: ProviderActionHandlers = {
-  addNewTopic: () => undefined,
-  focus: () => undefined,
-  onTextChange: () => undefined,
-  toggleExpanded: () => undefined,
-  removeToken: () => undefined,
-  insertToken: () => undefined,
-  getDraft: () => ({ text: '', tokens: [] })
 }
 
 interface SavedComposerDraft {

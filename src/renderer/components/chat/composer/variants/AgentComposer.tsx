@@ -55,6 +55,7 @@ import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAt
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -135,20 +136,6 @@ type Props = {
 
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
-}
-
-type ProviderActionHandlers = ComposerSurfaceActions & {
-  addNewTopic: () => void
-}
-
-const emptyActions: ProviderActionHandlers = {
-  addNewTopic: () => undefined,
-  focus: () => undefined,
-  onTextChange: () => undefined,
-  toggleExpanded: () => undefined,
-  removeToken: () => undefined,
-  insertToken: () => undefined,
-  getDraft: () => ({ text: '', tokens: [] })
 }
 
 const AgentComposerRoot = ({
