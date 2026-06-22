@@ -1,7 +1,7 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItemOf, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -356,7 +356,7 @@ vi.mock('../components/RestoreKnowledgeBaseDialog', () => ({
       name: string
       embeddingModelId: string | null
       dimensions: number
-    }) => Promise<KnowledgeBase>
+    }) => Promise<RestoreKnowledgeBaseResult>
     onOpenChange: (open: boolean) => void
     onRestored: (base: KnowledgeBase) => void
   }) =>
@@ -366,13 +366,13 @@ vi.mock('../components/RestoreKnowledgeBaseDialog', () => ({
         <button
           type="button"
           onClick={async () => {
-            const restoredBase = await restoreBase({
+            const result = await restoreBase({
               sourceBaseId: base.id,
               name: `${base.name}_副本`,
               embeddingModelId: 'openai::text-embedding-3-small',
               dimensions: 1024
             })
-            onRestored(restoredBase)
+            onRestored(result.base)
             onOpenChange(false)
           }}>
           Submit Restore
@@ -1259,7 +1259,7 @@ describe('KnowledgePage', () => {
       embeddingModelId: 'openai::text-embedding-3-small'
     })
     let bases = [failedBase]
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     mockUseKnowledgeBases.mockImplementation(() => ({
       bases,
@@ -1336,7 +1336,7 @@ describe('KnowledgePage', () => {
       embeddingModelId: 'openai::text-embedding-3-small'
     })
     let bases = [failedBase]
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     mockUseKnowledgeBases.mockImplementation(() => ({
       bases,
