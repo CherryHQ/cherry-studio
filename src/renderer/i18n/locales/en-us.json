@@ -2403,7 +2403,9 @@
   "launchpad": {
     "apps": "Apps",
     "minapps": "Minapps",
-    "miniApps": "MiniApps"
+    "miniApps": "MiniApps",
+    "pin_to_sidebar": "Pin to sidebar",
+    "unpin_from_sidebar": "Unpin from sidebar"
   },
   "library": {
     "action": {

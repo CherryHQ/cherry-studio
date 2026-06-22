@@ -2403,7 +2403,9 @@
   "launchpad": {
     "apps": "應用",
     "minapps": "小程式",
-    "miniApps": "小程式"
+    "miniApps": "小程式",
+    "pin_to_sidebar": "固定到側邊欄",
+    "unpin_from_sidebar": "取消固定"
   },
   "library": {
     "action": {
