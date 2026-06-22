@@ -51,6 +51,7 @@ describe('useScrollAnchor', () => {
     } as unknown as VListHandle
     const smoothScroll: SmoothScrollController = {
       cancel: vi.fn(),
+      followTo: vi.fn(),
       isAnimating: vi.fn(() => false),
       scrollTo: vi.fn()
     }
