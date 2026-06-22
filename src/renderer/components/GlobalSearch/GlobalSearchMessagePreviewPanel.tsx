@@ -306,7 +306,7 @@ export function GlobalSearchMessagePreviewPanel({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [activeMessageId, messages, searchQuery])
+  }, [activeMessageId, messages])
 
   return (
     <aside className={cn('relative flex min-h-0 flex-col bg-background', className)}>
