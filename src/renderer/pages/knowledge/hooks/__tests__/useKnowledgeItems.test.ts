@@ -1,13 +1,16 @@
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockUseQuery = vi.fn()
+const mockUseInfiniteQuery = vi.fn()
+
 const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
-  expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases/:id/items', {
+  expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases/:id/items', {
     params: { id: baseId },
-    query: { page: 1, limit: 100, groupId: null },
+    query: { groupId: null },
+    limit: 50,
     enabled,
     swrOptions: {
       refreshInterval: expect.any(Function)
@@ -16,118 +19,103 @@ const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
 }
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args)
+  useInfiniteQuery: (...args: unknown[]) => mockUseInfiniteQuery(...args),
+  // Flatten pages the same way the real helper does so the hook's `items` is testable.
+  useInfiniteFlatItems: (pages?: KnowledgeItemListResponse[]) => pages?.flatMap((page) => page.items) ?? [],
+  useInvalidateCache: () => vi.fn()
 }))
+
+const makeItem = (overrides: Partial<KnowledgeItem> = {}): KnowledgeItem =>
+  ({
+    id: 'item-1',
+    baseId: 'base-1',
+    groupId: null,
+    type: 'note',
+    data: { source: 'item-1', content: 'hello' },
+    status: 'completed',
+    error: null,
+    createdAt: '2026-04-21T10:00:00+08:00',
+    updatedAt: '2026-04-21T10:00:00+08:00',
+    ...overrides
+  }) as KnowledgeItem
 
 describe('useKnowledgeItems', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('queries the selected knowledge base root items and returns API results directly', () => {
-    const items = [
-      {
-        id: 'directory-parent',
-        baseId: 'base-1',
-        groupId: null,
-        type: 'directory',
-        data: {
-          source: '/tmp/example-directory'
-        },
-        status: 'completed',
-        error: null,
-        createdAt: '2026-04-21T10:00:00+08:00',
-        updatedAt: '2026-04-21T10:00:00+08:00'
-      },
-      {
-        id: 'directory-child',
-        baseId: 'base-1',
-        groupId: 'directory-parent',
-        type: 'directory',
-        data: {
-          source: '/tmp/example-directory/nested'
-        },
-        status: 'completed',
-        error: null,
-        createdAt: '2026-04-21T10:00:00+08:00',
-        updatedAt: '2026-04-21T10:00:00+08:00'
-      },
-      {
-        id: 'directory-file',
-        baseId: 'base-1',
-        groupId: 'directory-parent',
-        type: 'file',
-        data: {
-          source: '/tmp/report.pdf',
-          relativePath: 'report.pdf'
-        },
-        status: 'completed',
-        error: null,
-        createdAt: '2026-04-21T10:00:00+08:00',
-        updatedAt: '2026-04-21T10:00:00+08:00'
-      },
-      {
-        id: 'grouped-note',
-        baseId: 'base-1',
-        groupId: 'directory-child',
-        type: 'note',
-        data: {
-          source: 'grouped-note',
-          content: 'Grouped note'
-        },
-        status: 'completed',
-        error: null,
-        createdAt: '2026-04-21T10:00:00+08:00',
-        updatedAt: '2026-04-21T10:00:00+08:00'
-      },
-      {
-        id: 'standalone-note',
-        baseId: 'base-1',
-        groupId: null,
-        type: 'note',
-        data: {
-          source: 'standalone-note',
-          content: 'Example note'
-        },
-        status: 'completed',
-        error: null,
-        createdAt: '2026-04-21T10:00:00+08:00',
-        updatedAt: '2026-04-21T10:00:00+08:00'
-      }
-    ] satisfies KnowledgeItem[]
+  it('flattens infinite pages and surfaces total, pagination state, and refresh', () => {
+    const items = [makeItem({ id: 'a' }), makeItem({ id: 'b' })]
+    const refresh = vi.fn()
+    const loadNext = vi.fn()
 
-    const refetch = vi.fn()
-
-    mockUseQuery.mockReturnValue({
-      data: {
-        items,
-        total: items.length,
-        page: 1
-      },
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items, total: 7, nextCursor: 'cursor-1' }],
       isLoading: false,
+      isRefreshing: false,
       error: undefined,
-      refetch
+      hasNext: true,
+      loadNext,
+      refresh
     })
 
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
     expectKnowledgeItemsQuery('base-1', true)
-    expect(result.current.items).toBe(items)
-    expect(result.current.total).toBe(items.length)
+    expect(result.current.items).toEqual(items)
+    expect(result.current.total).toBe(7)
     expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBeUndefined()
-    expect(result.current.refetch).toBe(refetch)
+    expect(result.current.hasMore).toBe(true)
+    expect(result.current.isLoadingMore).toBe(false)
+    expect(result.current.refresh).toBe(refresh)
+  })
+
+  it('reports isLoadingMore only while revalidating with existing pages', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
+      isLoading: false,
+      isRefreshing: true,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    const { result } = renderHook(() => useKnowledgeItems('base-1'))
+
+    expect(result.current.isLoadingMore).toBe(true)
+  })
+
+  it('loadMore triggers loadNext only when more pages remain and not already loading', () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn()
+    })
+
+    const { result } = renderHook(() => useKnowledgeItems('base-1'))
+
+    act(() => result.current.loadMore())
+
+    expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
   it('does not enable the query before a knowledge base is selected', () => {
     const error = new Error('disabled')
-    const refetch = vi.fn()
-
-    mockUseQuery.mockReturnValue({
-      data: undefined,
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [],
       isLoading: false,
+      isRefreshing: false,
       error,
-      refetch
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
     })
 
     const { result } = renderHook(() => useKnowledgeItems(''))
@@ -136,93 +124,45 @@ describe('useKnowledgeItems', () => {
     expect(result.current.items).toEqual([])
     expect(result.current.total).toBe(0)
     expect(result.current.error).toBe(error)
-    expect(result.current.refetch).toBe(refetch)
+    expect(result.current.hasMore).toBe(false)
   })
 
   it('polls while any returned item is non-terminal and stops when all terminal', () => {
-    mockUseQuery.mockReturnValue({
-      data: undefined,
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [],
       isLoading: false,
+      isRefreshing: false,
       error: undefined,
-      refetch: vi.fn()
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
     })
 
     renderHook(() => useKnowledgeItems('base-1'))
 
-    const refreshInterval = mockUseQuery.mock.calls[0][1].swrOptions.refreshInterval as (data?: {
-      items: KnowledgeItem[]
-    }) => number
+    const refreshInterval = mockUseInfiniteQuery.mock.calls[0][1].swrOptions.refreshInterval as (
+      pages?: KnowledgeItemListResponse[]
+    ) => number
 
     expect(refreshInterval(undefined)).toBe(0)
     expect(
-      refreshInterval({
-        items: [
-          {
-            id: 'directory-parent',
-            baseId: 'base-1',
-            groupId: null,
-            type: 'directory',
-            data: { source: '/docs' },
-            status: 'completed',
-            error: null,
-            createdAt: '2026-04-21T10:00:00+08:00',
-            updatedAt: '2026-04-21T10:00:00+08:00'
-          },
-          {
-            id: 'grouped-file',
-            baseId: 'base-1',
-            groupId: 'directory-parent',
-            type: 'file',
-            data: {
-              source: '/docs/grouped.md',
-              relativePath: 'grouped.md'
-            },
-            status: 'embedding',
-            error: null,
-            createdAt: '2026-04-21T10:00:00+08:00',
-            updatedAt: '2026-04-21T10:00:00+08:00'
-          },
-          {
-            id: 'item-pending',
-            baseId: 'base-1',
-            groupId: null,
-            type: 'note',
-            data: { source: 'item-processing', content: 'processing' },
-            status: 'processing',
-            error: null,
-            createdAt: '2026-04-21T10:00:00+08:00',
-            updatedAt: '2026-04-21T10:00:00+08:00'
-          }
-        ]
-      })
+      refreshInterval([
+        {
+          items: [makeItem({ id: 'done', status: 'completed' }), makeItem({ id: 'busy', status: 'embedding' })],
+          total: 2
+        }
+      ])
     ).toBe(2000)
     expect(
-      refreshInterval({
-        items: [
-          {
-            id: 'item-completed',
-            baseId: 'base-1',
-            groupId: null,
-            type: 'note',
-            data: { source: 'item-completed', content: 'completed' },
-            status: 'completed',
-            error: null,
-            createdAt: '2026-04-21T10:00:00+08:00',
-            updatedAt: '2026-04-21T10:00:00+08:00'
-          },
-          {
-            id: 'item-failed',
-            baseId: 'base-1',
-            groupId: null,
-            type: 'note',
-            data: { source: 'item-failed', content: 'failed' },
-            status: 'failed',
-            error: 'failed',
-            createdAt: '2026-04-21T10:00:00+08:00',
-            updatedAt: '2026-04-21T10:00:00+08:00'
-          }
-        ]
-      })
+      refreshInterval([
+        {
+          items: [
+            makeItem({ id: 'done', status: 'completed' }),
+            makeItem({ id: 'failed', status: 'failed', error: 'x' })
+          ],
+          total: 2
+        }
+      ])
     ).toBe(0)
   })
 })

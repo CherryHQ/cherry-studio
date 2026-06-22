@@ -12,6 +12,18 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
 }))
 
+// The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
+// so stub it with a plain pass-through that renders every row.
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: <T,>({ list, children }: { list: T[]; children: (item: T) => ReactNode }) => (
+    <div data-testid="virtual-list">
+      {list.map((item, index) => (
+        <div key={index}>{children(item)}</div>
+      ))}
+    </div>
+  )
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
   const actual = (await importOriginal()) as Record<string, unknown>

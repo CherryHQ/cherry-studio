@@ -97,13 +97,13 @@ describe('KnowledgeItemService', () => {
   }
 
   describe('list', () => {
-    it('returns paginated items for a knowledge base', async () => {
+    it('returns items for a knowledge base', async () => {
       await seedItem()
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20 })
 
       expect(result.total).toBe(1)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
       expect(result.items[0]).toMatchObject({
         baseId: KNOWLEDGE_BASE_ID,
         type: 'note',
@@ -111,13 +111,41 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('paginates with a cursor across pages without overlap', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 3000, data: { source: 'c', content: 'c' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
+      await seedItem({ id: NOTE_1_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })
+
+      const first = await service.list(KNOWLEDGE_BASE_ID, { limit: 2 })
+
+      expect(first.total).toBe(3)
+      // Newest first: createdAt DESC.
+      expect(first.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+      expect(first.nextCursor).toBeDefined()
+
+      const second = await service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor: first.nextCursor })
+
+      expect(second.total).toBe(3)
+      expect(second.items.map((item) => item.id)).toEqual([NOTE_1_ID])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('falls back to the first page when the cursor is malformed', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })
+
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, cursor: 'not-a-valid-cursor' })
+
+      expect(result.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+    })
+
     it('filters items by type and group', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: DIR_B_ID, type: 'directory', data: { source: '/b' } })
       await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: NOTE_1_ID, content: 'n1' } })
 
-      const directories = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, type: 'directory' })
-      const grouped = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: DIR_A_ID })
+      const directories = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, type: 'directory' })
+      const grouped = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, groupId: DIR_A_ID })
 
       expect(directories.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, DIR_B_ID])
       expect(grouped.items.map((item) => item.id)).toEqual([NOTE_1_ID])
@@ -128,7 +156,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root', content: 'root' } })
       await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: 'child', content: 'child' } })
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: null })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, groupId: null })
 
       expect(result.total).toBe(2)
       expect(result.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, NOTE_ROOT_ID])
@@ -138,7 +166,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
       await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20 })
 
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])

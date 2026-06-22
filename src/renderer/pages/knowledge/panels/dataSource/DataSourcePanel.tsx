@@ -14,7 +14,13 @@ import { getReadyCount } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
+  /** Server-side total across all pages. Defaults to the loaded count when omitted. */
+  total?: number
   isLoading: boolean
+  /** Cursor-pagination controls; default to a fully-loaded list when omitted. */
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
@@ -57,7 +63,11 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
 
 const DataSourcePanel = ({
   items,
+  total = items.length,
   isLoading,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore = () => undefined,
   updatedAt,
   onAdd,
   onItemClick,
@@ -149,7 +159,7 @@ const DataSourcePanel = ({
         <div className="border-border-muted border-b pb-3">
           <DataSourcePanelHeader
             readyCount={readyCount}
-            totalCount={items.length}
+            totalCount={total}
             selectedCount={selectedIds.size}
             updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}
@@ -165,6 +175,9 @@ const DataSourcePanel = ({
           <KnowledgeItemList
             items={items}
             isLoading={isLoading}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={onLoadMore}
             selectedIds={selectedIds}
             onToggleOne={handleToggleOne}
             onToggleAll={handleToggleAll}

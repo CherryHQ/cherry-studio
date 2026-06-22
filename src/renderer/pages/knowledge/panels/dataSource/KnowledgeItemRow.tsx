@@ -6,9 +6,7 @@ import {
   NormalTooltip,
   Popover,
   PopoverContent,
-  PopoverTrigger,
-  TableCell,
-  TableRow
+  PopoverTrigger
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
@@ -20,7 +18,7 @@ import type { ComponentProps, MouseEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { knowledgeDataSourceCheckboxClassName } from './styles'
+import { knowledgeDataSourceCheckboxClassName, KNOWLEDGE_ITEM_ROW_GRID } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -255,19 +253,16 @@ const KnowledgeItemRow = ({
   const fullTitle = 'source' in item.data ? item.data.source : title
 
   return (
-    <TableRow
+    <div
       data-state={selected ? 'selected' : undefined}
       onClick={canViewChunks ? onClick : undefined}
       className={cn(
-        'group/row transition-colors',
+        KNOWLEDGE_ITEM_ROW_GRID,
+        'group/row min-h-12 rounded-lg transition-colors',
         canViewChunks && 'cursor-pointer',
-        // The shared TableRow paints its highlight on the <tr>, whose corners a rounded cell can't clip.
-        // Neutralize it and paint a rounded inset pill on the cells instead (needs border-separate on the Table).
-        'hover:bg-transparent data-[state=selected]:bg-transparent',
-        '[&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:transition-colors',
-        selected ? '[&>td]:bg-accent' : canViewChunks && '[&:hover>td]:bg-accent/40'
+        selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
       )}>
-      <TableCell className="w-10 px-3" onClick={(event) => event.stopPropagation()}>
+      <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
         <Checkbox
           size="sm"
           className={knowledgeDataSourceCheckboxClassName}
@@ -275,23 +270,21 @@ const KnowledgeItemRow = ({
           checked={selected}
           onCheckedChange={(next) => onToggleSelect(next === true)}
         />
-      </TableCell>
-      <TableCell className="min-w-0 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
-            <Icon className={cn('size-3.5', icon.iconClassName)} />
-          </span>
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
-            {title}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell className="w-24 text-foreground-secondary text-xs">{typeLabel}</TableCell>
-      <TableCell className="w-32">
+      </div>
+      <div className="flex min-w-0 items-center gap-2 py-3">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
+          <Icon className={cn('size-3.5', icon.iconClassName)} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
+          {title}
+        </span>
+      </div>
+      <div className="truncate text-foreground-secondary text-xs">{typeLabel}</div>
+      <div>
         <KnowledgeItemStatusBadge status={status} failureReason={failureReason} />
-      </TableCell>
-      <TableCell className="w-32 text-foreground-muted text-xs">{updatedAt}</TableCell>
-      <TableCell className="w-12 px-2" onClick={(event) => event.stopPropagation()}>
+      </div>
+      <div className="truncate text-foreground-muted text-xs">{updatedAt}</div>
+      <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
         <KnowledgeItemRowMoreMenu
           canReindex={canReindex}
           canViewChunks={canViewChunks}
@@ -300,8 +293,8 @@ const KnowledgeItemRow = ({
           onReindex={onReindex}
           onViewChunks={onViewChunks}
         />
-      </TableCell>
-    </TableRow>
+      </div>
+    </div>
   )
 }
 

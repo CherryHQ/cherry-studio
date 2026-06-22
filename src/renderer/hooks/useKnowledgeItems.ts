@@ -1,7 +1,7 @@
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { KNOWLEDGE_ITEMS_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 import type {
   KnowledgeAddConflictStrategy,
   KnowledgeAddItemInput,
@@ -11,15 +11,14 @@ import type {
 } from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'
 
-const KNOWLEDGE_V2_ITEMS_QUERY = {
-  page: 1,
-  limit: KNOWLEDGE_ITEMS_MAX_LIMIT,
-  groupId: null
-} as const
+const KNOWLEDGE_V2_ITEMS_QUERY = { groupId: null } as const
+const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 
-const EMPTY_KNOWLEDGE_ITEMS: KnowledgeItem[] = []
 const KNOWLEDGE_ITEMS_POLLING_INTERVAL = 2000
 const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
+
+const hasNonTerminalItem = (pages?: KnowledgeItemListResponse[]) =>
+  pages?.some((page) => page.items.some((item) => !TERMINAL_STATUSES.has(item.status))) ?? false
 
 const normalizeKnowledgeError = (error: unknown): Error => {
   if (error instanceof Error) {
@@ -50,22 +49,42 @@ const refreshKnowledgeItemsCaches = async (
 }
 
 export const useKnowledgeItems = (baseId: string) => {
-  const { data, isLoading, error, refetch } = useQuery('/knowledge-bases/:id/items', {
-    params: { id: baseId },
-    query: KNOWLEDGE_V2_ITEMS_QUERY,
-    enabled: Boolean(baseId),
-    swrOptions: {
-      refreshInterval: (data) =>
-        data?.items.some((item) => !TERMINAL_STATUSES.has(item.status)) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
+    '/knowledge-bases/:id/items',
+    {
+      params: { id: baseId },
+      query: KNOWLEDGE_V2_ITEMS_QUERY,
+      limit: KNOWLEDGE_ITEMS_PAGE_SIZE,
+      enabled: Boolean(baseId),
+      swrOptions: {
+        refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
+          hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0
+      }
     }
-  })
+  )
+
+  const items = useInfiniteFlatItems(pages)
+  const total = pages[0]?.total ?? 0
+  const hasMore = hasNext
+  // `isRefreshing` also spikes during background polling; gate on existing pages
+  // so the first load reports via `isLoading`, not `isLoadingMore`.
+  const isLoadingMore = isRefreshing && pages.length > 0
+
+  const loadMore = useCallback(() => {
+    if (!isLoadingMore && hasMore) {
+      loadNext()
+    }
+  }, [isLoadingMore, hasMore, loadNext])
 
   return {
-    items: data?.items ?? EMPTY_KNOWLEDGE_ITEMS,
-    total: data?.total ?? 0,
+    items,
+    total,
     isLoading,
     error,
-    refetch
+    hasMore,
+    isLoadingMore,
+    loadMore,
+    refresh
   }
 }
 

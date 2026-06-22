@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ReactNode, UIEvent } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemList from '../KnowledgeItemList'
@@ -21,14 +21,25 @@ vi.mock('@cherrystudio/ui', () => ({
       checked={checked === true}
       onChange={(event) => onCheckedChange?.(event.target.checked)}
     />
-  ),
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Table: ({ children }: { children: ReactNode }) => <table>{children}</table>,
-  TableHeader: ({ children }: { children: ReactNode }) => <thead>{children}</thead>,
-  TableBody: ({ children }: { children: ReactNode }) => <tbody>{children}</tbody>,
-  TableRow: ({ children }: { children: ReactNode }) => <tr>{children}</tr>,
-  TableHead: ({ children }: { children: ReactNode }) => <th>{children}</th>,
-  TableCell: ({ children }: { children: ReactNode }) => <td>{children}</td>
+  )
+}))
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: <T,>({
+    list,
+    children,
+    onScroll
+  }: {
+    list: T[]
+    children: (item: T) => ReactNode
+    onScroll?: (event: UIEvent<HTMLDivElement>) => void
+  }) => (
+    <div data-testid="virtual-list" onScroll={onScroll}>
+      {list.map((item, index) => (
+        <div key={index}>{children(item)}</div>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('../KnowledgeItemRow', () => ({
@@ -47,25 +58,23 @@ vi.mock('../KnowledgeItemRow', () => ({
     onReindex?: () => void
     onViewChunks?: () => void
   }) => (
-    <tr>
-      <td>
-        <button type="button" onClick={onClick}>
-          {item.id}
-        </button>
-        <button type="button" onClick={onDelete}>
-          delete-{item.id}
-        </button>
-        <button type="button" onClick={onReindex}>
-          reindex-{item.id}
-        </button>
-        <button type="button" onClick={onPreviewSource}>
-          preview-{item.id}
-        </button>
-        <button type="button" onClick={onViewChunks}>
-          chunks-{item.id}
-        </button>
-      </td>
-    </tr>
+    <div>
+      <button type="button" onClick={onClick}>
+        {item.id}
+      </button>
+      <button type="button" onClick={onDelete}>
+        delete-{item.id}
+      </button>
+      <button type="button" onClick={onReindex}>
+        reindex-{item.id}
+      </button>
+      <button type="button" onClick={onPreviewSource}>
+        preview-{item.id}
+      </button>
+      <button type="button" onClick={onViewChunks}>
+        chunks-{item.id}
+      </button>
+    </div>
   )
 }))
 
@@ -82,6 +91,9 @@ vi.mock('react-i18next', () => ({
 }))
 
 const noopProps = {
+  hasMore: false,
+  isLoadingMore: false,
+  onLoadMore: () => undefined,
   selectedIds: new Set<string>(),
   onToggleOne: () => undefined,
   onToggleAll: () => undefined,
@@ -102,7 +114,7 @@ describe('KnowledgeItemList', () => {
   it('renders nothing when there are no items and it is not loading', () => {
     render(<KnowledgeItemList items={[]} isLoading={false} {...noopProps} />)
 
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('virtual-list')).not.toBeInTheDocument()
   })
 
   it('renders rows when items are available', () => {
@@ -171,5 +183,32 @@ describe('KnowledgeItemList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chunks-note-1' }))
 
     expect(handleViewChunks).toHaveBeenCalledWith('note-1')
+  })
+
+  it('requests more items when scrolled near the bottom and more pages remain', async () => {
+    const handleLoadMore = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} hasMore onLoadMore={handleLoadMore} />)
+
+    fireEvent.scroll(screen.getByTestId('virtual-list'))
+    // loadMore is scheduled via queueMicrotask; let it flush.
+    await Promise.resolve()
+
+    expect(handleLoadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not request more items when there are no further pages', async () => {
+    const handleLoadMore = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <KnowledgeItemList items={[item]} isLoading={false} {...noopProps} hasMore={false} onLoadMore={handleLoadMore} />
+    )
+
+    fireEvent.scroll(screen.getByTestId('virtual-list'))
+    await Promise.resolve()
+
+    expect(handleLoadMore).not.toHaveBeenCalled()
   })
 })

@@ -9,9 +9,8 @@ import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -19,7 +18,7 @@ import {
   KnowledgeItemSchema,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
@@ -30,6 +29,32 @@ const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
   data: KnowledgeItemData | string
+}
+
+type KnowledgeItemCursor = { createdAt: number; id: string } | null
+
+function warnAndFallbackCursor(raw: string, reason: string): KnowledgeItemCursor {
+  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
+  return null
+}
+
+function decodeCursor(raw: string | undefined): KnowledgeItemCursor {
+  if (!raw) return null
+
+  const separator = raw.indexOf(':')
+  if (separator < 0) return warnAndFallbackCursor(raw, 'missing separator')
+
+  const createdAt = Number(raw.slice(0, separator))
+  const id = raw.slice(separator + 1)
+  if (!Number.isFinite(createdAt) || !id) {
+    return warnAndFallbackCursor(raw, 'malformed createdAt or id')
+  }
+
+  return { createdAt, id }
+}
+
+function encodeCursor(row: Pick<KnowledgeItemRow, 'createdAt' | 'id'>): string {
+  return `${row.createdAt}:${row.id}`
 }
 
 type FailedKnowledgeItemStatusUpdate = {
@@ -72,35 +97,52 @@ export class KnowledgeItemService {
     return dbService.getDb()
   }
 
-  async list(baseId: string, query: ListKnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
+  async list(baseId: string, query: ListKnowledgeItemsQuery): Promise<KnowledgeItemListResponse> {
     await knowledgeBaseService.getById(baseId)
-    const { page, limit, type, groupId } = query
-    const offset = (page - 1) * limit
-    const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    const { limit, type, groupId } = query
+
+    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
 
     if (type !== undefined) {
-      conditions.push(eq(knowledgeItemTable.type, type))
+      filterConditions.push(eq(knowledgeItemTable.type, type))
     }
     if (groupId !== undefined) {
-      conditions.push(groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId))
+      filterConditions.push(
+        groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId)
+      )
     }
 
-    const where = and(...conditions)
+    // Keyset pagination: rows after the cursor in `(createdAt DESC, id ASC)` order.
+    const conditions = [...filterConditions]
+    const cursor = decodeCursor(query.cursor)
+    if (cursor) {
+      conditions.push(
+        or(
+          lt(knowledgeItemTable.createdAt, cursor.createdAt),
+          and(eq(knowledgeItemTable.createdAt, cursor.createdAt), gt(knowledgeItemTable.id, cursor.id))
+        )!
+      )
+    }
+
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select()
         .from(knowledgeItemTable)
-        .where(where)
-        .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
-        .limit(limit)
-        .offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).where(where)
+        .where(and(...conditions))
+        .orderBy(desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+        .limit(limit + 1),
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeItemTable)
+        .where(and(...filterConditions))
     ])
 
+    const pageRows = rows.slice(0, limit)
+
     return {
-      items: rows.map((row) => rowToKnowledgeItem(row)),
+      items: pageRows.map((row) => rowToKnowledgeItem(row)),
       total: count,
-      page: query.page
+      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
     }
   }
 
