@@ -156,6 +156,7 @@ vi.mock('@cherrystudio/ui', () => {
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
+  const DropdownMenuOpenContext = React.createContext(null)
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -238,6 +239,25 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     AccordionContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
+    DropdownMenu: ({ children, onOpenChange }) =>
+      React.createElement(
+        DropdownMenuOpenContext.Provider,
+        { value: onOpenChange ?? null },
+        React.createElement('div', null, children)
+      ),
+    DropdownMenuTrigger: ({ children }) => {
+      const onOpenChange = React.use(DropdownMenuOpenContext)
+      return React.createElement('span', { onClick: () => onOpenChange?.(true) }, children)
+    },
+    DropdownMenuContent: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuSeparator: () => React.createElement('hr'),
+    DropdownMenuSub: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuSubContent: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuSubTrigger: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuCheckboxItem: ({ children, disabled, onCheckedChange }) =>
+      React.createElement('button', { type: 'button', disabled, onClick: onCheckedChange }, children),
+    DropdownMenuItem: ({ children, disabled, onSelect }) =>
+      React.createElement('button', { type: 'button', disabled, onClick: onSelect }, children),
     ContextMenu: ({ children, defaultOpen = false, open: controlledOpen, onOpenChange, ...props }) => {
       const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
       const open = controlledOpen ?? uncontrolledOpen

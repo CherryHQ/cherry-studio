@@ -92,6 +92,7 @@ describe('ImageViewer', () => {
   it('copies image data from the context menu', async () => {
     render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
 
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.copy' }))
 
     await waitFor(() => {
@@ -104,6 +105,7 @@ describe('ImageViewer', () => {
   it('downloads the image from the context menu', async () => {
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
 
     await waitFor(() => {
