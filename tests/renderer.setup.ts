@@ -155,7 +155,7 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
-  const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
+  const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -238,12 +238,21 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     AccordionContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
-    ContextMenu: ({ children, open = true, onOpenChange, ...props }) =>
-      React.createElement(
+    ContextMenu: ({ children, defaultOpen = false, open: controlledOpen, onOpenChange, ...props }) => {
+      const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+      const open = controlledOpen ?? uncontrolledOpen
+      const handleOpenChange = (nextOpen: boolean) => {
+        if (controlledOpen === undefined) {
+          setUncontrolledOpen(nextOpen)
+        }
+        onOpenChange?.(nextOpen)
+      }
+      return React.createElement(
         ContextMenuContext.Provider,
-        { value: { open, onOpenChange } },
+        { value: { open, onOpenChange: handleOpenChange } },
         React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children)
-      ),
+      )
+    },
     ContextMenuTrigger: ({ children, asChild, ...props }) => {
       const context = React.useContext(ContextMenuContext)
       const triggerProps = {
@@ -251,7 +260,7 @@ vi.mock('@cherrystudio/ui', () => {
         'data-testid': 'context-menu-trigger',
         onContextMenu: (event: React.MouseEvent) => {
           props.onContextMenu?.(event)
-          if (!event.defaultPrevented) {
+          if (!event.defaultPrevented && !props.disabled) {
             context.onOpenChange?.(true)
             event.preventDefault()
           }
@@ -278,12 +287,22 @@ vi.mock('@cherrystudio/ui', () => {
         ? React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children)
         : null
     },
-    ContextMenuItem: ({ children, onSelect, ...props }) =>
-      React.createElement(
+    ContextMenuItem: ({ children, onSelect, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      return React.createElement(
         'button',
-        { ...props, type: 'button', onClick: onSelect, 'data-testid': 'context-menu-item' },
+        {
+          ...props,
+          type: 'button',
+          onClick: (event: React.MouseEvent) => {
+            onSelect?.(event)
+            context.onOpenChange?.(false)
+          },
+          'data-testid': 'context-menu-item'
+        },
         children
-      ),
+      )
+    },
     ContextMenuItemContent: ({ badge, children, icon, shortcut, ...props }) =>
       React.createElement(
         React.Fragment,
