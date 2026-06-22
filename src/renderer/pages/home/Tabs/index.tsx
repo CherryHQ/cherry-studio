@@ -9,7 +9,7 @@ import { Topics } from './components/Topics'
 interface Props {
   activeTopic?: Topic
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  onOpenHistory?: (origin?: DOMRectReadOnly) => void
+  onOpenHistory?: () => void
   setActiveTopic: (topic: Topic) => void
   revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties

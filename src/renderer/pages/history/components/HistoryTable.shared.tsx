@@ -64,7 +64,10 @@ export function HistoryVirtualTable<TItem>({
     }
 
     return () => resizeObserver.disconnect()
-  }, [header, items.length, updateFixedActionShadow])
+    // `header` is intentionally excluded: callers pass a fresh inline element each render, so keeping it
+    // here would tear down and rebuild the observer on every render. `items.length` already covers the
+    // empty<->non-empty scroller swap, and the observer itself handles size changes.
+  }, [items.length, updateFixedActionShadow])
 
   return (
     <div className="min-h-0 flex-1 px-3 py-3" role="table">

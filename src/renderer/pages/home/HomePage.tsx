@@ -62,7 +62,6 @@ const HomePage: FC = () => {
   const { t } = useTranslation()
   const draftScopeId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
   const draftAssistantStartStateRef = useRef<DraftAssistantStartState>({ firstLaunchStarted: false })
@@ -378,8 +377,7 @@ const HomePage: FC = () => {
     }
   }, [])
 
-  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
-    setHistoryOrigin(origin)
+  const openHistory = useCallback(() => {
     setHistoryOpen(true)
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
@@ -429,7 +427,6 @@ const HomePage: FC = () => {
       mode="assistant"
       open={historyOpen}
       activeRecordId={visibleTopic?.id}
-      origin={historyOrigin}
       onClose={closeHistory}
       onRecordSelect={handleHistoryTopicSelect}
     />

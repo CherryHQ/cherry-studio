@@ -1306,17 +1306,11 @@ describe('Sessions', () => {
     openSessionListOptions()
 
     const historyButton = screen.getByRole('button', { name: 'History' })
-    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
-      x: 14,
-      y: 24,
-      width: 34,
-      height: 44
-    } as DOMRect)
 
     fireEvent.click(historyButton)
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
-    expect(onOpenHistory).toHaveBeenCalledWith({ x: 14, y: 24, width: 34, height: 44 })
+    expect(onOpenHistory).toHaveBeenCalledWith()
     expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('topic.tab.show', false)
   })
 

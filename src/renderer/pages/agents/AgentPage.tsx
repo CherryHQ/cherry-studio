@@ -39,7 +39,6 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
 
 const AgentPage = () => {
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
@@ -204,8 +203,7 @@ const AgentPage = () => {
     }
   }, [])
 
-  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
-    setHistoryOrigin(origin)
+  const openHistory = useCallback(() => {
     setHistoryOpen(true)
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
@@ -553,7 +551,6 @@ const AgentPage = () => {
       mode="agent"
       open={historyOpen}
       activeRecordId={activeSessionId}
-      origin={historyOrigin}
       onClose={closeHistory}
       onRecordSelect={handleHistorySessionSelect}
     />

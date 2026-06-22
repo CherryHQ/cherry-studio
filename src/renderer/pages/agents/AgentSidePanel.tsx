@@ -6,7 +6,7 @@ import type { DraftAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
-  onOpenHistory?: (origin?: DOMRectReadOnly) => void
+  onOpenHistory?: () => void
   onSelectItem?: () => void
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>

@@ -65,7 +65,6 @@ interface HistoryRecordsPageBaseProps {
   mode: HistoryRecordsMode
   open: boolean
   activeRecordId?: string | null
-  origin?: DOMRectReadOnly
   onClose: () => void
 }
 
@@ -278,7 +277,10 @@ const AssistantHistoryRecordsContent = ({
 
   useEffect(() => {
     const visibleTopicIds = new Set(searchedTopics.filter((topic) => !topic.pinned).map((topic) => topic.id))
-    setSelectedTopicIds((ids) => ids.filter((id) => visibleTopicIds.has(id)))
+    setSelectedTopicIds((ids) => {
+      const next = ids.filter((id) => visibleTopicIds.has(id))
+      return next.length === ids.length ? ids : next
+    })
   }, [searchedTopics])
 
   useEffect(() => {
@@ -379,14 +381,20 @@ const AssistantHistoryRecordsContent = ({
       const ids = selectedTopicIds.filter((id) => topics.some((topic) => topic.id === id))
       if (ids.length === 0) return
 
+      const movedIds: string[] = []
       try {
         for (const id of ids) {
           await patchTopic(id, { assistantId: targetAssistantId })
+          movedIds.push(id)
         }
         setSelectedTopicIds([])
         window.toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
       } catch (err) {
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
+        if (movedIds.length > 0) {
+          const movedIdSet = new Set(movedIds)
+          setSelectedTopicIds((current) => current.filter((id) => !movedIdSet.has(id)))
+        }
         const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
         window.toast.error(message)
       }
@@ -588,7 +596,10 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     const visibleSessionIds = new Set(
       searchedSessions.filter((session) => !session.pinned).map((session) => session.id)
     )
-    setSelectedSessionIds((ids) => ids.filter((id) => visibleSessionIds.has(id)))
+    setSelectedSessionIds((ids) => {
+      const next = ids.filter((id) => visibleSessionIds.has(id))
+      return next.length === ids.length ? ids : next
+    })
   }, [searchedSessions])
 
   useEffect(() => {

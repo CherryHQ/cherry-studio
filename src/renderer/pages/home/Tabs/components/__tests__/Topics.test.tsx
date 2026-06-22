@@ -1469,17 +1469,11 @@ describe('Topics', () => {
     expect(optionsContent?.querySelector('svg')).not.toBeNull()
 
     const historyButton = screen.getByRole('button', { name: 'History' })
-    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
-      x: 10,
-      y: 20,
-      width: 30,
-      height: 40
-    } as DOMRect)
 
     fireEvent.click(historyButton)
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
-    expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
+    expect(onOpenHistory).toHaveBeenCalledWith()
   })
 
   it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {

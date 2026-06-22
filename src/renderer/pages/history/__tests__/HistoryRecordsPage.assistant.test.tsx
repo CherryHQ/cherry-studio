@@ -725,19 +725,57 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('drops already-moved topics from the selection when a bulk move partially fails', async () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [
+        createTopic(),
+        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' }),
+        createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
+      ],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({
+      assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
+    })
+    hookMocks.updateTopic.mockReset()
+    hookMocks.updateTopic.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('move failed'))
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Batch Move' }))
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /Beta assistant/ }))
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Move' }))
+    })
+
+    expect(hookMocks.updateTopic).toHaveBeenCalledTimes(2)
+    expect(window.toast.error).toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
+
+    // The successfully-moved topic is pruned from the selection; the failed one stays selected.
+    const alphaCheckbox = within(screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement).getByRole(
+      'checkbox'
+    )
+    const betaCheckbox = within(screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement).getByRole(
+      'checkbox'
+    )
+    expect(alphaCheckbox).toHaveAttribute('aria-checked', 'false')
+    expect(betaCheckbox).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('renders the overlay shell without transition animation', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(
-      <HistoryRecordsPage
-        mode="assistant"
-        open
-        origin={createTestDomRect({ x: 20, y: 30, width: 20, height: 20 })}
-        onClose={vi.fn()}
-        onRecordSelect={vi.fn()}
-      />
-    )
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const overlay = screen.getByTestId('history-records-page')
     expect(overlay).toHaveClass('z-40')
@@ -835,7 +873,6 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const props = {
       mode: 'assistant' as const,
-      origin: createTestDomRect({ x: 20, y: 30, width: 20, height: 20 }),
       onClose: vi.fn(),
       onRecordSelect: vi.fn()
     }
@@ -1236,18 +1273,4 @@ function getNestedValue(source: Record<string, unknown>, key: string) {
 
     return (value as Record<string, unknown>)[segment]
   }, source)
-}
-
-function createTestDomRect({ height, width, x, y }: { height: number; width: number; x: number; y: number }) {
-  return {
-    bottom: y + height,
-    height,
-    left: x,
-    right: x + width,
-    top: y,
-    width,
-    x,
-    y,
-    toJSON: () => ({ bottom: y + height, height, left: x, right: x + width, top: y, width, x, y })
-  } satisfies DOMRectReadOnly
 }
