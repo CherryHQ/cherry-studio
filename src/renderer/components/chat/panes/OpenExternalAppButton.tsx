@@ -14,6 +14,7 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { joinPath } from '@renderer/utils/path'
 import type { ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
 import { ChevronDown, FileText, FolderOpen } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
@@ -29,11 +30,6 @@ type OpenExternalAppButtonProps = {
 }
 
 type OpenTarget = ExternalAppId | typeof FILE_MANAGER_TARGET
-
-const joinPath = (base: string, rel: string): string => {
-  const trimmed = rel.replace(/^[/\\]+/, '')
-  return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
-}
 
 const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalAppButtonProps) => {
   const { t } = useTranslation()

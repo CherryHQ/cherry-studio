@@ -11,6 +11,7 @@ import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { joinPath } from '@renderer/utils/path'
 import type { FilePath } from '@shared/types/file/common'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file/tree'
 import { toFileUrl } from '@shared/utils/file/urlUtil'
@@ -101,12 +102,6 @@ const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => 
   const next = new Set(ids)
   next.delete(WORKSPACE_ROOT_ID)
   return next
-}
-
-const joinPath = (base: string, rel: string): string => {
-  const trimmed = rel.replace(/^[/\\]+/, '')
-  if (!base) return trimmed
-  return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
 }
 
 const getPathBasename = (path: string): string => {
