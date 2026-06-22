@@ -93,7 +93,7 @@ describe('MigrationIpcHandler', () => {
     await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
-    expect(progress.stage).toBe('migration_completed')
+    expect(progress.stage).toBe('completed')
     expect(progress.summary).toEqual({
       completedMigrators: 2,
       totalMigrators: 2,

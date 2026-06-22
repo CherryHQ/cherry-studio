@@ -231,9 +231,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       if (result.success) {
         updateProgress(
           {
-            stage: 'migration_completed',
+            stage: 'completed',
             overallProgress: 100,
-            currentMessage: 'Migration completed successfully! Please confirm to continue.',
+            currentMessage: 'Migration completed successfully!',
             migrators: currentProgress.migrators.map((m) => ({
               ...m,
               status: 'completed'
