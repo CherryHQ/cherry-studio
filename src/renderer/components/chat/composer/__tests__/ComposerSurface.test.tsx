@@ -178,7 +178,7 @@ vi.mock('@tiptap/react', () => ({
   )
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/SendMessageButton', () => ({
+vi.mock('@renderer/components/SendMessageButton', () => ({
   default: () => <button type="button">send</button>
 }))
 

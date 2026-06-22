@@ -9,7 +9,7 @@ import {
   getWebSearchProviderDescriptionKey,
   getWebSearchProviderLogo,
   getWebSearchProviderOfficialWebsite
-} from '../utils/webSearchProviderMeta'
+} from '../webSearchProviderMeta'
 
 const providers: WebSearchProvider[] = [
   {

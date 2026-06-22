@@ -31,7 +31,6 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { LocalSkill, ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -59,6 +58,7 @@ import {
   readAgentDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { AgentLabel } from './agent/AgentLabel'
 import { useAgentResourceSuggestion } from './agent/useAgentResourceSuggestion'
 import {
   agentComposerTokenId,
