@@ -2,7 +2,8 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
   Input,
   Kbd,
@@ -227,24 +228,23 @@ function TimeFilterDropdown({
           type="button"
           variant="ghost"
           className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-          aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
+          aria-label={`${t(getTimeFilterAriaLabelKey(panelMode))}: ${t(getTimeFilterLabelKey(timeFilter))}`}>
           <Clock3 className="size-3.5" />
           <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
           <ChevronDown className="size-3.5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-        {TIME_FILTERS.map((filterOption) => (
-          <DropdownMenuItem
-            key={filterOption}
-            onSelect={() => onSelect(filterOption)}
-            className={cn(
-              'h-8 rounded-[7px] font-medium text-xs',
-              timeFilter === filterOption && 'bg-accent text-accent-foreground'
-            )}>
-            {t(getTimeFilterLabelKey(filterOption))}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup value={timeFilter} onValueChange={(value) => onSelect(value as GlobalSearchTimeFilter)}>
+          {TIME_FILTERS.map((filterOption) => (
+            <DropdownMenuRadioItem
+              key={filterOption}
+              value={filterOption}
+              className="h-8 rounded-[7px] font-medium text-xs data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground">
+              {t(getTimeFilterLabelKey(filterOption))}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

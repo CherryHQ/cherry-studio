@@ -63,6 +63,10 @@ vi.mock('@cherrystudio/ui', async () => {
     open: boolean
     setOpen: React.Dispatch<React.SetStateAction<boolean>>
   } | null>(null)
+  const DropdownMenuRadioContext = React.createContext<{
+    value?: string
+    onValueChange?: (value: string) => void
+  } | null>(null)
 
   return {
     Button: ({
@@ -112,6 +116,44 @@ vi.mock('@cherrystudio/ui', async () => {
           onClick={() => {
             onSelect?.()
             context?.setOpen(false)
+          }}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuRadioGroup: ({
+      children,
+      value,
+      onValueChange
+    }: React.ComponentProps<'div'> & {
+      value?: string
+      onValueChange?: (value: string) => void
+    }) => (
+      <DropdownMenuRadioContext value={{ value, onValueChange }}>
+        <div role="group">{children}</div>
+      </DropdownMenuRadioContext>
+    ),
+    DropdownMenuRadioItem: ({
+      children,
+      value,
+      ...props
+    }: React.ComponentProps<'button'> & {
+      value: string
+    }) => {
+      const menuContext = React.use(DropdownMenuContext)
+      const radioContext = React.use(DropdownMenuRadioContext)
+      const checked = radioContext?.value === value
+
+      return (
+        <button
+          type="button"
+          role="menuitemradio"
+          aria-checked={checked}
+          data-state={checked ? 'checked' : 'unchecked'}
+          onClick={() => {
+            radioContext?.onValueChange?.(value)
+            menuContext?.setOpen(false)
           }}
           {...props}>
           {children}
@@ -983,7 +1025,7 @@ describe('GlobalSearchPanel', () => {
       )
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.queryByRole('button', { name: 'Match mode' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Created time' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Created time: Any time' })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenCalledWith(
@@ -1060,8 +1102,9 @@ describe('GlobalSearchPanel', () => {
       'needle'
     )
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.click(screen.getByRole('button', { name: 'Created time' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
+    await user.click(screen.getByRole('button', { name: 'Created time: Any time' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Any time' })).toHaveAttribute('aria-checked', 'true')
+    await user.click(screen.getByRole('menuitemradio', { name: 'Last 7 days' }))
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenCalledWith(
@@ -1651,9 +1694,11 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'plan')
-    await user.click(screen.getByRole('button', { name: 'Updated time' }))
-    expect(screen.getByRole('menuitem', { name: 'Last 7 days' }).parentElement).toHaveClass('z-[90]')
-    await user.click(screen.getByRole('menuitem', { name: 'Last 7 days' }))
+    await user.click(screen.getByRole('button', { name: 'Updated time: Any time' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Last 7 days' }).parentElement?.parentElement).toHaveClass(
+      'z-[90]'
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'Last 7 days' }))
 
     await waitFor(() => {
       const lastCall = mocks.useQuery.mock.calls.at(-1)
