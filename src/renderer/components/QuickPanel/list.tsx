@@ -69,7 +69,9 @@ export function moveQuickPanelSelectableIndex(
   const nextPosition = basePosition + offset
 
   if (options.wrap) {
-    return indexes[(nextPosition + indexes.length) % indexes.length]
+    // Wrap with a full modulo so a multi-page negative offset (e.g. Cmd/Ctrl+ArrowUp with
+    // fewer selectable items than the page size) still lands on a valid index, not `undefined`.
+    return indexes[((nextPosition % indexes.length) + indexes.length) % indexes.length]
   }
 
   return indexes[Math.min(Math.max(nextPosition, 0), indexes.length - 1)]
