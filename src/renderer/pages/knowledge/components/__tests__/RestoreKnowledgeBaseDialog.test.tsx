@@ -98,7 +98,7 @@ vi.mock('@cherrystudio/ui', async () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { name?: string }) =>
+    t: (key: string, options?: { name?: string; count?: number }) =>
       (
         ({
           'common.name': '名称',
@@ -110,6 +110,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.not_set': '未设置',
           'knowledge.restore.default_name': `${options?.name}_副本`,
+          'knowledge.restore.skipped_missing_sources': `已跳过 ${options?.count} 个源已丢失的项目`,
           'knowledge.restore.failed_to_restore': '知识库重建失败',
           'knowledge.restore.submit': '重建',
           'knowledge.restore.title': '重建知识库',
@@ -162,7 +163,8 @@ describe('RestoreKnowledgeBaseDialog', () => {
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
     Object.assign(window, {
       toast: {
-        error: vi.fn()
+        error: vi.fn(),
+        warning: vi.fn()
       }
     })
   })
@@ -176,7 +178,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       dimensions: 1536,
       embeddingModelId: 'openai::text-embedding-3-small'
     })
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
     const onOpenChange = vi.fn()
     const onRestored = vi.fn()
 
@@ -212,10 +214,44 @@ describe('RestoreKnowledgeBaseDialog', () => {
     })
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
     expect(onOpenChange).toHaveBeenCalledWith(false)
+    // Nothing was skipped, so the user is not warned.
+    expect(window.toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('warns the user when restore skipped items whose source is gone', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      status: 'completed',
+      error: null,
+      dimensions: 1536,
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 2 })
+    const onRestored = vi.fn()
+
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase()}
+        isRestoring={false}
+        restoreBase={restoreBase}
+        onOpenChange={vi.fn()}
+        onRestored={onRestored}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    await waitFor(() => expect(restoreBase).toHaveBeenCalled())
+    // The skipped count is surfaced via a warning toast (not silently dropped); the base still restores.
+    expect(window.toast.warning).toHaveBeenCalledTimes(1)
+    expect(window.toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
+    expect(onRestored).toHaveBeenCalledWith(restoredBase)
   })
 
   it('does not submit when required fields are missing', async () => {
-    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+    const restoreBase = vi.fn().mockResolvedValue({ base: createKnowledgeBase(), skippedMissingSourceCount: 0 })
 
     render(
       <RestoreKnowledgeBaseDialog
@@ -257,7 +293,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       dimensions: 2048,
       embeddingModelId: 'openai::text-embedding-3-small'
     })
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     render(
       <RestoreKnowledgeBaseDialog
@@ -315,7 +351,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
   it('shows an error and keeps the dialog open when embedding dimensions cannot be fetched', async () => {
     mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
-    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+    const restoreBase = vi.fn().mockResolvedValue({ base: createKnowledgeBase(), skippedMissingSourceCount: 0 })
     const onOpenChange = vi.fn()
     const onRestored = vi.fn()
 
@@ -341,7 +377,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
   })
 
   it('closes the dialog on cancel without restoring', () => {
-    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+    const restoreBase = vi.fn().mockResolvedValue({ base: createKnowledgeBase(), skippedMissingSourceCount: 0 })
     const onOpenChange = vi.fn()
 
     render(

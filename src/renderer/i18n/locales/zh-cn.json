@@ -2257,6 +2257,7 @@
       "failed_to_edit": "知识库编辑失败",
       "failed_to_move": "知识库移动失败",
       "missing_embedding_model": "迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。",
+      "missing_vector_store": "迁移时未能读取该知识库的向量库（缺失、为空或被占用），知识库已保留，请重新索引以恢复。",
       "model_invalid": "未选择模型"
     },
     "groups": {
@@ -2356,6 +2357,8 @@
       "action": "重建知识库",
       "default_name": "{{name}}_副本",
       "failed_to_restore": "知识库重建失败",
+      "skipped_missing_sources_one": "已跳过 {{count}} 个源已丢失的项目",
+      "skipped_missing_sources_other": "已跳过 {{count}} 个源已丢失的项目",
       "submit": "重建",
       "title": "重建知识库"
     },
