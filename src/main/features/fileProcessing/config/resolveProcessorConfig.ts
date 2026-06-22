@@ -61,9 +61,12 @@ export function resolveProcessorConfigByFeature(
     return config
   }
 
+  // `image_to_text` has a self-healing platform default (system OCR on macOS/Windows,
+  // tesseract on Linux) resolved here instead of persisted on startup, so a profile
+  // created on one OS and restored on another never carries an unavailable processor id.
   const defaultProcessorId =
     application.get('PreferenceService').get(DEFAULT_PROCESSOR_KEY_BY_FEATURE[feature]) ??
-    resolveFeatureFallbackProcessor(feature)
+    (feature === 'image_to_text' ? resolveDefaultImageToTextProcessor() : null)
 
   if (defaultProcessorId) {
     const config = getFileProcessorConfigById(defaultProcessorId)
@@ -72,15 +75,4 @@ export function resolveProcessorConfigByFeature(
   }
 
   throw new Error(`Default file processor for ${feature} is not configured`)
-}
-
-/**
- * Resolve-time fallback for features that have a sensible platform default but no
- * configured one. `image_to_text` defaults to system OCR on macOS/Windows and
- * tesseract on Linux. Computing this here (instead of persisting it on startup)
- * keeps the default self-healing: a profile created on one OS and restored on
- * another never carries a persisted-but-unavailable processor id.
- */
-function resolveFeatureFallbackProcessor(feature: FileProcessorFeature): FileProcessorId | null {
-  return feature === 'image_to_text' ? resolveDefaultImageToTextProcessor() : null
 }
