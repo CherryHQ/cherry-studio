@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
+import type * as React from 'react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
-  const ReactActual = await vi.importActual<typeof import('react')>('react')
+  const ReactActual = await vi.importActual<typeof React>('react')
   // Controlled Popover so menu items are hidden until the trigger ("More") opens it — otherwise
   // the test could click menu entries without the split-button/asChild/open flow ever running.
   const PopoverContext = ReactActual.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
