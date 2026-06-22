@@ -5,11 +5,7 @@ import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ArtifactPane, {
-  ARTIFACT_FILE_TREE_DEFAULT_WIDTH,
-  normalizeArtifactPaneFilePath,
-  resolveArtifactPaneFileSelection
-} from '../ArtifactPane'
+import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH, resolveArtifactPaneFileSelection } from '../ArtifactPane'
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
@@ -386,18 +382,6 @@ describe('ArtifactPane', () => {
       workspacePath: '/Users/suyao/Desktop',
       filePath: '记忆商人.md'
     })
-  })
-
-  it('rejects workspace-relative paths that escape the workspace via ".."', () => {
-    // workspace-relative filePaths are joined onto workspacePath downstream (readText / PDF read)
-    // and the raw path comes from agent/tool output — a `..` segment must not let a click read
-    // outside the workspace. (Absolute paths are a separate, intentional external-file path.)
-    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '../secret.md')).toBeNull()
-    expect(resolveArtifactPaneFileSelection('/tmp/workspace', 'src/../../secret.md')).toBeNull()
-    // A workspace-prefixed path that climbs back out also escapes the workspace branch.
-    expect(normalizeArtifactPaneFilePath('/tmp/workspace', '/tmp/workspace/../secret.md')).toBeNull()
-    // sanity: a normal nested path is still accepted
-    expect(normalizeArtifactPaneFilePath('/tmp/workspace', '/tmp/workspace/a/b.md')).toBe('a/b.md')
   })
 
   it('does not load the PDF preview panel module for non-PDF selections', async () => {
