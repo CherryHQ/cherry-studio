@@ -21,7 +21,8 @@ const mocks = vi.hoisted(() => ({
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  isWin: false
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -108,7 +109,9 @@ vi.mock('@main/core/application', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
-  isWin: false
+  get isWin() {
+    return mocks.isWin
+  }
 }))
 
 vi.mock('@main/services/proxy/nodeProxy', () => ({
@@ -204,6 +207,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
+    mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.getSkillDirectory.mockImplementation((folderName: string) => `/app/feature.agents.skills/${folderName}`)
   })
@@ -251,6 +255,37 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills).toEqual(['pdf'])
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
     await expect(fs.promises.access(path.join(claudeRoot, 'skills', 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
+  })
+
+  it('refreshes copied managed skills on Windows so updates are not hidden by stale config copies', async () => {
+    mocks.isWin = true
+    const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'settings-builder-skills-'))
+    tempRoots.push(tempRoot)
+    const dataSkillsRoot = path.join(tempRoot, 'Data', 'Skills')
+    const claudeRoot = path.join(tempRoot, '.claude')
+    const sourceDir = path.join(dataSkillsRoot, 'pdf')
+    const targetDir = path.join(claudeRoot, 'skills', 'pdf')
+    await fs.promises.mkdir(sourceDir, { recursive: true })
+    await fs.promises.mkdir(targetDir, { recursive: true })
+    await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# PDF v2\n')
+    await fs.promises.writeFile(path.join(targetDir, 'SKILL.md'), '# PDF v1\n')
+    mocks.applicationGetPath.mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.claude.root') return filename ? path.join(claudeRoot, filename) : claudeRoot
+      if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
+      return `/app/${key}`
+    })
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', name: 'pdf', isEnabled: true }])
+    mocks.getSkillDirectory.mockImplementation((folderName: string) => path.join(dataSkillsRoot, folderName))
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.skills).toEqual(['pdf'])
+    await expect(fs.promises.readFile(path.join(targetDir, 'SKILL.md'), 'utf-8')).resolves.toBe('# PDF v2\n')
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {

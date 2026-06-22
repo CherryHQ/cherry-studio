@@ -32,7 +32,7 @@ export type {
  * are managed by the language model internally.
  */
 export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'prompt' | 'outputFormat'> & {
-  /** Skill directories to expose to the Claude Agent SDK for this session. */
+  /** Skill names enabled for this session; SDK Options.skills is not a path list. */
   skills?: string[]
   /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`

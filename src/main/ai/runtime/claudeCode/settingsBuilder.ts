@@ -290,8 +290,9 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
   const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
-  // 9. Skills — pass explicit SDK-readable directories instead of mutating
-  // workspaces with Cherry-managed symlinks.
+  // 9. Skills — make app-managed skills discoverable under CLAUDE_CONFIG_DIR/skills,
+  // then pass SDK skill names. Claude Agent SDK `Options.skills` is a name whitelist,
+  // not a directory injection API.
   const skills = await buildSkillWhitelist(agent.id)
 
   // 10. Build settings
@@ -568,20 +569,38 @@ async function ensureSkillInClaudeConfig(
   configSkillsRoot: string,
   folderName: string
 ): Promise<void> {
-  const targetDir = path.join(configSkillsRoot, folderName)
-  try {
-    await fs.promises.access(path.join(targetDir, 'SKILL.md'), fs.constants.R_OK)
+  const rootDir = path.resolve(configSkillsRoot)
+  const targetDir = path.resolve(rootDir, folderName)
+  const relativeTarget = path.relative(rootDir, targetDir)
+  if (!relativeTarget || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+    logger.warn('Refusing to expose skill outside Claude config root', { folderName, sourceDir, targetDir })
     return
-  } catch {
-    // SDK discovers app-managed skills only from CLAUDE_CONFIG_DIR/skills; keep Data/Skills inert.
   }
 
   try {
-    await fs.promises.mkdir(configSkillsRoot, { recursive: true })
+    await fs.promises.mkdir(rootDir, { recursive: true })
+
+    // Claude Agent SDK discovers skill files from CLAUDE_CONFIG_DIR/skills, but
+    // `Options.skills` below is only a name whitelist. Keep the files discoverable
+    // here, and never pass Data/Skills paths as SDK skill values.
+    if (!isWin) {
+      const stat = await fs.promises.lstat(targetDir).catch(() => null)
+      if (stat?.isSymbolicLink()) {
+        const [targetRealPath, sourceRealPath] = await Promise.all([
+          fs.promises.realpath(targetDir),
+          fs.promises.realpath(sourceDir)
+        ])
+        if (targetRealPath === sourceRealPath) return
+      }
+    }
+
+    await fs.promises.rm(targetDir, { recursive: true, force: true })
     if (isWin) {
+      // Windows uses a real copy instead of symlink/junction to avoid privilege and
+      // packaging quirks, so refresh it every session build; otherwise updated
+      // Data/Skills contents would be hidden behind a stale CLAUDE_CONFIG_DIR copy.
       await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
     } else {
-      await fs.promises.rm(targetDir, { recursive: true, force: true })
       await fs.promises.symlink(sourceDir, targetDir, 'dir')
     }
   } catch (error) {
