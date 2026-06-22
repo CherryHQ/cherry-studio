@@ -1228,8 +1228,11 @@ export default function ComposerSurface({
     },
     onCreate: ({ editor: createdEditor }) => {
       setTimeoutTimer('composerSurfaceFocus', () => createdEditor.commands.focus(), 0)
-    },
-    shouldRerenderOnTransaction: true
+    }
+    // Default (false): no control reads per-transaction `editor.state` during render
+    // — text/send state is parent-driven via `onTextChange`, and the `editor.state`
+    // reads all live in on-demand helpers (serialize/select), not the render path.
+    // Re-rendering this 1500-line component on every cursor/selection move was pure waste.
   })
 
   useEffect(() => {
