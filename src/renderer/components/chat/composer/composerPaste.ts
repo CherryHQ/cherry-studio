@@ -3,7 +3,7 @@ import type { ComposerClipboardFragment, ComposerClipboardToken } from '@rendere
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
 import type { JSONContent } from '@tiptap/core'
 
-import type { ComposerAttachment } from './composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
