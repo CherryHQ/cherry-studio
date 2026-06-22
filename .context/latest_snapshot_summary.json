@@ -1,71 +1,77 @@
 {
-  "generated_at": "2026-06-21T00:00:00Z",
-  "snapshot_date": "2026-06-21",
+  "generated_at": "2026-06-22T00:00:00Z",
+  "snapshot_date": "2026-06-22",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 948,
+    "total": 937,
     "by_label_sample_top100": {
-      "UI/UX": 25,
-      "internal_team": 23,
-      "Models": 16,
-      "feature": 14,
-      "prd": 13,
-      "Assistant": 10,
-      "MCP": 9,
-      "needs-repro": 7,
-      "needs-more-info": 6,
+      "inactive": 39,
+      "UI/UX": 31,
+      "Models": 18,
+      "Assistant": 12,
+      "needs-repro": 11,
+      "MCP": 11,
+      "internal_team": 10,
+      "feature": 9,
+      "prd": 7,
       "help wanted": 6,
       "discussion": 6,
-      "RAG": 5,
-      "Agent": 5,
-      "Connectivity": 4,
-      "Data": 2,
-      "Performance": 1
+      "needs-more-info": 3,
+      "Data": 3,
+      "RAG": 3,
+      "Connectivity": 2,
+      "BUG_total_search": 103
     },
-    "no_label_count": 93,
+    "no_label_count": 92,
     "no_label_pct": 9.8,
     "health": {
-      "stale_gt90d": 140,
-      "zombie_gt180d": 1,
-      "active_lt7d_estimate": "~200+",
-      "aging_7_90d_estimate": "~607",
-      "note": "Stale/zombie counts from targeted search. Active/aging are estimates based on partial API page data."
+      "stale_gt30d": 360,
+      "zombie_gt90d": 142,
+      "active_lt30d_estimate": 577,
+      "aging_30_90d": 218,
+      "note": "Stale/zombie counts from targeted search queries. Active = 937 - 360 stale."
     }
   },
   "open_prs": {
     "total_api_returned": 100,
-    "base_main": 88,
+    "base_main": 86,
     "base_v1": 12,
+    "base_feat_chat_page": 2,
     "base_v2": 0,
-    "draft_count": 7,
-    "ready_to_merge": ["#16220", "#16104"],
+    "draft_count": 8,
     "stale_prs_over30d": 0,
+    "stale_prs_over14d": 27,
     "oldest_pr_days": 24,
-    "oldest_pr_number": 15342,
-    "no_label_pct": 93,
+    "oldest_pr_number": 15418,
+    "oldest_pr_title": "feat(llm-provider): add Commonstack provider",
     "top_authors": [
       {"login": "DeJeune", "count": 12},
+      {"login": "Raymond8196", "count": 10},
+      {"login": "404-Page-Found", "count": 9},
       {"login": "HUQIANTAO", "count": 7},
-      {"login": "Raymond8196", "count": 7},
       {"login": "kangfenmao", "count": 6},
-      {"login": "EurFelux", "count": 5},
-      {"login": "ousugo", "count": 4},
-      {"login": "404-Page-Found", "count": 4},
+      {"login": "ousugo", "count": 5},
+      {"login": "eeee0717", "count": 4},
       {"login": "kovsu", "count": 4}
+    ],
+    "draft_prs": [
+      {"number": 16208, "title": "feat(ai-video): video generation for custom providers on the job system"},
+      {"number": 16190, "title": "feat(library): add open-folder action for skills in management page"},
+      {"number": 16164, "title": "feat: add Claude (Anthropic) conversation import support"},
+      {"number": 15988, "title": "feat(ai-params): context-build — truncate tool results + history compression"},
+      {"number": 15960, "title": "fix(settings): align initial language selector with active UI language"},
+      {"number": 15806, "title": "fix(code-tools): filter out providers without enabled API keys"},
+      {"number": 15719, "title": "feat(excel-word-preview): reintroduce main-process previews"},
+      {"number": 15520, "title": "fix(privacy): update policy and data collection defaults"}
     ]
   },
   "last_30_days": {
-    "issues_closed": 405,
-    "inactive_closures_pct": 75,
-    "completion_rate_pct": 25,
-    "prs_merged_main": 146,
-    "prs_merged_daily_rate": 4.9,
-    "most_recent_merged_prs": [
-      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "mergedAt": "2026-06-21", "author": "DeJeune"},
-      {"number": 16228, "title": "feat(ui-markdown): simplify markdown imports", "mergedAt": "2026-06-20", "author": "eeee0717"},
-      {"number": 16223, "title": "chore(pnpm): migrate to pnpm 11", "mergedAt": "2026-06-20", "author": "kangfenmao"}
-    ],
-    "top_merged_contributors": [
+    "issues_closed": 437,
+    "new_issues_this_week": 86,
+    "issues_closed_this_week": 14,
+    "prs_merged_main_estimate": "146+",
+    "prs_merged_daily_rate": "~4.9",
+    "top_merged_contributors_30d": [
       {"login": "DeJeune", "count": 27},
       {"login": "eeee0717", "count": 15},
       {"login": "kangfenmao", "count": 10},
@@ -81,62 +87,79 @@
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "created_at": "2026-05-07",
-      "age_days": 44,
+      "age_days": 46,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
+      "milestone": "v1.8.1 (closed)",
       "created_at": "2026-03-18",
-      "age_days": 94,
+      "age_days": 96,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found)",
       "labels": ["P1", "Models"],
-      "created_at": "2026-03-04",
-      "age_days": 108,
       "assignee": "DeJeune",
+      "created_at": "2026-03-04",
+      "age_days": 110,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     }
   ],
-  "p1_candidates_unlabeled": [
+  "p1_candidates_critical_unlabeled": [
     {
       "number": 15947,
       "title": "[Bug]: Auto-updater infinite retry produces 26GB+ log files in one day",
       "severity_reason": "Disk exhaustion — C drive fills within 24h",
       "created_at": "2026-06-10",
+      "age_days": 12,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/15947"
     },
     {
       "number": 16082,
       "title": "[Bug]: Agent auto-deleted via internal API — 29 sessions permanently lost",
-      "severity_reason": "Data loss — hard delete, no recovery path",
+      "severity_reason": "Data loss — hard delete (soft:false), no recovery path",
       "created_at": "2026-06-16",
+      "age_days": 6,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16082"
     },
     {
       "number": 16142,
       "title": "[Bug]: Log file occupies 17GB+, directory hardcoded",
       "severity_reason": "Disk exhaustion on C drive, path cannot be changed",
-      "created_at": "2026-06-17",
       "labels": ["needs-triage"],
+      "created_at": "2026-06-17",
+      "age_days": 5,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
     },
     {
       "number": 16112,
       "title": "[Bug]: App crashes with large context, cannot recover",
       "severity_reason": "Unrecoverable hang on large context",
-      "created_at": "2026-06-17",
       "comments": 4,
+      "created_at": "2026-06-17",
+      "age_days": 5,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16112"
+    },
+    {
+      "number": 16300,
+      "title": "[Bug]: Deleted agent messages reappear in context on Claude Code SDK resume",
+      "severity_reason": "Agent context corruption — deleted messages resurface via .jsonl transcript",
+      "comments": 2,
+      "created_at": "2026-06-22",
+      "age_days": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16300"
     }
   ],
-  "v2_milestone_today": {
-    "note": "Major v2 page carve milestone on 2026-06-21. DeJeune opened 8 additive/dormant page PRs carving v2 UI onto main.",
-    "new_prs_opened_today": [
+  "v2_status": {
+    "note": "v2 merged into main. Active v2-page-carve sprint ongoing (DeJeune).",
+    "open_prs_to_main": 86,
+    "open_prs_to_v1": 12,
+    "open_prs_to_v2": 0,
+    "v2_carve_prs_open": [
       {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main"},
       {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main"},
       {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main"},
@@ -146,13 +169,15 @@
       {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main"},
       {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)"}
     ],
-    "merged_today": [
-      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "author": "DeJeune"}
-    ]
+    "milestone_v2_4_0": {
+      "state": "open",
+      "open_issues": 20,
+      "closed_issues": 3
+    }
   },
   "delta_from_yesterday": {
-    "open_issues": "-7 (948→941, net closures exceeded new)",
-    "v2_carve_prs_opened": "+8 (major page-carve milestone)",
-    "merged_prs_30d": "+5 (146→151)"
+    "open_issues_change": "-11 (948→937)",
+    "new_critical_issues": "+1 (#16300 — agent .jsonl transcript desync on message delete)",
+    "v2_carve_prs_still_open": "8 (from yesterday's sprint, not yet merged)"
   }
 }

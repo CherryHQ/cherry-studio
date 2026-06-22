@@ -1,86 +1,126 @@
 {
-  "generated_at": "2026-06-21T00:00:00Z",
-  "snapshot_date": "2026-06-21",
-  "methodology": "Active=updated<7d; Aging=updated 7-90d; Stale=not updated 90-180d; Zombie=not updated 180d+",
+  "generated_at": "2026-06-22T00:00:00Z",
+  "snapshot_date": "2026-06-22",
+  "methodology": "Active=updated<30d; Aging=updated 30-89d; Stale=not updated 30d+; Zombie=not updated 90d+",
   "health_distribution": {
-    "total_open": 948,
-    "active_lt7d": {
-      "estimated_count": "~200+",
-      "note": "91 of top 100 (by recency) updated <7d; actual pool is larger across all 948"
+    "total_open": 937,
+    "active_lt30d": {
+      "count": 577,
+      "pct": 61.6
     },
-    "aging_7_90d": {
-      "estimated_count": "~607"
+    "aging_30_90d": {
+      "count": 218,
+      "pct": 23.3
     },
-    "stale_90_180d": {
-      "count": 139,
-      "note": "99 of 100 sampled stale issues cluster near 100 days — evidence of mass bot-triage event in mid-March 2026"
+    "stale_30d_plus": {
+      "count": 360,
+      "pct": 38.4
     },
-    "zombie_gt180d": {
-      "count": 1,
-      "issues": [
-        {
-          "number": 11578,
-          "title": "Upgrade to the MCP protocol by November 25, 2025",
-          "days_stale": 201,
-          "labels": ["MCP"],
-          "comments": 0,
-          "action": "Safe to close — expired internal tracking task"
-        }
-      ]
+    "zombie_90d_plus": {
+      "count": 142,
+      "pct": 15.2
     }
   },
+  "health_grade": "C+",
+  "health_note": "38% of open issues haven't been touched in 30+ days; 142 (15%) dormant 90+ days. High closure rate (437/30d) but ~75% are bot-driven inactive sweeps, not genuine resolutions.",
   "closure_health": {
-    "last_30d_closed": 405,
-    "inactive_auto_closure_pct": 75,
-    "note": "~75% of closures are bot-driven 'inactive' sweeps, not genuine resolutions. True resolution velocity is lower than closure count implies."
+    "last_30d_closed": 437,
+    "new_issues_this_week": 86,
+    "closed_this_week": 14,
+    "resolution_rate_pct": 16.3,
+    "inactive_auto_closure_pct_estimate": 75,
+    "note": "~75% of closures are bot-driven 'inactive' sweeps. True resolution velocity is lower than closure count implies."
   },
   "label_health": {
-    "no_label_open": 93,
-    "no_label_pct": 9.8
+    "no_label_open": 92,
+    "no_label_pct": 9.8,
+    "bug_labeled_open": 103,
+    "p0_open": 0,
+    "p1_open": 3
   },
-  "critical_open_bugs": [
+  "p1_issues": [
     {
-      "number": 15947,
-      "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files",
-      "severity": "CRITICAL",
-      "labels": [],
-      "comments": 0,
-      "created": "2026-06-10",
-      "days_open": 10,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947",
-      "note": "C drive fills in <24h — disk exhaustion risk"
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "type": "feature",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "age_days": 46,
+      "milestone": "v2.4.0",
+      "status": "Planned — in milestone",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
     },
     {
-      "number": 16142,
-      "title": "[Bug]: Log file occupies 17GB+, directory hardcoded (cannot be relocated)",
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "type": "bug",
+      "labels": ["P1", "Models"],
+      "age_days": 96,
+      "milestone": "v1.8.1 (closed milestone)",
+      "status": "ZOMBIE — 96 days old, assigned milestone is closed",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found)",
+      "type": "bug",
+      "labels": ["P1", "Models"],
+      "age_days": 110,
+      "assignee": "DeJeune",
+      "status": "ZOMBIE — 110 days old, no recent update",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    }
+  ],
+  "critical_open_bugs_unlabeled": [
+    {
+      "number": 15947,
+      "title": "[Bug]: Auto-updater infinite retry loop produces 26GB+ log files",
       "severity": "CRITICAL",
-      "labels": ["needs-triage"],
-      "comments": 6,
-      "created": "2026-06-17",
-      "days_open": 3,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
+      "labels": [],
+      "age_days": 12,
+      "created": "2026-06-10",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947",
+      "note": "C drive fills in <24h — disk exhaustion. No fix merged."
     },
     {
       "number": 16082,
-      "title": "[Bug]: Agent auto-deleted via internal API with all 29 sessions permanently lost",
+      "title": "[Bug]: Agent auto-deleted via internal API — 29 sessions permanently lost",
       "severity": "CRITICAL",
       "labels": [],
-      "comments": 1,
+      "age_days": 6,
       "created": "2026-06-16",
-      "days_open": 4,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16082",
-      "note": "Data loss — hard delete (soft:false), no recovery path"
+      "note": "Data loss — hard delete (soft:false), no recovery path."
+    },
+    {
+      "number": 16142,
+      "title": "[Bug]: Log file occupies 17GB+, directory hardcoded",
+      "severity": "CRITICAL",
+      "labels": ["needs-triage"],
+      "age_days": 5,
+      "created": "2026-06-17",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
     },
     {
       "number": 16112,
-      "title": "[Bug]: 上下文太大导致死机且无法恢复",
+      "title": "[Bug]: App crashes/hangs with large context, cannot recover",
       "severity": "CRITICAL",
       "labels": ["Performance"],
       "comments": 4,
+      "age_days": 5,
       "created": "2026-06-17",
-      "days_open": 3,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16112",
-      "note": "App hangs unrecoverably on large context — no kill path"
+      "note": "Unrecoverable hang on large context — no kill path."
+    },
+    {
+      "number": 16300,
+      "title": "[Bug]: Deleted agent messages reappear in context on Claude Code SDK resume",
+      "severity": "HIGH",
+      "labels": [],
+      "comments": 2,
+      "age_days": 0,
+      "created": "2026-06-22",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16300",
+      "note": "NEW TODAY: Message delete in UI does not update .jsonl transcript — deleted content resurfaces on --resume."
     },
     {
       "number": 16203,
@@ -88,66 +128,52 @@
       "severity": "HIGH",
       "labels": ["MCP"],
       "comments": 2,
+      "age_days": 4,
       "created": "2026-06-18",
-      "days_open": 2,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16203"
-    },
-    {
-      "number": 16210,
-      "title": "[Bug]: Multi-turn searches return identical results",
-      "severity": "HIGH",
-      "labels": [],
-      "comments": 0,
-      "created": "2026-06-19",
-      "days_open": 1,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16210"
     },
     {
       "number": 16016,
       "title": "[Bug]: Agent ECONNREFUSED with stale system proxy",
       "severity": "HIGH",
       "labels": ["BUG", "Connectivity", "internal_team"],
-      "comments": 0,
+      "age_days": 10,
       "created": "2026-06-12",
-      "days_open": 8,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
     }
   ],
   "stale_issues_analysis": {
-    "total_stale_gt90d": 140,
-    "label_distribution": {
-      "BUG": 58,
-      "Models": 40,
-      "MCP": 13,
-      "UI/UX": 11,
-      "feature": 11,
-      "Data": 10,
-      "needs-repro": 8
-    },
-    "zero_comment_count": 33,
+    "total_stale_gt30d": 360,
+    "total_zombie_gt90d": 142,
+    "zombie_notable": [
+      {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025", "days_stale": 204, "comments": 0, "action": "Safe to close — expired internal tracking task"},
+      {"number": 5712, "title": "【需求汇总】Agents with Workflows / 工作流&协同", "days_stale": 242, "comments": "unknown"},
+      {"number": 10844, "title": "[Feature]: Backup feature enhance", "days_stale": 233, "comments": "unknown"}
+    ],
     "high_community_interest_stale": [
-      {"number": 12618, "title": "Unable to properly configure Anthropic API", "days_stale": 100, "comments": 14},
-      {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter: messages", "days_stale": 100, "comments": 13},
-      {"number": 12168, "title": "Support cache for Gemini 3 Flash", "days_stale": 100, "comments": 9},
-      {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays last line (P1)", "days_stale": 92, "comments": 8}
+      {"number": 12618, "title": "Unable to properly configure Anthropic API", "days_stale": 103, "comments": 14},
+      {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter: messages", "days_stale": 103, "comments": 13},
+      {"number": 12168, "title": "Support cache for Gemini 3 Flash", "days_stale": 103, "comments": 9},
+      {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays last line (P1)", "days_stale": 96, "comments": 8}
     ]
   },
   "open_pr_health": {
     "total_open": 100,
     "stale_prs_gt30d": 0,
+    "stale_prs_gt14d": 27,
     "oldest_pr_days": 24,
-    "draft_count": 7,
-    "ready_to_merge_count": 2,
-    "stale_prs_needing_attention": []
+    "draft_count": 8
   },
   "action_items": [
-    "CRITICAL: #15947 + #16142 — disk exhaustion via log file loops (C drive fills in <24h). No fix merged.",
-    "CRITICAL: #16082 — agent auto-delete lost 29 sessions (data loss, hard delete). No fix merged.",
+    "CRITICAL: #15947 + #16142 — disk exhaustion via log file loops. Both open with no fix merged.",
+    "CRITICAL: #16082 — agent auto-delete lost 29 sessions (data loss, hard delete, no recovery).",
     "CRITICAL: #16112 — context-overflow causes unrecoverable app hang.",
+    "HIGH: #16300 (NEW TODAY) — agent .jsonl transcript not updated on message delete → ghost messages on resume.",
     "HIGH: #16203 — Quick Assist silently skips MCP/tool calls.",
-    "HIGH: #16210 — multi-turn search returns identical results (new today).",
-    "Triage 93 unlabeled open issues (9.8% of backlog).",
-    "Re-triage P1 #13608 and #13193 — >90 days old, milestone closed.",
-    "Close #11578 — only zombie issue (201d, expired MCP deadline, 0 comments)."
+    "HIGH: #16016 — Agent ECONNREFUSED with stale system proxy.",
+    "Re-triage P1 #13608 (96d) and #13193 (110d) — zombie bugs on closed milestone, reassign or close.",
+    "Close #11578 — 204d old zombie (expired MCP deadline, 0 comments).",
+    "Triage 92 unlabeled open issues (9.8% of backlog).",
+    "27 open PRs haven't been updated in 14+ days — review or close."
   ]
 }

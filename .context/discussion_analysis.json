@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-06-21T00:00:00Z",
-  "snapshot_date": "2026-06-21",
+  "generated_at": "2026-06-22T00:00:00Z",
+  "snapshot_date": "2026-06-22",
   "data_source": "GitHub Issues API (discussion-labeled issues) + high-engagement issue threads",
   "note": "GitHub Discussions GraphQL not available in remote execution environment. Analysis derived from issues with 'discussion' / 'help wanted' labels and high-engagement issue threads.",
   "discussion_labeled_issues": {
     "open_count": 6,
-    "closed_30d_count": 10,
+    "closed_30d_count": 9,
     "open_sample": [
       {"number": 16126, "title": "[Discussion]: 权限始终没法开启", "labels": ["help wanted", "discussion", "UI/UX"], "created": "2026-06-17"},
       {"number": 16121, "title": "[Discussion]: 无法使用阿里云百炼模型内置联网搜索", "labels": ["help wanted", "discussion"], "created": "2026-06-17"},
@@ -20,7 +20,7 @@
       "topic": "Log file disk space explosion (dual reports)",
       "urgency": "CRITICAL",
       "issues": [16142, 15947],
-      "note": "Two separate bug reports: 17GB+ via hardcoded log path (#16142, 6 comments) and 26GB+ via auto-updater HTTP 418 retry loop (#15947). Both open with no fix merged."
+      "note": "Two separate reports: 17GB+ via hardcoded log path (#16142, 6 comments) and 26GB+ via auto-updater HTTP 418 retry loop (#15947). Both open, no fix merged."
     },
     {
       "topic": "Agent Session Data Loss",
@@ -35,18 +35,18 @@
       "note": "App hangs unrecoverably when context is too large. 4 comments, no resolution."
     },
     {
+      "topic": "Agent .jsonl transcript desync (NEW TODAY)",
+      "urgency": "HIGH",
+      "issue": 16300,
+      "created": "2026-06-22",
+      "note": "Deleted messages in UI persist in Claude Code SDK .jsonl transcript. Ghost messages reappear on --resume. Opened today."
+    },
+    {
       "topic": "Quick Assist MCP tools not called",
       "urgency": "HIGH",
       "issue": 16203,
       "created": "2026-06-18",
       "note": "Quick Assist silently skips MCP/tool calls — core integration broken."
-    },
-    {
-      "topic": "Multi-turn search deduplication broken",
-      "urgency": "HIGH",
-      "issue": 16210,
-      "created": "2026-06-19",
-      "note": "Multi-turn searches return identical results. Reported yesterday."
     },
     {
       "topic": "anthropic-beta header expired",
@@ -57,29 +57,35 @@
     {
       "topic": "Chat foundation & app shell restructure (renderer v2)",
       "urgency": "INFO",
-      "prs": [16229, 16215],
-      "note": "DeJeune actively building v2 message renderer and chat foundation layer — major structural sprint this week."
+      "prs": [16229, 16260, 16263, 16264, 16265, 16266, 16267, 16268, 16269],
+      "note": "DeJeune actively building v2 message renderer and carving 8 v2 pages onto main — major structural sprint this week."
     }
   ],
   "top_discussions_by_engagement": [
-    {"number": 16078, "title": "Cherry Studio智能体功能申请", "comments": 9, "status": "open"},
-    {"number": 16112, "title": "[Bug]: 上下文太大导致死机且无法恢复", "comments": 4, "status": "open"},
+    {"number": 5640, "title": "【需求汇总】Cherry Studio as a Service (CSaaS)", "comments": 27, "status": "open", "age": "very old"},
+    {"number": 9943, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题", "comments": 16, "status": "open"},
+    {"number": 16112, "title": "[Bug]: App hangs with large context", "comments": 4, "status": "open"},
     {"number": 16203, "title": "[Bug]: Quick Assist not calling MCPs / Tools", "comments": 2, "status": "open"},
-    {"number": 16201, "title": "[Bug]: minimax-m3 thinking.type not supported", "comments": 2, "status": "open"}
+    {"number": 16300, "title": "[Bug]: Deleted agent messages reappear in Claude Code SDK context on resume", "comments": 2, "status": "open"}
   ],
   "user_pain_points_trending": [
-    "Log file disk exhaustion (2 separate reports with 17GB+ and 26GB+)",
-    "Agent sessions lost after data operations (backup/restore, API calls)",
+    "Log file disk exhaustion (2 separate reports: 17GB+ and 26GB+)",
+    "Agent sessions lost after data operations (data loss, no recovery)",
+    "Agent message delete doesn't sync to .jsonl transcript (NEW TODAY)",
     "MCP tools silently skipped in Quick Assist",
-    "Azure OpenAI routing to wrong API endpoint (P1 open since March)",
+    "Azure OpenAI routing to wrong API endpoint (P1 open since March, 110 days)",
     "Large context causing unrecoverable app hang",
-    "Xiaomi mimo streaming only shows last line (P1 open since March)"
+    "Xiaomi mimo streaming only shows last line (P1 open since March, 96 days)"
   ],
   "community_sentiment": {
-    "observation": "Open issues increased by 7 from yesterday (941→948). 59 new issues in last 7 days shows sustained high user activity. Three CRITICAL bugs open (disk exhaustion ×2, data loss) with no fix merged. Dev velocity remains high: 146 PRs merged to main in 30 days.",
+    "observation": "Open issues decreased by 11 from yesterday (948→937). 86 new issues in last 7 days shows sustained high user activity. Three CRITICAL disk/data-loss bugs remain open with no fix merged. 1 new critical bug filed today (#16300). Dev velocity high: ~146 PRs merged to main in 30 days, v2 page-carve sprint underway.",
     "engagement_health": "active",
-    "top_contributor": "DeJeune (12 open PRs, 27 merged in 30d — leading renderer v2 sprint)",
+    "top_open_pr_contributor": "DeJeune (12 open PRs, leading v2 carve sprint)",
+    "top_merged_contributor_30d": "DeJeune (27 merged PRs in 30d)",
     "knowledge_sprint": "eeee0717 driving knowledge v2 feature: 15 merged PRs in 30d",
-    "alert": "CRITICAL: #15947 and #16142 (disk exhaustion) + #16082 (data loss) remain unresolved."
-  }
+    "alert": "CRITICAL: #15947 and #16142 (disk exhaustion) + #16082 (data loss) remain unresolved for 5-12 days."
+  },
+  "weekly_new_issues": 86,
+  "weekly_closed_issues": 14,
+  "resolution_rate_pct": 16.3
 }

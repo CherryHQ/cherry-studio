@@ -1,154 +1,87 @@
 {
-  "generated_at": "2026-06-21T00:00:00Z",
-  "snapshot_date": "2026-06-21",
-  "repository": "CherryHQ/cherry-studio",
-  "v2_status": {
-    "branch_strategy": "v2 merged into main as of April 2026 (#13984). All active v2 development proceeds on main. v1 branch is hotfix-only.",
-    "open_prs_targeting_v2": 0,
-    "open_prs_targeting_main": 88,
-    "open_prs_targeting_v1": 12
+  "generated_at": "2026-06-22T00:00:00Z",
+  "snapshot_date": "2026-06-22",
+  "v2_status": "v2 branch merged into main — active page-carve sprint in progress (DeJeune)",
+  "pr_pipeline": {
+    "open_to_main": 86,
+    "open_to_v1": 12,
+    "open_to_feat_chat_page": 2,
+    "open_to_v2": 0,
+    "draft_prs": 8,
+    "prs_14d_no_activity": 27,
+    "prs_30d_no_activity": 0
   },
-  "active_milestones": [
-    {
-      "name": "v2.4.0",
+  "v2_page_carve_sprint": {
+    "description": "DeJeune opened 8 page-carve PRs on 2026-06-21 bringing v2 pages onto main as additive/dormant code",
+    "prs_open": [
+      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main", "status": "open"},
+      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main", "status": "open"},
+      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main", "status": "open"},
+      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main", "status": "open"},
+      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main", "status": "open"},
+      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main", "status": "open"},
+      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main", "status": "open"},
+      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)", "status": "open"}
+    ],
+    "prs_merged_recently": [
+      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "merged": "2026-06-21", "author": "DeJeune"}
+    ]
+  },
+  "active_draft_features": [
+    {"number": 16208, "title": "feat(ai-video): video generation for custom providers on the job system", "status": "draft"},
+    {"number": 16190, "title": "feat(library): add open-folder action for skills in management page", "status": "draft"},
+    {"number": 16164, "title": "feat: add Claude (Anthropic) conversation import support", "status": "draft"},
+    {"number": 15988, "title": "feat(ai-params): context-build — truncate tool results + history compression", "status": "draft"},
+    {"number": 15960, "title": "fix(settings): align initial language selector with active UI language", "status": "draft"},
+    {"number": 15806, "title": "fix(code-tools): filter out providers without enabled API keys", "status": "draft"},
+    {"number": 15719, "title": "feat(excel-word-preview): reintroduce main-process previews", "status": "draft"},
+    {"number": 15520, "title": "fix(privacy): update policy and data collection defaults", "status": "draft"}
+  ],
+  "milestones": {
+    "v2_4_0": {
+      "title": "v2.4.0",
       "state": "open",
       "open_issues": 20,
       "closed_issues": 3,
-      "key_planned_features": [
-        "#14899 Unified Notification Center (P1)",
-        "#16134 Interactive Scheduled-Task Card",
-        "#16131 Preflight Delivery Review",
-        "#16129 Agent Usage, Cost & Audit Console",
-        "#16128 MCP Security Inspector & Tool Description Lock",
-        "#16124 Built-In Browser Pane (shared with Agent)",
-        "#16186 Default Sidebar Leads with Agent for New Users",
-        "#16170 Usage Dashboard — daily/weekly/total token usage",
-        "#16167 App startup password / lock",
-        "#16165 Allow users to manage and delete Agent-created tools",
-        "#16159 MCP Apps — Interactive UI Components",
-        "#16090 Anthropic OAuth Sign-In for Claude Pro/Max"
-      ]
+      "p1_issues": [14899],
+      "note": "Unified Notification Center (#14899) is a P1 planned feature for this milestone (46 days old, not yet started)"
     }
+  },
+  "v1_maintenance": {
+    "open_prs": 12,
+    "top_contributors": ["Raymond8196", "DeJeune", "404-Page-Found"],
+    "note": "v1 branch receives hotfixes only; forward-port to main required if bug exists there too"
+  },
+  "recent_merged_themes_30d": [
+    "feat(chat): v2 message renderer foundation (DeJeune, 2026-06-21)",
+    "feat(ui-markdown): simplify markdown imports (eeee0717)",
+    "chore(pnpm): migrate to pnpm 11 (kangfenmao)",
+    "feat(llm-provider): new providers (Commonstack, others)",
+    "feat(paintings): painting page refactor with usePaintingPage hook",
+    "feat(api): Zod validation schemas, rate limiting middleware",
+    "feat(stats): conversation usage statistics dashboard",
+    "feat(export): self-contained HTML conversation export",
+    "feat(onboarding): simplified setup flow",
+    "feat(notes): redesigned sidebar and navbar",
+    "feat(tabs): middle-click and double-click close",
+    "perf(messages): React.memo + useDeferredValue optimization",
+    "fix(mcp): clean up stale MCP references on server delete",
+    "fix(models): regex for versioned GPT image models",
+    "fix(mini-apps): hide global MiniMax Agent in CN region",
+    "fix(data): normalize backslash paths from cross-platform backup restore"
   ],
-  "merged_prs_30d": {
-    "total": 146,
-    "daily_rate": 4.9,
-    "focus_areas": {
-      "knowledge_base": {
-        "pr_count": 11,
-        "description": "Knowledge base v2 rewrite — FTS5 index, content dedup, auto-sync, migration, conflict dialog, model selector unification",
-        "notable_prs": [
-          "#16237 knowledge migration correctness & Windows file-lock fixes",
-          "#16189 add-source conflict dialog and directory source/relativePath",
-          "#15757 data-services write/read symmetry with structural CHECK constraints",
-          "#15445 content-based dedup detection for internal files"
-        ]
-      },
-      "renderer_v2": {
-        "pr_count": 8,
-        "description": "Chat foundation layer (primitives, tokens, layout, utils), message renderer, tab architecture, app shell redesign",
-        "notable_prs": [
-          "#16215 feat(chat): carve chat foundation layer (primitives, tokens, layout, utils)",
-          "#16229 feat(chat): carve v2 message renderer onto foundation layer",
-          "#16104 refactor(ui): v2 UI overhaul — design system, focus-aware shell, settings (ready-to-merge)"
-        ]
-      },
-      "provider_model_management": {
-        "pr_count": 8,
-        "description": "Provider settings, model registry, proxy-aware net.fetch, model retry/fallback",
-        "notable_prs": [
-          "#16207 feat(ai-provider): route provider HTTP through proxy-aware net.fetch",
-          "#16057 feat(model-retry): user-configured model retry & fallback via ai-retry",
-          "#16153 fix(provider-registry): correct text-only model capabilities"
-        ]
-      },
-      "agent_skills": {
-        "pr_count": 5,
-        "description": "Agent skill whitelist, protocol translation for non-Anthropic models, SDK session",
-        "notable_prs": [
-          "#15977 feat: protocol translation layer — allow non-Anthropic models in Agent",
-          "#15976 refactor(agent-skills): pass SDK skill whitelist",
-          "#16183 fix(claudecode): align acceptEdits Bash auto-approval with execution"
-        ]
-      },
-      "data_layer": {
-        "pr_count": 4,
-        "description": "DataApi, usage ledger, AI SDK v6 message stats, cost engine",
-        "notable_prs": [
-          "#15992 feat(usage-ledger): AI SDK v6 message stats, cost engine, and durable ledger"
-        ]
-      },
-      "bug_fixes": {
-        "pr_count": 30,
-        "description": "~1-in-3 merges are fixes; top areas: Azure OpenAI API routing, backup/restore path issues, MCP cleanup, reasoning params"
-      }
-    },
-    "top_contributors": [
-      {"login": "DeJeune", "merged_prs": 27, "focus": "renderer v2, chat foundation, provider/model"},
-      {"login": "eeee0717", "merged_prs": 15, "focus": "knowledge base v2"},
-      {"login": "kangfenmao", "merged_prs": 10, "focus": "settings, release automation"},
-      {"login": "AtomsH4", "merged_prs": 9, "focus": "file processing, UI fixes"},
-      {"login": "Pleasurecruise", "merged_prs": 6, "focus": "library, features"},
-      {"login": "ousugo", "merged_prs": 6, "focus": "settings, tab UX, mini-apps"}
-    ]
-  },
-  "v2_page_carve_milestone_2026_06_21": {
-    "note": "DeJeune opened 8 PRs in one day carving v2 UI pages onto main as additive/dormant code. These represent the full v2 UI surface being staged on main before the v2 feature flag is flipped.",
-    "prs": [
-      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main"},
-      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main"},
-      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main"},
-      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main"},
-      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main"},
-      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main"},
-      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main"},
-      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)"}
-    ],
-    "merged_today": [
-      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "author": "DeJeune"}
-    ]
-  },
-  "in_flight_open_prs": {
-    "ready_to_merge": [
-      {
-        "number": 16104,
-        "title": "refactor(ui): v2 UI overhaul — design system, focus-aware shell, settings",
-        "author": "SiinXu",
-        "base": "main",
-        "note": "Large PR — needs review before merge"
-      }
-    ],
-    "notable_drafts": [
-      {"number": 16208, "title": "[DRAFT] feat(ai-video): video generation for custom providers on job system", "author": "DeJeune"},
-      {"number": 16190, "title": "[DRAFT] feat(library): add open-folder action for skills in management page", "author": "Pleasurecruise"},
-      {"number": 16164, "title": "[DRAFT] feat: add Claude (Anthropic) conversation import support", "author": "Pleasurecruise"},
-      {"number": 15988, "title": "[DRAFT] feat(ai-params): truncate tool results + history compression", "author": "MyPrototypeWhat"},
-      {"number": 15520, "title": "[DRAFT] fix(privacy): update policy and data collection defaults", "author": "kangfenmao"}
-    ]
-  },
-  "internal_team_roadmap_items_open": [
-    "#16181 Auto-Sync Local Folder to Knowledge Base",
-    "#16182 Allow Users to Select MinerU Parsing Mode",
-    "#16177 Migrate Feishu/Lark Integration to Official Channel SDK",
-    "#16179 Migrate Bundled Google CLI to Antigravity",
-    "#16176 Add Anysearch as Web Search Provider",
-    "#16175 Custom Image Icon for Assistants",
-    "#16174 New Model Launch Notification with One-Click Try",
-    "#16173 Knowledge base — hide inline citation marks",
-    "#16172 Improve knowledge base retrieval recall",
-    "#16169 Upgrade bundled Bun runtime 1.3.1 → 1.4",
-    "#16127 Enhance Agent Module Loop for Claude Code-level experience",
-    "#16178 Instrument Official Website with PostHog Analytics"
-  ],
-  "v2_data_layer_migration": {
+  "data_layer_migration": {
+    "status": "in_progress",
     "removing": ["Redux", "Dexie", "ElectronStore"],
-    "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle ORM)"],
-    "status": "In progress — v1 and v2 code coexist on main; migration ongoing",
-    "recent_milestone": "AI SDK v6 message stats and durable usage ledger merged (#15992)"
+    "adopting": ["Cache", "Preference", "DataApi (SQLite/Drizzle)"],
+    "note": "v2 data layer coexists with v1; migration via src/main/data/migration/v2/"
   },
-  "v2_ui_migration": {
-    "prohibited": ["antd", "HeroUI", "styled-components"],
-    "adopting": "@cherrystudio/ui (packages/ui, Tailwind CSS + Shadcn UI)",
-    "status": "Active sprint — chat foundation layer carved (#16215), message renderer on foundation (#16229), v2 UI overhaul PR ready-to-merge (#16104)"
-  }
+  "top_contributors_30d": [
+    {"login": "DeJeune", "merged_prs": 27, "open_prs": 12, "focus": "v2 chat renderer, page-carve sprint"},
+    {"login": "eeee0717", "merged_prs": 15, "focus": "knowledge v2, markdown"},
+    {"login": "kangfenmao", "merged_prs": 10, "focus": "toolchain, misc fixes"},
+    {"login": "AtomsH4", "merged_prs": 9, "focus": "various features"},
+    {"login": "Pleasurecruise", "merged_prs": 6, "focus": "various"},
+    {"login": "ousugo", "merged_prs": 6, "open_prs": 5, "focus": "various"}
+  ]
 }
