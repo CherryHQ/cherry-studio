@@ -12,6 +12,7 @@ import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -37,6 +38,8 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
 }
 
 const AgentPage = () => {
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
@@ -200,6 +203,12 @@ const AgentPage = () => {
       void window.api.window.resetMinimumSize()
     }
   }, [])
+
+  const openHistory = useCallback((origin?: DOMRectReadOnly) => {
+    setHistoryOrigin(origin)
+    setHistoryOpen(true)
+  }, [])
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
 
   const buildDraftSession = useCallback(
     async ({
@@ -539,6 +548,17 @@ const AgentPage = () => {
     setPendingLocateMessageId(undefined)
   }, [])
 
+  const historyOverlay = (
+    <HistoryRecordsPage
+      mode="agent"
+      open={historyOpen}
+      activeRecordId={activeSessionId}
+      origin={historyOrigin}
+      onClose={closeHistory}
+      onRecordSelect={handleHistorySessionSelect}
+    />
+  )
+
   const panePosition = 'left'
 
   return (
@@ -551,6 +571,7 @@ const AgentPage = () => {
           pane={
             <AgentSidePanel
               activeSessionId={activeSessionId}
+              onOpenHistory={openHistory}
               revealRequest={sessionRevealRequest}
               onStartDraftSession={startDraftSession}
               onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
@@ -580,6 +601,7 @@ const AgentPage = () => {
           replacingDraftWorkspace={replacingDraftWorkspace}
         />
       </div>
+      {historyOverlay}
     </Container>
   )
 }

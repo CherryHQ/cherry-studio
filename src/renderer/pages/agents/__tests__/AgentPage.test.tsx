@@ -206,6 +206,30 @@ vi.mock('@renderer/context/TabIdContext', () => ({
   useTabSelfMetadata: vi.fn()
 }))
 
+vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
+  default: ({ onClose, onRecordSelect, open }: any) =>
+    open ? (
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            onRecordSelect?.('session-history')
+            onClose?.()
+          }}>
+          Select history session
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onRecordSelect?.(null)
+            onClose?.()
+          }}>
+          Start history draft
+        </button>
+      </>
+    ) : null
+}))
+
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
@@ -321,6 +345,7 @@ vi.mock('../AgentChat', () => ({
 vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
+    onOpenHistory,
     onStartDraftSession,
     onStartMissingAgentDraft,
     revealRequest,
@@ -331,6 +356,9 @@ vi.mock('../AgentSidePanel', () => ({
         data-active-session-id={activeSessionId ?? ''}
         data-reveal-request={JSON.stringify(revealRequest ?? null)}
         data-testid="agent-side-panel">
+        <button type="button" onClick={() => onOpenHistory?.()}>
+          Open agent history
+        </button>
         <button
           type="button"
           onClick={() =>
@@ -402,6 +430,37 @@ describe('AgentPage', () => {
         }
       }
     })
+  })
+
+  it('opens the agent sidebar and forwards a reveal request after selecting a history session', async () => {
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select history session' }))
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-history'))
+
+    expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(true)
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toEqual({
+      clearFilters: true,
+      clearQuery: true,
+      itemId: 'session-history',
+      requestId: 1
+    })
+  })
+
+  it('starts a draft instead of leaving an empty view when history selects no remaining session', async () => {
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start history draft' }))
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+    expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('false')
   })
 
   it('uses tab metadata as the session entry when the URL is the agents route', () => {

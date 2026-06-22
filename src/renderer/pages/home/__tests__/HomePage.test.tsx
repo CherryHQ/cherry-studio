@@ -63,6 +63,7 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   forceActiveTopicUndefined: false,
   focusExistingTab: vi.fn(() => false),
+  historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
@@ -370,9 +371,27 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ revealRequest }: any) => (
-    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs" />
+  default: ({ onOpenHistory, revealRequest }: any) => (
+    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+      <button type="button" onClick={() => onOpenHistory?.()}>
+        Open history
+      </button>
+    </div>
   )
+}))
+
+vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
+  default: ({ onClose, onRecordSelect, open }: any) =>
+    open ? (
+      <button
+        type="button"
+        onClick={() => {
+          onRecordSelect?.(homeMocks.historyTopic)
+          onClose?.()
+        }}>
+        Select history topic
+      </button>
+    ) : null
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -396,6 +415,7 @@ import HomePage from '../HomePage'
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }]
@@ -432,6 +452,27 @@ describe('HomePage', () => {
           setMinimumSize: vi.fn().mockResolvedValue(undefined)
         }
       }
+    })
+  })
+
+  it('opens the topic sidebar and forwards a reveal request after selecting a history topic', async () => {
+    render(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select history topic' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
+
+    expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(true)
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(JSON.parse(screen.getByTestId('home-tabs').getAttribute('data-reveal-request') ?? 'null')).toEqual({
+      clearFilters: true,
+      clearQuery: true,
+      itemId: 'topic-history',
+      requestId: 1
     })
   })
 
