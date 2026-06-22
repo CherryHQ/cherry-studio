@@ -16,9 +16,9 @@ import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { codeCLI } from '@shared/types/codeCli'
 import {
-  isAIGatewayProvider,
   isAnthropicProvider,
   isGeminiProvider,
+  isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider
 } from '@shared/utils/provider'
@@ -79,6 +79,8 @@ const ANTHROPIC_MESSAGES_ENDPOINT = 'anthropic-messages'
 const hasAnthropicEndpoint = (p: Provider): boolean =>
   Boolean(p.endpointConfigs?.[ANTHROPIC_MESSAGES_ENDPOINT]?.baseUrl)
 const isOpenAILikeProvider = (p: Provider): boolean => isOpenAICompatibleProvider(p) || isOpenAIProvider(p)
+export const isOpenCodeProvider = (p: Provider): boolean =>
+  isOpenAILikeProvider(p) || isAnthropicProvider(p) || isNewApiProvider(p)
 
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeCLI.claudeCode]: (providers) =>
@@ -93,8 +95,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeCLI.qoderCli]: () => [],
   [codeCLI.githubCopilotCli]: () => [],
   [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
-  [codeCLI.openCode]: (providers) =>
-    providers.filter((p) => isOpenAILikeProvider(p) || isAnthropicProvider(p) || isAIGatewayProvider(p))
+  [codeCLI.openCode]: (providers) => providers.filter(isOpenCodeProvider)
 }
 
 export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
