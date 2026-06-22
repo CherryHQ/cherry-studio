@@ -275,8 +275,6 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.add.topic.title') return 'New Conversation'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
-      if (key === 'history.records.title') return 'Conversation History'
-      if (key === 'history.records.shortTitle') return 'History'
       if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
@@ -414,12 +412,10 @@ type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 function renderTopicList({
   activeTopic = createRendererTopic(),
   onNewTopic = vi.fn(),
-  onOpenHistory,
   revealRequest
 }: {
   activeTopic?: Topic
   onNewTopic?: OnNewTopicMock
-  onOpenHistory?: () => void
   revealRequest?: ResourceListRevealRequest
 } = {}) {
   const setActiveTopic = vi.fn()
@@ -428,7 +424,6 @@ function renderTopicList({
       activeTopic={nextActiveTopic}
       setActiveTopic={setActiveTopic}
       onNewTopic={onNewTopic}
-      onOpenHistory={onOpenHistory}
       revealRequest={nextRevealRequest}
     />
   )
@@ -1402,34 +1397,6 @@ describe('Topics', () => {
     const nextDisplayModeContent = openTopicListOptions()
     fireEvent.click(within(nextDisplayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
-  })
-
-  it('opens topic history from the list options menu when provided', () => {
-    const onOpenHistory = vi.fn()
-
-    renderTopicList({ onOpenHistory })
-
-    expect(screen.queryByLabelText('Conversation History')).not.toBeInTheDocument()
-
-    openTopicListOptions()
-
-    const optionsContent = screen
-      .getAllByTestId('popover-content')
-      .find((element) => element.className.includes('w-44'))
-    expect(optionsContent?.querySelector('svg')).not.toBeNull()
-
-    const historyButton = screen.getByRole('button', { name: 'History' })
-    vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
-      x: 10,
-      y: 20,
-      width: 30,
-      height: 40
-    } as DOMRect)
-
-    fireEvent.click(historyButton)
-
-    expect(onOpenHistory).toHaveBeenCalledTimes(1)
-    expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
   })
 
   it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {

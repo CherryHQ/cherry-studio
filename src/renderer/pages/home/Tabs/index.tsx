@@ -9,13 +9,12 @@ import { Topics } from './components/Topics'
 interface Props {
   activeTopic?: Topic
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
   revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, onOpenHistory, setActiveTopic, revealRequest, style }) => {
+const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, setActiveTopic, revealRequest, style }) => {
   return (
     <Container style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
@@ -23,7 +22,6 @@ const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, onOpenHistory, setActive
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
           onNewTopic={onNewTopic}
-          onOpenHistory={onOpenHistory}
           revealRequest={revealRequest}
         />
       </TabContent>
