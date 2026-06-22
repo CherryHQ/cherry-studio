@@ -91,6 +91,11 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
   const viewerRef = useRef<HTMLDivElement>(null)
   const pdfViewerRef = useRef<PdfJsViewer | null>(null)
   const [background, setBackground] = useState(() => resolveThemeBackground(null))
+  // Latest background, read by the viewer-init effect without depending on it — otherwise a
+  // theme/CSS-var change would tear down and rebuild the whole pdf.js viewer (resetting
+  // page/zoom and flashing large PDFs). Background updates flow through the dedicated effect below.
+  const backgroundRef = useRef(background)
+  backgroundRef.current = background
   const [documentProxy, setDocumentProxy] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
@@ -252,13 +257,13 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
       eventBus,
       linkService,
       pageColors: {
-        ...(background ? { background } : {}),
+        ...(backgroundRef.current ? { background: backgroundRef.current } : {}),
         foreground: PDF_PAGE_FOREGROUND
       },
       supportsPinchToZoom: true
     })
 
-    const syncBackground = () => applyViewerBackground(background)
+    const syncBackground = () => applyViewerBackground(backgroundRef.current)
     const syncPreviewControls = () => {
       const nextPageCount = documentProxy.numPages
       setPageCount(nextPageCount)
@@ -408,7 +413,7 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
         pdfViewerRef.current = null
       }
     }
-  }, [applyViewerBackground, background, documentProxy, focusContainer])
+  }, [applyViewerBackground, documentProxy, focusContainer])
 
   if (loading) {
     return (

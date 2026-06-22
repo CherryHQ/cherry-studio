@@ -74,7 +74,7 @@ function addDefined(target: Set<string>, ...ids: Array<string | null | undefined
   }
 }
 
-export class ResourceListUiStore {
+export class ResourceListUiService {
   private groupCache = new Map<string, ResourceListGroupStateSnapshot>()
   private groupListeners = new Map<string, Set<() => void>>()
   private groupRecords = new Map<string, ResourceListGroupRecord>()

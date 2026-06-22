@@ -1,5 +1,5 @@
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import type * as ConstantConfig from '@renderer/config/constant'
-import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'

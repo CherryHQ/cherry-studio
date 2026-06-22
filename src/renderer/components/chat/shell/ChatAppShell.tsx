@@ -3,9 +3,9 @@ import {
   ImmersiveNavbarStateProvider,
   resolveImmersiveNavbar
 } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { cn } from '@renderer/utils'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'

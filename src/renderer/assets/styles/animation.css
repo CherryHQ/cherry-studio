@@ -137,66 +137,6 @@
   animation: animation-chat-message-enter-assistant 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.cs-mark-fill {
-  fill: currentColor;
-}
-.cs-mark-stroke {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 4.5;
-  stroke-linecap: round;
-}
-.cs-mark-gloss {
-  fill: #fff;
-  opacity: 0.4;
-}
-
-@keyframes cs-shimmer-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-}
-@keyframes cs-shimmer-mark {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.4;
-    transform: scale(0.95);
-  }
-}
-.cs-shimmer-bob {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cs-shimmer-bob 3s ease-in-out infinite;
-}
-.cs-shimmer-mark {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cs-shimmer-mark 2.8s ease-in-out infinite;
-}
-
-@keyframes cs-pulse-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.08);
-  }
-}
-.cs-pulse-mark {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cs-pulse-breathe 2.6s ease-in-out infinite;
-}
-
 @keyframes animation-chat-composer-dock-down {
   from {
     transform: translate3d(0, -18px, 0) scale(0.985);
@@ -217,10 +157,7 @@
   .animation-chat-message-enter-inline,
   .animation-chat-message-enter-bubble,
   .animation-chat-message-enter-assistant,
-  .animation-chat-composer-dock-down,
-  .cs-shimmer-bob,
-  .cs-shimmer-mark,
-  .cs-pulse-mark {
+  .animation-chat-composer-dock-down {
     transform: none;
     animation: none;
   }

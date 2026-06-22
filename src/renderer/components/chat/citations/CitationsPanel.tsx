@@ -25,7 +25,6 @@ const CitationsPanel = ({ open, onClose, citations }: Props) => {
       onClose={onClose}
       header={<span className="font-medium text-sm">{t('message.citations')}</span>}
       closeLabel={t('common.close')}
-      backdropClassName="bg-transparent dark:bg-transparent"
       bodyClassName="flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2">
       <CitationsPanelContent citations={citations} actions={{ openPath, openExternalUrl, copyText, notifyError }} />
     </PageSidePanel>

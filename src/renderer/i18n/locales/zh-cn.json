@@ -2130,6 +2130,7 @@
     "rename": "重命名",
     "required_field": "必填字段",
     "reset": "重置",
+    "resize_panel": "调整面板宽度",
     "retry": "重试",
     "save": "保存",
     "save_failed": "保存失败",

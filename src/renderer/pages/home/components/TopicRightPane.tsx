@@ -2,7 +2,7 @@ import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messag
 import { Shell, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
-import { useWindowFrame } from '@renderer/context/WindowFrameContext'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'

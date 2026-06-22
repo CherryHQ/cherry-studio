@@ -505,6 +505,70 @@ describe('PdfPreviewPanel', () => {
     expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
   })
 
+  it('destroys an in-flight loading task and resolved document after unmount', async () => {
+    const pendingDocument = { destroy: vi.fn(), numPages: 1 }
+    let resolveLoad!: (document: typeof pendingDocument) => void
+    mocks.getDocument.mockReturnValueOnce({
+      destroy: mocks.loadingTaskDestroy,
+      promise: new Promise((resolve) => {
+        resolveLoad = resolve
+      })
+    })
+
+    const { unmount } = await renderPdfPreviewPanel({
+      filePath: '/tmp/workspace/paper.pdf',
+      fileName: 'paper.pdf',
+      refreshKey: 0
+    })
+
+    await waitFor(() => expect(mocks.getDocument).toHaveBeenCalled())
+
+    unmount()
+
+    expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
+
+    await act(async () => {
+      resolveLoad(pendingDocument)
+      await flushPdfEffects()
+    })
+
+    expect(pendingDocument.destroy).toHaveBeenCalled()
+    expect(mocks.pdfViewerSetDocument).not.toHaveBeenCalled()
+  })
+
+  it('cleans up stale in-flight PDF loads when refresh starts a new load', async () => {
+    const staleDocument = { destroy: vi.fn(), numPages: 1 }
+    let resolveStaleLoad!: (document: typeof staleDocument) => void
+    mocks.getDocument.mockReturnValueOnce({
+      destroy: mocks.loadingTaskDestroy,
+      promise: new Promise((resolve) => {
+        resolveStaleLoad = resolve
+      })
+    })
+
+    const { rerender } = await renderPdfPreviewPanel({
+      filePath: '/tmp/workspace/paper.pdf',
+      fileName: 'paper.pdf',
+      refreshKey: 0
+    })
+
+    await waitFor(() => expect(mocks.getDocument).toHaveBeenCalledTimes(1))
+
+    rerender(<PdfPreviewPanel filePath="/tmp/workspace/paper.pdf" fileName="paper.pdf" refreshKey={1} />)
+
+    await waitFor(() => expect(mocks.getDocument).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(mocks.pdfDocument))
+    expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
+
+    await act(async () => {
+      resolveStaleLoad(staleDocument)
+      await flushPdfEffects()
+    })
+
+    expect(staleDocument.destroy).toHaveBeenCalled()
+    expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
+  })
+
   it('detaches the pdf.js viewer and destroys the loaded document on cleanup', async () => {
     const { unmount } = await renderPdfPreviewPanel({
       filePath: '/tmp/workspace/paper.pdf',

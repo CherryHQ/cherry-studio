@@ -136,7 +136,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 
 import {
   ChatMaximizedOverlayInsetProvider,

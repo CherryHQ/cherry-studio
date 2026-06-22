@@ -4,8 +4,8 @@ import { createContext, type ReactNode, use, useCallback, useSyncExternalStore }
 import type {
   ResourceListGroupStateSnapshot,
   ResourceListRowStateSnapshot,
-  ResourceListUiStore
-} from './ResourceListUiStore'
+  ResourceListUiService
+} from './ResourceListUiService'
 
 export type ResourceListItemBase = {
   id: string
@@ -236,7 +236,7 @@ export const ResourceListItemAccessorsContext = createContext<ResourceListItemAc
 )
 export const ResourceListMetaContext = createContext<ResourceListMeta<ResourceListItemBase> | null>(null)
 export const ResourceListSourceItemsContext = createContext<readonly ResourceListItemBase[] | null>(null)
-export const ResourceListUiStoreContext = createContext<ResourceListUiStore | null>(null)
+export const ResourceListUiStoreContext = createContext<ResourceListUiService | null>(null)
 export const ResourceListViewContext = createContext<ResourceListView<ResourceListItemBase> | null>(null)
 
 export function useResourceList<T extends ResourceListItemBase = ResourceListItemBase>() {

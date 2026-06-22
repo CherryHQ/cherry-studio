@@ -9,7 +9,7 @@ import {
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
-import { useWindowFrame } from '@renderer/context/WindowFrameContext'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
