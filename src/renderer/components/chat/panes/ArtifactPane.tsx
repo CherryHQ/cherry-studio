@@ -239,7 +239,12 @@ type PdfPreviewPanelComponent = ComponentType<{
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
 
 const loadPdfPreviewPanel = () => {
-  pdfPreviewPanelPromise ??= import('./PdfPreviewPanel').then((module) => module.default)
+  pdfPreviewPanelPromise ??= import('./PdfPreviewPanel')
+    .then((module) => module.default)
+    .catch((err: unknown) => {
+      pdfPreviewPanelPromise = null
+      throw err
+    })
   return pdfPreviewPanelPromise
 }
 
@@ -311,9 +316,8 @@ function useArtifactFileTreeResize() {
   }
 }
 
-// Memoized at module scope so the hook's useEffect dependency stays stable
-// across renders — otherwise every render would tear down + recreate the
-// underlying `File_TreeCreate` IPC.
+// Module-level defaults keep the sampled options stable for each tree mount.
+// `useDirectoryTree` rebuilds only when the root path changes.
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   // No extension filter — the workspace pane shows whatever the agent
   // produced. `respectGitignore` defaults to `true` (good for code repos),
@@ -360,6 +364,8 @@ export function ArtifactFilePreview({
   const { t } = useTranslation()
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
+  const [pdfPreviewLoadError, setPdfPreviewLoadError] = useState<Error | null>(null)
+  const [readError, setReadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
@@ -372,6 +378,7 @@ export function ArtifactFilePreview({
   useEffect(() => {
     if (!filePath || !workspacePath) {
       setFileContent(null)
+      setReadError(null)
       setLoadingContent(false)
       return
     }
@@ -379,6 +386,7 @@ export function ArtifactFilePreview({
     // Binary previewers render straight from disk or external apps; no readText needed.
     if (isPdfFile(filePath) || isOfficeDocumentFile(filePath)) {
       setFileContent(null)
+      setReadError(null)
       setLoadingContent(false)
       return
     }
@@ -387,12 +395,14 @@ export function ArtifactFilePreview({
     // out binary files, oversized files, and inaccessible paths.
     if (isText !== 'text' || fileSize.status !== 'ok' || oversizedForPreview) {
       setFileContent(null)
+      setReadError(null)
       setLoadingContent(false)
       return
     }
 
     const absPath = joinPath(workspacePath, filePath)
     let cancelled = false
+    setReadError(null)
     setLoadingContent(true)
 
     void (async () => {
@@ -405,6 +415,7 @@ export function ArtifactFilePreview({
         const normalized = err instanceof Error ? err : new Error(String(err))
         logger.error(`Failed to read file: ${absPath}`, normalized)
         setFileContent(null)
+        setReadError(normalized)
       } finally {
         if (!cancelled) setLoadingContent(false)
       }
@@ -416,23 +427,30 @@ export function ArtifactFilePreview({
   }, [contentRefreshKey, filePath, workspacePath, isText, fileSize.status, oversizedForPreview])
 
   useEffect(() => {
-    if (!isPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
+    if (!isPdfPreview) {
+      setPdfPreviewLoadError(null)
+      return
+    }
+    if (pdfLayoutPending || PdfPreviewPanel) return
 
     let cancelled = false
+    setPdfPreviewLoadError(null)
 
     loadPdfPreviewPanel()
       .then((component) => {
         if (!cancelled) setPdfPreviewPanel(() => component)
       })
       .catch((err: unknown) => {
+        if (cancelled) return
         const normalized = err instanceof Error ? err : new Error(String(err))
         logger.error('Failed to load PDF preview panel', normalized)
+        setPdfPreviewLoadError(normalized)
       })
 
     return () => {
       cancelled = true
     }
-  }, [PdfPreviewPanel, isPdfPreview, pdfLayoutPending])
+  }, [PdfPreviewPanel, filePath, isPdfPreview, pdfLayoutPending])
 
   if (!workspacePath) {
     return (
@@ -449,6 +467,9 @@ export function ArtifactFilePreview({
 
   // PDF: binary but renderable; bypass isText gating.
   if (isPdfFile(filePath)) {
+    if (pdfPreviewLoadError) {
+      return <EmptyState icon={AlertCircle} title={t('common.error')} description={pdfPreviewLoadError.message} />
+    }
     if (pdfLayoutPending || !PdfPreviewPanel) {
       return (
         <div className="flex h-full w-full items-center justify-center">
@@ -515,6 +536,16 @@ export function ArtifactFilePreview({
 
   if (loadingContent) {
     return <LoadingState variant="skeleton" rows={4} />
+  }
+
+  if (readError) {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={t('agent.preview_pane.unavailable.title')}
+        description={t('agent.preview_pane.unavailable.description')}
+      />
+    )
   }
 
   if (isHtmlFile(filePath)) {

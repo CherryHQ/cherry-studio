@@ -785,6 +785,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     uiStore.setSelectedId(effectiveSelectedId)
   }, [effectiveSelectedId, uiStore])
 
+  useEffect(() => {
+    uiStore.setActiveId(state.activeId)
+  }, [state.activeId, uiStore])
+
   useLayoutEffect(() => {
     uiStore.setActiveId(effectiveSelectedId)
     dispatch({ type: 'setActiveItem', id: effectiveSelectedId })

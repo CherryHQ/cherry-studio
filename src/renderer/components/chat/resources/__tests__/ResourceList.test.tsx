@@ -2376,10 +2376,13 @@ describe('ResourceList', () => {
 
     vi.useFakeTimers()
     view.rerender(<RevealHarness requestId={1} />)
+    await act(async () => {})
 
     expect(screen.getByText('Topic 6')).toBeInTheDocument()
     const revealedRow = screen.getByText('Topic 6').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
+    expect(screen.getByRole('listbox')).toHaveAttribute('aria-activedescendant', 'resource-list-option-topic-6')
+    expect(revealedRow!).toHaveAttribute('data-active-descendant', 'true')
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
     expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(screen.getByPlaceholderText('Search resources')).toHaveValue('')

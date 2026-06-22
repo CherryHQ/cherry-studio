@@ -1053,6 +1053,24 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
+  it('shows the file-unavailable state when reading text content fails', async () => {
+    mocks.fsReadText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
+    mockWorkspaceTree('/tmp/workspace', ['locked.ts'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-locked.ts')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-locked.ts'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.unavailable.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.unavailable.description')
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+  })
+
   it('reads unknown extensions when the sniff says text', async () => {
     mockWorkspaceTree('/tmp/workspace', ['notes.log'])
     mocks.fsReadText.mockResolvedValue('boot at 12:00')
