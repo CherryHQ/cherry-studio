@@ -126,6 +126,9 @@ const normalizeTreePath = (path: string): string => {
 
 const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 
+/** A workspace-relative path with a `..` segment escapes the workspace once joined — reject it. */
+const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
+
 const getPathDirname = (path: string): string => {
   const normalized = normalizeTreePath(path)
   const basename = getPathBasename(normalized)
@@ -141,13 +144,18 @@ export const normalizeArtifactPaneFilePath = (workspacePath: string, rawPath: st
   const workspace = normalizeTreePath(workspacePath)
   const normalized = normalizeTreePath(rawPath)
   if (!normalized) return null
-
   if (normalized === workspace) return null
-  if (workspace === '/' && normalized.startsWith('/')) return normalized.slice(1)
-  if (normalized.startsWith(`${workspace}/`)) return normalized.slice(workspace.length + 1)
-  if (isAbsoluteTreePath(normalized)) return null
 
-  return normalized.replace(/^\/+/, '')
+  let relative: string | null = null
+  if (workspace === '/' && normalized.startsWith('/')) relative = normalized.slice(1)
+  else if (normalized.startsWith(`${workspace}/`)) relative = normalized.slice(workspace.length + 1)
+  else if (isAbsoluteTreePath(normalized)) return null
+  else relative = normalized.replace(/^\/+/, '')
+
+  // Reject anything that escapes the workspace via `..`: this filePath is joined onto workspacePath
+  // downstream (readText / useFileSize / PDF read) and the source is agent/tool output.
+  if (!relative || hasParentTraversal(relative)) return null
+  return relative
 }
 
 export const resolveArtifactPaneFileSelection = (
