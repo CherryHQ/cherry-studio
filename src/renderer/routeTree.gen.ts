@@ -20,7 +20,6 @@ import { Route as SettingsSelectionAssistantRouteImport } from './routes/setting
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
-import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
@@ -28,7 +27,6 @@ import { Route as SettingsIntegrationsRouteImport } from './routes/settings/inte
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
-import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
@@ -111,11 +109,6 @@ const SettingsProviderRoute = SettingsProviderRouteImport.update({
   path: '/provider',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
-  getParentRoute: () => SettingsRoute,
-} as any)
 const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
   id: '/plugins',
   path: '/plugins',
@@ -149,11 +142,6 @@ const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
 const SettingsDataRoute = SettingsDataRouteImport.update({
   id: '/data',
   path: '/data',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsComponentLabRoute = SettingsComponentLabRouteImport.update({
-  id: '/component-lab',
-  path: '/component-lab',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
@@ -301,7 +289,6 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
-  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
@@ -309,7 +296,6 @@ export interface FileRoutesByFullPath {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -347,14 +333,12 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
-  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -394,7 +378,6 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
-  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
@@ -402,7 +385,6 @@ export interface FileRoutesById {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -443,7 +425,6 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/channels'
-    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/file-processing'
     | '/settings/general'
@@ -451,7 +432,6 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -489,14 +469,12 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/channels'
-    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -535,7 +513,6 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/channels'
-    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/file-processing'
     | '/settings/general'
@@ -543,7 +520,6 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -651,13 +627,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsProviderRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/prompts': {
-      id: '/settings/prompts'
-      path: '/prompts'
-      fullPath: '/settings/prompts'
-      preLoaderRoute: typeof SettingsPromptsRouteImport
-      parentRoute: typeof SettingsRoute
-    }
     '/settings/plugins': {
       id: '/settings/plugins'
       path: '/plugins'
@@ -705,13 +674,6 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/settings/data'
       preLoaderRoute: typeof SettingsDataRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/component-lab': {
-      id: '/settings/component-lab'
-      path: '/component-lab'
-      fullPath: '/settings/component-lab'
-      preLoaderRoute: typeof SettingsComponentLabRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/channels': {
@@ -958,7 +920,6 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
-  SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
@@ -966,7 +927,6 @@ interface SettingsRouteChildren {
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsPluginsRoute: typeof SettingsPluginsRoute
-  SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
@@ -980,7 +940,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
-  SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
@@ -988,7 +947,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
   SettingsPluginsRoute: SettingsPluginsRoute,
-  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
   SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
