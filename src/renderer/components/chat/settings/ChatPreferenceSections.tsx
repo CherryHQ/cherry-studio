@@ -25,18 +25,7 @@ type SelectOption<T extends string = string> = {
   label: string
 }
 
-export type ChatPreferenceSectionsFeatures = {
-  showPrompt?: boolean
-  showMessageOutline?: boolean
-  showMultiModelStyle?: boolean
-  showInputEstimatedTokens?: boolean
-}
-
-interface Props {
-  features?: ChatPreferenceSectionsFeatures
-}
-
-const ChatPreferenceSections: FC<Props> = ({ features }) => {
+const ChatPreferenceSections: FC = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -159,18 +148,14 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
       {renderSection(
         t('settings.messages.input.title'),
         <>
-          {features?.showInputEstimatedTokens && (
-            <>
-              <SettingRow>
-                <SettingSwitch
-                  checked={showInputEstimatedTokens}
-                  onCheckedChange={setShowInputEstimatedTokens}
-                  label={t('settings.messages.input.show_estimated_tokens')}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+          <SettingRow>
+            <SettingSwitch
+              checked={showInputEstimatedTokens}
+              onCheckedChange={setShowInputEstimatedTokens}
+              label={t('settings.messages.input.show_estimated_tokens')}
+            />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={renderInputMessageAsMarkdown}
@@ -207,18 +192,10 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
       {renderSection(
         t('settings.messages.title'),
         <>
-          {features?.showPrompt && (
-            <>
-              <SettingRow>
-                <SettingSwitch
-                  checked={showPrompt}
-                  onCheckedChange={setShowPrompt}
-                  label={t('settings.messages.prompt')}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+          <SettingRow>
+            <SettingSwitch checked={showPrompt} onCheckedChange={setShowPrompt} label={t('settings.messages.prompt')} />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
           </SettingRow>
@@ -239,18 +216,14 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
               hint={t('chat.settings.thought_auto_collapse.tip')}
             />
           </SettingRow>
-          {features?.showMessageOutline && (
-            <>
-              <SettingDivider />
-              <SettingRow>
-                <SettingSwitch
-                  checked={showMessageOutline}
-                  onCheckedChange={(checked) => setShowMessageOutline(checked)}
-                  label={t('settings.messages.show_message_outline')}
-                />
-              </SettingRow>
-            </>
-          )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
+              checked={showMessageOutline}
+              onCheckedChange={(checked) => setShowMessageOutline(checked)}
+              label={t('settings.messages.show_message_outline')}
+            />
+          </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
@@ -268,33 +241,29 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
             </Select>
           </SettingRow>
           <SettingDivider />
-          {features?.showMultiModelStyle && (
-            <>
-              <SettingRow>
-                <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
-                <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
-                  <SelectTrigger size="sm" className="w-[220px] text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="text-sm">
-                    <SelectItem className="text-sm" key="fold" value="fold">
-                      {t('message.message.multi_model_style.fold.label')}
-                    </SelectItem>
-                    <SelectItem className="text-sm" key="vertical" value="vertical">
-                      {t('message.message.multi_model_style.vertical')}
-                    </SelectItem>
-                    <SelectItem className="text-sm" key="horizontal" value="horizontal">
-                      {t('message.message.multi_model_style.horizontal')}
-                    </SelectItem>
-                    <SelectItem className="text-sm" key="grid" value="grid">
-                      {t('message.message.multi_model_style.grid')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+          <SettingRow>
+            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
+            <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                <SelectItem className="text-sm" key="fold" value="fold">
+                  {t('message.message.multi_model_style.fold.label')}
+                </SelectItem>
+                <SelectItem className="text-sm" key="vertical" value="vertical">
+                  {t('message.message.multi_model_style.vertical')}
+                </SelectItem>
+                <SelectItem className="text-sm" key="horizontal" value="horizontal">
+                  {t('message.message.multi_model_style.horizontal')}
+                </SelectItem>
+                <SelectItem className="text-sm" key="grid" value="grid">
+                  {t('message.message.multi_model_style.grid')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Select value={messageNavigation} onValueChange={setMessageNavigation}>

@@ -17,9 +17,7 @@ import {
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ChatPreferenceSections, {
-  type ChatPreferenceSectionsFeatures
-} from '@renderer/components/chat/settings/ChatPreferenceSections'
+import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -64,12 +62,6 @@ type CommonSettingsSection = 'display-language' | 'chat-settings' | 'system-star
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
-const chatPreferenceFeatures: ChatPreferenceSectionsFeatures = {
-  showPrompt: true,
-  showMessageOutline: true,
-  showMultiModelStyle: true,
-  showInputEstimatedTokens: true
-}
 
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
@@ -729,7 +721,7 @@ const CommonSettings: FC = () => {
     </>
   )
 
-  const renderChatSettingsSection = () => <ChatPreferenceSections features={chatPreferenceFeatures} />
+  const renderChatSettingsSection = () => <ChatPreferenceSections />
 
   const renderPrivacyAdvancedSection = () => (
     <>
