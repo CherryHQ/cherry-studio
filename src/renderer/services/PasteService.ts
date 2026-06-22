@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
-import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
+import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 
 const logger = loggerService.withContext('PasteService')
 

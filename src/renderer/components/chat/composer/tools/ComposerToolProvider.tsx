@@ -1,5 +1,5 @@
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { ensureComposerFileTokenSourceIds } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'

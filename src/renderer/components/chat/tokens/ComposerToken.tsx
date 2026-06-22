@@ -1,6 +1,5 @@
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import {
   getQuoteTooltipContent,
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
@@ -8,6 +7,7 @@ import {
 } from '@renderer/components/chat/utils/quoteToken'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { FilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
 import { Boxes, Braces, File, FileCode2, FileImage, FileText, TextQuote, Zap } from 'lucide-react'

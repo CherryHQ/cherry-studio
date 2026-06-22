@@ -1,5 +1,5 @@
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { FILE_TYPE } from '@renderer/types'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'

@@ -14,6 +14,7 @@ import { usePasteHandler } from '@renderer/pages/home/Inputbar/hooks/usePasteHan
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
 import { isPastedTextFileMetadata } from '@renderer/types'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
   readComposerClipboardFragmentFromDataTransfer,
@@ -30,7 +31,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FileComposerToken } from '../tokens'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
