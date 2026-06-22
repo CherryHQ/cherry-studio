@@ -1,7 +1,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { findLatestPendingAskUserQuestionRequest } from '../AskUserQuestionComposer'
+import { findLatestPendingAskUserQuestionRequest } from '../askUserQuestionComposerRequest'
 
 const input = {
   questions: [
