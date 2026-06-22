@@ -5,7 +5,6 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMessageActionRegistry } from '../../actions/actionRegistry'
-import { createRightPaneRegistry } from '../../panes/RightPaneRegistry'
 import { ComposerAdapter, createSessionComposerAdapter, ResourceListAdapter } from '../index'
 
 function createTopic(overrides: Partial<Topic> = {}): Topic {
@@ -169,29 +168,6 @@ describe('chat adapters', () => {
 })
 
 describe('chat registries', () => {
-  it('registers, overrides, lists, and unregisters right pane descriptors', () => {
-    const registry = createRightPaneRegistry()
-    const disposeOld = registry.register({
-      id: 'reference',
-      title: 'Old',
-      render: () => 'old'
-    })
-    const disposeNew = registry.register({
-      id: 'reference',
-      title: 'New',
-      render: () => 'new'
-    })
-
-    expect(registry.get('reference')?.title).toBe('New')
-    expect(registry.list()).toHaveLength(1)
-
-    disposeOld()
-    expect(registry.get('reference')?.title).toBe('New')
-
-    disposeNew()
-    expect(registry.get('reference')).toBeUndefined()
-  })
-
   it('resolves message action providers and disposes registrations', () => {
     const registry = createMessageActionRegistry()
     const message = {

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { joinPath } from '@renderer/utils/path'
 import type { FilePath } from '@shared/types/file/common'
 import { createFilePathHandle } from '@shared/utils/file/handle'
 import { useEffect, useState } from 'react'
@@ -6,11 +7,6 @@ import { useEffect, useState } from 'react'
 const logger = loggerService.withContext('useFileSize')
 
 export type FileSizeState = { status: 'pending' } | { status: 'ok'; size: number } | { status: 'error' }
-
-const joinAbsPath = (base: string, rel: string): string => {
-  const trimmed = rel.replace(/^[/\\]+/, '')
-  return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
-}
 
 export function useFileSize(
   workspacePath: string | null | undefined,
@@ -25,7 +21,7 @@ export function useFileSize(
     }
 
     setState({ status: 'pending' })
-    const absPath = joinAbsPath(workspacePath, filePath)
+    const absPath = joinPath(workspacePath, filePath)
     let cancelled = false
 
     void (async () => {
