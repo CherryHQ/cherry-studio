@@ -122,6 +122,8 @@ const normalizeTreePath = (path: string): string => {
 
 const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 
+const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
+
 const getPathDirname = (path: string): string => {
   const normalized = normalizeTreePath(path)
   const basename = getPathBasename(normalized)
@@ -156,7 +158,20 @@ export const resolveArtifactPaneFileSelection = (
   if (workspacePath) {
     const workspaceFilePath = normalizeArtifactPaneFilePath(workspacePath, normalized)
     if (workspaceFilePath) {
-      return { workspacePath, filePath: workspaceFilePath }
+      if (!hasParentTraversal(workspaceFilePath)) {
+        return { workspacePath, filePath: workspaceFilePath }
+      }
+      // Deliberate: a workspace-relative artifact path that climbs out via `..` is allowed — the
+      // agent legitimately creates files outside the workspace — but re-root it to the resolved
+      // file's directory (like the absolute-path branch below) so the displayed tree root and the
+      // previewed file stay consistent, instead of showing the workspace while reading outside it.
+      // Sandboxing, if ever needed, is the consumer's responsibility at the trust boundary.
+      const resolvedAbsolute = joinPath(normalizeTreePath(workspacePath), workspaceFilePath)
+      const escapedWorkspacePath = getPathDirname(resolvedAbsolute)
+      const escapedFilePath = getPathBasename(resolvedAbsolute)
+      return escapedWorkspacePath && escapedFilePath && escapedFilePath !== escapedWorkspacePath
+        ? { workspacePath: escapedWorkspacePath, filePath: escapedFilePath }
+        : null
     }
   }
 
@@ -307,8 +322,11 @@ function useArtifactFileTreeResize() {
   )
 
   const setPaneWidth = useCallback(
-    (nextWidth: number) => setStoredWidth(clampArtifactFileTreeWidth(nextWidth, currentArtifactPaneWidthRef.current)),
-    [setStoredWidth]
+    // Clamp against the live measured width (same value that feeds the splitter's aria-valuemax),
+    // not currentArtifactPaneWidthRef — that ref is only written at mouse-drag start, so a keyboard
+    // resize without a prior drag would otherwise clamp to a stale bound and undershoot the max.
+    (nextWidth: number) => setStoredWidth(clampArtifactFileTreeWidth(nextWidth, artifactPaneWidth)),
+    [artifactPaneWidth, setStoredWidth]
   )
 
   const { minWidth, maxWidth } = getArtifactFileTreeWidthBounds(artifactPaneWidth)

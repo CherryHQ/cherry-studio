@@ -390,6 +390,11 @@
       "edit": {
         "title": "編輯工作階段"
       },
+      "file_manager": {
+        "file_explorer": "檔案總管",
+        "files": "檔案",
+        "finder": "Finder"
+      },
       "get": {
         "error": {
           "failed": "無法取得工作階段",
@@ -1756,6 +1761,7 @@
     "clear_all": "全部清除",
     "click_to_replace": "點擊以替換",
     "close": "關閉",
+    "close_sidebar": "關閉側欄",
     "collapse": "收合",
     "completed": "已完成",
     "confirm": "確認",
@@ -1806,6 +1812,8 @@
     "knowledge_base": "知識庫",
     "language": "語言",
     "loading": "載入中...",
+    "maximize": "最大化",
+    "minimize": "最小化",
     "model": "模型",
     "models": "模型",
     "more": "更多",
@@ -1818,6 +1826,7 @@
     "on": "開啟",
     "open": "開啟",
     "open_in": "在 {{name}} 中開啟",
+    "open_sidebar": "打開側欄",
     "paste": "貼上",
     "placeholders": {
       "select": {

@@ -21,7 +21,5 @@ export const EVENT_NAMES = {
   LOCATE_NOTE_LINE: 'LOCATE_NOTE_LINE',
   ADD_NEW_TOPIC: 'ADD_NEW_TOPIC',
   EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK',
-  CHANGE_TOPIC: 'CHANGE_TOPIC',
-  // v2 chat: scroll the active resource list into view (emitted by resource reveal actions).
-  REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST'
+  CHANGE_TOPIC: 'CHANGE_TOPIC'
 }

@@ -384,6 +384,20 @@ describe('ArtifactPane', () => {
     })
   })
 
+  it('re-roots a workspace-relative path that escapes via ".." so the tree root and previewed file agree', () => {
+    // Out-of-workspace previews are intentional (the agent creates files outside the workspace), but a
+    // `..`-escaping path must re-root like the absolute branch — otherwise the tree shows the workspace
+    // while the preview reads outside it. Both the bare-relative and workspace-prefixed forms resolve here.
+    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '../secret.md')).toEqual({
+      workspacePath: '/tmp/workspace/..',
+      filePath: 'secret.md'
+    })
+    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '/tmp/workspace/../secret.md')).toEqual({
+      workspacePath: '/tmp/workspace/..',
+      filePath: 'secret.md'
+    })
+  })
+
   it('does not load the PDF preview panel module for non-PDF selections', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Hello')
