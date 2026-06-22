@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
   eventEmit: vi.fn(),
+  virtualListScrollToIndex: vi.fn(),
   activeTab: {
     id: 'chat',
     type: 'route',
@@ -184,31 +185,49 @@ vi.mock('@renderer/features/command', () => ({
   CommandContextMenu: ({ children }: any) => children
 }))
 
-vi.mock('@renderer/components/VirtualList', () => ({
-  GroupedVirtualList: ({
-    groups,
-    renderGroupHeader,
-    renderItem,
-    renderGroupFooter,
-    role = 'region',
-    scrollerProps
-  }: any) => (
-    <div {...scrollerProps} role={role}>
-      {groups.map((entry: any, groupIndex: number) => {
-        const group = entry.group ?? entry
-        return (
-          <div key={group.id}>
-            {renderGroupHeader?.(entry.header ?? group, group, groupIndex)}
-            {entry.items.map((item: any, itemIndex: number) => (
-              <div key={item.id}>{renderItem(item, itemIndex, group, groupIndex, itemIndex)}</div>
-            ))}
-            {entry.footer ? renderGroupFooter?.(entry.footer, group, groupIndex) : null}
-          </div>
-        )
-      })}
-    </div>
-  )
-}))
+vi.mock('@renderer/components/VirtualList', async () => {
+  const React = await vi.importActual<ReactModule>('react')
+
+  return {
+    GroupedVirtualList: ({
+      ref,
+      groups,
+      renderGroupHeader,
+      renderItem,
+      renderGroupFooter,
+      role = 'region',
+      scrollerProps
+    }: any) => {
+      React.useImperativeHandle(ref, () => ({
+        getTotalSize: () => 0,
+        getVirtualIndexes: () => [],
+        getVirtualItems: () => [],
+        measure: () => undefined,
+        resizeItem: () => undefined,
+        scrollElement: () => null,
+        scrollToIndex: mocks.virtualListScrollToIndex,
+        scrollToOffset: () => undefined
+      }))
+
+      return (
+        <div {...scrollerProps} role={role}>
+          {groups.map((entry: any, groupIndex: number) => {
+            const group = entry.group ?? entry
+            return (
+              <div key={group.id}>
+                {renderGroupHeader?.(entry.header ?? group, group, groupIndex)}
+                {entry.items.map((item: any, itemIndex: number) => (
+                  <div key={item.id}>{renderItem(item, itemIndex, group, groupIndex, itemIndex)}</div>
+                ))}
+                {entry.footer ? renderGroupFooter?.(entry.footer, group, groupIndex) : null}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+  }
+})
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) => [
@@ -644,6 +663,50 @@ describe('GlobalSearchPanel', () => {
         })
       })
     )
+  })
+
+  it('scrolls the visible virtual list when keyboard selection moves', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'assistant',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Writing Assistant',
+              target: { assistantId: 'assistant-1' }
+            },
+            {
+              type: 'assistant',
+              id: 'assistant-2',
+              title: 'Review Assistant',
+              target: { assistantId: 'assistant-2' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')
+    await user.type(input, 'assistant')
+    const secondOption = await screen.findByRole('option', { name: /Review Assistant/ })
+
+    await waitFor(() => {
+      expect(input).toHaveAttribute('aria-activedescendant', getGlobalSearchOptionDomId('assistant:assistant-1'))
+    })
+
+    mocks.virtualListScrollToIndex.mockClear()
+    await user.keyboard('{ArrowDown}')
+
+    await waitFor(() => {
+      expect(input).toHaveAttribute('aria-activedescendant', secondOption.id)
+      expect(mocks.virtualListScrollToIndex).toHaveBeenLastCalledWith(expect.any(Number), { align: 'auto' })
+    })
   })
 
   it('does not render quick app shortcuts after typing', async () => {

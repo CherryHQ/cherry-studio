@@ -14,7 +14,11 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
-import { GroupedVirtualList } from '@renderer/components/VirtualList'
+import {
+  type DynamicVirtualListRef,
+  GroupedVirtualList,
+  type GroupedVirtualListGroup
+} from '@renderer/components/VirtualList'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
@@ -178,6 +182,33 @@ function getPreviewMessageJumpTarget(
   }
 }
 
+function getGroupedVirtualListRowIndex<TGroup, TItem, TFooter>(
+  groups: readonly GroupedVirtualListGroup<TGroup, TItem, TGroup, TFooter>[],
+  itemId: string,
+  getItemId: (item: TItem) => string,
+  getFooterId?: (group: TGroup, footer: TFooter) => string
+) {
+  let rowIndex = 0
+
+  for (const entry of groups) {
+    if (entry.header !== undefined) {
+      rowIndex += 1
+    }
+
+    for (const item of entry.items) {
+      if (getItemId(item) === itemId) return rowIndex
+      rowIndex += 1
+    }
+
+    if (entry.footer !== undefined) {
+      if (getFooterId?.(entry.group, entry.footer) === itemId) return rowIndex
+      rowIndex += 1
+    }
+  }
+
+  return undefined
+}
+
 function TimeFilterDropdown({
   timeFilter,
   panelMode,
@@ -226,6 +257,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const agentNav = useConversationNavigation('agents')
   const invalidateCache = useInvalidateCache()
   const inputRef = useRef<HTMLInputElement>(null)
+  const messageListRef = useRef<DynamicVirtualListRef>(null)
+  const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
   const deferredQuery = useDeferredValue(query.trim())
@@ -600,6 +633,33 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     !messageError &&
     !showMessageEmptyState
   const isListboxVisible = isSearchListboxVisible || isMessageListboxVisible
+  const activeMessageRowIndex = useMemo(() => {
+    if (!isMessageListboxVisible || !activeItemId) return undefined
+
+    return getGroupedVirtualListRowIndex(messageVirtualGroupsWithLoadMore, activeItemId, (item) => item.id)
+  }, [activeItemId, isMessageListboxVisible, messageVirtualGroupsWithLoadMore])
+  const activeSearchRowIndex = useMemo(() => {
+    if (!isSearchListboxVisible || !activeItemId) return undefined
+
+    return getGroupedVirtualListRowIndex(
+      virtualGroups,
+      activeItemId,
+      (item) => item.id,
+      (group, footer) => getGlobalSearchFooterItemId(group.id, footer)
+    )
+  }, [activeItemId, isSearchListboxVisible, virtualGroups])
+
+  useEffect(() => {
+    if (activeMessageRowIndex === undefined) return
+
+    messageListRef.current?.scrollToIndex(activeMessageRowIndex, { align: 'auto' })
+  }, [activeMessageRowIndex])
+
+  useEffect(() => {
+    if (activeSearchRowIndex === undefined) return
+
+    searchListRef.current?.scrollToIndex(activeSearchRowIndex, { align: 'auto' })
+  }, [activeSearchRowIndex])
 
   const messageResultsContent =
     isMessageLoading && hasQuery ? (
@@ -612,6 +672,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       <div className="flex h-full min-h-0 flex-col">
         <div className="min-h-0 flex-1">
           <GroupedVirtualList
+            ref={messageListRef}
             role="listbox"
             scrollerProps={{ id: GLOBAL_SEARCH_LISTBOX_ID }}
             groups={messageVirtualGroupsWithLoadMore}
@@ -775,6 +836,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         ) : (
           <div className="relative h-full">
             <GroupedVirtualList
+              ref={searchListRef}
               role="listbox"
               scrollerProps={{ id: GLOBAL_SEARCH_LISTBOX_ID }}
               groups={virtualGroups}
