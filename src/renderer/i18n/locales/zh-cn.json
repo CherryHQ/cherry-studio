@@ -2188,6 +2188,7 @@
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
+        "loaded_only_hint": "仅作用于已加载项，共 {{total}} 项",
         "reindex": "重新索引",
         "selected_count": "已选 {{count}} 项"
       },
@@ -2217,11 +2218,14 @@
         "note": "笔记",
         "url": "链接"
       },
+      "list": {
+        "end_reached": "没有更多了",
+        "loading_more": "加载更多…"
+      },
       "preview": {
         "failed": "预览原文失败",
         "unavailable": "当前数据源没有可预览的原文"
       },
-      "ready_summary": "{{ready}}/{{total}} 就绪",
       "reindex_failed": "数据源重新索引失败",
       "status": {
         "chunking": "分块中",
@@ -2231,6 +2235,7 @@
         "ready": "就绪"
       },
       "table": {
+        "aria_label": "数据源列表",
         "columns": {
           "actions": "操作",
           "name": "名称",

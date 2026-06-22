@@ -5,7 +5,7 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
-import type { CursorPaginationParams, CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api'
 import {
   type KnowledgeBase,
   KnowledgeBaseEntitySchema,
@@ -78,7 +78,10 @@ export const ListKnowledgeItemsQuerySchema = z.strictObject({
   groupId: z.string().nullable().optional()
 })
 
-export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema> & CursorPaginationParams
+// This schema declares `cursor` + `limit` inline (above), so `z.input` already covers the
+// cursor-pagination params — no `& CursorPaginationParams` intersection needed. (Sibling
+// cursor-paginated schemas keep the intersection because they don't declare those fields.)
+export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema>
 export type ListKnowledgeItemsQuery = z.output<typeof ListKnowledgeItemsQuerySchema>
 
 export interface KnowledgeItemListResponse extends CursorPaginationResponse<KnowledgeItem> {

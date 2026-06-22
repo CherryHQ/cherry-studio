@@ -1,7 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -10,7 +10,6 @@ import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
-import { getReadyCount } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
@@ -89,8 +88,6 @@ const DataSourcePanel = ({
     })
   }, [items])
 
-  const readyCount = useMemo(() => getReadyCount(items), [items])
-
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
   const handleToggleOne = useCallback((itemId: string, next: boolean) => {
@@ -158,8 +155,8 @@ const DataSourcePanel = ({
       header={
         <div className="border-border-muted border-b pb-3">
           <DataSourcePanelHeader
-            readyCount={readyCount}
-            totalCount={total}
+            total={total}
+            loadedCount={items.length}
             selectedCount={selectedIds.size}
             updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}

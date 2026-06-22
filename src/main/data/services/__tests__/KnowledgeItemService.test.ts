@@ -130,6 +130,31 @@ describe('KnowledgeItemService', () => {
       expect(second.nextCursor).toBeUndefined()
     })
 
+    it('tiebreaks rows sharing a createdAt by id without overlap or gaps', async () => {
+      // All four share a createdAt, so only the `id ASC` tiebreaker separates them — and the
+      // page boundary lands *inside* that equal-createdAt run. `createdAt = Date.now()` makes
+      // millisecond collisions common, so this is exactly where a wrong keyset duplicates or
+      // skips a row. A small limit forces several boundaries through the tied run.
+      const ids = [itemId('7d70'), itemId('7d71'), itemId('7d72'), itemId('7d73')]
+      for (const id of ids) {
+        await seedItem({ id, createdAt: 5000, data: { source: id, content: id } })
+      }
+
+      const seen: string[] = []
+      let cursor: string | undefined
+      for (let guard = 0; guard < 10; guard++) {
+        const page = await service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor })
+        expect(page.total).toBe(4)
+        seen.push(...page.items.map((item) => item.id))
+        if (!page.nextCursor) break
+        cursor = page.nextCursor
+      }
+
+      // Exactly once each: no overlap (a cursor re-emitting a row) and no gap (a cursor
+      // skipping one). Within an equal createdAt the order is id ASC.
+      expect(seen).toEqual([...ids].sort())
+    })
+
     it('falls back to the first page when the cursor is malformed', async () => {
       await seedItem({ id: ITEM_1_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
       await seedItem({ id: ITEM_2_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })

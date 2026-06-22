@@ -71,23 +71,25 @@ describe('useKnowledgeItems', () => {
     expect(result.current.refresh).toBe(refresh)
   })
 
-  it('reports isLoadingMore only while revalidating with existing pages', () => {
+  it('does not flag isLoadingMore during background polling', () => {
+    // Regression guard: isLoadingMore used to be `isRefreshing && pages.length > 0`, so a poll in
+    // flight blocked a scroll-to-bottom. It must now reflect ONLY a real in-flight load-more.
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
+      pages: [{ items: [makeItem()], total: 1, nextCursor: 'cursor-1' }],
       isLoading: false,
       isRefreshing: true,
       error: undefined,
-      hasNext: false,
+      hasNext: true,
       loadNext: vi.fn(),
       refresh: vi.fn()
     })
 
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
-    expect(result.current.isLoadingMore).toBe(true)
+    expect(result.current.isLoadingMore).toBe(false)
   })
 
-  it('loadMore triggers loadNext only when more pages remain and not already loading', () => {
+  it('loadMore triggers loadNext, flags an in-flight load-more, and dedupes a second call', () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
@@ -102,8 +104,66 @@ describe('useKnowledgeItems', () => {
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
     act(() => result.current.loadMore())
-
     expect(loadNext).toHaveBeenCalledTimes(1)
+    expect(result.current.isLoadingMore).toBe(true)
+
+    // A second load-more while the first is still in flight is ignored — even though a poll
+    // (isRefreshing) might fire in between, it no longer settles the in-flight flag.
+    act(() => result.current.loadMore())
+    expect(loadNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the in-flight flag once the requested page lands and allows the next load-more', () => {
+    const loadNext = vi.fn()
+    let queryResult = {
+      pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryResult)
+
+    const { result, rerender } = renderHook(() => useKnowledgeItems('base-1'))
+
+    act(() => result.current.loadMore())
+    expect(result.current.isLoadingMore).toBe(true)
+
+    // The requested page lands (pages grew), so the in-flight flag settles.
+    queryResult = {
+      ...queryResult,
+      pages: [
+        { items: [makeItem()], total: 5, nextCursor: 'cursor-1' },
+        { items: [makeItem({ id: 'item-2' })], total: 5, nextCursor: 'cursor-2' }
+      ]
+    }
+    rerender()
+
+    expect(result.current.isLoadingMore).toBe(false)
+
+    act(() => result.current.loadMore())
+    expect(loadNext).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not load more when there is no next page', () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext,
+      refresh: vi.fn()
+    })
+
+    const { result } = renderHook(() => useKnowledgeItems('base-1'))
+
+    act(() => result.current.loadMore())
+
+    expect(loadNext).not.toHaveBeenCalled()
   })
 
   it('does not enable the query before a knowledge base is selected', () => {

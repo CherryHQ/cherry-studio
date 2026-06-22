@@ -9,7 +9,7 @@ import type {
   KnowledgeItem,
   KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const KNOWLEDGE_V2_ITEMS_QUERY = { groupId: null } as const
 const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
@@ -49,32 +49,46 @@ const refreshKnowledgeItemsCaches = async (
 }
 
 export const useKnowledgeItems = (baseId: string) => {
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
-    '/knowledge-bases/:id/items',
-    {
-      params: { id: baseId },
-      query: KNOWLEDGE_V2_ITEMS_QUERY,
-      limit: KNOWLEDGE_ITEMS_PAGE_SIZE,
-      enabled: Boolean(baseId),
-      swrOptions: {
-        refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
-          hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0
-      }
+  const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases/:id/items', {
+    params: { id: baseId },
+    query: KNOWLEDGE_V2_ITEMS_QUERY,
+    limit: KNOWLEDGE_ITEMS_PAGE_SIZE,
+    enabled: Boolean(baseId),
+    swrOptions: {
+      refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
+        hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0
     }
-  )
+  })
 
   const items = useInfiniteFlatItems(pages)
+  // Server-side total across all pages, read off page 0 (every page carries the same `total`).
+  // Consumers use it only to detect that unloaded rows remain (loaded < total); it stays fresh
+  // as long as SWR revalidates page 0 — don't gate page 0's refresh behind future swrOptions.
   const total = pages[0]?.total ?? 0
   const hasMore = hasNext
-  // `isRefreshing` also spikes during background polling; gate on existing pages
-  // so the first load reports via `isLoading`, not `isLoadingMore`.
-  const isLoadingMore = isRefreshing && pages.length > 0
+
+  // `isLoadingMore` must track ONLY an in-flight load-more, never background polling: SWR's
+  // `isRefreshing` spikes on every poll, so gating on it would silently drop a scroll-to-bottom
+  // that lands during a poll. Flag a real load-more here and clear it once the requested page
+  // lands (pages grew), pagination ends, or the fetch errors. Polling keeps `pages.length`
+  // unchanged, so it never trips the reset and never blocks the next load-more.
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const loadStartPagesRef = useRef(0)
 
   const loadMore = useCallback(() => {
-    if (!isLoadingMore && hasMore) {
-      loadNext()
+    if (isLoadingMore || !hasMore) {
+      return
     }
-  }, [isLoadingMore, hasMore, loadNext])
+    loadStartPagesRef.current = pages.length
+    setIsLoadingMore(true)
+    loadNext()
+  }, [isLoadingMore, hasMore, pages.length, loadNext])
+
+  useEffect(() => {
+    if (isLoadingMore && (pages.length > loadStartPagesRef.current || !hasNext || error)) {
+      setIsLoadingMore(false)
+    }
+  }, [isLoadingMore, pages.length, hasNext, error])
 
   return {
     items,

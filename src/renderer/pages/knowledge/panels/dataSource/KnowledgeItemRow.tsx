@@ -18,7 +18,7 @@ import type { ComponentProps, MouseEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { knowledgeDataSourceCheckboxClassName, KNOWLEDGE_ITEM_ROW_GRID } from './styles'
+import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -254,6 +254,7 @@ const KnowledgeItemRow = ({
 
   return (
     <div
+      role="row"
       data-state={selected ? 'selected' : undefined}
       onClick={canViewChunks ? onClick : undefined}
       className={cn(
@@ -262,7 +263,7 @@ const KnowledgeItemRow = ({
         canViewChunks && 'cursor-pointer',
         selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
       )}>
-      <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
+      <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
         <Checkbox
           size="sm"
           className={knowledgeDataSourceCheckboxClassName}
@@ -271,7 +272,7 @@ const KnowledgeItemRow = ({
           onCheckedChange={(next) => onToggleSelect(next === true)}
         />
       </div>
-      <div className="flex min-w-0 items-center gap-2 py-3">
+      <div role="gridcell" className="flex min-w-0 items-center gap-2 py-3">
         <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
           <Icon className={cn('size-3.5', icon.iconClassName)} />
         </span>
@@ -279,12 +280,16 @@ const KnowledgeItemRow = ({
           {title}
         </span>
       </div>
-      <div className="truncate text-foreground-secondary text-xs">{typeLabel}</div>
-      <div>
+      <div role="gridcell" className="truncate text-foreground-secondary text-xs">
+        {typeLabel}
+      </div>
+      <div role="gridcell">
         <KnowledgeItemStatusBadge status={status} failureReason={failureReason} />
       </div>
-      <div className="truncate text-foreground-muted text-xs">{updatedAt}</div>
-      <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+      <div role="gridcell" className="truncate text-foreground-muted text-xs">
+        {updatedAt}
+      </div>
+      <div role="gridcell" className="flex justify-end" onClick={(event) => event.stopPropagation()}>
         <KnowledgeItemRowMoreMenu
           canReindex={canReindex}
           canViewChunks={canViewChunks}
