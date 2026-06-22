@@ -50,7 +50,7 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
-import type { ComposerAttachment } from '../composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'

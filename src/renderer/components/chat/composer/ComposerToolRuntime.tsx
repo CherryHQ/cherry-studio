@@ -41,7 +41,7 @@ import { ChevronRightIcon, Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerAttachment } from './composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 

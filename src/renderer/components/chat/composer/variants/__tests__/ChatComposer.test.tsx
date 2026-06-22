@@ -1038,7 +1038,7 @@ describe('ChatComposer', () => {
       textOffset: 0
     } as ComposerSerializedToken
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'inputbar-draft'
+      key === 'v2-chat-composer-draft'
         ? { text: 'quoted text follow up', tokens: [cachedFileToken, cachedQuoteToken], files: [cachedFile] }
         : ''
     )
@@ -1081,7 +1081,7 @@ describe('ChatComposer', () => {
 
   it('does not restore knowledge tokens from the draft cache', () => {
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'inputbar-draft'
+      key === 'v2-chat-composer-draft'
         ? {
             text: 'hello',
             tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
@@ -1112,7 +1112,7 @@ describe('ChatComposer', () => {
       textOffset: 0
     } as ComposerSerializedToken
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'inputbar-draft' ? { text: '', tokens: [cachedFileToken], files: [cachedFile] } : ''
+      key === 'v2-chat-composer-draft' ? { text: '', tokens: [cachedFileToken], files: [cachedFile] } : ''
     )
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
@@ -1152,7 +1152,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => {
       expect(cacheService.setCasual).toHaveBeenCalledWith(
-        'inputbar-draft',
+        'v2-chat-composer-draft',
         { text: 'quoted text', tokens: [quoteToken], files: [] },
         expect.any(Number)
       )
@@ -1176,7 +1176,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).toHaveBeenCalled()
     expect(vi.mocked(cacheService.setCasual).mock.lastCall).toEqual([
-      'inputbar-draft',
+      'v2-chat-composer-draft',
       { text: '', tokens: [], files: [] },
       expect.any(Number)
     ])
@@ -1206,7 +1206,7 @@ describe('ChatComposer', () => {
       mocks.surfaceProps?.onTextChange('edited text')
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited text'))
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith('inputbar-draft', expect.anything(), expect.anything())
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith('v2-chat-composer-draft', expect.anything(), expect.anything())
 
     act(() => {
       mocks.surfaceProps?.editingState?.onCancel()
@@ -1214,7 +1214,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(vi.mocked(cacheService.setCasual).mock.lastCall).toEqual([
-      'inputbar-draft',
+      'v2-chat-composer-draft',
       { text: 'original draft', tokens: [], files: [] },
       expect.any(Number)
     ])

@@ -10,7 +10,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 
-import type { ComposerAttachment } from '../../composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
 

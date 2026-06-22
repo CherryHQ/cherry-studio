@@ -44,6 +44,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const panelGenerationRef = useRef(0)
   const generatedItemIdsRef = useRef(new WeakMap<QuickPanelListItem, string>())
   const generatedItemIdCounterRef = useRef(0)
+  // Latest memoized context, so `close()` (defined before `value`) can hand the
+  // real panel context to `onClose` instead of `this` (undefined in an arrow fn).
+  const panelContextRef = useRef<QuickPanelContextType | null>(null)
 
   isVisibleRef.current = isVisible
 
@@ -138,7 +141,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setTrackInputQuery(false)
       setReadOnly(false)
       setLastCloseAction(action)
-      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
+      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: panelContextRef.current! })
 
       clearTimer.current = window.setTimeout(() => {
         clearTimer.current = null
@@ -255,6 +258,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       afterAction
     ]
   )
+
+  panelContextRef.current = value
 
   return <QuickPanelContext value={value}>{children}</QuickPanelContext>
 }

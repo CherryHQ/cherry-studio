@@ -31,7 +31,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FileComposerToken } from '../tokens'
-import type { ComposerAttachment } from './composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'

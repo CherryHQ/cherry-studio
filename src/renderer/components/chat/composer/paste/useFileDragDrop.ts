@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { type ComposerAttachment, toComposerAttachments } from '@renderer/components/chat/composer/composerAttachment'
+import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/messageUtils/composerAttachment'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { filterSupportedFiles } from '@renderer/utils'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'

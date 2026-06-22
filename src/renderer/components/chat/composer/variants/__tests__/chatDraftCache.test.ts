@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedToken } from '../../tokens'
 import {
+  CHAT_COMPOSER_DRAFT_CACHE_KEY,
   getCacheableDraftTokens,
-  INPUTBAR_DRAFT_CACHE_KEY,
+  LEGACY_INPUTBAR_DRAFT_CACHE_KEY,
   readChatDraftCache,
   writeChatDraftCache
 } from '../chat/chatDraftCache'
@@ -50,7 +51,9 @@ describe('chatDraftCache', () => {
   })
 
   it('migrates a legacy plain-string cache value to a text-only draft', () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue('legacy draft')
+    vi.mocked(cacheService.getCasual).mockImplementation((key) =>
+      key === LEGACY_INPUTBAR_DRAFT_CACHE_KEY ? 'legacy draft' : undefined
+    )
 
     expect(readChatDraftCache()).toEqual({ text: 'legacy draft', tokens: [], files: [] })
   })
@@ -78,7 +81,7 @@ describe('chatDraftCache', () => {
 
     writeChatDraftCache('hello', [fileToken, knowledgeToken, quoteToken], [file])
     expect(cacheService.setCasual).toHaveBeenCalledWith(
-      INPUTBAR_DRAFT_CACHE_KEY,
+      CHAT_COMPOSER_DRAFT_CACHE_KEY,
       { text: 'hello', tokens: [fileToken, quoteToken], files: [file] },
       expect.any(Number)
     )

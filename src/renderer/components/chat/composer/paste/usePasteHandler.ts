@@ -1,4 +1,4 @@
-import type { ComposerAttachment } from '@renderer/components/chat/composer/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 
