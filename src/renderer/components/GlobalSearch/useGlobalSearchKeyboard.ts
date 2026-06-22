@@ -24,6 +24,11 @@ export function getGlobalSearchFooterItemId(
   return `footer:${groupId}:${footer.kind}`
 }
 
+/** Stable DOM id for a listbox option, so the search input can reference it via `aria-activedescendant`. */
+export function getGlobalSearchOptionDomId(itemId: string) {
+  return `global-search-option-${encodeURIComponent(itemId)}`
+}
+
 export function useGlobalSearchKeyboard({
   groups,
   isMessageSearchMode,

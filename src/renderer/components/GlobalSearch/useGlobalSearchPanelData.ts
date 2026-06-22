@@ -181,6 +181,9 @@ export function useGlobalSearchPanelData({
     [contentSearchSources, deferredQuery, messageSearchLimit, updatedAtFrom]
   )
   const [contentSearchState, setContentSearchState] = useState(() => createContentSearchState(contentSearchStateKey))
+  // When the search key changes we render against a fresh, empty accumulator immediately (derive-during-render)
+  // and let the effect below reconcile `contentSearchState` afterwards. The fresh state has empty `requestedCursors`,
+  // so the memoized SWR key it feeds stays value-stable - do NOT "simplify" this into a setState-in-render or it loops.
   const activeContentSearchState =
     contentSearchState.baseKey === contentSearchStateKey
       ? contentSearchState
@@ -222,7 +225,10 @@ export function useGlobalSearchPanelData({
     error: contentSearchError
   } = useQuery('/search/contents', {
     enabled: hasQuery && contentSearchSources.length > 0,
-    query: contentSearchQuery
+    query: contentSearchQuery,
+    swrOptions: {
+      keepPreviousData: false
+    }
   })
 
   useEffect(() => {

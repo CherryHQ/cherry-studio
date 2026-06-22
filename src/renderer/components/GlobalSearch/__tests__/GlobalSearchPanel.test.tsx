@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   queryResult: undefined as EntitySearchResponse | undefined,
   messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
   sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
+  keepStaleContentSearchData: false,
   recentItems: [] as GlobalSearchRecentEntry[],
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
@@ -184,8 +185,15 @@ vi.mock('@renderer/features/command', () => ({
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
-  GroupedVirtualList: ({ groups, renderGroupHeader, renderItem, renderGroupFooter }: any) => (
-    <div role="listbox">
+  GroupedVirtualList: ({
+    groups,
+    renderGroupHeader,
+    renderItem,
+    renderGroupFooter,
+    role = 'region',
+    scrollerProps
+  }: any) => (
+    <div {...scrollerProps} role={role}>
       {groups.map((entry: any, groupIndex: number) => {
         const group = entry.group ?? entry
         return (
@@ -447,6 +455,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { GlobalSearchPanel } from '../GlobalSearchPanel'
+import { getGlobalSearchOptionDomId } from '../useGlobalSearchKeyboard'
 
 afterEach(() => {
   cleanup()
@@ -484,57 +493,70 @@ describe('GlobalSearchPanel', () => {
       url: '/app/chat',
       title: 'Chat'
     }
-    mocks.useQuery.mockImplementation((path: string, options?: { query?: { q?: string; sources?: string[] } }) => {
-      if (path === '/search/entities') {
+    mocks.keepStaleContentSearchData = false
+    mocks.useQuery.mockImplementation(
+      (
+        path: string,
+        options?: {
+          query?: { q?: string; sources?: string[] }
+          swrOptions?: { keepPreviousData?: boolean }
+        }
+      ) => {
+        if (path === '/search/entities') {
+          return {
+            data: mocks.queryResult,
+            isLoading: false,
+            isRefreshing: false,
+            error: undefined
+          }
+        }
+
+        if (path === '/search/contents') {
+          const sources = options?.query?.sources ?? ['topic-message', 'session-message']
+          const effectiveSources =
+            mocks.keepStaleContentSearchData && options?.swrOptions?.keepPreviousData !== false
+              ? ['topic-message', 'session-message']
+              : sources
+          const groups = [
+            ...(effectiveSources.includes('topic-message') && mocks.messageQueryResult
+              ? [
+                  {
+                    sourceType: 'topic-message' as const,
+                    items: mocks.messageQueryResult.items,
+                    nextCursor: mocks.messageQueryResult.nextCursor
+                  }
+                ]
+              : []),
+            ...(effectiveSources.includes('session-message') && mocks.sessionMessageQueryResult
+              ? [
+                  {
+                    sourceType: 'session-message' as const,
+                    items: mocks.sessionMessageQueryResult.items,
+                    nextCursor: mocks.sessionMessageQueryResult.nextCursor
+                  }
+                ]
+              : [])
+          ]
+
+          return {
+            data: {
+              query: options?.query?.q ?? '',
+              groups
+            },
+            isLoading: false,
+            isRefreshing: false,
+            error: undefined
+          }
+        }
+
         return {
-          data: mocks.queryResult,
+          data: undefined,
           isLoading: false,
           isRefreshing: false,
           error: undefined
         }
       }
-
-      if (path === '/search/contents') {
-        const sources = options?.query?.sources ?? ['topic-message', 'session-message']
-        const groups = [
-          ...(sources.includes('topic-message') && mocks.messageQueryResult
-            ? [
-                {
-                  sourceType: 'topic-message' as const,
-                  items: mocks.messageQueryResult.items,
-                  nextCursor: mocks.messageQueryResult.nextCursor
-                }
-              ]
-            : []),
-          ...(sources.includes('session-message') && mocks.sessionMessageQueryResult
-            ? [
-                {
-                  sourceType: 'session-message' as const,
-                  items: mocks.sessionMessageQueryResult.items,
-                  nextCursor: mocks.sessionMessageQueryResult.nextCursor
-                }
-              ]
-            : [])
-        ]
-
-        return {
-          data: {
-            query: options?.query?.q ?? '',
-            groups
-          },
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined
-        }
-      }
-
-      return {
-        data: undefined,
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined
-      }
-    })
+    )
   })
 
   it('autofocuses the search input when opened', async () => {
@@ -542,6 +564,23 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')).toHaveFocus()
+    })
+  })
+
+  it('links the search input to the visible recent listbox', async () => {
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const searchInput = screen.getByRole('combobox', {
+      name: 'Search conversations, tasks, assistants, agents, and knowledge...'
+    })
+    const listbox = screen.getByRole('listbox')
+    const recentOption = screen.getByRole('option', { name: /Topic recent/ })
+
+    await waitFor(() => {
+      expect(searchInput).toHaveAttribute('aria-expanded', 'true')
+      expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+      expect(searchInput).toHaveAttribute('aria-activedescendant', recentOption.id)
+      expect(recentOption).toHaveAttribute('id', getGlobalSearchOptionDomId('topic:topic-1'))
     })
   })
 
@@ -580,10 +619,19 @@ describe('GlobalSearchPanel', () => {
     )
 
     await waitFor(() => {
+      const searchInput = screen.getByRole('combobox', {
+        name: 'Search conversations, tasks, assistants, agents, and knowledge...'
+      })
+      const listbox = screen.getByRole('listbox')
+      const resultOption = screen.getByRole('option', { name: /Writing Assistant/ })
+
       expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument()
-      expect(screen.getByRole('option', { name: /Writing Assistant/ })).toBeInTheDocument()
+      expect(resultOption).toBeInTheDocument()
       expect(screen.getByText('2 minutes ago')).toBeInTheDocument()
       expect(screen.getAllByText('🧪')).not.toHaveLength(0)
+      expect(searchInput).toHaveAttribute('aria-expanded', 'true')
+      expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+      expect(searchInput).toHaveAttribute('aria-activedescendant', resultOption.id)
     })
 
     expect(mocks.useQuery).toHaveBeenLastCalledWith(
@@ -828,10 +876,24 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
     await user.click(screen.getByRole('button', { name: 'Message source: Conversation messages' }))
     await user.click(screen.getByRole('radio', { name: 'All' }))
-    await user.click(await screen.findByRole('option', { name: /needle target message/ }))
+    const searchInput = screen.getByRole('combobox', {
+      name: 'Search conversations, tasks, assistants, agents, and knowledge...'
+    })
+    const messageOption = await screen.findByRole('option', { name: /needle target message/ })
+
+    await waitFor(() => {
+      expect(searchInput).toHaveAttribute('aria-expanded', 'true')
+      expect(searchInput).toHaveAttribute('aria-controls', screen.getByRole('listbox').id)
+      expect(searchInput).toHaveAttribute('aria-activedescendant', messageOption.id)
+    })
+
+    await user.click(messageOption)
 
     expect(await screen.findByLabelText('Message preview')).toBeInTheDocument()
     expect(screen.getByText('Topic A')).toBeInTheDocument()
+    expect(searchInput).toHaveAttribute('aria-expanded', 'false')
+    expect(searchInput).not.toHaveAttribute('aria-controls')
+    expect(searchInput).not.toHaveAttribute('aria-activedescendant')
   })
 
   it('switches to message search mode without showing quick app shortcuts', async () => {
@@ -1008,6 +1070,62 @@ describe('GlobalSearchPanel', () => {
           })
         })
       )
+    })
+  })
+
+  it('does not keep stale task results after filtering to conversation messages', async () => {
+    const user = userEvent.setup()
+    mocks.keepStaleContentSearchData = true
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'topic-message-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          snippet: 'needle topic reply',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ]
+    }
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          snippet: 'needle session reply',
+          createdAt: '2026-01-01T00:00:01.000Z'
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'needle'
+    )
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    expect(await screen.findByRole('option', { name: /needle session reply/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Message source: Conversation messages' }))
+
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenCalledWith(
+        '/search/contents',
+        expect.objectContaining({
+          swrOptions: { keepPreviousData: false },
+          query: expect.objectContaining({
+            q: 'needle',
+            sources: ['topic-message']
+          })
+        })
+      )
+      expect(screen.getByRole('option', { name: /needle topic reply/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /needle session reply/ })).not.toBeInTheDocument()
+      expect(screen.queryByText('Session A')).not.toBeInTheDocument()
     })
   })
 

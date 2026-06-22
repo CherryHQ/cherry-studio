@@ -190,7 +190,6 @@ export function GlobalSearchMessagePreviewPanel({
     loadNext: loadNextSessionPage
   } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'session'
   })
@@ -266,7 +265,7 @@ export function GlobalSearchMessagePreviewPanel({
   useEffect(() => {
     if (!messages.some((message) => message.id === activeMessageId)) return
 
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
       const element = document.getElementById(`global-search-preview-message-${activeMessageId}`)
       const highlight = element?.querySelector(`${MESSAGE_BODY_SELECTOR} ${HIGHLIGHT_MARK_SELECTOR}`)
       const scrollTarget = highlight ?? element
@@ -274,6 +273,8 @@ export function GlobalSearchMessagePreviewPanel({
 
       scrollTarget.scrollIntoView({ block: 'center' })
     })
+
+    return () => window.cancelAnimationFrame(frame)
   }, [activeMessageId, messages, searchQuery])
 
   return (

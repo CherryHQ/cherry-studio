@@ -192,7 +192,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('anchors session preview at the target message and continues loading available context', async () => {
+  it('loads session preview messages and continues loading available context', async () => {
     vi.mocked(mocks.sessionLoadNext).mockClear()
     mocks.topicPages = []
     mocks.sessionHasNext = true
@@ -242,10 +242,13 @@ describe('GlobalSearchMessagePreviewPanel', () => {
       '/agent-sessions/:sessionId/messages',
       expect.objectContaining({
         params: { sessionId: 'session-1' },
-        query: { messageId: 'session-message-1' },
         limit: expect.any(Number),
         enabled: true
       })
     )
+    const sessionQueryOptions = vi
+      .mocked(mocks.useInfiniteQuery)
+      .mock.calls.find(([path]) => path === '/agent-sessions/:sessionId/messages')?.[1] as Record<string, unknown>
+    expect(sessionQueryOptions).not.toHaveProperty('query')
   })
 })

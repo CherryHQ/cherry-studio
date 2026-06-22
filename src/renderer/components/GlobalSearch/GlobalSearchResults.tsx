@@ -25,6 +25,7 @@ import type {
   GlobalSearchPanelGroupFooter,
   GlobalSearchPanelItem
 } from './globalSearchGroups'
+import { getGlobalSearchOptionDomId } from './useGlobalSearchKeyboard'
 
 const RESULT_ICONS: Record<EntitySearchItem['type'], typeof MessageSquare> = {
   topic: MessageSquare,
@@ -110,11 +111,13 @@ export function GlobalSearchGroupHeader({ group }: { group: GlobalSearchPanelGro
 
 export function GlobalSearchGroupFooter({
   active,
+  domId,
   footer,
   onMouseEnter,
   onOpen
 }: {
   active: boolean
+  domId: string
   footer: GlobalSearchPanelGroupFooter
   onMouseEnter: () => void
   onOpen: () => void
@@ -130,6 +133,7 @@ export function GlobalSearchGroupFooter({
     <div className="h-9 pt-1">
       <button
         type="button"
+        id={domId}
         role="option"
         aria-selected={active}
         onMouseEnter={onMouseEnter}
@@ -175,6 +179,7 @@ export function GlobalSearchRow({
   return (
     <button
       type="button"
+      id={getGlobalSearchOptionDomId(item.id)}
       role="option"
       aria-selected={active}
       onMouseEnter={onMouseEnter}
@@ -270,6 +275,7 @@ export function GlobalMessageSearchRow({
       <div className="h-9 pt-1">
         <button
           type="button"
+          id={getGlobalSearchOptionDomId(item.id)}
           role="option"
           aria-selected={active}
           onMouseEnter={onMouseEnter}
@@ -299,6 +305,7 @@ export function GlobalMessageSearchRow({
 
   return (
     <div
+      id={getGlobalSearchOptionDomId(item.id)}
       role="option"
       aria-selected={active}
       onMouseEnter={onMouseEnter}

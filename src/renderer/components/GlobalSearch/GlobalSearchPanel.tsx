@@ -49,6 +49,7 @@ import {
 } from './GlobalSearchResults'
 import {
   getGlobalSearchFooterItemId,
+  getGlobalSearchOptionDomId,
   type GlobalSearchKeyboardItem,
   useGlobalSearchKeyboard
 } from './useGlobalSearchKeyboard'
@@ -63,6 +64,10 @@ type GlobalSearchPanelProps = {
 }
 
 type GlobalSearchScope = 'all' | 'messages'
+
+// Only one of the two virtual lists is mounted at a time, so they can share one
+// listbox id that the search input references via `aria-controls`.
+const GLOBAL_SEARCH_LISTBOX_ID = 'global-search-listbox'
 
 const SEARCH_FILTERS: Exclude<GlobalSearchFilter, 'all'>[] = ['topic', 'session', 'assistant', 'agent', 'knowledge']
 const MESSAGE_SOURCE_FILTER_BUTTONS: Exclude<GlobalMessageSearchSourceFilter, 'all'>[] = ['topic', 'session']
@@ -171,6 +176,47 @@ function getPreviewMessageJumpTarget(
     sessionId: target.sessionId,
     messageId
   }
+}
+
+function TimeFilterDropdown({
+  timeFilter,
+  panelMode,
+  onSelect
+}: {
+  timeFilter: GlobalSearchTimeFilter
+  panelMode: GlobalSearchPanelMode
+  onSelect: (filter: GlobalSearchTimeFilter) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+          aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
+          <Clock3 className="size-3.5" />
+          <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
+          <ChevronDown className="size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
+        {TIME_FILTERS.map((filterOption) => (
+          <DropdownMenuItem
+            key={filterOption}
+            onSelect={() => onSelect(filterOption)}
+            className={cn(
+              'h-8 rounded-[7px] font-medium text-xs',
+              timeFilter === filterOption && 'bg-accent text-accent-foreground'
+            )}>
+            {t(getTimeFilterLabelKey(filterOption))}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
@@ -546,6 +592,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const showMessageEmptyState =
     !isMessageLoading && !messageError && (hasQuery ? messageSelectableItems.length === 0 : true)
   const showSearchControls = hasQuery || isMessageSearchMode
+  const isSearchListboxVisible = !isMessageSearchMode && !(isLoading && hasQuery) && !error && !showEmptyState
+  const isMessageListboxVisible =
+    isMessageSearchMode &&
+    !messagePreviewTarget &&
+    !(isMessageLoading && hasQuery) &&
+    !messageError &&
+    !showMessageEmptyState
+  const isListboxVisible = isSearchListboxVisible || isMessageListboxVisible
 
   const messageResultsContent =
     isMessageLoading && hasQuery ? (
@@ -559,6 +613,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         <div className="min-h-0 flex-1">
           <GroupedVirtualList
             role="listbox"
+            scrollerProps={{ id: GLOBAL_SEARCH_LISTBOX_ID }}
             groups={messageVirtualGroupsWithLoadMore}
             estimateGroupHeaderSize={() => 32}
             estimateItemSize={(item) => {
@@ -616,6 +671,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             onKeyDown={handleInputKeyDown}
             placeholder={t('globalSearch.placeholder')}
             aria-label={t('globalSearch.placeholder')}
+            role="combobox"
+            aria-expanded={isListboxVisible}
+            aria-controls={isListboxVisible ? GLOBAL_SEARCH_LISTBOX_ID : undefined}
+            aria-activedescendant={
+              isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
+            }
             spellCheck={false}
             className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
           />
@@ -666,32 +727,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     {t(getMessageSourceFilterLabelKey(filterOption))}
                   </Button>
                 ))}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                      aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
-                      <Clock3 className="size-3.5" />
-                      <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
-                      <ChevronDown className="size-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-                    {TIME_FILTERS.map((filterOption) => (
-                      <DropdownMenuItem
-                        key={filterOption}
-                        onSelect={() => handleTimeFilterSelect(filterOption)}
-                        className={cn(
-                          'h-8 rounded-[7px] font-medium text-xs',
-                          timeFilter === filterOption && 'bg-accent text-accent-foreground'
-                        )}>
-                        {t(getTimeFilterLabelKey(filterOption))}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <TimeFilterDropdown timeFilter={timeFilter} panelMode={panelMode} onSelect={handleTimeFilterSelect} />
               </>
             ) : (
               <>
@@ -710,32 +746,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     {t(getFilterLabelKey(filterOption))}
                   </Button>
                 ))}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
-                      aria-label={t(getTimeFilterAriaLabelKey(panelMode))}>
-                      <Clock3 className="size-3.5" />
-                      <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
-                      <ChevronDown className="size-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-                    {TIME_FILTERS.map((filterOption) => (
-                      <DropdownMenuItem
-                        key={filterOption}
-                        onSelect={() => handleTimeFilterSelect(filterOption)}
-                        className={cn(
-                          'h-8 rounded-[7px] font-medium text-xs',
-                          timeFilter === filterOption && 'bg-accent text-accent-foreground'
-                        )}>
-                        {t(getTimeFilterLabelKey(filterOption))}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <TimeFilterDropdown timeFilter={timeFilter} panelMode={panelMode} onSelect={handleTimeFilterSelect} />
               </>
             )}
           </div>
@@ -765,6 +776,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           <div className="relative h-full">
             <GroupedVirtualList
               role="listbox"
+              scrollerProps={{ id: GLOBAL_SEARCH_LISTBOX_ID }}
               groups={virtualGroups}
               estimateGroupHeaderSize={() => 28}
               estimateItemSize={(item) => {
@@ -781,6 +793,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                   <GlobalSearchGroupFooter
                     footer={footer}
                     active={footerId === activeItemId}
+                    domId={getGlobalSearchOptionDomId(footerId)}
                     onMouseEnter={() => setActiveItemId(footerId)}
                     onOpen={() => openGlobalSearchFooter(footer)}
                   />
