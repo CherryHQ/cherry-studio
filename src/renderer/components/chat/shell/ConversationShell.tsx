@@ -1,7 +1,7 @@
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TITLE_BAR_HEIGHT_CLASS, TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isMac } from '@renderer/config/constant'
-import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { cn } from '@renderer/utils'
 import type { CSSProperties, ReactNode, Ref } from 'react'
 

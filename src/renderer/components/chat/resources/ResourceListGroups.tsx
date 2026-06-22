@@ -30,10 +30,9 @@ function stopEventPropagation(event: { stopPropagation: () => void }) {
 }
 
 /**
- * Preserved as a pass-through for backward compatibility — group-header context
- * menus are now scoped to each {@link GroupHeader} via its own
- * {@link CommandContextMenu} so that right-clicks on row items below the
- * header are not intercepted.
+ * A pass-through wrapper — group-header context menus are scoped to each
+ * {@link GroupHeader} via its own {@link CommandContextMenu} so that right-clicks
+ * on row items below the header are not intercepted.
  */
 export function ResourceListGroupHeaderContextMenuOwner({ children }: { children: ReactNode }) {
   return <>{children}</>

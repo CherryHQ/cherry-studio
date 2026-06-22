@@ -173,14 +173,12 @@ export const resolveArtifactPaneFileSelection = (
  * Project the main-side `DirectoryTreeBuilder` snapshot into the legacy
  * `FileTreeNode[]` shape `@renderer/components/FileTree` consumes.
  *
- * Identity rule (kept stable so persisted `expandedIds` / `selectedId`
- * survive the migration from the flat-paths era):
+ * Identity rule (kept stable so persisted `expandedIds` / `selectedId` survive):
  *   - synthetic root node uses `id === path === WORKSPACE_ROOT_ID`
  *   - every descendant's `id` is its workspace-relative path
  *     (forward-slash, no leading slash) and `path` is `WORKSPACE_ROOT_ID/<id>`
  *
- * The sort order matches the previous `buildFileTreeNodes` behaviour:
- * folders first, then files, each layer alphabetised by name.
+ * Sort order: folders first, then files, each layer alphabetised by name.
  */
 function projectArtifactTree(root: TreeDirRoot | null, workspacePath: string | undefined): FileTreeNode[] {
   if (!root || !workspacePath) return []
