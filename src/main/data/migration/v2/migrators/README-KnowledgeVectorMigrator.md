@@ -110,7 +110,14 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 ## IMPORTANT: Current Limitations
 
-- Base-level execution failures are treated as migration failures, not as skippable data warnings. If rebuilding or replacing one base fails, `execute()` returns `success: false`.
+- A single base's execution failure is **non-fatal**, not a whole-migration abort. When one base's
+  vector store cannot be rebuilt, that base is skipped, marked a restorable
+  `failed`/`missing_vector_store` row (so the UI surfaces a re-index entry), and the failure is
+  surfaced as a warning — `execute()` still returns `success: true` and the remaining bases migrate.
+  This keeps a per-base migration error from blocking the user out of the app: the failed base is
+  recovered in-UI rather than by re-running the whole migration. The migration only fails as a whole
+  on a structural/integrity error (a migrator throwing, or `validate()`'s reconciliation failing),
+  never on per-base data that could not be migrated.
 - After a successful migration the v1 legacy vector DBs (and the copied legacy
   upload files) remain on disk as orphans; disk space is not reclaimed. Reclaiming
   it is intentionally left to a separate future cleanup step gated on the user

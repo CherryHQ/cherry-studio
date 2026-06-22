@@ -539,8 +539,24 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const directoryGroups = this.collectDirectoryGroups(base.id, migratedItemsByBaseId)
 
         if (base.status === 'failed' || base.embeddingModelId === null) {
-          const warningMessage = `Skipped knowledge vector base ${base.id}: missing embedding model`
-          this.recordSkippedWarning(KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, warningMessage)
+          // Two distinct skip reasons collapse into this branch — attribute each to its real cause so
+          // the migration summary doesn't misreport a vector-store failure as a missing model (which
+          // would misdirect triage). A base with no embedding model is genuinely unindexable; a base
+          // KnowledgeMigrator already marked `failed` with the model still resolved was failed for
+          // another reason (e.g. `missing_vector_store` when its legacy store was unreadable), so key
+          // the warning on its actual `base.error`.
+          if (base.embeddingModelId === null) {
+            this.recordSkippedWarning(
+              KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+              `Skipped knowledge vector base ${base.id}: missing embedding model`
+            )
+          } else {
+            const reason = base.error ?? KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+            this.recordSkippedWarning(
+              reason,
+              `Skipped knowledge vector base ${base.id}: already marked failed (${reason})`
+            )
+          }
           this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }

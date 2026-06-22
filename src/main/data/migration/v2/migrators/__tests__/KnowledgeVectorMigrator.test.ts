@@ -94,6 +94,7 @@ interface MigratedKnowledgeBaseRow {
   dimensions: number
   embeddingModelId: string | null
   status: 'completed' | 'failed'
+  error?: string | null
   chunkSize: number
   chunkOverlap: number
   fileProcessorId?: string | null
@@ -748,6 +749,49 @@ describe('KnowledgeVectorMigrator', () => {
           )
         )
       ).toBe(true)
+    })
+
+    it('attributes a failed base with a resolved model to its real error, not missing-model (C5)', async () => {
+      // A base KnowledgeMigrator already marked `failed`/`missing_vector_store` (its legacy store was
+      // unreadable, but its embedding model still resolved) reaches this skip branch via
+      // `status==='failed'` with a non-null embeddingModelId. The summary warning must key on its
+      // actual `base.error`, not lump it into "missing embedding model" — which would misdirect triage.
+      const loadBase = vi.fn()
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: { loadBase } as any,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(loadBase).not.toHaveBeenCalled()
+      expect(migrator.preparedBasePlans).toEqual([])
+      // Keyed on the real error...
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE}): count=1`)
+        )
+      ).toBe(true)
+      // ...never misreported as a missing model.
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL})`)
+        )
+      ).toBe(false)
     })
 
     it('skips a base with invalid dimensions and degrades its directory items (P0-3 gate)', async () => {
