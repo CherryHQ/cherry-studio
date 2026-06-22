@@ -33,9 +33,6 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <span {...props}>{children}</span>
-    ),
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button {...props}>{children}</button>
     ),
@@ -54,32 +51,6 @@ vi.mock('@cherrystudio/ui', async () => {
         checked={checked === true}
         onChange={(event) => onCheckedChange?.(event.target.checked)}
       />
-    ),
-    TableRow: ({
-      children,
-      onClick,
-      ...props
-    }: {
-      children: ReactNode
-      onClick?: (event: React.MouseEvent) => void
-      [key: string]: unknown
-    }) => (
-      <tr onClick={onClick} {...props}>
-        {children}
-      </tr>
-    ),
-    TableCell: ({
-      children,
-      onClick,
-      ...props
-    }: {
-      children: ReactNode
-      onClick?: (event: React.MouseEvent) => void
-      [key: string]: unknown
-    }) => (
-      <td onClick={onClick} {...props}>
-        {children}
-      </td>
     ),
     MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
       <button {...props}>
