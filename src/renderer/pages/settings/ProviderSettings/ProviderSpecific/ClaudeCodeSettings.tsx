@@ -63,6 +63,17 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
     }
   }, [t])
 
+  // Until the first probe resolves, loggedIn is null — show a loading row rather
+  // than the sign-in panel, so an already-signed-in user doesn't see it flash.
+  if (loggedIn === null) {
+    return (
+      <div className="flex items-center gap-2 pt-3.75 text-foreground-muted text-xs">
+        <RefreshCw className="size-4 animate-spin" aria-hidden />
+        {t('common.loading')}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3 pt-3.75">
       {loggedIn ? (
