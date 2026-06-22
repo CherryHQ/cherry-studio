@@ -168,6 +168,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.filters.directory': '目录',
           'knowledge.data_source.filters.url': '链接',
           'knowledge.data_source.table.select_row': '选择行',
+          'knowledge.data_source.table.view_chunks_row': '查看 Chunks 行',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'
         }) as Record<string, string>
@@ -287,6 +288,71 @@ describe('KnowledgeItemRow', () => {
     )
 
     fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('exposes a completed row as a focusable element with an accessible name', () => {
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+      />
+    )
+
+    const row = screen.getByRole('row', { name: '查看 Chunks 行' })
+
+    expect(row).toHaveAttribute('tabindex', '0')
+  })
+
+  it.each(['Enter', ' '])('calls onClick when %s is pressed on a completed row', (key) => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    fireEvent.keyDown(screen.getByRole('row'), { key })
+
+    expect(handleClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onClick when a key bubbles up from a control inside the row', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    fireEvent.keyDown(screen.getByRole('checkbox', { name: '选择行' }), { key: 'Enter' })
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('is not keyboard-activatable for non-completed items', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status: 'processing' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    const row = screen.getByRole('row')
+
+    expect(row).not.toHaveAttribute('tabindex')
+
+    fireEvent.keyDown(row, { key: 'Enter' })
 
     expect(handleClick).not.toHaveBeenCalled()
   })

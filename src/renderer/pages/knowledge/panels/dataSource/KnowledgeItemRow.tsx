@@ -14,7 +14,7 @@ import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/e
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
-import type { ComponentProps, MouseEvent } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -252,15 +252,31 @@ const KnowledgeItemRow = ({
   const updatedAt = formatRelativeTime(item.updatedAt, language)
   const fullTitle = 'source' in item.data ? item.data.source : title
 
+  // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
+  // itself so Enter/Space on the checkbox or more-button (which bubble up) don't also open chunks.
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onClick()
+    }
+  }
+
   return (
     <div
       role="row"
       data-state={selected ? 'selected' : undefined}
+      tabIndex={canViewChunks ? 0 : undefined}
+      aria-label={canViewChunks ? t('knowledge.data_source.table.view_chunks_row', { title }) : undefined}
       onClick={canViewChunks ? onClick : undefined}
+      onKeyDown={canViewChunks ? handleRowKeyDown : undefined}
       className={cn(
         KNOWLEDGE_ITEM_ROW_GRID,
         'group/row min-h-12 rounded-lg transition-colors',
-        canViewChunks && 'cursor-pointer',
+        canViewChunks &&
+          'cursor-pointer focus-visible:outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]',
         selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
       )}>
       <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>

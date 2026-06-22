@@ -2244,7 +2244,8 @@
           "updated_at": "更新时间"
         },
         "select_all": "全选",
-        "select_row": "选择行"
+        "select_row": "选择行",
+        "view_chunks_row": "查看「{{title}}」的 Chunks"
       },
       "toolbar": {
         "add": "添加数据源"

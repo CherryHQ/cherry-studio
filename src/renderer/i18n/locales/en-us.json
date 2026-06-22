@@ -2244,7 +2244,8 @@
           "updated_at": "Updated"
         },
         "select_all": "Select all",
-        "select_row": "Select row"
+        "select_row": "Select row",
+        "view_chunks_row": "View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Add Data Source"
