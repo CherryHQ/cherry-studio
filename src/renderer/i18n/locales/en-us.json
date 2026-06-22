@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "answered",
+      "close": "Close",
       "customPlaceholder": "Enter your answer...",
       "loading": "Loading questions...",
       "multiSelect": "Multi-select",
@@ -25,6 +26,8 @@
       "noQuestions": "No questions available",
       "other": "Other",
       "previous": "Previous",
+      "progress": "{{current}} of {{total}}",
+      "skip": "Skip",
       "submit": "Submit",
       "title": "Questions from Agent"
     },
@@ -340,6 +343,11 @@
         "failed": "Failed to reorder agents"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "Context usage"
+      }
+    },
     "server": {
       "error": {
         "not_running": "The API server is enabled but not running properly."
@@ -399,6 +407,10 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_selector": {
+        "no_project": "No work directory",
+        "placeholder": "Select work directory"
       },
       "workspace_status": {
         "inaccessible": "Workspace path is not accessible: {{path}}",
@@ -695,8 +707,10 @@
         "showDetails": "Show tool details"
       },
       "button": {
+        "allow": "Allow",
         "allowAll": "Always Allow",
         "cancel": "Cancel",
+        "deny": "Deny",
         "run": "Run"
       },
       "confirmation": "Are you sure you want to run this Claude tool?",
@@ -1125,6 +1139,7 @@
     "download": "Download",
     "includes_user_questions": "Include Your Questions",
     "manage": "Manage",
+    "select_assistant": "Select Assistant",
     "select_model": "Select Model",
     "show": {
       "all": "Show All"
@@ -1189,6 +1204,7 @@
     },
     "input": {
       "auto_resize": "Auto resize height",
+      "cancel_editing": "Cancel editing",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
         "label": "Clear",
@@ -1198,6 +1214,8 @@
       "context_count": {
         "tip": "Context / Max Context"
       },
+      "editing": "Editing",
+      "editing_message": "Editing sent message",
       "estimated_tokens": {
         "tip": "Estimated tokens"
       },
@@ -1205,9 +1223,20 @@
       "file_error": "Error processing file",
       "file_not_supported": "Model does not support this file type",
       "file_not_supported_count": "{{count}} files are not supported",
+      "followup_queue": {
+        "edit": "Edit",
+        "pause": "Pause auto-send",
+        "remove": "Remove",
+        "resume": "Resume auto-send",
+        "steer": "Send into current turn",
+        "title": "Queued ({{count}})"
+      },
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
+      "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "locate_editing_message": "Locate original message",
       "new": {
         "context": "Clear Context"
       },
@@ -1244,6 +1273,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
+        "fixed_model": "Reasoning is fixed for this model",
         "label": "Thinking",
         "mode": {
           "custom": {
@@ -1257,7 +1287,8 @@
           "tokens": {
             "tip": "Set the number of thinking tokens to use."
           }
-        }
+        },
+        "unsupported_model": "Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Collapse",
@@ -1275,6 +1306,8 @@
       "upload": {
         "attachment": "Upload attachment",
         "document": "Upload document file (model does not support images)",
+        "document_only": "Documents only",
+        "image_not_supported": "This model does not support image uploads. Documents only.",
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
@@ -2995,6 +3028,7 @@
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
         "no_content": "There is nothing to export to Notion."
       },
+      "operation_unavailable": "Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
@@ -3401,6 +3435,12 @@
     "search": {
       "placeholder": "Search models...",
       "tooltip": "Search models"
+    },
+    "selection": {
+      "context_window": "Context {{count}}",
+      "remove_model": "Remove {{name}}",
+      "restore_default": "Restore assistant model",
+      "selected_models": "Selected models"
     },
     "stream_output": "Stream output",
     "type": {
@@ -6606,6 +6646,14 @@
       "close": "Close",
       "confirm": "Confirm",
       "forward": "Forward",
+      "mcp": {
+        "agentEmpty": "No MCP servers configured for this agent",
+        "assistantEmpty": "No MCP servers configured for this assistant",
+        "autoEmpty": "No enabled MCP servers",
+        "description": "View current MCP server status",
+        "disabled": "MCP is disabled for this assistant",
+        "unknownServer": "Unknown MCP server"
+      },
       "multiple": "Multiple Select",
       "noResult": "No results found",
       "page": "Page",

@@ -209,7 +209,10 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
  * (model, instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those.
  */
-export const useUpdateSession = (agentId: string | null) => {
+// `agentId` is optional: the v2 composer calls `useUpdateSession()` and drives
+// the session id off `form.id`; existing agent-page callers still pass an
+// explicit `string | null`. Only an explicit `null` short-circuits the update.
+export const useUpdateSession = (agentId?: string | null) => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agent-sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
@@ -221,7 +224,7 @@ export const useUpdateSession = (agentId: string | null) => {
 
   const updateSession = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
-      if (!agentId) return
+      if (agentId === null) return
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })

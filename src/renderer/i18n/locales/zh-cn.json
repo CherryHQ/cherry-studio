@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "已回答",
+      "close": "关闭",
       "customPlaceholder": "输入您的回答...",
       "loading": "正在加载问题...",
       "multiSelect": "多选",
@@ -25,6 +26,8 @@
       "noQuestions": "暂无问题",
       "other": "其他",
       "previous": "上一个",
+      "progress": "{{current}} / {{total}}",
+      "skip": "跳过",
       "submit": "提交",
       "title": "来自 Agent 的问题"
     },
@@ -340,6 +343,11 @@
         "failed": "智能体排序失败"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "上下文用量"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 网关已启用但未正常运行。"
@@ -399,6 +407,10 @@
         "error": {
           "failed": "更新会话失败"
         }
+      },
+      "workspace_selector": {
+        "no_project": "不使用工作目录",
+        "placeholder": "选择工作目录"
       },
       "workspace_status": {
         "inaccessible": "工作区路径不可访问：{{path}}",
@@ -695,8 +707,10 @@
         "showDetails": "显示工具详情"
       },
       "button": {
+        "allow": "允许",
         "allowAll": "总是允许",
         "cancel": "取消",
+        "deny": "拒绝",
         "run": "运行"
       },
       "confirmation": "确定要运行此 Claude 工具吗?",
@@ -1125,6 +1139,7 @@
     "download": "下载",
     "includes_user_questions": "包含用户提问",
     "manage": "管理",
+    "select_assistant": "选择助手",
     "select_model": "选择模型",
     "show": {
       "all": "显示全部"
@@ -1189,6 +1204,7 @@
     },
     "input": {
       "auto_resize": "自动调整高度",
+      "cancel_editing": "取消编辑",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
         "label": "清空消息",
@@ -1198,6 +1214,8 @@
       "context_count": {
         "tip": "上下文数 / 最大上下文数"
       },
+      "editing": "编辑中",
+      "editing_message": "正在编辑已发送消息",
       "estimated_tokens": {
         "tip": "预估 Token 数"
       },
@@ -1205,9 +1223,20 @@
       "file_error": "文件处理出错",
       "file_not_supported": "模型不支持此文件类型",
       "file_not_supported_count": "{{count}} 个文件不被支持",
+      "followup_queue": {
+        "edit": "编辑",
+        "pause": "暂停自动发送",
+        "remove": "移除",
+        "resume": "恢复自动发送",
+        "steer": "插入当前回合",
+        "title": "排队中 ({{count}})"
+      },
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
+      "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
+      "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
+      "locate_editing_message": "定位原消息",
       "new": {
         "context": "清除上下文"
       },
@@ -1244,6 +1273,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
+        "fixed_model": "该模型的推理强度固定",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1257,7 +1287,8 @@
           "tokens": {
             "tip": "设置思考的 Token 数"
           }
-        }
+        },
+        "unsupported_model": "当前模型不支持调整推理强度"
       },
       "tools": {
         "collapse": "折叠",
@@ -1275,6 +1306,8 @@
       "upload": {
         "attachment": "上传附件",
         "document": "上传文档（模型不支持图片）",
+        "document_only": "仅文档",
+        "image_not_supported": "当前模型不支持图片上传，仅可上传文档",
         "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
@@ -2995,6 +3028,7 @@
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
         "no_content": "无可导出到 Notion 的内容"
       },
+      "operation_unavailable": "当前消息操作不可用，请重试。",
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
@@ -3401,6 +3435,12 @@
     "search": {
       "placeholder": "搜索模型...",
       "tooltip": "搜索模型"
+    },
+    "selection": {
+      "context_window": "上下文 {{count}}",
+      "remove_model": "移除 {{name}}",
+      "restore_default": "恢复助手模型",
+      "selected_models": "已选模型"
     },
     "stream_output": "流式输出",
     "type": {
@@ -6606,6 +6646,14 @@
       "close": "关闭",
       "confirm": "确认",
       "forward": "前进",
+      "mcp": {
+        "agentEmpty": "当前智能体未配置 MCP 服务器",
+        "assistantEmpty": "当前助手未配置 MCP 服务器",
+        "autoEmpty": "暂无已启用的 MCP 服务器",
+        "description": "查看当前 MCP 服务器状态",
+        "disabled": "当前助手已禁用 MCP",
+        "unknownServer": "未知 MCP 服务器"
+      },
       "multiple": "多选",
       "noResult": "未找到结果",
       "page": "翻页",
