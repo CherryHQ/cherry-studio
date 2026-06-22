@@ -127,6 +127,28 @@ describe('prepareChatMessages — routing', () => {
     expect(text).not.toContain('read_file')
   })
 
+  it('degrades a failed attachment to a note instead of rejecting the whole request', async () => {
+    // Default-config trigger: non-vision image + OCR not configured → ocr throws.
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
+  })
+
+  it('rethrows on abort instead of degrading', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    getByIdMock.mockRejectedValueOnce(new Error('aborted'))
+    await expect(
+      prepareChatMessages([userMessage([fileWithEntry('e1', 'a.pdf', 'application/pdf')])] as UIMessage[], {
+        attachments: [{ fileEntryId: 'e1', filename: 'a.pdf' }],
+        nativeSupport: NONE,
+        isToolCapable: true,
+        signal: controller.signal
+      })
+    ).rejects.toThrow()
+  })
+
   it('eager-inlines legacy parts without a fileEntryId (no getById)', async () => {
     resolveMock.mockResolvedValueOnce({ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' })
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
@@ -147,8 +169,8 @@ describe('collectFileAttachments', () => {
       userMessage([fileWithEntry('e2', 'report.pdf', 'application/pdf')])
     ] as UIMessage[]
     expect(collectFileAttachments(messages)).toEqual([
-      { fileEntryId: 'e1', filename: 'report.pdf', mediaType: 'application/pdf' },
-      { fileEntryId: 'e2', filename: 'report.pdf (2)', mediaType: 'application/pdf' }
+      { fileEntryId: 'e1', filename: 'report.pdf' },
+      { fileEntryId: 'e2', filename: 'report.pdf (2)' }
     ])
   })
 

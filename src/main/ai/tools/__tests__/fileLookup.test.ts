@@ -25,8 +25,7 @@ import { readFile, readFileModelOutput } from '../fileLookup'
 
 const att = (filename: string): FileAttachmentRef => ({
   fileEntryId: 'e1',
-  filename,
-  mediaType: 'application/octet-stream'
+  filename
 })
 const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 
@@ -114,6 +113,17 @@ describe('readFile — pagination', () => {
       text: 'a',
       totalChars: 4,
       nextOffset: 1
+    })
+  })
+
+  it('advances past a high surrogate even when limit lands mid-pair (no empty-page loop)', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('ab😀cd') // 😀 occupies code units 2-3
+    // Without the forward-progress guard this returns text:'' nextOffset:2 → infinite paging.
+    expect(await readFile({ filename: 'a.txt', offset: 2, limit: 1 }, ctx([att('a.txt')]))).toEqual({
+      text: '😀',
+      totalChars: 6,
+      nextOffset: 4
     })
   })
 })

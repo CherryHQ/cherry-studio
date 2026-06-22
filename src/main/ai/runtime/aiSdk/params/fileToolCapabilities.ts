@@ -5,10 +5,11 @@
  * as extracted/OCR text.
  *
  * The first-party provider set + per-model PDF check are lifted from the retired
- * `pdfCompatibility` feature. Images ride on any vision model; PDF/audio/video
- * native input only on the first-party protocols (OpenAI Responses, Anthropic,
- * Gemini and their Azure/Vertex/Bedrock variants). Aggregators / openai-
- * compatible fall through to text.
+ * `pdfCompatibility` feature. Image/audio/video native input rides on the model
+ * capability alone (`isVision`/`isAudio`/`isVideo`) — matching how the legacy
+ * path inlined media to any provider — so a multimodal model stays native even
+ * on an aggregator / openai-compatible endpoint. Only PDF additionally requires
+ * a first-party protocol (its native-PDF support is provider-specific).
  */
 
 import type { Model } from '@shared/data/types/model'
@@ -78,11 +79,10 @@ export function resolveNativeFileSupport(
   model: Model,
   aiSdkProviderId: AppProviderId
 ): NativeFileSupport {
-  const firstParty = isFirstPartyFileProvider(provider, aiSdkProviderId)
   return {
     image: isVisionModel(model),
     pdf: supportsNativePdf(provider, model, aiSdkProviderId),
-    audio: firstParty && isAudioModel(model),
-    video: firstParty && isVideoModel(model)
+    audio: isAudioModel(model),
+    video: isVideoModel(model)
   }
 }

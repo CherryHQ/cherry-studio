@@ -11,7 +11,6 @@ import type { ModelMessage } from 'ai'
 export interface FileAttachmentRef {
   readonly fileEntryId: string
   readonly filename: string
-  readonly mediaType: string
 }
 
 /**

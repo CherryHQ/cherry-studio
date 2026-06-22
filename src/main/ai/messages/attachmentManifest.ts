@@ -17,6 +17,7 @@
  * model).
  */
 
+import { isAbortError } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/fileToolCapabilities'
 import type { FileAttachmentRef } from '@main/ai/tools/adapters/aiSdk/context'
@@ -52,7 +53,7 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
       const n = used.get(base) ?? 0
       used.set(base, n + 1)
       const filename = n === 0 ? base : `${base} (${n + 1})`
-      refs.push({ fileEntryId, filename, mediaType: part.mediaType ?? 'application/octet-stream' })
+      refs.push({ fileEntryId, filename })
     }
   }
   return refs
@@ -127,19 +128,32 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       continue
     }
 
-    const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-    const fileType = getFileTypeByExt(bareExt)
+    // This is the eager (every-turn, whole-history) path, so any failure here —
+    // missing/deleted entry, parse error, unconfigured OCR — must degrade to a
+    // model-visible note rather than reject the whole request before the model
+    // is even called (mirrors `read_file`'s graceful failure). Abort rethrows.
+    const filename = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)?.filename ?? part.filename ?? 'file'
+    try {
+      const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
+      const fileType = getFileTypeByExt(bareExt)
 
-    if (isNative(bareExt, fileType, ctx.nativeSupport)) {
-      await inlineNative(part)
-      continue
+      if (isNative(bareExt, fileType, ctx.nativeSupport)) {
+        await inlineNative(part)
+        continue
+      }
+
+      // Non-native first-party attachment → inline its (capped) text.
+      const body = await extractNonNativeText(fileEntryId, fileType, filename, ctx.signal)
+      const text = `Attached file "${filename}":\n${capInlineText(filename, body, ctx.isToolCapable, ctx.cap)}`
+      kept.push({ type: 'text', text } as UIMessage['parts'][number])
+    } catch (error) {
+      if (ctx.signal?.aborted || isAbortError(error)) throw error
+      logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, filename })
+      kept.push({
+        type: 'text',
+        text: `Attached file "${filename}": [could not read this file].`
+      } as UIMessage['parts'][number])
     }
-
-    // Non-native first-party attachment → inline its (capped) text.
-    const filename = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)?.filename ?? bareExt
-    const body = await extractNonNativeText(fileEntryId, fileType, filename, ctx.signal)
-    const text = `Attached file "${filename}":\n${capInlineText(filename, body, ctx.isToolCapable, ctx.cap)}`
-    kept.push({ type: 'text', text } as UIMessage['parts'][number])
   }
 
   return { ...message, parts: kept } as T

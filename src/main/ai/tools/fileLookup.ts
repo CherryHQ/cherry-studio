@@ -65,7 +65,11 @@ function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFi
   const startCode = text.charCodeAt(start)
   if (startCode >= 0xdc00 && startCode <= 0xdfff) start += 1
 
-  const end = surrogateSafeEnd(text, Math.min(start + limit, text.length))
+  let end = surrogateSafeEnd(text, Math.min(start + limit, text.length))
+  // Guarantee forward progress: if backing off a surrogate split collapsed the
+  // page to empty (start on a high surrogate with limit too small to clear the
+  // pair), take the whole pair so `nextOffset` always advances past `start`.
+  if (end <= start && start < text.length) end = Math.min(start + 2, text.length)
   return {
     text: text.slice(start, end),
     totalChars: text.length,

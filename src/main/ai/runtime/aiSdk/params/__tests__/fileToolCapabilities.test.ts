@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
@@ -31,9 +32,27 @@ describe('resolveNativeFileSupport', () => {
       'openai-compatible'
     )
     expect(ns.pdf).toBe(false)
-    // audio/video gate on the first-party provider too.
+    // audio/video gate on model capability — a plain gpt-4o is neither.
     expect(ns.audio).toBe(false)
     expect(ns.video).toBe(false)
+  })
+
+  it('audio/video ride on model capability, independent of the provider', () => {
+    // An audio-capable model reached via an aggregator stays native (R2): the
+    // legacy path inlined media to any provider, so this is no regression.
+    const ns = resolveNativeFileSupport(
+      makeProvider({ id: 'somehub' }),
+      makeModel({
+        id: 'somehub::gemini-audio',
+        apiModelId: 'gemini-audio',
+        name: 'gemini-audio',
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION]
+      }),
+      'openai-compatible'
+    )
+    expect(ns.audio).toBe(true)
+    expect(ns.video).toBe(false)
+    expect(ns.pdf).toBe(false) // PDF still requires a first-party provider
   })
 
   it('forces text for providers known to break on native files (qiniu)', () => {

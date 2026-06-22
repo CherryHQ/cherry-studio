@@ -25,9 +25,9 @@ Decided per file part in `prepareChatMessages`
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
 | text / code | — | decoded text, inline (capped) |
-| audio | model+provider audio-capable | native audio part (inline) |
+| audio | model is audio-capable | native audio part (inline) |
 | audio | otherwise | short note ("can't process audio") |
-| video | model+provider video-capable | native video part (inline) |
+| video | model is video-capable | native video part (inline) |
 | video | otherwise | short note ("can't process video") |
 
 - **Native** → the file part is left in place and inlined as a `data:` URL by
@@ -62,7 +62,9 @@ Default cap ≈ 8k chars/file (tunable).
   can only read files attached to the current conversation.
 - Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
   filename-level messages; details are logged, not returned.
-- Exposed only to tool-capable models that have an over-cap attachment to page.
+- Exposed to tool-capable models whenever the request carries first-party file
+  attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
+  everything inlines within the cap the model simply never needs to call it.
 - Because native media is kept inline (never routed through the tool),
   `read_file` carries no media result — no `toModelOutput` base64 re-read, no
   resend re-materialization.
@@ -74,17 +76,20 @@ Default cap ≈ 8k chars/file (tunable).
 | office/pdf/text → text | `extractDocumentText` (`src/main/utils/file/documentExtraction.ts`) |
 | image → text (non-vision) | `ocrImageToText` (`src/main/features/fileProcessing/ocrImageToText.ts`) |
 
-`extractDocumentText` is path-free: it reads bytes through `FileManager.read`
-(PDF via `pdf-parse`, office via `officeparser`/`word-extractor`, text via
-`decodeTextWithAutoEncoding`), dispatches on the `FileEntry` canonical `ext`,
-and caches the result by content version so eager extraction stays cheap.
+Both `extractDocumentText` and `ocrImageToText` are path-free and cache their
+result by content version (30 min), so the eager every-turn pass over history
+doesn't re-extract or re-OCR the same file. `extractDocumentText` reads bytes
+through `FileManager.read` (PDF via `pdf-parse`, office via
+`officeparser`/`word-extractor`, text via `decodeTextWithAutoEncoding`) and
+dispatches on the `FileEntry` canonical `ext`.
 
 ## Capability resolution
 
-`resolveFileToolCapabilities`
+`resolveNativeFileSupport`
 (`src/main/ai/runtime/aiSdk/params/fileToolCapabilities.ts`) derives the
-"native" column from `(provider, model)`: `isVision` / `isAudio` / `isVideo`
-(`@shared/utils/model`) plus `supportsNativePdf` (first-party PDF providers).
+"native" column from `(provider, model)`: image/audio/video ride on the model
+capability alone (`isVision` / `isAudio` / `isVideo`, `@shared/utils/model`),
+while PDF additionally requires a first-party provider (`supportsNativePdf`).
 There is no `pdf-compatibility` middleware — native PDFs pass through inline,
 non-native PDFs go through extraction.
 

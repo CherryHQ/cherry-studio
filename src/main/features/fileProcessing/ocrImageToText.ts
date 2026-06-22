@@ -10,6 +10,7 @@
  * `image_to_text` processor (local Tesseract/System, or a remote OCR).
  */
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileHandle } from '@shared/types/file'
 
@@ -20,6 +21,7 @@ const logger = loggerService.withContext('FileProcessing:ocrImageToText')
 
 const REMOTE_POLL_INTERVAL_MS = 2_000
 const REMOTE_POLL_TIMEOUT_MS = 120_000
+const CACHE_TTL_MS = 30 * 60 * 1000
 
 const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -38,8 +40,27 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
  * OCR an image referenced by `file` into plain text using the configured
  * `image_to_text` processor. Throws on failure / no configured processor (the
  * caller turns that into a model-facing note).
+ *
+ * Result is cached by content version for entry-backed handles, so the eager
+ * chat path doesn't re-OCR the same image every turn (mirrors
+ * {@link extractDocumentText}). Path handles have no version → no cache.
  */
 export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Promise<string> {
+  const cache = application.get('CacheService')
+  let cacheKey: string | null = null
+  if (file.kind === 'entry') {
+    const version = await application.get('FileManager').getVersion(file.entryId)
+    cacheKey = `ocr-extraction:${file.entryId}:${version.mtime}:${version.size}`
+    const cached = cache.get<string>(cacheKey)
+    if (cached !== undefined) return cached
+  }
+
+  const text = await runOcr(file, signal)
+  if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
+  return text
+}
+
+async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
   const feature = 'image_to_text' as const
   const config = resolveProcessorConfigByFeature(feature)
   const handler = getCapabilityHandler(config.id, feature)
