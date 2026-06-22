@@ -78,11 +78,10 @@ export const zhCN = {
     },
     backup_progress: {
       title: '正在备份 V1 数据…',
-      description: '正在创建旧版数据的完整备份，请稍候…'
+      description: '正在创建旧版数据的完整备份，请勿关闭应用…',
+      compressing: '压缩中，请勿关闭应用…'
     },
     backup_confirmed: {
-      title: '备份完成',
-      description: '数据备份已完成，现在可以安全地开始迁移。',
       created_title: '备份成功',
       created_description: '数据备份已完成，现在可以安全地开始迁移。',
       existing_title: '已有备份',
@@ -207,11 +206,10 @@ export const enUS = {
     },
     backup_progress: {
       title: 'Backing up V1 data…',
-      description: 'Creating a full backup of your legacy data, please wait…'
+      description: 'Creating a full backup of your legacy data — please do not close the app…',
+      compressing: 'Compressing, please do not close the app…'
     },
     backup_confirmed: {
-      title: 'Backup Completed',
-      description: 'Data backup has been completed. You can now safely start the migration.',
       created_title: 'Backup successful',
       created_description: 'Data backup has been completed. You can now safely start the migration.',
       existing_title: 'Already backed up',

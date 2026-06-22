@@ -61,12 +61,34 @@ const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({
   </div>
 )
 
-const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
-  <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+const ProgressBar: React.FC<{ value: number; indeterminate?: boolean }> = ({ value, indeterminate = false }) => (
+  <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
     <div
-      className="h-full rounded-full bg-primary transition-[width] duration-300"
-      style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+      className={cn(
+        'h-full rounded-full bg-primary transition-[width] duration-300',
+        indeterminate &&
+          'absolute left-0 w-1/3 min-w-20 bg-gradient-to-r from-primary/0 via-primary to-primary/0 transition-none'
+      )}
+      style={
+        indeterminate
+          ? { animation: 'migration-backup-progress-indeterminate 1.15s ease-in-out infinite' }
+          : { width: `${Math.max(0, Math.min(100, value))}%` }
+      }
     />
+    {indeterminate && (
+      <style>{`
+        @keyframes migration-backup-progress-indeterminate {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(360%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*='migration-backup-progress-indeterminate'] {
+            animation: none !important;
+            transform: translateX(100%);
+          }
+        }
+      `}</style>
+    )}
   </div>
 )
 
@@ -467,7 +489,9 @@ const MigrationApp: React.FC = () => {
           </div>
         )
 
-      case 'backup_progress':
+      case 'backup_progress': {
+        const isBackupCompressing = progress.overallProgress >= 80 && progress.overallProgress < 100
+
         return (
           <div className="space-y-5">
             <TopContent>
@@ -475,11 +499,14 @@ const MigrationApp: React.FC = () => {
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
               </StageBadge>
               <h2 className="font-medium text-foreground text-lg">{t('migration.backup_progress.title')}</h2>
-              <p className="mt-1.5 text-foreground-muted text-sm">{t('migration.backup_progress.description')}</p>
+              <p className="mt-1.5 text-foreground-muted text-sm">
+                {isBackupCompressing ? t('migration.backup_progress.compressing') : progressMessage}
+              </p>
             </TopContent>
-            <ProgressBar value={progress.overallProgress} />
+            <ProgressBar value={progress.overallProgress} indeterminate={isBackupCompressing} />
           </div>
         )
+      }
 
       case 'backup_confirmed': {
         const hasCreatedBackup = Boolean(progress.backupInfo?.createdBackupPath)
@@ -693,7 +720,11 @@ const MigrationApp: React.FC = () => {
 
       <div className="flex min-h-0 flex-1">
         {showRail && <StepRail stage={progress.stage} />}
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main
+          className={cn(
+            'min-w-0 flex-1 overflow-y-auto',
+            progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          )}>
           <div className="flex min-h-full w-full flex-col justify-center px-16 py-8">{renderStage()}</div>
         </main>
       </div>
