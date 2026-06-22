@@ -1,12 +1,6 @@
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import {
-  buildLibraryCreateSearch,
-  buildLibraryEditSearch,
-  buildLibraryRouteUrl
-} from '@renderer/pages/library/routeSearch'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -66,7 +60,6 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
-  const openTab = useOptionalTabsContext()?.openTab
 
   // `limit: 500` matches ListAssistantsQuerySchema's max; realistic libraries sit well under it.
   // If a user ever exceeds this we should move to usePaginatedQuery + scroll-load inside the popover.
@@ -128,14 +121,6 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     pinnedIds,
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    ...(openTab && {
-      onEditItem: (id: string) => {
-        openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', id)), { forceNew: true })
-      },
-      onCreateNew: () => {
-        openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('assistant')), { forceNew: true })
-      }
-    }),
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),
       sortLabel: t('selector.common.sort_label'),

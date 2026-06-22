@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import store from '@renderer/store'
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultLanguage } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('Utils:Prompt')
 

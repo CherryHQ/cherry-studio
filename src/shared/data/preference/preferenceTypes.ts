@@ -1,5 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
-import type { ShortcutBinding } from '@shared/shortcuts/tokens'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -238,7 +238,7 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/config/constant'
+import { codeCLI } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
   'qwen-code',

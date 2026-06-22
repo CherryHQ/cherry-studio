@@ -5,7 +5,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import type { URLString } from '@shared/file/types/common'
+import type { URLString } from '@shared/types/file/common'
 
 import { providerToAiSdkConfig } from '../../config'
 import { createAbortError } from '../transportUtils'

@@ -1,18 +1,28 @@
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { expandDirectoryOwnerToTreeMock, knowledgeItemCreateMock, knowledgeItemUpdateStatusMock, loggerWarnMock } =
-  vi.hoisted(() => ({
-    expandDirectoryOwnerToTreeMock: vi.fn(),
-    knowledgeItemCreateMock: vi.fn(),
-    knowledgeItemUpdateStatusMock: vi.fn(),
-    loggerWarnMock: vi.fn()
-  }))
+const {
+  expandDirectoryOwnerToTreeMock,
+  knowledgeItemCreateMock,
+  knowledgeItemUpdateStatusMock,
+  knowledgeItemUpdateDirectoryRelativePathMock,
+  knowledgeItemGetItemsByBaseIdMock,
+  loggerWarnMock
+} = vi.hoisted(() => ({
+  expandDirectoryOwnerToTreeMock: vi.fn(),
+  knowledgeItemCreateMock: vi.fn(),
+  knowledgeItemUpdateStatusMock: vi.fn(),
+  knowledgeItemUpdateDirectoryRelativePathMock: vi.fn(),
+  knowledgeItemGetItemsByBaseIdMock: vi.fn(),
+  loggerWarnMock: vi.fn()
+}))
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     create: knowledgeItemCreateMock,
-    updateStatus: knowledgeItemUpdateStatusMock
+    updateStatus: knowledgeItemUpdateStatusMock,
+    updateDirectoryRelativePath: knowledgeItemUpdateDirectoryRelativePathMock,
+    getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock
   }
 }))
 
@@ -51,7 +61,7 @@ function createDirectoryItem(id = 'dir-1', groupId: string | null = null): Knowl
     baseId,
     groupId,
     type: 'directory',
-    data: { source: id, relativePath: `/docs/${id}` },
+    data: { source: id },
     status: 'processing',
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -94,7 +104,8 @@ describe('prepareKnowledgeItem', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    expandDirectoryOwnerToTreeMock.mockResolvedValue([])
+    expandDirectoryOwnerToTreeMock.mockResolvedValue({ pathPrefix: 'docs', children: [] })
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
     knowledgeItemCreateMock.mockImplementation(async (_baseId: string, item: Partial<KnowledgeItem>) => ({
       id: `${item.type}-created`,
       baseId,
@@ -136,23 +147,27 @@ describe('prepareKnowledgeItem', () => {
     const childFile = createFileItem('file-child', childDir.id)
     knowledgeItemCreateMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
     knowledgeItemUpdateStatusMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([
-      {
-        type: 'directory',
-        data: childDir.data,
-        children: [
-          {
-            type: 'file',
-            data: childFile.data
-          }
-        ]
-      }
-    ])
+    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
+      pathPrefix: 'dir-root-prefix',
+      children: [
+        {
+          type: 'directory',
+          data: childDir.data,
+          children: [
+            {
+              type: 'file',
+              data: childFile.data
+            }
+          ]
+        }
+      ]
+    })
 
     const options = createPrepareOptions(root)
     await expect(prepareKnowledgeItem(options)).resolves.toEqual([childFile])
 
-    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, baseId, options.signal)
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, baseId, expect.any(Set), options.signal)
+    expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
     expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(1, baseId, {
       groupId: root.id,
       type: 'directory',
@@ -168,9 +183,30 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childFile.id, 'processing')
   })
 
+  it('excludes the container itself from the reserved names so a reindex keeps its own prefix', () => {
+    // On reindex the directory already owns its `relativePath` prefix (`docs`). If it
+    // counted itself as reserved, expansion would dedupe it to `docs_1` every run.
+    const root = createDirectoryItem('dir-root')
+    // Pin the container's own prefix, as if it had already been indexed once.
+    root.data = { source: '/abs/docs', relativePath: 'docs' }
+    const sibling = createFileItem('file-sibling') // top-level relativePath `file-sibling.md`
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root, sibling])
+    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
+      pathPrefix: 'docs',
+      children: [{ type: 'file', data: { source: '/abs/docs/a.md', relativePath: 'docs/a.md' } }]
+    })
+
+    return prepareKnowledgeItem(createPrepareOptions(root)).then(() => {
+      const reserved = expandDirectoryOwnerToTreeMock.mock.calls[0][2] as Set<string>
+      expect(reserved.has('docs')).toBe(false)
+      // Sibling names are still reserved — only the container under reindex is exempt.
+      expect(reserved.has('file-sibling.md')).toBe(true)
+    })
+  })
+
   it('marks empty directory roots failed and returns no leaves', async () => {
     const root = createDirectoryItem('dir-root')
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([])
+    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({ pathPrefix: 'dir-root', children: [] })
 
     await expect(prepareKnowledgeItem(createPrepareOptions(root))).resolves.toEqual([])
 
@@ -182,6 +218,7 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
       error: 'Directory contains no indexable files'
     })
+    expect(knowledgeItemUpdateDirectoryRelativePathMock).not.toHaveBeenCalled()
   })
 
   it('reports created children before marking them processing', async () => {
@@ -201,7 +238,10 @@ describe('prepareKnowledgeItem', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     }
     const onCreatedItem = vi.fn()
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([{ type: 'file', data: fileChild.data }])
+    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
+      pathPrefix: 'dir-root',
+      children: [{ type: 'file', data: fileChild.data }]
+    })
     knowledgeItemCreateMock.mockResolvedValueOnce(fileChild)
     knowledgeItemUpdateStatusMock.mockRejectedValueOnce(new Error('status failed'))
 
@@ -216,15 +256,18 @@ describe('prepareKnowledgeItem', () => {
     const abortError = new Error('interrupted')
     expandDirectoryOwnerToTreeMock.mockImplementationOnce(async () => {
       controller.abort(abortError)
-      return [
-        {
-          type: 'file',
-          data: {
-            source: '/docs/file-child.md',
-            relativePath: 'file-child.md'
+      return {
+        pathPrefix: 'dir-root',
+        children: [
+          {
+            type: 'file',
+            data: {
+              source: '/docs/file-child.md',
+              relativePath: 'file-child.md'
+            }
           }
-        }
-      ]
+        ]
+      }
     })
 
     await expect(

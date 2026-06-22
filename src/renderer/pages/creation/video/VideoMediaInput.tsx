@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
-import type { FilePath } from '@shared/file/types/common'
-import { toSafeFileUrl } from '@shared/file/urlUtil'
+import type { FilePath } from '@shared/types/file/common'
+import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
 import { ImagePlus, X } from 'lucide-react'
 import { type ChangeEvent, type FC, useCallback, useEffect, useRef, useState } from 'react'
 

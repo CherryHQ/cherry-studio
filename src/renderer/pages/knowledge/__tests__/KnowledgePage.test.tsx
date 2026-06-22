@@ -1,9 +1,10 @@
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgePage from '../KnowledgePage'
 
@@ -114,6 +115,7 @@ vi.mock('../components/navigator', () => ({
   default: ({
     bases,
     groups,
+    width,
     selectedBaseId,
     onSelectBase,
     onCreateGroup,
@@ -122,10 +124,12 @@ vi.mock('../components/navigator', () => ({
     onRenameBase,
     onRenameGroup,
     onDeleteGroup,
-    onDeleteBase
+    onDeleteBase,
+    onResizeStart
   }: {
     bases: Array<{ id: string; name: string }>
     groups: Array<{ id: string; name: string }>
+    width: number
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
     onCreateGroup: () => void
@@ -135,10 +139,15 @@ vi.mock('../components/navigator', () => ({
     onRenameGroup: (group: { id: string; name: string }) => void
     onDeleteGroup: (groupId: string) => Promise<void> | void
     onDeleteBase: (baseId: string) => Promise<void> | void
+    onResizeStart: (event: ReactMouseEvent<HTMLButtonElement>) => void
   }) => (
     <div>
       <div data-testid="base-count">{bases.length}</div>
       <div data-testid="group-names">{groups.map((group) => group.name).join(',')}</div>
+      <div data-testid="navigator-width">{width}</div>
+      <button data-testid="navigator-resize-start" type="button" onMouseDown={onResizeStart}>
+        Resize Navigator
+      </button>
       <div data-testid="selected-base-id">{selectedBaseId}</div>
       <button type="button" onClick={onCreateGroup}>
         新建分组
@@ -580,6 +589,12 @@ describe('KnowledgePage', () => {
     })
   })
 
+  afterEach(() => {
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    vi.restoreAllMocks()
+  })
+
   it('auto-selects the first knowledge base after bases load', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [
@@ -609,6 +624,41 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
+  })
+
+  it('keeps a global search knowledge selection until cold-start bases load', async () => {
+    let bases: KnowledgeBase[] = []
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: bases.length === 0,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: baseId === 'base-2' ? [createKnowledgeItem({ id: 'item-2' })] : [],
+      total: baseId === 'base-2' ? 1 : 0,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { rerender } = render(<KnowledgePage />)
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-2')
+    })
+
+    bases = [
+      createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+      createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+    ]
+    rerender(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
+    })
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
   })
 
   it('opens the RAG config drawer and the recall test drawer from the header', async () => {
@@ -1381,6 +1431,42 @@ describe('KnowledgePage', () => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { groupId: 'group-2' })
       expect(deleteBase).toHaveBeenCalledWith('base-2')
     })
+  })
+
+  it('cleans the navigator resize state on window blur', () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage />)
+
+    const resizeButton = screen.getByTestId('navigator-resize-start')
+    const content = resizeButton.parentElement?.parentElement
+
+    if (!content) {
+      throw new Error('Expected knowledge page content container')
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 500))
+
+    fireEvent.mouseDown(resizeButton, { clientX: 180 })
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+
+    fireEvent.mouseMove(document, { clientX: 320 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+
+    fireEvent.mouseMove(document, { clientX: 360 })
+
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
   })
 
   it('shows a toast when moving a knowledge base fails', async () => {

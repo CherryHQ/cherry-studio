@@ -1,5 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Control which provider-family branch is taken per test.

@@ -12,7 +12,13 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslationPartData } from '@shared/data/types/uiParts'
 
 /**
- * Extract concatenated text content from parts (equivalent to getMainTextContent).
+ * Extract concatenated **text-part** content from parts.
+ *
+ * NOTE: text-only — NOT equivalent to `find.ts` `getMainTextContent`, which was
+ * widened to also fold in fenced code (`data-code`), translations
+ * (`data-translation`) and error text (`data-error`). Do not swap one for the
+ * other in a migration without accounting for that divergence, or code/error/
+ * translation would silently drop from export/copy.
  */
 export function getTextFromParts(parts: CherryMessagePart[]): string {
   return parts

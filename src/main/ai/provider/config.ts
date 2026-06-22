@@ -7,19 +7,20 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
+import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { isGenerateImageModel, isGenerateVideoModel } from '@shared/utils/model'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
+import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -169,14 +170,22 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
+  let config: ProviderConfig
   if (builder) {
-    return builder.build(ctx)
+    config = await builder.build(ctx)
+  } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
+    config = buildGenericProviderConfig(ctx)
+  } else {
+    config = buildOpenAICompatibleConfig(ctx)
   }
 
-  if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
-    return buildGenericProviderConfig(ctx)
-  }
-  return buildOpenAICompatibleConfig(ctx)
+  // Default every provider to the proxy-aware net.fetch base so the app proxy
+  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
+  // that install their own fetch wrapper (e.g. CherryAI request signing) compose
+  // on top of customFetch; `??=` preserves them rather than clobbering them.
+  config.providerSettings.fetch ??= customFetch
+
+  return config
 }
 
 // ── Config Builders ──
@@ -214,7 +223,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           query: '',
           body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
-        return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+        return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
     }
   }

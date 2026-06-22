@@ -1,9 +1,11 @@
 import { loggerService } from '@logger'
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
-import type { McpCallToolResponse, McpServer, McpTool } from '@types'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpTool } from '@shared/types/mcp'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
 import { registry, type ToolRegistry } from '../registry'

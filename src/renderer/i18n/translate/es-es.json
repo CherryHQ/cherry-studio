@@ -1656,7 +1656,7 @@
       "kimi_cli": "Asistente de línea de comandos Kimi de Moonshot",
       "openai_codex": "CLI oficial de OpenAI para generación de código",
       "opencode": "Agente de codificación multi-modelo de código abierto",
-      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
+      "qoder_cli": "Herramienta de codificación en línea de comandos agentica de Alibaba Qoder",
       "qwen_code": "Herramienta de codificación CLI de código abierto de Alibaba Tongyi"
     },
     "update_options": "Opciones de actualización",
@@ -2144,20 +2144,20 @@
         "view_chunks": "Ver Fragmentos"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importar recursivamente archivos compatibles desde una carpeta",
-          "title": "Haz clic para seleccionar una carpeta"
+        "conflict_dialog": {
+          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
+          "keep_all": "[to be translated]:Keep All",
+          "replace": "[to be translated]:Replace",
+          "title": "[to be translated]:Sources already exist"
         },
         "footer": {
-          "selected_directories": "{{count}} directorios seleccionados",
-          "selected_files": "{{count}} archivos seleccionados",
           "selected_notes": "{{count}} notas seleccionadas"
         },
         "note": {
           "description": "Selecciona notas existentes como fuentes de base de conocimiento",
           "empty_description": "Las notas seleccionables aparecerán aquí después de que se conecte la lista de notas reales. Por ahora, usa archivos, carpetas, URLs o mapas del sitio.",
           "empty_title": "Las notas aún no están conectadas",
-          "loading": "[to be translated]:Loading notes…"
+          "loading": "Cargando notas…"
         },
         "placeholder": {
           "supported_formats": "Soporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2174,7 +2174,7 @@
           "success": "Fuente de datos añadida a la base de conocimientos"
         },
         "title": "Agregar Fuente de Datos",
-        "unsupported_files_skipped": "[to be translated]:Skipped {{count}} unsupported file(s)",
+        "unsupported_files_skipped": "Se omitieron {{count}} archivo(s) no admitido(s)",
         "url": {
           "description": "Introduce una URL de página web:",
           "help": "El texto de la página se obtendrá, se dividirá en fragmentos y se indexará automáticamente.",
@@ -2246,12 +2246,11 @@
     },
     "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
     "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
-    "drag_file": "Arrastre archivos aquí",
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
     "error": {
-      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
+      "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
       "failed_base_unknown": "Esta base de conocimientos falló durante la migración. Reconstrúyela y elige un nuevo modelo de incrustación.",
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_delete": "Error al eliminar la base de conocimientos",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "El modelo de incrustación utilizado por esta base de conocimientos no se encontró durante la migración. Reconstruye la base de conocimientos y elige un nuevo modelo de incrustación.",
       "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
     },
-    "file_hint": "Formatos soportados: {{file_types}}",
     "groups": {
       "add": "Nuevo Grupo",
       "create_base_here": "Crea aquí",
@@ -2327,7 +2325,7 @@
         "bm25": "Búsqueda de texto completo",
         "hybrid": "Búsqueda híbrida (recomendada)",
         "title": "Modo de búsqueda",
-        "vector": "[to be translated]:Vector Search"
+        "vector": "Búsqueda Vectorial"
       },
       "separator_rule": "Regla de Separador",
       "threshold": "Umbral de Similitud",
@@ -2405,7 +2403,9 @@
   "launchpad": {
     "apps": "Aplicaciones",
     "minapps": "Minapps",
-    "miniApps": "Miniaplicaciones"
+    "miniApps": "Miniaplicaciones",
+    "pin_to_sidebar": "[to be translated]:Pin to sidebar",
+    "unpin_from_sidebar": "[to be translated]:Unpin from sidebar"
   },
   "library": {
     "action": {
@@ -6093,7 +6093,7 @@
       "disabled": "Miniaplicaciones Ocultas",
       "display_title": "Configuración de visualización de la Mini App",
       "empty": "Haz clic en el icono de ocultar en una aplicación de la izquierda y se moverá aquí",
-      "hide_app": "[to be translated]:Hide {{name}}",
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "title": "Abrir enlaces de nueva ventana en el navegador"
       },
@@ -6105,7 +6105,7 @@
         "title": "Filtro de Mini Programa"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
-      "show_app": "[to be translated]:Show {{name}}",
+      "show_app": "Mostrar {{name}}",
       "sidebar_description": "Mostrar miniaplicaciones activas en la barra lateral",
       "sidebar_title": "Barra lateral: Miniaplicaciones activas en pantalla",
       "title": "Configuración de Mini Apps",
@@ -6407,7 +6407,7 @@
         "name": {
           "label": "Nombre del proveedor",
           "placeholder": "Por ejemplo, OpenAI",
-          "required": "[to be translated]:Please enter the provider name"
+          "required": "Por favor ingrese el nombre del proveedor"
         },
         "title": "Agregar proveedor",
         "type": "Tipo de proveedor"
@@ -6519,7 +6519,7 @@
       "base_url": {
         "label": "URL base",
         "placeholder": "https://api.example.com",
-        "required": "[to be translated]:Please enter the Base URL"
+        "required": "Por favor, introduce la URL base"
       },
       "basic_auth": {
         "label": "Autenticación HTTP",
@@ -6694,7 +6694,7 @@
         "project_id": "ID del proyecto",
         "project_id_help": "Su ID de proyecto de Google Cloud",
         "project_id_placeholder": "su-id-de-proyecto-de-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Seleccionar ubicación",
         "service_account": {
           "auth_success": "Autenticación de Service Account exitosa",
           "client_email": "Correo electrónico del cliente",
@@ -6711,9 +6711,9 @@
           "private_key_help": "Campo private_key del archivo de clave JSON descargado desde Google Cloud Console",
           "private_key_placeholder": "Ingrese la clave privada de Service Account",
           "title": "Configuración de Service Account",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Alternar la visibilidad del correo electrónico del cliente",
+          "toggle_private_key_visibility": "Alternar la visibilidad de la clave privada",
+          "toggle_project_id_visibility": "Alternar la visibilidad del ID del proyecto"
         }
       }
     },
@@ -6783,7 +6783,7 @@
       },
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
-      "close_tab": "[to be translated]:Close Tab",
+      "close_tab": "Cerrar pestaña",
       "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
@@ -6791,11 +6791,11 @@
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
+      "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
@@ -7105,10 +7105,16 @@
       "title": "Escala"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "Cerrar pestaña",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Anclar pestaña",
     "unpin": "Desanclar pestaña"
   },

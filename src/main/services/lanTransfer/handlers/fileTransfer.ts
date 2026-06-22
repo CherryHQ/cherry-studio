@@ -9,12 +9,12 @@ import type {
   LanFileEndMessage,
   LanFileStartAckMessage,
   LanFileStartMessage
-} from '@shared/config/types'
+} from '@shared/types/lanTransfer'
 import {
   LAN_TRANSFER_CHUNK_SIZE,
   LAN_TRANSFER_COMPLETE_TIMEOUT_MS,
   LAN_TRANSFER_MAX_FILE_SIZE
-} from '@shared/config/types'
+} from '@shared/types/lanTransfer'
 
 import { sendBinaryChunk } from '../binaryProtocol'
 import type { ActiveFileTransfer, FileTransferContext } from '../types'

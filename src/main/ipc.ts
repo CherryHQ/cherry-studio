@@ -18,8 +18,8 @@ import {
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { Notification } from '@shared/types/notification'
 import { extractPdfText } from '@shared/utils/pdf'
-import type { Notification } from '@types'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 

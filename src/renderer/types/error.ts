@@ -1,3 +1,4 @@
+import type { Serializable } from '@shared/types/serializable'
 import type {
   AISDKError,
   APICallError,
@@ -21,7 +22,6 @@ import type {
 } from 'ai'
 
 import type { ProviderSpecificError } from './providerSpecificError'
-import type { Serializable } from './serialize'
 
 /** i18n key used when a streaming response is paused/aborted by the user. */
 export const ERROR_I18N_KEY_STREAM_PAUSED = 'stream_paused'

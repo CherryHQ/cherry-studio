@@ -1656,7 +1656,7 @@
       "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
       "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
       "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
-      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
+      "qoder_cli": "Το εργαλείο κωδικοποίησης γραμμής εντολών με δυνατότητες πρακτόρων της Alibaba Qoder",
       "qwen_code": "Το εργαλείο κωδικοποίησης CLI ανοικτού κώδικα της Alibaba Tongyi"
     },
     "update_options": "Ενημέρωση επιλογών",
@@ -2144,20 +2144,20 @@
         "view_chunks": "Προβολή Κομματιών"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Εισαγωγή υποστηριζόμενων αρχείων αναδρομικά από έναν φάκελο",
-          "title": "Κάντε κλικ για να επιλέξετε ένα φάκελο"
+        "conflict_dialog": {
+          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
+          "keep_all": "[to be translated]:Keep All",
+          "replace": "[to be translated]:Replace",
+          "title": "[to be translated]:Sources already exist"
         },
         "footer": {
-          "selected_directories": "{{count}} κατάλογοι επιλέχθηκαν",
-          "selected_files": "{{count}} αρχεία επιλέχθηκαν",
           "selected_notes": "{{count}} σημειώσεις επιλέχθηκαν"
         },
         "note": {
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
           "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
-          "loading": "[to be translated]:Loading notes…"
+          "loading": "Φόρτωση σημειώσεων…"
         },
         "placeholder": {
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2174,7 +2174,7 @@
           "success": "Πηγή δεδομένων προστέθηκε στη βάση γνώσεων"
         },
         "title": "Προσθήκη Πηγής Δεδομένων",
-        "unsupported_files_skipped": "[to be translated]:Skipped {{count}} unsupported file(s)",
+        "unsupported_files_skipped": "Παραλείφθηκαν {{count}} μη υποστηριζόμενα αρχεία",
         "url": {
           "description": "Εισάγετε διεύθυνση ιστοσελίδας:",
           "help": "Το κείμενο της σελίδας θα ανακτηθεί, θα τεμαχιστεί και θα ευρετηριαστεί αυτόματα",
@@ -2246,12 +2246,11 @@
     },
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
     "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
-    "drag_file": "Βάλτε το αρχείο εδώ",
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
     "error": {
-      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
+      "directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",
       "failed_base_unknown": "Αυτή η βάση γνώσεων απέτυχε κατά τη μετεγκατάσταση. Ανακατασκευάστε την και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
       "failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
       "failed_to_delete": "Αποτυχία διαγραφής της βάσης γνώσεων",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "Το μοντέλο ενσωμάτωσης που χρησιμοποιούσε αυτή η βάση γνώσης δεν βρέθηκε κατά τη μετεγκατάσταση. Ανακατασκευάστε τη βάση γνώσης και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
       "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί"
     },
-    "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
     "groups": {
       "add": "Νέα Ομάδα",
       "create_base_here": "Δημιούργησε εδώ",
@@ -2327,7 +2325,7 @@
         "bm25": "Πλήρης αναζήτηση κειμένου",
         "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
         "title": "Λειτουργία Αναζήτησης",
-        "vector": "[to be translated]:Vector Search"
+        "vector": "Αναζήτηση Διανυσμάτων"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "threshold": "Κατώφλι Ομοιότητας",
@@ -2405,7 +2403,9 @@
   "launchpad": {
     "apps": "Εφαρμογές",
     "minapps": "Minapps",
-    "miniApps": "Μικρές εφαρμογές"
+    "miniApps": "Μικρές εφαρμογές",
+    "pin_to_sidebar": "[to be translated]:Pin to sidebar",
+    "unpin_from_sidebar": "[to be translated]:Unpin from sidebar"
   },
   "library": {
     "action": {
@@ -6093,7 +6093,7 @@
       "disabled": "Κρυμμένα Μίνι Εφαρμογές",
       "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
       "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
-      "hide_app": "[to be translated]:Hide {{name}}",
+      "hide_app": "Απόκρυψη {{name}}",
       "open_link_external": {
         "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
       },
@@ -6105,7 +6105,7 @@
         "title": "Φίλτρο Mini Program"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλογές",
-      "show_app": "[to be translated]:Show {{name}}",
+      "show_app": "Εμφάνιση {{name}}",
       "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
       "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
       "title": "Ρυθμίσεις Mini Apps",
@@ -6407,7 +6407,7 @@
         "name": {
           "label": "Όνομα παρόχου",
           "placeholder": "π.χ. OpenAI",
-          "required": "[to be translated]:Please enter the provider name"
+          "required": "Παρακαλώ εισάγετε το όνομα του παρόχου"
         },
         "title": "Προσθήκη παρόχου",
         "type": "Τύπος παρόχου"
@@ -6519,7 +6519,7 @@
       "base_url": {
         "label": "Βασικό URL",
         "placeholder": "https://api.example.com",
-        "required": "[to be translated]:Please enter the Base URL"
+        "required": "Παρακαλώ εισάγετε το Base URL"
       },
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
@@ -6694,7 +6694,7 @@
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Επιλέξτε τοποθεσία",
         "service_account": {
           "auth_success": "Η πιστοποίηση λογαριασμού υπηρεσίας ήταν επιτυχής",
           "client_email": "Email Πελάτη",
@@ -6711,9 +6711,9 @@
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
           "title": "Διαμόρφωση λογαριασμού υπηρεσίας",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Εναλλαγή ορατότητας email του πελάτη",
+          "toggle_private_key_visibility": "Εναλλαγή ορατότητας ιδιωτικού κλειδιού",
+          "toggle_project_id_visibility": "Εναλλαγή ορατότητας αναγνωριστικού έργου"
         }
       }
     },
@@ -6783,7 +6783,7 @@
       },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
-      "close_tab": "[to be translated]:Close Tab",
+      "close_tab": "Κλείσιμο Καρτέλας",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
@@ -6791,11 +6791,11 @@
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
+      "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
       "new_topic": "Νέο θέμα",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
+      "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
+      "pin_tab": "Εναλλαγή Καρφίτσωμα Καρτέλας",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
@@ -7105,10 +7105,16 @@
       "title": "Κλίμακα"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "Κλείσιμο Καρτέλας",
     "move_to_first": "Μετακίνηση στην Αρχή",
     "new": "Νέα Καρτέλα",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Καρφίτσωμα καρτέλας",
     "unpin": "Ξεκαρφίτσωση Καρτέλας"
   },

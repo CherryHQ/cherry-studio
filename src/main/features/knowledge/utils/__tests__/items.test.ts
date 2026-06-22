@@ -47,7 +47,7 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
     case 'note':
       return { ...base, type, data: { source: 'note', content: 'note' } }
     case 'directory':
-      return { ...base, type, data: { source: '/docs', relativePath: '/docs' } }
+      return { ...base, type, data: { source: '/docs' } }
   }
 }
 

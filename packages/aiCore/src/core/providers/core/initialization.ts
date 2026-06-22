@@ -104,7 +104,11 @@ const AzureExtension = ProviderExtension.create({
         createAnthropic({
           baseURL: (settings?.baseURL ?? '') + '/anthropic/v1',
           apiKey: settings?.apiKey ?? '',
-          headers: settings?.headers
+          headers: settings?.headers,
+          // Forward the caller-injected fetch (e.g. the proxy-aware customFetch). This
+          // variant rebuilds the provider from scratch, so without this the request
+          // silently falls back to the SDK default fetch and drops the wrapper.
+          fetch: settings?.fetch
         }),
       toolFactories: {
         webSearch:

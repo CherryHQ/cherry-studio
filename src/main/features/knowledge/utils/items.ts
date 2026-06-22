@@ -23,7 +23,7 @@ const toSourceState = (probe: PathReadability): KnowledgeItemSourceState =>
   probe === 'readable' ? 'rebuildable' : probe
 
 /**
- * Classify a knowledge item's rebuild source: a directory from its original folder (`data.relativePath`), a
+ * Classify a knowledge item's rebuild source: a directory from its original folder (`data.source`), a
  * file leaf from its own material file (`indexedRelativePath ?? relativePath`); note/url always
  * rebuild from the DB / network. The `unverifiable` state (a transient/permission error rather than
  * a genuine ENOENT) lets the admission gate avoid telling the user to delete a source that may still
@@ -35,7 +35,7 @@ export async function classifyKnowledgeItemSource(
   item: KnowledgeItem
 ): Promise<KnowledgeItemSourceState> {
   if (item.type === 'directory') {
-    return toSourceState(await probeKnowledgeSourcePath(item.data.relativePath))
+    return toSourceState(await probeKnowledgeSourcePath(item.data.source))
   }
   if (item.type === 'file') {
     return toSourceState(await probeKnowledgeFile(baseId, item.data.indexedRelativePath ?? item.data.relativePath))

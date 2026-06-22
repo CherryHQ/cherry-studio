@@ -15,6 +15,7 @@ interface AssistantCatalogModel {
 }
 
 export interface AssistantCatalogPreset {
+  id: string
   name: string
   prompt?: string
   description?: string
@@ -71,7 +72,12 @@ function normalizePresets(value: unknown): AssistantCatalogPreset[] {
   if (!Array.isArray(value)) return []
 
   return value.filter((preset): preset is AssistantCatalogPreset => {
-    return Boolean(preset && typeof preset === 'object' && typeof (preset as AssistantCatalogPreset).name === 'string')
+    return Boolean(
+      preset &&
+        typeof preset === 'object' &&
+        typeof (preset as AssistantCatalogPreset).id === 'string' &&
+        typeof (preset as AssistantCatalogPreset).name === 'string'
+    )
   })
 }
 
@@ -126,8 +132,8 @@ export function filterAssistantCatalogPresets(
   })
 }
 
-export function getAssistantPresetCatalogKey(preset: Pick<AssistantCatalogPreset, 'name' | 'prompt' | 'description'>) {
-  return `${preset.name.trim()}\n${(preset.prompt || preset.description || '').trim()}`
+export function getAssistantPresetCatalogKey(preset: Pick<AssistantCatalogPreset, 'id'>) {
+  return preset.id
 }
 
 export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPreset): CreateAssistantDto {

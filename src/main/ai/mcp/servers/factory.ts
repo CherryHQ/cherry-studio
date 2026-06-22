@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { BuiltinMcpServerName } from '@types'
-import { BuiltinMcpServerNames } from '@types'
+import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import BraveSearchServer from './brave-search'
 import BrowserServer from './browser'
