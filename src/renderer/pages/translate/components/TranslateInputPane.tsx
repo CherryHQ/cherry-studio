@@ -113,6 +113,9 @@ const TranslateInputPane = ({
       {isDragging && (
         <div className="fade-in-0 pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150">
           <div className="flex h-full w-full items-center justify-center rounded-md border border-border-muted border-dashed">
+            {/* Drawn as a single path so the translucent foreground token paints
+                evenly: lucide's Plus uses two crossing paths, which composites
+                the alpha twice and darkens the center. */}
             <svg
               width={40}
               height={40}
