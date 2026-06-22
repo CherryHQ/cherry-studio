@@ -83,12 +83,11 @@ const OcrJobWatcher: FC<{
   onSettled: (jobId: string) => void
 }> = ({ job, onCompleted, onSettled }) => {
   const { t } = useTranslation()
-  const { data: snapshot, isTerminal } = useJob(job.jobId)
+  const { data: snapshot, isTerminal, error } = useJob(job.jobId)
   const handledRef = useRef(false)
 
   useEffect(() => {
-    if (!isTerminal || !snapshot || handledRef.current) return
-    handledRef.current = true
+    if (handledRef.current) return
 
     const normalizeError = (error: unknown, fallbackMessage: string) => {
       if (error instanceof Error) return error
@@ -105,23 +104,39 @@ const OcrJobWatcher: FC<{
       window.toast.error(formatErrorMessageWithPrefix(normalizedError, prefix))
     }
 
+    // Job became unobservable (post-GC 404 / DataApi fetch failure): surface it once
+    // and unlock the input pane instead of spinning behind the overlay forever.
+    if (error) {
+      handledRef.current = true
+      logger.error('Failed to observe OCR job.', error, { jobId: job.jobId })
+      rejectJob(error, 'Image OCR job became unobservable')
+      onSettled(job.jobId)
+      return
+    }
+
+    if (!isTerminal || !snapshot) return
+    handledRef.current = true
+
     if (snapshot.status === 'completed') {
       const parsedOutput = FileProcessingJobOutputSchema.safeParse(snapshot.output)
-      const artifact = parsedOutput.success ? parsedOutput.data.artifact : undefined
-      if (artifact?.kind === 'text') {
-        onCompleted(artifact.text)
+      if (parsedOutput.success && parsedOutput.data.artifact.kind === 'text') {
+        onCompleted(parsedOutput.data.artifact.text)
         window.toast.success(t('translate.files.ocr_completed'))
       } else {
-        const error = new Error('Image OCR completed without a text artifact')
-        logger.warn('Image OCR job completed without a text artifact.', { jobId: job.jobId })
-        rejectJob(error, error.message)
+        const failure = new Error('Image OCR completed without a text artifact')
+        if (!parsedOutput.success) {
+          logger.warn('Image OCR job output failed schema validation.', parsedOutput.error, { jobId: job.jobId })
+        } else {
+          logger.warn('Image OCR job completed without a text artifact.', { jobId: job.jobId })
+        }
+        rejectJob(failure, failure.message)
       }
     } else {
       rejectJob(snapshot.error, 'Image OCR failed')
     }
 
     onSettled(job.jobId)
-  }, [isTerminal, snapshot, job, onCompleted, onSettled, t])
+  }, [isTerminal, snapshot, error, job, onCompleted, onSettled, t])
 
   return null
 }
@@ -474,9 +489,10 @@ const TranslatePage: FC = () => {
     [appendTranslateInput, t]
   )
 
-  const clearOcrJob = useCallback((jobId?: string) => {
-    setOcrJob((current) => (jobId && current?.jobId !== jobId ? current : null))
-  }, [])
+  // Renderer-local only: clears the tracked OCR job so the input pane unlocks.
+  // The backend File Processing job keeps running and its result is discarded
+  // (deliberate — Cancel/settle is a local "dismiss", not a backend cancel).
+  const clearOcrJob = useCallback(() => setOcrJob(null), [])
 
   const startOcr = useCallback(
     async (file: FileMetadata) => {

@@ -11,7 +11,11 @@ const fileMock = vi.hoisted(() => ({
   readExternal: vi.fn(),
   startJob: vi.fn(),
   getFileExtension: vi.fn(() => 'txt'),
-  isTextFile: vi.fn()
+  isTextFile: vi.fn(),
+  getPathForFile: vi.fn(),
+  createTempFile: vi.fn(),
+  write: vi.fn(),
+  get: vi.fn()
 }))
 
 const useJobMock = vi.hoisted(() => vi.fn())
@@ -200,6 +204,7 @@ vi.mock('../components/TranslateInputPane', () => ({
     text,
     onTextChange,
     onKeyDown,
+    onPaste,
     onSelectFile,
     onDrop,
     onCancelOcr,
@@ -209,6 +214,7 @@ vi.mock('../components/TranslateInputPane', () => ({
     text: string
     onTextChange: (value: string) => void
     onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
+    onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
     onCancelOcr: () => void
@@ -222,6 +228,7 @@ vi.mock('../components/TranslateInputPane', () => ({
         value={text}
         onChange={(event) => onTextChange(event.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
       />
       <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
       {ocrProcessing && (
@@ -277,6 +284,11 @@ describe('TranslatePage', () => {
     fileMock.getFileExtension.mockReset()
     fileMock.getFileExtension.mockReturnValue('txt')
     fileMock.isTextFile.mockResolvedValue(true)
+    fileMock.getPathForFile.mockReset()
+    fileMock.createTempFile.mockReset()
+    fileMock.write.mockReset()
+    fileMock.write.mockResolvedValue(undefined)
+    fileMock.get.mockReset()
     fileMock.startJob.mockResolvedValue({
       id: 'job-ocr-1',
       type: 'file-processing.background',
@@ -330,7 +342,11 @@ describe('TranslatePage', () => {
     }
     ;(window as any).api = {
       file: {
-        readExternal: fileMock.readExternal
+        readExternal: fileMock.readExternal,
+        getPathForFile: fileMock.getPathForFile,
+        createTempFile: fileMock.createTempFile,
+        write: fileMock.write,
+        get: fileMock.get
       },
       fs: {
         readText: fileMock.readText
@@ -549,6 +565,77 @@ describe('TranslatePage', () => {
     await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
     expect(toastCloseToastMock).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+  })
+
+  it('surfaces an error and unlocks the page when the OCR job becomes unobservable', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeDisabled())
+    useJobMock.mockReturnValue({
+      data: null,
+      isTerminal: false,
+      error: new Error('job not found')
+    })
+    rerender(<TranslatePage />)
+
+    expect(translateCoreMock.formatErrorMessageWithPrefix).toHaveBeenCalledWith(
+      expect.any(Error),
+      'translate.files.error.ocr'
+    )
+    const formattedError = translateCoreMock.formatErrorMessageWithPrefix.mock.calls.at(-1)?.[0] as Error | undefined
+    expect(formattedError?.message).toBe('job not found')
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+  })
+
+  it('starts an image_to_text job for an image dropped onto the input pane', async () => {
+    dropMock.getFilesFromDropEvent.mockResolvedValue([{ path: '/tmp/x.png', size: 10, type: 'image' }])
+
+    render(<TranslatePage />)
+
+    fireEvent.drop(screen.getByTestId('translate-input-pane'))
+
+    await waitFor(() =>
+      expect(fileMock.startJob).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: '/tmp/x.png' }
+      })
+    )
+  })
+
+  it('starts an image_to_text job for a pasted image without a file path', async () => {
+    fileMock.getPathForFile.mockReturnValue('')
+    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
+    fileMock.get.mockResolvedValue({ path: '/tmp/pasted.png', size: 10, type: 'image' })
+
+    render(<TranslatePage />)
+
+    const pastedImage = {
+      name: 'pasted.png',
+      type: 'image/png',
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+    }
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [pastedImage]
+      }
+    })
+
+    await waitFor(() =>
+      expect(fileMock.startJob).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: '/tmp/pasted.png' }
+      })
+    )
+    // Pasted images have no path → temp-file fallback (createTempFile + write) runs before the job starts.
+    expect(fileMock.createTempFile).toHaveBeenCalledWith('pasted.png')
+    expect(fileMock.write).toHaveBeenCalled()
   })
 
   it('ignores empty text data when handling drops', async () => {
