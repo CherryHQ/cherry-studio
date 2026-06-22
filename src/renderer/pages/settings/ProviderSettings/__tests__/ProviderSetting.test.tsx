@@ -77,6 +77,13 @@ describe('ProviderSetting', () => {
     )
   })
 
+  it('keeps the provider detail shell transparent so the settings background is continuous', () => {
+    render(<ProviderSetting providerId="openai" />)
+
+    expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-background')
+    expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-card')
+  })
+
   it('renders the provider detail divider below the provider header, aligned to body content width', () => {
     render(<ProviderSetting providerId="openai" />)
 

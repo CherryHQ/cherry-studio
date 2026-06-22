@@ -98,7 +98,7 @@ export default function ProviderListGroup({
             onReorder={onReorder}
             onReorderError={onReorderError}
             className="w-full"
-            gap="var(--provider-list-row-gap)"
+            gap="0.5rem"
             restrictions={{ scrollableAncestor: true }}
             renderItem={renderItem}
           />
