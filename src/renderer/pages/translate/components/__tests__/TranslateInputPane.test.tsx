@@ -24,6 +24,11 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: React.ComponentProps<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -36,7 +41,9 @@ const baseProps = () => ({
   onDrop: vi.fn(),
   onSelectFile: vi.fn(),
   onCopy: vi.fn(),
+  onCancelOcr: vi.fn(),
   disabled: false,
+  ocrProcessing: false,
   selecting: false
 })
 
@@ -87,5 +94,32 @@ describe('TranslateInputPane', () => {
     render(<TranslateInputPane {...baseProps()} />)
 
     expect(screen.getByText('translate.files.drag_text')).toBeInTheDocument()
+  })
+
+  it('does not show the OCR processing overlay by default', () => {
+    render(<TranslateInputPane {...baseProps()} />)
+
+    expect(screen.queryByText('ocr.processing')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('shows the OCR processing overlay while OCR is running', () => {
+    const props = { ...baseProps(), ocrProcessing: true }
+
+    render(<TranslateInputPane {...props} />)
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('ocr.processing')
+    expect(status.querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('calls the OCR cancel handler from the processing overlay', () => {
+    const props = { ...baseProps(), ocrProcessing: true }
+
+    render(<TranslateInputPane {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(props.onCancelOcr).toHaveBeenCalledTimes(1)
   })
 })

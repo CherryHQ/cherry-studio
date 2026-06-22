@@ -153,6 +153,11 @@ The query may come from `ClaudeCodeWarmQueryManager.consume(...)` if a
 prewarmed query is available. Otherwise the driver starts a new SDK
 query with `createClaudeQuery({ prompt: driverSdkInputQueue, options })`.
 
+Starting a query (warm or cold) registers the agent's MCP servers and lists
+their tools. That listing is **cache-only** — it never connects to an upstream
+MCP server — so a dead or slow server cannot block startup. See
+[Tool Registry → Tool catalog reads never block on MCP](./tool-registry.md#tool-catalog-reads-never-block-on-mcp).
+
 The driver converts Claude SDK messages into runtime events:
 
 - `stream_event` / assistant/user messages -> `chunk`;

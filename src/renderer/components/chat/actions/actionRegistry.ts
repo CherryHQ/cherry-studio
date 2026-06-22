@@ -4,9 +4,6 @@ import type {
   ActionDescriptor,
   ActionSurface,
   CommandDescriptor,
-  MessageActionContext,
-  MessageActionProvider,
-  MessageActionReference,
   ResolvedAction,
   ResolvedActionConfirm
 } from './actionTypes'
@@ -207,55 +204,4 @@ export class ActionRegistry<TContext> {
 
 export function createActionRegistry<TContext>(): ActionRegistry<TContext> {
   return new ActionRegistry<TContext>()
-}
-
-export type MessageActionProviderRegistration = () => void
-
-export class MessageActionRegistry {
-  private readonly providers = new Map<string, MessageActionProvider>()
-  private readonly registry = createActionRegistry<MessageActionContext>()
-
-  registerAction(descriptor: ActionDescriptor<MessageActionContext>): ActionRegistration {
-    return this.registry.registerAction(descriptor)
-  }
-
-  registerCommand(descriptor: CommandDescriptor<MessageActionContext>): ActionRegistration {
-    return this.registry.registerCommand(descriptor)
-  }
-
-  register(provider: MessageActionProvider): MessageActionProviderRegistration {
-    this.providers.set(provider.id, provider)
-
-    return () => {
-      if (this.providers.get(provider.id) === provider) {
-        this.providers.delete(provider.id)
-      }
-    }
-  }
-
-  unregister(id: string): void {
-    this.providers.delete(id)
-    this.registry.unregister(id)
-  }
-
-  listProviders(): MessageActionProvider[] {
-    return Array.from(this.providers.values())
-  }
-
-  resolve(context: MessageActionContext): MessageActionReference[] {
-    return [...this.listProviders().flatMap((provider) => provider.resolve(context)), ...this.registry.resolve(context)]
-  }
-
-  async execute(actionId: string, context: MessageActionContext): Promise<boolean> {
-    return this.registry.execute(actionId, context)
-  }
-
-  clear(): void {
-    this.providers.clear()
-    this.registry.clear()
-  }
-}
-
-export function createMessageActionRegistry(): MessageActionRegistry {
-  return new MessageActionRegistry()
 }
