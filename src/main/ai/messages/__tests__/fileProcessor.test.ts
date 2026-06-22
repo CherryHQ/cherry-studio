@@ -19,12 +19,12 @@ vi.mock('@application', async () => {
   return mockApplicationFactory(overrides)
 })
 
-import { resolveFileUIPart } from '../fileProcessor'
+import { materializeNativeFilePart } from '../fileProcessor'
 
 const filePart = (p: Partial<FileUIPart>): FileUIPart =>
   ({ type: 'file', url: '', mediaType: 'application/octet-stream', ...p }) as FileUIPart
 
-describe('resolveFileUIPart — file:// inline', () => {
+describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string
   let imgPath: string
 
@@ -44,35 +44,37 @@ describe('resolveFileUIPart — file:// inline', () => {
   })
 
   it('rewrites a file:// URL to a base64 data URL', async () => {
-    const out = await resolveFileUIPart(
+    const out = await materializeNativeFilePart(
       filePart({ url: `file://${imgPath}`, mediaType: 'image/png', filename: 'pixel.png' })
     )
     expect(out?.url.startsWith('data:image/png;base64,')).toBe(true)
   })
 
   it('normalizes a bare-extension mediaType (.png) from the on-disk file', async () => {
-    const out = await resolveFileUIPart(filePart({ url: `file://${imgPath}`, mediaType: '.png' }))
+    const out = await materializeNativeFilePart(filePart({ url: `file://${imgPath}`, mediaType: '.png' }))
     expect(out?.mediaType).toBe('image/png')
     expect(out?.url.startsWith('data:image/png;base64,')).toBe(true)
   })
 
   it('upgrades application/octet-stream from the on-disk file', async () => {
-    const out = await resolveFileUIPart(filePart({ url: `file://${imgPath}`, mediaType: 'application/octet-stream' }))
+    const out = await materializeNativeFilePart(
+      filePart({ url: `file://${imgPath}`, mediaType: 'application/octet-stream' })
+    )
     expect(out?.mediaType).toBe('image/png')
   })
 
   it('leaves data: URLs untouched', async () => {
-    const out = await resolveFileUIPart(filePart({ url: 'data:image/png;base64,AAA', mediaType: 'image/png' }))
+    const out = await materializeNativeFilePart(filePart({ url: 'data:image/png;base64,AAA', mediaType: 'image/png' }))
     expect(out?.url).toBe('data:image/png;base64,AAA')
   })
 
   it('leaves http(s) URLs untouched', async () => {
-    const out = await resolveFileUIPart(filePart({ url: 'https://example.com/a.png', mediaType: 'image/png' }))
+    const out = await materializeNativeFilePart(filePart({ url: 'https://example.com/a.png', mediaType: 'image/png' }))
     expect(out?.url).toBe('https://example.com/a.png')
   })
 
   it('drops a file:// part that cannot be read', async () => {
-    const out = await resolveFileUIPart(
+    const out = await materializeNativeFilePart(
       filePart({ url: `file://${path.join(tmpDir, 'nope.png')}`, mediaType: 'image/png' })
     )
     expect(out).toBeNull()
@@ -80,16 +82,16 @@ describe('resolveFileUIPart — file:// inline', () => {
 
   it('does not call FileManager when there is no cherry meta', async () => {
     readMock.mockClear()
-    await resolveFileUIPart(filePart({ url: `file://${imgPath}`, mediaType: 'image/png' }))
+    await materializeNativeFilePart(filePart({ url: `file://${imgPath}`, mediaType: 'image/png' }))
     expect(readMock).not.toHaveBeenCalled()
   })
 })
 
-describe('resolveFileUIPart — fileEntryId inline', () => {
+describe('materializeNativeFilePart — fileEntryId inline', () => {
   it('reads via FileManager and applies its MIME (overriding a bad hint)', async () => {
     readMock.mockReset()
     readMock.mockResolvedValueOnce({ content: 'QUJD', mime: 'image/png' })
-    const out = await resolveFileUIPart(
+    const out = await materializeNativeFilePart(
       filePart({ mediaType: '.png', providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
     )
     expect(out?.mediaType).toBe('image/png')
@@ -100,7 +102,9 @@ describe('resolveFileUIPart — fileEntryId inline', () => {
   it('drops the part when the entry is unreadable and there is no file:// rescue', async () => {
     readMock.mockReset()
     readMock.mockRejectedValueOnce(new Error('entry not found'))
-    const out = await resolveFileUIPart(filePart({ url: '', providerMetadata: { cherry: { fileEntryId: 'gone' } } }))
+    const out = await materializeNativeFilePart(
+      filePart({ url: '', providerMetadata: { cherry: { fileEntryId: 'gone' } } })
+    )
     expect(out).toBeNull()
   })
 })

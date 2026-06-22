@@ -1,4 +1,4 @@
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/fileToolCapabilities'
+import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,22 +7,26 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock } = vi.hoisted(() => ({ getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>() }))
-vi.mock('@main/core/application', () => ({ application: { get: () => ({ getById: getByIdMock }) } }))
-
-const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
-vi.mock('../fileProcessor', () => ({ resolveFileUIPart: resolveMock }))
-
-const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
-vi.mock('@main/utils/file/documentExtraction', () => ({
-  extractDocumentText: extractMock,
-  noExtractableTextNote: (filename: string) => `No text in ${filename}`
+const { getByIdMock, ocrMock } = vi.hoisted(() => ({
+  getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
+  ocrMock: vi.fn<() => Promise<string>>()
+}))
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+  }
 }))
 
-const { ocrMock } = vi.hoisted(() => ({ ocrMock: vi.fn<() => Promise<string>>() }))
-vi.mock('@main/features/fileProcessing', () => ({ ocrImageToText: ocrMock }))
+const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
+vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
 
-import { collectFileAttachments, prepareChatMessages } from '../attachmentManifest'
+const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
+vi.mock('../attachmentTextExtraction', () => ({
+  extractDocumentText: extractMock,
+  noExtractableTextNote: (name: string) => `No text in ${name}`
+}))
+
+import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -102,6 +106,23 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toContain("can't process the attached audio file")
   })
 
+  it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    const [out] = await run([fileWithEntry('e1', 'a.zip', 'application/zip')], NONE)
+    expect(textOf(out.parts)[0]).toBe(
+      'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
+    )
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('degrades a native file to a note when materialization returns null', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    resolveMock.mockResolvedValueOnce(null)
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], ALL)
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
+    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
+  })
+
   it('uses the empty-extraction note', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
     extractMock.mockResolvedValueOnce('   ')
@@ -141,7 +162,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockRejectedValueOnce(new Error('aborted'))
     await expect(
       prepareChatMessages([userMessage([fileWithEntry('e1', 'a.pdf', 'application/pdf')])] as UIMessage[], {
-        attachments: [{ fileEntryId: 'e1', filename: 'a.pdf' }],
+        attachments: [{ fileEntryId: 'e1', handle: 'a.pdf', displayName: 'a.pdf' }],
         nativeSupport: NONE,
         isToolCapable: true,
         signal: controller.signal
@@ -163,15 +184,26 @@ describe('prepareChatMessages — routing', () => {
 })
 
 describe('collectFileAttachments', () => {
-  it('flattens fileEntry attachments with unique filenames', () => {
+  it('flattens fileEntry attachments with unique handles, preserving the display name', () => {
     const messages = [
       userMessage([fileWithEntry('e1', 'report.pdf', 'application/pdf')]),
       userMessage([fileWithEntry('e2', 'report.pdf', 'application/pdf')])
     ] as UIMessage[]
     expect(collectFileAttachments(messages)).toEqual([
-      { fileEntryId: 'e1', filename: 'report.pdf' },
-      { fileEntryId: 'e2', filename: 'report.pdf (2)' }
+      { fileEntryId: 'e1', handle: 'report.pdf', displayName: 'report.pdf' },
+      { fileEntryId: 'e2', handle: 'report.pdf (2)', displayName: 'report.pdf' }
     ])
+  })
+
+  it('disambiguates a generated alias that would collide with a real name', () => {
+    const messages = [
+      userMessage([fileWithEntry('e1', 'a.txt', 'text/plain')]),
+      userMessage([fileWithEntry('e2', 'a.txt (2)', 'text/plain')]),
+      userMessage([fileWithEntry('e3', 'a.txt', 'text/plain')])
+    ] as UIMessage[]
+    const handles = collectFileAttachments(messages).map((a) => a.handle)
+    expect(handles).toEqual(['a.txt', 'a.txt (2)', 'a.txt (3)'])
+    expect(new Set(handles).size).toBe(3)
   })
 
   it('ignores file parts without a fileEntryId', () => {

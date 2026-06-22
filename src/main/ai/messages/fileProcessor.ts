@@ -60,7 +60,19 @@ async function fileUrlToDataUrl(fileUrl: string) {
   }
 }
 
-export async function resolveFileUIPart(part: FileUIPart): Promise<FileUIPart | null> {
+/**
+ * Materialize a native file part into a provider-compatible representation,
+ * returning the rewritten part (or `null` if the bytes are unreadable, so the
+ * caller can degrade to a note).
+ *
+ * Today the only strategy is **inline base64 `data:` URL**. The boundary is
+ * named for what it will become: when provider File-API upload lands (Gemini
+ * File / OpenAI Files — see the module header), small files keep inlining while
+ * large ones upload and return a file-reference part, chosen here behind this
+ * same signature. Add the provider/model strategy input then — callers won't
+ * need to change.
+ */
+export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
   if (fileEntryId) {
     const inlined = await fileEntryIdToDataUrl(fileEntryId)

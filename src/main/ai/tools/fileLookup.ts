@@ -1,11 +1,13 @@
 /**
  * `read_file` core — runtime-agnostic.
  *
- * The overflow/paging tool for chat attachments: the model reads an attached
- * file's **text** by filename. Natively-consumable files (image on a vision
- * model, PDF on a native provider, …) are inlined directly by the chat path and
- * never routed here, so `read_file` is text-only — documents/text are extracted,
- * images are OCR'd, audio/video have no text form.
+ * The overflow/paging tool for chat attachments: attachments are already inlined
+ * into the conversation by the chat path, so this only loads *more* of a file's
+ * **text** — the truncated tail of a capped inline excerpt, or further pages of
+ * a long file. Natively-consumable files (image on a vision model, PDF on a
+ * native provider, …) are sent inline as the real file and never routed here, so
+ * `read_file` is text-only: documents/text are extracted, images are OCR'd,
+ * audio/video/binary have no text form.
  *
  * Never throws on a read failure (returns `{ error }`, sanitized) so the agentic
  * loop keeps running; a cancellation rethrows so it propagates as the
@@ -14,31 +16,30 @@
 
 import { isAbortError, type ToolResultOutput } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
+import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { application } from '@main/core/application'
-import { ocrImageToText } from '@main/features/fileProcessing'
-import { extractDocumentText, noExtractableTextNote } from '@main/utils/file/documentExtraction'
-import { READ_FILE_PAGE_SIZE, type ReadFileInput, type ReadFileOutput } from '@shared/ai/builtinTools'
+import {
+  READ_FILE_PAGE_SIZE,
+  type ReadFileError,
+  type ReadFileInput,
+  type ReadFileOutput,
+  type ReadFileResult
+} from '@shared/ai/builtinTools'
 import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
-import type { FileAttachmentRef } from './adapters/aiSdk/context'
-
 const logger = loggerService.withContext('ReadFile')
 
-export const READ_FILE_DESCRIPTION = `Read the text of a file the user attached to this conversation.
+export const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
 
-Each readable attachment is announced in the conversation with its name. Call this with that \`filename\` to load the file's text. For long files, page through with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached).
-
-Read an attachment before answering questions about it. You may call this several times to page through a long document or to read multiple attachments.`
+Attachments are already inlined into the conversation. Only call this when an attachment was truncated (the message says so and names this file) and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
 
 /** Resolution context: the allow-list of this request's attachments. */
 export interface ReadFileContext {
   attachments: ReadonlyArray<FileAttachmentRef>
 }
-
-/** Lookup failure shape — distinguishable from a successful read. */
-export type ReadFileError = { error: string }
-export type ReadFileResult = ReadFileOutput | ReadFileError
 
 export function isReadFileError(result: ReadFileResult): result is ReadFileError {
   return 'error' in result
@@ -47,15 +48,6 @@ export function isReadFileError(result: ReadFileResult): result is ReadFileError
 /** A non-paged text result (notes / short content). */
 function textResult(text: string): ReadFileOutput {
   return { text, totalChars: text.length }
-}
-
-/** Don't split a surrogate pair at a page boundary. Shared so inline-cap and pager agree. */
-export function surrogateSafeEnd(text: string, end: number): number {
-  if (end > 0 && end < text.length) {
-    const c = text.charCodeAt(end - 1)
-    if (c >= 0xd800 && c <= 0xdbff) return end - 1
-  }
-  return end
 }
 
 function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFileOutput {
@@ -82,12 +74,12 @@ export async function readFile(
   { attachments }: ReadFileContext,
   signal?: AbortSignal
 ): Promise<ReadFileResult> {
-  // Resolve the model-facing filename to an internal entry id against the
-  // request's allow-list — the model never sees (or can guess) entry ids, and
-  // can only read files attached to this conversation.
-  const entry = attachments.find((a) => a.filename === input.filename)
+  // Resolve the model-facing handle to an internal entry id against the request's
+  // allow-list — the model never sees (or can guess) entry ids, and can only read
+  // files attached to this conversation.
+  const entry = attachments.find((a) => a.handle === input.filename)
   if (!entry) {
-    const available = attachments.map((a) => a.filename).join(', ') || '(none)'
+    const available = attachments.map((a) => a.handle).join(', ') || '(none)'
     return { error: `No attached file named "${input.filename}". Available: ${available}` }
   }
   const entryId = entry.fileEntryId
@@ -97,15 +89,19 @@ export async function readFile(
     const fileType = getFileTypeByExt(ext?.toLowerCase() ?? '')
 
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-      return textResult(`Cannot read ${fileType} file "${entry.filename}" as text.`)
+      return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
+    }
+    if (fileType === FILE_TYPE.OTHER) {
+      // Binary / unsupported — don't auto-decode it into mojibake.
+      return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
 
     const text =
       fileType === FILE_TYPE.IMAGE
-        ? await ocrImageToText({ kind: 'entry', entryId }, signal)
+        ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
         : await extractDocumentText(entryId, { signal })
 
-    if (!text.trim()) return textResult(noExtractableTextNote(entry.filename))
+    if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
     return paginate(text, input.offset, input.limit)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error

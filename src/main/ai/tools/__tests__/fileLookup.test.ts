@@ -4,29 +4,27 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock } = vi.hoisted(() => ({
-  getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>()
+const { getByIdMock, ocrMock } = vi.hoisted(() => ({
+  getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
+  ocrMock: vi.fn<() => Promise<string>>()
 }))
 vi.mock('@main/core/application', () => ({
-  application: { get: () => ({ getById: getByIdMock }) }
+  application: {
+    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+  }
 }))
 
 const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
-vi.mock('@main/utils/file/documentExtraction', () => ({
+vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
-  noExtractableTextNote: (filename: string) => `No text in ${filename}`
+  noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-const { ocrMock } = vi.hoisted(() => ({ ocrMock: vi.fn<() => Promise<string>>() }))
-vi.mock('@main/features/fileProcessing', () => ({ ocrImageToText: ocrMock }))
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 
-import type { FileAttachmentRef } from '../adapters/aiSdk/context'
 import { readFile, readFileModelOutput } from '../fileLookup'
 
-const att = (filename: string): FileAttachmentRef => ({
-  fileEntryId: 'e1',
-  filename
-})
+const att = (handle: string): FileAttachmentRef => ({ fileEntryId: 'e1', handle, displayName: handle })
 const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 
 afterEach(() => vi.clearAllMocks())
@@ -51,6 +49,14 @@ describe('readFile — text-only', () => {
     const r = await readFile({ filename: 'a.mp3' }, ctx([att('a.mp3')]))
     expect(r).toMatchObject({ text: 'Cannot read audio file "a.mp3" as text.' })
     expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a note for unsupported binary types (no garbage decode)', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    const r = await readFile({ filename: 'a.zip' }, ctx([att('a.zip')]))
+    expect(r).toMatchObject({ text: 'Cannot read the attached file "a.zip" as text (unsupported file type).' })
+    expect(extractMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
   })
 
   it('returns a note when extraction is empty', async () => {

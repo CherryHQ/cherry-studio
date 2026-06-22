@@ -4,9 +4,10 @@
  * before `simulate-streaming`). Mirrors the prior `PluginBuilder.buildPlugins`
  * decision tree, now expressed as `RequestFeature.applies` gates.
  *
- * Attachments (pdf/office/image/audio/video) are read on demand through the
- * agentic `read_file` tool (`tools/fileLookup.ts` + `messages/attachmentManifest.ts`),
- * so there is no document-conversion middleware here.
+ * Attachments (pdf/office/image/audio/video) are routed in `prepareChatMessages`
+ * (`messages/attachmentRouting.ts`) — native inline or extracted text, with
+ * `tools/fileLookup.ts` (`read_file`) paging the overflow — so there is no
+ * document-conversion middleware here.
  */
 
 import type { RequestFeature } from '../feature'

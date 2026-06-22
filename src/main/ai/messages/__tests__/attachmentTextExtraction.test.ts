@@ -38,7 +38,7 @@ vi.mock('@shared/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<() => string>() }))
 vi.mock('@main/utils/file', () => ({ decodeTextWithAutoEncoding: decodeTextMock }))
 
-import { extractDocumentText, noExtractableTextNote } from '../documentExtraction'
+import { extractDocumentText, noExtractableTextNote } from '../attachmentTextExtraction'
 
 const BYTES = new Uint8Array([1, 2, 3])
 

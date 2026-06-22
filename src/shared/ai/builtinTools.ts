@@ -188,5 +188,13 @@ export const readFileOutputSchema = z.object({
   nextOffset: z.number().int().nonnegative().optional()
 })
 
+/** Lookup failure shape — a sanitized, filename-level message; distinguishable from a successful read. */
+export const readFileErrorSchema = z.object({ error: z.string() })
+
+/** Full `read_file` wire result: a successful (possibly paged) read, or an error. */
+export const readFileResultSchema = z.union([readFileOutputSchema, readFileErrorSchema])
+
 export type ReadFileInput = z.infer<typeof readFileInputSchema>
 export type ReadFileOutput = z.infer<typeof readFileOutputSchema>
+export type ReadFileError = z.infer<typeof readFileErrorSchema>
+export type ReadFileResult = z.infer<typeof readFileResultSchema>

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
-import { resolveNativeFileSupport } from '../fileToolCapabilities'
+import { resolveNativeFileSupport } from '../nativeFileSupport'
 
 describe('resolveNativeFileSupport', () => {
   it('native PDF on an OpenAI Responses LLM model', () => {

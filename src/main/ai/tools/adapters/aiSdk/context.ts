@@ -1,17 +1,7 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ModelMessage } from 'ai'
-
-/**
- * One attachment the `read_file` tool may read this request. The model
- * references files by `filename` (from the manifest) — the internal
- * `fileEntryId` never reaches the model. Doubles as an allow-list: the tool
- * only resolves files attached to the current conversation.
- */
-export interface FileAttachmentRef {
-  readonly fileEntryId: string
-  readonly filename: string
-}
 
 /**
  * Per-request context constructed once in `buildAgentParams` and

@@ -8,8 +8,9 @@
  * here and get back AI-SDK-shaped `FileUIPart`s. Internally each file is
  * promoted to a v2 `FileEntry` via `createInternalEntry`; the resulting
  * `fileEntryId` lives in `providerMetadata.cherry` so
- * `fileProcessor.resolveFileUIPart` (main) can read it path-independently —
- * see `packages/shared/data/types/uiParts.ts` for the accessor + Zod.
+ * `fileProcessor.materializeNativeFilePart` (main) can read it
+ * path-independently — see `packages/shared/data/types/uiParts.ts` for the
+ * accessor + Zod.
  *
  * Phase 2 follow-up: producer-side (drop / paste / picker handlers) should
  * eventually create the FileEntry at attach time and hand `FileEntry[]`

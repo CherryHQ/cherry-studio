@@ -33,7 +33,16 @@ export interface NativeFileSupport {
   readonly video: boolean
 }
 
-/** First-party protocols that accept native file user-message input. */
+/**
+ * First-party protocols that accept native file user-message input.
+ *
+ * This is a conservative **default allow-list** (carried over from the retired
+ * `pdfCompatibility`): an unknown third-party provider does not get native PDF,
+ * so we never hand a file part to a compat endpoint that can't take one. It can
+ * later be superseded by provider-level metadata / a toggle declaring native
+ * file support — `resolveNativeFileSupport` already receives `provider`, so
+ * adding that boolean needs no signature change.
+ */
 const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
   // The resolver emits the base `openai` id only for the Responses endpoint
   // (chat-completions resolves to `openai-chat`/`openai-compatible`).

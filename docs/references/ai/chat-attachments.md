@@ -15,7 +15,7 @@ regression.
 ## Routing matrix
 
 Decided per file part in `prepareChatMessages`
-(`src/main/ai/messages/attachmentManifest.ts`):
+(`src/main/ai/messages/attachmentRouting.ts`):
 
 | Attachment | Native when | What the model receives |
 |---|---|---|
@@ -29,11 +29,18 @@ Decided per file part in `prepareChatMessages`
 | audio | otherwise | short note ("can't process audio") |
 | video | model is video-capable | native video part (inline) |
 | video | otherwise | short note ("can't process video") |
+| other (binary: zip/exe/…) | — | short note ("unsupported file type") |
 
-- **Native** → the file part is left in place and inlined as a `data:` URL by
-  `resolveFileUIPart` (`src/main/ai/messages/fileProcessor.ts`), which also
-  normalizes the `mediaType` to the on-disk MIME. The provider gets the real
-  file as a user-message part.
+- **Native** → the file part is left in place and materialized as a `data:` URL
+  by `materializeNativeFilePart` (`src/main/ai/messages/fileProcessor.ts`), which
+  also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
+  file as a user-message part. (The function is named for the boundary: provider
+  File-API upload for large files would slot in behind the same signature.)
+- Binary / unsupported types are **not** auto-decoded — they'd inline as mojibake
+  — so they get a short note instead.
+- Any per-file failure (missing entry, parse error, unconfigured OCR, failed
+  materialization) degrades to a `[could not read this file].` note rather than
+  dropping the file or failing the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
@@ -56,10 +63,10 @@ Default cap ≈ 8k chars/file (tunable).
 
 `src/main/ai/tools/fileLookup.ts` + `tools/adapters/aiSdk/builtin/ReadFileTool.ts`.
 
-- Input `{ filename, offset?, limit? }`. The model references files by
-  **filename**, resolved to an entry id against a per-request allow-list
-  (`collectFileAttachments`) — the model never sees or guesses entry ids, and
-  can only read files attached to the current conversation.
+- Input `{ filename, offset?, limit? }`. The `filename` is the model-facing
+  **handle** (unique, normalized — see `collectFileAttachments`), resolved to an
+  entry id against a per-request allow-list. The model never sees or guesses
+  entry ids, and can only read files attached to the current conversation.
 - Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
   filename-level messages; details are logged, not returned.
 - Exposed to tool-capable models whenever the request carries first-party file
@@ -73,20 +80,22 @@ Default cap ≈ 8k chars/file (tunable).
 
 | Concern | Owner |
 |---|---|
-| office/pdf/text → text | `extractDocumentText` (`src/main/utils/file/documentExtraction.ts`) |
-| image → text (non-vision) | `ocrImageToText` (`src/main/features/fileProcessing/ocrImageToText.ts`) |
+| office/pdf/text → text | `extractDocumentText` (`src/main/ai/messages/attachmentTextExtraction.ts`) |
+| image → text (non-vision) | `FileProcessingService.ocrImage` (`src/main/features/fileProcessing/`) |
 
-Both `extractDocumentText` and `ocrImageToText` are path-free and cache their
-result by content version (30 min), so the eager every-turn pass over history
-doesn't re-extract or re-OCR the same file. `extractDocumentText` reads bytes
-through `FileManager.read` (PDF via `pdf-parse`, office via
+`ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
+the feature, keeping processor/handler internals in that domain. Both
+`extractDocumentText` and the OCR path are path-free and cache their result by
+content version (30 min), so the eager every-turn pass over history doesn't
+re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
+`FileManager.read` (PDF via `pdf-parse`, office via
 `officeparser`/`word-extractor`, text via `decodeTextWithAutoEncoding`) and
 dispatches on the `FileEntry` canonical `ext`.
 
 ## Capability resolution
 
 `resolveNativeFileSupport`
-(`src/main/ai/runtime/aiSdk/params/fileToolCapabilities.ts`) derives the
+(`src/main/ai/runtime/aiSdk/params/nativeFileSupport.ts`) derives the
 "native" column from `(provider, model)`: image/audio/video ride on the model
 capability alone (`isVision` / `isAudio` / `isVideo`, `@shared/utils/model`),
 while PDF additionally requires a first-party provider (`supportsNativePdf`).

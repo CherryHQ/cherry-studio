@@ -32,7 +32,7 @@ import {
 import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
-import { prepareChatMessages } from './messages/attachmentManifest'
+import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
