@@ -2,43 +2,56 @@ import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
-import { resolveFileToolCapabilities } from '../fileToolCapabilities'
+import { resolveNativeFileSupport } from '../fileToolCapabilities'
 
-describe('resolveFileToolCapabilities', () => {
-  it('accepts media for an OpenAI Responses LLM model', () => {
-    const caps = resolveFileToolCapabilities(
+describe('resolveNativeFileSupport', () => {
+  it('native PDF on an OpenAI Responses LLM model', () => {
+    const ns = resolveNativeFileSupport(
       makeProvider({ id: 'openai' }),
       makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
       'openai'
     )
-    expect(caps.acceptsMediaInToolResult).toBe(true)
-    expect(typeof caps.isVision).toBe('boolean')
+    expect(ns.pdf).toBe(true)
+    expect(typeof ns.image).toBe('boolean')
   })
 
-  it('accepts media for an Anthropic model', () => {
-    const caps = resolveFileToolCapabilities(
+  it('native PDF on an Anthropic model', () => {
+    const ns = resolveNativeFileSupport(
       makeProvider({ id: 'anthropic' }),
       makeModel({ id: 'anthropic::claude', apiModelId: 'claude-3-5-sonnet-20241022', name: 'claude-3-5-sonnet' }),
       'anthropic'
     )
-    expect(caps.acceptsMediaInToolResult).toBe(true)
+    expect(ns.pdf).toBe(true)
   })
 
-  it('rejects media for openai-compatible aggregators (text-only tool results)', () => {
-    const caps = resolveFileToolCapabilities(
+  it('no native PDF on an openai-compatible aggregator', () => {
+    const ns = resolveNativeFileSupport(
       makeProvider({ id: 'somehub' }),
       makeModel({ id: 'somehub::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
       'openai-compatible'
     )
-    expect(caps.acceptsMediaInToolResult).toBe(false)
+    expect(ns.pdf).toBe(false)
+    // audio/video gate on the first-party provider too.
+    expect(ns.audio).toBe(false)
+    expect(ns.video).toBe(false)
   })
 
   it('forces text for providers known to break on native files (qiniu)', () => {
-    const caps = resolveFileToolCapabilities(
+    const ns = resolveNativeFileSupport(
       makeProvider({ id: 'qiniu' }),
       makeModel({ id: 'qiniu::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
       'openai'
     )
-    expect(caps.acceptsMediaInToolResult).toBe(false)
+    expect(ns.pdf).toBe(false)
+  })
+
+  it('image rides on the vision model regardless of provider', () => {
+    // isVisionModel is the gate; assert it's a boolean independent of the provider set.
+    const ns = resolveNativeFileSupport(
+      makeProvider({ id: 'somehub' }),
+      makeModel({ id: 'somehub::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
+      'openai-compatible'
+    )
+    expect(typeof ns.image).toBe('boolean')
   })
 })

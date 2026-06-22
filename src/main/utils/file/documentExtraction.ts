@@ -27,6 +27,11 @@ const OFFICE_PARSER_EXTS = new Set(
 
 const CACHE_TTL_MS = 30 * 60 * 1000
 
+/** Model-facing note when a document yields no extractable text (scanned / image-only). */
+export function noExtractableTextNote(filename: string): string {
+  return `No extractable text found in "${filename}" — it may be a scanned or image-only document.`
+}
+
 async function extract(entryId: FileEntryId, ext: string): Promise<string> {
   const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
 
@@ -45,10 +50,11 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string> {
 }
 
 /**
- * Extract plain text from a file entry. Throws on unreadable file / parse
- * failure (the caller — `read_file` — converts that to a model-facing note).
+ * Extract plain text from a file entry (may be empty for scanned/image-only
+ * docs — the caller emits {@link noExtractableTextNote}). Throws on unreadable
+ * file / parse failure, and rethrows the abort reason if `signal` is aborted.
  */
-export async function extractDocumentText(entryId: FileEntryId): Promise<string> {
+export async function extractDocumentText(entryId: FileEntryId, opts: { signal?: AbortSignal } = {}): Promise<string> {
   const fileManager = application.get('FileManager')
   const cache = application.get('CacheService')
 
@@ -57,6 +63,7 @@ export async function extractDocumentText(entryId: FileEntryId): Promise<string>
   const cached = cache.get<string>(cacheKey)
   if (cached !== undefined) return cached
 
+  if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
   const entry = await fileManager.getById(entryId)
   const ext = entry.ext?.toLowerCase() ?? ''
   const text = await extract(entryId, ext)

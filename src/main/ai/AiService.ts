@@ -373,13 +373,17 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
-      request,
-      signal,
-      extraFeatures
-    )
+    const { sdkConfig, tools, plugins, system, options, model, hookParts, nativeFileSupport, fileAttachments } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures)
 
-    const preparedMessages = await prepareChatMessages(request.messages ?? [], isFunctionCallingModel(model))
+    // Route attachments: native files stay inline, non-native become capped text
+    // (always visible — never gated on the model calling read_file).
+    const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+      attachments: fileAttachments,
+      nativeSupport: nativeFileSupport,
+      isToolCapable: isFunctionCallingModel(model),
+      signal
+    })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,

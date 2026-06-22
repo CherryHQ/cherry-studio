@@ -170,7 +170,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const aiAgent = await this.buildAiSdkAgent(hooks)
 
       const messages = initialMessages
-      const modelMessages = await convertToModelMessages(initialMessages, { tools: params.tools })
+      const modelMessages = await convertToModelMessages(initialMessages)
       let hasUsedProvidedMessageId = false
 
       const result = await aiAgent.stream({

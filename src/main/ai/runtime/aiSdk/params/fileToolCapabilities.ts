@@ -1,17 +1,16 @@
 /**
- * Resolve what the `read_file` tool may hand back to the model: native media
- * (image/PDF in a tool result) vs extracted text.
+ * Resolve which attachment modalities the target (provider, model) can take as
+ * **native user-message file input** — the routing gate in `prepareChatMessages`:
+ * native modalities are inlined as the real file part; everything else is sent
+ * as extracted/OCR text.
  *
- * The provider set + per-model checks are lifted from the retired
- * `pdfCompatibility` feature — the same first-party protocols that accept a
- * native PDF in a user message also accept image/PDF media inside a **tool
- * result** (verified against the installed `@ai-sdk/{openai,anthropic,google}`
- * providers: OpenAI-Responses → `input_file`/`input_image`, Anthropic →
- * `document`/`image`, Gemini → `inlineData`). Aggregators / openai-compatible
- * tool results are text-only, so they fall through to extracted text.
+ * The first-party provider set + per-model PDF check are lifted from the retired
+ * `pdfCompatibility` feature. Images ride on any vision model; PDF/audio/video
+ * native input only on the first-party protocols (OpenAI Responses, Anthropic,
+ * Gemini and their Azure/Vertex/Bedrock variants). Aggregators / openai-
+ * compatible fall through to text.
  */
 
-import type { FileToolCapabilities } from '@main/ai/tools/adapters/aiSdk/context'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -25,11 +24,18 @@ import {
 
 import type { AppProviderId } from '../../../types'
 
-/** First-party protocols whose tool-result channel accepts image/PDF media. */
-const MEDIA_TOOL_RESULT_PROVIDER_IDS = new Set<AppProviderId>([
+/** What a (provider, model) accepts as a native user-message file part. */
+export interface NativeFileSupport {
+  readonly image: boolean
+  readonly pdf: boolean
+  readonly audio: boolean
+  readonly video: boolean
+}
+
+/** First-party protocols that accept native file user-message input. */
+const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
   // The resolver emits the base `openai` id only for the Responses endpoint
-  // (chat-completions resolves to `openai-chat`/`openai-compatible`), so this
-  // targets exactly the rich-tool-result Responses path.
+  // (chat-completions resolves to `openai-chat`/`openai-compatible`).
   'openai',
   'anthropic',
   'google',
@@ -43,15 +49,18 @@ const MEDIA_TOOL_RESULT_PROVIDER_IDS = new Set<AppProviderId>([
 /** Providers known to choke on native file parts; force text extraction (e.g. Qiniu, #15090). */
 const FORCE_TEXT_PROVIDER_IDS = new Set<string>(['qiniu'])
 
-function supportsMediaInToolResult(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
+function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProviderId): boolean {
   if (
     FORCE_TEXT_PROVIDER_IDS.has(provider.id) ||
     (provider.presetProviderId != null && FORCE_TEXT_PROVIDER_IDS.has(provider.presetProviderId))
   ) {
     return false
   }
-  if (!MEDIA_TOOL_RESULT_PROVIDER_IDS.has(aiSdkProviderId)) return false
+  return NATIVE_FILE_PROVIDER_IDS.has(aiSdkProviderId)
+}
 
+function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
+  if (!isFirstPartyFileProvider(provider, aiSdkProviderId)) return false
   if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)
   }
@@ -64,15 +73,16 @@ function supportsMediaInToolResult(provider: Provider, model: Model, aiSdkProvid
   return true
 }
 
-export function resolveFileToolCapabilities(
+export function resolveNativeFileSupport(
   provider: Provider,
   model: Model,
   aiSdkProviderId: AppProviderId
-): FileToolCapabilities {
+): NativeFileSupport {
+  const firstParty = isFirstPartyFileProvider(provider, aiSdkProviderId)
   return {
-    acceptsMediaInToolResult: supportsMediaInToolResult(provider, model, aiSdkProviderId),
-    isVision: isVisionModel(model),
-    isAudio: isAudioModel(model),
-    isVideo: isVideoModel(model)
+    image: isVisionModel(model),
+    pdf: supportsNativePdf(provider, model, aiSdkProviderId),
+    audio: firstParty && isAudioModel(model),
+    video: firstParty && isVideoModel(model)
   }
 }

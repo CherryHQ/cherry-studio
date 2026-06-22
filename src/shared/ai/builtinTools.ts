@@ -151,6 +151,12 @@ export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
 export const READ_FILE_TOOL_NAME = 'read_file'
 
+/**
+ * Page size for inlined attachment text — the cap on what's inlined up front
+ * and the default page size when `read_file` is called without `limit`.
+ */
+export const READ_FILE_PAGE_SIZE = 8000
+
 export const readFileInputSchema = z.object({
   filename: z
     .string()
@@ -164,21 +170,17 @@ export const readFileInputSchema = z.object({
     .int()
     .nonnegative()
     .optional()
-    .describe(
-      'For text results: 0-based character offset to start from. Page through long documents with offset+limit. ' +
-        'Ignored for files returned as native media (image/PDF).'
-    ),
+    .describe('0-based character offset to start from. Page through long documents with offset + limit.'),
   limit: z
     .number()
     .int()
     .positive()
     .max(200_000)
     .optional()
-    .describe('For text results: max characters to return. Ignored for files returned as native media (image/PDF).')
+    .describe(`Max characters to return. Defaults to ${READ_FILE_PAGE_SIZE} when omitted.`)
 })
 
-export const readFileTextResultSchema = z.object({
-  kind: z.literal('text'),
+export const readFileOutputSchema = z.object({
   text: z.string(),
   /** Total characters available in the extracted text (for paging). */
   totalChars: z.number().int().nonnegative(),
@@ -186,16 +188,5 @@ export const readFileTextResultSchema = z.object({
   nextOffset: z.number().int().nonnegative().optional()
 })
 
-export const readFileMediaResultSchema = z.object({
-  kind: z.literal('media'),
-  fileEntryId: z.string(),
-  mediaType: z.string(),
-  filename: z.string().optional()
-})
-
-export const readFileOutputSchema = z.discriminatedUnion('kind', [readFileTextResultSchema, readFileMediaResultSchema])
-
 export type ReadFileInput = z.infer<typeof readFileInputSchema>
-export type ReadFileTextResult = z.infer<typeof readFileTextResultSchema>
-export type ReadFileMediaResult = z.infer<typeof readFileMediaResultSchema>
 export type ReadFileOutput = z.infer<typeof readFileOutputSchema>

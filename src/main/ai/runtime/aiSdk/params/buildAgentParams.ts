@@ -12,7 +12,7 @@ import { collectFileAttachments } from '../../../messages/attachmentManifest'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
-import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
+import type { FileAttachmentRef, RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
@@ -34,7 +34,7 @@ import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import type { RequestFeature } from './feature'
 import { INTERNAL_FEATURES } from './features'
-import { resolveFileToolCapabilities } from './fileToolCapabilities'
+import { type NativeFileSupport, resolveNativeFileSupport } from './fileToolCapabilities'
 import type { RequestScope, SdkConfig } from './scope'
 
 export interface BuildAgentParamsInput {
@@ -59,6 +59,9 @@ export interface BuiltAgentParams {
   options: AgentOptions
   /** Hook contributions from features — caller composes with its own internal hooks. */
   hookParts: ReadonlyArray<Partial<AgentLoopHooks>>
+  /** Attachment routing inputs for `prepareChatMessages` (chat path). */
+  nativeFileSupport: NativeFileSupport
+  fileAttachments: FileAttachmentRef[]
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
@@ -75,13 +78,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
     assistant,
     abortSignal: signal,
-    fileToolCaps: resolveFileToolCapabilities(provider, model, aiSdkProviderId),
     fileAttachments
   }
 
@@ -113,7 +116,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     plugins: contributions.modelAdapters,
     system,
     options,
-    hookParts: contributions.hookParts
+    hookParts: contributions.hookParts,
+    nativeFileSupport,
+    fileAttachments
   }
 }
 

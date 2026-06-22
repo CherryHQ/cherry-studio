@@ -38,7 +38,7 @@ vi.mock('@shared/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<() => string>() }))
 vi.mock('@main/utils/file', () => ({ decodeTextWithAutoEncoding: decodeTextMock }))
 
-import { extractDocumentText } from '../documentExtraction'
+import { extractDocumentText, noExtractableTextNote } from '../documentExtraction'
 
 const BYTES = new Uint8Array([1, 2, 3])
 
@@ -104,5 +104,19 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     decodeTextMock.mockReturnValueOnce('hello')
     await extractDocumentText('e1')
     expect(cacheSet).toHaveBeenCalledWith('doc-extraction:e1:1:2', 'hello', expect.any(Number))
+  })
+
+  it('throws the abort reason when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(extractDocumentText('e1', { signal: controller.signal })).rejects.toBeDefined()
+    expect(getByIdMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('noExtractableTextNote', () => {
+  it('names the file and hints at a scanned/image-only doc', () => {
+    expect(noExtractableTextNote('scan.pdf')).toContain('scan.pdf')
+    expect(noExtractableTextNote('scan.pdf')).toContain('scanned')
   })
 })
