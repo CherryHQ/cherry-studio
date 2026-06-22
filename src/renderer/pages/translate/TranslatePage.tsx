@@ -4,7 +4,11 @@ import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar } from '@renderer/components/app/Navbar'
-import { ModelSelector } from '@renderer/components/Selector'
+// Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
+// via a nested `export *`, which tsgo fails to resolve on main's program (it
+// resolves fine on feat's full program and via this path). Revert to the barrel
+// once main converges with feat. The `Selector` dir is byte-identical to feat.
+import { ModelSelector } from '@renderer/components/Selector/model'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'

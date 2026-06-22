@@ -825,7 +825,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument()
   })
 
-  it('calls onRenameBase with the current knowledge base id and name', () => {
+  it('calls onRenameBase with the current knowledge base id and name', async () => {
     const onRenameBase = vi.fn()
 
     render(
@@ -849,9 +849,11 @@ describe('BaseNavigator', () => {
     fireEvent.click(getBaseMoreButton('Alpha'))
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
 
-    expect(onRenameBase).toHaveBeenCalledWith({
-      id: 'base-1',
-      name: 'Alpha'
+    await waitFor(() => {
+      expect(onRenameBase).toHaveBeenCalledWith({
+        id: 'base-1',
+        name: 'Alpha'
+      })
     })
   })
 
@@ -914,7 +916,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '删除分组' })).toBeInTheDocument()
   })
 
-  it('calls onRenameGroup with the current group id and name', () => {
+  it('calls onRenameGroup with the current group id and name', async () => {
     const onRenameGroup = vi.fn()
 
     render(
@@ -938,9 +940,11 @@ describe('BaseNavigator', () => {
     fireEvent.click(getGroupMoreButton('Research'))
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
 
-    expect(onRenameGroup).toHaveBeenCalledWith({
-      id: 'group-1',
-      name: 'Research'
+    await waitFor(() => {
+      expect(onRenameGroup).toHaveBeenCalledWith({
+        id: 'group-1',
+        name: 'Research'
+      })
     })
   })
 

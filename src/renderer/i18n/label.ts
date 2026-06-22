@@ -202,6 +202,26 @@ export const getSidebarIconLabelKey = (key: string): string => {
   return getLabelKey(sidebarIconKeyMap, key)
 }
 
+// Transitional: feat renamed this to `getSidebarIconLabelKey` (above) and deleted
+// the old one, but main's `components/app/Sidebar` still calls it. Kept until the
+// chat carve brings feat's Sidebar; remove together with that.
+const sidebarFavoriteKeyMap = {
+  assistants: 'assistants.title',
+  agents: 'agent.sidebar_title',
+  store: 'assistants.presets.title',
+  paintings: 'paintings.title',
+  translate: 'translate.title',
+  mini_app: 'miniApp.title',
+  knowledge: 'knowledge.title',
+  files: 'files.title',
+  code_tools: 'code.title',
+  notes: 'notes.title',
+  openclaw: 'openclaw.title'
+} as const
+export const getSidebarFavoriteLabelKey = (key: string): string => {
+  return getLabelKey(sidebarFavoriteKeyMap, key)
+}
+
 const selectionDescriptionKeyMap = {
   linux: 'selection.settings.toolbar.trigger_mode.description_note.linux',
   mac: 'selection.settings.toolbar.trigger_mode.description_note.mac',

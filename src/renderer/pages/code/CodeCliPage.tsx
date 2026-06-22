@@ -14,7 +14,10 @@ import {
 import { dataApiService } from '@data/DataApiService'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { ModelSelector } from '@renderer/components/Selector'
+// Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
+// resolved by tsgo on main's program (resolves on feat's); transitional, reverts
+// to the barrel once main converges with feat.
+import { ModelSelector } from '@renderer/components/Selector/model'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@renderer/config/codeProviders'
 import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -615,7 +618,7 @@ const CodeCliPage: FC = () => {
                         )}
                       />
                       {needsWindowsCustomPath && (
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex min-w-0 items-center gap-2">
                           <Button
                             variant="secondary"
                             size="sm"
@@ -624,7 +627,7 @@ const CodeCliPage: FC = () => {
                             <FolderOpen size={10} />
                             {t('code.set_custom_path')}
                           </Button>
-                          <span className="truncate text-muted-foreground text-xs">
+                          <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
                             {terminalCustomPaths[selectedTerminal]
                               ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                               : t('code.custom_path_required')}

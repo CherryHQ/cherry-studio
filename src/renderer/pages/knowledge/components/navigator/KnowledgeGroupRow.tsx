@@ -1,14 +1,6 @@
-import {
-  Button,
-  ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { MoreHorizontal, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -80,36 +72,27 @@ const KnowledgeGroupRow = ({
             label={group.name}
             itemCount={itemCount}
             actionSlot={
-              <DropdownMenu open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('common.more')}
-                    className={cn(
-                      'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
-                      moreMenuOpen ? 'opacity-100' : 'opacity-0'
-                    )}>
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" side="bottom" sideOffset={8} className="w-45">
-                  <DropdownMenuItem onSelect={handleRenameGroup}>
-                    <PencilLine className="size-3.5" />
-                    <span>{t('knowledge.context.rename')}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={handleCreateBase}>
-                    <Plus className="size-3.5" />
-                    <span>{t('knowledge.groups.create_base_here')}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onSelect={handleRequestDelete}>
-                    <Trash2 className="size-3.5" />
-                    <span>{t('knowledge.groups.delete')}</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <CommandPopupMenu
+                location="webcontents.context"
+                extraItems={contextMenuItems}
+                align="start"
+                side="bottom"
+                sideOffset={8}
+                contentClassName="w-45"
+                open={moreMenuOpen}
+                onOpenChange={setMoreMenuOpen}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('common.more')}
+                  className={cn(
+                    'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
+                    moreMenuOpen ? 'opacity-100' : 'opacity-0'
+                  )}>
+                  <MoreHorizontal />
+                </Button>
+              </CommandPopupMenu>
             }
           />
         </div>

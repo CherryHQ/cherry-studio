@@ -74,7 +74,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => null
 }))
 
-vi.mock('@renderer/components/Selector', async () => {
+vi.mock('@renderer/components/Selector/model', async () => {
   const React = await import('react')
 
   return {

@@ -1,18 +1,6 @@
-import {
-  Button,
-  ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger
-} from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { ArrowRightLeft, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -139,60 +127,27 @@ const KnowledgeBaseRow = ({
               </div>
             </Button>
 
-            <DropdownMenu open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('common.more')}
-                  className={cn(
-                    'text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100',
-                    moreMenuOpen ? 'opacity-100' : 'opacity-0'
-                  )}>
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="w-45">
-                <DropdownMenuItem onSelect={handleRenameBase}>
-                  <PencilLine className="size-3.5" />
-                  <span>{t('knowledge.context.rename')}</span>
-                </DropdownMenuItem>
-                {(canMoveToUngrouped || availableGroups.length > 0) && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <ArrowRightLeft className="size-3.5" />
-                      <span>{t('knowledge.context.move_to')}</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-45">
-                      {canMoveToUngrouped && (
-                        <DropdownMenuItem onSelect={() => void handleMoveBase(null)}>
-                          {t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)}
-                        </DropdownMenuItem>
-                      )}
-                      {availableGroups.length > 0 && canMoveToUngrouped && <DropdownMenuSeparator />}
-                      {availableGroups.length > 0 && (
-                        <>
-                          <DropdownMenuLabel className="text-foreground-muted">
-                            {t('knowledge.context.move_to')}
-                          </DropdownMenuLabel>
-                          {availableGroups.map((group) => (
-                            <DropdownMenuItem key={group.id} onSelect={() => void handleMoveBase(group.id)}>
-                              {group.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </>
-                      )}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={handleRequestDelete}>
-                  <Trash2 className="size-3.5" />
-                  <span>{t('knowledge.context.delete')}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <CommandPopupMenu
+              location="webcontents.context"
+              extraItems={contextMenuItems}
+              align="end"
+              side="bottom"
+              sideOffset={6}
+              contentClassName="w-45"
+              open={moreMenuOpen}
+              onOpenChange={setMoreMenuOpen}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.more')}
+                className={cn(
+                  'text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100',
+                  moreMenuOpen ? 'opacity-100' : 'opacity-0'
+                )}>
+                <MoreHorizontal />
+              </Button>
+            </CommandPopupMenu>
           </div>
         </div>
       </CommandContextMenu>
