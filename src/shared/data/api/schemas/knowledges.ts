@@ -22,6 +22,8 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   fileProcessorId: true,
   chunkSize: true,
   chunkOverlap: true,
+  chunkStrategy: true,
+  chunkSeparator: true,
   threshold: true,
   documentCount: true,
   searchMode: true,

@@ -12,6 +12,8 @@ const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {})
   fileProcessorId: null,
   chunkSize: '512',
   chunkOverlap: '64',
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: null,
   documentCount: 6,
@@ -46,7 +48,9 @@ describe('getKnowledgeRagChunkValidationErrors', () => {
     expect(
       getKnowledgeRagChunkValidationErrors({
         chunkSize: '512',
-        chunkOverlap: '64'
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n'
       })
     ).toEqual({})
   })
@@ -55,7 +59,9 @@ describe('getKnowledgeRagChunkValidationErrors', () => {
     expect(
       getKnowledgeRagChunkValidationErrors({
         chunkSize: '0',
-        chunkOverlap: '64'
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n'
       })
     ).toEqual({
       chunkSize: 'chunkSizeInvalid'
@@ -66,11 +72,37 @@ describe('getKnowledgeRagChunkValidationErrors', () => {
     expect(
       getKnowledgeRagChunkValidationErrors({
         chunkSize: '256',
-        chunkOverlap: '256'
+        chunkOverlap: '256',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n'
       })
     ).toEqual({
       chunkOverlap: 'chunkOverlapMustBeSmaller'
     })
+  })
+
+  it('requires a separator when smart chunking is off', () => {
+    expect(
+      getKnowledgeRagChunkValidationErrors({
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'delimiter',
+        chunkSeparator: ''
+      })
+    ).toEqual({
+      chunkSeparator: 'chunkSeparatorRequired'
+    })
+  })
+
+  it('accepts a delimiter strategy when a separator is provided', () => {
+    expect(
+      getKnowledgeRagChunkValidationErrors({
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '\\n\\n'
+      })
+    ).toEqual({})
   })
 })
 

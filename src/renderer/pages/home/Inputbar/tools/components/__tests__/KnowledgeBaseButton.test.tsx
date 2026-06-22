@@ -62,6 +62,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: 0.1,
   documentCount: 6,
   status: 'completed',

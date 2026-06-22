@@ -79,6 +79,56 @@ export const RagNumericField = ({
   )
 }
 
+/** A single settings row: label (with optional hint) on the left, control on the right. */
+export const RagFieldRow = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) => {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <RagFieldLabel label={label} hint={hint} className="mb-0" />
+      {children}
+    </div>
+  )
+}
+
+/** A {@link RagFieldRow} whose control is a fixed-width text input with an optional trailing unit. */
+export const RagInlineField = ({
+  label,
+  hint,
+  value,
+  suffix,
+  placeholder,
+  inputMode,
+  onChange,
+  controlClassName
+}: {
+  label: string
+  hint?: string
+  value: string
+  suffix?: string
+  placeholder?: string
+  inputMode?: 'numeric' | 'text'
+  onChange: (value: string) => void
+  controlClassName?: string
+}) => {
+  return (
+    <RagFieldRow label={label} hint={hint}>
+      <div className={cn('relative', controlClassName ?? 'w-44')}>
+        <Input
+          value={value}
+          placeholder={placeholder}
+          inputMode={inputMode}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn('shadow-none', suffix ? 'pr-14' : undefined)}
+        />
+        {suffix ? (
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-muted text-xs leading-4">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
+    </RagFieldRow>
+  )
+}
+
 export const RagReadonlyField = ({ label, value, hint }: { label: string; value: string; hint?: string }) => {
   return (
     <div>

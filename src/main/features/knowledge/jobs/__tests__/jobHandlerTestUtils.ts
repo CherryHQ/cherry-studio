@@ -194,6 +194,8 @@ export function createBase(): KnowledgeBase {
     error: null,
     chunkSize: 1024,
     chunkOverlap: 200,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     threshold: undefined,
     documentCount: 10,
     searchMode: 'vector',

@@ -130,3 +130,82 @@ describe('splitTextWithOffsets', () => {
     }
   })
 })
+
+describe('splitTextWithOffsets — separator and strategy', () => {
+  it('splits by a custom separator in delimiter mode and stays verbatim', () => {
+    const text = 'Alpha block.\n\nBeta block.\n\nGamma block.\n\nDelta block.'
+    const chunks = splitTextWithOffsets(text, {
+      chunkSize: 4,
+      chunkOverlap: 0,
+      separator: '\n\n',
+      strategy: 'delimiter'
+    })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+  })
+
+  it('treats an escaped separator the same as its literal characters', () => {
+    const text = 'Alpha block.\n\nBeta block.\n\nGamma block.'
+    const escaped = splitTextWithOffsets(text, {
+      chunkSize: 5,
+      chunkOverlap: 0,
+      separator: '\\n\\n',
+      strategy: 'delimiter'
+    })
+    const literal = splitTextWithOffsets(text, {
+      chunkSize: 5,
+      chunkOverlap: 0,
+      separator: '\n\n',
+      strategy: 'delimiter'
+    })
+
+    expect(escaped).toEqual(literal)
+    expectVerbatimSlices(text, escaped)
+  })
+
+  it('matches the structured strategy when called with default options', () => {
+    const text = '\n## Section\nbody line here for a while.'.repeat(20)
+    const withDefault = splitTextWithOffsets(text, { chunkSize: 30, chunkOverlap: 5 })
+    const withStructured = splitTextWithOffsets(text, { chunkSize: 30, chunkOverlap: 5, strategy: 'structured' })
+
+    expect(withDefault).toEqual(withStructured)
+  })
+
+  it('keeps the invariant across strategies and separators (fuzz)', () => {
+    const fragments = [
+      'Hello world. ',
+      '一段中文。',
+      'A question? ',
+      '\n\n',
+      '## Head\n',
+      '```\ncode\n```\n',
+      '   ',
+      'tail',
+      '12.5 km. ',
+      '|'
+    ]
+    const separators = ['', '\\n\\n', '。', '. ', '|']
+    const strategies = ['structured', 'delimiter'] as const
+    // Deterministic LCG so the fuzz is reproducible without Math.random.
+    let seed = 0x13572468
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed / 0x7fffffff
+    }
+
+    for (let iter = 0; iter < 80; iter++) {
+      const pieces = Math.floor(rand() * 30)
+      let text = ''
+      for (let p = 0; p < pieces; p++) {
+        text += fragments[Math.floor(rand() * fragments.length)]
+      }
+      const chunkSize = 1 + Math.floor(rand() * 30)
+      const chunkOverlap = Math.floor(rand() * chunkSize)
+      const separator = separators[Math.floor(rand() * separators.length)]
+      const strategy = strategies[Math.floor(rand() * strategies.length)]
+      const chunks = splitTextWithOffsets(text, { chunkSize, chunkOverlap, separator, strategy })
+      expectVerbatimSlices(text, chunks)
+    }
+  })
+})
