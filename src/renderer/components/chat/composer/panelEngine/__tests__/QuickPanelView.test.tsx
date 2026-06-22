@@ -3,10 +3,10 @@ import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PANEL_SAFE_MARGIN } from '../heights'
-import { useQuickPanel } from '../hook'
-import { QuickPanelProvider } from '../provider'
+import { QuickPanelProvider } from '../QuickPanelProvider'
+import { QuickPanelView } from '../QuickPanelView'
 import type { QuickPanelContextType, QuickPanelInputAdapter, QuickPanelListItem, QuickPanelTriggerInfo } from '../types'
-import { QuickPanelView } from '../view'
+import { useQuickPanel } from '../useQuickPanel'
 
 const virtualListMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),

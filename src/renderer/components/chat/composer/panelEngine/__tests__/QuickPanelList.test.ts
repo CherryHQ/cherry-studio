@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { firstQuickPanelSelectableIndex, moveQuickPanelSelectableIndex } from '../list'
+import { firstQuickPanelSelectableIndex, moveQuickPanelSelectableIndex } from '../QuickPanelList'
 
 const createItems = (): { id: string; disabled?: boolean }[] => [
   { id: 'one' },

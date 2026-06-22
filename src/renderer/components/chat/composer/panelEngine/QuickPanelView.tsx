@@ -17,8 +17,8 @@ import {
   QuickPanelFooter,
   QuickPanelReadOnlyHeader,
   QuickPanelRow
-} from './list'
-import { QuickPanelContext } from './provider'
+} from './QuickPanelList'
+import { QuickPanelContext } from './QuickPanelProvider'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelCloseAction,
