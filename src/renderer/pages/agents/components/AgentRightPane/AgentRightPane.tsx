@@ -21,7 +21,7 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessio
 import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
+import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
