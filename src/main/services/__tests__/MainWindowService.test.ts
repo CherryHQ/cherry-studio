@@ -141,7 +141,9 @@ interface MockBrowserWindow extends EventEmitter {
   show: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
   restore: ReturnType<typeof vi.fn>
+  minimize: ReturnType<typeof vi.fn>
   maximize: ReturnType<typeof vi.fn>
+  setOpacity: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
@@ -162,7 +164,9 @@ function createMockWindow(): MockBrowserWindow {
   win.show = vi.fn()
   win.focus = vi.fn()
   win.restore = vi.fn()
+  win.minimize = vi.fn()
   win.maximize = vi.fn()
+  win.setOpacity = vi.fn()
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
@@ -387,7 +391,7 @@ describe('MainWindowService', () => {
       expect(win.hide).not.toHaveBeenCalled()
     })
 
-    it('preventDefaults and hides on Win when tray + on_close are both enabled', () => {
+    it('preventDefaults and minimizes on Win when tray + on_close are both enabled', () => {
       platformState.isWin = true
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
@@ -398,7 +402,11 @@ describe('MainWindowService', () => {
 
       expect(applicationMock.quit).not.toHaveBeenCalled()
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
-      expect(win.hide).toHaveBeenCalledTimes(1)
+      // Windows minimize-to-tray: setOpacity(0) + minimize() so the OS refocuses
+      // the previously active window (hide() leaves nothing focused).
+      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
     })
 
     it('hides on macOS by default (system handles dock + relaunch)', () => {
@@ -472,6 +480,20 @@ describe('MainWindowService', () => {
       svc.toggleMainWindow()
 
       expect(win.hide).toHaveBeenCalledTimes(1)
+      expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
+    })
+
+    it('minimizes a focused visible main window on Win (returns focus to previous window)', () => {
+      platformState.isWin = true
+      ;(svc as any).mainWindow = win
+
+      svc.toggleMainWindow()
+
+      // Same Windows minimize-to-tray trick as the close handler: minimize() so the
+      // OS refocuses the previously active window, with setOpacity(0) to hide the animation.
+      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
 
