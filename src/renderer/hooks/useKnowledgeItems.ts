@@ -49,6 +49,15 @@ const refreshKnowledgeItemsCaches = async (
 }
 
 export const useKnowledgeItems = (baseId: string) => {
+  // Without this, polling revalidates only page 0 (SWR's `revalidateFirstPage` default), and a
+  // pure status flip never changes the keyset cursors, so later pages keep their key — a
+  // non-terminal row on page ≥2 would stay stale forever AND keep `hasNonTerminalItem` true,
+  // spinning the 2s interval with no end. While anything is processing, revalidate every loaded
+  // page so later-page rows reach a terminal status and polling can stop; otherwise keep it off
+  // so a scroll-to-bottom stays a single fetch. Driven off the previous render's pages because
+  // the value feeds the config that produces those pages.
+  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
+
   const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases/:id/items', {
     params: { id: baseId },
     query: KNOWLEDGE_V2_ITEMS_QUERY,
@@ -56,9 +65,14 @@ export const useKnowledgeItems = (baseId: string) => {
     enabled: Boolean(baseId),
     swrOptions: {
       refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
-        hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0
+        hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0,
+      revalidateAll: revalidateAllPages
     }
   })
+
+  useEffect(() => {
+    setRevalidateAllPages(hasNonTerminalItem(pages))
+  }, [pages])
 
   const items = useInfiniteFlatItems(pages)
   // Server-side total across all pages, read off page 0 (every page carries the same `total`).

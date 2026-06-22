@@ -13,7 +13,8 @@ const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
     limit: 50,
     enabled,
     swrOptions: {
-      refreshInterval: expect.any(Function)
+      refreshInterval: expect.any(Function),
+      revalidateAll: expect.any(Boolean)
     }
   })
 }
@@ -185,6 +186,41 @@ describe('useKnowledgeItems', () => {
     expect(loadNext).toHaveBeenCalledTimes(2)
   })
 
+  it('clears the in-flight load-more when the fetch errors and allows a retry', () => {
+    // The `|| error` reset branch lets a failed load-more be retried. pages don't grow and
+    // hasNext stays true, so ONLY the error branch can settle the stuck in-flight flag.
+    const loadNext = vi.fn()
+    let queryResult = {
+      pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryResult)
+
+    const { result, rerender } = renderHook(() => useKnowledgeItems('base-1'))
+
+    act(() => result.current.loadMore())
+    expect(result.current.isLoadingMore).toBe(true)
+
+    // The load-more rejects.
+    queryResult = { ...queryResult, error: new Error('load failed') }
+    rerender()
+
+    expect(result.current.isLoadingMore).toBe(false)
+
+    // Once the error clears the user can retry, which fires loadNext again.
+    queryResult = { ...queryResult, error: undefined }
+    rerender()
+
+    act(() => result.current.loadMore())
+    expect(loadNext).toHaveBeenCalledTimes(2)
+    expect(result.current.isLoadingMore).toBe(true)
+  })
+
   it('does not load more when there is no next page', () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue({
@@ -262,5 +298,53 @@ describe('useKnowledgeItems', () => {
         }
       ])
     ).toBe(0)
+  })
+
+  it('revalidates every loaded page while any item is non-terminal so later-page rows refresh', () => {
+    // Otherwise polling only revalidates page 0 and a non-terminal row on a later page stays stale
+    // forever while the interval spins endlessly.
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    renderHook(() => useKnowledgeItems('base-1'))
+
+    // The effect re-renders after promoting revalidateAll, so the latest call carries the new value.
+    const lastCall = mockUseInfiniteQuery.mock.calls.at(-1)
+    expect(lastCall?.[1].swrOptions.revalidateAll).toBe(true)
+  })
+
+  it('stops revalidating later pages once every item reaches a terminal status', () => {
+    // Start processing so the effect promotes revalidateAll, then finish: the reset back to false
+    // is what keeps a later scroll-to-bottom a single fetch. (A static all-terminal render would
+    // pass vacuously off the initial useState(false), so drive the real true -> false transition.)
+    let queryResult = {
+      pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryResult)
+
+    const { rerender } = renderHook(() => useKnowledgeItems('base-1'))
+
+    expect(mockUseInfiniteQuery.mock.calls.at(-1)?.[1].swrOptions.revalidateAll).toBe(true)
+
+    queryResult = {
+      ...queryResult,
+      pages: [{ items: [makeItem({ id: 'done', status: 'completed' })], total: 1, nextCursor: undefined }]
+    }
+    rerender()
+
+    expect(mockUseInfiniteQuery.mock.calls.at(-1)?.[1].swrOptions.revalidateAll).toBe(false)
   })
 })
