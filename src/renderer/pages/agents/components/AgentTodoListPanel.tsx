@@ -1,8 +1,3 @@
-/**
- * Mock-only preview: tasks and details come from in-file fixtures, not a real data source.
- * Lives in ComponentLabSettings so the visual contract can be reviewed before the agent
- * execution todo/progress API is decided.
- */
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import {

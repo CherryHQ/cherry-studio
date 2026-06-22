@@ -8,6 +8,7 @@ const useProviderMock = vi.fn()
 const isAnthropicSupportedProviderMock = vi.fn()
 const isAzureOpenAIProviderMock = vi.fn()
 const isOpenAICompatibleProviderMock = vi.fn()
+const isSystemProviderMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: unknown[]) => useProviderMock(...args)
@@ -37,7 +38,8 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 vi.mock('@shared/utils/provider', () => ({
   isAnthropicSupportedProvider: (...args: unknown[]) => isAnthropicSupportedProviderMock(...args),
   isAzureOpenAIProvider: (...args: unknown[]) => isAzureOpenAIProviderMock(...args),
-  isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args)
+  isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args),
+  isSystemProvider: (...args: unknown[]) => isSystemProviderMock(...args)
 }))
 
 vi.mock('@cherrystudio/ui', () => {
@@ -79,6 +81,12 @@ const provider = {
     enableThinking: true
   },
   settings: {
+    serviceTier: undefined,
+    summaryText: undefined,
+    verbosity: undefined,
+    streamOptions: {
+      includeUsage: undefined
+    },
     cacheControl: {
       enabled: true,
       tokenThreshold: 1024,
@@ -99,6 +107,7 @@ describe('ProviderApiOptionsDrawer', () => {
     isOpenAICompatibleProviderMock.mockReturnValue(true)
     isAzureOpenAIProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(true)
+    isSystemProviderMock.mockReturnValue(false)
   })
 
   it('patches apiFeatures when an option changes', () => {
@@ -142,6 +151,7 @@ describe('ProviderApiOptionsDrawer', () => {
 
     expect(screen.getByLabelText('settings.provider.api.options.array_content.label')).toBeInTheDocument()
     expect(screen.queryByLabelText('settings.provider.api.options.developer_role.label')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.openai.title')).not.toBeInTheDocument()
     expect(
       screen.queryByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')
     ).not.toBeInTheDocument()
