@@ -516,6 +516,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'ELECTRON_NO_ATTACH_CONSOLE',
       'CLAUDE_CONFIG_DIR',
       'CLAUDE_CODE_USE_BEDROCK',
+      'CLAUDE_CODE_USE_VERTEX',
       'CLAUDE_CODE_GIT_BASH_PATH',
       'ENABLE_TOOL_SEARCH',
       'CHERRY_STUDIO_NODE_PROXY_RULES',
@@ -554,7 +555,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     delete env.ANTHROPIC_CUSTOM_HEADERS
     delete env.CLAUDE_CODE_OAUTH_TOKEN
     if (!isMac) {
-      env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR ?? path.join(application.getPath('sys.home'), '.claude')
+      env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
   }
 

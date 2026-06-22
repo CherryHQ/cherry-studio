@@ -619,6 +619,32 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
     })
 
+    it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell exports it empty', async () => {
+      // An empty CLAUDE_CONFIG_DIR must not pass through (it would point the SDK at /.credentials.json);
+      // the fallback uses || so it matches CodeCliService's login probe rather than diverging from it.
+      mocks.getLoginShellEnvironment.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+    })
+
+    it('blocks a user env_var override of CLAUDE_CODE_USE_VERTEX', async () => {
+      // CLAUDE_CODE_USE_VERTEX is a runtime-forced routing flag, like CLAUDE_CODE_USE_BEDROCK;
+      // user env_vars must not be able to flip it on.
+      mocks.getLoginShellEnvironment.mockResolvedValue({})
+
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        {
+          id: 'claude-code',
+          configuration: { env_vars: { CLAUDE_CODE_USE_VERTEX: '1' } }
+        } as never
+      )
+
+      expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
+    })
+
     it('leaves inherited Anthropic credentials intact for a non-login provider', async () => {
       mocks.getLoginShellEnvironment.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
 
