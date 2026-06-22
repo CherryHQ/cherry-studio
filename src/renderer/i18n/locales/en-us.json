@@ -2257,6 +2257,7 @@
       "failed_to_edit": "Failed to edit knowledge base",
       "failed_to_move": "Failed to move knowledge base",
       "missing_embedding_model": "The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "missing_vector_store": "This knowledge base's vector store could not be read during migration (missing, empty, or locked). The knowledge base was kept; re-index it to recover.",
       "model_invalid": "No model selected"
     },
     "groups": {
@@ -2356,6 +2357,8 @@
       "action": "Rebuild knowledge base",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Failed to rebuild knowledge base",
+      "skipped_missing_sources_one": "Skipped {{count}} item whose source no longer exists",
+      "skipped_missing_sources_other": "Skipped {{count}} items whose source no longer exists",
       "submit": "Rebuild",
       "title": "Rebuild Knowledge Base"
     },

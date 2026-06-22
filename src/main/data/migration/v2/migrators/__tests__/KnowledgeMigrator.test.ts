@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { createClient } from '@libsql/client'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -383,11 +384,22 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const result = await migrator.prepare(ctx)
 
     expect(result.success).toBe(true)
-    expect(migrator.preparedBases).toHaveLength(0)
-    expect(migrator.preparedItems).toHaveLength(0)
-    expect(migrator.skippedCount).toBe(3)
+    // The embedding model resolved but the vector store is empty, so dimensions are unknown.
+    // Keep the base (and its items) as a restorable `failed` row instead of dropping it — a
+    // dropped base is an unrecoverable loss with no restore entry in the UI.
+    expect(migrator.preparedBases).toHaveLength(1)
+    expect(migrator.preparedBases[0]).toMatchObject({
+      status: 'failed',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
+      dimensions: null,
+      embeddingModelId: 'openai::m1'
+    })
+    expect(migrator.preparedItems).toHaveLength(2)
+    expect(migrator.skippedCount).toBe(0)
     expect(migrator.sourceCount).toBe(3)
-    expect(result.warnings?.some((warning: string) => warning.includes('Skipped knowledge base kb-empty'))).toBe(true)
+    expect(
+      result.warnings?.some((warning: string) => warning.includes('kb-empty') && warning.includes('failed base'))
+    ).toBe(true)
   })
 
   it('prepare preserves knowledge base and items with dangling embedding model reference', async () => {
@@ -511,7 +523,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.legacyBaseIdRemap.get('kb-small-chunk')).toMatch(UUIDV4_PATTERN)
   })
 
-  it('prepare skips base and items when legacy knowledge store path is a directory', async () => {
+  it('prepare keeps the base as a restorable failed row when the legacy store path is a directory', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
       dimensions: null,
@@ -546,13 +558,19 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const result = await migrator.prepare(ctx)
 
     expect(result.success).toBe(true)
-    expect(migrator.preparedBases).toHaveLength(0)
-    expect(migrator.preparedItems).toHaveLength(0)
-    expect(migrator.skippedCount).toBe(3)
+    expect(migrator.preparedBases).toHaveLength(1)
+    expect(migrator.preparedBases[0]).toMatchObject({
+      status: 'failed',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
+      dimensions: null,
+      embeddingModelId: 'openai::m1'
+    })
+    expect(migrator.preparedItems).toHaveLength(2)
+    expect(migrator.skippedCount).toBe(0)
     expect(migrator.sourceCount).toBe(3)
     expect(
-      result.warnings?.some((warning: string) =>
-        warning.includes('Skipped knowledge base kb-dir: legacy_vector_store_directory')
+      result.warnings?.some(
+        (warning: string) => warning.includes('kb-dir') && warning.includes('legacy_vector_store_directory')
       )
     ).toBe(true)
   })
@@ -1051,6 +1069,70 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.directoryChildLoaderRemap.size).toBe(0)
     // An `empty` store stays quiet — only a `read_error` warrants the base-level "unreadable" warning.
     expect(migrator.warnings.some((warning: string) => warning.includes('unreadable'))).toBe(false)
+  })
+
+  it('prepare skips the legacy vector-store read when a resolved-model base has null dimensions', async () => {
+    // Gate: directory expansion reads the legacy store only when `vectorsWillMigrate` (model resolved
+    // AND dimensions !== null). A resolved model whose store is unreadable yields dimensions===null, so
+    // the base is kept as a `missing_vector_store` failed row and its folders stay tombstones — without
+    // touching the (missing/locked) DB. A regression loosening the gate back to `kind === 'resolved'`
+    // would still tombstone the folder but would needlessly read the DB (and emit a spurious read_error
+    // warning when locked); only asserting loadLoaderSourceMap is never called catches that.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: null, reason: 'vector_db_empty' })
+    const loadLoaderSourceMapSpy = vi
+      .spyOn(migrator, 'loadLoaderSourceMap')
+      .mockResolvedValue({ kind: 'loaded', sources: new Map<string, string>() })
+
+    const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-dir',
+                name: 'KB dir',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                items: [
+                  {
+                    id: 'item-directory',
+                    type: 'directory',
+                    content: '/docs',
+                    uniqueId: 'DirectoryLoader_indexed',
+                    uniqueIds: ['loader-dir-a']
+                  }
+                ]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      },
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockResolvedValue([{ id: 'silicon::BAAI/bge-m3' }])
+        })
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+    expect(result.success).toBe(true)
+
+    // Gate short-circuited: the legacy vector store was never read.
+    expect(loadLoaderSourceMapSpy).not.toHaveBeenCalled()
+
+    // Base kept as a restorable missing_vector_store failure; the directory stays a tombstone with no
+    // synthesized children.
+    expect(migrator.preparedBases[0]).toMatchObject({
+      status: 'failed',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+    })
+    const migratedId = migrator.legacyItemIdRemap.get('item-directory')
+    expect(migrator.preparedItems.filter((item: any) => item.groupId === migratedId)).toHaveLength(0)
   })
 
   it('prepare keeps an interrupted directory as a failed item instead of expanding it', async () => {
