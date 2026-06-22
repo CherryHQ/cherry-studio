@@ -15,7 +15,7 @@ import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss 
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import { SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
@@ -283,11 +283,11 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
-            <Markdown>
+            <Streamdown mode="static">
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
                 : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Markdown>
+            </Streamdown>
           </div>
         </SettingGroup>
       )}

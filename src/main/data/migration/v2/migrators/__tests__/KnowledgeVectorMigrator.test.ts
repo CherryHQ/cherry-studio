@@ -7,8 +7,13 @@ import { createClient } from '@libsql/client'
 import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
+import * as libsqlDriverModule from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+} from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -89,6 +94,7 @@ interface MigratedKnowledgeBaseRow {
   dimensions: number
   embeddingModelId: string | null
   status: 'completed' | 'failed'
+  error?: string | null
   chunkSize: number
   chunkOverlap: number
   fileProcessorId?: string | null
@@ -97,6 +103,7 @@ interface MigratedKnowledgeBaseRow {
 interface MigratedKnowledgeItemRow {
   id: string
   baseId: string
+  groupId?: string | null
   type: 'file' | 'url' | 'note' | 'directory'
   data: Record<string, unknown>
 }
@@ -744,6 +751,101 @@ describe('KnowledgeVectorMigrator', () => {
       ).toBe(true)
     })
 
+    it('attributes a failed base with a resolved model to its real error, not missing-model (C5)', async () => {
+      // A base KnowledgeMigrator already marked `failed`/`missing_vector_store` (its legacy store was
+      // unreadable, but its embedding model still resolved) reaches this skip branch via
+      // `status==='failed'` with a non-null embeddingModelId. The summary warning must key on its
+      // actual `base.error`, not lump it into "missing embedding model" — which would misdirect triage.
+      const loadBase = vi.fn()
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: { loadBase } as any,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(loadBase).not.toHaveBeenCalled()
+      expect(migrator.preparedBasePlans).toEqual([])
+      // Keyed on the real error...
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE}): count=1`)
+        )
+      ).toBe(true)
+      // ...never misreported as a missing model.
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL})`)
+        )
+      ).toBe(false)
+    })
+
+    it('skips a base with invalid dimensions and degrades its directory items (P0-3 gate)', async () => {
+      // A base whose recorded dimensions are non-positive cannot index vectors, so it is skipped.
+      // When that base is a directory expansion, its virtual-path children must still be degraded
+      // (they can never reindex), exactly like the other prepare-time skips.
+      const CHILD_A = '0198f3f2-7d70-7abc-8def-123456789abc'
+      const loadBase = vi.fn()
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase({ dimensions: 0 })],
+        knowledgeVectorSource: { loadBase } as any,
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([[MIGRATED_KNOWLEDGE_BASE_ID, new Map([['loader-dir-a', CHILD_A]])]])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      // The invalid-dimensions gate fires before the legacy store is even read.
+      expect(loadBase).not.toHaveBeenCalled()
+      expect(migrator.preparedBasePlans).toEqual([])
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, MIGRATED_DIRECTORY_ITEM_ID].sort())
+      expect(
+        result.warnings?.some((warning: string) =>
+          warning.includes('Skipped knowledge vector records (invalid_dimensions): count=1')
+        )
+      ).toBe(true)
+    })
+
     it('keeps an unreadable legacy vector DB as a recoverable per-base skip', async () => {
       const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
       const migrationCtx = createMigrationCtx({
@@ -792,6 +894,158 @@ describe('KnowledgeVectorMigrator', () => {
             warning.includes('loadBase failed')
         )
       ).toBe(true)
+    })
+
+    it('degrades a directory child orphaned by a cross-directory shared loader-id collision (F3)', async () => {
+      // Two `completed` v1 folders in one base recursively include the same physical file (a parent
+      // folder and its subfolder, or the same folder added twice). v1 books that file's chunks under
+      // one loader id; KnowledgeMigrator expands BOTH folders, minting a child per folder, and its
+      // flat last-write-wins loaderId->childId remap keeps only the later child (CHILD_B). CHILD_A
+      // must still be degraded: collectDirectoryGroups derives groups from the migrated rows' groupId,
+      // so the orphaned child (which draws no chunks) is found and degraded instead of being left a
+      // silent `completed` empty doc with no vectors and no raw/ file.
+      const CONTAINER_A = '0198f3f2-7e10-7abc-8def-123456789abc'
+      const CONTAINER_B = '0198f3f2-7e11-7abc-8def-123456789abc'
+      const CHILD_A = '0198f3f2-7e12-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7e13-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-shared-0',
+          pageContent: 'shared file chunk',
+          uniqueLoaderId: 'loader-shared',
+          source: '/docs/sub/x.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(CONTAINER_A, { type: 'directory', groupId: null, data: { source: '/docs' } }),
+          createMigratedItem(CONTAINER_B, { type: 'directory', groupId: null, data: { source: '/docs/sub' } }),
+          createMigratedItem(CHILD_A, {
+            groupId: CONTAINER_A,
+            data: { source: '/docs/sub/x.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: CONTAINER_B,
+            data: { source: '/docs/sub/x.md', relativePath: CHILD_B }
+          })
+        ],
+        knowledgeItemIdRemap: new Map([
+          ['item-dir-a', CONTAINER_A],
+          ['item-dir-b', CONTAINER_B]
+        ]),
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  { id: 'item-dir-a', type: 'directory', uniqueId: 'DirectoryLoader_a', uniqueIds: ['loader-shared'] },
+                  { id: 'item-dir-b', type: 'directory', uniqueId: 'DirectoryLoader_b', uniqueIds: ['loader-shared'] }
+                ]
+              }
+            ]
+          }
+        }
+      })
+      // Last-write-wins precondition: CHILD_B overwrote CHILD_A for the shared loader id.
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([[MIGRATED_KNOWLEDGE_BASE_ID, new Map([['loader-shared', CHILD_B]])]])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      // The shared loader's chunk lands on the surviving child; the orphaned CHILD_A and its now-empty
+      // container are degraded instead of left silently `completed`.
+      expect(materialItemIds(migrator)).toEqual([CHILD_B])
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, CONTAINER_A].sort())
+      expect(migrator.skippedCount).toBe(0)
+    })
+
+    it('keeps a standalone file item as vector owner when a directory child shares its loader id (F4)', async () => {
+      // One base holds both a standalone file item (added on its own) and a `completed` folder that
+      // recursively includes the same file. v1 books that file's chunks under one loader id shared by
+      // both. The standalone item owns a real raw/ file and is reindexable; the directory child is a
+      // virtual-path doc. Re-attribution must NOT steal the loader from the standalone — it keeps its
+      // vectors (stays searchable) and the redundant directory child is degraded.
+      const STANDALONE_FILE = '0198f3f2-7e20-7abc-8def-123456789abc'
+      const CONTAINER = '0198f3f2-7e21-7abc-8def-123456789abc'
+      const CHILD = '0198f3f2-7e22-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-shared-0',
+          pageContent: 'report chunk',
+          uniqueLoaderId: 'loader-report',
+          source: '/docs/report.pdf',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(STANDALONE_FILE, {
+            groupId: null,
+            data: { source: '/docs/report.pdf', relativePath: 'report.pdf' }
+          }),
+          createMigratedItem(CONTAINER, { type: 'directory', groupId: null, data: { source: '/docs' } }),
+          createMigratedItem(CHILD, {
+            groupId: CONTAINER,
+            data: { source: '/docs/report.pdf', relativePath: CHILD }
+          })
+        ],
+        knowledgeItemIdRemap: new Map([
+          ['item-file', STANDALONE_FILE],
+          ['item-directory', CONTAINER]
+        ]),
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  { id: 'item-file', type: 'file', uniqueId: 'loader-report' },
+                  {
+                    id: 'item-directory',
+                    type: 'directory',
+                    uniqueId: 'DirectoryLoader_x',
+                    uniqueIds: ['loader-report']
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([[MIGRATED_KNOWLEDGE_BASE_ID, new Map([['loader-report', CHILD]])]])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      // The standalone item keeps the loader's vectors; the redundant directory child is degraded.
+      expect(materialItemIds(migrator)).toEqual([STANDALONE_FILE])
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD, CONTAINER].sort())
+      expect(
+        result.warnings?.some(
+          (warning: string) =>
+            warning.includes('Skipped knowledge vector records (directory_child_loader_conflict): count=1') &&
+            warning.includes('loader-report')
+        )
+      ).toBe(true)
+      expect(migrator.skippedCount).toBe(0)
     })
   })
 
@@ -980,6 +1234,390 @@ describe('KnowledgeVectorMigrator', () => {
       )
       expect(store.embedding).toHaveLength(2)
       expect(store.content.map((c) => String(c.text)).sort()).toEqual(['api readme', 'web readme'])
+    })
+
+    it('degrades directory-expanded children and their container when the base is skipped (read TOCTOU)', async () => {
+      // KnowledgeMigrator (order 1.8) read the legacy store, expanded a v1 folder into a `completed`
+      // directory container plus per-file `completed` children, and published the loader->child
+      // remap. By the time the vector migrator (order 3.5) runs, that legacy store has become
+      // unreadable, so the base is skipped and the children never receive vectors. Each child's
+      // `data.source` is a virtual path with no raw/ file, so it cannot reindex — left `completed`
+      // it would be a silent empty doc. The children and their now-empty container must be degraded
+      // to failed/directory_not_migrated so the UI prompts a re-add.
+      const CHILD_A = '0198f3f2-7d40-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7d41-7abc-8def-123456789abc'
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
+        } as any,
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/web/README.md', relativePath: CHILD_B }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a', 'loader-dir-b'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', CHILD_A],
+              ['loader-dir-b', CHILD_B]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      // No vector plan survived — the only base was skipped on the unreadable store.
+      expect(migrator.preparedBasePlans).toHaveLength(0)
+      // Container + both children are queued for degrade.
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual(
+        [CHILD_A, CHILD_B, MIGRATED_DIRECTORY_ITEM_ID].sort()
+      )
+
+      // The flush runs even with zero plans because it precedes execute()'s empty-plan early-return.
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      expect(degradeWrites).toHaveLength(1)
+      expect(degradeWrites[0].values).toEqual({
+        status: 'failed',
+        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      })
+    })
+
+    it('surfaces an execute-phase degrade-flush failure in the execute result warnings', async () => {
+      // The degrade UPDATE can fail at execute time (e.g. a transient DB error); that warning lands
+      // in this.warnings, which prepare() already returned to the engine. execute() must therefore
+      // surface only its own warning slice — otherwise the failure is invisible to the migration
+      // summary. Regression for the prepare()/execute() warnings asymmetry: execute() previously
+      // returned executionErrors only, dropping degrade-flush warnings entirely.
+      const CHILD_A = '0198f3f2-7d60-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7d61-7abc-8def-123456789abc'
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
+        } as any,
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/web/README.md', relativePath: CHILD_B }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a', 'loader-dir-b'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', CHILD_A],
+              ['loader-dir-b', CHILD_B]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      expect(migrator.preparedBasePlans).toHaveLength(0)
+      // prepare() recorded the skipped base, so its warning set is non-empty — the disjointness check
+      // below is meaningful.
+      expect(prepareResult.warnings?.length ?? 0).toBeGreaterThan(0)
+
+      // Make the degrade UPDATE fail at execute time so flushDirectoryDegradations records a warning.
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => {
+            throw new Error('disk I/O error')
+          })
+        }))
+      })) as any
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      // The execute-phase flush failure is surfaced (was dropped before the fix).
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('Failed to degrade'))).toBe(true)
+      // prepare()'s warnings are not re-reported by execute() (no double-count across the engine's
+      // prepare + execute warnings merge).
+      const prepareWarnings = prepareResult.warnings ?? []
+      expect(executeResult.warnings?.some((warning: string) => prepareWarnings.includes(warning))).toBe(false)
+    })
+
+    it('degrades only the directory children that got no vectors, keeping a container with a survivor', async () => {
+      // The base loads, but only one of the folder's two files still has a migratable vector. The
+      // child that drew chunks stays `completed` and indexes normally; the empty child is degraded
+      // to failed/directory_not_migrated (its virtual path cannot reindex). One survivor keeps the
+      // container `completed`, so the container is NOT degraded.
+      const CHILD_A = '0198f3f2-7d50-7abc-8def-123456789abc'
+      const CHILD_B = '0198f3f2-7d51-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-dir-a-0',
+          pageContent: 'api readme',
+          uniqueLoaderId: 'loader-dir-a',
+          source: '/docs/api/README.md',
+          vector: [1, 2]
+        }
+        // loader-dir-b is intentionally absent: child B's file lost its vector in v1.
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          }),
+          createMigratedItem(CHILD_B, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/web/README.md', relativePath: CHILD_B }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a', 'loader-dir-b'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', CHILD_A],
+              ['loader-dir-b', CHILD_B]
+            ])
+          ]
+        ])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+      expect(prepareResult.success).toBe(true)
+      // Only the empty child is degraded; the surviving child and its container are left alone.
+      expect([...migrator.directoryItemsToDegrade]).toEqual([CHILD_B])
+      // The surviving child still produced a material to rebuild.
+      expect(materialItemIds(migrator)).toEqual([CHILD_A])
+
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      expect(degradeWrites).toHaveLength(1)
+      expect(degradeWrites[0].values).toEqual({
+        status: 'failed',
+        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      })
+    })
+
+    it('degrades the whole directory group when a base whose children had vectors fails in execute (C1+I2)', async () => {
+      // The directory base loads and its child draws a chunk, so prepare() degrades nothing and a
+      // plan is created. The rebuild then throws in execute(). The per-base skip (C1) keeps the
+      // migration alive — which, without I2, would leave the child `completed` with no vectors and
+      // no raw/ file (an unreindexable silent orphan). I2: on the failure the base's entire
+      // directory group (container + child) is degraded to failed/directory_not_migrated, and C1
+      // credits its expected unit to skippedCount so validate() still reconciles.
+      const CHILD_A = '0198f3f2-7d60-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-dir-a-0',
+          pageContent: 'api readme',
+          uniqueLoaderId: 'loader-dir-a',
+          source: '/docs/api/README.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            groupId: null,
+            data: { source: '/docs' }
+          }),
+          createMigratedItem(CHILD_A, {
+            groupId: MIGRATED_DIRECTORY_ITEM_ID,
+            data: { source: '/docs/api/README.md', relativePath: CHILD_A }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-directory', type: 'directory', uniqueIds: ['loader-dir-a'] }]
+              }
+            ]
+          }
+        }
+      })
+      migrationCtx.sharedData.set(
+        'knowledgeDirectoryChildLoaderRemap',
+        new Map([[MIGRATED_KNOWLEDGE_BASE_ID, new Map([['loader-dir-a', CHILD_A]])]])
+      )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      // The child drew a chunk, so prepare() degraded nothing and the base produced a material.
+      expect([...migrator.directoryItemsToDegrade]).toEqual([])
+      expect(materialItemIds(migrator)).toEqual([CHILD_A])
+
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      // I2: container + child are degraded once the base fails, not left silently `completed`.
+      expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, MIGRATED_DIRECTORY_ITEM_ID].sort())
+      const degradeWrites = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      )
+      expect(degradeWrites).toHaveLength(1)
+      expect(degradeWrites[0].values).toEqual({
+        status: 'failed',
+        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      })
+      // The store never landed, so the base is also marked failed/missing_vector_store (restorable).
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+      const baseFailures = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+      )
+      expect(baseFailures).toEqual([{ values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }])
+      // C1: the failed base's expected unit is credited so the engine reconciliation balances.
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
+    })
+
+    it('batches the directory degrade UPDATE under the SQLite bound-variable cap (I1)', async () => {
+      // A corpus large enough to accumulate thousands of orphaned directory items would overflow a
+      // single inArray UPDATE; the flush chunks at DEGRADE_UPDATE_CHUNK (500) so the degrade write
+      // never trips "too many SQL variables" (which would be swallowed as a warning, silently
+      // re-orphaning the batch). Seed the degrade set directly and flush via the empty-plan path.
+      const migrationCtx = createMigrationCtx({ migratedBases: [], migratedItems: [], reduxData: {} })
+      const migrator = new KnowledgeVectorMigrator() as any
+      const ids = Array.from({ length: 1100 }, (_, i) => `orphan-item-${i}`)
+      for (const id of ids) {
+        migrator.directoryItemsToDegrade.add(id)
+      }
+
+      // No prepared plans → execute() flushes the degrade set before its early return.
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // The mock db records only `values`, not the inArray predicate, so this pins the batch COUNT
+      // (overflow avoidance) rather than the exact id partition; partitioning is a plain slice loop.
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      expect(degradeWrites).toHaveLength(3) // 500 + 500 + 100
+      for (const write of degradeWrites) {
+        expect(write.values).toEqual({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED })
+      }
+    })
+
+    it('opens the rebuild store with serializedSingleConnection so a refactor cannot silently drop it (P0-2b)', async () => {
+      // P0-2b eliminated the per-material libsql connection leak by opting the rebuild driver into
+      // single-connection mode. Assert the migrator actually passes the flag — without this a
+      // refactor that dropped the option would leak a handle on the just-built store that, on Windows,
+      // blocks the catch's removeIndexStoreFiles and the later base-dir deletion, yet stay green.
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // Spy after prepare (which never opens a driver); the default spy calls through, so the real
+      // rebuild still runs.
+      const openDriverSpy = vi.spyOn(libsqlDriverModule, 'openLibsqlIndexDriver')
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      const rebuildOpen = openDriverSpy.mock.calls.find(([, options]) => options?.serializedSingleConnection === true)
+      expect(rebuildOpen).toBeDefined()
     })
 
     it('scopes the directory-child loader remap per base so a shared loader id never clobbers across bases', async () => {
@@ -1225,7 +1863,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
     })
 
-    it('removes the target store with EBUSY-survivable retry options before renaming', async () => {
+    it('removes the target store with EBUSY-survivable retry options before building in place', async () => {
       const migrator = new KnowledgeVectorMigrator() as any
       const dbPath = path.join(knowledgeBaseDir, 'ebusy', '.cherry', 'index.sqlite')
 
@@ -1268,7 +1906,7 @@ describe('KnowledgeVectorMigrator', () => {
       })
     })
 
-    it('fails the migration when a material rebuild fails, without counting it', async () => {
+    it('keeps migrating when a material rebuild fails, recording the failure as a non-fatal warning', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -1301,17 +1939,34 @@ describe('KnowledgeVectorMigrator', () => {
 
       vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
 
+      // A per-base failure is non-fatal (P1-6): execute succeeds overall, the failed base is left
+      // out of successfulBaseIds (so validate never checks it), and its error surfaces as a warning
+      // rather than aborting the whole migration.
       const executeResult = await migrator.execute(migrationCtx as any)
-      expect(executeResult.success).toBe(false)
+      expect(executeResult.success).toBe(true)
       expect(executeResult.processedCount).toBe(0)
-      expect(executeResult.error).toContain(MIGRATED_KNOWLEDGE_BASE_ID)
-      expect(executeResult.error).toContain('rebuild failed')
-      expect(migrator.skippedCount).toBe(0)
-      expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(
+        executeResult.warnings?.some(
+          (warning: string) => warning.includes(MIGRATED_KNOWLEDGE_BASE_ID) && warning.includes('rebuild failed')
+        )
+      ).toBe(true)
+      // C1: the failed base's expected units are credited to skippedCount so the engine's
+      // count reconciliation (expectedCount = sourceCount - skippedCount) drops in lockstep with
+      // the targetCount the base no longer contributes — otherwise validate() would still abort.
+      expect(migrator.skippedCount).toBe(1)
+      // Prove the reconciliation: validate() must succeed (no count mismatch) so MigrationEngine
+      // does not markFailed. sourceCount 1 - skippedCount 1 = expectedCount 0, targetCount 0.
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
+      // The failed build's partial v2 store at the runtime path is wiped, and the v1 legacy store is
+      // left untouched so a user can keep using v1 after a failed migration.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
       expect(fs.existsSync(dbPath)).toBe(true)
     })
 
-    it('surfaces the real execution error when temp-store cleanup itself throws', async () => {
+    it('surfaces the real execution error when partial-store cleanup itself throws', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
         {
@@ -1344,19 +1999,265 @@ describe('KnowledgeVectorMigrator', () => {
 
       // The rebuild fails (the real error), sending execute into its catch block...
       vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
-      // ...where the temp-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
-      // The first call (pre-rebuild temp clear) must still succeed so the rebuild is reached.
+      // ...where the partial-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
+      // The first call (pre-build target clear) must still succeed so the rebuild is reached.
       migrator.removeIndexStoreFiles = vi
         .fn()
         .mockResolvedValueOnce(undefined)
         .mockRejectedValue(new Error('EPERM: index store locked'))
 
-      // The cleanup rejection must not escape past the structured return (the W2 fix): execute
-      // resolves to a failure carrying the *real* rebuild error, not the masking cleanup error.
+      // The cleanup rejection must not escape past the loop (the W2 fix): execute resolves
+      // (non-fatally, P1-6) with a warning carrying the *real* rebuild error, not the masking
+      // cleanup error, and never aborts the migration.
       const executeResult = await migrator.execute(migrationCtx as any)
-      expect(executeResult.success).toBe(false)
-      expect(executeResult.error).toContain('rebuild failed')
-      expect(executeResult.error).not.toContain('EPERM')
+      expect(executeResult.success).toBe(true)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('rebuild failed'))).toBe(true)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('EPERM'))).toBe(false)
+    })
+
+    it('builds the store in place at the runtime index.sqlite — no temp file, no rename', async () => {
+      // Direct-build: the store is written straight to its runtime path instead of being built in a
+      // temp file and renamed on. The rename was the migration's most fragile step on Windows — libsql
+      // opens index.sqlite in WAL mode, which keeps the file locked past close() (oven-sh/bun#25964),
+      // so MoveFileEx threw EBUSY. Removing the move removes the failure mode. Prove the store lands
+      // fully at the runtime path, no temp file is left, and fs.rename is never called.
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const renameSpy = vi.spyOn(fs.promises, 'rename')
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(true)
+      // No rename, and no temp store beside the runtime one.
+      expect(renameSpy).not.toHaveBeenCalled()
+      expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
+      // The runtime store exists in place and holds the migrated material.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material).toHaveLength(1)
+    })
+
+    it('wipes the partial store and skips the base when the build throws mid-rebuild', async () => {
+      // Direct-build trades the rename's crash-atomicity for a re-run guarantee, but a build that
+      // throws partway still leaves a partial index at the runtime path. The per-base catch must wipe
+      // it (storePromoted is still false) so the runtime never mounts a half-built store, while the
+      // migration stays alive (P1-6 non-fatal).
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes('rebuild failed'))).toBe(true)
+      // The partial store left at the runtime path by the failed build is wiped — nothing half-built
+      // is left for the runtime to mount.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
+    })
+
+    it('marks the base failed/missing_vector_store when the store build fails', async () => {
+      // The base must NOT stay `completed` when its index never finished building — there is no
+      // runtime auto-reindex, so a `completed` base with a missing/partial store searches empty
+      // forever. Instead it becomes a restorable failed row, and the rest of the migration still
+      // succeeds.
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // Fail the rebuild itself: the per-base catch marks the base failed when its store never
+      // finished building (storePromoted stays false).
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+
+      const baseFailures = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+      )
+      expect(baseFailures).toHaveLength(1)
+      expect(baseFailures[0].values).toEqual({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
+
+      // The failed base's unit is still credited to skippedCount so the engine reconciliation balances.
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
+    })
+
+    it('keeps a healthy base when another base fails (per-base failure is non-fatal)', async () => {
+      // P1-6 headline: a locked/corrupt base must not drag down the rest. Base A's rebuild throws;
+      // base B still migrates end-to-end, execute succeeds overall, and A surfaces as a warning.
+      const MIGRATED_BASE_B_ID = '22222222-2222-4222-8222-222222222222'
+      const MIGRATED_FILE_B_ITEM_ID = '0198f3f2-7f10-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-a-0',
+          pageContent: 'base a chunk',
+          uniqueLoaderId: 'loader-a',
+          source: '/docs-a/file.md',
+          vector: [1, 2]
+        }
+      ])
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-2'), [
+        {
+          id: 'legacy-b-0',
+          pageContent: 'base b chunk',
+          uniqueLoaderId: 'loader-b',
+          source: '/docs-b/file.md',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        knowledgeBaseIdRemap: new Map([
+          [LEGACY_KNOWLEDGE_BASE_ID, MIGRATED_KNOWLEDGE_BASE_ID],
+          ['kb-2', MIGRATED_BASE_B_ID]
+        ]),
+        knowledgeItemIdRemap: new Map([
+          ['item-a', MIGRATED_FILE_ITEM_ID],
+          ['item-b', MIGRATED_FILE_B_ITEM_ID]
+        ]),
+        migratedBases: [createMigratedBase(), createMigratedBase({ id: MIGRATED_BASE_B_ID })],
+        migratedItems: [
+          createMigratedItem(MIGRATED_FILE_ITEM_ID, {
+            data: { source: '/docs-a/file.md', relativePath: MIGRATED_FILE_ITEM_ID }
+          }),
+          createMigratedItem(MIGRATED_FILE_B_ITEM_ID, {
+            baseId: MIGRATED_BASE_B_ID,
+            data: { source: '/docs-b/file.md', relativePath: MIGRATED_FILE_B_ITEM_ID }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base A',
+                items: [{ id: 'item-a', type: 'file', uniqueId: 'loader-a' }]
+              },
+              {
+                id: 'kb-2',
+                name: 'Base B',
+                items: [{ id: 'item-b', type: 'file', uniqueId: 'loader-b' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // Only base A's rebuild fails (it is processed first, in migratedBases order); base B uses the
+      // real rebuild so its store is written for real.
+      const realRebuild = KnowledgeIndexStore.prototype.rebuildMaterial
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial')
+        .mockRejectedValueOnce(new Error('base a rebuild failed'))
+        .mockImplementation(function (this: KnowledgeIndexStore, ...args: Parameters<typeof realRebuild>) {
+          return realRebuild.apply(this, args)
+        })
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      // Base B migrated despite base A failing first.
+      expect(migrator.successfulBaseIds.has(MIGRATED_BASE_B_ID)).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(executeResult.warnings?.some((warning: string) => warning.includes(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+
+      const storeB = await readStore(MIGRATED_BASE_B_ID)
+      expect(storeB.material.map((m) => m.material_id)).toEqual([MIGRATED_FILE_B_ITEM_ID])
+      expect(storeB.content.map((c) => String(c.text))).toEqual(['base b chunk'])
+
+      // C1: validate() must reconcile across both bases without aborting. Base A's one expected
+      // unit is credited to skippedCount, so expectedCount (sourceCount 2 - skippedCount 1 = 1)
+      // matches targetCount 1 (base B only) and the engine does not markFailed the whole migration.
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 2, targetCount: 1, skippedCount: 1 })
     })
 
     it('validate fails when a stored unit has no backing embedding', async () => {
@@ -1481,6 +2382,74 @@ describe('KnowledgeVectorMigrator', () => {
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(true)
       expect(validateResult.errors).toStrictEqual([])
+    })
+
+    it('keeps the built store and credits skippedCount when the snapshot-pin UPDATE throws after the build', async () => {
+      // The url snapshot store is built in place at its runtime path and the snapshot file is written
+      // before the row-pin UPDATE runs. If that UPDATE throws, the per-base catch credits the base's
+      // units to skippedCount and drops it from successfulBaseIds, so the engine reconciliation still
+      // balances and the migration survives — but the built store is left in place at the runtime path
+      // with the row unpinned (storePromoted is already true, so the catch does not wipe it). Narrow,
+      // recoverable window: the next migration re-run re-pins it. Pin the behavior so it can't regress
+      // into an aborted migration or a silently dropped base.
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+      // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is built.
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn().mockRejectedValue(new Error('pin update failed'))
+        }))
+      })) as any
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      // Per-base failure is non-fatal: the base is skipped, not the whole migration.
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(migrator.executionErrors.some((message: string) => message.includes('pin update failed'))).toBe(true)
+
+      // The built store survives at the runtime path (storePromoted is true, so the catch does not
+      // wipe it), so the vectors are not lost — merely left unpinned until a re-run.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+      // The store DID land, so the base must NOT be marked missing_vector_store — that would force a
+      // needless full re-index of a present, searchable store (storePromoted gate).
+      expect([...migrator.basesToMarkFailed]).toEqual([])
+
+      // The skipped base's units are credited, so the engine's count reconciliation still balances.
+      const failedValidateResult = await migrator.validate(migrationCtx as any)
+      expect(failedValidateResult.success).toBe(true)
+      expect(failedValidateResult.stats.targetCount).toBe(0)
+      expect(failedValidateResult.stats.skippedCount).toBe(failedValidateResult.stats.sourceCount)
     })
 
     it('validate fails when a materialized url snapshot file is missing from the material root', async () => {
@@ -1791,9 +2760,15 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
+      // The traversal guard still throws, but per-base failure is now non-fatal (P1-6): the base is
+      // skipped with the rejection surfaced as a warning, and execute succeeds overall. The security
+      // guarantee is unchanged — the guard fires before writeFile, so nothing escapes `raw/`.
       const executeResult = await migrator.execute(migrationCtx as any)
-      expect(executeResult.success).toBe(false)
-      expect(executeResult.error).toContain('Invalid knowledge relative path')
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(
+        executeResult.warnings?.some((warning: string) => warning.includes('Invalid knowledge relative path'))
+      ).toBe(true)
       // The traversal target was never written outside the material root.
       expect(fs.existsSync(path.join(knowledgeBaseDir, MIGRATED_KNOWLEDGE_BASE_ID, 'escape.md'))).toBe(false)
     })

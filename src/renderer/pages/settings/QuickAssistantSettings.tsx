@@ -17,17 +17,16 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { resolveDefaultAssistantOption, useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Assistant } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
@@ -46,21 +45,12 @@ const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { assistants } = useAssistants()
-  const { assistant: _defaultAssistant } = useDefaultAssistant()
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
-  const defaultAssistant = useMemo(
-    () => resolveDefaultAssistantOption(assistants, _defaultAssistant),
-    [assistants, _defaultAssistant]
-  )
-  const assistantOptions = useMemo(
-    () => [defaultAssistant, ...assistants.filter((assistant) => assistant.id !== defaultAssistant.id)],
-    [assistants, defaultAssistant]
-  )
-  const selectedAssistantId = quickAssistantId === DEFAULT_ASSISTANT_ID ? defaultAssistant.id : quickAssistantId
-  const selectedAssistant =
-    assistantOptions.find((assistant) => assistant.id === selectedAssistantId) || defaultAssistant
+  const assistantOptions = assistants
+  const firstAssistantId = assistantOptions[0]?.id
+  const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId)
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
   }
@@ -140,7 +130,7 @@ const QuickAssistantSettings: FC = () => {
               />
             </SettingRowTitle>
             <RowFlex className="items-center gap-2.5">
-              {!quickAssistantId ? null : (
+              {!quickAssistantId || !selectedAssistant ? null : (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
@@ -150,7 +140,7 @@ const QuickAssistantSettings: FC = () => {
                         aria-expanded={assistantSelectOpen}>
                         <AssistantOption
                           assistant={selectedAssistant}
-                          defaultAssistantId={defaultAssistant.id}
+                          firstAssistantId={firstAssistantId}
                           defaultModel={defaultModel}
                         />
                         <ChevronDown size={16} className="shrink-0 opacity-50" />
@@ -178,10 +168,10 @@ const QuickAssistantSettings: FC = () => {
                                 }}>
                                 <AssistantOption
                                   assistant={assistant}
-                                  defaultAssistantId={defaultAssistant.id}
+                                  firstAssistantId={firstAssistantId}
                                   defaultModel={defaultModel}
                                 />
-                                {assistant.id === selectedAssistantId && (
+                                {assistant.id === quickAssistantId && (
                                   <Check size={14} className="ml-auto text-primary" />
                                 )}
                               </CommandItem>
@@ -196,9 +186,10 @@ const QuickAssistantSettings: FC = () => {
               <ButtonGroup>
                 <Button
                   className="min-w-20"
-                  variant={quickAssistantId ? 'default' : 'outline'}
+                  variant={quickAssistantId && selectedAssistant ? 'default' : 'outline'}
+                  disabled={assistantOptions.length === 0}
                   onClick={() => {
-                    void setQuickAssistantId(defaultAssistant.id)
+                    void setQuickAssistantId(firstAssistantId ?? '')
                   }}>
                   {t('settings.models.use_assistant')}
                 </Button>
@@ -224,15 +215,15 @@ const QuickAssistantSettings: FC = () => {
 
 const AssistantOption = ({
   assistant,
-  defaultAssistantId,
+  firstAssistantId,
   defaultModel
 }: {
   assistant: Assistant
-  defaultAssistantId: string
+  firstAssistantId?: string
   defaultModel: Model | undefined
 }) => {
   const { t } = useTranslation()
-  const isDefault = assistant.id === defaultAssistantId
+  const isDefault = !!firstAssistantId && assistant.id === firstAssistantId
 
   return (
     <AssistantItem>

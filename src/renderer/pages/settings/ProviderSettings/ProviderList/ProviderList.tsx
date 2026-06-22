@@ -33,12 +33,12 @@ export interface ProviderListProps {
 export default function ProviderList({ selectedProviderId, filterModeHint, onSelectProvider }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { models: allModels } = useModels()
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
   const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
+  const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
@@ -263,7 +263,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
 
   return (
-    <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
+    <aside className={`${providerListClasses.shell}`}>
       <PageHeader
         title={t('settings.provider.title')}
         action={

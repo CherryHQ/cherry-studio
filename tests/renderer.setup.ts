@@ -168,6 +168,15 @@ vi.mock('@cherrystudio/ui', () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
+    ReorderableList: ({ items, renderItem, getId }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        items.map((item, index) =>
+          React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
+        )
+      ),
+    NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled }
       if (asChild && React.isValidElement(children)) {

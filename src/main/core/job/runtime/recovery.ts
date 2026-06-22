@@ -19,6 +19,16 @@ export interface RecoveryStats {
  * each type's `recovery` strategy to its non-terminal jobs, then handles
  * orphan running jobs whose handler is no longer registered.
  *
+ * In-flight exclusion: rows the CURRENT process is still executing (reported
+ * via `isJobInFlight`, backed by `JobManager.inFlightExecuted`) are filtered
+ * out up front, before any strategy or the cancelRequested override. Recovery
+ * exists to reconcile leftovers from a PRIOR process; a job enqueued during the
+ * startup quiet window and still running when the sweep fires is owned by this
+ * process and must be left alone — otherwise the retry/singleton reset would
+ * re-dispatch it (running it twice) and abandon/cancelRequested would race a
+ * second terminal write against the live handler (#16291). `cancel()` already
+ * owns in-flight cancellation, so excluding these rows from every branch is safe.
+ *
  * Step order matters: cancelRequested=true overrides any strategy — those
  * jobs are cancelled regardless. The strategy then applies to the rest.
  *
@@ -28,8 +38,17 @@ export interface RecoveryStats {
  * process-wide write mutex (Layer 0). No explicit transaction composition is
  * needed here — recovery is restartable and per-handler iterations do not
  * require cross-call atomicity.
+ *
+ * @param handlers - Registered handler map (type → handler) defining each
+ *   type's recovery strategy.
+ * @param isJobInFlight - Predicate returning true when the given jobId is
+ *   currently being executed by this process; such rows are excluded from all
+ *   recovery actions.
  */
-export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandler>): Promise<RecoveryStats> {
+export async function runStartupRecovery(
+  handlers: ReadonlyMap<string, JobHandler>,
+  isJobInFlight: (jobId: string) => boolean
+): Promise<RecoveryStats> {
   const stats: RecoveryStats = { cancelled: 0, pendingReset: 0, delayedKept: 0, singletonKept: 0 }
   const cancelledByRecovery: JobError = {
     code: JOB_ERROR_CODES.CANCELLED,
@@ -38,7 +57,11 @@ export async function runStartupRecovery(handlers: ReadonlyMap<string, JobHandle
   }
 
   for (const [type, handler] of handlers) {
-    const active = await jobService.getActiveByType(type)
+    // Exclude rows this process is still executing — recovery only reconciles
+    // prior-process leftovers. Filtering here (above the cancelRequested
+    // override and every strategy) keeps retry/singleton from re-dispatching a
+    // live job and abandon from cancelling it mid-flight (#16291).
+    const active = (await jobService.getActiveByType(type)).filter((r) => !isJobInFlight(r.id))
     if (active.length === 0) continue
 
     // 1. cancelRequested → cancelled, regardless of strategy. Includes pending
