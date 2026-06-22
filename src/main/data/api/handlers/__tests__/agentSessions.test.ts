@@ -149,4 +149,25 @@ describe('agentSessionHandlers', () => {
       expect(deleteByIdsMock).not.toHaveBeenCalled()
     })
   })
+
+  describe('/agent-sessions/:sessionId/messages', () => {
+    it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
+      const response = { items: [], nextCursor: undefined }
+      listSessionMessagesMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions/:sessionId/messages'].GET({
+        params: { sessionId: 'session-1' },
+        query: {
+          messageId: 'message-1',
+          limit: '25'
+        }
+      } as never)
+
+      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
+        messageId: 'message-1',
+        limit: 25
+      })
+      expect(result).toBe(response)
+    })
+  })
 })
