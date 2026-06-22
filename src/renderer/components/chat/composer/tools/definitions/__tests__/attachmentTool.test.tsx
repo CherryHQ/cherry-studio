@@ -1,6 +1,6 @@
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { describe, expect, it } from 'vitest'
 
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { ComposerSerializedToken } from '../../../tokens'
 import attachmentTool from '../attachmentTool'
 

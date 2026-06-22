@@ -36,6 +36,7 @@ import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -49,14 +50,12 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
-import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
@@ -76,6 +75,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'

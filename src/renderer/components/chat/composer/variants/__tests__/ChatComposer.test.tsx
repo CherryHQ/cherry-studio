@@ -1206,7 +1206,11 @@ describe('ChatComposer', () => {
       mocks.surfaceProps?.onTextChange('edited text')
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited text'))
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith('v2-chat-composer-draft', expect.anything(), expect.anything())
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'v2-chat-composer-draft',
+      expect.anything(),
+      expect.anything()
+    )
 
     act(() => {
       mocks.surfaceProps?.editingState?.onCancel()

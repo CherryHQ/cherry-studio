@@ -42,6 +42,7 @@ import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -51,11 +52,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
-import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -81,6 +80,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'

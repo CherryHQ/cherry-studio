@@ -35,13 +35,13 @@ import type {
 import { getAllTools, getToolsForScope } from '@renderer/components/chat/composer/tools/types'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant } from '@renderer/types'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { ChevronRightIcon, Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 

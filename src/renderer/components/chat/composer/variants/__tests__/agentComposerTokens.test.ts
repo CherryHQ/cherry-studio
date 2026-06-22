@@ -1,7 +1,7 @@
 import type { LocalSkill } from '@renderer/types'
+import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { describe, expect, it } from 'vitest'
 
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
