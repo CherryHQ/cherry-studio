@@ -46,7 +46,10 @@ export const knowledgeRequestSchemas = {
   'knowledge.add_items': defineRoute({
     input: z.strictObject({
       baseId: baseIdSchema,
-      items: z.array(KnowledgeAddItemInputSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX),
+      // No upper bound: an interactive add can select an entire directory of files
+      // (the OS picker imposes no cap), and the workflow service processes the batch
+      // sequentially. delete/reindex keep the cap — they only ever send one id.
+      items: z.array(KnowledgeAddItemInputSchema).min(1),
       // Omitted by internal callers (defaults to 'rename'); an interactive add sends
       // 'detect' first, then 'rename'/'replace' once the user resolves a conflict.
       conflictStrategy: KnowledgeAddConflictStrategySchema.optional()
