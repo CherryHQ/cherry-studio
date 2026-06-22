@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
+import type { EndpointType, Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { codeCLI, terminalApps } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -8,9 +11,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const testState = vi.hoisted(() => ({
   isBunInstalled: true,
   selectedCliTool: 'github-copilot-cli',
+  selectedModel: null as string | null,
   canLaunch: true,
   codeCliRun: vi.fn(),
-  setTimeoutTimer: vi.fn()
+  setModel: vi.fn(),
+  setTimeoutTimer: vi.fn(),
+  providers: [] as Provider[],
+  models: [] as Model[],
+  modelSelectorProps: [] as any[]
 }))
 
 import CodeCliPage from '../CodeCliPage'
@@ -66,6 +74,30 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => null
 }))
 
+vi.mock('@renderer/components/Selector/model', async () => {
+  const React = await import('react')
+
+  return {
+    ModelSelector: (props: any) => {
+      testState.modelSelectorProps.push(props)
+
+      return React.createElement(
+        'div',
+        { 'data-testid': 'code-model-selector' },
+        props.trigger,
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => props.onSelect('openai::gpt-4o')
+          },
+          'select mock model'
+        )
+      )
+    }
+  }
+})
+
 vi.mock('@renderer/config/constant', () => ({
   isMac: false,
   isWin: false
@@ -78,14 +110,14 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => ({
     selectedCliTool: testState.selectedCliTool as codeCLI,
-    selectedModel: null,
+    selectedModel: testState.selectedModel,
     selectedTerminal: terminalApps.systemDefault,
     environmentVariables: '',
     directories: [],
     currentDirectory: '',
     canLaunch: testState.canLaunch,
     setCliTool: vi.fn().mockResolvedValue(undefined),
-    setModel: vi.fn().mockResolvedValue(undefined),
+    setModel: testState.setModel,
     setTerminal: vi.fn(),
     setEnvVars: vi.fn(),
     setCurrentDir: vi.fn().mockResolvedValue(undefined),
@@ -95,12 +127,12 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] }),
+  useProviders: () => ({ providers: testState.providers }),
   getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({ models: [] })
+  useModels: () => ({ models: testState.models })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -117,7 +149,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-vi.mock('@renderer/config/codeProviders', () => ({
+vi.mock('@shared/config/providers', () => ({
   CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS: [],
   isSiliconAnthropicCompatibleModel: () => false
 }))
@@ -152,8 +184,13 @@ beforeEach(() => {
   vi.clearAllMocks()
   testState.isBunInstalled = true
   testState.selectedCliTool = codeCLI.githubCopilotCli
+  testState.selectedModel = null
   testState.canLaunch = true
   testState.codeCliRun.mockResolvedValue({ success: true })
+  testState.setModel.mockResolvedValue(undefined)
+  testState.providers = []
+  testState.models = []
+  testState.modelSelectorProps = []
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
@@ -176,11 +213,147 @@ async function openCodeToolDialog() {
   await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
 }
 
-describe('CodeCliPage', () => {
-  it('constrains the page height so the gallery can scroll', () => {
-    const { container } = render(<CodeCliPage />)
+function makeProvider(
+  id: string,
+  defaultChatEndpoint: EndpointType | undefined = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  overrides: Partial<Provider> = {}
+): Provider {
+  return {
+    id,
+    name: id,
+    apiKeys: [],
+    authType: 'api-key',
+    defaultChatEndpoint,
+    endpointConfigs: {},
+    apiFeatures: {},
+    settings: {},
+    isEnabled: true,
+    ...overrides
+  } as Provider
+}
 
-    expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'overflow-hidden')
+function makeModel(id: string, providerId: string, overrides: Partial<Model> = {}): Model {
+  return {
+    id,
+    providerId,
+    name: id.split('::')[1] ?? id,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    ...overrides
+  } as Model
+}
+
+function latestModelSelectorProps() {
+  return testState.modelSelectorProps.at(-1)
+}
+
+describe('CodeCliPage', () => {
+  it('uses the shared model selector for non-copilot tools and writes selected ids back', async () => {
+    testState.selectedCliTool = codeCLI.qwenCode
+
+    await openCodeToolDialog()
+
+    expect(screen.getByTestId('code-model-selector')).toBeInTheDocument()
+    expect(latestModelSelectorProps()).toMatchObject({
+      multiple: false,
+      selectionType: 'id',
+      showTagFilter: false
+    })
+    await waitFor(() => expect(latestModelSelectorProps().portalContainer).toBeInstanceOf(HTMLElement))
+    expect(latestModelSelectorProps().portalContainer.closest('[role="dialog"]')).toBe(screen.getByRole('dialog'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'select mock model' }))
+
+    await waitFor(() => expect(testState.setModel).toHaveBeenCalledWith('openai::gpt-4o'))
+  })
+
+  it('does not pass malformed stored model ids to the shared model selector', async () => {
+    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedModel = 'legacy-model-id'
+
+    await openCodeToolDialog()
+
+    expect(latestModelSelectorProps().value).toBeUndefined()
+  })
+
+  it('keeps the code-cli provider and model filter when using the shared model selector', async () => {
+    testState.selectedCliTool = codeCLI.qwenCode
+    testState.providers = [
+      makeProvider('openai'),
+      makeProvider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
+      makeProvider('cherryai')
+    ]
+    const chatModel = makeModel('openai::gpt-4o', 'openai', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    const anthropicModel = makeModel('anthropic::claude-3-5-sonnet', 'anthropic', {
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    const embeddingModel = makeModel('openai::text-embedding-3-small', 'openai', {
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    const rerankModel = makeModel('openai::rerank', 'openai', {
+      capabilities: [MODEL_CAPABILITY.RERANK],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    const imageModel = makeModel('openai::image', 'openai', {
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    const cherryAiModel = makeModel('cherryai::gpt-4o', 'cherryai', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    await openCodeToolDialog()
+
+    const filter = latestModelSelectorProps().filter as (model: Model) => boolean
+    expect(filter(chatModel)).toBe(true)
+    expect(filter(anthropicModel)).toBe(false)
+    expect(filter(embeddingModel)).toBe(false)
+    expect(filter(rerankModel)).toBe(false)
+    expect(filter(imageModel)).toBe(false)
+    expect(filter(cherryAiModel)).toBe(false)
+  })
+
+  it('keeps the OpenCode provider fallback equivalent to the pre-v2 frontend filter', async () => {
+    testState.selectedCliTool = codeCLI.openCode
+    testState.providers = [
+      makeProvider('openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
+      makeProvider('new-api', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, {
+        presetProviderId: 'new-api',
+        defaultChatEndpoint: undefined
+      }),
+      makeProvider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
+      makeProvider('gateway', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, {
+        presetProviderId: 'gateway',
+        defaultChatEndpoint: undefined
+      })
+    ]
+
+    await openCodeToolDialog()
+
+    const filter = latestModelSelectorProps().filter as (model: Model) => boolean
+    expect(filter(makeModel('openai-chat::gpt-4o', 'openai-chat'))).toBe(true)
+    expect(filter(makeModel('new-api::claude-3-5-sonnet', 'new-api'))).toBe(true)
+    expect(filter(makeModel('anthropic::claude-3-5-sonnet', 'anthropic'))).toBe(true)
+    expect(
+      filter(
+        makeModel('gateway::gpt-4o', 'gateway', {
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        })
+      )
+    ).toBe(false)
+  })
+
+  it('does not render the model selector for GitHub Copilot CLI', async () => {
+    testState.selectedCliTool = codeCLI.githubCopilotCli
+
+    await openCodeToolDialog()
+
+    expect(screen.queryByTestId('code-model-selector')).not.toBeInTheDocument()
   })
 
   it('keeps the auto-update checkbox neutral instead of primary themed', async () => {
