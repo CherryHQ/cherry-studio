@@ -21,7 +21,6 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessio
 import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -44,6 +43,7 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
   type AgentRightPaneStatus,
   type AgentStatusTask,
