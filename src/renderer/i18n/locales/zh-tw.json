@@ -4761,117 +4761,6 @@
       "description": "將代理連接到 Telegram、飛書、Discord 等訊息平台。",
       "title": "頻道"
     },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "清空",
-        "configDescription": "切換 props 預覽元件行為",
-        "configTitle": "設定",
-        "currentProps": "目前 props",
-        "description": "AgentSelector 現在會讀取真實 /agents DataApi 資料，用於驗證 id/item 選擇、pin、排序與搜尋行為。",
-        "emptyShellNotice": "目前預覽使用 /agents DataApi 回傳的真實智能體列表。",
-        "lastOnChange": "最近一次 onChange",
-        "previewDescription": "點擊 trigger 開啟選擇器",
-        "previewTitle": "預覽",
-        "title": "智能體選擇器",
-        "triggerPlaceholder": "選擇智能體",
-        "valueProp": "目前 value"
-      },
-      "agentTodoList": {
-        "title": "Agent 任務列表"
-      },
-      "assistantSelector": {
-        "clearSelection": "清空",
-        "configDescription": "切換 props 預覽元件行為",
-        "configTitle": "設定",
-        "currentProps": "目前 props",
-        "description": "直接掛載 AssistantSelector 業務元件，驗證 multi/single、id/item、pin、排序與搜尋行為。",
-        "lastOnChange": "最近一次 onChange",
-        "previewDescription": "點擊 trigger 開啟選擇器",
-        "previewTitle": "預覽",
-        "title": "助手選擇器",
-        "triggerPlaceholder": "選擇助手",
-        "triggerSelectedCount": "已選 {{count}} 個助手",
-        "valueProp": "目前 value"
-      },
-      "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
-      "fileProcessing": {
-        "artifact": {
-          "file": "Markdown 檔案",
-          "text": "文字結果"
-        },
-        "description": "透過真實 file processing IPC 執行所有已設定的檔案處理器，並比較結果。",
-        "duration": "{{seconds}} 秒",
-        "jobId": "Job ID",
-        "markdown": {
-          "description": "選擇文件，並執行所有文件轉 Markdown 處理器。",
-          "fileFilterName": "文件",
-          "noFile": "未選擇文件",
-          "select": "選擇文件",
-          "start": "測試 Markdown",
-          "title": "Markdown"
-        },
-        "noProcessors": "沒有處理器支援這個能力。",
-        "ocr": {
-          "description": "選擇圖片，並執行所有 OCR 處理器。",
-          "fileFilterName": "圖片",
-          "noFile": "未選擇圖片",
-          "select": "選擇圖片",
-          "start": "測試 OCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} 個處理器",
-        "status": {
-          "cancelled": "已取消",
-          "completed": "已完成",
-          "delayed": "已延遲",
-          "failed": "失敗",
-          "idle": "閒置",
-          "pending": "等待中",
-          "processing": "處理中",
-          "running": "執行中",
-          "starting": "啟動中"
-        },
-        "title": "文件解析"
-      },
-      "label": "元件測試",
-      "modelSelector": {
-        "behaviorConfig": "互動與顯示設定",
-        "callbackEmpty": "尚未收到元件回呼",
-        "clearSelection": "清空選擇",
-        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
-        "configTitle": "Props Playground",
-        "controlMultiSelectMode": "受控 multiSelectMode",
-        "currentProps": "目前 props",
-        "defaultMultiSelectMode": "defaultMultiSelectMode",
-        "description": "這裡直接掛載目前的 ModelSelector 業務元件，方便驗證選擇、篩選、搜尋與置頂能力。",
-        "empty": "目前沒有可用模型，暫時無法顯示選擇器。",
-        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
-        "lastSelectReturn": "最近一次 onSelect 返回",
-        "loading": "正在載入模型...",
-        "modelId": "模型 ID",
-        "multiSelectMode": "multiSelectMode",
-        "multiple": "multiple",
-        "normalizedIds": "正規化選中 ID",
-        "outputEmpty": "目前沒有可顯示的資料",
-        "provider": "服務商",
-        "resetOutputs": "重設輸出",
-        "resultsDescription": "這裡會顯示元件目前接收的 value、正規化後的選中狀態，以及最新一次回呼輸出。",
-        "resultsTitle": "返回資料與狀態",
-        "selected": "目前選擇",
-        "selectedEmpty": "尚未選擇模型",
-        "selectionConfig": "選擇值設定",
-        "selectionType": "selectionType",
-        "selectionTypeId": "返回模型 ID",
-        "selectionTypeModel": "返回模型物件",
-        "showPinnedModels": "showPinnedModels",
-        "showTagFilter": "showTagFilter",
-        "title": "模型選擇元件",
-        "triggerPlaceholder": "選擇一個模型",
-        "triggerSelectedCount": "已選 {{count}} 個模型",
-        "valueProp": "目前傳入 value"
-      },
-      "title": "開發環境元件測試"
-    },
     "data": {
       "app_data": {
         "copy_data_option": "複製資料，會在重新啟動後將原始目錄的資料複製到新目錄",
@@ -5566,7 +5455,19 @@
         "title": "資料備份與復原"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "[to be translated]:Cherry",
+            "native": "[to be translated]:Native",
+            "restart": {
+              "content": "[to be translated]:Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
+              "title": "[to be translated]:Restart Required"
+            },
+            "title": "[to be translated]:Context menu style"
+          }
+        },
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "自訂 CSS",
           "display_language": "顯示與語言",
           "privacy_advanced": "隱私與進階",

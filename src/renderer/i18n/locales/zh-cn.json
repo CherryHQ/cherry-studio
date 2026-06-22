@@ -4761,117 +4761,6 @@
       "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
       "title": "频道"
     },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "清空",
-        "configDescription": "调整 props 预览组件行为",
-        "configTitle": "配置",
-        "currentProps": "当前 props",
-        "description": "AgentSelector 现在会读取真实 /agents DataApi 数据，用于验证 id/item 选择、pin、排序与搜索行为。",
-        "emptyShellNotice": "当前预览使用 /agents DataApi 返回的真实智能体列表。",
-        "lastOnChange": "最近一次 onChange",
-        "previewDescription": "点击 trigger 打开选择器",
-        "previewTitle": "预览",
-        "title": "智能体选择器",
-        "triggerPlaceholder": "选择智能体",
-        "valueProp": "当前 value"
-      },
-      "agentTodoList": {
-        "title": "Agent 任务列表"
-      },
-      "assistantSelector": {
-        "clearSelection": "清空",
-        "configDescription": "调整 props 预览组件行为",
-        "configTitle": "配置",
-        "currentProps": "当前 props",
-        "description": "直接挂载 AssistantSelector 业务组件，验证 multi/single、id/item、pin、排序与搜索行为。",
-        "lastOnChange": "最近一次 onChange",
-        "previewDescription": "点击 trigger 打开选择器",
-        "previewTitle": "预览",
-        "title": "助手选择器",
-        "triggerPlaceholder": "选择助手",
-        "triggerSelectedCount": "已选 {{count}} 个助手",
-        "valueProp": "当前 value"
-      },
-      "description": "仅在开发环境显示，用于在应用内直接联调 v2 选择器等新组件。",
-      "fileProcessing": {
-        "artifact": {
-          "file": "Markdown 文件",
-          "text": "文本结果"
-        },
-        "description": "通过真实 file processing IPC 运行所有已配置的文件处理器，并对比结果。",
-        "duration": "{{seconds}} 秒",
-        "jobId": "Job ID",
-        "markdown": {
-          "description": "选择文档，并运行所有文档转 Markdown 处理器。",
-          "fileFilterName": "文档",
-          "noFile": "未选择文档",
-          "select": "选择文档",
-          "start": "测试 Markdown",
-          "title": "Markdown"
-        },
-        "noProcessors": "没有处理器支持这个能力。",
-        "ocr": {
-          "description": "选择图片，并运行所有 OCR 处理器。",
-          "fileFilterName": "图片",
-          "noFile": "未选择图片",
-          "select": "选择图片",
-          "start": "测试 OCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} 个处理器",
-        "status": {
-          "cancelled": "已取消",
-          "completed": "已完成",
-          "delayed": "已延迟",
-          "failed": "失败",
-          "idle": "空闲",
-          "pending": "等待中",
-          "processing": "处理中",
-          "running": "运行中",
-          "starting": "启动中"
-        },
-        "title": "文档解析"
-      },
-      "label": "组件测试",
-      "modelSelector": {
-        "behaviorConfig": "交互与展示配置",
-        "callbackEmpty": "还没有收到组件回调",
-        "clearSelection": "清空选择",
-        "configDescription": "上方切换 ModelSelector 的关键 props，下方直接查看传入值与回调返回值。",
-        "configTitle": "Props Playground",
-        "controlMultiSelectMode": "受控 multiSelectMode",
-        "currentProps": "当前 props",
-        "defaultMultiSelectMode": "defaultMultiSelectMode",
-        "description": "这里直接挂载当前的 ModelSelector 业务组件，方便验证选择、筛选、搜索和置顶能力。",
-        "empty": "当前没有可用模型，暂时无法展示选择器。",
-        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
-        "lastSelectReturn": "最近一次 onSelect 返回",
-        "loading": "正在加载模型...",
-        "modelId": "模型 ID",
-        "multiSelectMode": "multiSelectMode",
-        "multiple": "multiple",
-        "normalizedIds": "归一化选中 ID",
-        "outputEmpty": "当前没有可展示的数据",
-        "provider": "服务商",
-        "resetOutputs": "重置输出",
-        "resultsDescription": "这里会显示组件当前接收的 value、内部归一化后的选中状态，以及最新一次回调输出。",
-        "resultsTitle": "返回数据与状态",
-        "selected": "当前选择",
-        "selectedEmpty": "尚未选择模型",
-        "selectionConfig": "选择值配置",
-        "selectionType": "selectionType",
-        "selectionTypeId": "返回模型 ID",
-        "selectionTypeModel": "返回模型对象",
-        "showPinnedModels": "showPinnedModels",
-        "showTagFilter": "showTagFilter",
-        "title": "模型选择组件",
-        "triggerPlaceholder": "选择一个模型",
-        "triggerSelectedCount": "已选 {{count}} 个模型",
-        "valueProp": "当前传入 value"
-      },
-      "title": "开发环境组件测试"
-    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
@@ -5566,7 +5455,19 @@
         "title": "数据备份与恢复"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "原生",
+            "restart": {
+              "content": "更改菜单样式需要重启应用才能生效，是否现在重启？",
+              "title": "需要重启应用"
+            },
+            "title": "右键菜单样式"
+          }
+        },
         "sections": {
+          "chat_settings": "对话设置",
           "custom_css": "自定义 CSS",
           "display_language": "显示与语言",
           "privacy_advanced": "隐私与高级",
