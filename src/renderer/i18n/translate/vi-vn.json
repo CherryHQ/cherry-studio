@@ -2144,13 +2144,13 @@
         "view_chunks": "Xem các khối"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Nhập đệ quy các tệp được hỗ trợ từ một thư mục",
-          "title": "Nhấp để chọn một thư mục"
+        "conflict_dialog": {
+          "description": "{{count}} trong số các nguồn bạn đang thêm có tên trùng với các mục hiện có. Chọn cách xử lý chúng.",
+          "keep_all": "Giữ lại tất cả",
+          "replace": "Thay thế",
+          "title": "Nguồn đã tồn tại"
         },
         "footer": {
-          "selected_directories": "{{count}} thư mục đã được chọn",
-          "selected_files": "{{count}} tệp đã được chọn",
           "selected_notes": "{{count}} ghi chú được chọn"
         },
         "note": {
@@ -2246,7 +2246,6 @@
     },
     "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
     "dimensions_size_placeholder": "Để trống để không truyền kích thước",
-    "drag_file": "Kéo tệp vào đây",
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
@@ -2260,7 +2259,6 @@
       "missing_embedding_model": "Mô hình embedding được sử dụng bởi cơ sở kiến thức này không được tìm thấy trong quá trình di chuyển. Hãy xây dựng lại cơ sở kiến thức và chọn một mô hình embedding mới.",
       "model_invalid": "Chưa chọn mô hình"
     },
-    "file_hint": "Hỗ trợ {{file_types}}",
     "groups": {
       "add": "Nhóm Mới",
       "create_base_here": "Tạo ở đây",
@@ -7067,10 +7065,16 @@
       "title": "Zoom de página"
     }
   },
+  "subWindow": {
+    "back_to_main": "Quay lại Cửa sổ Chính",
+    "pin": "Giữ trên cùng",
+    "unpin": "Hủy Giữ trên đầu"
+  },
   "tab": {
     "close": "Đóng Tab",
     "move_to_first": "Di chuyển lên đầu",
     "new": "Thẻ Mới",
+    "open_in_new_window": "Mở trong cửa sổ mới",
     "pin": "Ghim Tab",
     "unpin": "Gỡ ghim thẻ"
   },
