@@ -17,6 +17,7 @@ import {
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -31,10 +32,10 @@ import type { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
+import { Code, MessageSquare, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -57,7 +58,15 @@ import {
 import ThemeColorPicker from './components/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
-type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+type CommonSettingsSection = 'display-language' | 'chat-settings' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+type TFunction = (key: string) => string
+type MenuPresentationModeChangeOptions = {
+  currentMode: MenuPresentationMode
+  mode: MenuPresentationMode
+  setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<unknown> | unknown
+  setTimeoutTimer: (key: string, callback: () => void, delay: number) => void
+  t: TFunction
+}
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
@@ -75,6 +84,40 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
+
+export function confirmMenuPresentationModeChange({
+  currentMode,
+  mode,
+  setMenuPresentationMode,
+  setTimeoutTimer,
+  t
+}: MenuPresentationModeChangeOptions): void {
+  if (mode === currentMode) return
+
+  void window.modal.confirm({
+    title: t('settings.general.common.menu.presentation_mode.restart.title'),
+    content: t('settings.general.common.menu.presentation_mode.restart.content'),
+    okText: t('common.confirm'),
+    cancelText: t('common.cancel'),
+    centered: true,
+    async onOk() {
+      try {
+        await setMenuPresentationMode(mode)
+      } catch (error) {
+        window.toast.error(formatErrorMessage(error))
+        throw error
+      }
+
+      setTimeoutTimer(
+        'handleMenuPresentationModeChange',
+        () => {
+          void window.api.application.relaunch()
+        },
+        500
+      )
+    }
+  })
+}
 
 const CommonSettings: FC = () => {
   const { t } = useTranslation()
@@ -100,11 +143,8 @@ const CommonSettings: FC = () => {
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
+  const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
-  const [topicPosition, setTopicPosition] = usePreference('topic.position')
-  const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
-  const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
-  const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
@@ -124,6 +164,11 @@ const CommonSettings: FC = () => {
         key: 'display-language' as const,
         label: t('settings.general.common.sections.display_language'),
         icon: <Palette />
+      },
+      {
+        key: 'chat-settings' as const,
+        label: t('settings.general.common.sections.chat_settings'),
+        icon: <MessageSquare />
       },
       {
         key: 'system-startup' as const,
@@ -254,6 +299,27 @@ const CommonSettings: FC = () => {
       void setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
+  )
+
+  const menuPresentationModeOptions = useMemo(
+    () => [
+      { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
+      { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
+    ],
+    [t]
+  )
+
+  const handleMenuPresentationModeChange = useCallback(
+    (mode: MenuPresentationMode) => {
+      confirmMenuPresentationModeChange({
+        currentMode: menuPresentationMode,
+        mode,
+        setMenuPresentationMode,
+        setTimeoutTimer,
+        t
+      })
+    },
+    [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
   )
 
   const handleUseSystemTitleBarChange = (checked: boolean) => {
@@ -506,6 +572,16 @@ const CommonSettings: FC = () => {
             </Button>
           </ZoomButtonGroup>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+          <SegmentedControl<MenuPresentationMode>
+            value={menuPresentationMode}
+            onValueChange={handleMenuPresentationModeChange}
+            options={menuPresentationModeOptions}
+            size="sm"
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
@@ -555,48 +631,6 @@ const CommonSettings: FC = () => {
               <ResetIcon size="14" />
             </Button>
           </SelectRow>
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
-          <SelectorRow>
-            <SegmentedControl
-              value={topicPosition || 'right'}
-              onValueChange={setTopicPosition}
-              options={[
-                { value: 'left', label: t('settings.topic.position.left') },
-                { value: 'right', label: t('settings.topic.position.right') }
-              ]}
-              className="max-w-full"
-              size="sm"
-            />
-          </SelectorRow>
-        </SettingRow>
-        {topicPosition === 'left' && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
-              <Switch
-                checked={clickAssistantToShowTopic}
-                onCheckedChange={(checked) => setClickAssistantToShowTopic(checked)}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch checked={showTopicTime} onCheckedChange={(checked) => setShowTopicTime(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
       </SettingGroup>
     </>
@@ -711,6 +745,8 @@ const CommonSettings: FC = () => {
     </>
   )
 
+  const renderChatSettingsSection = () => <ChatPreferenceSections />
+
   const renderPrivacyAdvancedSection = () => (
     <>
       <SettingGroup theme={theme}>
@@ -814,6 +850,8 @@ const CommonSettings: FC = () => {
     switch (activeSection) {
       case 'display-language':
         return renderDisplayLanguageSection()
+      case 'chat-settings':
+        return renderChatSettingsSection()
       case 'system-startup':
         return renderSystemStartupSection()
       case 'privacy-advanced':
