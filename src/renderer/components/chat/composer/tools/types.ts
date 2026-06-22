@@ -16,11 +16,6 @@ const logger = loggerService.withContext('ComposerToolRegistry')
 export type ComposerToolScope = TopicType | 'quick-assistant'
 
 export interface ComposerToolScopeConfig {
-  minRows?: number
-  maxRows?: number
-  showTokenCount?: boolean
-  showTools?: boolean
-  toolsCollapsible?: boolean
   enableQuickPanel?: boolean
   enableDragDrop?: boolean
 }
@@ -168,10 +163,6 @@ export const registerTool = (tool: ToolDefinition<any, any>): void => {
     logger.warn(`Tool with key "${tool.key}" is already registered. Overwriting.`)
   }
   toolRegistry.set(tool.key, tool)
-}
-
-export const getTool = (key: string): ToolDefinition<any, any> | undefined => {
-  return toolRegistry.get(key)
 }
 
 export const getAllTools = (): ToolDefinition<any, any>[] => {

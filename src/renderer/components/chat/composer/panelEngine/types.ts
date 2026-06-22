@@ -1,6 +1,9 @@
 import React from 'react'
 
-export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
+// Named reasons keep autocomplete/typo-protection; `(string & {})` still allows custom
+// reasons (e.g. 'input_prefix_invalid') without collapsing the union to bare `string`.
+export type QuickPanelKnownCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty'
+export type QuickPanelCloseAction = QuickPanelKnownCloseAction | (string & {}) | undefined
 export type QuickPanelTriggerInfo = {
   type: 'input' | 'button'
   position?: number

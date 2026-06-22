@@ -111,16 +111,6 @@ export const useComposerToolProviderLaunchers = (): ComposerToolLaunchersAPI => 
  */
 export type ComposerToolContextValue = ComposerToolState & ComposerToolDispatch
 
-/**
- * Get both state and dispatch (convenience hook).
- * Components using this hook will re-render when state changes.
- */
-export const useComposerToolProvider = (): ComposerToolContextValue => {
-  const state = useComposerToolProviderState()
-  const dispatch = useComposerToolProviderDispatch()
-  return { ...state, ...dispatch }
-}
-
 interface ComposerToolProviderProps {
   children: React.ReactNode
   initialState?: Partial<{

@@ -8,7 +8,7 @@ import {
   findLatestPendingAskUserQuestionRequest
 } from './variants/AskUserQuestionComposer'
 import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
-import { findLatestPendingPermissionRequest } from './variants/PermissionRequestComposerRequest'
+import { findLatestPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
