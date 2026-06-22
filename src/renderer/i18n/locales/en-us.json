@@ -2174,6 +2174,7 @@
           "success": "Data source added to knowledge base"
         },
         "title": "Add Data Source",
+        "too_many_sources": "You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Enter a webpage URL:",

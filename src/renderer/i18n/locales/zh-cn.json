@@ -2174,6 +2174,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "too_many_sources": "单次最多添加 {{count}} 个数据源，请减少选择后重试",
         "unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
         "url": {
           "description": "输入网页链接：",
