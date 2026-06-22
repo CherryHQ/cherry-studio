@@ -15,11 +15,16 @@ export const CLAUDE_CODE_API_BASE_URL = 'https://api.anthropic.com' as const
 
 /**
  * Seeded default models. Custom rows (`presetModelId: null`) — ids double as
- * `ANTHROPIC_MODEL`. Ids use Anthropic's stable aliases (not date-stamped
- * snapshots) so each tracks its latest snapshot automatically. This is the set
- * of currently-active Claude models; bump it when Anthropic ships a new one.
+ * `ANTHROPIC_MODEL`. The tier aliases (`opus`/`sonnet`/`haiku`) are the
+ * recommended picks: Claude Code resolves each to the current model of that
+ * tier, so users never need to chase version bumps. The versioned ids below
+ * (stable aliases, not date-stamped snapshots) are kept for pinning a specific
+ * release; bump the set when Anthropic ships a new one.
  */
 export const CLAUDE_CODE_DEFAULT_MODELS = [
+  { id: 'opus', name: 'Claude Opus (Latest)', group: 'Claude Opus' },
+  { id: 'sonnet', name: 'Claude Sonnet (Latest)', group: 'Claude Sonnet' },
+  { id: 'haiku', name: 'Claude Haiku (Latest)', group: 'Claude Haiku' },
   { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', group: 'Claude Opus' },
   { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', group: 'Claude Opus' },
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', group: 'Claude Opus' },
