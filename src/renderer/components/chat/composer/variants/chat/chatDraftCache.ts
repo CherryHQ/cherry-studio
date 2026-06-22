@@ -1,5 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import type { ComposerSerializedToken } from '../../tokens'
 

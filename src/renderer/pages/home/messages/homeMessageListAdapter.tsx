@@ -44,8 +44,8 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { updateCodeBlock } from '@renderer/utils/markdown'
-import { createComposerRichClipboardContentFromParts } from '@renderer/utils/messageUtils/composerClipboard'
-import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
+import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,

@@ -14,7 +14,7 @@
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import { sharedMessageToUIMessage } from '@renderer/utils/messageUtils/messageProjection'
+import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import type {
   BranchMessage,
   BranchMessagesResponse,

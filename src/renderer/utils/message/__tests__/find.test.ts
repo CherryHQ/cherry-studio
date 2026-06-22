@@ -14,7 +14,7 @@ function createExportView(parts: MessageExportView['parts']): MessageExportView 
   }
 }
 
-describe('messageUtils/find', () => {
+describe('message/find', () => {
   it('includes visible custom data parts in plain export content', () => {
     const message = createExportView([
       { type: 'text', text: 'Main answer' },

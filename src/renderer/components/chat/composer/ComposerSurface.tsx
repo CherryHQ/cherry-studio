@@ -11,13 +11,13 @@ import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { isPastedTextFileMetadata } from '@renderer/types'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
   readComposerClipboardFragmentFromDataTransfer,
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
-} from '@renderer/utils/messageUtils/composerClipboard'
+} from '@renderer/utils/message/composerClipboard'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { EditorOptions, JSONContent } from '@tiptap/core'

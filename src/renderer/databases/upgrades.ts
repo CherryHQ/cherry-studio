@@ -38,7 +38,7 @@ import {
   createThinkingBlock,
   createToolBlock,
   createTranslationBlock
-} from '../utils/messageUtils/create'
+} from '../utils/message/create'
 
 const logger = loggerService.withContext('Database:Upgrades')
 

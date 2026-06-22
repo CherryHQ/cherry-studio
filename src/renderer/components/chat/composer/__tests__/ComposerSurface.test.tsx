@@ -4,7 +4,7 @@ import {
   createComposerClipboardFragment,
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
-} from '@renderer/utils/messageUtils/composerClipboard'
+} from '@renderer/utils/message/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'

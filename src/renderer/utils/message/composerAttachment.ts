@@ -2,7 +2,7 @@ import type { ComposerFileKind, FileMetadata, FileType } from '@renderer/types'
 import {
   createComposerFileTokenSourceId,
   getComposerFileTokenSourceId
-} from '@renderer/utils/messageUtils/composerFileTokenSource'
+} from '@renderer/utils/message/composerFileTokenSource'
 
 /**
  * Lean, composer-owned v2 attachment descriptor. Replaces legacy `FileMetadata`

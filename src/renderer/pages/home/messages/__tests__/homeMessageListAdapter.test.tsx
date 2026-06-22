@@ -183,7 +183,7 @@ vi.mock('@renderer/utils/markdown', () => ({
   updateCodeBlock: vi.fn((content) => content)
 }))
 
-vi.mock('@renderer/utils/messageUtils/composerTokens', () => ({
+vi.mock('@renderer/utils/message/composerTokens', () => ({
   getComposerTextFromParts: vi.fn(() => '')
 }))
 

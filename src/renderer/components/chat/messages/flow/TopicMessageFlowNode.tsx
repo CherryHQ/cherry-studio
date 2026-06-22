@@ -6,7 +6,7 @@ import { toMessageListItem } from '@renderer/components/chat/messages/utils/mess
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils'
-import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/messageUtils/messageProjection'
+import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import dayjs from 'dayjs'

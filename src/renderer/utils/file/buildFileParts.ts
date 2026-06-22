@@ -11,7 +11,7 @@
  * accessor + Zod.
  */
 
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file/common'
