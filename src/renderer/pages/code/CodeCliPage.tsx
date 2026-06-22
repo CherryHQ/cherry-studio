@@ -618,7 +618,7 @@ const CodeCliPage: FC = () => {
                         )}
                       />
                       {needsWindowsCustomPath && (
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex min-w-0 items-center gap-2">
                           <Button
                             variant="secondary"
                             size="sm"
@@ -627,7 +627,7 @@ const CodeCliPage: FC = () => {
                             <FolderOpen size={10} />
                             {t('code.set_custom_path')}
                           </Button>
-                          <span className="truncate text-muted-foreground text-xs">
+                          <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
                             {terminalCustomPaths[selectedTerminal]
                               ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                               : t('code.custom_path_required')}
