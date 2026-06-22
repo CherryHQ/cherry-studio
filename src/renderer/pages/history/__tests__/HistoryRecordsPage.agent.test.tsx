@@ -902,6 +902,24 @@ describe('HistoryRecordsPage agent mode', () => {
     await vi.waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'))
   })
 
+  it('keeps a selected session when pinning it from history fails', async () => {
+    hookMocks.togglePin.mockResolvedValueOnce(false)
+    setupAgentHistory()
+
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const checkbox = within(alphaRow).getByRole('checkbox')
+    fireEvent.click(checkbox)
+    expect(checkbox).toHaveAttribute('aria-checked', 'true')
+
+    await act(async () => {
+      fireEvent.click(within(alphaRow).getByTestId('history-pin-button'))
+      await flushAnimationFrame()
+    })
+
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
+    expect(checkbox).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('deletes a session from the history row action column without selecting the row', async () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')

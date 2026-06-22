@@ -1484,7 +1484,7 @@ interface SessionListBodyProps {
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
-  onTogglePin: (id: string) => Promise<void>
+  onTogglePin: (id: string) => void | Promise<void | boolean>
   setActiveSessionId: (id: string | null) => void
 }
 

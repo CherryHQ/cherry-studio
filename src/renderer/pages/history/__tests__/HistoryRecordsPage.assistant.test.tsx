@@ -20,6 +20,7 @@ import viVN from '../../../i18n/translate/vi-vn.json'
 const hookMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn(),
   deleteTopics: vi.fn(),
+  batchUpdateTopics: vi.fn(),
   finishTopicRenaming: vi.fn(),
   getTopicMessages: vi.fn(),
   promptShow: vi.fn(),
@@ -236,6 +237,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   }),
   useTopics: hookMocks.useTopics,
   useTopicMutations: () => ({
+    batchUpdateTopics: hookMocks.batchUpdateTopics,
     deleteTopic: hookMocks.deleteTopic,
     deleteTopics: hookMocks.deleteTopics,
     updateTopic: hookMocks.updateTopic
@@ -462,6 +464,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.deleteTopic.mockResolvedValue(undefined)
     hookMocks.deleteTopics.mockReset()
     hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha'], deletedCount: 1 })
+    hookMocks.batchUpdateTopics.mockReset()
+    hookMocks.batchUpdateTopics.mockResolvedValue([])
     hookMocks.finishTopicRenaming.mockReset()
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
@@ -713,13 +717,19 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /Beta assistant/ }))
+    hookMocks.batchUpdateTopics.mockResolvedValueOnce([
+      { status: 'fulfilled', value: createTopic({ id: 'topic-alpha', assistantId: 'assistant-beta' }) },
+      { status: 'fulfilled', value: createTopic({ id: 'topic-beta', assistantId: 'assistant-beta' }) }
+    ])
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Move' }))
     })
 
-    expect(hookMocks.updateTopic).toHaveBeenCalledTimes(2)
-    expect(hookMocks.updateTopic).toHaveBeenNthCalledWith(1, 'topic-alpha', { assistantId: 'assistant-beta' })
-    expect(hookMocks.updateTopic).toHaveBeenNthCalledWith(2, 'topic-beta', { assistantId: 'assistant-beta' })
+    expect(hookMocks.batchUpdateTopics).toHaveBeenCalledWith([
+      { id: 'topic-alpha', dto: { assistantId: 'assistant-beta' } },
+      { id: 'topic-beta', dto: { assistantId: 'assistant-beta' } }
+    ])
+    expect(hookMocks.updateTopic).not.toHaveBeenCalled()
     expect(window.toast.success).toHaveBeenCalledWith('Moved 2 conversation(s)')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
@@ -738,8 +748,10 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAssistants.mockReturnValue({
       assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
     })
-    hookMocks.updateTopic.mockReset()
-    hookMocks.updateTopic.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('move failed'))
+    hookMocks.batchUpdateTopics.mockResolvedValueOnce([
+      { status: 'fulfilled', value: createTopic({ id: 'topic-alpha', assistantId: 'assistant-beta' }) },
+      { status: 'rejected', reason: new Error('move failed') }
+    ])
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
@@ -756,8 +768,11 @@ describe('HistoryRecordsPage assistant mode', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Move' }))
     })
 
-    expect(hookMocks.updateTopic).toHaveBeenCalledTimes(2)
-    expect(window.toast.error).toHaveBeenCalled()
+    expect(hookMocks.batchUpdateTopics).toHaveBeenCalledWith([
+      { id: 'topic-alpha', dto: { assistantId: 'assistant-beta' } },
+      { id: 'topic-beta', dto: { assistantId: 'assistant-beta' } }
+    ])
+    expect(window.toast.error).toHaveBeenCalledWith('move failed')
     expect(window.toast.success).not.toHaveBeenCalled()
 
     // The successfully-moved topic is pruned from the selection; the failed one stays selected.
@@ -1119,6 +1134,33 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+  })
+
+  it('clears the active topic after bulk deleting the last history topic', async () => {
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockResolvedValueOnce({ deletedIds: ['topic-alpha'], deletedCount: 1 })
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
+    expect(onRecordSelect).toHaveBeenCalledWith(null)
   })
 
   it('does not switch topics after deleting a non-active history row', async () => {

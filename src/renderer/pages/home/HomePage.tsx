@@ -354,7 +354,15 @@ const HomePage: FC = () => {
   ])
 
   const setActiveTopicAndDiscardDraft = useCallback(
-    (topic: Topic) => {
+    (topic: Topic | null) => {
+      if (!topic) {
+        if (draftAssistantSelectionRef.current) {
+          setDraftAssistantSelectionState(undefined)
+        }
+        setActiveTopic(null)
+        return true
+      }
+
       // One tab per topic: if this topic is already open in another tab, focus
       // that tab instead of navigating the current one (which would duplicate
       // it in the tab bar). The current tab keeps its own topic untouched.
@@ -382,8 +390,15 @@ const HomePage: FC = () => {
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const handleHistoryTopicSelect = useCallback(
-    (topic: Topic, messageId?: string) => {
+    (topic: Topic | null, messageId?: string) => {
       if (!setActiveTopicAndDiscardDraft(topic)) return
+      if (!topic) {
+        setResourceListOpen(false)
+        setPendingLocateMessageId(undefined)
+        setTopicRevealRequest(undefined)
+        return
+      }
+
       setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
       topicRevealRequestIdRef.current += 1

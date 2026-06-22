@@ -71,7 +71,7 @@ interface HistoryRecordsPageBaseProps {
 type HistoryRecordsPageProps =
   | (HistoryRecordsPageBaseProps & {
       mode: 'assistant'
-      onRecordSelect?: (topic: RendererTopic) => void
+      onRecordSelect?: (topic: RendererTopic | null) => void
     })
   | (HistoryRecordsPageBaseProps & {
       mode: 'agent'
@@ -109,7 +109,7 @@ type HistoryRecordsContentProps =
       mode: 'assistant'
       activeRecordId?: string | null
       onClose: () => void
-      onRecordSelect?: (topic: RendererTopic) => void
+      onRecordSelect?: (topic: RendererTopic | null) => void
     }
   | {
       mode: 'agent'
@@ -141,7 +141,7 @@ const HistoryRecordsContent = (props: HistoryRecordsContentProps) => {
 interface AssistantHistoryRecordsContentProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (topic: RendererTopic) => void
+  onRecordSelect?: (topic: RendererTopic | null) => void
 }
 
 interface AgentHistoryRecordsContentProps {
@@ -166,7 +166,7 @@ const AssistantHistoryRecordsContent = ({
   const { assistants } = useAssistants()
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
-  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics } = useTopicMutations()
+  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics, batchUpdateTopics } = useTopicMutations()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -339,11 +339,9 @@ const AssistantHistoryRecordsContent = ({
         return
       }
 
-      if (topic.id === activeRecordId && timeSortedTopics.length > 1) {
+      if (topic.id === activeRecordId) {
         const nextTopic = findAdjacentHistoryRecord(timeSortedTopics, topic.id, (candidate) => candidate.id)
-        if (nextTopic) {
-          onRecordSelect?.(getRendererTopic(nextTopic))
-        }
+        onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     },
     [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
@@ -365,9 +363,7 @@ const AssistantHistoryRecordsContent = ({
           activeRecordId,
           (candidate) => candidate.id
         )
-        if (nextTopic) {
-          onRecordSelect?.(getRendererTopic(nextTopic))
-        }
+        onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     } catch (err) {
       logger.error('Failed to bulk delete topics from history records', { ids, err })
@@ -381,25 +377,33 @@ const AssistantHistoryRecordsContent = ({
       const ids = selectedTopicIds.filter((id) => topics.some((topic) => topic.id === id))
       if (ids.length === 0) return
 
-      const movedIds: string[] = []
       try {
-        for (const id of ids) {
-          await patchTopic(id, { assistantId: targetAssistantId })
-          movedIds.push(id)
-        }
-        setSelectedTopicIds([])
-        window.toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
-      } catch (err) {
-        logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
+        const results = await batchUpdateTopics(ids.map((id) => ({ id, dto: { assistantId: targetAssistantId } })))
+        const movedIds = ids.filter((_, index) => results[index]?.status === 'fulfilled')
+        const failedResults = results.filter((result) => result.status === 'rejected')
+        const movedIdSet = new Set(movedIds)
+
         if (movedIds.length > 0) {
-          const movedIdSet = new Set(movedIds)
           setSelectedTopicIds((current) => current.filter((id) => !movedIdSet.has(id)))
         }
+
+        if (failedResults.length === 0) {
+          setSelectedTopicIds([])
+          window.toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
+          return
+        }
+
+        logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, failedResults })
+        const firstReason = failedResults[0]?.reason
+        const message = firstReason instanceof Error ? firstReason.message : t('history.records.bulkMoveTopics.error')
+        window.toast.error(message)
+      } catch (err) {
+        logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
         const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
         window.toast.error(message)
       }
     },
-    [patchTopic, selectedTopicIds, t, topics]
+    [batchUpdateTopics, selectedTopicIds, t, topics]
   )
 
   const handleClearMessages = useCallback((topic: RendererTopic) => {
@@ -677,8 +681,8 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     async (sessionId: string) => {
       const willPin = !isSessionPinned(sessionId)
 
-      await togglePin(sessionId)
-      if (willPin) {
+      const didToggle = await togglePin(sessionId)
+      if (didToggle !== false && willPin) {
         setSelectedSessionIds((ids) => ids.filter((id) => id !== sessionId))
       }
     },

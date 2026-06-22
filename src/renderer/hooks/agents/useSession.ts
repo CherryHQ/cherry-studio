@@ -240,8 +240,10 @@ export const useSessions = (
         } else {
           await pinTrigger({ body: { entityType: 'session', entityId: sessionId } })
         }
+        return true
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
+        return false
       }
     },
     [pinIdBySessionId, pinTrigger, unpinTrigger, t]
