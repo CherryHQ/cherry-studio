@@ -64,12 +64,6 @@ describe('TranslateInputPane', () => {
     expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
   })
 
-  it('uses a subtle hover background on the upload area', () => {
-    render(<TranslateInputPane {...baseProps()} />)
-
-    expect(screen.getByRole('button', { name: 'translate.files.upload' }).className).toContain('hover:bg-muted/30')
-  })
-
   it('clears the input when the clear button is clicked', () => {
     const props = baseProps()
     props.text = 'hello'

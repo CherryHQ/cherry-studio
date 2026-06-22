@@ -22,8 +22,7 @@
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src"],
       "@cherrystudio/ai-sdk-provider/*": ["./packages/ai-sdk-provider/src/*"],
       "@test-helpers/*": ["./tests/helpers/*"],
-      "@test-mocks/*": ["./tests/__mocks__/*"],
-      "@types": ["./src/renderer/types/index.ts"]
+      "@test-mocks/*": ["./tests/__mocks__/*"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node", "vitest/globals"],
@@ -36,8 +35,6 @@
     "src/main/**/*",
     "src/main/env.d.ts",
     "src/preload/**/*",
-    "src/renderer/services/traceApi.ts",
-    "src/renderer/types/*",
     "packages/mcp-trace/**/*",
     "packages/provider-registry/**/*",
     "packages/aiCore/src/**/*",

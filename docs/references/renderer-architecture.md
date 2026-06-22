@@ -106,6 +106,7 @@ A provider's reusable, non-React logic belongs in `@shared` or `services/`, not 
 ## 5. Public API & Boundary Enforcement
 
 - **Single entry.** Each feature exposes exactly one curated `index.ts` (explicit named exports, **no `export *`**). External consumers import the barrel; reaching into a feature's internal files is forbidden. (VS Code applies the same rule: one contribution may import only another's single public `common/` API, never its internals.)
+- **Shared buckets carry no root barrel.** `types/` and `utils/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer-architecture.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
 - **Mechanical enforcement.** Boundaries are enforced by lint, not by convention alone. Configure `import/no-restricted-paths` zones: `components`/`hooks`/`utils`/`services` may not import `features`/`pages`; `pages` may not import another `pages`; `packages/ui` may not import `@renderer/*`. Roll out at `warn` to quantify existing violations, then tighten to `error`.
 
 ## 6. Top-Level Governance
@@ -137,6 +138,7 @@ After decomposition every edge is downward (`component → component`/`hook`, `h
 - Treating a cross-cutting capability as a peer feature.
 - Opening a new top-level directory for a single capability.
 - A feature using `export *`, or an external consumer deep-importing a feature's internals.
+- Importing a shared bucket root (`@renderer/utils`, `@renderer/types`) instead of the specific file/topic, or giving `types/`/`utils/` a re-export root `index.ts` (§5).
 - A hand-rolled `components/layout/` bucket — "layout" is not a layer here: route layouts live in `routes/` (TanStack layout routes), layout primitives (`Box`/`Stack`/`Grid`) in `packages/ui`, app shell in `windows/`.
 
 ## 8. Target vs Current State
@@ -163,6 +165,9 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 | `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (§4.8) |
 | `context/` | redundant by-kind bucket (providers are components); mixes global and domain providers | dissolve: app-wide providers → shared tier (components), mounted by windows; domain providers → their owning domain; none → `services/` |
 | `config/` | by-kind bucket mixing app-global constants (`constant.ts` ~80 consumers, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | dissolve: app-global residue (`constant.ts`, `env.ts`) stays; domain config/data → its owning domain |
+| `types/` root barrel | `src/renderer/types/index.ts` (~950 lines) **defines ~114 types inline** *and* re-exports via 13 `export *`; imported bucket-root by ~210 `@renderer/types` + 15 `@types` consumers | no root `index.ts` (§5): each type in `types/<topic>.ts`, imported as `@renderer/types/<topic>`; a multi-file topic promotes to `types/<topic>/index.ts` (named exports, no `export *`) |
+| `utils/` root barrel | `src/renderer/utils/index.ts` (11 `export *`) imported bucket-root by ~127 `@renderer/utils` consumers; `utils/messageUtils/` is a multi-file topic subdir with **no `index.ts`** | drop the root barrel (import `@renderer/utils/<topic>`); give `messageUtils/` one curated `index.ts` (named exports, no `export *`) |
+| `@types` alias | `@types` resolves to the `src/renderer/types` root barrel (`tsconfig.web.json:28`, `electron.vite.config.ts:118`) — a redundant second path into the bucket root, used by 15 renderer files | dissolve `@types`; consumers import `@renderer/types/<topic>` directly (subsumed by the `types/` root-barrel removal above) |
 | `store/`, `databases/` | v1 Redux / Dexie | removed during the v2 refactor (do not model) |
 | Boundary enforcement | none | `import/no-restricted-paths` zones (§5) |
 

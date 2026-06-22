@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { defaultLanguage } from '@shared/utils/languages'
 import { ConfigProvider, theme } from 'antd'
 import deDE from 'antd/locale/de_DE'
 import elGR from 'antd/locale/el_GR'

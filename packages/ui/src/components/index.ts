@@ -98,6 +98,8 @@ export {
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/icon-tooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './composites/image-tool-button'
+// Markdown
+export * from './composites/markdown'
 // ImagePreview
 export {
   DEFAULT_IMAGE_PREVIEW_LABELS,

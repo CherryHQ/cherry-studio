@@ -4,11 +4,10 @@ import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTitleFromString } from '@renderer/utils/export'
-import { resetMessage } from '@renderer/utils/messageUtils/create'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getNamingTextContent } from '@renderer/utils/messageUtils/find'
 import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
@@ -35,12 +34,12 @@ export async function locateToMessage(navigate: UseNavigateResult<string>, messa
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
 }
 
-export function getMessageModelId(message: Message) {
+export function getMessageModelId(message: ExportableMessage) {
   return message?.model?.id || message.modelId
 }
 
-export async function getMessageTitle(message: Message, length = 30): Promise<string> {
-  const content = getMainTextContent(message)
+export async function getMessageTitle(message: ExportableMessage, length = 30): Promise<string> {
+  const content = getNamingTextContent(message)
 
   // Read from v2 Preference (`data.export.markdown.use_topic_naming_for_message_title`)
   // — the v1 Redux key was migrated; the renderer settings page reads the
@@ -49,12 +48,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
   const useTopicNaming = await preferenceService.get('data.export.markdown.use_topic_naming_for_message_title')
   if (useTopicNaming) {
     try {
-      const tempMessage = resetMessage(message, {
-        status: AssistantMessageStatus.SUCCESS,
-        blocks: message.blocks
-      })
-
-      const titlePromise = fetchMessagesSummary({ messages: [tempMessage] })
+      const titlePromise = fetchMessagesSummary({ messages: [message] })
       window.toast.loading({ title: t('chat.topics.export.wait_for_title_naming'), promise: titlePromise })
       const { text: title } = await titlePromise
 

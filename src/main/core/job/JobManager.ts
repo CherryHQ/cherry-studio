@@ -101,10 +101,15 @@ export class JobManager extends BaseService {
   private readonly finishedResolvers = new Map<string, FinishedResolver>()
   /**
    * In-flight execution markers populated by `spawnExecute` regardless of who
-   * enqueued the job. Used by `cancel()` to wait for the handler to release —
-   * this lives independent of `finishedResolvers` because cross-restart
-   * dispatch never builds a `handleFor` entry, leaving the resolver map empty
-   * even while a controller is registered.
+   * enqueued the job. The authoritative in-memory set of jobIds this process is
+   * currently executing. Consumers:
+   *   - `cancel()` waits on the promise for the handler to release.
+   *   - startup recovery filters these out (via the `isJobInFlight` predicate)
+   *     so a job started during the quiet window is never reset/re-dispatched.
+   *   - `spawnExecute` guards against double-running an id already present.
+   * Lives independent of `finishedResolvers` because cross-restart dispatch
+   * never builds a `handleFor` entry, leaving the resolver map empty even while
+   * a controller is registered.
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
   private readonly scheduleDisposables = new Map<string, Disposable>()
@@ -193,7 +198,9 @@ export class JobManager extends BaseService {
    * Step order is significant:
    *
    *   1. `runStartupRecovery` resets non-terminal rows per handler strategy
-   *      (abandon / retry / singleton) and honours `cancelRequested` overrides.
+   *      (abandon / retry / singleton) and honours `cancelRequested` overrides,
+   *      EXCEPT rows this process is still executing (`inFlightExecuted`), which
+   *      are excluded so a job started during the quiet window is not re-dispatched.
    *
    *   2. Resurrect queues for any non-terminal rows from previous runs so
    *      pending dispatch lands on the next tick. `dispatchAll()` iterates
@@ -231,7 +238,7 @@ export class JobManager extends BaseService {
   private async runStartupRecoveryFlow(): Promise<void> {
     try {
       if (this._isShuttingDown) return
-      const stats = await runStartupRecovery(this.handlers)
+      const stats = await runStartupRecovery(this.handlers, (id) => this.inFlightExecuted.has(id))
       logger.info('Startup recovery complete', stats)
     } catch (err) {
       logger.error('Startup recovery failed', err as Error)
@@ -1021,6 +1028,26 @@ export class JobManager extends BaseService {
         code: JOB_ERROR_CODES.UNKNOWN_TYPE,
         message: `No handler registered for type "${row.type}"`,
         retryable: false
+      })
+      return
+    }
+
+    // Idempotency guard (invariant, defense-in-depth): never run a handler for a
+    // jobId this process is already executing. With in-flight-aware startup
+    // recovery in place this is unreachable, but it protects against ANY future
+    // re-dispatch path double-running a job. Logged at `warn`, NOT `error`:
+    // firing it does not fail the job — the original in-flight execution still
+    // finalizes the row exactly once — it only flags that some new code path
+    // attempted a double-dispatch and was harmlessly short-circuited (an
+    // unexpected-but-handled condition, unlike the missing-handler branch above
+    // which actually finalizes the job as failed). Placed after the
+    // handler-missing finalize (a missing-handler row must still be finalized)
+    // and before allocating a second controller/timeout/promise for a row we
+    // are about to skip.
+    if (this.inFlightExecuted.has(row.id)) {
+      logger.warn('spawnExecute: job already in-flight in this process — skipping duplicate dispatch', {
+        id: row.id,
+        type: row.type
       })
       return
     }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
@@ -14,10 +15,10 @@ import type {
   AiStreamOpenRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { type SerializedError, serializeError } from '@shared/types/error'
+import type { SerializedError } from '@shared/types/error'
+import { serializeError } from '@shared/utils/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 

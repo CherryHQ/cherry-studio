@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem/types'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import { MB } from '@shared/config/constant'
+import { MB } from '@shared/utils/constants'
 import { tool } from 'ai'
 import * as z from 'zod'
 

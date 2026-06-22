@@ -1,5 +1,7 @@
 export * from './canonicalize'
+export * from './fileExtensions'
 export * from './filename'
 export * from './fileType'
+export * from './handle'
 export * from './tree'
 export * from './urlUtil'
