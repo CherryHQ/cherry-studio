@@ -310,6 +310,66 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('failInterruptedItems', () => {
+    const INTERRUPTED = 'Indexing interrupted; reindex to finish.'
+    const PREPARING_DIR = itemId('7e00')
+    const PROCESSING_DIR = itemId('7e01')
+    const READING_LEAF = itemId('7e02')
+    const EMBEDDING_LEAF = itemId('7e03')
+    const PROCESSING_LEAF = itemId('7e04')
+    const IDLE_LEAF = itemId('7e05')
+    const COMPLETED_LEAF = itemId('7e06')
+    const FAILED_LEAF = itemId('7e07')
+    const DELETING_LEAF = itemId('7e08')
+
+    it('marks every in-flight item (leaves and containers) failed, leaving terminal/idle/deleting untouched', async () => {
+      // In-flight: a container mid-expansion, a container with an in-flight child, and standalone leaves.
+      await seedItem({ id: PREPARING_DIR, type: 'directory', data: { source: '/p' }, status: 'preparing' })
+      await seedItem({ id: PROCESSING_DIR, type: 'directory', data: { source: '/q' }, status: 'processing' })
+      await seedItem({
+        id: READING_LEAF,
+        groupId: PROCESSING_DIR,
+        data: { source: 'r', content: 'r' },
+        status: 'reading'
+      })
+      await seedItem({ id: EMBEDDING_LEAF, data: { source: 'e', content: 'e' }, status: 'embedding' })
+      await seedItem({ id: PROCESSING_LEAF, data: { source: 'p2', content: 'p2' }, status: 'processing' })
+
+      // Untouched: not started, already terminal, or being deleted.
+      await seedItem({ id: IDLE_LEAF, data: { source: 'i', content: 'i' }, status: 'idle' })
+      await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
+      await seedItem({ id: FAILED_LEAF, data: { source: 'f', content: 'f' }, status: 'failed', error: 'real failure' })
+      await seedItem({ id: DELETING_LEAF, data: { source: 'd', content: 'd' }, status: 'deleting' })
+
+      const count = await service.failInterruptedItems(INTERRUPTED)
+      expect(count).toBe(5)
+
+      for (const id of [PREPARING_DIR, PROCESSING_DIR, READING_LEAF, EMBEDDING_LEAF, PROCESSING_LEAF]) {
+        const item = await service.getById(id)
+        expect(item.status).toBe('failed')
+        expect(item.error).toBe(INTERRUPTED)
+      }
+
+      expect((await service.getById(IDLE_LEAF)).status).toBe('idle')
+      expect((await service.getById(COMPLETED_LEAF)).status).toBe('completed')
+      const realFailure = await service.getById(FAILED_LEAF)
+      expect(realFailure.status).toBe('failed')
+      expect(realFailure.error).toBe('real failure')
+      expect((await service.getById(DELETING_LEAF)).status).toBe('deleting')
+    })
+
+    it('returns 0 when nothing is in flight', async () => {
+      await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
+      await expect(service.failInterruptedItems(INTERRUPTED)).resolves.toBe(0)
+    })
+
+    it('rejects a blank failure reason', async () => {
+      await seedItem({ id: EMBEDDING_LEAF, data: { source: 'e', content: 'e' }, status: 'embedding' })
+      await expect(service.failInterruptedItems('   ')).rejects.toThrow()
+      expect((await service.getById(EMBEDDING_LEAF)).status).toBe('embedding')
+    })
+  })
+
   describe('create', () => {
     it('creates one knowledge item as idle', async () => {
       const item: CreateKnowledgeItemDto = {

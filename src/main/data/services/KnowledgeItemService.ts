@@ -26,6 +26,17 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
+/**
+ * Item statuses that mean "indexing is in progress" — the item is being driven
+ * by a job and is neither finished (completed/failed), idle (never started), nor
+ * being deleted. Used to find items stranded by an interrupted job on boot.
+ */
+const KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES = [
+  'preparing',
+  'processing',
+  'reading',
+  'embedding'
+] as const satisfies readonly KnowledgeItemStatus[]
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
@@ -176,6 +187,44 @@ export class KnowledgeItemService {
     }
 
     return [...rootIdsByBase.entries()].map(([baseId, rootItemIds]) => ({ baseId, rootItemIds }))
+  }
+
+  /**
+   * Mark every item stranded in an in-flight status as `failed`. Called once on
+   * boot: an indexing job abandoned by an app quit / restart leaves its item in
+   * `preparing`/`processing`/`reading`/`embedding` with nothing left to drive
+   * it, so without this the item would spin forever and could not be reindexed
+   * (reindex only accepts completed/failed).
+   *
+   * A single UPDATE covers leaves and their ancestor containers together: a
+   * container with an in-flight descendant is itself in-flight
+   * (`reconcileContainers` keeps it `processing` while any child is active), so
+   * failing every in-flight row leaves no completed/idle container pointing at a
+   * failed child — the rollup invariant holds without a separate reconcile pass.
+   *
+   * @returns the number of items marked failed.
+   */
+  async failInterruptedItems(error: string): Promise<number> {
+    const reason = error.trim()
+    if (!reason) {
+      throw DataApiErrorFactory.validation({
+        error: ['Interrupted-item failure reason must be non-empty']
+      })
+    }
+
+    const dbService = application.get('DbService')
+    const updatedRows = await dbService.withWriteTx((tx) =>
+      tx
+        .update(knowledgeItemTable)
+        .set({ status: 'failed', error: reason })
+        .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
+        .returning({ id: knowledgeItemTable.id })
+    )
+
+    if (updatedRows.length > 0) {
+      logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
+    }
+    return updatedRows.length
   }
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {

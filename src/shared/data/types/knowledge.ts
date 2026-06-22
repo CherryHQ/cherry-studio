@@ -88,17 +88,20 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCod
 export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode = 'missing_vector_store'
 
 /**
- * Item-level error codes stored on `knowledge_item.error`. Currently only the v2
- * migration sets one: a v1-indexed `directory` whose container-level vectors could not
- * be re-attributed to per-file children (unreadable legacy sources, or no migratable
- * vectors) is marked `failed` with `directory_not_migrated`. Modeled as a zod enum (the
- * same shape as the base error codes above) so the renderer's code → i18n switch in
- * `error.ts` stays exhaustive-checkable and the code ↔ translator-key triple is tied together.
+ * Item-level error codes stored on `knowledge_item.error`. Two are set today:
+ * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
+ *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
+ * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
+ *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
+ * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
+ * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
  */
-export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated'] as const
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated', 'indexing_interrupted'] as const
 export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
 export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
+export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode = 'indexing_interrupted'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
