@@ -59,6 +59,14 @@ import ThemeColorPicker from './components/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
 type CommonSettingsSection = 'display-language' | 'chat-settings' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+type TFunction = (key: string) => string
+type MenuPresentationModeChangeOptions = {
+  currentMode: MenuPresentationMode
+  mode: MenuPresentationMode
+  setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<unknown> | unknown
+  setTimeoutTimer: (key: string, callback: () => void, delay: number) => void
+  t: TFunction
+}
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
@@ -76,6 +84,40 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
+
+export function confirmMenuPresentationModeChange({
+  currentMode,
+  mode,
+  setMenuPresentationMode,
+  setTimeoutTimer,
+  t
+}: MenuPresentationModeChangeOptions): void {
+  if (mode === currentMode) return
+
+  void window.modal.confirm({
+    title: t('settings.general.common.menu.presentation_mode.restart.title'),
+    content: t('settings.general.common.menu.presentation_mode.restart.content'),
+    okText: t('common.confirm'),
+    cancelText: t('common.cancel'),
+    centered: true,
+    async onOk() {
+      try {
+        await setMenuPresentationMode(mode)
+      } catch (error) {
+        window.toast.error(formatErrorMessage(error))
+        throw error
+      }
+
+      setTimeoutTimer(
+        'handleMenuPresentationModeChange',
+        () => {
+          void window.api.application.relaunch()
+        },
+        500
+      )
+    }
+  })
+}
 
 const CommonSettings: FC = () => {
   const { t } = useTranslation()
@@ -269,30 +311,12 @@ const CommonSettings: FC = () => {
 
   const handleMenuPresentationModeChange = useCallback(
     (mode: MenuPresentationMode) => {
-      if (mode === menuPresentationMode) return
-
-      void window.modal.confirm({
-        title: t('settings.general.common.menu.presentation_mode.restart.title'),
-        content: t('settings.general.common.menu.presentation_mode.restart.content'),
-        okText: t('common.confirm'),
-        cancelText: t('common.cancel'),
-        centered: true,
-        async onOk() {
-          try {
-            await setMenuPresentationMode(mode)
-          } catch (error) {
-            window.toast.error(formatErrorMessage(error))
-            throw error
-          }
-
-          setTimeoutTimer(
-            'handleMenuPresentationModeChange',
-            () => {
-              void window.api.application.relaunch()
-            },
-            500
-          )
-        }
+      confirmMenuPresentationModeChange({
+        currentMode: menuPresentationMode,
+        mode,
+        setMenuPresentationMode,
+        setTimeoutTimer,
+        t
       })
     },
     [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]

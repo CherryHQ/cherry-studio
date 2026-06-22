@@ -5455,7 +5455,19 @@
         "title": "数据备份与恢复"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "原生",
+            "restart": {
+              "content": "更改菜单样式需要重启应用才能生效，是否现在重启？",
+              "title": "需要重启应用"
+            },
+            "title": "右键菜单样式"
+          }
+        },
         "sections": {
+          "chat_settings": "对话设置",
           "custom_css": "自定义 CSS",
           "display_language": "显示与语言",
           "privacy_advanced": "隐私与高级",

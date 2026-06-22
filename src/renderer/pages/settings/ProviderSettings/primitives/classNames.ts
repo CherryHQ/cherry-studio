@@ -320,8 +320,6 @@ export const modelSyncClasses = {
   summaryGrid: 'mt-3 grid gap-2 sm:grid-cols-3',
   summaryMetric:
     'rounded-xl border border-border-subtle bg-background/75 px-3 py-2 text-[13px] leading-tight text-foreground/75',
-  warningBlock:
-    'rounded-2xl border border-warning-border bg-warning-bg px-4 py-3 text-[13px] leading-5 text-foreground/80',
   section: 'rounded-2xl border border-border-muted bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
@@ -341,9 +339,6 @@ export const modelSyncClasses = {
   rowBadgeRow: 'mt-2 flex flex-wrap items-center gap-1.5',
   rowBadge:
     'rounded-full border border-border-muted bg-background px-2 py-0.5 text-xs leading-tight text-foreground/65',
-  rowDangerBadge:
-    'rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-xs leading-tight text-foreground/75',
-  impactCard: 'rounded-2xl border border-info-border bg-info-bg px-4 py-4',
   impactList: 'mt-3 space-y-2',
   impactItem:
     'rounded-xl border border-border-subtle bg-background/80 px-3 py-2 text-[13px] leading-5 text-foreground/78',
