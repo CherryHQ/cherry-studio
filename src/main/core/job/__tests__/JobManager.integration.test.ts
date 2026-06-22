@@ -265,6 +265,82 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('retry: leaves a job already executing in THIS process alone (no double-dispatch)', async () => {
+      // Regression for #16291: a job enqueued + started during the startup quiet
+      // window is still `running` when the recovery sweep fires. Without the
+      // in-flight guard the retry strategy resets that running row → pending and
+      // dispatchAll re-claims it, running the handler a SECOND time for one
+      // enqueue. The handler must execute exactly once.
+      let executeCount = 0
+      let releaseGate!: () => void
+      const gate = new Promise<void>((resolve) => {
+        releaseGate = resolve
+      })
+      const gateHandler: JobHandler<SlowInput> = {
+        recovery: 'retry',
+        cancelTimeoutMs: 1500,
+        defaultConcurrency: 1,
+        async execute(ctx) {
+          executeCount++
+          // Park on a manually-resolved gate (NOT a setTimeout, which would be
+          // a faked timer and could fire mid-sweep), staying in-flight until the
+          // test releases it. Still honor abort so shutdown/cancel stays clean.
+          await new Promise<void>((resolve, reject) => {
+            if (ctx.signal.aborted) return reject(new Error('AbortError'))
+            const onAbort = () => reject(new Error('AbortError'))
+            ctx.signal.addEventListener('abort', onAbort, { once: true })
+            void gate.then(() => {
+              ctx.signal.removeEventListener('abort', onAbort)
+              resolve()
+            })
+          })
+          return { echoed: `echo: ${ctx.input.message}` } satisfies SlowOutput
+        }
+      }
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['inflight.guard', gateHandler as JobHandler]]
+      })
+
+      // Enqueue + let it start executing: the row is `running` in the DB and the
+      // jobId is in inFlightExecuted, with execute() parked on the gate.
+      const handle = await jobManager.enqueue('inflight.guard' as never, { message: 'x' } as never)
+      await drainAllQueues(jobManager)
+      expect(executeCount).toBe(1)
+      expect((await jobService.getById(handle.id))?.status).toBe('running')
+
+      // Run the startup-recovery sweep WHILE the job is genuinely in-flight in
+      // this process. Invoked directly — the same flow the 60s timer triggers —
+      // to keep the test deterministic without re-driving fake timers.
+      await (jobManager as unknown as { runStartupRecoveryFlow: () => Promise<void> }).runStartupRecoveryFlow()
+
+      // This assertion is NEGATIVE (count must NOT grow), so give any buggy
+      // re-dispatch ample opportunity to land before asserting — drain + settle
+      // repeatedly so a slow second spawn can't slip past a single drain and
+      // leave the test a false negative.
+      for (let i = 0; i < 5; i++) {
+        await drainAllQueues(jobManager)
+        await new Promise((r) => setTimeout(r, 20))
+      }
+
+      // Positive signal: recovery left the live row alone (still `running`, not
+      // reset to `pending`). Load-bearing negative: handler ran exactly once.
+      expect((await jobService.getById(handle.id))?.status).toBe('running')
+      expect(executeCount).toBe(1)
+
+      // Release the gate → the single execution finalizes the row once.
+      releaseGate()
+      const settled = await Promise.race([
+        handle.finished,
+        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
+      ])
+      expect(settled).not.toBe('timeout')
+      expect((settled as { status: string }).status).toBe('completed')
+      expect(executeCount).toBe(1)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('singleton: keeps the newest non-terminal, cancels older ones', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
 
