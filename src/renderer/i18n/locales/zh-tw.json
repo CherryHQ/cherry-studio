@@ -3615,28 +3615,7 @@
     "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
   },
   "ocr": {
-    "builtin": {
-      "system": "系統 OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "不能刪除內建提供者",
-        "existing": "提供者已存在",
-        "get_providers": "取得可用提供者失敗",
-        "not_found": "OCR 提供者不存在",
-        "update_failed": "更新設定失敗"
-      },
-      "unknown": "OCR 過程發生錯誤"
-    },
-    "file": {
-      "not_supported": "不支援的檔案類型 {{type}}"
-    },
-    "processing": "OCR 處理中...",
-    "warning": {
-      "provider": {
-        "fallback": "已改用 {{name}}，這可能導致問題"
-      }
-    }
+    "processing": "OCR 處理中..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -7152,6 +7131,7 @@
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },
+      "ocr_completed": "圖片 OCR 完成",
       "reading": "讀取檔案內容中...",
       "upload": "拖入或點擊上傳圖片/文件"
     },

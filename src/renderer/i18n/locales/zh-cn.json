@@ -3615,28 +3615,7 @@
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
   },
   "ocr": {
-    "builtin": {
-      "system": "系统 OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "不能删除内置提供商",
-        "existing": "提供商已存在",
-        "get_providers": "获取可用提供商失败",
-        "not_found": "OCR 提供商不存在",
-        "update_failed": "更新配置失败"
-      },
-      "unknown": "OCR 过程发生错误"
-    },
-    "file": {
-      "not_supported": "不支持的文件类型 {{type}}"
-    },
-    "processing": "OCR 处理中...",
-    "warning": {
-      "provider": {
-        "fallback": "已回退到 {{name}}，这可能导致问题"
-      }
-    }
+    "processing": "OCR 处理中..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -7152,6 +7131,7 @@
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
+      "ocr_completed": "图片 OCR 完成",
       "reading": "读取文件内容中...",
       "upload": "拖入或点击上传图片/文档"
     },
