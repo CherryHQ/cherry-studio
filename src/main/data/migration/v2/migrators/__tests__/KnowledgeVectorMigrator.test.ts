@@ -2269,6 +2269,71 @@ describe('KnowledgeVectorMigrator', () => {
       expect(validateResult.errors).toStrictEqual([])
     })
 
+    it('keeps the rebuilt store and credits skippedCount when the snapshot-pin UPDATE throws after rename', async () => {
+      // The url snapshot store is rebuilt and renamed to its runtime path and the snapshot file is
+      // written before the row-pin UPDATE runs. If that UPDATE throws, the per-base catch credits the
+      // base's units to skippedCount and drops it from successfulBaseIds, so the engine reconciliation
+      // still balances and the migration survives — but the rebuilt store is left in place at the
+      // runtime path with the row unpinned (removeIndexStoreFiles(tempPath) is a no-op since tempPath
+      // was already renamed away). Narrow, recoverable window: the next migration re-run re-pins it.
+      // Pin the behavior so it can't regress into an aborted migration or a silently dropped base.
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+      // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is renamed.
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn().mockRejectedValue(new Error('pin update failed'))
+        }))
+      })) as any
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      // Per-base failure is non-fatal: the base is skipped, not the whole migration.
+      expect(executeResult.success).toBe(true)
+      expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
+      expect(migrator.executionErrors.some((message: string) => message.includes('pin update failed'))).toBe(true)
+
+      // The rebuilt store survives at the runtime path (rename already happened; the catch only cleans
+      // the now-renamed temp path), so the vectors are not lost — merely left unpinned until a re-run.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+
+      // The skipped base's units are credited, so the engine's count reconciliation still balances.
+      const failedValidateResult = await migrator.validate(migrationCtx as any)
+      expect(failedValidateResult.success).toBe(true)
+      expect(failedValidateResult.stats.targetCount).toBe(0)
+      expect(failedValidateResult.stats.skippedCount).toBe(failedValidateResult.stats.sourceCount)
+    })
+
     it('validate fails when a materialized url snapshot file is missing from the material root', async () => {
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {

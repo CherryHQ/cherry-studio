@@ -27,14 +27,19 @@ const translateKnowledgeBaseErrorCode = (code: KnowledgeBaseErrorCode, t: Knowle
   }
 }
 
-/** Failed base tooltip text: known error codes map to localized copy, free-form messages pass through. */
+/**
+ * Failed-base tooltip text. `KnowledgeBase.error` is a nullable error-code enum
+ * (`KnowledgeBaseErrorCodeSchema.nullable()`), so a recognized code maps to localized copy and the
+ * only other reachable value — `null` — falls back to the generic reason. (Unlike the item helper
+ * below, a base never carries a free-form message to pass through.)
+ */
 export const getKnowledgeBaseFailureReason = (base: Pick<KnowledgeBase, 'error'>, t: KnowledgeErrorTranslator) => {
   const parsedCode = KnowledgeBaseErrorCodeSchema.safeParse(base.error)
   if (parsedCode.success) {
     return translateKnowledgeBaseErrorCode(parsedCode.data, t)
   }
 
-  return base.error ?? t('knowledge.error.failed_base_unknown')
+  return t('knowledge.error.failed_base_unknown')
 }
 
 /** Localized copy for a known item error code. Exhaustive over `KnowledgeItemErrorCode`. */

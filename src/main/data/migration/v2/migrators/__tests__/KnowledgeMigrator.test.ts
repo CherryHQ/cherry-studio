@@ -1071,6 +1071,70 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.warnings.some((warning: string) => warning.includes('unreadable'))).toBe(false)
   })
 
+  it('prepare skips the legacy vector-store read when a resolved-model base has null dimensions', async () => {
+    // Gate: directory expansion reads the legacy store only when `vectorsWillMigrate` (model resolved
+    // AND dimensions !== null). A resolved model whose store is unreadable yields dimensions===null, so
+    // the base is kept as a `missing_vector_store` failed row and its folders stay tombstones — without
+    // touching the (missing/locked) DB. A regression loosening the gate back to `kind === 'resolved'`
+    // would still tombstone the folder but would needlessly read the DB (and emit a spurious read_error
+    // warning when locked); only asserting loadLoaderSourceMap is never called catches that.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: null, reason: 'vector_db_empty' })
+    const loadLoaderSourceMapSpy = vi
+      .spyOn(migrator, 'loadLoaderSourceMap')
+      .mockResolvedValue({ kind: 'loaded', sources: new Map<string, string>() })
+
+    const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-dir',
+                name: 'KB dir',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                items: [
+                  {
+                    id: 'item-directory',
+                    type: 'directory',
+                    content: '/docs',
+                    uniqueId: 'DirectoryLoader_indexed',
+                    uniqueIds: ['loader-dir-a']
+                  }
+                ]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      },
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockResolvedValue([{ id: 'silicon::BAAI/bge-m3' }])
+        })
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+    expect(result.success).toBe(true)
+
+    // Gate short-circuited: the legacy vector store was never read.
+    expect(loadLoaderSourceMapSpy).not.toHaveBeenCalled()
+
+    // Base kept as a restorable missing_vector_store failure; the directory stays a tombstone with no
+    // synthesized children.
+    expect(migrator.preparedBases[0]).toMatchObject({
+      status: 'failed',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+    })
+    const migratedId = migrator.legacyItemIdRemap.get('item-directory')
+    expect(migrator.preparedItems.filter((item: any) => item.groupId === migratedId)).toHaveLength(0)
+  })
+
   it('prepare keeps an interrupted directory as a failed item instead of expanding it', async () => {
     // A v1 directory left in `processing`/`pending`/`failed` had only some files embedded before
     // it was interrupted. Even with resolvable loader sources it must NOT expand into a fully
