@@ -13,11 +13,22 @@ export const CLAUDE_CODE_PROVIDER_ID = 'claude-code' as const
 export const CLAUDE_CODE_PROVIDER_NAME = 'Claude Code' as const
 export const CLAUDE_CODE_API_BASE_URL = 'https://api.anthropic.com' as const
 
-/** Seeded default models. Custom rows (`presetModelId: null`) — ids double as `ANTHROPIC_MODEL`. */
+/**
+ * Seeded default models. Custom rows (`presetModelId: null`) — ids double as
+ * `ANTHROPIC_MODEL`. Ids use Anthropic's stable aliases (not date-stamped
+ * snapshots) so each tracks its latest snapshot automatically. This is the set
+ * of currently-active Claude models; bump it when Anthropic ships a new one.
+ */
 export const CLAUDE_CODE_DEFAULT_MODELS = [
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', group: 'Claude 4.7' },
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', group: 'Claude 4.6' },
-  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', group: 'Claude 4.5' }
+  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', group: 'Claude Opus' },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', group: 'Claude Opus' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', group: 'Claude Opus' },
+  { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', group: 'Claude Opus' },
+  { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', group: 'Claude Opus' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', group: 'Claude Sonnet' },
+  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', group: 'Claude Sonnet' },
+  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', group: 'Claude Haiku' },
+  { id: 'claude-fable-5', name: 'Claude Fable 5', group: 'Claude Fable' }
 ] as const
 
 export const CLAUDE_CODE_DEFAULT_UNIQUE_MODEL_ID = createUniqueModelId(
