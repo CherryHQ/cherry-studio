@@ -30,6 +30,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { CHAT_SHELL_TRANSITION } from '../shell/paneLayout'
+import { getVerticalSplitterProps } from '../shell/splitterA11y'
 import OpenExternalAppButton from './OpenExternalAppButton'
 
 const logger = loggerService.withContext('ArtifactPane')
@@ -307,12 +308,22 @@ function useArtifactFileTreeResize() {
     [measureArtifactPaneWidth, paneWidth, startResizeDrag]
   )
 
+  const setPaneWidth = useCallback(
+    (nextWidth: number) => setStoredWidth(clampArtifactFileTreeWidth(nextWidth, currentArtifactPaneWidthRef.current)),
+    [setStoredWidth]
+  )
+
+  const { minWidth, maxWidth } = getArtifactFileTreeWidthBounds(artifactPaneWidth)
+
   return {
     artifactPaneRef,
     isResizing,
     paneRef,
     paneWidth,
-    startResizing
+    minWidth,
+    maxWidth,
+    startResizing,
+    setPaneWidth
   }
 }
 
@@ -598,7 +609,10 @@ const ArtifactPane = ({
     isResizing: isFileTreeResizing,
     paneRef: fileTreePaneRef,
     paneWidth: fileTreeWidth,
-    startResizing: startFileTreeResizing
+    minWidth: fileTreeMinWidth,
+    maxWidth: fileTreeMaxWidth,
+    startResizing: startFileTreeResizing,
+    setPaneWidth: setFileTreeWidth
   } = useArtifactFileTreeResize()
 
   const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
@@ -859,7 +873,14 @@ const ArtifactPane = ({
               <div
                 data-artifact-file-tree-resize-handle
                 onMouseDown={startFileTreeResizing}
-                className="group/artifact-file-tree-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize">
+                {...getVerticalSplitterProps({
+                  width: fileTreeWidth,
+                  min: fileTreeMinWidth,
+                  max: fileTreeMaxWidth,
+                  label: t('common.resize_panel'),
+                  onResize: setFileTreeWidth
+                })}
+                className="group/artifact-file-tree-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                 <div className="absolute top-0 right-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/artifact-file-tree-resize-handle:opacity-100 group-data-[resizing=true]/artifact-file-tree:bg-primary/35 group-data-[resizing=true]/artifact-file-tree:opacity-100" />
               </div>
             </motion.div>

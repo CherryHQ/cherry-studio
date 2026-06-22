@@ -5,6 +5,7 @@ import { cn } from '@renderer/utils'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
@@ -14,6 +15,7 @@ import {
   CHAT_SHELL_PANE_WIDTH,
   CHAT_SHELL_TRANSITION
 } from './paneLayout'
+import { getVerticalSplitterProps } from './splitterA11y'
 
 type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
 
@@ -71,11 +73,17 @@ function useRightPaneResize({
     [paneWidth, startResizeDrag]
   )
 
+  const setPaneWidth = useCallback(
+    (nextWidth: number) => setStoredWidth(clampRightPaneWidth(nextWidth, minWidth, maxWidth)),
+    [maxWidth, minWidth, setStoredWidth]
+  )
+
   return {
     isResizing,
     paneRef,
     paneWidth,
-    startResizing
+    startResizing,
+    setPaneWidth
   }
 }
 
@@ -95,8 +103,9 @@ export function RightPaneHost({
   onOpenAnimationComplete,
   onCloseAnimationComplete
 }: RightPaneHostProps) {
+  const { t } = useTranslation()
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
-  const { isResizing, paneRef, paneWidth, startResizing } = useRightPaneResize({
+  const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useRightPaneResize({
     cacheKey,
     defaultWidth: resolvedDefaultWidth,
     minWidth,
@@ -157,7 +166,15 @@ export function RightPaneHost({
             <div
               data-right-pane-resize-handle
               onMouseDown={startResizing}
-              className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-10 w-2 cursor-col-resize">
+              {...getVerticalSplitterProps({
+                width: paneWidth,
+                min: minWidth,
+                max: maxWidth,
+                label: t('common.resize_panel'),
+                onResize: setPaneWidth,
+                invert: true
+              })}
+              className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
               <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-primary/35 group-data-[resizing=true]/right-pane:opacity-100" />
             </div>
           )}

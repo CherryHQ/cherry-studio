@@ -2,8 +2,15 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { CHAT_SHELL_PANE_WIDTH, CHAT_SHELL_TRANSITION } from './paneLayout'
+import {
+  CHAT_SHELL_PANE_WIDTH,
+  CHAT_SHELL_TRANSITION,
+  RESOURCE_LIST_PANE_MAX_WIDTH,
+  RESOURCE_LIST_PANE_MIN_WIDTH
+} from './paneLayout'
+import { getVerticalSplitterProps } from './splitterA11y'
 import { useResourceListPaneResize } from './useResourceListPaneResize'
 
 export interface PageSidebarProps {
@@ -16,7 +23,8 @@ export interface PageSidebarProps {
 }
 
 export function PageSidebar({ children, open, width, className, style, onPaneCollapse }: PageSidebarProps) {
-  const { isResizing, paneRef, paneWidth, startResizing } = useResourceListPaneResize({ onPaneCollapse })
+  const { t } = useTranslation()
+  const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
   const resolvedWidth = width ?? paneWidth
 
   return (
@@ -40,7 +48,14 @@ export function PageSidebar({ children, open, width, className, style, onPaneCol
           <div
             data-resource-list-pane-resize-handle
             onMouseDown={startResizing}
-            className="group/resource-list-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize">
+            {...getVerticalSplitterProps({
+              width: paneWidth,
+              min: RESOURCE_LIST_PANE_MIN_WIDTH,
+              max: RESOURCE_LIST_PANE_MAX_WIDTH,
+              label: t('common.resize_panel'),
+              onResize: setPaneWidth
+            })}
+            className="group/resource-list-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
             <div className="absolute top-0 right-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
           </div>
         </motion.div>

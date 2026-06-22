@@ -66,10 +66,16 @@ export function useResourceListPaneResize({ onPaneCollapse }: ResourceListPaneRe
     [startResizeDrag]
   )
 
+  const setPaneWidth = useCallback(
+    (nextWidth: number) => setStoredWidth(clampResourceListPaneWidth(nextWidth)),
+    [setStoredWidth]
+  )
+
   return {
     isResizing,
     paneRef,
     paneWidth,
-    startResizing
+    startResizing,
+    setPaneWidth
   }
 }

@@ -70,6 +70,8 @@ const SCROLLBAR_COLOR_BY_STAGE: Record<ScrollbarStage, string> = {
 export type VirtualItemsProps<T extends ResourceListItemBase> = {
   className?: string
   ref?: Ref<HTMLDivElement>
+  /** Accessible name for the listbox scroller (e.g. "Topics", "Sessions"). */
+  ariaLabel?: string
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
 }
 
@@ -470,7 +472,12 @@ function useResourceListRenderContext<T extends ResourceListItemBase>(): Resourc
   }, [actions, controls, meta, sourceItems, store, view])
 }
 
-export function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderItem }: VirtualItemsProps<T>) {
+export function VirtualItems<T extends ResourceListItemBase>({
+  className,
+  ref,
+  ariaLabel,
+  renderItem
+}: VirtualItemsProps<T>) {
   const meta = useResourceListMeta<T>()
   const { estimateItemSize, getItemId, revealRequest } = meta
   const view = useResourceListView<T>()
@@ -540,6 +547,7 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
         className={getListViewportClassName(stage, className)}
         scrollerProps={{
           'data-scrolling': isScrolling ? 'true' : 'false',
+          'aria-label': ariaLabel,
           onKeyDown: handleListboxKeyDown,
           tabIndex: 0
         }}
@@ -562,11 +570,14 @@ export type VirtualDraggableItemsProps<T extends ResourceListItemBase> = {
   className?: string
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
   ref?: Ref<HTMLDivElement>
+  /** Accessible name for the listbox scroller (e.g. "Topics", "Sessions"). */
+  ariaLabel?: string
 }
 
 export function VirtualDraggableItems<T extends ResourceListItemBase>({
   className,
   ref,
+  ariaLabel,
   renderItem
 }: VirtualDraggableItemsProps<T>) {
   const actions = useResourceListActions()
@@ -762,6 +773,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         className={getListViewportClassName(stage, className)}
         scrollerProps={{
           'data-scrolling': isScrolling ? 'true' : 'false',
+          'aria-label': ariaLabel,
           onKeyDown: handleListboxKeyDown,
           tabIndex: 0
         }}
