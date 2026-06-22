@@ -17,7 +17,8 @@ import {
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
   type KnowledgeSearchResult,
-  type RestoreKnowledgeBaseDto
+  type RestoreKnowledgeBaseDto,
+  type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
@@ -153,7 +154,7 @@ export class KnowledgeService extends BaseService {
     })
   }
 
-  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
+  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
@@ -172,7 +173,35 @@ export class KnowledgeService extends BaseService {
     }
 
     const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
-    const inputs = rootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
+
+    // Partial restore: probe each root's source and skip the ones whose source is genuinely gone, so
+    // a single missing source no longer aborts the entire restore. This is the common case for a
+    // failed base — a v1-migrated directory child has a virtual path with no raw/ file, and a file
+    // whose original was deleted has no material to copy; addItems would throw on the first such
+    // item and roll back the whole batch. An 'unverifiable' source (transient/permission error) is
+    // kept, not skipped — like reindex, we never drop a source we could not confirm is gone.
+    const restorableRootItems: KnowledgeItem[] = []
+    for (const item of rootItems) {
+      if ((await classifyKnowledgeItemSource(sourceBase.id, item)) === 'missing') {
+        logger.warn('Skipping knowledge item with a missing source during restore', {
+          sourceBaseId: sourceBase.id,
+          itemId: item.id,
+          type: item.type
+        })
+        continue
+      }
+      restorableRootItems.push(item)
+    }
+    const skippedMissingSourceCount = rootItems.length - restorableRootItems.length
+    if (skippedMissingSourceCount > 0) {
+      logger.info('Restore skipped knowledge items whose source no longer exists', {
+        sourceBaseId: sourceBase.id,
+        skippedMissingSourceCount,
+        restorableCount: restorableRootItems.length
+      })
+    }
+
+    const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
       await this.addItems(restoredBase.id, inputs)
@@ -202,7 +231,7 @@ export class KnowledgeService extends BaseService {
       )
     }
 
-    return restoredBase
+    return { base: restoredBase, skippedMissingSourceCount }
   }
 
   async addItems(
