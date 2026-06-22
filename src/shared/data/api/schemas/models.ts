@@ -123,22 +123,13 @@ export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
 export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BULK_UPDATE_MAX_ITEMS)
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
 
-const DeleteModelsIdsStringQueryValueSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(UniqueModelIdSchema).min(1).max(MODELS_DELETE_MAX_IDS))
-
 const DeleteModelsIdsQueryValueSchema = z.union([
-  z.array(UniqueModelIdSchema).min(1).max(MODELS_DELETE_MAX_IDS),
-  DeleteModelsIdsStringQueryValueSchema
+  UniqueModelIdSchema.transform((id) => [id]),
+  z.array(UniqueModelIdSchema).min(1).max(MODELS_DELETE_MAX_IDS)
 ])
 
-/** Query params for `DELETE /models`: one or more model IDs, deleted atomically. */
+/** Query params for `DELETE /models`: one or more model IDs, deleted atomically.
+ * A string value is one UniqueModelId; arrays represent repeated/structured query values. */
 export const DeleteModelsQuerySchema = z.strictObject({
   ids: DeleteModelsIdsQueryValueSchema
 })

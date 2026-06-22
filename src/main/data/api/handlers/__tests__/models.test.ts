@@ -99,7 +99,7 @@ describe('Model handler validation', () => {
   it('accepts delete query ids larger than the create batch limit', () => {
     const ids = Array.from({ length: MODELS_BATCH_MAX_ITEMS + 63 }, (_, index) => `cherryin::model-${index}`)
 
-    expect(DeleteModelsQuerySchema.parse({ ids: ids.join(',') }).ids).toHaveLength(ids.length)
+    expect(DeleteModelsQuerySchema.parse({ ids }).ids).toHaveLength(ids.length)
   })
 
   it('preserves commas inside delete query ids when passed as an array', () => {
@@ -108,10 +108,16 @@ describe('Model handler validation', () => {
     expect(DeleteModelsQuerySchema.parse({ ids }).ids).toEqual(ids)
   })
 
+  it('treats a string delete query id as one id without comma splitting', () => {
+    const id = 'cherryin::model,with-comma'
+
+    expect(DeleteModelsQuerySchema.parse({ ids: id }).ids).toEqual([id])
+  })
+
   it('rejects delete query ids over the configured limit', () => {
     const ids = Array.from({ length: MODELS_DELETE_MAX_IDS + 1 }, (_, index) => `cherryin::model-${index}`)
 
-    expect(() => DeleteModelsQuerySchema.parse({ ids: ids.join(',') })).toThrow()
+    expect(() => DeleteModelsQuerySchema.parse({ ids })).toThrow()
   })
 })
 
@@ -284,7 +290,7 @@ describe('/models', () => {
   })
   it('delegates DELETE to modelService.bulkDelete', async () => {
     const result = await modelHandlers['/models'].DELETE({
-      query: { ids: 'openai::gpt-4o,anthropic::claude-3-opus' }
+      query: { ids: ['openai::gpt-4o', 'anthropic::claude-3-opus'] }
     } as never)
 
     expect(bulkDeleteMock).toHaveBeenCalledWith([
@@ -305,6 +311,14 @@ describe('/models', () => {
   it('accepts DELETE query id arrays without splitting commas inside model ids', async () => {
     await modelHandlers['/models'].DELETE({
       query: { ids: ['openai::model,with-comma'] }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'model,with-comma' }])
+  })
+
+  it('accepts a string DELETE query id without splitting commas inside the model id', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: 'openai::model,with-comma' }
     } as never)
 
     expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'model,with-comma' }])
