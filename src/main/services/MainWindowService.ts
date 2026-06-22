@@ -485,6 +485,17 @@ export class MainWindowService extends BaseService {
         application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
+      // On Windows, hide() does not cause the OS to refocus the previously active
+      // window. minimize() does — it triggers the standard Windows behavior of
+      // returning focus to the next window in the Z-order. setOpacity(0) suppresses
+      // the minimize animation for a smoother experience (same pattern as
+      // QuickAssistantService.hideQuickAssistant on Windows).
+      if (isWin) {
+        mainWindow.setOpacity(0)
+        mainWindow.minimize()
+        return
+      }
+
       mainWindow.hide()
     })
     // No 'closed' handler — WM emits onWindowDestroyedByType which clears this.mainWindow.
@@ -499,6 +510,11 @@ export class MainWindowService extends BaseService {
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
+        // Restore opacity that was set to 0 during the Windows minimize-to-hide trick
+        // (see setupWindowLifecycleEvents and toggleMainWindow).
+        if (isWin) {
+          mainWindow.setOpacity(1)
+        }
         mainWindow.restore()
         return
       }
@@ -577,7 +593,15 @@ export class MainWindowService extends BaseService {
         if (isMac && application.get('PreferenceService').get('app.tray.on_close')) {
           application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
-        mainWindow.hide()
+
+        // On Windows, minimize() instead of hide() so the OS refocuses the
+        // previously active window. setOpacity(0) suppresses the animation.
+        if (isWin) {
+          mainWindow.setOpacity(0)
+          mainWindow.minimize()
+        } else {
+          mainWindow.hide()
+        }
       } else {
         mainWindow.focus()
       }
