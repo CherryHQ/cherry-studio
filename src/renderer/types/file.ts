@@ -64,6 +64,11 @@ export interface FileMetadata {
    * 该文件的用途
    */
   purpose?: OpenAI.FilePurpose
+  /**
+   * Association identity that links a composer file token to its file metadata.
+   * It is not a file path, display name, or file storage identity.
+   */
+  fileTokenSourceId?: string
 }
 
 export type PdfFileMetadata = FileMetadata & {
