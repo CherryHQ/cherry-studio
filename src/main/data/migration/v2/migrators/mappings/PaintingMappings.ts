@@ -1,4 +1,4 @@
-import type { InsertPaintingRow } from '@data/db/schemas/painting'
+import type { InsertCreationRow } from '@data/db/schemas/creation'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 
@@ -33,14 +33,15 @@ export interface PaintingFilter {
 }
 
 /**
- * Painting row prepared for insert into the v2 `painting` table.
+ * Painting row prepared for insert into the unified v2 `creation` table. `kind`
+ * is omitted here — the migrator stamps `kind: 'image'` on every row at insert.
  *
  * The `files` field is **not persisted on the row** — the v2 schema removed
  * the JSON files column. Output / input file ids travel separately via
  * `LegacyPaintingFileRefs` so the migrator can emit `file_ref` rows once the
- * painting and its referenced `file_entry` rows are both in place.
+ * creation and its referenced `file_entry` rows are both in place.
  */
-export interface NormalizedPaintingRow extends Omit<InsertPaintingRow, 'orderKey'> {
+export interface NormalizedPaintingRow extends Omit<InsertCreationRow, 'orderKey' | 'kind'> {
   id: string
   providerId: string
   modelId: string | null

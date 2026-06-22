@@ -19,6 +19,7 @@ import { agentHandlers } from './agents'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { assistantHandlers } from './assistants'
+import { creationHandlers } from './creations'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -28,7 +29,6 @@ import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { noteHandlers } from './notes'
-import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
@@ -55,7 +55,7 @@ export const apiHandlers: ApiImplementation = {
   ...fileHandlers,
   ...temporaryChatHandlers,
   ...modelHandlers,
-  ...paintingHandlers,
+  ...creationHandlers,
   ...providerHandlers,
   ...agentSessionHandlers,
   ...skillHandlers,

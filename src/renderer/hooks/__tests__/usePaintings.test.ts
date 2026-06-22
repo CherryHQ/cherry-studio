@@ -14,9 +14,11 @@ vi.mock('@renderer/data/hooks/useReorder', () => ({
   }))
 }))
 
-describe('usePaintings', () => {
+// usePaintings is now a transition shim over the unified `/creations` DataApi with `kind: 'image'`.
+describe('usePaintings (creation/image shim)', () => {
   const record: PaintingRecord = {
     id: 'painting-1',
+    kind: 'image',
     providerId: 'silicon',
     modelId: 'model-1',
     prompt: 'draw a cat',
@@ -30,8 +32,8 @@ describe('usePaintings', () => {
     MockUseDataApiUtils.resetMocks()
   })
 
-  it('returns raw painting records without hydration', () => {
-    MockUseDataApiUtils.mockQueryData('/paintings', {
+  it('returns raw creation records without hydration', () => {
+    MockUseDataApiUtils.mockQueryData('/creations', {
       items: [record],
       total: 1
     })
@@ -42,19 +44,19 @@ describe('usePaintings', () => {
     expect(result.current.total).toBe(1)
   })
 
-  it('uses DataApi mutations for create, update, and delete', async () => {
+  it('uses DataApi mutations for create (stamping kind=image), update, and delete', async () => {
     const createTrigger = vi.fn().mockResolvedValue(record)
     const updateTrigger = vi.fn().mockResolvedValue(record)
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
 
     mockUseMutation.mockImplementation((method, path) => {
-      if (method === 'POST' && path === '/paintings') {
+      if (method === 'POST' && path === '/creations') {
         return { trigger: createTrigger, isLoading: false, error: undefined }
       }
-      if (method === 'PATCH' && path === '/paintings/:id') {
+      if (method === 'PATCH' && path === '/creations/:id') {
         return { trigger: updateTrigger, isLoading: false, error: undefined }
       }
-      if (method === 'DELETE' && path === '/paintings/:id') {
+      if (method === 'DELETE' && path === '/creations/:id') {
         return { trigger: deleteTrigger, isLoading: false, error: undefined }
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
@@ -79,13 +81,14 @@ describe('usePaintings', () => {
       await result.current.deletePainting('painting-1')
     })
 
-    expect(createTrigger).toHaveBeenCalledWith({ body: createDto })
+    // The shim stamps kind:'image' onto the create body.
+    expect(createTrigger).toHaveBeenCalledWith({ body: { ...createDto, kind: 'image' } })
     expect(updateTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' }, body: updateDto })
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' } })
   })
 
-  it('passes only caller-provided query params to useQuery', async () => {
-    MockUseDataApiUtils.mockQueryData('/paintings', {
+  it('passes kind=image plus caller-provided query params to useQuery', async () => {
+    MockUseDataApiUtils.mockQueryData('/creations', {
       items: [],
       total: 0
     })
@@ -94,8 +97,9 @@ describe('usePaintings', () => {
 
     await waitFor(() => expect(mockUseQuery).toHaveBeenCalled())
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/paintings', {
+    expect(mockUseQuery).toHaveBeenCalledWith('/creations', {
       query: {
+        kind: 'image',
         providerId: 'silicon'
       }
     })

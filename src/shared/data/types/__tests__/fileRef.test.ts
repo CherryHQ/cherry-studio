@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   allSourceTypes,
+  creationFileRefSchema,
+  creationSourceType,
   FileRefSchema,
   knowledgeItemFileRefSchema,
   knowledgeItemSourceType,
-  paintingFileRefSchema,
-  paintingSourceType,
   tempSessionFileRefSchema,
   tempSessionSourceType
 } from '../file/ref'
@@ -14,7 +14,7 @@ import {
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
 const KB_ITEM_ID = '019606a1-0000-7000-8000-000000000abc' // UUIDv7
-const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.id)
+const CREATION_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (creation.id)
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
@@ -22,7 +22,7 @@ describe('FileRefSourceType', () => {
     // Defensive: this assertion locks the currently-registered set.
     // Adding a new variant must also extend (a) the discriminated union and
     // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'creation'])
   })
 })
 
@@ -69,13 +69,13 @@ describe('knowledgeItemFileRefSchema', () => {
   })
 })
 
-describe('paintingFileRefSchema', () => {
-  function makePaintingRef(overrides: Record<string, unknown> = {}) {
+describe('creationFileRefSchema', () => {
+  function makeCreationRef(overrides: Record<string, unknown> = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
-      sourceType: paintingSourceType,
-      sourceId: PAINTING_ID,
+      sourceType: creationSourceType,
+      sourceId: CREATION_ID,
       role: 'output',
       createdAt: TS,
       updatedAt: TS,
@@ -83,32 +83,32 @@ describe('paintingFileRefSchema', () => {
     }
   }
 
-  it('accepts a well-formed painting ref', () => {
-    const parsed = paintingFileRefSchema.parse(makePaintingRef())
-    expect(parsed.sourceType).toBe('painting')
-    expect(parsed.sourceId).toBe(PAINTING_ID)
+  it('accepts a well-formed creation ref', () => {
+    const parsed = creationFileRefSchema.parse(makeCreationRef())
+    expect(parsed.sourceType).toBe('creation')
+    expect(parsed.sourceId).toBe(CREATION_ID)
     expect(parsed.role).toBe('output')
   })
 
-  it('accepts both painting roles (output/input — the two PaintingFiles buckets)', () => {
+  it('accepts both creation roles (output/input — the two CreationFiles buckets)', () => {
     for (const role of ['output', 'input']) {
-      const parsed = paintingFileRefSchema.parse(makePaintingRef({ role }))
+      const parsed = creationFileRefSchema.parse(makeCreationRef({ role }))
       expect(parsed.role).toBe(role)
     }
   })
 
-  it('rejects role values outside the painting vocabulary', () => {
+  it('rejects role values outside the creation vocabulary', () => {
     for (const role of ['attachment', 'mask', 'thumbnail', '']) {
-      expect(() => paintingFileRefSchema.parse(makePaintingRef({ role }))).toThrow()
+      expect(() => creationFileRefSchema.parse(makeCreationRef({ role }))).toThrow()
     }
   })
 
-  it('rejects a non-UUIDv4 sourceId (painting.id is uuidPrimaryKey v4)', () => {
-    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceId: 'not-a-uuid' }))).toThrow()
+  it('rejects a non-UUIDv4 sourceId (creation.id is uuidPrimaryKey v4)', () => {
+    expect(() => creationFileRefSchema.parse(makeCreationRef({ sourceId: 'not-a-uuid' }))).toThrow()
   })
 
-  it('rejects sourceType other than the literal painting', () => {
-    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'knowledge_item' }))).toThrow()
+  it('rejects sourceType other than the literal creation', () => {
+    expect(() => creationFileRefSchema.parse(makeCreationRef({ sourceType: 'knowledge_item' }))).toThrow()
   })
 })
 
@@ -140,24 +140,24 @@ describe('FileRefSchema discriminated union', () => {
     expect(parsed.role).toBe('source')
   })
 
-  it('dispatches to the painting variant', () => {
+  it('dispatches to the creation variant', () => {
     const parsed = FileRefSchema.parse({
       id: REF_ID,
       fileEntryId: ENTRY_ID,
-      sourceType: paintingSourceType,
-      sourceId: PAINTING_ID,
+      sourceType: creationSourceType,
+      sourceId: CREATION_ID,
       role: 'input',
       createdAt: TS,
       updatedAt: TS
     })
-    expect(parsed.sourceType).toBe('painting')
+    expect(parsed.sourceType).toBe('creation')
   })
 
   it('rejects an unregistered sourceType (not in allSourceTypes)', () => {
     // `note` remains unregistered; it must be rejected so DataApi round-trip
     // stays consistent. When a new variant lands, update this list alongside
     // the union.
-    for (const sourceType of ['note']) {
+    for (const sourceType of ['note', 'painting', 'video']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,

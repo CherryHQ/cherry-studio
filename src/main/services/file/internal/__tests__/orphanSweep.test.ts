@@ -311,7 +311,7 @@ describe('runDbSweep (umbrella + observability)', () => {
     expect(report.outcome).toBe('partial')
     if (report.outcome === 'partial') {
       // scanAll iterates every sourceType in allSourceTypes (temp_session,
-      // knowledge_item, chat_message, painting) and listDistinctSourceIds
+      // knowledge_item, chat_message, creation) and listDistinctSourceIds
       // throws for all of them → all four errored.
       expect(Object.keys(report.errorsByType)).toHaveLength(4)
       expect(report.errorsByType.temp_session).toMatch(/boom/)

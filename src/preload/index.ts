@@ -814,6 +814,8 @@ const api = {
         uniqueModelId?: string
         prompt?: string
         firstFrame?: string
+        lastFrame?: string
+        referenceImages?: string[]
         n?: number
         duration?: number
         aspectRatio?: string

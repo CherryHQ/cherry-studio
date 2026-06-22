@@ -1,6 +1,6 @@
+import { creationTable } from '@data/db/schemas/creation'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
-import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { rootRow, setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -23,7 +23,7 @@ const {
   createDefaultOrphanCheckerRegistry,
   knowledgeItemChecker,
   orphanCheckerRegistry,
-  paintingChecker,
+  creationChecker,
   tempSessionChecker
 } = await import('../orphanCheckerRegistry')
 
@@ -133,10 +133,11 @@ describe('orphanCheckerRegistry', () => {
     })
   })
 
-  describe('painting checker', () => {
+  describe('creation checker', () => {
     async function seedPainting(id: string) {
-      await dbh.db.insert(paintingTable).values({
+      await dbh.db.insert(creationTable).values({
         id,
+        kind: 'image',
         providerId: 'aihubmix',
         prompt: 'p',
         orderKey: id
@@ -147,17 +148,17 @@ describe('orphanCheckerRegistry', () => {
       await seedPainting('pt-alive-1')
       await seedPainting('pt-alive-2')
 
-      const alive = await paintingChecker.checkExists(['pt-alive-1', 'pt-alive-2', 'pt-gone'])
+      const alive = await creationChecker.checkExists(['pt-alive-1', 'pt-alive-2', 'pt-gone'])
       expect(alive).toEqual(new Set(['pt-alive-1', 'pt-alive-2']))
     })
 
     it('returns empty set for an empty input (skips DB round-trip)', async () => {
-      const alive = await paintingChecker.checkExists([])
+      const alive = await creationChecker.checkExists([])
       expect(alive.size).toBe(0)
     })
 
     it('declares its sourceType', () => {
-      expect(paintingChecker.sourceType).toBe('painting')
+      expect(creationChecker.sourceType).toBe('creation')
     })
   })
 
@@ -378,7 +379,7 @@ describe('orphanCheckerRegistry', () => {
   describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
     it('exposes a checker for every FileRefSourceType', () => {
       const registry = createDefaultOrphanCheckerRegistry()
-      const expected = ['temp_session', 'knowledge_item', 'chat_message', 'painting'] as const
+      const expected = ['temp_session', 'knowledge_item', 'chat_message', 'creation'] as const
       for (const sourceType of expected) {
         expect(registry[sourceType].sourceType).toBe(sourceType)
         expect(typeof registry[sourceType].checkExists).toBe('function')
@@ -389,7 +390,7 @@ describe('orphanCheckerRegistry', () => {
       expect(orphanCheckerRegistry.temp_session).toBe(tempSessionChecker)
       expect(orphanCheckerRegistry.knowledge_item).toBe(knowledgeItemChecker)
       expect(orphanCheckerRegistry.chat_message).toBe(chatMessageChecker)
-      expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
+      expect(orphanCheckerRegistry.creation).toBe(creationChecker)
     })
   })
 
@@ -421,7 +422,7 @@ describe('orphanCheckerRegistry', () => {
         temp_session: knowledgeItemChecker,
         knowledge_item: knowledgeItemChecker,
         chat_message: chatMessageChecker,
-        painting: paintingChecker
+        creation: creationChecker
       }
       expect(wrongBrand).toBeDefined()
     })

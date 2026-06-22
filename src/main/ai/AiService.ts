@@ -763,10 +763,15 @@ export class AiService extends BaseService {
     const files = await Promise.all(
       (result.videos ?? [])
         .filter((video) => Boolean(video.base64))
-        .map((video) => {
-          const data = `data:${video.mediaType || 'video/mp4'};base64,${video.base64}` as Base64String
-          return fileManager.createInternalEntry({ source: 'base64', data })
-        })
+        // Inline the data URL into the contextually-typed `data` property so it
+        // is inferred as `Base64String` (a bare `const` would widen to `string`,
+        // and a cast gets stripped by typescript-eslint's autofix → tsgo error).
+        .map((video) =>
+          fileManager.createInternalEntry({
+            source: 'base64',
+            data: `data:${video.mediaType || 'video/mp4'};base64,${video.base64}`
+          })
+        )
     )
 
     return { files }
