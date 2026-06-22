@@ -889,11 +889,14 @@ const AgentComposerInner = ({
               items={queuedFollowups}
               paused={followupPaused}
               onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={(id) => {
+              onSteer={async (id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
                 if (!item) return
-                void sendQueuedPayload(item.payload)
-                removeFollowup(id)
+                // Only drop the item once the send actually succeeds; a failed manual
+                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                const sent = await sendQueuedPayload(item.payload)
+                if (sent) removeFollowup(id)
+                else window.toast?.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)

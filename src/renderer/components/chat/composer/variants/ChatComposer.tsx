@@ -676,7 +676,8 @@ const ChatComposerInner = ({
       buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: chatComposerTokenId.file,
-        requireText: true,
+        // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
+        requireText: false,
         extra: (tokenIds) => {
           const knowledgeBaseIds = selectedKnowledgeBasesInScope
             .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
@@ -932,7 +933,7 @@ const ChatComposerInner = ({
         resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
         placeholder={searching ? t('chat.input.translating') : placeholderText}
         sendDisabled={
-          text.trim().length === 0 ||
+          (text.trim().length === 0 && files.length === 0) ||
           (loading && !canSteer) ||
           sendDisabled ||
           searching ||
@@ -965,11 +966,14 @@ const ChatComposerInner = ({
               items={queuedFollowups}
               paused={followupPaused}
               onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={(id) => {
+              onSteer={async (id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
                 if (!item) return
-                void sendQueuedPayload(item.payload)
-                removeFollowup(id)
+                // Only drop the item once the send actually succeeds; a failed manual
+                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                const sent = await sendQueuedPayload(item.payload)
+                if (sent) removeFollowup(id)
+                else window.toast?.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
