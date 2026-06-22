@@ -63,7 +63,8 @@ vi.mock('@cherrystudio/ui', async () => {
             {...overlayProps}
             onClick={(event) => {
               overlayProps?.onClick?.(event)
-              if (closeOnOverlayClick !== false) {
+              // Match the real DialogContent: the overlay only closes when closeOnOverlayClick is set.
+              if (closeOnOverlayClick) {
                 context?.onOpenChange?.(false)
               }
             }}
