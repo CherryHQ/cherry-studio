@@ -17,7 +17,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { ocrImageToText } from '@main/features/fileProcessing'
 import { extractDocumentText, noExtractableTextNote } from '@main/utils/file/documentExtraction'
-import { READ_FILE_PAGE_SIZE,type ReadFileInput, type ReadFileOutput } from '@shared/ai/builtinTools'
+import { READ_FILE_PAGE_SIZE, type ReadFileInput, type ReadFileOutput } from '@shared/ai/builtinTools'
 import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
