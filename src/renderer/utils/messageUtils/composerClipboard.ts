@@ -6,6 +6,7 @@ import { type FileURLString } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 import { fileUrlToPath } from '@shared/utils/file/urlUtil'
 
+import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
 import {
   createComposerSecureRandomId,
   isComposerFileTokenPathLike,
@@ -593,21 +594,16 @@ export function createComposerRichClipboardContentFromPartGroups(
   })
 }
 
-/**
- * Carve-time reshape: on feat/chat-page this returned a `ComposerAttachment`
- * (via `toComposerAttachment`), but that wrap lives in the un-carved composer
- * module, so this PR returns the raw `FileMetadata` to keep the util free of a
- * `utils → component` dependency. It has no consumer in this carve; when the
- * composer lands, `composerPaste` will re-wrap the result into a
- * `ComposerAttachment` at that call site.
- */
-export function createFileMetadataFromComposerClipboardToken(token: ComposerClipboardToken): FileMetadata | null {
+export function createComposerAttachmentFromComposerClipboardToken(
+  token: ComposerClipboardToken
+): ComposerAttachment | null {
   if (token.kind !== 'file' || !token.payload?.handle) return null
 
   const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
   if (!sourceId) return null
 
-  return resolveFileRestorationHandle(token.payload.handle, sourceId)
+  const file = resolveFileRestorationHandle(token.payload.handle, sourceId)
+  return file ? toComposerAttachment(file) : null
 }
 
 export function readComposerClipboardFragment(value: string): ComposerClipboardFragment | null {

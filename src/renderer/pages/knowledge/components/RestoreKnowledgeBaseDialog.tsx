@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +16,7 @@ interface RestoreKnowledgeBaseDialogProps {
   base: KnowledgeBase
   initialEmbeddingModelId?: string | null
   isRestoring: boolean
-  restoreBase: (input: RestoreKnowledgeBaseInput) => Promise<KnowledgeBase>
+  restoreBase: (input: RestoreKnowledgeBaseInput) => Promise<RestoreKnowledgeBaseResult>
   onOpenChange: (open: boolean) => void
   onRestored: (base: KnowledgeBase) => void
 }
@@ -81,10 +81,10 @@ const RestoreKnowledgeBaseDialog = ({
       return
     }
 
-    let restoredBase: KnowledgeBase
+    let result: RestoreKnowledgeBaseResult
 
     try {
-      restoredBase = await restoreBase({
+      result = await restoreBase({
         sourceBaseId: base.id,
         name: values.name,
         embeddingModelId: values.embeddingModelId,
@@ -95,7 +95,13 @@ const RestoreKnowledgeBaseDialog = ({
       return
     }
 
-    onRestored(restoredBase)
+    // Restore drops root items whose source is gone (a v1-migrated directory child's virtual path,
+    // a deleted file). Tell the user instead of silently restoring fewer items than expected.
+    if (result.skippedMissingSourceCount > 0) {
+      window.toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
+    }
+
+    onRestored(result.base)
     onOpenChange(false)
   }
 
