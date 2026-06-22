@@ -117,10 +117,6 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@cherrystudio/ui/composites/markdown': resolve(
-              __dirname,
-              'packages/ui/src/components/composites/markdown'
-            ),
             '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
           }
         },

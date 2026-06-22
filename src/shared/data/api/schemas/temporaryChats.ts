@@ -31,10 +31,6 @@ export interface PersistTemporaryChatResponse {
   messageCount: number
 }
 
-export interface UpdateTemporaryTopicDto {
-  assistantId?: string | null
-}
-
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -44,7 +40,6 @@ export interface UpdateTemporaryTopicDto {
  *
  * Mirrors a strict subset of the persistent topic / message API:
  * - POST   /temporary/topics
- * - PATCH  /temporary/topics/:id
  * - DELETE /temporary/topics/:id
  * - POST   /temporary/topics/:topicId/messages
  * - GET    /temporary/topics/:topicId/messages
