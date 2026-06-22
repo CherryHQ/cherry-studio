@@ -2,8 +2,11 @@
  * IPC handler for migration communication between Main and Renderer
  */
 
+import { application } from '@application'
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
+import type { ServiceToken } from '@main/core/lifecycle'
+import type { WindowType } from '@main/core/window/types'
 import LegacyBackupManager from '@main/services/LegacyBackupManager'
 import {
   MigrationIpcChannels,
@@ -12,6 +15,7 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
@@ -24,9 +28,12 @@ const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 // Local backup result shape; not part of the shared contract because the renderer
 // drives its UI from progress updates, not from this return value.
-type MigrationBackupResult = { success: boolean; path?: string; error?: string }
+type MigrationBackupResult = { success: boolean; path?: string; error?: string; canceled?: boolean }
 
 let inFlightMigration: Promise<MigrationResult> | null = null
+// Guards the preboot backup flow so a second ShowBackupDialog can't open another
+// save dialog or interleave the scoped container.get override (see performBackupToFile).
+let backupInFlight = false
 const backupManager = new LegacyBackupManager()
 
 // Current migration progress
@@ -91,16 +98,15 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
   // Show Backup Dialog
   ipcMain.handle(MigrationIpcChannels.ShowBackupDialog, async () => {
+    // Single-flight: while a backup flow is active we must not open a second save
+    // dialog or interleave the scoped container.get override in performBackupToFile.
+    if (backupInFlight) {
+      logger.warn('Backup already in progress; ignoring duplicate backup dialog request')
+      return { success: false, error: 'Backup already in progress' }
+    }
+    backupInFlight = true
     try {
       logger.info('Opening backup dialog for migration')
-
-      // Update progress to indicate backup dialog is opening
-      updateProgress({
-        stage: 'backup_progress',
-        overallProgress: 10,
-        currentMessage: 'Opening backup dialog...',
-        migrators: []
-      })
 
       const result = await dialog.showSaveDialog({
         title: 'Save Migration Backup',
@@ -115,8 +121,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         logger.info('User selected backup location', { filePath: result.filePath })
         updateProgress({
           stage: 'backup_progress',
-          overallProgress: 10,
+          overallProgress: 0,
           currentMessage: 'Creating backup file...',
+          i18nMessage: { key: 'migration.backup_progress.description' },
           migrators: []
         })
 
@@ -132,10 +139,11 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
             ...(backupResult.path ? { backupInfo: { createdBackupPath: backupResult.path } } : {})
           })
         } else {
+          const errorMessage = backupResult.error || 'Unknown backup error'
           updateProgress({
             stage: 'backup_required',
             overallProgress: 0,
-            currentMessage: `Backup failed: ${backupResult.error}`,
+            currentMessage: `Backup failed: ${errorMessage}`,
             migrators: []
           })
         }
@@ -146,20 +154,23 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         updateProgress({
           stage: 'backup_required',
           overallProgress: 0,
-          currentMessage: 'Backup cancelled. Please create a backup to continue.',
+          currentMessage: 'Data backup is required before migration can proceed',
           migrators: []
         })
-        return { success: false, error: 'Backup cancelled by user' }
+        return { success: false, canceled: true }
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Error showing backup dialog', error as Error)
       updateProgress({
         stage: 'backup_required',
         overallProgress: 0,
-        currentMessage: 'Backup process failed',
+        currentMessage: `Backup failed: ${errorMessage}`,
         migrators: []
       })
-      throw error
+      return { success: false, error: errorMessage }
+    } finally {
+      backupInFlight = false
     }
   })
 
@@ -285,12 +296,15 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
       // Reset to backup confirmed stage
-      updateProgress({
-        stage: 'backup_confirmed',
-        overallProgress: 0,
-        currentMessage: 'Ready to retry migration',
-        migrators: []
-      })
+      updateProgress(
+        {
+          stage: 'backup_confirmed',
+          overallProgress: 0,
+          currentMessage: 'Ready to retry migration',
+          migrators: []
+        },
+        { preserveBackupInfo: true }
+      )
       return true
     } catch (error) {
       logger.error('Error retrying migration', error as Error)
@@ -384,6 +398,7 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
  */
 export function resetMigrationData(): void {
   inFlightMigration = null
+  backupInFlight = false
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
@@ -408,9 +423,71 @@ export function setVersionIncompatible(reason: VersionBlockReason, details: Reco
 }
 
 /**
+ * Progress payload emitted by LegacyBackupManager.onProgress. Mirrors its private
+ * `ProgressData` shape (not exported); `progress` is already a 0-100 value.
+ */
+type BackupProgressData = { stage: string; progress: number; total: number }
+
+/**
+ * Map a LegacyBackupManager progress tick onto the migration window's
+ * `backup_progress` stage. Legacy backup already reports `progress` as a 0-100
+ * percentage (`total` is 100), but normalize/clamp defensively in case that ever
+ * changes. Only `overallProgress` is rendered on the backup_progress page.
+ */
+function reportBackupProgress({ stage, progress, total }: BackupProgressData): void {
+  const overallProgress =
+    total > 0 ? Math.max(0, Math.min(100, Math.round((progress / total) * 100))) : Math.max(0, Math.min(100, progress))
+  // The v1 direct backup() emits `compressing` once at 80% then archives silently,
+  // so the bar holds there. Surface a stage-specific message so the hold reads as
+  // "compressing", not "stuck". Other stages reuse the generic description copy.
+  const i18nKey =
+    stage === 'compressing' ? 'migration.backup_progress.compressing' : 'migration.backup_progress.description'
+  updateProgress({
+    stage: 'backup_progress',
+    overallProgress,
+    currentMessage: 'Creating backup…',
+    i18nMessage: { key: i18nKey },
+    migrators: []
+  })
+}
+
+/**
+ * Minimal stand-in for the lifecycle WindowManager, used ONLY during the preboot
+ * backup. LegacyBackupManager (DO NOT MODIFY) reports progress via
+ * `application.get('WindowManager').broadcastToType(Main, BackupProgress, data)`;
+ * we forward those ticks to the migration window. Installed/removed scoped around
+ * the backup call in performBackupToFile().
+ */
+const backupProgressWindowManager = {
+  broadcastToType(_type: WindowType, channel: string, data: BackupProgressData): void {
+    if (channel === IpcChannel.BackupProgress) {
+      reportBackupProgress(data)
+    }
+    // RestoreProgress / other channels are ignored — migration never restores.
+  }
+}
+
+/**
  * Perform backup to a specific file location
  */
 async function performBackupToFile(filePath: string): Promise<MigrationBackupResult> {
+  // Preboot migration has no lifecycle WindowManager, but LegacyBackupManager
+  // (DO NOT MODIFY — verbatim v1 mirror) reports progress only through
+  // application.get('WindowManager').broadcastToType(...). Override container.get
+  // to satisfy ONLY that call for the duration of the backup, then restore exactly
+  // — leaving nothing in the container so a later registerAll() can never be
+  // masked by a stale 'WindowManager' entry.
+  const container = application.getContainer()
+  const hadOwnGet = Object.prototype.hasOwnProperty.call(container, 'get')
+  const originalGet = container.get
+  const scopedGet = (<T>(token: ServiceToken<T>): T => {
+    if (token === 'WindowManager') {
+      return backupProgressWindowManager as T
+    }
+    return originalGet.call(container, token) as T
+  }) as typeof container.get
+  container.get = scopedGet
+
   try {
     logger.info('Performing backup to file', { filePath })
 
@@ -441,6 +518,12 @@ async function performBackupToFile(filePath: string): Promise<MigrationBackupRes
     return {
       success: false,
       error: errorMessage
+    }
+  } finally {
+    if (hadOwnGet) {
+      container.get = originalGet
+    } else {
+      Reflect.deleteProperty(container, 'get')
     }
   }
 }

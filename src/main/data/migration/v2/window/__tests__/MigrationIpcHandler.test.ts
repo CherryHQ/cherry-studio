@@ -1,4 +1,8 @@
+import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
+import { IpcChannel } from '@shared/IpcChannel'
+import { createMockApplication } from '@test-mocks/main/application'
 import { dialog, ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -56,9 +60,15 @@ describe('MigrationIpcHandler', () => {
 
   beforeEach(() => {
     vi.resetAllMocks()
+    // `vi.resetAllMocks()` clears the global @application mock's implementations.
+    // The backup path now uses `application.getContainer()` (and `application.get`
+    // delegates to `container.get`), so re-establish them from the unified factory.
+    const mockApp = createMockApplication()
+    vi.mocked(application.getContainer).mockImplementation(mockApp.getContainer as never)
+    vi.mocked(application.get).mockImplementation(mockApp.get as never)
     resetMigrationData()
     registerMigrationIpcHandlers('/mock/userData')
-    handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel as string, fn as Handler]))
+    handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
   })
 
   it('attaches the created backup path to backupInfo on backup_confirmed', async () => {
@@ -67,6 +77,49 @@ describe('MigrationIpcHandler', () => {
     const progress = lastProgress()
     expect(progress.stage).toBe('backup_confirmed')
     expect(progress.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
+  })
+
+  it('stays on backup_required while the save dialog is open', async () => {
+    await invoke(MigrationIpcChannels.ProceedToBackup)
+    expect(lastProgress().stage).toBe('backup_required')
+
+    let resolveDialog!: (value: { canceled: true }) => void
+    vi.mocked(dialog.showSaveDialog).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDialog = resolve
+      }) as never
+    )
+
+    const backupPromise = invoke(MigrationIpcChannels.ShowBackupDialog)
+    await Promise.resolve()
+
+    expect(lastProgress().stage).toBe('backup_required')
+
+    resolveDialog({ canceled: true })
+    await backupPromise
+  })
+
+  it('marks backup path selection cancellation without reporting a backup failure', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true } as never)
+
+    const result = await invoke(MigrationIpcChannels.ShowBackupDialog)
+
+    expect(result).toEqual({ success: false, canceled: true })
+    expect(lastProgress().stage).toBe('backup_required')
+    expect(lastProgress().currentMessage).not.toContain('failed')
+  })
+
+  it('returns to backup_required with the backup error when backup creation fails', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+    backupMock.mockRejectedValue(new Error('Disk full'))
+
+    const result = await invoke(MigrationIpcChannels.ShowBackupDialog)
+
+    expect(result).toEqual({ success: false, error: 'Disk full' })
+    const progress = lastProgress()
+    expect(progress.stage).toBe('backup_required')
+    expect(progress.currentMessage).toBe('Backup failed: Disk full')
+    expect(progress.error).toBeUndefined()
   })
 
   it('does not set backupInfo for the existing-backup (BackupCompleted) path', async () => {
@@ -129,5 +182,134 @@ describe('MigrationIpcHandler', () => {
 
     const tick = progressBroadcasts().find((p) => p.stage === 'migration')
     expect(tick?.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
+  })
+
+  it('preserves backupInfo when retrying migration after a created backup', async () => {
+    await createBackup('/real/backups/v1.zip')
+
+    await invoke(MigrationIpcChannels.Retry)
+
+    const progress = lastProgress()
+    expect(progress.stage).toBe('backup_confirmed')
+    expect(progress.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
+  })
+
+  it('forwards real backup progress to the migration window as backup_progress', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+    // Emit a tick through the exact seam LegacyBackupManager uses, while the
+    // scoped container.get override is active inside performBackupToFile.
+    backupMock.mockImplementation(async () => {
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.BackupProgress, {
+        stage: 'copying_files',
+        progress: 42,
+        total: 100
+      })
+      return '/real/backups/v1.zip'
+    })
+
+    await invoke(MigrationIpcChannels.ShowBackupDialog)
+
+    // The handler continues to backup_confirmed after the tick, so the forwarded
+    // tick lives inside the broadcast history, not at the tail.
+    expect(progressBroadcasts()).toContainEqual(
+      expect.objectContaining({ stage: 'backup_progress', overallProgress: 42 })
+    )
+    // Seed precedes any tick.
+    expect(progressBroadcasts()).toContainEqual(
+      expect.objectContaining({ stage: 'backup_progress', overallProgress: 0 })
+    )
+    expect(lastProgress().stage).toBe('backup_confirmed')
+    // No residue: the scoped override was deleted, restoring the prototype get.
+    expect(Object.prototype.hasOwnProperty.call(application.getContainer(), 'get')).toBe(false)
+  })
+
+  it('labels the compressing stage distinctly from other backup stages', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+    backupMock.mockImplementation(async () => {
+      const wm = application.get('WindowManager')
+      wm.broadcastToType(WindowType.Main, IpcChannel.BackupProgress, {
+        stage: 'copying_files',
+        progress: 60,
+        total: 100
+      })
+      wm.broadcastToType(WindowType.Main, IpcChannel.BackupProgress, { stage: 'compressing', progress: 80, total: 100 })
+      return '/real/backups/v1.zip'
+    })
+
+    await invoke(MigrationIpcChannels.ShowBackupDialog)
+
+    const ticks = progressBroadcasts().filter((p) => p.stage === 'backup_progress')
+    expect(ticks).toContainEqual(
+      expect.objectContaining({
+        overallProgress: 60,
+        i18nMessage: { key: 'migration.backup_progress.description' }
+      })
+    )
+    expect(ticks).toContainEqual(
+      expect.objectContaining({
+        overallProgress: 80,
+        i18nMessage: { key: 'migration.backup_progress.compressing' }
+      })
+    )
+  })
+
+  it('normalizes and clamps backup progress into 0-100', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+    backupMock.mockImplementation(async () => {
+      const wm = application.get('WindowManager')
+      // total: 0 must not divide-by-zero; out-of-range progress clamps.
+      wm.broadcastToType(WindowType.Main, IpcChannel.BackupProgress, { stage: 'preparing', progress: 250, total: 0 })
+      return '/real/backups/v1.zip'
+    })
+
+    await invoke(MigrationIpcChannels.ShowBackupDialog)
+
+    const backupTicks = progressBroadcasts().filter((p) => p.stage === 'backup_progress')
+    for (const tick of backupTicks) {
+      expect(tick.overallProgress).toBeGreaterThanOrEqual(0)
+      expect(tick.overallProgress).toBeLessThanOrEqual(100)
+    }
+    expect(backupTicks).toContainEqual(expect.objectContaining({ overallProgress: 100 }))
+  })
+
+  it('ignores non-backup-progress channels (e.g. restore progress)', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+    backupMock.mockImplementation(async () => {
+      application
+        .get('WindowManager')
+        .broadcastToType(WindowType.Main, IpcChannel.RestoreProgress, { stage: 'restoring', progress: 70, total: 100 })
+      return '/real/backups/v1.zip'
+    })
+
+    await invoke(MigrationIpcChannels.ShowBackupDialog)
+
+    // Only the seed (0) is present; the restore tick produced no backup_progress.
+    const backupTicks = progressBroadcasts().filter((p) => p.stage === 'backup_progress')
+    expect(backupTicks).toEqual([expect.objectContaining({ overallProgress: 0 })])
+  })
+
+  it('rejects a concurrent backup dialog request while one is in flight', async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+    let resolveBackup!: (path: string) => void
+    backupMock.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveBackup = resolve
+        })
+    )
+
+    const first = invoke(MigrationIpcChannels.ShowBackupDialog)
+    // backupInFlight is set synchronously at handler entry, so the second call is
+    // rejected without opening another save dialog.
+    const second = await invoke(MigrationIpcChannels.ShowBackupDialog)
+    expect(second).toEqual({ success: false, error: 'Backup already in progress' })
+
+    // Let the first call advance through the dialog into the (pending) backup.
+    await Promise.resolve()
+    expect(vi.mocked(dialog.showSaveDialog)).toHaveBeenCalledTimes(1)
+
+    resolveBackup('/real/backups/v1.zip')
+    await first
+    expect(backupMock).toHaveBeenCalledTimes(1)
   })
 })
