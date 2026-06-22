@@ -506,8 +506,10 @@ describe('QuickPanelView', () => {
         { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE * 2 + 1}` },
         { key: 'ArrowUp', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
         { key: 'ArrowUp', ctrlKey: true, expected: 'Item 1' },
-        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 100' }, // 从第一个位置再按 Ctrl+ArrowUp 会循环到最后
-        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' } // 从最后位置按 Ctrl+ArrowDown 会循环到第一个
+        // 翻页采用统一环绕（与单步方向键一致）：在顶部再按 Ctrl+ArrowUp 会按一页（PAGE_SIZE 个位置）回绕，
+        // 而非跳到最后一项。
+        { key: 'ArrowUp', ctrlKey: true, expected: `Item ${100 - PAGE_SIZE + 1}` },
+        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' } // 再按 Ctrl+ArrowDown 前进一页回到顶部
       ]
 
       await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
