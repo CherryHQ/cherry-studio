@@ -1162,15 +1162,15 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
-    const itemId = (mocks.surfaceProps?.queueContent as any).props.items[0].id
+    const itemId = (mocks.surfaceProps!.queueContent as any).props.items[0].id
 
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     await act(async () => {
-      await (mocks.surfaceProps?.queueContent as any).props.onSteer(itemId)
+      await (mocks.surfaceProps!.queueContent as any).props.onSteer(itemId)
     })
 
     // A failed manual steer must not silently drop the queued item.
-    expect((mocks.surfaceProps?.queueContent as any).props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect((mocks.surfaceProps!.queueContent as any).props.items.map((entry: any) => entry.id)).toContain(itemId)
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
