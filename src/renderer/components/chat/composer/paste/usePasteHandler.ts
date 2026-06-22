@@ -1,7 +1,9 @@
-import PasteService from '@renderer/services/PasteService'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
+
+import pasteHandling from './pasteHandling'
 
 export interface UsePasteHandlerOptions {
   supportedExts: string[]
@@ -13,7 +15,7 @@ export interface UsePasteHandlerOptions {
 /**
  * Inputbar 专用粘贴处理 Hook
  *
- * 处理文件、长文本、图片等粘贴场景，集成 PasteService
+ * 处理文件、长文本、图片等粘贴场景，集成 pasteHandling
  *
  * @param text - 当前文本内容
  * @param setText - 设置文本的函数
@@ -37,19 +39,24 @@ export function usePasteHandler(
   setText: (text: string | ((prev: string) => string)) => void,
   options: UsePasteHandlerOptions
 ) {
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+
   const handlePaste = useCallback(
     async (event: ClipboardEvent) => {
-      return await PasteService.handlePaste(
+      return await pasteHandling.handlePaste(
         event,
         options.supportedExts,
         options.setFiles,
         setText,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
         text,
         options.onResize ?? (() => {}),
         options.t
       )
     },
-    [text, setText, options]
+    [text, setText, options, pasteLongTextAsFile, pasteLongTextThreshold]
   )
 
   return { handlePaste }

@@ -192,7 +192,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/hooks/useFileDragDrop', () => ({
+vi.mock('@renderer/components/chat/composer/paste/useFileDragDrop', () => ({
   useFileDragDrop: () => ({
     handleDragEnter: vi.fn(),
     handleDragLeave: vi.fn(),
@@ -202,13 +202,13 @@ vi.mock('@renderer/pages/home/Inputbar/hooks/useFileDragDrop', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/hooks/usePasteHandler', () => ({
+vi.mock('@renderer/components/chat/composer/paste/usePasteHandler', () => ({
   usePasteHandler: () => ({
     handlePaste: mocks.pasteHandler
   })
 }))
 
-vi.mock('@renderer/services/PasteService', () => ({
+vi.mock('@renderer/components/chat/composer/paste/pasteHandling', () => ({
   default: {
     init: vi.fn(),
     registerHandler: vi.fn(),

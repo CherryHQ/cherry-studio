@@ -9,10 +9,7 @@ import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRich
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDragDrop'
-import { usePasteHandler } from '@renderer/pages/home/Inputbar/hooks/usePasteHandler'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
-import PasteService from '@renderer/services/PasteService'
 import { isPastedTextFileMetadata } from '@renderer/types'
 import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import {
@@ -35,6 +32,9 @@ import { createComposerDocumentContent, serializeComposerDocument } from './comp
 import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
+import pasteHandling from './paste/pasteHandling'
+import { useFileDragDrop } from './paste/useFileDragDrop'
+import { usePasteHandler } from './paste/usePasteHandler'
 import {
   createPromptVariableContent,
   createPromptVariableInlineContent,
@@ -544,7 +544,7 @@ export default function ComposerSurface({
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
       // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update (e.g.
-      // PasteService re-applying the text after a long paste becomes a file) must skip the rebuild
+      // pasteHandling re-applying the text after a long paste becomes a file) must skip the rebuild
       // or quote/file/knowledge tokens degrade to their serialized text.
       if (limitedText === currentText) return
       textRef.current = limitedText
@@ -1337,10 +1337,10 @@ export default function ComposerSurface({
   ])
 
   useEffect(() => {
-    PasteService.init()
-    PasteService.registerHandler('inputbar', handlePaste)
+    pasteHandling.init()
+    pasteHandling.registerHandler('inputbar', handlePaste)
     return () => {
-      PasteService.unregisterHandler('inputbar')
+      pasteHandling.unregisterHandler('inputbar')
     }
   }, [handlePaste])
 
@@ -1447,7 +1447,7 @@ export default function ComposerSurface({
           style={isExpanded ? { height: '100%', minHeight: editorMinHeight } : { minHeight: editorMinHeight }}
           onFocus={() => {
             onFocus?.()
-            PasteService.setLastFocusedComponent('inputbar')
+            pasteHandling.setLastFocusedComponent('inputbar')
           }}
         />
       </div>

@@ -3,7 +3,7 @@ import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/type
 import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import PasteService from '../PasteService'
+import pasteHandling from '../pasteHandling'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -13,7 +13,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-describe('PasteService', () => {
+describe('pasteHandling', () => {
   const selectedFile: FileMetadata = {
     id: 'file-1',
     name: 'pasted_text.txt',
@@ -46,7 +46,7 @@ describe('PasteService', () => {
     })
   })
 
-  it('marks long pasted text files with the pasted-text composer kind', async () => {
+  it('marks long pasted text files with the pasted-text composer kind when the preference is enabled', async () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
     let files: ComposerAttachment[] = []
@@ -61,8 +61,16 @@ describe('PasteService', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await PasteService.handlePaste(event, [], setFiles, undefined, '', undefined, (key) =>
-      key === 'chat.input.pasted_text_file_name' ? '已粘贴的文本.txt' : key
+    const handled = await pasteHandling.handlePaste(
+      event,
+      [],
+      setFiles,
+      undefined,
+      true,
+      LONG_TEXT_PASTE_THRESHOLD,
+      '',
+      undefined,
+      (key) => (key === 'chat.input.pasted_text_file_name' ? '已粘贴的文本.txt' : key)
     )
 
     expect(handled).toBe(true)
@@ -82,5 +90,32 @@ describe('PasteService', () => {
       }
     ])
     expect(files[0]?.fileTokenSourceId).not.toBe(selectedFile.id)
+  })
+
+  it('leaves long pasted text untouched when the preference is disabled', async () => {
+    const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+    const preventDefault = vi.fn()
+    const setFiles = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? clipboardText : ''),
+        files: []
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      [],
+      setFiles,
+      undefined,
+      false,
+      LONG_TEXT_PASTE_THRESHOLD,
+      ''
+    )
+
+    expect(handled).toBe(false)
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
   })
 })
