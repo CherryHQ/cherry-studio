@@ -231,9 +231,7 @@ export class JobManager extends BaseService {
   private async runStartupRecoveryFlow(): Promise<void> {
     try {
       if (this._isShuttingDown) return
-      const stats = await runStartupRecovery(this.handlers, {
-        isJobInFlight: (jobId) => this.inFlightExecuted.has(jobId)
-      })
+      const stats = await runStartupRecovery(this.handlers)
       logger.info('Startup recovery complete', stats)
     } catch (err) {
       logger.error('Startup recovery failed', err as Error)

@@ -84,7 +84,6 @@ async function drainAllQueues(jm: JobManager): Promise<void> {
 interface BootstrapOptions {
   /** Register these handlers BEFORE _doInit so onReady's recovery sees them. */
   handlers?: Array<[string, JobHandler]>
-  runAllReady?: boolean
 }
 
 async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
@@ -136,16 +135,14 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
   // handler hangs forever. Drain the dispatch chain under fake timers —
   // advance generously so handler internal sleeps fire and finalizeJob
   // completes before we switch back.
-  if (opts.runAllReady !== false) {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    void jobManager._doAllReady()
-    await vi.advanceTimersByTimeAsync(60_000)
-    await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
-    for (let i = 0; i < 5; i++) {
-      await vi.advanceTimersByTimeAsync(100)
-    }
-    vi.useRealTimers()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  void jobManager._doAllReady()
+  await vi.advanceTimersByTimeAsync(60_000)
+  await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
+  for (let i = 0; i < 5; i++) {
+    await vi.advanceTimersByTimeAsync(100)
   }
+  vi.useRealTimers()
   return { scheduler, jobManager }
 }
 
@@ -400,50 +397,6 @@ describe('JobManager integration', () => {
       expect(final?.output).toEqual({ echoed: 'echo: resurrected' })
 
       await teardownManager(scheduler, jobManager)
-    })
-
-    it('does not reset a retry job already in flight in the current process', async () => {
-      const releaseHandlers: Array<() => void> = []
-      const executions: string[] = []
-      const handler: JobHandler<SlowInput> = {
-        recovery: 'retry',
-        defaultConcurrency: 2,
-        async execute(ctx) {
-          executions.push(ctx.jobId)
-          await new Promise<void>((resolve, reject) => {
-            releaseHandlers.push(resolve)
-            ctx.signal.addEventListener('abort', () => reject(new Error('AbortError')), { once: true })
-          })
-          return { echoed: `echo: ${ctx.input.message}` } satisfies SlowOutput
-        }
-      }
-
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['task.live-retry', handler as JobHandler]],
-        runAllReady: false
-      })
-
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      try {
-        void jobManager._doAllReady()
-
-        const handle = await jobManager.enqueue('task.live-retry' as never, { message: 'live' } as never)
-        await drainAllQueues(jobManager)
-        expect(executions).toEqual([handle.id])
-
-        await vi.advanceTimersByTimeAsync(60_000)
-        await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
-        await drainAllQueues(jobManager)
-
-        expect(executions).toEqual([handle.id])
-
-        for (const release of releaseHandlers) release()
-        await expect(handle.finished).resolves.toMatchObject({ status: 'completed' })
-      } finally {
-        for (const release of releaseHandlers) release()
-        vi.useRealTimers()
-        await teardownManager(scheduler, jobManager)
-      }
     })
   })
 
