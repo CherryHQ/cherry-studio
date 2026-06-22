@@ -1,3 +1,3 @@
-export { ActionButtons } from './ActionButtons'
+export { Confetti } from './Confetti'
 export { MigratorProgressList } from './MigratorProgress'
-export { StageIndicator } from './StageIndicator'
+export { SkipMigrationDialog } from './SkipMigrationDialog'
