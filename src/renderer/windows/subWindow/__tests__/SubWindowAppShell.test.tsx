@@ -28,10 +28,11 @@ async function renderSubWindowAppShell(isMac: boolean) {
     })
   }))
   vi.doMock('@renderer/utils/routeTitle', () => ({
-    getDefaultRouteTitle: (url: string) => url
+    getDefaultRouteTitle: (url: string) => url,
+    isPageTitledRoute: () => false
   }))
-  vi.doMock('@renderer/components/layout/AppShellTabBar', () => ({
-    AppShellTabBar: () => <header data-testid="tab-bar" />
+  vi.doMock('../SubWindowTitleBar', () => ({
+    SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
     TabRouter: ({ isActive }: { isActive: boolean }) => (
@@ -60,7 +61,7 @@ describe('SubWindowAppShell page side panel root', () => {
 
     const root = document.querySelector('[data-page-side-panel-root="true"]')
     expect(root).toBeInTheDocument()
-    expect(root).not.toContainElement(screen.getByTestId('tab-bar'))
+    expect(root).not.toContainElement(screen.getByTestId('sub-window-title-bar'))
     expect(screen.getByTestId('tab-router')).toContainElement(root as HTMLElement)
   })
 
