@@ -26,6 +26,7 @@ import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
 import { getBinaryName } from '@main/utils/process'
+import getLoginShellEnvironment from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
@@ -118,7 +119,15 @@ export class CodeCliService extends BaseService {
         await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
         return true
       }
-      const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
+      // Resolve from the same source the runtime uses (settingsBuilder reads the
+      // login-shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched
+      // Electron process does not inherit rc-exported vars, but the login shell
+      // does — so probing process.env alone falsely reports "not signed in".
+      const shellEnv = await getLoginShellEnvironment()
+      const configDir =
+        shellEnv.CLAUDE_CONFIG_DIR ||
+        process.env.CLAUDE_CONFIG_DIR ||
+        path.join(application.getPath('sys.home'), '.claude')
       return fs.existsSync(path.join(configDir, '.credentials.json'))
     } catch {
       // `security` exits non-zero when the item is absent (not signed in).

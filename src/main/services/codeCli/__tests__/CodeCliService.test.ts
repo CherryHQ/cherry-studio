@@ -28,6 +28,11 @@ vi.mock('@main/utils/process', () => ({
   getBinaryName: vi.fn().mockResolvedValue('bun')
 }))
 
+// Default export is the login-shell env probe; mocked so checkClaudeLogin never execs a real shell.
+vi.mock('@main/utils/shell-env', () => ({
+  default: vi.fn().mockResolvedValue({})
+}))
+
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
   exec: vi.fn()
@@ -112,5 +117,25 @@ describe('CodeCliService', () => {
     ).mock.results.at(-1)?.value
     execAsync?.mockRejectedValueOnce(new Error('not found'))
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
+  })
+
+  // Linux/Windows: the credential lives in <CLAUDE_CONFIG_DIR>/.credentials.json. The probe must
+  // resolve CLAUDE_CONFIG_DIR from the login shell (what the runtime uses), not raw process.env —
+  // a GUI Electron process doesn't inherit rc-exported vars.
+  it('checkClaudeLogin (non-mac) probes the login-shell CLAUDE_CONFIG_DIR', async () => {
+    vi.doMock('@main/core/platform', () => ({ isMac: false, isWin: false }))
+    try {
+      const shellEnv = (await import('@main/utils/shell-env')).default
+      vi.mocked(shellEnv).mockResolvedValue({ CLAUDE_CONFIG_DIR: '/home/me/.claude' })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
+      expect(fs.existsSync).toHaveBeenCalledWith('/home/me/.claude/.credentials.json')
+    } finally {
+      vi.doUnmock('@main/core/platform')
+    }
   })
 })
