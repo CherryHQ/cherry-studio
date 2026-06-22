@@ -659,7 +659,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef, isExpanded)
+  useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })

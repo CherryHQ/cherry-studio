@@ -11,7 +11,13 @@ import {
   QUICK_PANEL_ITEM_HEIGHT,
   QUICK_PANEL_SAFE_MARGIN
 } from './heights'
-import { QuickPanelFooter, QuickPanelReadOnlyHeader, QuickPanelRow } from './list'
+import {
+  firstQuickPanelSelectableIndex,
+  moveQuickPanelSelectableIndex,
+  QuickPanelFooter,
+  QuickPanelReadOnlyHeader,
+  QuickPanelRow
+} from './list'
 import { QuickPanelContext } from './provider'
 import {
   type QuickPanelCallBackOptions,
@@ -25,7 +31,6 @@ import {
 
 const ITEM_HEIGHT = QUICK_PANEL_ITEM_HEIGHT
 
-const firstSelectableIndex = (items: readonly QuickPanelListItem[]) => items.findIndex((item) => !item.disabled)
 const INPUT_QUERY_TERMINATOR_REGEX = /\s/
 
 function isInputQueryAnchorAllowed(text: string, queryAnchor: number) {
@@ -185,7 +190,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
       if (isSymbolChanged || (ctx.trackInputQuery && (isSearchChanged || isPanelGenerationChanged))) {
-        setActiveIndex(firstSelectableIndex(list))
+        setActiveIndex(firstQuickPanelSelectableIndex(list))
       } else {
         setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
       }
@@ -200,7 +205,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      setActiveIndex(firstSelectableIndex(list))
+      setActiveIndex(firstQuickPanelSelectableIndex(list))
     } else {
       // 如果当前index超出范围，调整到有效范围内
       setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
@@ -544,54 +549,26 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       switch (e.key) {
         case 'ArrowUp':
           scrollTriggerRef.current = 'keyboard'
-          if (assistivePressed) {
-            setActiveIndex((prev) => {
-              if (prev === -1) return list.length > 0 ? list.length - 1 : -1
-              const newIndex = prev - ctx.pageSize
-              if (prev === 0) return list.length - 1
-              return newIndex < 0 ? 0 : newIndex
-            })
-          } else {
-            setActiveIndex((prev) => {
-              if (prev === -1) return list.length > 0 ? list.length - 1 : -1
-              return prev > 0 ? prev - 1 : list.length - 1
-            })
-          }
+          setActiveIndex((prev) =>
+            moveQuickPanelSelectableIndex(list, prev, assistivePressed ? -ctx.pageSize : -1, { wrap: true })
+          )
           return true
 
         case 'ArrowDown':
           scrollTriggerRef.current = 'keyboard'
-          if (assistivePressed) {
-            setActiveIndex((prev) => {
-              if (prev === -1) return list.length > 0 ? 0 : -1
-              const newIndex = prev + ctx.pageSize
-              if (prev + 1 === list.length) return 0
-              return newIndex >= list.length ? list.length - 1 : newIndex
-            })
-          } else {
-            setActiveIndex((prev) => {
-              if (prev === -1) return list.length > 0 ? 0 : -1
-              return prev < list.length - 1 ? prev + 1 : 0
-            })
-          }
+          setActiveIndex((prev) =>
+            moveQuickPanelSelectableIndex(list, prev, assistivePressed ? ctx.pageSize : 1, { wrap: true })
+          )
           return true
 
         case 'PageUp':
           scrollTriggerRef.current = 'keyboard'
-          setActiveIndex((prev) => {
-            if (prev === -1) return list.length > 0 ? Math.max(0, list.length - ctx.pageSize) : -1
-            const newIndex = prev - ctx.pageSize
-            return newIndex < 0 ? 0 : newIndex
-          })
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(list, prev, -ctx.pageSize, { wrap: false }))
           return true
 
         case 'PageDown':
           scrollTriggerRef.current = 'keyboard'
-          setActiveIndex((prev) => {
-            if (prev === -1) return list.length > 0 ? Math.min(ctx.pageSize - 1, list.length - 1) : -1
-            const newIndex = prev + ctx.pageSize
-            return newIndex >= list.length ? list.length - 1 : newIndex
-          })
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(list, prev, ctx.pageSize, { wrap: false }))
           return true
 
         case 'ArrowRight':
@@ -611,7 +588,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
           const hasSearch = activeSearchQuery.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
-          const isCollapsed = hasSearch && nonPinnedCount === 0
+          const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
           if (!isCollapsed && list?.[activeIndex]) {
             handleItemAction(list[activeIndex], 'enter')
           }
@@ -631,7 +608,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           // 折叠/软隐藏时也要拦截，避免把查询输入当作发送消息。
           const hasSearch = activeSearchQuery.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
-          const isCollapsed = hasSearch && nonPinnedCount === 0
+          const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
           if (isCollapsed) {
             e.preventDefault()
             e.stopPropagation()

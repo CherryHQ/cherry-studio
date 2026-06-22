@@ -31,14 +31,14 @@ export interface ComposerToolState {
  * Tools registry API for tool buttons.
  * Used to register composer launchers.
  */
-export interface ComposerToolsRegistryAPI {
+export interface ComposerToolsRegistryApi {
   registerLaunchers: (toolKey: string, entries: ComposerToolLauncher[]) => () => void
 }
 
 /**
  * Composer launcher API.
  */
-export interface ComposerToolLaunchersAPI {
+export interface ComposerToolLaunchersApi {
   getLaunchers: () => ComposerToolLauncher[]
   version: number
 }
@@ -61,15 +61,15 @@ export interface ComposerToolDispatch {
   onTextChange: (updater: string | ((prev: string) => string)) => void
 
   /** Tools registry API (for tool buttons) */
-  toolsRegistry: ComposerToolsRegistryAPI
+  toolsRegistry: ComposerToolsRegistryApi
 
   /** Launcher API (for Composer component) */
-  triggers: ComposerToolLaunchersAPI
+  triggers: ComposerToolLaunchersApi
 }
 
 const ComposerToolStateContext = createContext<ComposerToolState | undefined>(undefined)
 const ComposerToolDispatchContext = createContext<ComposerToolDispatch | undefined>(undefined)
-const ComposerToolLaunchersContext = createContext<ComposerToolLaunchersAPI | undefined>(undefined)
+const ComposerToolLaunchersContext = createContext<ComposerToolLaunchersApi | undefined>(undefined)
 const EMPTY_EXTENSIONS: string[] = []
 const EMPTY_KNOWLEDGE_BASES: KnowledgeBase[] = []
 
@@ -97,7 +97,7 @@ export const useComposerToolProviderDispatch = (): ComposerToolDispatch => {
   return context
 }
 
-export const useComposerToolProviderLaunchers = (): ComposerToolLaunchersAPI => {
+export const useComposerToolProviderLaunchers = (): ComposerToolLaunchersApi => {
   const context = use(ComposerToolLaunchersContext)
   if (!context) {
     throw new Error('useComposerToolProviderLaunchers must be used within ComposerToolProvider')
@@ -219,7 +219,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   )
 
   // Tools Registry API (stable references for tool buttons)
-  const toolsRegistryAPI = useMemo<ComposerToolsRegistryAPI>(
+  const toolsRegistryApi = useMemo<ComposerToolsRegistryApi>(
     () => ({
       registerLaunchers
     }),
@@ -227,7 +227,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   )
 
   // Launcher API (stable references for Composer component)
-  const triggersAPI = useMemo<ComposerToolLaunchersAPI>(
+  const triggersApi = useMemo<ComposerToolLaunchersApi>(
     () => ({
       getLaunchers: getComposerToolLaunchers,
       version: launcherVersion
@@ -235,7 +235,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     [getComposerToolLaunchers, launcherVersion]
   )
 
-  const stableTriggersAPI = useMemo<ComposerToolLaunchersAPI>(
+  const stableTriggersApi = useMemo<ComposerToolLaunchersApi>(
     () => ({
       getLaunchers: getComposerToolLaunchers,
       get version() {
@@ -258,16 +258,16 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
       ...stableActions,
 
       // API objects
-      toolsRegistry: toolsRegistryAPI,
-      triggers: stableTriggersAPI
+      toolsRegistry: toolsRegistryApi,
+      triggers: stableTriggersApi
     }),
-    [setFiles, stableActions, toolsRegistryAPI, stableTriggersAPI]
+    [setFiles, stableActions, toolsRegistryApi, stableTriggersApi]
   )
 
   return (
     <ComposerToolStateContext value={stateValue}>
       <ComposerToolDispatchContext value={dispatchValue}>
-        <ComposerToolLaunchersContext value={triggersAPI}>{children}</ComposerToolLaunchersContext>
+        <ComposerToolLaunchersContext value={triggersApi}>{children}</ComposerToolLaunchersContext>
       </ComposerToolDispatchContext>
     </ComposerToolStateContext>
   )
