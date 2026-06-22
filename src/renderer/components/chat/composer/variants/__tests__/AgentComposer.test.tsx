@@ -511,6 +511,35 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('draft message')
   })
 
+  it('re-persists skill draft tokens to the cache when a direct send fails', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    const cachedTokens = [{ ...pdfSkillToken, index: 0, textOffset: 0 }]
+    vi.mocked(cacheService.getCasual).mockReturnValue({ text: 'analyze this. continue', tokens: cachedTokens })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    await waitFor(() => expect(mocks.surfaceProps?.draftTokens).toEqual(cachedTokens))
+
+    // Isolate the post-send write from the mount-time cache writes.
+    vi.mocked(cacheService.setCasual).mockClear()
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'analyze this. continue', tokens: cachedTokens })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalled()
+    // The optimistic clear wrote tokens: []; the failed-send restore must rewrite the skill
+    // tokens, otherwise a remount would silently drop the restored skill.
+    const lastWrite = vi.mocked(cacheService.setCasual).mock.calls.at(-1)
+    expect(lastWrite?.[1]).toEqual(expect.objectContaining({ text: 'analyze this. continue', tokens: cachedTokens }))
+  })
+
   it('passes the chat model shortcut to the model selector', () => {
     render(
       <AgentComposer

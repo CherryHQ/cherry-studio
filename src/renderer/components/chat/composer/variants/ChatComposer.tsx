@@ -662,7 +662,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef, isExpanded)
+  useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler(

@@ -3,10 +3,8 @@ import { useCallback, useMemo, useState } from 'react'
 
 import type { MessageToolApprovalInput } from '../messages/types'
 import type { ComposerOverride } from './ComposerContext'
-import {
-  createAskUserQuestionComposerOverride,
-  findLatestPendingAskUserQuestionRequest
-} from './variants/AskUserQuestionComposer'
+import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
+import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
 import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
 import { findLatestPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 

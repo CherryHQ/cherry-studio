@@ -208,7 +208,7 @@ vi.mock('@renderer/components/chat/composer/paste/usePasteHandler', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat/composer/paste/PasteService', () => ({
+vi.mock('@renderer/components/chat/composer/paste/pasteHandling', () => ({
   default: {
     init: vi.fn(),
     registerHandler: vi.fn(),

@@ -39,7 +39,7 @@ import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './Composer
 // Composer-local fork of the paste/drag stack: feat migrates these to the
 // `ComposerAttachment` model, which collides with the live v1 Inputbar
 // (`FileMetadata`). Forked here so v1 stays untouched until the pages switchover.
-import PasteService from './paste/PasteService'
+import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
 import {
@@ -1347,10 +1347,10 @@ export default function ComposerSurface({
   ])
 
   useEffect(() => {
-    PasteService.init()
-    PasteService.registerHandler('inputbar', handlePaste)
+    pasteHandling.init()
+    pasteHandling.registerHandler('inputbar', handlePaste)
     return () => {
-      PasteService.unregisterHandler('inputbar')
+      pasteHandling.unregisterHandler('inputbar')
     }
   }, [handlePaste])
 
@@ -1457,7 +1457,7 @@ export default function ComposerSurface({
           style={isExpanded ? { height: '100%', minHeight: editorMinHeight } : { minHeight: editorMinHeight }}
           onFocus={() => {
             onFocus?.()
-            PasteService.setLastFocusedComponent('inputbar')
+            pasteHandling.setLastFocusedComponent('inputbar')
           }}
         />
       </div>

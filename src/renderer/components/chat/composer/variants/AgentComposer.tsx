@@ -663,7 +663,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef, isExpanded)
+  useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -828,11 +828,15 @@ const AgentComposerInner = ({
 
       // Optimistically clear the draft so the cleared input doubles as the re-entry guard,
       // but snapshot it first: a pre-stream failure never reaches the streaming UI, so
-      // restore the draft (text + files + skills; tokens re-derive) and surface the failure
-      // instead of silently discarding what the user typed. Mirrors ChatComposer.
+      // restore the draft and surface the failure instead of silently discarding what the
+      // user typed. Mirrors ChatComposer.
       const previousText = text
       const previousFiles = files
       const previousSkills = selectedSkills
+      // Snapshot the cache-form draft tokens too: programmatic skill-token re-insertion is
+      // suppressed by `isSyncingTokensRef`, so `handleTokensChange` never re-persists them —
+      // restore + persist them here or a remount would drop the restored skills (#16260).
+      const previousDraftTokens = draftTokensRef.current
 
       clearCurrentDraft()
       const sent = await sendQueuedPayload(payload)
@@ -843,6 +847,9 @@ const AgentComposerInner = ({
         setText(previousText)
         setFiles(previousFiles)
         setSelectedSkills(previousSkills)
+        setDraftTokens(previousDraftTokens)
+        draftTokensRef.current = previousDraftTokens
+        writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
         window.toast?.error(t('chat.input.send_failed'))
       }
     },
@@ -850,6 +857,7 @@ const AgentComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       clearTimeoutTimer,
+      draftCacheKey,
       enqueueFollowup,
       files,
       isStreaming,
