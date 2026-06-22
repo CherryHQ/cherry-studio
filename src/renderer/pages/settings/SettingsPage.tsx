@@ -1,7 +1,6 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isDev } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -11,7 +10,6 @@ import {
   Cloud,
   Command,
   FileCode,
-  FlaskConical,
   HardDrive,
   Info,
   Package,
@@ -191,16 +189,6 @@ const SettingsPage: FC = () => {
                 active={isActive('/settings/about')}
                 onClick={() => go('/settings/about')}
               />
-              {isDev && (
-                <MenuItem
-                  className={settingsSubmenuItemClassName}
-                  labelClassName={settingsSubmenuItemLabelClassName}
-                  icon={<FlaskConical />}
-                  label={t('settings.componentLab.label')}
-                  active={isActive('/settings/component-lab')}
-                  onClick={() => go('/settings/component-lab')}
-                />
-              )}
             </MenuList>
           </Scrollbar>
         </div>

@@ -25,7 +25,6 @@ import { Route as SettingsIntegrationsRouteImport } from './routes/settings/inte
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
-import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
@@ -131,11 +130,6 @@ const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
 const SettingsDataRoute = SettingsDataRouteImport.update({
   id: '/data',
   path: '/data',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsComponentLabRoute = SettingsComponentLabRouteImport.update({
-  id: '/component-lab',
-  path: '/component-lab',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
@@ -281,7 +275,6 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
-  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
@@ -324,7 +317,6 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
-  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
@@ -368,7 +360,6 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
-  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
@@ -414,7 +405,6 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/channels'
-    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/file-processing'
     | '/settings/general'
@@ -457,7 +447,6 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/channels'
-    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/file-processing'
     | '/settings/general'
@@ -500,7 +489,6 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/channels'
-    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/file-processing'
     | '/settings/general'
@@ -646,13 +634,6 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/settings/data'
       preLoaderRoute: typeof SettingsDataRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/component-lab': {
-      id: '/settings/component-lab'
-      path: '/component-lab'
-      fullPath: '/settings/component-lab'
-      preLoaderRoute: typeof SettingsComponentLabRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/channels': {
@@ -899,7 +880,6 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
-  SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
@@ -920,7 +900,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
-  SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
