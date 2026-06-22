@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
-  reconcileAgentSkills: vi.fn(),
+  listSkills: vi.fn(),
+  getSkillDirectory: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -67,7 +68,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { reconcileAgentSkills: mocks.reconcileAgentSkills }
+  skillService: { list: mocks.listSkills, getSkillDirectory: mocks.getSkillDirectory }
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -194,10 +195,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.reconcileAgentSkills.mockResolvedValue(undefined)
+    mocks.listSkills.mockResolvedValue([])
+    mocks.getSkillDirectory.mockImplementation((folderName: string) => `/app/feature.agents.skills/${folderName}`)
   })
 
-  it('reconciles enabled skills into the session workspace before returning settings', async () => {
+  it('builds the SDK skill whitelist before returning settings', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -206,7 +208,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
