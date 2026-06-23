@@ -166,11 +166,12 @@ const TopicMessageFlowCanvas = ({
   const rootFocusPositionY = rootFocusTarget?.positionY
   const focusSignature = rootFocusKey ? String(focusKey ?? 'initial') : null
   const [initialViewport, setInitialViewport] = useState<{ signature: string; viewport: Viewport } | null>(null)
+  const initialViewportSignatureRef = useRef<string | null>(null)
   const readyViewport = initialViewport?.signature === focusSignature ? initialViewport.viewport : null
 
   useEffect(() => {
     if (!layoutReady || !focusSignature || rootFocusCenterX === undefined || rootFocusPositionY === undefined) return
-    if (initialViewport?.signature === focusSignature) return
+    if (initialViewportSignatureRef.current === focusSignature) return
 
     let frame = 0
     let cancelled = false
@@ -183,6 +184,7 @@ const TopicMessageFlowCanvas = ({
         return
       }
 
+      initialViewportSignatureRef.current = focusSignature
       setInitialViewport({
         signature: focusSignature,
         viewport: getRootFocusViewport(containerWidth, rootFocusCenterX, rootFocusPositionY)
@@ -195,7 +197,7 @@ const TopicMessageFlowCanvas = ({
       cancelled = true
       window.cancelAnimationFrame(frame)
     }
-  }, [focusSignature, initialViewport?.signature, layoutReady, rootFocusCenterX, rootFocusPositionY])
+  }, [focusSignature, layoutReady, rootFocusCenterX, rootFocusPositionY])
 
   useEffect(() => {
     if (!reactFlowInstance || !readyViewport) return
