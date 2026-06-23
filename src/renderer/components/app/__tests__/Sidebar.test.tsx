@@ -66,7 +66,7 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (icon: string) =>
     ({
-      agents: 'Agent',
+      agents: 'Work',
       assistants: 'Chat',
       translate: 'Translate'
     })[icon] ?? icon
@@ -75,7 +75,7 @@ vi.mock('@renderer/i18n/label', () => ({
 vi.mock('@renderer/utils/routeTitle', () => ({
   getDefaultRouteTitle: (url: string) =>
     ({
-      '/app/agents': 'Agent',
+      '/app/agents': 'Work',
       '/app/chat': 'Chat',
       '/app/files': 'Files',
       '/app/translate': 'Translate'
@@ -274,7 +274,7 @@ describe('app Sidebar', () => {
     const labels = Array.from(screen.getByTestId('sidebar-items').querySelectorAll('span')).map(
       (element) => element.textContent
     )
-    expect(labels).toEqual(['Translate', 'Chat', 'Agent'])
+    expect(labels).toEqual(['Translate', 'Chat', 'Work'])
   })
 
   it('does nothing when the active tab is already on the target route', () => {
@@ -283,7 +283,7 @@ describe('app Sidebar', () => {
       id: 'agents',
       type: 'route',
       url: '/app/agents',
-      title: 'Agent'
+      title: 'Work'
     }
 
     render(<Sidebar />)
@@ -372,7 +372,7 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', { forceNew: true, title: 'Agent' })
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', { forceNew: true, title: 'Work' })
     expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents-new' })
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
