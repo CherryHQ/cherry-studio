@@ -402,7 +402,7 @@ const HomePage: FC = () => {
     (topic: Topic | null) => {
       closeHistoryRecords()
       if (!topic) {
-        void startDraftAssistantSelection()
+        startDraftAssistantSelection()
         return
       }
 
