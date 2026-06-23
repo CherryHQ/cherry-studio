@@ -5,62 +5,71 @@ import { ModelSelector } from '@renderer/components/Selector/model'
 import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { isGenerateImageModel } from '@shared/utils/model'
+import type { CreationKind } from '@shared/data/types/creation'
+import { createUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { isGenerateImageModel, isGenerateVideoModel } from '@shared/utils/model'
 import { first } from 'lodash'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { PaintingData } from '../model/types/paintingData'
-import PaintingSectionTitle from './PaintingSectionTitle'
+import CreationSectionTitle from './CreationSectionTitle'
 
-interface PaintingModelSelectorProps {
-  className?: string
-  painting: PaintingData
-  onSelect: (selection: { providerId: string; modelId: string }) => void
+export interface CreationModelSelection {
+  providerId: string
+  modelId: string
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect }) => {
+export interface CreationModelKindSelection extends CreationModelSelection {
+  kind: CreationKind
+}
+
+interface CreationModelSelectorProps {
+  className?: string
+  providerId?: string
+  modelId?: string
+  onSelect: (selection: CreationModelKindSelection) => void
+}
+
+const isCreationModel = (model: Model) => isGenerateImageModel(model) || isGenerateVideoModel(model)
+
+const CreationModelSelector: FC<CreationModelSelectorProps> = ({ className, providerId, modelId, onSelect }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
   const { providers } = useProviders({ enabled: true })
 
   const selectedModelId = useMemo(
-    () =>
-      painting.providerId && painting.model ? createUniqueModelId(painting.providerId, painting.model) : undefined,
-    [painting.providerId, painting.model]
+    () => (providerId && modelId ? createUniqueModelId(providerId, modelId) : undefined),
+    [providerId, modelId]
   )
 
   const selectedModel = useMemo(
     () =>
-      painting.model
-        ? models.find((model) => model.providerId === painting.providerId && model.apiModelId === painting.model)
-        : undefined,
-    [models, painting.providerId, painting.model]
+      modelId ? models.find((model) => model.providerId === providerId && model.apiModelId === modelId) : undefined,
+    [models, providerId, modelId]
   )
 
   const selectedProvider = useMemo(
-    () => (painting.providerId ? providers.find((provider) => provider.id === painting.providerId) : undefined),
-    [providers, painting.providerId]
+    () => (providerId ? providers.find((provider) => provider.id === providerId) : undefined),
+    [providers, providerId]
   )
 
-  const selectedName = selectedModel?.name ?? painting.model
+  const selectedName = selectedModel?.name ?? modelId
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
   const selectedIcon = useMemo(() => {
-    if (!painting.providerId) return undefined
-    const identifier = selectedModel?.apiModelId ?? painting.model
+    if (!providerId) return undefined
+    const identifier = selectedModel?.apiModelId ?? modelId
     if (!identifier) return undefined
-    return resolveIcon(identifier, painting.providerId) ?? resolveIcon(selectedModel?.name ?? '', painting.providerId)
-  }, [painting.providerId, painting.model, selectedModel])
+    return resolveIcon(identifier, providerId) ?? resolveIcon(selectedModel?.name ?? '', providerId)
+  }, [providerId, modelId, selectedModel])
 
   return (
     <div>
-      <PaintingSectionTitle>
+      <CreationSectionTitle>
         <span className="min-w-0 truncate">{t('paintings.model')}</span>
-      </PaintingSectionTitle>
+      </CreationSectionTitle>
       <ModelSelector
         open={open}
         onOpenChange={setOpen}
@@ -69,14 +78,21 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         value={selectedModelId}
         onSelect={(uniqueModelId) => {
           if (!uniqueModelId) return
-          const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-          onSelect({ providerId, modelId })
+          const parsed = parseUniqueModelId(uniqueModelId)
+          const model = models.find(
+            (item) => item.providerId === parsed.providerId && item.apiModelId === parsed.modelId
+          )
+          onSelect({
+            providerId: parsed.providerId,
+            modelId: parsed.modelId,
+            kind: model && isGenerateVideoModel(model) ? 'video' : 'image'
+          })
         }}
-        filter={isGenerateImageModel}
+        filter={isCreationModel}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
-        prioritizedProviderIds={painting.providerId ? [painting.providerId] : undefined}
+        prioritizedProviderIds={providerId ? [providerId] : undefined}
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
@@ -117,4 +133,4 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
   )
 }
 
-export default PaintingModelSelector
+export default CreationModelSelector

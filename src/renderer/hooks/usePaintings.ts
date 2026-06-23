@@ -1,52 +1,30 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import { useReorder } from '@renderer/data/hooks/useReorder'
+import { useCreations } from '@renderer/hooks/useCreations'
 import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
 import type { Painting } from '@shared/data/types/painting'
-import { isUndefined, omitBy } from 'lodash'
 import { useCallback } from 'react'
 
+/**
+ * TRANSITION SHIM — paintings are `creation` rows with `kind: 'image'`. This wraps
+ * the unified `useCreations('image', …)` so the legacy paintings page keeps its API.
+ * Removed when the page becomes the unified Creation page (Phase 5).
+ */
 export function usePaintings(query?: ListPaintingsQueryParams) {
-  const filtered = query ? (omitBy(query, isUndefined) as ListPaintingsQueryParams) : undefined
-  const hasQuery = filtered && Object.keys(filtered).length > 0
-  const { data, isLoading, refetch } = useQuery('/paintings', hasQuery ? { query: filtered } : undefined)
-  const { trigger: createTrigger } = useMutation('POST', '/paintings', { refresh: ['/paintings'] })
-  const { trigger: updateTrigger } = useMutation('PATCH', '/paintings/:id', { refresh: ['/paintings'] })
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
-  const { applyReorderedList } = useReorder('/paintings')
+  const { records, total, isLoading, refresh, createCreation, updateCreation, deleteCreation, reorderCreations } =
+    useCreations('image', query)
 
-  const createPainting = useCallback(
-    (painting: CreatePaintingDto) => {
-      return createTrigger({ body: painting })
-    },
-    [createTrigger]
-  )
-
+  const createPainting = useCallback((painting: CreatePaintingDto) => createCreation(painting), [createCreation])
   const updatePainting = useCallback(
-    (id: string, updates: UpdatePaintingDto) => {
-      return updateTrigger({ params: { id }, body: updates })
-    },
-    [updateTrigger]
+    (id: string, updates: UpdatePaintingDto) => updateCreation(id, updates),
+    [updateCreation]
   )
-
-  const deletePainting = useCallback(
-    (id: string) => {
-      return deleteTrigger({ params: { id } })
-    },
-    [deleteTrigger]
-  )
-
-  const reorderPaintings = useCallback(
-    (paintings: Painting[]) => {
-      return applyReorderedList(paintings as unknown as Array<Record<string, unknown>>)
-    },
-    [applyReorderedList]
-  )
+  const deletePainting = useCallback((id: string) => deleteCreation(id), [deleteCreation])
+  const reorderPaintings = useCallback((paintings: Painting[]) => reorderCreations(paintings), [reorderCreations])
 
   return {
-    records: data?.items ?? [],
-    total: data?.total ?? 0,
+    records,
+    total,
     isLoading,
-    refresh: refetch,
+    refresh,
     createPainting,
     updatePainting,
     deletePainting,

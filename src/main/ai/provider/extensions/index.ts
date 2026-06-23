@@ -1,19 +1,24 @@
 /** App-specific Provider Extensions registered alongside `coreExtensions`. */
 
+import { type AlibabaProviderSettings, createAlibaba } from '@ai-sdk/alibaba'
 import {
   type AmazonBedrockProvider,
   type AmazonBedrockProviderSettings,
   createAmazonBedrock
 } from '@ai-sdk/amazon-bedrock'
+import { type ByteDanceProviderSettings, createByteDance } from '@ai-sdk/bytedance'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
+import { createFal, type FalProviderSettings } from '@ai-sdk/fal'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
+import { createKlingAI, type KlingAIProviderSettings } from '@ai-sdk/klingai'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { createReplicate, type ReplicateProviderSettings } from '@ai-sdk/replicate'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
@@ -251,6 +256,63 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
+/**
+ * FAL Extension — native AI SDK video provider (Luma Ray, MiniMax, Hunyuan). Reached through the
+ * `provider.videoModel()` path; no custom transport. (fal.ai also offers image models, not wired here.)
+ */
+export const FalExtension = ProviderExtension.create({
+  name: 'fal',
+  aliases: ['fal-ai'] as const,
+  supportsImageGeneration: false,
+  supportsVideoGeneration: true,
+  create: createFal
+} as const satisfies ProviderExtensionConfig<FalProviderSettings, ProviderV3, 'fal'>)
+
+/**
+ * Replicate Extension — native AI SDK video provider (MiniMax video-01, Stable Video Diffusion).
+ */
+export const ReplicateExtension = ProviderExtension.create({
+  name: 'replicate',
+  supportsImageGeneration: false,
+  supportsVideoGeneration: true,
+  create: createReplicate
+} as const satisfies ProviderExtensionConfig<ReplicateProviderSettings, ProviderV3, 'replicate'>)
+
+/**
+ * Kling AI Extension — native AI SDK video provider (Kling v1–v3 t2v / i2v / motion-control).
+ */
+export const KlingaiExtension = ProviderExtension.create({
+  name: 'klingai',
+  aliases: ['kling'] as const,
+  supportsImageGeneration: false,
+  supportsVideoGeneration: true,
+  create: createKlingAI
+} as const satisfies ProviderExtensionConfig<KlingAIProviderSettings, ProviderV3, 'klingai'>)
+
+/**
+ * ByteDance Extension — native AI SDK video provider (Doubao Seedance 1.0/1.5/2.0 t2v/i2v).
+ * Routes the Volcengine Ark video API; reached as the `bytedance` adapterFamily on the
+ * `doubao` provider's `video-generation` endpoint (the user's existing Volcengine key).
+ */
+export const ByteDanceExtension = ProviderExtension.create({
+  name: 'bytedance',
+  supportsImageGeneration: false,
+  supportsVideoGeneration: true,
+  create: createByteDance
+} as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'bytedance'>)
+
+/**
+ * Alibaba Extension — native AI SDK video provider (Tongyi Wan 2.5/2.6 t2v/i2v/r2v).
+ * Reached as the `alibaba` adapterFamily on the `dashscope` provider's `video-generation`
+ * endpoint. (The adapter also exposes Qwen chat/embedding; only video is wired here.)
+ */
+export const AlibabaExtension = ProviderExtension.create({
+  name: 'alibaba',
+  supportsImageGeneration: false,
+  supportsVideoGeneration: true,
+  create: createAlibaba
+} as const satisfies ProviderExtensionConfig<AlibabaProviderSettings, ProviderV3, 'alibaba'>)
+
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
@@ -273,5 +335,10 @@ export const extensions = [
   DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension
+  GroqExtension,
+  FalExtension,
+  ReplicateExtension,
+  KlingaiExtension,
+  ByteDanceExtension,
+  AlibabaExtension
 ] as const

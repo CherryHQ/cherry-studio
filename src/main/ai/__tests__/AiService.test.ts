@@ -5,6 +5,7 @@ import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
+const mockGenerateVideo = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
@@ -50,6 +51,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: vi.fn(),
   embedMany: vi.fn(),
   generateImage: (...args: unknown[]) => mockGenerateImage(...args),
+  generateVideo: (...args: unknown[]) => mockGenerateVideo(...args),
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
@@ -216,6 +218,83 @@ describe('AiService', () => {
 
     expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
     expect(result).toEqual({ files: [fileEntry] })
+  })
+
+  it('generates video via ai-core and persists only valid video files', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'google',
+        providerSettings: {},
+        modelId: 'veo-3.1-generate'
+      }
+    } as never)
+
+    mockGenerateVideo.mockResolvedValue({
+      videos: [{ base64: 'vid123', mediaType: 'video/mp4' }, { nonsense: true }]
+    })
+
+    const fileEntry = { id: 'video-1', origin: 'internal', ext: 'mp4', name: 'vid', size: 3, createdAt: 0 }
+    const createInternalEntry = vi.fn().mockResolvedValue(fileEntry)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry } : undefined
+    )
+
+    const result = await service.generateVideo({
+      uniqueModelId: 'google::veo-3.1-generate',
+      prompt: 'a cat on a treadmill',
+      duration: 5,
+      aspectRatio: '16:9',
+      resolution: '1280x720',
+      seed: 7,
+      negativePrompt: 'blurry',
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(mockGenerateVideo).toHaveBeenCalledWith(
+      'google',
+      {},
+      expect.objectContaining({
+        model: 'veo-3.1-generate',
+        prompt: 'a cat on a treadmill',
+        duration: 5,
+        aspectRatio: '16:9',
+        resolution: '1280x720',
+        seed: 7,
+        providerOptions: { google: { negativePrompt: 'blurry' } }
+      })
+    )
+
+    // Only the valid base64 video is persisted; the malformed entry is filtered out.
+    expect(createInternalEntry).toHaveBeenCalledTimes(1)
+    expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:video/mp4;base64,vid123' })
+    expect(result).toEqual({ files: [fileEntry] })
+  })
+
+  it('maps the first frame to the AI SDK image-to-video prompt shape', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'google', providerSettings: {}, modelId: 'veo-3.1-generate' }
+    } as never)
+    mockGenerateVideo.mockResolvedValue({ videos: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateVideo({
+      uniqueModelId: 'google::veo-3.1-generate',
+      prompt: 'make it move',
+      firstFrame: 'data:image/png;base64,frame',
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(mockGenerateVideo).toHaveBeenCalledWith(
+      'google',
+      {},
+      expect.objectContaining({
+        prompt: { image: 'data:image/png;base64,frame', text: 'make it move' }
+      })
+    )
   })
 })
 

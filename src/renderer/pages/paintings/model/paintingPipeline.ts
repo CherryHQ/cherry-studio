@@ -18,7 +18,7 @@ const logger = loggerService.withContext('paintings/paintingPipeline')
  * user picks a model + edits controls.
  */
 export function createDefaultPainting(providerId: string): PaintingData {
-  return { id: uuid(), providerId, mode: 'generate', prompt: '', files: [], params: {} }
+  return { id: uuid(), kind: 'image', providerId, mode: 'generate', prompt: '', files: [], params: {} }
 }
 
 /**

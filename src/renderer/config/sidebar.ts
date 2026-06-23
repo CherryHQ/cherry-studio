@@ -19,7 +19,7 @@ import {
   MessageSquare,
   MousePointerClick,
   NotepadText,
-  Palette
+  Sparkles
 } from 'lucide-react'
 
 /**
@@ -105,7 +105,7 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   },
   {
     id: 'paintings',
-    icon: Palette,
+    icon: Sparkles,
     routePrefix: '/app/paintings',
     resolveUrl: ({ defaultPaintingProvider }) => `/app/paintings/${defaultPaintingProvider}`
   },

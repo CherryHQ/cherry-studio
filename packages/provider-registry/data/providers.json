@@ -1,5 +1,5 @@
 {
-  "version": "2026.04.09",
+  "version": "2026.06.19",
   "providers": [
     {
       "id": "cherryin",
@@ -741,6 +741,10 @@
         "openai-responses": {
           "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
           "adapterFamily": "openai"
+        },
+        "video-generation": {
+          "baseUrl": "https://dashscope.aliyuncs.com",
+          "adapterFamily": "alibaba"
         }
       },
       "metadata": {
@@ -785,6 +789,10 @@
         "openai-responses": {
           "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
           "adapterFamily": "openai"
+        },
+        "video-generation": {
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+          "adapterFamily": "bytedance"
         }
       },
       "metadata": {
@@ -1375,6 +1383,64 @@
           "apiKey": "https://platform.minimax.io/user-center/basic-information/interface-key",
           "docs": "https://platform.minimax.io/docs/api-reference/text-openai-api",
           "models": "https://platform.minimax.io/document/Models"
+        }
+      }
+    },
+    {
+      "id": "fal",
+      "name": "FAL",
+      "description": "fal.ai - generative media (video) provider",
+      "endpointConfigs": {
+        "video-generation": {
+          "baseUrl": "https://fal.run",
+          "adapterFamily": "fal"
+        }
+      },
+      "defaultChatEndpoint": null,
+      "metadata": {
+        "website": {
+          "official": "https://fal.ai",
+          "apiKey": "https://fal.ai/dashboard/keys",
+          "docs": "https://docs.fal.ai",
+          "models": "https://fal.ai/models"
+        }
+      }
+    },
+    {
+      "id": "replicate",
+      "name": "Replicate",
+      "description": "Replicate - generative media (video) provider",
+      "endpointConfigs": {
+        "video-generation": {
+          "baseUrl": "https://api.replicate.com/v1",
+          "adapterFamily": "replicate"
+        }
+      },
+      "defaultChatEndpoint": null,
+      "metadata": {
+        "website": {
+          "official": "https://replicate.com",
+          "apiKey": "https://replicate.com/account/api-tokens",
+          "docs": "https://replicate.com/docs",
+          "models": "https://replicate.com/explore"
+        }
+      }
+    },
+    {
+      "id": "klingai",
+      "name": "Kling AI",
+      "description": "Kuaishou Kling - video generation provider",
+      "endpointConfigs": {
+        "video-generation": {
+          "baseUrl": "https://api-singapore.klingai.com",
+          "adapterFamily": "klingai"
+        }
+      },
+      "defaultChatEndpoint": null,
+      "metadata": {
+        "website": {
+          "official": "https://klingai.com",
+          "apiKey": "https://app.klingai.com"
         }
       }
     }

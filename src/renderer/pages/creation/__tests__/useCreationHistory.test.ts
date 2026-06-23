@@ -1,13 +1,14 @@
-import type { PaintingListResponse } from '@shared/data/api/schemas/paintings'
-import type { Painting } from '@shared/data/types/painting'
+import type { CreationListResponse } from '@shared/data/api/schemas/creations'
+import type { Creation } from '@shared/data/types/creation'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../model/mappers/recordToPaintingData', () => ({
-  recordsToPaintingDataList: vi.fn(async (records: Painting[]) =>
+vi.mock('../../paintings/model/mappers/recordToPaintingData', () => ({
+  recordsToPaintingDataList: vi.fn(async (records: Creation[]) =>
     records.map((record) => ({
       id: record.id,
+      kind: record.kind,
       providerId: record.providerId,
       mode: 'generate',
       prompt: record.prompt,
@@ -19,11 +20,12 @@ vi.mock('../../model/mappers/recordToPaintingData', () => ({
   )
 }))
 
-import { usePaintingHistory } from '../usePaintingHistory'
+import { useCreationHistory } from '../useCreationHistory'
 
-function createRecord(id: string): Painting {
+function createRecord(id: string): Creation {
   return {
     id,
+    kind: 'image',
     providerId: 'silicon',
     modelId: 'silicon:model-1',
     prompt: 'draw a cat',
@@ -34,8 +36,8 @@ function createRecord(id: string): Painting {
   }
 }
 
-function createPage(offset: number, total: number): PaintingListResponse {
-  const items = Array.from({ length: 30 }, (_, index) => createRecord(`painting-${offset + index}`))
+function createPage(offset: number, total: number): CreationListResponse {
+  const items = Array.from({ length: 30 }, (_, index) => createRecord(`creation-${offset + index}`))
   return {
     items,
     total,
@@ -43,12 +45,12 @@ function createPage(offset: number, total: number): PaintingListResponse {
   }
 }
 
-describe('usePaintingHistory', () => {
+describe('useCreationHistory', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
   })
 
-  it('uses cursor infinite DataApi pagination for the strip history', async () => {
+  it('uses cursor infinite DataApi pagination for the creation gallery', async () => {
     const loadNext = vi.fn()
     const page = createPage(0, 90)
     mockUseInfiniteQuery.mockReturnValue({
@@ -63,10 +65,10 @@ describe('usePaintingHistory', () => {
       mutate: vi.fn().mockResolvedValue([page])
     })
 
-    const { result } = renderHook(() => usePaintingHistory())
+    const { result } = renderHook(() => useCreationHistory())
 
     await waitFor(() => expect(result.current.items).toHaveLength(30))
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/paintings', { limit: 30 })
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/creations', { limit: 30 })
     expect(result.current.hasMore).toBe(true)
 
     act(() => {
@@ -74,5 +76,24 @@ describe('usePaintingHistory', () => {
     })
 
     expect(loadNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the optional kind filter for scoped consumers', () => {
+    const page = createPage(0, 30)
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [page],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue([page]),
+      reset: vi.fn().mockResolvedValue([page]),
+      mutate: vi.fn().mockResolvedValue([page])
+    })
+
+    renderHook(() => useCreationHistory('video'))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/creations', { query: { kind: 'video' }, limit: 30 })
   })
 })

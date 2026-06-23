@@ -4043,6 +4043,44 @@
       "resemblance_tip": "Ρυθμίστε την ομοιότητα της μεγεθυσμένης εικόνας με την αρχική",
       "seed_tip": "Ελέγχει την τυχαιότητα του αποτελέσματος μεγέθυνσης"
     },
+    "video": {
+      "camera_fixed": "[to be translated]:Fixed Camera",
+      "camera_fixed_tip": "[to be translated]:Keep the camera static (no pan/zoom/movement).",
+      "duration": "[to be translated]:Duration (s)",
+      "duration_tip": "[to be translated]:Length of the generated video in seconds.",
+      "first_frame": "[to be translated]:First Frame",
+      "fps": "[to be translated]:Frame Rate",
+      "generate_audio": "[to be translated]:Generate Audio",
+      "generate_audio_tip": "[to be translated]:Generate a synced audio track embedded in the video.",
+      "generate_failed": "[to be translated]:Failed to generate video",
+      "last_frame": "[to be translated]:Last Frame",
+      "mode": "[to be translated]:Mode",
+      "mode_options": {
+        "edit": "[to be translated]:Edit",
+        "extend": "[to be translated]:Extend",
+        "i2v": "[to be translated]:Image to Video",
+        "keyframe": "[to be translated]:Keyframes",
+        "multishot": "[to be translated]:Multi-shot",
+        "reference": "[to be translated]:Reference",
+        "t2v": "[to be translated]:Text to Video"
+      },
+      "movement_amplitude": "[to be translated]:Movement Amplitude",
+      "movement_amplitude_options": {
+        "auto": "[to be translated]:Auto",
+        "large": "[to be translated]:Large",
+        "medium": "[to be translated]:Medium",
+        "small": "[to be translated]:Small"
+      },
+      "new": "[to be translated]:New",
+      "resolution": "[to be translated]:Resolution",
+      "shot_type": "[to be translated]:Shot Type",
+      "shot_type_options": {
+        "multi": "[to be translated]:Multi-shot",
+        "single": "[to be translated]:Single shot"
+      },
+      "size": "[to be translated]:Size",
+      "title": "[to be translated]:Videos"
+    },
     "watermark": "Προσθήκη υδατογραφήματος",
     "zhipu": {
       "custom_size_divisible": "Το προσαρμοσμένο μέγεθος πρέπει να διαιρείται με το 16",
@@ -7025,6 +7063,7 @@
   "title": {
     "apps": "Εφαρμογές",
     "code": "Κώδικας",
+    "creation": "[to be translated]:Creation",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",
     "knowledge": "Βάση Γνώσης",

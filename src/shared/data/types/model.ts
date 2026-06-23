@@ -12,6 +12,7 @@
 
 import type {
   CanonicalParamKey,
+  CanonicalVideoParamKey,
   Currency,
   EndpointType,
   ImageGenerationMode,
@@ -20,26 +21,41 @@ import type {
   Modality,
   ModelCapability,
   ReasoningEffort,
-  SupportSpec
+  SupportSpec,
+  VideoGenerationMode,
+  VideoGenerationSupport,
+  VideoModeDef
 } from '@cherrystudio/provider-registry'
 import {
   CANONICAL_PARAM_KEY,
+  CANONICAL_VIDEO_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
   ImageGenerationSupportSchema,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
-  REASONING_EFFORT
+  REASONING_EFFORT,
+  VideoGenerationSupportSchema
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // Re-export const objects for consumers
-export { CANONICAL_PARAM_KEY, CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
+export {
+  CANONICAL_PARAM_KEY,
+  CANONICAL_VIDEO_PARAM_KEY,
+  CURRENCY,
+  ENDPOINT_TYPE,
+  MODALITY,
+  MODEL_CAPABILITY,
+  objectValues,
+  REASONING_EFFORT
+}
 
 // Re-export types for consumers
 export type {
   CanonicalParamKey,
+  CanonicalVideoParamKey,
   Currency,
   EndpointType,
   ImageGenerationMode,
@@ -48,7 +64,10 @@ export type {
   Modality,
   ModelCapability,
   ReasoningEffort,
-  SupportSpec
+  SupportSpec,
+  VideoGenerationMode,
+  VideoGenerationSupport,
+  VideoModeDef
 }
 
 /** Price per token schema */
@@ -339,6 +358,13 @@ export const ModelSchema = z.object({
    * catalog fetch.
    */
   imageGeneration: ImageGenerationSupportSchema.optional(),
+
+  /**
+   * Creation-page video metadata (per-mode media inputs + `supports.*` widget specs +
+   * transport descriptor). Sourced from the registry preset at read time — not persisted
+   * in user_model. Mirrors `imageGeneration` for the video pipeline.
+   */
+  videoGeneration: VideoGenerationSupportSchema.optional(),
 
   // Status
   /** Whether this model is available for use */

@@ -154,6 +154,7 @@ const GoogleExtension = ProviderExtension.create({
   name: 'google',
   aliases: ['google-ai', 'gemini', 'google-gemini'] as const,
   supportsImageGeneration: true,
+  supportsVideoGeneration: true,
   create: createGoogleGenerativeAI,
   toolFactories: {
     webSearch:

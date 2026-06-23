@@ -9,6 +9,7 @@ vi.mock('@renderer/i18n', () => ({
         'agent.session.group.conversation': '对话',
         'agent.sidebar_title': '任务',
         'title.store': '资源',
+        'title.creation': '创作',
         'title.work': '工作',
         'title.paintings': '绘画',
         'title.translate': '翻译',
@@ -43,7 +44,7 @@ describe('routeTitle', () => {
       it.each([
         ['/app/chat', '对话'],
         ['/app/agents', '工作'],
-        ['/app/paintings', '绘画'],
+        ['/app/paintings', '创作'],
         ['/app/translate', '翻译'],
         ['/app/mini-app', '小程序'],
         ['/app/knowledge', '知识库'],
@@ -63,7 +64,7 @@ describe('routeTitle', () => {
         expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('工作')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
-        expect(getDefaultRouteTitle('/app/paintings/zhipu')).toBe('绘画')
+        expect(getDefaultRouteTitle('/app/paintings/zhipu')).toBe('创作')
       })
     })
 

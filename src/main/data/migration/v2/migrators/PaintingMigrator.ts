@@ -1,8 +1,8 @@
+import { creationTable } from '@data/db/schemas/creation'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
-import { paintingTable } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { paintingSourceType } from '@shared/data/types/file/ref'
+import { creationSourceType } from '@shared/data/types/file/ref'
 import { inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -24,14 +24,15 @@ const INSERT_BATCH_SIZE = 100
 export class PaintingMigrator extends BaseMigrator {
   readonly id = 'painting'
   readonly name = 'Painting'
-  readonly description = 'Migrate painting history from Redux to SQLite'
+  readonly description = 'Migrate painting history from Redux to the unified creation table (kind=image)'
   readonly order = 4.5
 
   private sourceCount = 0
   private skippedCount = 0
-  private preparedPaintings: Array<typeof paintingTable.$inferInsert> = []
+  // Migrated v1 paintings land in the unified `creation` table as `kind: 'image'`.
+  private preparedPaintings: Array<typeof creationTable.$inferInsert> = []
   /**
-   * `painting.id` → output/input file ids extracted from the legacy record.
+   * `creation.id` → output/input file ids extracted from the legacy record.
    * Resolved against `file_entry` at execute() time so we never insert a
    * `file_ref` row with a dangling FK (legacy rows can reference file ids
    * that the FileMigrator skipped as malformed).
@@ -110,7 +111,11 @@ export class PaintingMigrator extends BaseMigrator {
       for (const entries of groupedRecords.values()) {
         normalizedRows.push(...entries.map((e) => e.row))
       }
-      this.preparedPaintings = assignOrderKeysInSequence(normalizedRows)
+      // Stamp every migrated painting as a `kind: 'image'` creation row.
+      this.preparedPaintings = assignOrderKeysInSequence(normalizedRows).map((row) => ({
+        ...row,
+        kind: 'image' as const
+      }))
 
       logger.info('Prepared painting migration records', {
         sourceCount: this.sourceCount,
@@ -146,7 +151,7 @@ export class PaintingMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
           const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
-          await tx.insert(paintingTable).values(batch)
+          await tx.insert(creationTable).values(batch)
 
           this.reportProgress(
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
@@ -186,7 +191,7 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: paintingSourceType,
+                sourceType: creationSourceType,
                 sourceId: paintingId,
                 role: 'output',
                 createdAt: now,
@@ -201,7 +206,7 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: paintingSourceType,
+                sourceType: creationSourceType,
                 sourceId: paintingId,
                 role: 'input',
                 createdAt: now,
@@ -238,7 +243,7 @@ export class PaintingMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const countResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(paintingTable).get()
+      const countResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(creationTable).get()
       const targetCount = countResult?.count ?? 0
       const errors: Array<{ key: string; message: string }> = []
 

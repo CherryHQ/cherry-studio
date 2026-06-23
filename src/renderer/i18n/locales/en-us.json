@@ -4623,6 +4623,44 @@
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
     },
+    "video": {
+      "camera_fixed": "Fixed Camera",
+      "camera_fixed_tip": "Keep the camera static (no pan/zoom/movement).",
+      "duration": "Duration (s)",
+      "duration_tip": "Length of the generated video in seconds.",
+      "first_frame": "First Frame",
+      "fps": "Frame Rate",
+      "generate_audio": "Generate Audio",
+      "generate_audio_tip": "Generate a synced audio track embedded in the video.",
+      "generate_failed": "Failed to generate video",
+      "last_frame": "Last Frame",
+      "mode": "Mode",
+      "mode_options": {
+        "edit": "Edit",
+        "extend": "Extend",
+        "i2v": "Image to Video",
+        "keyframe": "Keyframes",
+        "multishot": "Multi-shot",
+        "reference": "Reference",
+        "t2v": "Text to Video"
+      },
+      "movement_amplitude": "Movement Amplitude",
+      "movement_amplitude_options": {
+        "auto": "Auto",
+        "large": "Large",
+        "medium": "Medium",
+        "small": "Small"
+      },
+      "new": "New",
+      "resolution": "Resolution",
+      "shot_type": "Shot Type",
+      "shot_type_options": {
+        "multi": "Multi-shot",
+        "single": "Single shot"
+      },
+      "size": "Size",
+      "title": "Videos"
+    },
     "watermark": "Add Watermark",
     "zhipu": {
       "custom_size_divisible": "Custom size must be divisible by 16",
@@ -7624,6 +7662,7 @@
   "title": {
     "apps": "Apps",
     "code": "Code",
+    "creation": "Creation",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",

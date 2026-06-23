@@ -13,7 +13,7 @@ import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
-import { isGenerateImageModel } from '@shared/utils/model'
+import { isGenerateImageModel, isGenerateVideoModel } from '@shared/utils/model'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'lodash'
@@ -25,6 +25,7 @@ import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
+import { dmxapiUsesVideoTransport } from './custom/dmxapi/dmxapiVideoTransport'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
 interface BaseConfig {
@@ -134,6 +135,26 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
         }
       })
     },
+    // VIDEO generation on aggregator gateways whose chat resolves to `openai-compatible`
+    // (DMXAPI, PPIO): video needs the bespoke submit/poll transport on the job system, so
+    // override the resolved id to the extension id and `resolveVideoTransport(sdkConfig.
+    // providerId, …)` picks it up. AiHubMix already resolves to `aihubmix` (its own builder),
+    // so it routes to its transport without an override.
+    {
+      match: (p, id) =>
+        id === 'openai-compatible' &&
+        isGenerateVideoModel(model) &&
+        (p.id === SystemProviderIds.ppio ||
+          (p.id === SystemProviderIds.dmxapi && dmxapiUsesVideoTransport(model.apiModelId ?? model.id))),
+      build: (ctx) => ({
+        providerId: ctx.actualProvider.id as 'dmxapi' | 'ppio',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      })
+    },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
@@ -158,10 +179,11 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     config = buildOpenAICompatibleConfig(ctx)
   }
 
-  // Default every provider to the proxy-aware net.fetch base so the app proxy
-  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
-  // that install their own fetch wrapper (e.g. CherryAI request signing) compose
-  // on top of customFetch; `??=` preserves them rather than clobbering them.
+  // Default every provider to the Node/undici fetch base. ProxyManager configures
+  // the Node global dispatcher for provider HTTP traffic, and avoiding Electron
+  // net.fetch prevents uncaught non-ASCII-header crashes (electron/electron#42244).
+  // Builders that install their own fetch wrapper (e.g. CherryAI request signing)
+  // compose on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
   return config

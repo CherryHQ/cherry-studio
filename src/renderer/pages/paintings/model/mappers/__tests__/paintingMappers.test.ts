@@ -40,6 +40,7 @@ describe('paintingMappers', () => {
 
   const record: PaintingRecord = {
     id: 'painting-1',
+    kind: 'image',
     providerId: 'silicon',
     modelId: 'silicon::model-1',
     prompt: 'draw a cat',
@@ -79,6 +80,7 @@ describe('paintingMappers', () => {
 
     expect(result).toEqual({
       id: 'painting-1',
+      kind: 'image',
       providerId: 'silicon',
       mode: 'generate',
       model: 'model-1',

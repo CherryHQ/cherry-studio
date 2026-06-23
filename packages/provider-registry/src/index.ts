@@ -7,6 +7,7 @@
 export {
   ANTHROPIC_REASONING_EFFORT,
   CANONICAL_PARAM_KEY,
+  CANONICAL_VIDEO_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
   GEMINI_THINKING_LEVEL,
@@ -18,12 +19,13 @@ export {
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
-export { ImageGenerationSupportSchema } from './schemas/model'
+export { ImageGenerationSupportSchema, VideoGenerationSupportSchema } from './schemas/model'
 
 // Enum types (PascalCase, derived from const objects)
 export type {
   AnthropicReasoningEffort,
   CanonicalParamKey,
+  CanonicalVideoParamKey,
   Currency,
   EndpointType,
   GeminiThinkingLevel,
@@ -44,7 +46,10 @@ export type {
   ModelPricing as ProtoModelPricing,
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningSupport,
-  SupportSpec
+  SupportSpec,
+  VideoGenerationMode,
+  VideoGenerationSupport,
+  VideoModeDef
 } from './schemas/model'
 export type {
   ProviderConfig as ProtoProviderConfig,

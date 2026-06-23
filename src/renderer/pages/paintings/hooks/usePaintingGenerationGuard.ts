@@ -29,7 +29,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
   const validateBeforeGenerate = useCallback(async (): Promise<PaintingGenerationGuardResult> => {
     const requiresAuth = !NO_AUTH_PROVIDER_IDS.has(providerId)
 
-    // UX: PaintingModelSelector does not pre-block when disabled (sponsor flows). This is the enforcement point.
+    // UX: model selection does not pre-block when disabled (sponsor flows). This is the enforcement point.
     if (requiresAuth && !provider.isEnabled) {
       return { ok: false, reason: 'provider_disabled' }
     }

@@ -13,13 +13,13 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { creationTable } from '@data/db/schemas/creation'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { noteTable } from '@data/db/schemas/note'
-import { paintingTable } from '@data/db/schemas/painting'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { promptTable } from '@data/db/schemas/prompt'
@@ -314,7 +314,7 @@ export class MigrationEngine {
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
-      { table: paintingTable, name: 'painting' },
+      { table: creationTable, name: 'creation' },
       { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },

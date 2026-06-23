@@ -8,19 +8,19 @@
  * adding a checker here = TypeScript build error.
  *
  * Phase status: typed surface + temp_session, knowledge_item, chat_message,
- * and painting checkers. Other business domains (note) will be added when
+ * and creation checkers. Other business domains (note) will be added when
  * their owning DB tables migrate to v2 — each new variant lands as a single
  * PR introducing (a) the ref schema variant, (b) the source-type tuple entry,
  * AND (c) the checker below, so the three surfaces stay in lockstep.
  *
  * Currently registered checkers: temp_session, knowledge_item, chat_message,
- * painting.
+ * creation (image + video generations).
  */
 
 import { application } from '@application'
+import { creationTable } from '@data/db/schemas/creation'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
-import { paintingTable } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
 import type { FileRefSourceType } from '@shared/data/types/file'
 import { inArray } from 'drizzle-orm'
@@ -94,8 +94,8 @@ export const chatMessageChecker: SourceTypeChecker<'chat_message'> = {
   }
 }
 
-export const paintingChecker: SourceTypeChecker<'painting'> = {
-  sourceType: 'painting',
+export const creationChecker: SourceTypeChecker<'creation'> = {
+  sourceType: 'creation',
   checkExists: async (sourceIds) => {
     if (sourceIds.length === 0) return new Set()
     const db = application.get('DbService').getDb()
@@ -103,7 +103,7 @@ export const paintingChecker: SourceTypeChecker<'painting'> = {
     for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
       const rows = await runWithBusyRetry(() =>
-        db.select({ id: paintingTable.id }).from(paintingTable).where(inArray(paintingTable.id, chunk))
+        db.select({ id: creationTable.id }).from(creationTable).where(inArray(creationTable.id, chunk))
       )
       for (const r of rows) alive.add(r.id)
     }
@@ -148,7 +148,7 @@ export function createDefaultOrphanCheckerRegistry(): OrphanCheckerRegistry {
     temp_session: tempSessionChecker,
     knowledge_item: knowledgeItemChecker,
     chat_message: chatMessageChecker,
-    painting: paintingChecker
+    creation: creationChecker
   }
 }
 

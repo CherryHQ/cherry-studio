@@ -7,7 +7,6 @@ import {
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
-import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
@@ -407,9 +406,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         'X-Timestamp': '1700000000',
         'X-Signature': 'signed'
       })
-      // The signing wrapper composes onto customFetch (net.fetch), so the request
-      // routes through Chromium's proxy-aware network stack rather than globalThis.fetch.
-      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      // The signing wrapper composes onto customFetch, so the signature is added
+      // without bypassing the shared provider fetch base.
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{}'))
+      vi.stubGlobal('fetch', fetchMock)
 
       const provider = makeProvider({
         id: CHERRYAI_PROVIDER_ID,
@@ -441,7 +441,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         query: '',
         body: { model: CHERRYAI_DEFAULT_MODEL_ID }
       })
-      expect(net.fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         `${CHERRYAI_API_BASE_URL}/chat/completions`,
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -476,7 +476,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.includeUsage).toBe(true)
       expect(settings.apiKey).toBe('sk-test-key')
       expect(settings.name).toBeUndefined()
-      // A builder that installs no fetch of its own must default to the proxy-aware customFetch
+      // A builder that installs no fetch of its own must default to the shared customFetch
       // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
       expect(settings.fetch).toBe(customFetch)
     })

@@ -38,6 +38,13 @@ import {
   chatMessageSourceType
 } from './chatMessage'
 import {
+  creationFileRefSchema,
+  creationRefFields,
+  creationRoles,
+  creationRoleSchema,
+  creationSourceType
+} from './creation'
+import {
   type KnowledgeItemFileRefRole,
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
@@ -45,13 +52,6 @@ import {
   knowledgeItemRoleSchema,
   knowledgeItemSourceType
 } from './knowledgeItem'
-import {
-  paintingFileRefSchema,
-  paintingRefFields,
-  paintingRoles,
-  paintingRoleSchema,
-  paintingSourceType
-} from './painting'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
@@ -72,10 +72,10 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
  *   `role='source'` marks the user-provided source file; `role='processed_artifact'`
  *   marks a Cherry-owned derived file used for indexing.
- * - `painting` — refs from `painting` rows (`./painting.ts`), roles
- *   `output`/`input`. `PaintingService` owns ref removal on delete; ref
- *   creation is done by the separate v1→v2 file-data-migration PR (paintings
- *   still create/resolve files via the v1 file system in the renderer).
+ * - `creation` — refs from `creation` rows (`./creation.ts`), roles
+ *   `output`/`input`. Covers both image (painting) and video generations via
+ *   the `creation.kind` discriminator. `CreationService` owns ref creation and
+ *   removal.
  *
  * Other business domains (note) deliberately do NOT appear here. They will be
  * added when their owning DB tables migrate to v2 — at which point each
@@ -87,7 +87,7 @@ export const allSourceTypes = [
   tempSessionSourceType,
   knowledgeItemSourceType,
   chatMessageSourceType,
-  paintingSourceType
+  creationSourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -111,7 +111,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   knowledgeItemFileRefSchema,
   chatMessageFileRefSchema,
-  paintingFileRefSchema
+  creationFileRefSchema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
 
@@ -123,17 +123,17 @@ export {
   chatMessageRoles,
   chatMessageRoleSchema,
   chatMessageSourceType,
+  creationFileRefSchema,
+  creationRefFields,
+  creationRoles,
+  creationRoleSchema,
+  creationSourceType,
   type KnowledgeItemFileRefRole,
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
   knowledgeItemRoles,
   knowledgeItemRoleSchema,
   knowledgeItemSourceType,
-  paintingFileRefSchema,
-  paintingRefFields,
-  paintingRoles,
-  paintingRoleSchema,
-  paintingSourceType,
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,

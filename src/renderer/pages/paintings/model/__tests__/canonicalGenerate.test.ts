@@ -31,6 +31,7 @@ function lastGenerateCall(): CapturedGenerate {
 function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingData> = {}): GenerateInput {
   const painting: PaintingData = {
     id: 'p1',
+    kind: 'image',
     providerId: 'dashscope',
     mode: 'generate',
     model: 'qwen-image',

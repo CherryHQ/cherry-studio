@@ -1,6 +1,6 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
-import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
-import type { generateImage, LanguageModel } from 'ai'
+import type { Experimental_VideoModelV3, ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import type { experimental_generateVideo, generateImage, LanguageModel } from 'ai'
 import { wrapLanguageModel } from 'ai'
 
 import { ModelResolutionError, RecursiveDepthError } from '../errors'
@@ -284,6 +284,110 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
         const resolved = await manager.executeFirst<ImageModelV3>('resolveModel', modelId, context)
+        if (!resolved) {
+          throw new ModelResolutionError(modelId, this.providerId)
+        }
+        resolvedModel = resolved
+      }
+
+      if (!resolvedModel) {
+        throw new ModelResolutionError(modelId, this.providerId)
+      }
+
+      // 3. 转换请求参数
+      const transformedParams = await manager.executeTransformParams(params, context)
+
+      // 4. 执行具体的 API 调用
+      const result = await executor(resolvedModel, transformedParams)
+
+      // 5. 转换结果
+      const transformedResult = await manager.executeTransformResult(result, context)
+
+      // 6. 触发完成事件
+      await manager.executeParallel('onRequestEnd', context, transformedResult)
+
+      return transformedResult
+    } catch (error) {
+      // 7. 触发错误事件
+      await manager.executeParallel('onError', context, undefined, error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * 执行带插件的视频生成操作
+   * 提供给AiExecutor使用
+   *
+   * 与图像生成结构一致，仅模型类型不同（Experimental_VideoModelV3）。
+   * 注意：AI SDK 的 ProviderRegistry 不暴露 videoModel，因此视频模型解析
+   * 由 executor 通过 provider.videoModel() 直接完成（见 resolveVideoModel）。
+   */
+  async executeVideoWithPlugins<
+    TParams extends Omit<Parameters<typeof experimental_generateVideo>[0], 'model'> & {
+      model: string | Experimental_VideoModelV3
+    },
+    TResult extends ReturnType<typeof experimental_generateVideo>
+  >(
+    methodName: string,
+    params: TParams,
+    executor: (model: Experimental_VideoModelV3, transformedParams: TParams) => TResult,
+    _context?: AiRequestContext<TParams, TResult>
+  ): Promise<TResult> {
+    // 统一处理模型解析
+    let resolvedModel: Experimental_VideoModelV3 | undefined
+    let modelId: string
+    const { model } = params
+    if (typeof model === 'string') {
+      // 字符串：需要通过插件解析
+      modelId = model
+    } else {
+      // 模型对象：直接使用
+      resolvedModel = model
+      modelId = model.modelId
+    }
+
+    // 创建类型安全的 context
+    const context = _context ?? createContext(this.providerId, model, params)
+
+    // ✅ 创建类型化的 manager（逆变安全）
+    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
+
+    // ✅ 递归调用泛型化，增加深度限制
+    context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
+      if (context.recursiveDepth >= context.maxRecursiveDepth) {
+        throw new RecursiveDepthError(context.requestId, context.recursiveDepth, context.maxRecursiveDepth)
+      }
+
+      const previousDepth = context.recursiveDepth
+      const wasRecursive = context.isRecursiveCall
+
+      try {
+        context.recursiveDepth = previousDepth + 1
+        context.isRecursiveCall = true
+
+        return (await this.executeVideoWithPlugins(
+          methodName,
+          { ...params, ...newParams } as TParams,
+          executor,
+          context
+        )) as unknown as R
+      } finally {
+        // ✅ finally 确保状态恢复
+        context.recursiveDepth = previousDepth
+        context.isRecursiveCall = wasRecursive
+      }
+    }
+
+    try {
+      // 0. 配置上下文
+      await manager.executeConfigureContext(context)
+
+      // 1. 触发请求开始事件
+      await manager.executeParallel('onRequestStart', context)
+
+      // 2. 解析模型（如果是字符串）
+      if (typeof model === 'string') {
+        const resolved = await manager.executeFirst<Experimental_VideoModelV3>('resolveModel', modelId, context)
         if (!resolved) {
           throw new ModelResolutionError(modelId, this.providerId)
         }

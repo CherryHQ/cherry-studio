@@ -10,8 +10,8 @@ import {
   MessageCircle,
   MousePointerClick,
   NotepadText,
-  Palette,
-  Settings
+  Settings,
+  Sparkles
 } from 'lucide-react'
 
 import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
@@ -23,7 +23,7 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/chat': MessageCircle,
   '/app/agents': MousePointerClick,
-  '/app/paintings': Palette,
+  '/app/paintings': Sparkles,
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,
   '/app/knowledge': FileSearch,
