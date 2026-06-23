@@ -526,6 +526,14 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
       event?.stopPropagation()
+      if (topics.length <= 1) {
+        if (deleteTimerRef.current) {
+          clearTimeout(deleteTimerRef.current)
+          deleteTimerRef.current = null
+        }
+        setDeletingTopicId(null)
+        return
+      }
       if (deleteTimerRef.current) {
         clearTimeout(deleteTimerRef.current)
         deleteTimerRef.current = null
@@ -533,7 +541,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
       setDeletingTopicId(null)
       await handleDeleteTopicFromMenu(topic)
     },
-    [handleDeleteTopicFromMenu]
+    [handleDeleteTopicFromMenu, topics.length]
   )
 
   useEffect(
@@ -1349,7 +1357,8 @@ function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
-  const showDeleteOrStreamAction = hasTopicStreamIndicator || !topic.pinned
+  const canDeleteTopic = topicsLength > 1 && !topic.pinned
+  const showDeleteOrStreamAction = hasTopicStreamIndicator || canDeleteTopic
   // Reserve right-padding for the title sized to the hover actions and stream indicator.
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const topicTrailingActionPaddingClassName =
@@ -1426,7 +1435,7 @@ function TopicRow({
         )}
         {hasTopicStreamIndicator ? (
           <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
-        ) : !topic.pinned ? (
+        ) : canDeleteTopic ? (
           <Tooltip title={t('common.delete')} delay={500}>
             <ResourceList.ItemAction
               aria-label={t('common.delete')}

@@ -694,6 +694,38 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
   })
 
+  it('hides inline delete for the last remaining unpinned topic', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Alpha topic',
+              assistantId: 'assistant-1',
+              orderKey: 'a'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    const topicRow = getTopicRow('Alpha topic')
+
+    expect(within(topicRow).queryByLabelText('Delete')).not.toBeInTheDocument()
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
+  })
+
   it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue({
