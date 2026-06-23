@@ -1,13 +1,9 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
-import {
-  type AgentSessionStreamState,
-  useAgentSessionStreamStatuses
-} from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
+import { useAgentSessionStreamStatuses } from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -33,10 +29,7 @@ import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/ho
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentEntity } from '@shared/data/types/agent'
-import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot, ChevronLeft } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
@@ -50,14 +43,21 @@ import HistorySourceSidebar, {
   type HistoryStatusItem
 } from './components/HistorySourceSidebar'
 import HistoryTopicResultList from './components/HistoryTopicResultList'
+import {
+  ALL_SOURCE_ID,
+  buildAgentSources,
+  buildAgentStatusItems,
+  buildAssistantSources,
+  findAdjacentHistoryRecord,
+  findAdjacentHistoryRecordAfterBulkDelete,
+  getAgentHistoryStatus,
+  getSessionAgentSourceId,
+  getTopicSourceId
+} from './historyRecordsHelpers'
 
 export type HistoryRecordsMode = 'assistant' | 'agent'
 
-const ALL_SOURCE_ID = 'all'
-const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
-const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 const logger = loggerService.withContext('HistoryRecordsPage')
-type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 type HistoryTopicItem = ApiTopic & {
   assistantId: string | undefined
   pinned: boolean
@@ -88,55 +88,19 @@ const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
   return (
     <div className="absolute inset-0 z-40 flex bg-card [-webkit-app-region:none]" data-testid="history-records-page">
       {props.mode === 'assistant' ? (
-        <HistoryRecordsContent
-          mode="assistant"
+        <AssistantHistoryRecordsContent
           activeRecordId={props.activeRecordId}
           onClose={props.onClose}
           onRecordSelect={props.onRecordSelect}
         />
       ) : (
-        <HistoryRecordsContent
-          mode="agent"
+        <AgentHistoryRecordsContent
           activeRecordId={props.activeRecordId}
           onClose={props.onClose}
           onRecordSelect={props.onRecordSelect}
         />
       )}
     </div>
-  )
-}
-
-type HistoryRecordsContentProps =
-  | {
-      mode: 'assistant'
-      activeRecordId?: string | null
-      onClose: () => void
-      onRecordSelect?: (topic: RendererTopic | null) => void
-    }
-  | {
-      mode: 'agent'
-      activeRecordId?: string | null
-      onClose: () => void
-      onRecordSelect?: (sessionId: string | null) => void
-    }
-
-const HistoryRecordsContent = (props: HistoryRecordsContentProps) => {
-  if (props.mode === 'assistant') {
-    return (
-      <AssistantHistoryRecordsContent
-        activeRecordId={props.activeRecordId}
-        onClose={props.onClose}
-        onRecordSelect={props.onRecordSelect}
-      />
-    )
-  }
-
-  return (
-    <AgentHistoryRecordsContent
-      activeRecordId={props.activeRecordId}
-      onClose={props.onClose}
-      onRecordSelect={props.onRecordSelect}
-    />
   )
 }
 
@@ -835,214 +799,6 @@ const HistoryRecordsLayout = ({
       </div>
     </section>
   )
-}
-
-function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
-  if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
-  if (assistantById && !assistantById.has(topic.assistantId)) return UNLINKED_ASSISTANT_SOURCE_ID
-
-  return topic.assistantId
-}
-
-function getSessionAgentSourceId(
-  session: Pick<AgentSessionEntity, 'agentId'>,
-  agentById?: ReadonlyMap<string, AgentEntity>
-) {
-  if (!session.agentId) return UNKNOWN_AGENT_SOURCE_ID
-  if (agentById && !agentById.has(session.agentId)) return UNKNOWN_AGENT_SOURCE_ID
-
-  return session.agentId
-}
-
-function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
-  if (streamStatus?.isPending === true) return 'running'
-  if (streamStatus?.status === 'error') return 'failed'
-
-  return 'completed'
-}
-
-function findAdjacentHistoryRecord<T>(
-  items: readonly T[],
-  deletedId: string,
-  getId: (item: T) => string
-): T | undefined {
-  const index = items.findIndex((item) => getId(item) === deletedId)
-  if (index < 0) return undefined
-
-  return items[index + 1 === items.length ? index - 1 : index + 1]
-}
-
-function findAdjacentHistoryRecordAfterBulkDelete<T>(
-  items: readonly T[],
-  deletedIds: readonly string[],
-  activeId: string,
-  getId: (item: T) => string
-): T | undefined {
-  const deletedIdSet = new Set(deletedIds)
-  const activeIndex = items.findIndex((item) => getId(item) === activeId)
-  if (activeIndex < 0) return undefined
-
-  for (let index = activeIndex + 1; index < items.length; index += 1) {
-    if (!deletedIdSet.has(getId(items[index]))) return items[index]
-  }
-
-  for (let index = activeIndex - 1; index >= 0; index -= 1) {
-    if (!deletedIdSet.has(getId(items[index]))) return items[index]
-  }
-
-  return undefined
-}
-
-function buildAgentStatusItems(
-  sessions: readonly AgentSessionEntity[],
-  streamStatusBySessionId: ReadonlyMap<string, AgentSessionStreamState>,
-  t: ReturnType<typeof useTranslation>['t']
-): HistoryStatusItem[] {
-  const counts: Record<AgentHistorySessionStatus, number> = {
-    running: 0,
-    completed: 0,
-    failed: 0
-  }
-
-  for (const session of sessions) {
-    counts[getAgentHistoryStatus(streamStatusBySessionId.get(session.id))] += 1
-  }
-
-  return [
-    {
-      id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: sessions.length
-    },
-    {
-      id: 'running',
-      label: t('history.records.status.running'),
-      count: counts.running,
-      dotClassName: 'text-warning'
-    },
-    {
-      id: 'completed',
-      label: t('history.records.status.completed'),
-      count: counts.completed,
-      dotClassName: 'text-success'
-    },
-    {
-      id: 'failed',
-      label: t('history.records.status.failed'),
-      count: counts.failed,
-      dotClassName: 'text-destructive'
-    }
-  ]
-}
-
-function buildAssistantSources(
-  topics: readonly ApiTopic[],
-  assistantById: ReadonlyMap<string, Assistant>,
-  assistantRankById: ReadonlyMap<string, number>,
-  unlinkedAssistantLabel: string,
-  t: ReturnType<typeof useTranslation>['t']
-): HistorySourceItem[] {
-  const counts = new Map<string, number>()
-
-  for (const topic of topics) {
-    const sourceId = getTopicSourceId(topic, assistantById)
-    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
-  }
-  const unlinkedCount = counts.get(UNLINKED_ASSISTANT_SOURCE_ID) ?? 0
-
-  return [
-    {
-      id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: topics.length
-    },
-    ...Array.from(assistantById.values())
-      .sort(
-        (left, right) =>
-          getAssistantSourceRank(left.id, assistantRankById) - getAssistantSourceRank(right.id, assistantRankById)
-      )
-      .map((assistant) => ({
-        id: assistant.id,
-        label: assistant.name,
-        count: counts.get(assistant.id) ?? 0,
-        icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
-      })),
-    ...(unlinkedCount > 0
-      ? [
-          {
-            id: UNLINKED_ASSISTANT_SOURCE_ID,
-            label: unlinkedAssistantLabel,
-            count: unlinkedCount,
-            icon: <Bot size={15} />
-          }
-        ]
-      : [])
-  ]
-}
-
-function getAssistantSourceRank(sourceId: string, assistantRankById: ReadonlyMap<string, number>) {
-  const assistantRank = assistantRankById.get(sourceId)
-  if (assistantRank !== undefined) return assistantRank
-
-  return Number.MAX_SAFE_INTEGER
-}
-
-function buildAgentSources(
-  sessions: readonly AgentSessionEntity[],
-  agentById: ReadonlyMap<string, AgentEntity>,
-  agentRankById: ReadonlyMap<string, number>,
-  unknownAgentLabel: string,
-  t: ReturnType<typeof useTranslation>['t']
-): HistorySourceItem[] {
-  const counts = new Map<string, number>()
-
-  for (const session of sessions) {
-    const sourceId = getSessionAgentSourceId(session, agentById)
-    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
-  }
-  const unknownCount = counts.get(UNKNOWN_AGENT_SOURCE_ID) ?? 0
-
-  return [
-    {
-      id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: sessions.length
-    },
-    ...Array.from(agentById.values())
-      .sort((left, right) => getAgentSourceRank(left.id, agentRankById) - getAgentSourceRank(right.id, agentRankById))
-      .map((agent) => {
-        return {
-          id: agent.id,
-          label: agent.name,
-          count: counts.get(agent.id) ?? 0,
-          icon: (
-            <EmojiIcon
-              emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-              size={18}
-              fontSize={11}
-              className="mr-0 text-foreground"
-            />
-          )
-        }
-      }),
-    ...(unknownCount > 0
-      ? [
-          {
-            id: UNKNOWN_AGENT_SOURCE_ID,
-            label: unknownAgentLabel,
-            count: unknownCount,
-            icon: <Bot size={15} />
-          }
-        ]
-      : [])
-  ]
-}
-
-function getAgentSourceRank(sourceId: string, agentRankById: ReadonlyMap<string, number>) {
-  const agentRank = agentRankById.get(sourceId)
-  if (agentRank !== undefined) return agentRank
-
-  return Number.MAX_SAFE_INTEGER
 }
 
 export default HistoryRecordsPage

@@ -1,7 +1,7 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 export type AgentSessionStreamState = {
   isPending: boolean
@@ -10,6 +10,7 @@ export type AgentSessionStreamState = {
 
 const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
   `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+const SESSION_ID_SEPARATOR = '\u0000'
 
 function toAgentSessionStreamState(
   entry: TopicStatusSnapshotEntry | null | undefined
@@ -25,10 +26,14 @@ function toAgentSessionStreamState(
 export function useAgentSessionStreamStatuses(
   sessionIds: readonly string[]
 ): ReadonlyMap<string, AgentSessionStreamState> {
-  const uniqueSessionIds = useMemo(() => Array.from(new Set(sessionIds)).sort(), [sessionIds])
+  const sessionIdsKey = useMemo(() => Array.from(new Set(sessionIds)).sort().join(SESSION_ID_SEPARATOR), [sessionIds])
+  const uniqueSessionIds = useMemo(
+    () => (sessionIdsKey ? sessionIdsKey.split(SESSION_ID_SEPARATOR) : []),
+    [sessionIdsKey]
+  )
   const cacheKeys = useMemo(() => uniqueSessionIds.map(getAgentSessionStreamStatusCacheKey), [uniqueSessionIds])
 
-  const readSnapshot = () => {
+  const readSnapshot = useCallback(() => {
     const statusBySessionId = new Map<string, AgentSessionStreamState>()
 
     for (const sessionId of uniqueSessionIds) {
@@ -38,7 +43,7 @@ export function useAgentSessionStreamStatuses(
     }
 
     return statusBySessionId
-  }
+  }, [uniqueSessionIds])
 
   const [snapshot, setSnapshot] = useState<ReadonlyMap<string, AgentSessionStreamState>>(readSnapshot)
 
@@ -49,8 +54,7 @@ export function useAgentSessionStreamStatuses(
     return () => {
       disposers.forEach((dispose) => dispose())
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKeys.join('|')])
+  }, [cacheKeys, readSnapshot])
 
   return snapshot
 }

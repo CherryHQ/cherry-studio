@@ -246,11 +246,12 @@ export function HistoryActionContextMenu<TContext = unknown>({
           items.push({ type: 'separator' })
         }
         previousGroup = action.group
+        const label = String(action.label)
         if (action.children.length > 0) {
           items.push({
             type: 'submenu',
             id: action.id,
-            label: action.label as string,
+            label,
             icon: action.icon,
             enabled: action.availability.enabled,
             children: toItems(action.children)
@@ -259,7 +260,7 @@ export function HistoryActionContextMenu<TContext = unknown>({
           items.push({
             type: 'item',
             id: action.id,
-            label: action.label as string,
+            label,
             icon: action.icon,
             enabled: action.availability.enabled,
             destructive: action.danger,
