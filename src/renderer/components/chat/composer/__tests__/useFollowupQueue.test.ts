@@ -87,6 +87,28 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
   })
 
+  it('keeps the head queued and reports failure when auto-drain fails', async () => {
+    const onDrain = vi.fn().mockResolvedValue(false)
+    const onDrainFailed = vi.fn()
+    const markSeen = vi.fn()
+    const head = item('h', 'head')
+    store.set('followup-queue.s1', [head])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(markSeen).toHaveBeenCalled()
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(onDrainFailed).toHaveBeenCalledOnce()
+    expect(result.current.items).toEqual([head])
+  })
+
   it('does not drain while paused', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
     store.set('followup-queue.s1', [item('h', 'head')])
