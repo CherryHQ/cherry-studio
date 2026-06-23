@@ -83,7 +83,7 @@ import {
   SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
   sortSessionsForDisplayGroups
-} from './SessionList.helpers'
+} from './sessionListHelpers'
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
