@@ -2217,6 +2217,7 @@
           "success": "Data source added to knowledge base"
         },
         "title": "Add Data Source",
+        "too_many_sources": "You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
         "url": {
           "description": "Enter a webpage URL:",
@@ -2230,6 +2231,7 @@
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
         "delete_confirm_title": "Delete Selected Data Sources?",
+        "loaded_only_hint": "Applies to loaded items only ({{total}} total)",
         "reindex": "Reindex",
         "selected_count": "{{count}} selected"
       },
@@ -2259,11 +2261,14 @@
         "note": "Notes",
         "url": "URLs"
       },
+      "list": {
+        "end_reached": "No more items",
+        "loading_more": "Loading more…"
+      },
       "preview": {
         "failed": "Failed to preview source",
         "unavailable": "This data source has no source to preview"
       },
-      "ready_summary": "{{ready}}/{{total}} ready",
       "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
@@ -2273,6 +2278,7 @@
         "ready": "Ready"
       },
       "table": {
+        "aria_label": "Data sources",
         "columns": {
           "actions": "Actions",
           "name": "Name",
@@ -2281,7 +2287,8 @@
           "updated_at": "Updated"
         },
         "select_all": "Select all",
-        "select_row": "Select row"
+        "select_row": "Select row",
+        "view_chunks_row": "View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Add Data Source"

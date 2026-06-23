@@ -301,15 +301,7 @@ export class KnowledgeWorkflowService {
       return
     }
 
-    await jobManager.enqueue(
-      'knowledge.index-documents',
-      { baseId, itemId, parentJobId },
-      {
-        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
-        queue: knowledgeQueueName(baseId),
-        parentId: parentJobId ?? undefined
-      }
-    )
+    await this.scheduleIndexing(baseId, itemId, parentJobId)
   }
 
   async scheduleFileProcessingCheck(
@@ -339,6 +331,11 @@ export class KnowledgeWorkflowService {
     )
   }
 
+  /**
+   * Enqueue the index-documents job for an item. The single point that builds
+   * this job's idempotency key, queue, and parent id — shared by `scheduleItem`
+   * and the file-processing check handler so the enqueue stays identical.
+   */
   async scheduleIndexing(
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
@@ -386,7 +383,7 @@ export class KnowledgeWorkflowService {
       }
       // Restore: copy the captured snapshot markdown into this base under a
       // collision-free name and pin the item to it, so the first index reads the
-      // snapshot offline (see ensureUrlSnapshot) instead of re-fetching the page.
+      // snapshot offline (see ensureSnapshot) instead of re-fetching the page.
       const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
       const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
       await copyFileIntoKnowledgeBaseAt(baseId, input.data.snapshotPath, relativePath)

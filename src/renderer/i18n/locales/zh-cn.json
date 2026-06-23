@@ -2217,6 +2217,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "too_many_sources": "单次最多添加 {{count}} 个数据源，请减少选择后重试",
         "unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
         "url": {
           "description": "输入网页链接：",
@@ -2230,6 +2231,7 @@
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
+        "loaded_only_hint": "仅作用于已加载项，共 {{total}} 项",
         "reindex": "重新索引",
         "selected_count": "已选 {{count}} 项"
       },
@@ -2259,11 +2261,14 @@
         "note": "笔记",
         "url": "链接"
       },
+      "list": {
+        "end_reached": "没有更多了",
+        "loading_more": "加载更多…"
+      },
       "preview": {
         "failed": "预览原文失败",
         "unavailable": "当前数据源没有可预览的原文"
       },
-      "ready_summary": "{{ready}}/{{total}} 就绪",
       "reindex_failed": "数据源重新索引失败",
       "status": {
         "chunking": "分块中",
@@ -2273,6 +2278,7 @@
         "ready": "就绪"
       },
       "table": {
+        "aria_label": "数据源列表",
         "columns": {
           "actions": "操作",
           "name": "名称",
@@ -2281,7 +2287,8 @@
           "updated_at": "更新时间"
         },
         "select_all": "全选",
-        "select_row": "选择行"
+        "select_row": "选择行",
+        "view_chunks_row": "查看「{{title}}」的 Chunks"
       },
       "toolbar": {
         "add": "添加数据源"

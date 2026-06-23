@@ -97,13 +97,13 @@ describe('KnowledgeItemService', () => {
   }
 
   describe('list', () => {
-    it('returns paginated items for a knowledge base', async () => {
+    it('returns items for a knowledge base', async () => {
       await seedItem()
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20 })
 
       expect(result.total).toBe(1)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
       expect(result.items[0]).toMatchObject({
         baseId: KNOWLEDGE_BASE_ID,
         type: 'note',
@@ -111,13 +111,74 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('paginates with a cursor across pages without overlap', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 3000, data: { source: 'c', content: 'c' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
+      await seedItem({ id: NOTE_1_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })
+
+      const first = await service.list(KNOWLEDGE_BASE_ID, { limit: 2 })
+
+      expect(first.total).toBe(3)
+      // Newest first: createdAt DESC.
+      expect(first.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+      expect(first.nextCursor).toBeDefined()
+
+      const second = await service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor: first.nextCursor })
+
+      expect(second.total).toBe(3)
+      expect(second.items.map((item) => item.id)).toEqual([NOTE_1_ID])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('tiebreaks rows sharing a createdAt by id without overlap or gaps', async () => {
+      // All four share a createdAt, so only the `id ASC` tiebreaker separates them — and the
+      // page boundary lands *inside* that equal-createdAt run. `createdAt = Date.now()` makes
+      // millisecond collisions common, so this is exactly where a wrong keyset duplicates or
+      // skips a row. A small limit forces several boundaries through the tied run.
+      const ids = [itemId('7d70'), itemId('7d71'), itemId('7d72'), itemId('7d73')]
+      for (const id of ids) {
+        await seedItem({ id, createdAt: 5000, data: { source: id, content: id } })
+      }
+
+      const seen: string[] = []
+      const pageSizes: number[] = []
+      let lastNextCursor: string | undefined
+      let cursor: string | undefined
+      for (let guard = 0; guard < 10; guard++) {
+        const page = await service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor })
+        expect(page.total).toBe(4)
+        seen.push(...page.items.map((item) => item.id))
+        pageSizes.push(page.items.length)
+        lastNextCursor = page.nextCursor
+        if (!page.nextCursor) break
+        cursor = page.nextCursor
+      }
+
+      // Exactly once each: no overlap (a cursor re-emitting a row) and no gap (a cursor
+      // skipping one). Within an equal createdAt the order is id ASC.
+      expect(seen).toEqual([...ids].sort())
+      // The 4 rows divide evenly into pages of `limit` (2), so the final page holds exactly `limit`
+      // rows yet must still report no next cursor — the limit+1 probe finds no row past the boundary.
+      expect(pageSizes).toEqual([2, 2])
+      expect(lastNextCursor).toBeUndefined()
+    })
+
+    it('falls back to the first page when the cursor is malformed', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })
+
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, cursor: 'not-a-valid-cursor' })
+
+      expect(result.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+    })
+
     it('filters items by type and group', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: DIR_B_ID, type: 'directory', data: { source: '/b' } })
       await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: NOTE_1_ID, content: 'n1' } })
 
-      const directories = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, type: 'directory' })
-      const grouped = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: DIR_A_ID })
+      const directories = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, type: 'directory' })
+      const grouped = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, groupId: DIR_A_ID })
 
       expect(directories.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, DIR_B_ID])
       expect(grouped.items.map((item) => item.id)).toEqual([NOTE_1_ID])
@@ -128,7 +189,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root', content: 'root' } })
       await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: 'child', content: 'child' } })
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: null })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20, groupId: null })
 
       expect(result.total).toBe(2)
       expect(result.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, NOTE_ROOT_ID])
@@ -138,7 +199,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
       await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { limit: 20 })
 
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
@@ -1184,6 +1245,45 @@ describe('KnowledgeItemService', () => {
       })
 
       await expect(service.updateSnapshotRelativePath(ITEM_1_ID, 'note', 'note.md')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+  })
+
+  describe('updateDirectoryRelativePath', () => {
+    it('stores the deduped raw/ prefix on directory item data, preserving source', async () => {
+      await seedItem({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: { source: '/docs' }
+      })
+
+      const result = await service.updateDirectoryRelativePath(DIR_A_ID, 'docs')
+
+      expect(result).toMatchObject({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: {
+          source: '/docs',
+          relativePath: 'docs'
+        }
+      })
+    })
+
+    it('rejects updating directory relative path for a missing knowledge item', async () => {
+      await expect(service.updateDirectoryRelativePath(OTHER_ITEM_ID, 'docs')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects storing a directory relative path on a non-directory item', async () => {
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+
+      await expect(service.updateDirectoryRelativePath(NOTE_A_ID, 'docs')).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })

@@ -9,19 +9,20 @@ import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
   type KnowledgeItemData,
   KnowledgeItemSchema,
-  type KnowledgeItemStatus
+  type KnowledgeItemStatus,
+  type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
@@ -83,35 +84,52 @@ export class KnowledgeItemService {
     return dbService.getDb()
   }
 
-  async list(baseId: string, query: ListKnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
+  async list(baseId: string, query: ListKnowledgeItemsQuery): Promise<KnowledgeItemListResponse> {
     await knowledgeBaseService.getById(baseId)
-    const { page, limit, type, groupId } = query
-    const offset = (page - 1) * limit
-    const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    const { limit, type, groupId } = query
+
+    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
 
     if (type !== undefined) {
-      conditions.push(eq(knowledgeItemTable.type, type))
+      filterConditions.push(eq(knowledgeItemTable.type, type))
     }
     if (groupId !== undefined) {
-      conditions.push(groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId))
+      filterConditions.push(
+        groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId)
+      )
     }
 
-    const where = and(...conditions)
+    // Keyset pagination over `(createdAt DESC, id ASC)`. One direction spec drives both the WHERE
+    // predicate and the matching ORDER BY (via the shared util) so the two can't silently drift.
+    const ordering = keysetOrdering(knowledgeItemTable.createdAt, knowledgeItemTable.id, { major: 'desc', tie: 'asc' })
+    const conditions = [...filterConditions]
+    const cursor = decodeListCursor(query.cursor, asNumericKey, 'knowledge-item')
+    if (cursor) {
+      conditions.push(ordering.where(cursor))
+    }
+
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select()
         .from(knowledgeItemTable)
-        .where(where)
-        .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
-        .limit(limit)
-        .offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).where(where)
+        .where(and(...conditions))
+        .orderBy(...ordering.orderBy)
+        .limit(limit + 1),
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeItemTable)
+        .where(and(...filterConditions))
     ])
 
+    const pageRows = rows.slice(0, limit)
+
     return {
-      items: rows.map((row) => rowToKnowledgeItem(row)),
+      items: pageRows.map((row) => rowToKnowledgeItem(row)),
       total: count,
-      page: query.page
+      nextCursor:
+        rows.length > limit
+          ? encodeCursor(pageRows[pageRows.length - 1].createdAt, pageRows[pageRows.length - 1].id)
+          : undefined
     }
   }
 
@@ -538,7 +556,25 @@ export class KnowledgeItemService {
     return item
   }
 
-  async updateIndexedRelativePath(id: string, indexedRelativePath: string): Promise<KnowledgeItem> {
+  /**
+   * Merge a partial `data` patch onto a knowledge item, guarding the item type so
+   * a path is never written onto the wrong kind. Shared by the relative-path
+   * setters below; `label` names the patched field for the validation / log
+   * messages. Runs in a single write transaction.
+   *
+   * `patch` is a concrete key union, not `Partial<KnowledgeItemData>`: the latter
+   * keeps only keys common to every item type and would drop the file-only
+   * `indexedRelativePath`. The merged `data` is cast to `KnowledgeItemData`, which
+   * cannot statically prove the patched key belongs to the resolved item type —
+   * `allowedTypes` is the runtime guard that makes the cast sound, so the two are
+   * load-bearing together and must be kept in sync.
+   */
+  private async patchItemData(
+    id: string,
+    allowedTypes: KnowledgeItemType[],
+    patch: { indexedRelativePath: string } | { relativePath: string },
+    label: string
+  ): Promise<KnowledgeItem> {
     const dbService = application.get('DbService')
     const row = await dbService.withWriteTx(async (tx) => {
       const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
@@ -548,19 +584,16 @@ export class KnowledgeItemService {
       }
 
       const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== 'file') {
+      if (!allowedTypes.includes(existingItem.type)) {
         throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a file to store indexed relative path: ${id}`]
+          type: [`Knowledge item ${id} must be of type ${allowedTypes.join(' or ')} to store its ${label}`]
         })
       }
 
       const [updatedRow] = await tx
         .update(knowledgeItemTable)
         .set({
-          data: {
-            ...existingItem.data,
-            indexedRelativePath
-          }
+          data: { ...existingItem.data, ...patch } as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()
@@ -568,15 +601,19 @@ export class KnowledgeItemService {
       if (!updatedRow) {
         throw DataApiErrorFactory.dataInconsistent(
           'KnowledgeItem',
-          `Knowledge item indexed path update result missing for id '${id}'`
+          `Knowledge item ${label} update result missing for id '${id}'`
         )
       }
 
       return updatedRow
     })
 
-    logger.info('Updated knowledge item indexed relative path', { id, indexedRelativePath })
+    logger.info(`Updated knowledge item ${label}`, { id, ...patch })
     return rowToKnowledgeItem(row)
+  }
+
+  async updateIndexedRelativePath(id: string, indexedRelativePath: string): Promise<KnowledgeItem> {
+    return this.patchItemData(id, ['file'], { indexedRelativePath }, 'indexed relative path')
   }
 
   /**
@@ -585,41 +622,7 @@ export class KnowledgeItemService {
    * against writing the path onto the wrong item kind.
    */
   async updateSnapshotRelativePath(id: string, type: 'url' | 'note', relativePath: string): Promise<KnowledgeItem> {
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
-
-      if (!existingRow) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
-      }
-
-      const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== type) {
-        throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a ${type} to store a snapshot relative path: ${id}`]
-        })
-      }
-
-      const [updatedRow] = await tx
-        .update(knowledgeItemTable)
-        .set({
-          data: { ...existingItem.data, relativePath } as KnowledgeItemData
-        })
-        .where(eq(knowledgeItemTable.id, id))
-        .returning()
-
-      if (!updatedRow) {
-        throw DataApiErrorFactory.dataInconsistent(
-          'KnowledgeItem',
-          `Knowledge item ${type} snapshot path update result missing for id '${id}'`
-        )
-      }
-
-      return updatedRow
-    })
-
-    logger.info(`Updated knowledge ${type} snapshot relative path`, { id, relativePath })
-    return rowToKnowledgeItem(row)
+    return this.patchItemData(id, [type], { relativePath }, `${type} snapshot relative path`)
   }
 
   /**
@@ -628,41 +631,7 @@ export class KnowledgeItemService {
    * in `data.source`; this prefix is what the UI shows and what delete removes the shell by.
    */
   async updateDirectoryRelativePath(id: string, relativePath: string): Promise<KnowledgeItem> {
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
-
-      if (!existingRow) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
-      }
-
-      const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== 'directory') {
-        throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a directory to store a directory relative path: ${id}`]
-        })
-      }
-
-      const [updatedRow] = await tx
-        .update(knowledgeItemTable)
-        .set({
-          data: { ...existingItem.data, relativePath } as KnowledgeItemData
-        })
-        .where(eq(knowledgeItemTable.id, id))
-        .returning()
-
-      if (!updatedRow) {
-        throw DataApiErrorFactory.dataInconsistent(
-          'KnowledgeItem',
-          `Knowledge item directory relative path update result missing for id '${id}'`
-        )
-      }
-
-      return updatedRow
-    })
-
-    logger.info('Updated knowledge directory relative path', { id, relativePath })
-    return rowToKnowledgeItem(row)
+    return this.patchItemData(id, ['directory'], { relativePath }, 'directory relative path')
   }
 
   private async reconcileContainers(

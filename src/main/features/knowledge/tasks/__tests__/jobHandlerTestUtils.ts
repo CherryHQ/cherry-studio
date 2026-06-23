@@ -207,7 +207,7 @@ export function createNoteItem(
   groupId: string | null = null,
   status: Exclude<KnowledgeItemOf<'note'>['status'], 'failed'> = 'processing',
   // Default to an already-captured snapshot so the item is a valid indexable
-  // leaf that passes straight through ensureNoteSnapshot; pass undefined (or
+  // leaf that passes straight through ensureSnapshot; pass undefined (or
   // override `data`) to exercise the first-index capture path.
   relativePath: string | undefined = `${id}.md`
 ): KnowledgeItemOf<'note'> {
