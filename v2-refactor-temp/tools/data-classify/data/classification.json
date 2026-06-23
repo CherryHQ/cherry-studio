@@ -917,9 +917,9 @@
           "originalKey": "showPrompt",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
+          "status": "deleted",
           "category": "preferences",
-          "targetKey": "chat.message.show_prompt"
+          "targetKey": null
         },
         {
           "originalKey": "showMessageDivider",

@@ -164,8 +164,6 @@ export interface PreferenceSchemas {
     'chat.message.show_divider': boolean
     // redux/settings/showMessageOutline
     'chat.message.show_outline': boolean
-    // redux/settings/showPrompt
-    'chat.message.show_prompt': boolean
     // redux/settings/messageStyle
     'chat.message.style': PreferenceTypes.ChatMessageStyle
     // redux/settings/thoughtAutoCollapse
@@ -554,7 +552,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.render_as_markdown': false,
     'chat.message.show_divider': true,
     'chat.message.show_outline': false,
-    'chat.message.show_prompt': true,
     'chat.message.style': 'bubble',
     'chat.message.thought.auto_collapse': true,
     'chat.narrow_mode': true,
@@ -748,9 +745,9 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 224
+ * - 总配置项: 223
  * - electronStore项: 1
- * - redux项: 176
+ * - redux项: 175
  * - localStorage项: 0
  * - dexieSettings项: 4
  */

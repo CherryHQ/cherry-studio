@@ -26,7 +26,6 @@ type SelectOption<T extends string = string> = {
 }
 
 export type ChatPreferenceSectionsFeatures = {
-  showPrompt?: boolean
   showMessageOutline?: boolean
   showMultiModelStyle?: boolean
   showInputEstimatedTokens?: boolean
@@ -41,7 +40,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
-  const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
@@ -234,18 +232,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
       {renderSection(
         t('settings.messages.title'),
         <>
-          {features?.showPrompt && (
-            <>
-              <SettingRow>
-                <SettingSwitch
-                  checked={showPrompt}
-                  onCheckedChange={setShowPrompt}
-                  label={t('settings.messages.prompt')}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
           </SettingRow>

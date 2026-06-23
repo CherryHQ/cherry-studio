@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.message.font': 'system',
-    'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
@@ -113,7 +112,6 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.math.engine.label')).toBeNull()
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
-    expect(screen.queryByText('settings.messages.prompt')).toBeNull()
     expect(screen.queryByText('settings.messages.show_message_outline')).toBeNull()
     expect(screen.queryByText('message.message.multi_model_style.label')).toBeNull()
     expect(screen.queryByText('settings.messages.input.show_estimated_tokens')).toBeNull()
@@ -134,7 +132,6 @@ describe('ChatPreferenceSections', () => {
     render(
       <ChatPreferenceSections
         features={{
-          showPrompt: true,
           showMessageOutline: true,
           showMultiModelStyle: true,
           showInputEstimatedTokens: true
@@ -142,7 +139,6 @@ describe('ChatPreferenceSections', () => {
       />
     )
 
-    expect(screen.getByText('settings.messages.prompt')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()

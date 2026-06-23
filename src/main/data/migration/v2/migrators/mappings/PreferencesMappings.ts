@@ -115,10 +115,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.user.id'
     },
     {
-      originalKey: 'showPrompt',
-      targetKey: 'chat.message.show_prompt'
-    },
-    {
       originalKey: 'showMessageDivider',
       targetKey: 'chat.message.show_divider'
     },
@@ -807,11 +803,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 178
+ * - Redux Store项: 177
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 183
+ * - 总配置项: 182
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
