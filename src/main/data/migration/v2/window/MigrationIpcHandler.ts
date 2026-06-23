@@ -350,6 +350,25 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       throw error
     }
   })
+
+  // Minimize the migration window (custom control on Windows/Linux)
+  ipcMain.handle(MigrationIpcChannels.Minimize, () => {
+    migrationWindowManager.minimize()
+    return true
+  })
+
+  // Request a user-initiated close (custom control on Windows/Linux). Routes through the
+  // native close event so the in-flow confirmation applies.
+  ipcMain.handle(MigrationIpcChannels.CloseWindow, () => {
+    migrationWindowManager.requestClose()
+    return true
+  })
+
+  // User confirmed quit from the renderer's in-flow close dialog
+  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => {
+    migrationWindowManager.confirmQuit()
+    return true
+  })
 }
 
 /**
@@ -378,6 +397,7 @@ function updateProgress(progress: MigrationProgress, options: { preserveBackupIn
     next.backupInfo = currentProgress.backupInfo
   }
   currentProgress = next
+  migrationWindowManager.setStage(next.stage)
   migrationWindowManager.send(MigrationIpcChannels.Progress, next)
 }
 

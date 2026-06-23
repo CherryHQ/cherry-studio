@@ -165,6 +165,14 @@ export const MigrationIpcChannels = {
   // Skip migration (version incompatible — user chose to use defaults)
   SkipMigration: 'migration:skip-migration',
 
+  // Window controls (Renderer -> Main)
+  Minimize: 'migration:minimize',
+  CloseWindow: 'migration:close-window',
+  // In-flow close confirmation: Main asks the renderer to show its in-app dialog
+  // (ConfirmClose); the renderer reports a confirmed quit back (ConfirmQuit).
+  ConfirmClose: 'migration:confirm-close',
+  ConfirmQuit: 'migration:confirm-quit',
+
   // Progress broadcast (Main -> Renderer)
   Progress: 'migration:progress',
   ExportProgress: 'migration:export-progress'

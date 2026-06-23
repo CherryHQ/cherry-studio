@@ -15,6 +15,10 @@ const engineMock = vi.hoisted(() => ({
   getLastError: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
+const windowMinimizeMock = vi.hoisted(() => vi.fn())
+const windowRequestCloseMock = vi.hoisted(() => vi.fn())
+const windowSetStageMock = vi.hoisted(() => vi.fn())
+const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/services/LegacyBackupManager', () => ({
   default: class {
@@ -23,7 +27,15 @@ vi.mock('@main/services/LegacyBackupManager', () => ({
 }))
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
 vi.mock('../MigrationWindowManager', () => ({
-  migrationWindowManager: { send: windowSendMock, close: vi.fn(), restartApp: vi.fn() }
+  migrationWindowManager: {
+    send: windowSendMock,
+    close: vi.fn(),
+    restartApp: vi.fn(),
+    minimize: windowMinimizeMock,
+    requestClose: windowRequestCloseMock,
+    setStage: windowSetStageMock,
+    confirmQuit: windowConfirmQuitMock
+  }
 }))
 
 import { registerMigrationIpcHandlers, resetMigrationData } from '../MigrationIpcHandler'
@@ -311,5 +323,27 @@ describe('MigrationIpcHandler', () => {
     resolveBackup('/real/backups/v1.zip')
     await first
     expect(backupMock).toHaveBeenCalledTimes(1)
+  })
+
+  describe('window controls', () => {
+    it('forwards a minimize request to the window manager', async () => {
+      await invoke(MigrationIpcChannels.Minimize)
+      expect(windowMinimizeMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('routes a close-window request through the window manager', async () => {
+      await invoke(MigrationIpcChannels.CloseWindow)
+      expect(windowRequestCloseMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('forwards a confirmed quit to the window manager', async () => {
+      await invoke(MigrationIpcChannels.ConfirmQuit)
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('pushes the live stage to the window manager on progress updates', async () => {
+      await invoke(MigrationIpcChannels.ProceedToBackup)
+      expect(windowSetStageMock).toHaveBeenCalledWith('backup_required')
+    })
   })
 })

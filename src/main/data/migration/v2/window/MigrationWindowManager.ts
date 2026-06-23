@@ -3,17 +3,33 @@
  */
 
 import { loggerService } from '@logger'
-import { isDev } from '@main/core/platform'
+import { isDev, isMac } from '@main/core/platform'
+import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import { app, BrowserWindow, dialog } from 'electron'
 import { join } from 'path'
 
 const logger = loggerService.withContext('MigrationWindowManager')
+
+// Stages where a user-initiated close is intercepted to confirm before quitting. These are
+// the in-flow stages: the user has committed to migrating but it isn't finished, so an
+// accidental close (which quits the whole app) should ask first. The entry page
+// (`introduction`) and terminal pages (`completed` / `error` / `version_incompatible`) are
+// excluded — closing there is the expected action and quits immediately.
+const CLOSE_CONFIRM_STAGES: ReadonlySet<MigrationStage> = new Set([
+  'backup_required',
+  'backup_progress',
+  'backup_confirmed',
+  'migration'
+])
 
 export class MigrationWindowManager {
   private window: BrowserWindow | null = null
   // Guards the user-initiated-close handler so our own programmatic close()
   // calls (cancel / skip / restart) don't trigger a second app quit.
   private programmaticClose = false
+  // Live migration stage, pushed from the IPC handler's updateProgress(). Used by the
+  // close handler to decide whether a user-initiated close needs confirmation.
+  private currentStage: MigrationStage = 'introduction'
 
   /**
    * Check if migration window exists and is not destroyed
@@ -45,10 +61,13 @@ export class MigrationWindowManager {
       height: 620,
       resizable: false,
       maximizable: false,
-      minimizable: false,
+      minimizable: true,
       show: false,
       autoHideMenuBar: true,
-      frame: false,
+      // macOS shows real native traffic lights (red close / yellow minimize; green zoom
+      // auto-disables for a non-resizable window). Windows/Linux stay frameless and draw
+      // custom controls in the renderer (no native buttons-only overlay exists on Linux).
+      ...(isMac ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 15 } } : { frame: false }),
       webPreferences: {
         preload: join(__dirname, '../preload/simplest.js'),
         sandbox: false,
@@ -57,18 +76,25 @@ export class MigrationWindowManager {
       }
     })
 
-    // User-initiated window close uses cancel semantics: quit the app.
-    // Programmatic close() calls set the guard so they don't double-quit.
-    this.window.on('close', () => {
-      if (!this.programmaticClose) {
-        logger.info('Migration window closed by user; quitting app')
-        app.quit()
+    // User-initiated window close uses cancel semantics: quit the app. During an in-flow
+    // stage (see CLOSE_CONFIRM_STAGES) we intercept and let the renderer show its in-app
+    // confirmation dialog instead (it reports back via ConfirmQuit). Programmatic close()
+    // calls set the guard to opt out. This seam covers the native macOS traffic light,
+    // Cmd+Q, and the custom Windows/Linux close button (which routes through requestClose()).
+    this.window.on('close', (event) => {
+      if (this.programmaticClose) return
+      if (CLOSE_CONFIRM_STAGES.has(this.currentStage)) {
+        event.preventDefault()
+        this.send(MigrationIpcChannels.ConfirmClose)
+        return
       }
+      logger.info('Migration window closed by user; quitting app')
+      app.quit()
     })
 
-    // Load the migration window
+    // Load the migration window.
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      void this.window.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/windows/migrationV2/index.html')
+      void this.window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/windows/migrationV2/index.html`)
     } else {
       void this.window.loadFile(join(__dirname, '../renderer/windows/migrationV2/index.html'))
     }
@@ -110,6 +136,45 @@ export class MigrationWindowManager {
       this.window!.close()
       this.window = null
     }
+  }
+
+  /**
+   * Minimize the migration window. Triggered by the renderer's custom minimize control on
+   * Windows/Linux (macOS uses the native traffic light).
+   */
+  minimize(): void {
+    if (this.hasWindow()) {
+      this.window!.minimize()
+    }
+  }
+
+  /**
+   * Request a user-initiated close. Routes through the native `close` event (no programmatic
+   * guard) so the in-flow confirmation applies. Triggered by the renderer's custom close
+   * control on Windows/Linux.
+   */
+  requestClose(): void {
+    if (this.hasWindow()) {
+      this.window!.close()
+    }
+  }
+
+  /**
+   * Track the live migration stage so the close handler can decide whether to confirm.
+   * Pushed from the IPC handler's updateProgress().
+   */
+  setStage(stage: MigrationStage): void {
+    this.currentStage = stage
+  }
+
+  /**
+   * The user confirmed quitting from the renderer's in-flow close dialog. Close the
+   * window programmatically (bypassing the confirmation seam) and quit.
+   */
+  confirmQuit(): void {
+    logger.info('User confirmed quit during an in-flow migration stage; quitting app')
+    this.close()
+    app.quit()
   }
 
   /**
