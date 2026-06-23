@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "răspuns",
+      "close": "Închide",
       "customPlaceholder": "Introdu răspunsul tău...",
       "loading": "Se încarcă întrebările...",
       "multiSelect": "Selecție multiplă",
@@ -25,6 +26,8 @@
       "noQuestions": "Nu sunt disponibile întrebări",
       "other": "Altele",
       "previous": "Anterior",
+      "progress": "{{current}} din {{total}}",
+      "skip": "Omite",
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
@@ -340,6 +343,11 @@
         "failed": "Nu s-a reușit reordonarea agenților"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "Utilizarea contextului"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Serverul API este activat, dar nu rulează corect."
@@ -382,6 +390,11 @@
       "edit": {
         "title": "Editează sesiunea"
       },
+      "file_manager": {
+        "file_explorer": "Explorer de fișiere",
+        "files": "Fișiere",
+        "finder": "Găsitor"
+      },
       "get": {
         "error": {
           "failed": "Nu s-a putut obține sesiunea",
@@ -399,6 +412,10 @@
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
         }
+      },
+      "workspace_selector": {
+        "no_project": "Niciun director de lucru",
+        "placeholder": "Selectați directorul de lucru"
       },
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
@@ -695,8 +712,10 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
+        "allow": "Permite",
         "allowAll": "Permiteți întotdeauna",
         "cancel": "Anulează",
+        "deny": "Refuză",
         "run": "Rulează"
       },
       "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
@@ -1125,6 +1144,7 @@
     "download": "Descarcă",
     "includes_user_questions": "Include întrebările tale",
     "manage": "Gestionează",
+    "select_assistant": "Selectați Asistent",
     "select_model": "Selectează modelul",
     "show": {
       "all": "Afișează tot"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "Redimensionare automată înălțime",
+      "cancel_editing": "Anulează editarea",
       "clear": {
         "content": "Vrei să ștergi toate mesajele subiectului curent?",
         "label": "Șterge {{Command}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "Context / Context maxim"
       },
+      "editing": "Editare",
+      "editing_message": "Editarea mesajului trimis",
       "estimated_tokens": {
         "tip": "Tokeni estimați"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "Eroare la procesarea fișierului",
       "file_not_supported": "Modelul nu acceptă acest tip de fișier",
       "file_not_supported_count": "{{count}} fișiere nu sunt acceptate",
+      "followup_queue": {
+        "edit": "Editează",
+        "pause": "Pauză trimitere automată",
+        "remove": "Elimină",
+        "resume": "Reluare trimitere automată",
+        "steer": "Trimite în tura curentă",
+        "title": "În coadă ({{count}})"
+      },
       "generate_image": "Generează imagine",
       "generate_image_not_supported": "Modelul nu acceptă generarea de imagini.",
       "knowledge_base": "Bază de cunoștințe",
+      "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
+      "knowledge_base_unavailable": "Selectați un model capabil de instrumente sau activați utilizarea instrumentelor în prompt",
+      "locate_editing_message": "Localizați mesajul original",
       "new": {
         "context": "Șterge contextul {{Command}}"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Bugetul de gândire depășește numărul maxim de tokeni",
+        "fixed_model": "Raționamentul este fixat pentru acest model",
         "label": "Gândire",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "Setează numărul de tokeni de gândire de utilizat."
           }
-        }
+        },
+        "unsupported_model": "Modelul actual nu acceptă raționament ajustabil"
       },
       "tools": {
         "collapse": "Restrânge",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "Încarcă atașament",
         "document": "Încarcă fișier document (modelul nu acceptă imagini)",
+        "document_only": "Doar documente",
+        "image_not_supported": "Acest model nu acceptă încărcări de imagini. Numai documente.",
         "image_or_document": "Încarcă imagine sau fișier document",
         "upload_from_local": "Încarcă fișier local..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "Șterge tot",
     "click_to_replace": "Faceți clic pentru a înlocui",
     "close": "Închide",
+    "close_sidebar": "Închide bara laterală",
     "collapse": "Restrânge",
     "completed": "Finalizat",
     "confirm": "Confirmă",
@@ -1773,6 +1812,8 @@
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
     "loading": "Se încarcă...",
+    "maximize": "Maximizează",
+    "minimize": "Minimize",
     "model": "Model",
     "models": "Modele",
     "more": "Mai mult",
@@ -1785,6 +1826,7 @@
     "on": "Pornit",
     "open": "Deschide",
     "open_in": "Deschide în {{name}}",
+    "open_sidebar": "Deschide bara laterală",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "Redenumește",
     "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
+    "resize_panel": "Redimensionează panoul",
     "retry": "Reîncercare",
     "save": "Salvează",
     "save_failed": "Salvarea a eșuat",
@@ -2144,13 +2187,13 @@
         "view_chunks": "Vezi Fragmente"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importă recursiv fișierele acceptate dintr-un dosar",
-          "title": "Faceți clic pentru a selecta un dosar"
+        "conflict_dialog": {
+          "description": "{{count}} dintre sursele pe care le adaugi au același nume ca elementele existente. Alege cum să le gestionezi.",
+          "keep_all": "Păstrează tot",
+          "replace": "Înlocuiește",
+          "title": "Sursele există deja"
         },
         "footer": {
-          "selected_directories": "{{count}} directoare selectate",
-          "selected_files": "{{count}} fișiere selectate",
           "selected_notes": "{{count}} notițe selectate"
         },
         "note": {
@@ -2246,7 +2289,6 @@
     },
     "dimensions_auto_set": "Setează automat dimensiunile embedding",
     "dimensions_size_placeholder": "Lasă gol pentru a nu transmite dimensiuni",
-    "drag_file": "Trage fișierul aici",
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
@@ -2258,9 +2300,9 @@
       "failed_to_edit": "Nu s-a reușit editarea bazei de cunoștințe",
       "failed_to_move": "Nu s-a reușit mutarea bazei de cunoștințe",
       "missing_embedding_model": "Modelul de încorporare utilizat de această bază de cunoștințe nu a fost găsit în timpul migrării. Reconstruiți baza de cunoștințe și alegeți un nou model de încorporare.",
+      "missing_vector_store": "Magazinul vectorial al acestei baze de cunoștințe nu a putut fi citit în timpul migrării (lipsește, este gol sau blocat). Baza de cunoștințe a fost păstrată; reindexați-o pentru recuperare.",
       "model_invalid": "Niciun model selectat"
     },
-    "file_hint": "Acceptă {{file_types}}",
     "groups": {
       "add": "Grup nou",
       "create_base_here": "Creează aici",
@@ -2358,6 +2400,8 @@
       "action": "Reconstruiește baza de cunoștințe",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Nu s-a reușit reconstruirea bazei de cunoștințe",
+      "skipped_missing_sources_one": "S-a sărit {{count}} element al cărui sursă nu mai există",
+      "skipped_missing_sources_other": "Au fost sărite {{count}} elemente ale căror sursă nu mai există",
       "submit": "Reconstrui",
       "title": "Reconstruiește baza de cunoștințe"
     },
@@ -2405,7 +2449,9 @@
   "launchpad": {
     "apps": "Aplicații",
     "minapps": "Minapp-uri",
-    "miniApps": "Mini-aplicații"
+    "miniApps": "Mini-aplicații",
+    "pin_to_sidebar": "Fixează în bara laterală",
+    "unpin_from_sidebar": "Anulează fixarea din bara laterală"
   },
   "library": {
     "action": {
@@ -2992,6 +3038,7 @@
         "no_api_key": "ApiKey-ul Notion sau DatabaseID-ul Notion nu sunt configurate",
         "no_content": "Nu există nimic de exportat în Notion."
       },
+      "operation_unavailable": "Operațiunea de mesaj nu este disponibilă. Vă rugăm să încercați din nou.",
       "siyuan": {
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
@@ -3399,6 +3446,12 @@
       "placeholder": "Caută modele...",
       "tooltip": "Caută modele"
     },
+    "selection": {
+      "context_window": "Context {{count}}",
+      "remove_model": "Elimină {{name}}",
+      "restore_default": "Restaurează modelul asistent",
+      "selected_models": "Modele selectate"
+    },
     "stream_output": "Ieșire flux",
     "type": {
       "audio": "Audio",
@@ -3572,28 +3625,7 @@
     "tip": "Dacă răspunsul este de succes, atunci doar mesajele care depășesc 30 de secunde vor declanșa un memento"
   },
   "ocr": {
-    "builtin": {
-      "system": "OCR de sistem"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Nu se poate șterge furnizorul integrat",
-        "existing": "Furnizorul există deja",
-        "get_providers": "Nu s-au putut obține furnizorii disponibili",
-        "not_found": "Furnizorul OCR nu există",
-        "update_failed": "Nu s-a putut actualiza configurația"
-      },
-      "unknown": "A apărut o eroare în timpul procesului OCR"
-    },
-    "file": {
-      "not_supported": "Tip de fișier neacceptat {{type}}"
-    },
-    "processing": "Procesare OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "S-a recurs la {{name}}, ceea ce poate cauza probleme"
-      }
-    }
+    "processing": "Procesare OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -5455,7 +5487,19 @@
         "title": "Backup și recuperare date"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cireașă",
+            "native": "Nativ",
+            "restart": {
+              "content": "Schimbarea stilului meniului necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
+              "title": "Este necesară repornirea"
+            },
+            "title": "Stil meniu contextual"
+          }
+        },
         "sections": {
+          "chat_settings": "Setări Chat",
           "custom_css": "CSS personalizat",
           "display_language": "Afișare și limbă",
           "privacy_advanced": "Confidențialitate și avansat",
@@ -6591,6 +6635,14 @@
       "close": "Închide",
       "confirm": "Confirmă",
       "forward": "Înainte",
+      "mcp": {
+        "agentEmpty": "Nu sunt configurate servere MCP pentru acest agent",
+        "assistantEmpty": "Nu sunt configurate servere MCP pentru acest asistent",
+        "autoEmpty": "Niciun server MCP activat",
+        "description": "Vizualizați starea actuală a serverului MCP",
+        "disabled": "MCP este dezactivat pentru acest asistent",
+        "unknownServer": "Server MCP necunoscut"
+      },
       "multiple": "Selecție multiplă",
       "noResult": "Niciun rezultat găsit",
       "page": "Pagină",
@@ -6956,10 +7008,16 @@
       "title": "Zoom pagină"
     }
   },
+  "subWindow": {
+    "back_to_main": "Înapoi la fereastra principală",
+    "pin": "Păstrează deasupra",
+    "unpin": "Anulează Menține deasupra"
+  },
   "tab": {
     "close": "Închide fila",
     "move_to_first": "Mută la început",
     "new": "Filă nouă",
+    "open_in_new_window": "Deschide în fereastră nouă",
     "pin": "Fixează fila",
     "unpin": "Anulați fixarea filei"
   },
@@ -7083,6 +7141,7 @@
         "too_large": "Fișier prea mare",
         "unknown": "Citirea conținutului fișierului a eșuat"
       },
+      "ocr_completed": "OCR imagine finalizat",
       "reading": "Se citește conținutul fișierului...",
       "upload": "Trageți sau faceți clic pentru a încărca imaginea/documentul"
     },

@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "đã trả lời",
+      "close": "Đóng",
       "customPlaceholder": "Nhập câu trả lời của bạn...",
       "loading": "Đang tải câu hỏi...",
       "multiSelect": "Chọn nhiều",
@@ -25,6 +26,8 @@
       "noQuestions": "Không có câu hỏi nào",
       "other": "Khác",
       "previous": "Trước",
+      "progress": "{{current}} trên {{total}}",
+      "skip": "Bỏ qua",
       "submit": "Gửi",
       "title": "Câu hỏi từ Đại lý"
     },
@@ -340,6 +343,11 @@
         "failed": "Không thể sắp xếp lại các tác nhân"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "Sử dụng ngữ cảnh"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Máy chủ API đã được kích hoạt nhưng không hoạt động bình thường."
@@ -382,6 +390,11 @@
       "edit": {
         "title": "Séance d'édition"
       },
+      "file_manager": {
+        "file_explorer": "Trình quản lý tệp",
+        "files": "Tệp",
+        "finder": "Trình tìm kiếm"
+      },
       "get": {
         "error": {
           "failed": "Không thể lấy phiên",
@@ -399,6 +412,10 @@
         "error": {
           "failed": "Không cập nhật được phiên"
         }
+      },
+      "workspace_selector": {
+        "no_project": "Không có thư mục làm việc",
+        "placeholder": "Chọn thư mục làm việc"
       },
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
@@ -695,8 +712,10 @@
         "showDetails": "Hiển thị chi tiết công cụ"
       },
       "button": {
+        "allow": "Cho phép",
         "allowAll": "Luôn Cho Phép",
         "cancel": "Hủy",
+        "deny": "Từ chối",
         "run": "Chạy"
       },
       "confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
@@ -1125,6 +1144,7 @@
     "download": "Tải xuống",
     "includes_user_questions": "Incluye Tus Preguntas",
     "manage": "Quản lý",
+    "select_assistant": "Chọn Trợ lý",
     "select_model": "Chọn Mô hình",
     "show": {
       "all": "Hiển thị tất cả"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "Tự động điều chỉnh chiều cao",
+      "cancel_editing": "Hủy chỉnh sửa",
       "clear": {
         "content": "Bạn có muốn xóa tất cả tin nhắn của chủ đề hiện tại không?",
         "label": "Xóa {{Lệnh}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "Ngữ cảnh / Ngữ cảnh tối đa"
       },
+      "editing": "Chỉnh sửa",
+      "editing_message": "Chỉnh sửa tin nhắn đã gửi",
       "estimated_tokens": {
         "tip": "Tokens estimados"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "Lỗi khi xử lý tệp",
       "file_not_supported": "Mô hình không hỗ trợ loại tệp này",
       "file_not_supported_count": "{{count}} tệp không được hỗ trợ",
+      "followup_queue": {
+        "edit": "Chỉnh sửa",
+        "pause": "Tạm dừng gửi tự động",
+        "remove": "Xóa",
+        "resume": "Tiếp tục gửi tự động",
+        "steer": "Gửi vào lượt hiện tại",
+        "title": "Đã xếp hàng ({{count}})"
+      },
       "generate_image": "Tạo hình ảnh",
       "generate_image_not_supported": "Mô hình không hỗ trợ tạo hình ảnh.",
       "knowledge_base": "Cơ sở tri thức",
+      "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
+      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
+      "locate_editing_message": "Định vị thông điệp gốc",
       "new": {
         "context": "Clear Context"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Ngân sách suy nghĩ vượt quá số lượng token tối đa",
+        "fixed_model": "Lý luận là cố định cho mô hình này",
         "label": "Pensamiento",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "Đặt số lượng token suy nghĩ cần sử dụng."
           }
-        }
+        },
+        "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
       "tools": {
         "collapse": "Thu gọn",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "Tải lên tập tin đính kèm",
         "document": "Tải lên tệp tài liệu (mô hình không hỗ trợ hình ảnh)",
+        "document_only": "Chỉ tài liệu",
+        "image_not_supported": "Mô hình này không hỗ trợ tải lên hình ảnh. Chỉ hỗ trợ tài liệu.",
         "image_or_document": "Tải lên tệp hình ảnh hoặc tài liệu",
         "upload_from_local": "Tải tệp tin cục bộ..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "Xóa tất cả",
     "click_to_replace": "Nhấp để thay thế",
     "close": "Đóng",
+    "close_sidebar": "Đóng thanh bên",
     "collapse": "Thu gọn",
     "completed": "Hoàn thành",
     "confirm": "Xác nhận",
@@ -1773,6 +1812,8 @@
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
     "loading": "Đang tải...",
+    "maximize": "Tối đa hóa",
+    "minimize": "Giảm thiểu",
     "model": "Mô hình",
     "models": "Mô hình",
     "more": "Thêm",
@@ -1785,6 +1826,7 @@
     "on": "On",
     "open": "Abierto",
     "open_in": "Mở trong {{name}}",
+    "open_sidebar": "Mở thanh bên",
     "paste": "Pasta",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "Đổi tên",
     "required_field": "Trường bắt buộc",
     "reset": "Đặt lại",
+    "resize_panel": "Thay đổi kích thước bảng",
     "retry": "Thử lại",
     "save": "Lưu",
     "save_failed": "Lưu thất bại",
@@ -2144,13 +2187,13 @@
         "view_chunks": "Xem các khối"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Nhập đệ quy các tệp được hỗ trợ từ một thư mục",
-          "title": "Nhấp để chọn một thư mục"
+        "conflict_dialog": {
+          "description": "{{count}} nguồn bạn đang thêm có cùng tên với các mục hiện có. Chọn cách xử lý chúng.",
+          "keep_all": "Giữ Tất Cả",
+          "replace": "Thay thế",
+          "title": "Nguồn đã tồn tại"
         },
         "footer": {
-          "selected_directories": "{{count}} thư mục đã được chọn",
-          "selected_files": "{{count}} tệp đã được chọn",
           "selected_notes": "{{count}} ghi chú được chọn"
         },
         "note": {
@@ -2246,7 +2289,6 @@
     },
     "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
     "dimensions_size_placeholder": "Để trống để không truyền kích thước",
-    "drag_file": "Kéo tệp vào đây",
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
@@ -2258,9 +2300,9 @@
       "failed_to_edit": "Không thể chỉnh sửa cơ sở kiến thức",
       "failed_to_move": "Không thể di chuyển cơ sở kiến thức",
       "missing_embedding_model": "Mô hình embedding được sử dụng bởi cơ sở kiến thức này không được tìm thấy trong quá trình di chuyển. Hãy xây dựng lại cơ sở kiến thức và chọn một mô hình embedding mới.",
+      "missing_vector_store": "Kho kiến thức này không thể đọc được cửa hàng vector trong quá trình di chuyển (thiếu, trống hoặc bị khóa). Kho kiến thức đã được giữ lại; hãy lập chỉ mục lại để khôi phục.",
       "model_invalid": "Chưa chọn mô hình"
     },
-    "file_hint": "Hỗ trợ {{file_types}}",
     "groups": {
       "add": "Nhóm Mới",
       "create_base_here": "Tạo ở đây",
@@ -2358,6 +2400,8 @@
       "action": "Xây dựng lại cơ sở kiến thức",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Không thể xây dựng lại cơ sở kiến thức",
+      "skipped_missing_sources_one": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
+      "skipped_missing_sources_other": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "submit": "Xây dựng lại",
       "title": "Xây dựng lại Cơ sở Kiến thức"
     },
@@ -2405,7 +2449,9 @@
   "launchpad": {
     "apps": "Ứng dụng",
     "minapps": "Minapps",
-    "miniApps": "MiniApps"
+    "miniApps": "MiniApps",
+    "pin_to_sidebar": "Ghim vào thanh bên",
+    "unpin_from_sidebar": "Bỏ ghim khỏi thanh bên"
   },
   "library": {
     "action": {
@@ -2992,6 +3038,7 @@
         "no_api_key": "Notion ApiKey hoặc Notion DatabaseID chưa được cấu hình",
         "no_content": "No hay nada que exportar a Notion."
       },
+      "operation_unavailable": "Thao tác tin nhắn không khả dụng. Vui lòng thử lại.",
       "siyuan": {
         "export": "Không xuất được sang Siyuan Note, vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu",
         "no_config": "Địa chỉ API hoặc mã thông báo của Siyuan Note chưa được cấu hình"
@@ -3399,6 +3446,12 @@
       "placeholder": "Buscar modelos...",
       "tooltip": "Mô hình tìm kiếm"
     },
+    "selection": {
+      "context_window": "Ngữ cảnh {{count}}",
+      "remove_model": "Xóa {{name}}",
+      "restore_default": "Khôi phục mô hình trợ lý",
+      "selected_models": "Các mô hình được chọn"
+    },
     "stream_output": "Salida de transmisión",
     "type": {
       "audio": "Âm thanh",
@@ -3572,28 +3625,7 @@
     "tip": "Nếu phản hồi thành công, chỉ những tin nhắn vượt quá 30 giây mới kích hoạt lời nhắc"
   },
   "ocr": {
-    "builtin": {
-      "system": "Hệ thống OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Không thể xóa nhà cung cấp tích hợp sẵn",
-        "existing": "Nhà cung cấp đã tồn tại",
-        "get_providers": "Không lấy được các nhà cung cấp khả dụng",
-        "not_found": "Nhà cung cấp OCR không tồn tại",
-        "update_failed": "Không thể cập nhật cấu hình"
-      },
-      "unknown": "Đã xảy ra lỗi trong quá trình OCR"
-    },
-    "file": {
-      "not_supported": "Loại tệp không được hỗ trợ {{type}}"
-    },
-    "processing": "Đang xử lý OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "Đã hoàn nguyên về {{name}}, điều này có thể gây ra sự cố"
-      }
-    }
+    "processing": "Đang xử lý OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -5455,7 +5487,19 @@
         "title": "Sao lưu và Khôi phục Dữ liệu"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "Bản địa",
+            "restart": {
+              "content": "Thay đổi kiểu menu yêu cầu khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+              "title": "Yêu cầu khởi động lại"
+            },
+            "title": "Kiểu menu ngữ cảnh"
+          }
+        },
         "sections": {
+          "chat_settings": "Cài đặt Trò chuyện",
           "custom_css": "CSS Tùy chỉnh",
           "display_language": "Hiển thị & Ngôn ngữ",
           "privacy_advanced": "Quyền riêng tư & Nâng cao",
@@ -6591,6 +6635,14 @@
       "close": "Đóng",
       "confirm": "Xác nhận",
       "forward": "Vooruit",
+      "mcp": {
+        "agentEmpty": "Không có máy chủ MCP nào được cấu hình cho agent này",
+        "assistantEmpty": "Không có máy chủ MCP nào được cấu hình cho trợ lý này",
+        "autoEmpty": "Không có máy chủ MCP nào được kích hoạt",
+        "description": "Xem trạng thái hiện tại của máy chủ MCP",
+        "disabled": "MCP đã bị vô hiệu hóa cho trợ lý này",
+        "unknownServer": "Máy chủ MCP không xác định"
+      },
       "multiple": "Chọn nhiều",
       "noResult": "Không tìm thấy kết quả",
       "page": "Trang",
@@ -6956,10 +7008,16 @@
       "title": "Zoom de página"
     }
   },
+  "subWindow": {
+    "back_to_main": "Quay lại Cửa sổ Chính",
+    "pin": "Giữ",
+    "unpin": "Hủy Giữ trên cùng"
+  },
   "tab": {
     "close": "Đóng Tab",
     "move_to_first": "Di chuyển lên đầu",
     "new": "Thẻ Mới",
+    "open_in_new_window": "Mở trong cửa sổ mới",
     "pin": "Ghim Tab",
     "unpin": "Gỡ ghim thẻ"
   },
@@ -7083,6 +7141,7 @@
         "too_large": "Tập tin quá lớn",
         "unknown": "Không đọc được nội dung tệp"
       },
+      "ocr_completed": "OCR hình ảnh hoàn tất",
       "reading": "Đang đọc nội dung tệp...",
       "upload": "Thả hoặc nhấp để tải lên hình ảnh/tài liệu"
     },
