@@ -17,7 +17,7 @@ const CATEGORY_NAME_KEYS: Record<string, string> = {
   'System tools': 'agent.right_pane.info.context_categories.system_tools'
 }
 
-interface AgentContextUsageSummaryProps {
+interface ContextUsageSummaryProps {
   usage: AgentSessionContextUsage | null
   percentage: number | null
   color?: string
@@ -25,13 +25,13 @@ interface AgentContextUsageSummaryProps {
   isCompacting?: boolean
 }
 
-export function AgentContextUsageSummary({
+export function ContextUsageSummary({
   usage,
   percentage,
   color,
   className,
   isCompacting = false
-}: AgentContextUsageSummaryProps) {
+}: ContextUsageSummaryProps) {
   const { t } = useTranslation()
   const normalizedPercentage = percentage === null ? null : Math.min(100, Math.max(0, percentage))
   const progressColor =

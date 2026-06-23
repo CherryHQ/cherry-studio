@@ -7,7 +7,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { AgentContextUsageSummary } from '../AgentContextUsageSummary'
+import { ContextUsageSummary } from '../ContextUsageSummary'
 
 const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage =>
   ({
@@ -17,15 +17,15 @@ const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessio
     model: 'claude-opus-4-8'
   }) as AgentSessionContextUsage
 
-describe('AgentContextUsageSummary', () => {
+describe('ContextUsageSummary', () => {
   it('translates known category names', () => {
-    render(<AgentContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
+    render(<ContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('agent.right_pane.info.context_categories.system_prompt')).toBeInTheDocument()
   })
 
   it('falls back to the raw name for unknown categories', () => {
-    render(<AgentContextUsageSummary usage={buildUsage([{ name: 'Brand new thing', tokens: 100 }])} percentage={50} />)
+    render(<ContextUsageSummary usage={buildUsage([{ name: 'Brand new thing', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('Brand new thing')).toBeInTheDocument()
   })
