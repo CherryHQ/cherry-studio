@@ -17,13 +17,31 @@ const DEV_LOGGING = IS_DEV || DIAGNOSTICS_ENABLED
 const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
 const MAIN_LOG_LEVEL = LEVEL.WARN
 
+// Each renderer window declares its logger source in its `index.html` via
+// `<meta name="logger-window-source" content="...">`. Keep this attribute name
+// in sync with those HTML files (see src/renderer/windows/README.md).
+const WINDOW_SOURCE_META_NAME = 'logger-window-source'
+
+/**
+ * Read the window source declared by the `<meta name="logger-window-source">` tag.
+ *
+ * The meta tag is parsed before any module script runs, so the source is available
+ * the moment LoggerService is constructed — no ordering guarantees needed at call
+ * sites. Returns '' when there is no document (worker) or no meta tag, letting an
+ * explicit {@link LoggerService.initWindowSource} take over.
+ */
+export function resolveWindowSourceFromMeta(doc: Document | undefined): string {
+  const meta = doc?.querySelector(`meta[name="${WINDOW_SOURCE_META_NAME}"]`)
+  return meta?.getAttribute('content')?.trim() ?? ''
+}
+
 /**
  * IMPORTANT: How to use LoggerService
  * please refer to
  *   English: `docs/technical/how-to-use-logger-en.md`
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
-class LoggerService {
+export class LoggerService {
   // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
   // only affect console output, not affect logToMain
   private envLevel: LogLevel = LEVEL.NONE
@@ -32,11 +50,16 @@ class LoggerService {
   private level: LogLevel = DEFAULT_LEVEL
   private logToMainLevel: LogLevel = MAIN_LOG_LEVEL
 
+  // Explicit source set via initWindowSource(); takes precedence over derivedWindow.
   private window: string = ''
+  // Source derived from the window's <meta name="logger-window-source"> at construction.
+  private derivedWindow: string = ''
   private module: string = ''
   private context: Record<string, any> = {}
 
   constructor() {
+    this.derivedWindow = resolveWindowSourceFromMeta(typeof document === 'undefined' ? undefined : document)
+
     if (DEV_LOGGING) {
       if (
         window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL &&
@@ -67,7 +90,11 @@ class LoggerService {
   }
 
   /**
-   * Initialize window source for renderer process (can only be called once)
+   * Explicitly set the window source, overriding the `<meta>`-derived default.
+   *
+   * Windows normally declare their source via `<meta name="logger-window-source">`
+   * and never call this. Use it where no meta exists — e.g. workers
+   * (`initWindowSource('Worker')`) or tests. Can only be set once; later calls warn.
    * @param window - The window identifier
    * @returns The logger service instance
    */
@@ -107,8 +134,9 @@ class LoggerService {
    * @param data - Additional data to log
    */
   private processLog(level: LogLevel, message: string, data: any[]): void {
-    let windowSource = this.window
-    if (!this.window) {
+    // Precedence: explicit initWindowSource() > <meta>-derived source > UNKNOWN fallback.
+    let windowSource = this.window || this.derivedWindow
+    if (!windowSource) {
       console.error('[LoggerService] window source not initialized, please initialize window source first')
       windowSource = 'UNKNOWN'
     }

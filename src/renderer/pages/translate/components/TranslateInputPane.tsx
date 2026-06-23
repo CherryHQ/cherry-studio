@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
 import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
@@ -5,7 +6,7 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { Copy, X } from 'lucide-react'
+import { Copy, LoaderCircle, X } from 'lucide-react'
 import type { KeyboardEvent, Ref, UIEvent } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,9 @@ type Props = {
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
   onCopy: () => void
+  onCancelOcr: () => void
   disabled: boolean
+  ocrProcessing: boolean
   selecting: boolean
 }
 
@@ -36,7 +39,9 @@ const TranslateInputPane = ({
   onDrop,
   onSelectFile,
   onCopy,
+  onCancelOcr,
   disabled,
+  ocrProcessing,
   selecting
 }: Props) => {
   const { t } = useTranslation()
@@ -129,6 +134,19 @@ const TranslateInputPane = ({
               <path d="M5 12h14M12 5v14" />
             </svg>
             <span className="sr-only">{t('translate.files.drag_text')}</span>
+          </div>
+        </div>
+      )}
+      {ocrProcessing && (
+        <div className="fade-in-0 absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
+          <div className="flex flex-col items-center gap-3">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-muted text-sm">
+              <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+              <span>{t('ocr.processing')}</span>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => onCancelOcr()}>
+              {t('common.cancel')}
+            </Button>
           </div>
         </div>
       )}

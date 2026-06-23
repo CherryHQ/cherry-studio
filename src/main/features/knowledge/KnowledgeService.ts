@@ -8,6 +8,7 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
@@ -22,14 +23,14 @@ import {
 } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
-import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
-import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
-import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
-import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
-import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
-import { narrowKnowledgeJobInput } from './jobs/utils/jobInput'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
+import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
+import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
+import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
+import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
+import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -90,6 +91,7 @@ export class KnowledgeService extends BaseService {
 
   protected async onAllReady(): Promise<void> {
     await this.recoverDeletingItems()
+    await this.recoverInterruptedItems()
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -482,6 +484,30 @@ export class KnowledgeService extends BaseService {
       ...jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')),
       ...linkedFileProcessingJobIds.map((jobId) => jobManager.cancel(jobId, 'delete-base'))
     ])
+  }
+
+  /**
+   * Park items stranded mid-indexing by an app quit / restart at `failed`.
+   *
+   * Indexing handlers declare `recovery: 'abandon'`, so an interrupted job is
+   * cancelled rather than silently resumed on the next launch — a deliberate
+   * quit must not auto-spend the (paid) embedding API. The job side is handled
+   * by JobManager's startup recovery; this closes the item side. The common case
+   * (handler settled the abort as cancelled) is already flipped to `failed` by
+   * the job's onSettled; this is the boot-time safety net for the stragglers
+   * onSettled lost the race to write (process exited first) or never ran (hard
+   * kill / crash). Marking them `failed` clears the perpetual spinner and makes
+   * them reindexable so the user can finish them on demand.
+   */
+  private async recoverInterruptedItems(): Promise<void> {
+    try {
+      const failedCount = await knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+      if (failedCount > 0) {
+        logger.info('Recovered interrupted knowledge items', { count: failedCount })
+      }
+    } catch (error) {
+      logger.error('Failed to recover interrupted knowledge items', error as Error)
+    }
   }
 
   private async recoverDeletingItems(): Promise<void> {

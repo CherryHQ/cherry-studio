@@ -17,12 +17,9 @@ vi.mock('../storage/pathStorage', async () => {
   }
 })
 
-const {
-  canKnowledgeItemRebuildSource,
-  classifyKnowledgeItemSource,
-  filterIndexableKnowledgeItems,
-  isIndexableKnowledgeItem
-} = await import('../items')
+const { canKnowledgeItemRebuildSource, classifyKnowledgeItemSource, isIndexableKnowledgeItem } = await import(
+  '../items'
+)
 
 function createItem(type: KnowledgeItem['type']): KnowledgeItem {
   const base = {
@@ -56,7 +53,6 @@ describe('indexable knowledge item helpers', () => {
     const items = ['file', 'url', 'note', 'directory'].map((type) => createItem(type as KnowledgeItem['type']))
 
     expect(items.map((item) => isIndexableKnowledgeItem(item))).toEqual([true, true, true, false])
-    expect(filterIndexableKnowledgeItems(items).map((item) => item.type)).toEqual(['file', 'url', 'note'])
   })
 })
 

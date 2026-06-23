@@ -975,8 +975,12 @@ export class McpRuntimeService extends BaseService {
       source: 'client'
     })
     await this.closeClientsForServer(server.id)
-    // Clear cache before restarting to ensure fresh data
+    // Clear caches before restarting to ensure fresh data. Drop the shared
+    // `mcp.tools.<serverId>` cache too: `McpCatalogService.listTools` is cache-only, so a
+    // restart that fails (e.g. a bad new config) must not leave the old config's tools
+    // visible to agents/chat. `refreshTools` repopulates it on success. (issue #16242)
     this.clearServerCache(server)
+    application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
       await this.getOrCreateClient(server)
       await application.get('McpCatalogService').refreshTools(server.id)

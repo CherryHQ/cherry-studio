@@ -239,12 +239,16 @@ export function useDefaultAssistant(): { assistant: Assistant } {
  * the source data for the current id.
  */
 export function useAssistant(id: string | null | undefined) {
-  const { assistant } = useAssistantApiById(id ?? undefined)
+  const { assistant, isLoading, error } = useAssistantApiById(id ?? undefined)
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const { defaultModel } = useDefaultModel()
 
   const modelId = assistant?.modelId ?? (!id ? defaultModel?.id : undefined)
-  const { model } = useModelById(modelId)
+  const { model, isLoading: isModelLoading } = useModelById(modelId)
+
+  // The composer reads model load/missing state off these (feat parity).
+  const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)
+  const isModelMissing = !isModelPending && !model
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
@@ -257,6 +261,10 @@ export function useAssistant(id: string | null | undefined) {
   return {
     assistant,
     model,
+    isLoading,
+    error,
+    isModelPending,
+    isModelMissing,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
       // reconcile* are v2-native; next.id is the UniqueModelId.
@@ -266,7 +274,7 @@ export function useAssistant(id: string | null | undefined) {
         extraSettings || reasoning || webSearch
           ? { ...assistant.settings, ...extraSettings, ...reasoning, ...webSearch }
           : undefined
-      void patchAssistant(id, settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id })
+      return patchAssistant(id, settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id })
     },
     updateAssistant: (patch: UpdateAssistantDto) => {
       if (!id) return Promise.resolve(undefined)
