@@ -97,10 +97,12 @@ export class KnowledgeIndexStore {
             contentHash,
             unit.unitType,
             unit.unitIndex,
-            unit.title ?? null,
+            // title and locator_json are reserved for the PR-C locator seam; no
+            // producer populates them yet, so they are persisted as NULL.
+            null,
             unit.charStart,
             unit.charEnd,
-            unit.locator === undefined ? null : JSON.stringify(unit.locator),
+            null,
             now
           ]
         )

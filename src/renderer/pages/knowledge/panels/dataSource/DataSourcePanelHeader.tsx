@@ -8,8 +8,10 @@ import { useTranslation } from 'react-i18next'
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 
 interface DataSourcePanelHeaderProps {
-  readyCount: number
-  totalCount: number
+  /** Server-side total across all pages. */
+  total: number
+  /** Rows currently loaded in the renderer (≤ total when pages remain). */
+  loadedCount: number
   selectedCount: number
   updatedAt: string
   onBulkReindex: () => void
@@ -18,8 +20,8 @@ interface DataSourcePanelHeaderProps {
 }
 
 const DataSourcePanelHeader = ({
-  readyCount,
-  totalCount,
+  total,
+  loadedCount,
   selectedCount,
   updatedAt,
   onBulkReindex,
@@ -40,8 +42,17 @@ const DataSourcePanelHeader = ({
   if (selectedCount > 0) {
     return (
       <div className="flex min-h-8 min-w-0 items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-foreground text-sm">
-          {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-foreground text-sm">
+            {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
+          </span>
+          {/* Selection only covers loaded rows; warn when unloaded pages remain so the
+              checked-all state doesn't read as "all rows in the base". */}
+          {total > loadedCount ? (
+            <span className="shrink-0 text-foreground-muted text-xs">
+              {t('knowledge.data_source.bulk.loaded_only_hint', { total })}
+            </span>
+          ) : null}
         </span>
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onBulkReindex}>
@@ -63,12 +74,6 @@ const DataSourcePanelHeader = ({
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
       <div className="flex shrink-0 items-center gap-2">
-        {totalCount > 0 ? (
-          <span className="text-foreground-muted text-xs leading-4">
-            {t('knowledge.data_source.ready_summary', { ready: readyCount, total: totalCount })}
-          </span>
-        ) : null}
-
         <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
           <PopoverTrigger asChild>
             <Button

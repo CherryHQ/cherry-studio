@@ -2,8 +2,8 @@ import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
-import { cancelJobOrThrow } from '../../jobs/utils/cancel'
-import { narrowKnowledgeJobInput } from '../../jobs/utils/jobInput'
+import { cancelJobOrThrow } from '../../tasks/utils/cancel'
+import { narrowKnowledgeJobInput } from '../../tasks/utils/jobInput'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
