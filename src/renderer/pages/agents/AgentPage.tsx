@@ -4,10 +4,6 @@ import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
-import {
-  createRecentSessionEntryFromSession,
-  upsertGlobalSearchRecentEntry
-} from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -74,8 +70,6 @@ const AgentPage = () => {
   const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
-  const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
@@ -178,24 +172,6 @@ const AgentPage = () => {
     },
     { enabled: isActiveTab }
   )
-
-  useEffect(() => {
-    if (isMessageOnlyView) return
-    if (!activeSession) return
-
-    const signature = `${activeSession.id}:${activeSession.name}:${activeSession.agentId ?? ''}`
-    if (lastRecordedRecentSessionRef.current === signature) return
-
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(
-      currentRecentItems,
-      createRecentSessionEntryFromSession(activeSession)
-    )
-    lastRecordedRecentSessionRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
