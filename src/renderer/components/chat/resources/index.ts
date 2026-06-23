@@ -33,7 +33,7 @@ export {
   useResourceListRowState,
   useResourceListView
 } from './ResourceList'
-export { remapResourceListExpandedGroupIds, updateResourceListExpansionState } from './resourceListExpansion'
+export { remapResourceListExpandedGroupIds } from './resourceListExpansion'
 export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
 export {
   composeResourceListGroupResolvers,

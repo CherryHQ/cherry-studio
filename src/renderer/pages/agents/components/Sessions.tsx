@@ -19,8 +19,7 @@ import {
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
-  SessionResourceList,
-  updateResourceListExpansionState
+  SessionResourceList
 } from '@renderer/components/chat/resources'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -350,8 +349,9 @@ const Sessions = ({
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionGroupExpansion, setSessionGroupExpansion] = usePersistCache('ui.agent.session.group_expansion')
-  const sessionGroupExpansionRef = useRef(sessionGroupExpansion)
+  const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
+  const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
+  const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
   const {
     sessions,
     pinIdBySessionId,
@@ -396,10 +396,12 @@ const Sessions = ({
   const displayMode: AgentSessionDisplayMode =
     sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' ? sessionDisplayMode : 'time'
   const isDraggableMode = displayMode !== 'time'
-
-  useEffect(() => {
-    sessionGroupExpansionRef.current = sessionGroupExpansion
-  }, [sessionGroupExpansion])
+  const sessionExpansion =
+    displayMode === 'agent'
+      ? sessionExpansionAgent
+      : displayMode === 'workdir'
+        ? sessionExpansionWorkdir
+        : sessionExpansionTime
 
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
   const {
@@ -593,30 +595,23 @@ const Sessions = ({
   }, [displayMode, t])
 
   const expandedSessionState = useMemo(() => {
-    const modeExpansionState = sessionGroupExpansion[displayMode]
-
     if (displayMode !== 'workdir') {
-      return modeExpansionState
+      return sessionExpansion
     }
 
-    return remapResourceListExpandedGroupIds(modeExpansionState, (groupId) => {
+    return remapResourceListExpandedGroupIds(sessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
-  }, [displayMode, sessionGroupExpansion, workdirDisplay])
+  }, [displayMode, sessionExpansion, workdirDisplay])
 
   const handleSessionExpansionStateChange = useCallback(
     (nextState: ResourceListExpansionState) => {
-      const nextGroupExpansion = updateResourceListExpansionState(
-        sessionGroupExpansionRef.current,
-        displayMode,
-        nextState
-      )
-
-      sessionGroupExpansionRef.current = nextGroupExpansion
-      setSessionGroupExpansion(nextGroupExpansion)
+      if (displayMode === 'agent') void setSessionExpansionAgent(nextState)
+      else if (displayMode === 'workdir') void setSessionExpansionWorkdir(nextState)
+      else void setSessionExpansionTime(nextState)
     },
-    [displayMode, setSessionGroupExpansion]
+    [displayMode, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
   const getCreateSessionSeedForGroup = useCallback(
     (groupId: string) =>

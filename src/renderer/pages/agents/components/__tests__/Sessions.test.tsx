@@ -507,7 +507,9 @@ import {
 import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()
-const SESSION_GROUP_EXPANSION_KEY = 'ui.agent.session.group_expansion'
+const SESSION_EXPANSION_TIME_KEY = 'ui.agent.session.expansion.time'
+const SESSION_EXPANSION_AGENT_KEY = 'ui.agent.session.expansion.agent'
+const SESSION_EXPANSION_WORKDIR_KEY = 'ui.agent.session.expansion.workdir'
 
 const DEFAULT_EXPANDED_SESSION_TIME_SECTION_IDS: string[] = []
 const DEFAULT_EXPANDED_SESSION_TIME_GROUP_IDS = [
@@ -557,13 +559,17 @@ function createExpandedSessionGroupExpansionFixture() {
 }
 
 function setSessionGroupExpansionCache(value: ReturnType<typeof createExpandedSessionGroupExpansionFixture>) {
-  cacheMocks.values.set(SESSION_GROUP_EXPANSION_KEY, value)
+  cacheMocks.values.set(SESSION_EXPANSION_TIME_KEY, value.time)
+  cacheMocks.values.set(SESSION_EXPANSION_AGENT_KEY, value.agent)
+  cacheMocks.values.set(SESSION_EXPANSION_WORKDIR_KEY, value.workdir)
 }
 
 function getSessionGroupExpansionCache() {
-  return cacheMocks.values.get(SESSION_GROUP_EXPANSION_KEY) as ReturnType<
-    typeof createExpandedSessionGroupExpansionFixture
-  >
+  return {
+    time: cacheMocks.values.get(SESSION_EXPANSION_TIME_KEY),
+    agent: cacheMocks.values.get(SESSION_EXPANSION_AGENT_KEY),
+    workdir: cacheMocks.values.get(SESSION_EXPANSION_WORKDIR_KEY)
+  } as ReturnType<typeof createExpandedSessionGroupExpansionFixture>
 }
 
 function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = {}): AgentWorkspaceEntity {

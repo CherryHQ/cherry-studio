@@ -329,7 +329,8 @@ import {
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
-const TOPIC_GROUP_EXPANSION_KEY = 'ui.topic.group_expansion'
+const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
+const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'
 
 const DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS: string[] = []
 const DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS = [
@@ -360,13 +361,15 @@ function createExpandedTopicGroupExpansionFixture() {
 }
 
 function setTopicGroupExpansionCache(value: ReturnType<typeof createExpandedTopicGroupExpansionFixture>) {
-  cacheHookMocks.values.set(TOPIC_GROUP_EXPANSION_KEY, value)
+  cacheHookMocks.values.set(TOPIC_EXPANSION_TIME_KEY, value.time)
+  cacheHookMocks.values.set(TOPIC_EXPANSION_ASSISTANT_KEY, value.assistant)
 }
 
 function getTopicGroupExpansionCache() {
-  return cacheHookMocks.values.get(TOPIC_GROUP_EXPANSION_KEY) as ReturnType<
-    typeof createExpandedTopicGroupExpansionFixture
-  >
+  return {
+    time: cacheHookMocks.values.get(TOPIC_EXPANSION_TIME_KEY),
+    assistant: cacheHookMocks.values.get(TOPIC_EXPANSION_ASSISTANT_KEY)
+  } as ReturnType<typeof createExpandedTopicGroupExpansionFixture>
 }
 
 function createApiTopic(overrides: Partial<ApiTopic> = {}) {

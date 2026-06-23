@@ -14,7 +14,6 @@ import {
   type ResourceListRevealRequest,
   type ResourceListSection,
   TopicResourceList,
-  updateResourceListExpansionState,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
@@ -266,8 +265,8 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [topicGroupExpansion, setTopicGroupExpansion] = usePersistCache('ui.topic.group_expansion')
-  const topicGroupExpansionRef = useRef(topicGroupExpansion)
+  const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
+  const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const [exportMenuOptions] = useMultiplePreferences({
@@ -285,10 +284,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
   })
   const displayMode = topicDisplayMode ?? 'time'
   const isAssistantDisplayMode = displayMode === 'assistant'
-
-  useEffect(() => {
-    topicGroupExpansionRef.current = topicGroupExpansion
-  }, [topicGroupExpansion])
+  const topicExpansion = isAssistantDisplayMode ? topicExpansionAssistant : topicExpansionTime
 
   const {
     isLoading: isTopicPinsLoading,
@@ -887,19 +883,13 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
     [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
   )
 
-  const expandedTopicState = topicGroupExpansion[displayMode]
+  const expandedTopicState = topicExpansion
   const handleTopicExpansionStateChange = useCallback(
     (nextState: ResourceListExpansionState) => {
-      const nextGroupExpansion = updateResourceListExpansionState(
-        topicGroupExpansionRef.current,
-        displayMode,
-        nextState
-      )
-
-      topicGroupExpansionRef.current = nextGroupExpansion
-      setTopicGroupExpansion(nextGroupExpansion)
+      if (isAssistantDisplayMode) void setTopicExpansionAssistant(nextState)
+      else void setTopicExpansionTime(nextState)
     },
-    [displayMode, setTopicGroupExpansion]
+    [isAssistantDisplayMode, setTopicExpansionAssistant, setTopicExpansionTime]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
