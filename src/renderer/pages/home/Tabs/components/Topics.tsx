@@ -886,8 +886,8 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
   const expandedTopicState = topicExpansion
   const handleTopicExpansionStateChange = useCallback(
     (nextState: ResourceListExpansionState) => {
-      if (isAssistantDisplayMode)  setTopicExpansionAssistant(nextState)
-      else  setTopicExpansionTime(nextState)
+      if (isAssistantDisplayMode) setTopicExpansionAssistant(nextState)
+      else setTopicExpansionTime(nextState)
     },
     [isAssistantDisplayMode, setTopicExpansionAssistant, setTopicExpansionTime]
   )

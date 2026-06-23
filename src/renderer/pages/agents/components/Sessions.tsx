@@ -607,9 +607,9 @@ const Sessions = ({
 
   const handleSessionExpansionStateChange = useCallback(
     (nextState: ResourceListExpansionState) => {
-      if (displayMode === 'agent')  setSessionExpansionAgent(nextState)
-      else if (displayMode === 'workdir')  setSessionExpansionWorkdir(nextState)
-      else  setSessionExpansionTime(nextState)
+      if (displayMode === 'agent') setSessionExpansionAgent(nextState)
+      else if (displayMode === 'workdir') setSessionExpansionWorkdir(nextState)
+      else setSessionExpansionTime(nextState)
     },
     [displayMode, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )

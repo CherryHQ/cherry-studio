@@ -276,7 +276,7 @@ const KnowledgeItemRow = ({
         KNOWLEDGE_ITEM_ROW_GRID,
         'group/row min-h-12 rounded-lg transition-colors',
         canViewChunks &&
-          'cursor-pointer focus-visible:outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+          'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
         selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
       )}>
       <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
