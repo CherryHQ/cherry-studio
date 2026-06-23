@@ -1,4 +1,5 @@
 import { ENDPOINT_TYPE, type Model as DataModel } from '@shared/data/types/model'
+import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
@@ -94,6 +95,44 @@ vi.mock('../VertexAiService', () => ({
 async function createService() {
   const { OpenClawService } = await import('../OpenClawService')
   return new OpenClawService()
+}
+
+function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
+  return {
+    id: 'openai',
+    name: 'OpenAI',
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+    },
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
+    authType: 'api-key',
+    apiFeatures: {
+      arrayContent: true,
+      streamOptions: true,
+      developerRole: false,
+      serviceTier: false,
+      verbosity: false
+    },
+    settings: {},
+    isEnabled: true,
+    ...overrides
+  }
+}
+
+function createModel(overrides: Partial<DataModel> = {}): DataModel {
+  return {
+    id: 'openai::gpt-4o',
+    providerId: 'openai',
+    apiModelId: 'gpt-4o',
+    name: 'GPT-4o',
+    capabilities: [],
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    ...overrides
+  }
 }
 
 describe('OpenClawService gateway status state machine', () => {
@@ -403,36 +442,8 @@ describe('OpenClawService gateway status state machine', () => {
     it('resolves a unique model id before syncing OpenClaw config', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
-      vi.mocked(providerService.getByProviderId).mockResolvedValue({
-        id: 'openai',
-        name: 'OpenAI',
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
-        },
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
-        authType: 'api-key',
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false
-        },
-        settings: {},
-        isEnabled: true
-      })
-      const model: DataModel = {
-        id: 'openai::gpt-4o',
-        providerId: 'openai',
-        apiModelId: 'gpt-4o',
-        name: 'GPT-4o',
-        capabilities: [],
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
-        supportsStreaming: true,
-        isEnabled: true,
-        isHidden: false
-      }
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const model = createModel()
       vi.mocked(modelService.getByKey).mockResolvedValue(model)
       vi.mocked(modelService.list).mockResolvedValue([model])
       vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
@@ -446,10 +457,118 @@ describe('OpenClawService gateway status state machine', () => {
           id: 'openai',
           apiKey: 'sk-test',
           apiHost: 'https://api.openai.com',
+          anthropicApiHost: undefined,
           models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })]
         }),
         expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })
       )
+      expect(modelService.list).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
+    })
+
+    it('does not route a mixed provider OpenAI model through the Anthropic endpoint', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          id: 'new-api',
+          name: 'New API',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/openai' },
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com/anthropic' }
+          }
+        })
+      )
+      const model = createModel({ id: 'new-api::gpt-4o', providerId: 'new-api' })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('new-api::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiHost: 'https://new-api.example.com/openai',
+          anthropicApiHost: undefined
+        }),
+        expect.objectContaining({ endpoint_type: 'openai' })
+      )
+    })
+
+    it('excludes hidden models from the synced model list', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const visibleModel = createModel()
+      const hiddenModel = createModel({ id: 'openai::hidden-model', apiModelId: 'hidden-model', isHidden: true })
+      vi.mocked(modelService.getByKey).mockResolvedValue(visibleModel)
+      vi.mocked(modelService.list).mockResolvedValue([visibleModel, hiddenModel])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          models: [expect.objectContaining({ id: 'gpt-4o' })]
+        }),
+        expect.anything()
+      )
+    })
+
+    it('returns an error for invalid model selections', async () => {
+      const result = await service.syncConfig('invalid-model-id')
+
+      expect(result).toEqual({ success: false, message: 'Invalid OpenClaw model selection' })
+    })
+
+    it('returns an error when the provider has no API host', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          endpointConfigs: {}
+        })
+      )
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: false, message: 'Provider openai has no API host configured' })
+    })
+
+    it('returns an error for providers OpenClaw sync cannot adapt yet', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          id: 'vertexai',
+          presetProviderId: 'vertexai',
+          name: 'Vertex AI',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://generativelanguage.googleapis.com' }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+      )
+      const model = createModel({
+        id: 'vertexai::gemini-2.5-pro',
+        providerId: 'vertexai',
+        apiModelId: 'gemini-2.5-pro',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      const result = await service.syncConfig('vertexai::gemini-2.5-pro')
+
+      expect(result).toEqual({ success: false, message: 'OpenClaw sync does not support Vertex AI providers yet' })
     })
   })
 

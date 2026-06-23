@@ -16,6 +16,7 @@ import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath } from '@main/ut
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -139,6 +140,8 @@ const NO_KEY_PLACEHOLDERS: Record<string, string> = {
  * Providers that always use Anthropic API format
  */
 const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic']
+
+const UNSUPPORTED_SYNC_PROVIDER_IDS = new Set(['azure-openai', 'aws-bedrock', 'vertexai', 'vertex-anthropic'])
 
 /**
  * Endpoint types that use Anthropic API format
@@ -785,9 +788,11 @@ export class OpenClawService extends BaseService {
     const [provider, primaryModel, models, apiKeys] = await Promise.all([
       providerService.getByProviderId(providerId),
       modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId }),
+      modelService.list({ providerId, enabled: true }),
       providerService.getApiKeys(providerId, { enabled: true })
     ])
+
+    this.ensureSyncProviderSupported(provider)
 
     const endpointType =
       primaryModel.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
@@ -809,8 +814,11 @@ export class OpenClawService extends BaseService {
         name: provider.name,
         apiKey: apiKeys.map((entry) => entry.key).join(','),
         apiHost,
-        anthropicApiHost: provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl,
-        models: models.map((model) => this.toOpenClawModel(model)),
+        anthropicApiHost:
+          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+            ? provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+            : undefined,
+        models: models.filter((model) => !model.isHidden).map((model) => this.toOpenClawModel(model)),
         presetProviderId: provider.presetProviderId
       } as Provider,
       primaryModel: this.toOpenClawModel(primaryModel)
@@ -828,6 +836,13 @@ export class OpenClawService extends BaseService {
       return 'gemini'
     }
     return providerType as Provider['type']
+  }
+
+  private ensureSyncProviderSupported(provider: DataProvider): void {
+    const providerKey = provider.presetProviderId ?? provider.id
+    if (UNSUPPORTED_SYNC_PROVIDER_IDS.has(providerKey)) {
+      throw new Error(`OpenClaw sync does not support ${provider.name} providers yet`)
+    }
   }
 
   private toOpenClawModel(model: DataModel): Model {
