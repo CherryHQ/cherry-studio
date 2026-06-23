@@ -689,15 +689,8 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
-    if (chatChaining) {
-      this.scheduleNextChatTurn(topicId)
-    } else if (agentChaining) {
-      // Agent runtime owns the next-turn drain, but the sidebar stream indicator
-      // reads the shared status cache. Publish the completed turn now without
-      // evicting the stream, so carried renderer listeners survive until the
-      // runtime opens the follow-up turn.
-      stream.lifecycle.onTerminal(stream)
-    } else if (topicDone && !chaining) {
+    if (chatChaining) this.scheduleNextChatTurn(topicId)
+    else if (topicDone && !chaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)
