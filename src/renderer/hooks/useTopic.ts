@@ -335,9 +335,12 @@ export function useTopicMutations() {
   )
 
   const batchUpdateTopics = useCallback(
-    async (topics: Array<{ id: string; dto: UpdateTopicDto }>): Promise<void> => {
-      await Promise.allSettled(topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto })))
+    async (topics: Array<{ id: string; dto: UpdateTopicDto }>) => {
+      const results = await Promise.allSettled(
+        topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto }))
+      )
       await refreshTopics()
+      return results
     },
     [refreshTopics]
   )
@@ -438,7 +441,13 @@ export function useActiveTopic({
   }, [activeTopic, pendingTopic, topics])
 
   const setActiveTopic = useCallback(
-    (next: RendererTopic) => {
+    (next?: RendererTopic | null) => {
+      if (!next) {
+        if (!passive) setActiveTopicId(null)
+        setPendingTopic(undefined)
+        return
+      }
+
       if (passive) {
         setPendingTopic(next)
         return

@@ -6,6 +6,7 @@ import type { DraftAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
+  onOpenHistoryRecords?: () => void
   onSelectItem?: () => void
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
@@ -15,6 +16,7 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({
   activeSessionId,
+  onOpenHistoryRecords,
   onSelectItem,
   onStartDraftSession,
   onStartMissingAgentDraft,
@@ -33,6 +35,7 @@ const AgentSidePanel = ({
           activeSessionId={activeSessionId}
           setActiveSessionId={setActiveSessionId}
           onSelectItem={onSelectItem}
+          onOpenHistoryRecords={onOpenHistoryRecords}
           revealRequest={revealRequest}
           onStartDraftSession={onStartDraftSession}
           onStartMissingAgentDraft={onStartMissingAgentDraft}

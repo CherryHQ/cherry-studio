@@ -31,6 +31,7 @@ import type { FC, HTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
 import ChatNavbar from './components/ChatNavbar'
 import { parseChatRouteSearch } from './routeSearch'
@@ -69,6 +70,7 @@ const HomePage: FC = () => {
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -390,6 +392,24 @@ const HomePage: FC = () => {
     },
     [setActiveTopicAndDiscardDraft, setResourceListOpen]
   )
+  const closeHistoryRecords = useCallback(() => {
+    setHistoryRecordsOpen(false)
+  }, [])
+  const openHistoryRecords = useCallback(() => {
+    setHistoryRecordsOpen(true)
+  }, [])
+  const handleHistoryRecordsTopicSelect = useCallback(
+    (topic: Topic | null) => {
+      closeHistoryRecords()
+      if (!topic) {
+        void startDraftAssistantSelection()
+        return
+      }
+
+      handleHistoryTopicSelect(topic)
+    },
+    [closeHistoryRecords, handleHistoryTopicSelect, startDraftAssistantSelection]
+  )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
   })
@@ -440,7 +460,17 @@ const HomePage: FC = () => {
       activeTopic={visibleTopic}
       setActiveTopic={setActiveTopicAndDiscardDraft}
       onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+      onOpenHistoryRecords={openHistoryRecords}
       revealRequest={topicRevealRequest}
+    />
+  )
+  const historyRecordsOverlay = (
+    <HistoryRecordsPage
+      mode="assistant"
+      open={historyRecordsOpen && !isMessageOnlyView && !isWindowFrame}
+      activeRecordId={activeTopicId}
+      onClose={closeHistoryRecords}
+      onRecordSelect={handleHistoryRecordsTopicSelect}
     />
   )
 
@@ -464,6 +494,7 @@ const HomePage: FC = () => {
             welcomeText={t('chat.home.welcome_title')}
           />
         </ContentContainer>
+        {historyRecordsOverlay}
       </Container>
     )
   }
@@ -488,6 +519,7 @@ const HomePage: FC = () => {
           onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
+      {historyRecordsOverlay}
     </Container>
   )
 }

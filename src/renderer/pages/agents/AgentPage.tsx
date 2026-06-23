@@ -25,6 +25,7 @@ import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { parseAgentRouteSearch } from './routeSearch'
@@ -55,6 +56,7 @@ const AgentPage = () => {
   const pendingSelectedSessionRef = useRef<AgentSessionEntity | null>(null)
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
+  const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -358,6 +360,19 @@ const AgentPage = () => {
     },
     [conversationNav, currentTabId, setDraftSessionState, setResourceListOpen, startDefaultDraftSession]
   )
+  const closeHistoryRecords = useCallback(() => {
+    setHistoryRecordsOpen(false)
+  }, [])
+  const openHistoryRecords = useCallback(() => {
+    setHistoryRecordsOpen(true)
+  }, [])
+  const handleHistoryRecordsSessionSelect = useCallback(
+    (sessionId: string | null) => {
+      closeHistoryRecords()
+      handleHistorySessionSelect(sessionId)
+    },
+    [closeHistoryRecords, handleHistorySessionSelect]
+  )
   const handleGlobalSearchSessionSelect = useEffectEvent((sessionId: string, messageId?: string) => {
     handleHistorySessionSelect(sessionId, messageId)
   })
@@ -552,6 +567,7 @@ const AgentPage = () => {
             <AgentSidePanel
               activeSessionId={activeSessionId}
               revealRequest={sessionRevealRequest}
+              onOpenHistoryRecords={openHistoryRecords}
               onStartDraftSession={startDraftSession}
               onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
               setActiveSessionId={setActiveSessionAndDiscardDraft}
@@ -580,6 +596,13 @@ const AgentPage = () => {
           replacingDraftWorkspace={replacingDraftWorkspace}
         />
       </div>
+      <HistoryRecordsPage
+        mode="agent"
+        open={historyRecordsOpen && !isMessageOnlyView && !isWindowFrame}
+        activeRecordId={activeSessionId}
+        onClose={closeHistoryRecords}
+        onRecordSelect={handleHistoryRecordsSessionSelect}
+      />
     </Container>
   )
 }

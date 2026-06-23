@@ -18,7 +18,7 @@ import type { SessionActionContext } from '@renderer/pages/agents/components/ses
 import {
   type SessionListItem,
   sortSessionsForDisplayGroups
-} from '@renderer/pages/agents/components/SessionList.helpers'
+} from '@renderer/pages/agents/components/sessionListHelpers'
 import {
   createSessionActionContext,
   useSessionMenuPreset
@@ -27,7 +27,7 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
-import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/Topics.helpers'
+import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/topicsHelpers'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
