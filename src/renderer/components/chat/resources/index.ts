@@ -43,6 +43,14 @@ export {
   sortByResourceGroupRank
 } from './resourceListGrouping'
 export { RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
+export type { ResourceListOrderAnchor } from './resourceListReorder'
+export {
+  buildResourceListGroupDropAnchor,
+  buildResourceListItemDropAnchor,
+  compareResourceOrderKey,
+  moveResourceListStringGroupAfterDrop,
+  withResourceListGroupIdPrefix
+} from './resourceListReorder'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedState } from './useResourceListPinnedState'
 export { SessionResourceList, TopicResourceList } from './variants'

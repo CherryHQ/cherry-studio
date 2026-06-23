@@ -1,13 +1,18 @@
 import {
+  buildResourceListGroupDropAnchor,
+  buildResourceListItemDropAnchor,
+  compareResourceOrderKey,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
+  moveResourceListStringGroupAfterDrop,
   type ResourceListGroup,
   type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket
+  type ResourceListTimeBucket,
+  withResourceListGroupIdPrefix
 } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -65,15 +70,6 @@ export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
-
-function compareOrderKey(a?: string, b?: string) {
-  if (a && b) {
-    if (a < b) return -1
-    if (a > b) return 1
-  }
-
-  return 0
-}
 
 export function moveTopicAfterDrop<T extends { id: string }>(
   topics: readonly T[],
@@ -134,18 +130,14 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
 }
 
 export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
-  if (payload.overType === 'item') {
-    return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
-  }
-
-  return { position: 'last' }
+  return buildResourceListItemDropAnchor(payload)
 }
 
 export function buildAssistantGroupDropAnchor(
   payload: ResourceListGroupReorderPayload,
   overAssistantId: string
 ): OrderRequest {
-  return payload.sourceIndex < payload.targetIndex ? { after: overAssistantId } : { before: overAssistantId }
+  return buildResourceListGroupDropAnchor(payload, overAssistantId)
 }
 
 export function moveAssistantGroupAfterDrop(
@@ -154,19 +146,7 @@ export function moveAssistantGroupAfterDrop(
   overAssistantId: string,
   payload: Pick<ResourceListGroupReorderPayload, 'sourceIndex' | 'targetIndex'>
 ): string[] {
-  const activeIndex = assistantIds.indexOf(activeAssistantId)
-  const overIndex = assistantIds.indexOf(overAssistantId)
-
-  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
-    return [...assistantIds]
-  }
-
-  const next = assistantIds.filter((assistantId) => assistantId !== activeAssistantId)
-  const adjustedOverIndex = next.indexOf(overAssistantId)
-  const insertIndex = payload.sourceIndex < payload.targetIndex ? adjustedOverIndex + 1 : adjustedOverIndex
-  next.splice(insertIndex, 0, activeAssistantId)
-
-  return next
+  return moveResourceListStringGroupAfterDrop(assistantIds, activeAssistantId, overAssistantId, payload)
 }
 
 export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
@@ -189,11 +169,7 @@ export function getTopicTimeBucket(
 }
 
 function withTopicGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `topic:${group.id}` }
-  }
+  return withResourceListGroupIdPrefix('topic:', resolver)
 }
 
 export function getAssistantIdFromTopicGroupId(groupId: string): string | undefined {
@@ -284,7 +260,7 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
           return a.index - b.index
         }
 
-        const orderDelta = compareOrderKey(a.orderKey, b.orderKey)
+        const orderDelta = compareResourceOrderKey(a.orderKey, b.orderKey)
         if (orderDelta !== 0) return orderDelta
 
         return a.index - b.index
