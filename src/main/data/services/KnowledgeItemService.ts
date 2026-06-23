@@ -18,9 +18,10 @@ import {
   KnowledgeItemSchema,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
@@ -29,32 +30,6 @@ const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
   data: KnowledgeItemData | string
-}
-
-type KnowledgeItemCursor = { createdAt: number; id: string } | null
-
-function warnAndFallbackCursor(raw: string, reason: string): KnowledgeItemCursor {
-  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
-  return null
-}
-
-function decodeCursor(raw: string | undefined): KnowledgeItemCursor {
-  if (!raw) return null
-
-  const separator = raw.indexOf(':')
-  if (separator < 0) return warnAndFallbackCursor(raw, 'missing separator')
-
-  const createdAt = Number(raw.slice(0, separator))
-  const id = raw.slice(separator + 1)
-  if (!Number.isFinite(createdAt) || !id) {
-    return warnAndFallbackCursor(raw, 'malformed createdAt or id')
-  }
-
-  return { createdAt, id }
-}
-
-function encodeCursor(row: Pick<KnowledgeItemRow, 'createdAt' | 'id'>): string {
-  return `${row.createdAt}:${row.id}`
 }
 
 type FailedKnowledgeItemStatusUpdate = {
@@ -112,16 +87,13 @@ export class KnowledgeItemService {
       )
     }
 
-    // Keyset pagination: rows after the cursor in `(createdAt DESC, id ASC)` order.
+    // Keyset pagination over `(createdAt DESC, id ASC)`. One direction spec drives both the WHERE
+    // predicate and the matching ORDER BY (via the shared util) so the two can't silently drift.
+    const ordering = keysetOrdering(knowledgeItemTable.createdAt, knowledgeItemTable.id, { major: 'desc', tie: 'asc' })
     const conditions = [...filterConditions]
-    const cursor = decodeCursor(query.cursor)
+    const cursor = decodeListCursor(query.cursor, asNumericKey, 'knowledge-item')
     if (cursor) {
-      conditions.push(
-        or(
-          lt(knowledgeItemTable.createdAt, cursor.createdAt),
-          and(eq(knowledgeItemTable.createdAt, cursor.createdAt), gt(knowledgeItemTable.id, cursor.id))
-        )!
-      )
+      conditions.push(ordering.where(cursor))
     }
 
     const [rows, [{ count }]] = await Promise.all([
@@ -129,7 +101,7 @@ export class KnowledgeItemService {
         .select()
         .from(knowledgeItemTable)
         .where(and(...conditions))
-        .orderBy(desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+        .orderBy(...ordering.orderBy)
         .limit(limit + 1),
       this.db
         .select({ count: sql<number>`count(*)` })
@@ -142,7 +114,10 @@ export class KnowledgeItemService {
     return {
       items: pageRows.map((row) => rowToKnowledgeItem(row)),
       total: count,
-      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
+      nextCursor:
+        rows.length > limit
+          ? encodeCursor(pageRows[pageRows.length - 1].createdAt, pageRows[pageRows.length - 1].id)
+          : undefined
     }
   }
 
