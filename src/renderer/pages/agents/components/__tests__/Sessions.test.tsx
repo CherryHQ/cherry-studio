@@ -481,8 +481,6 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
-        'history.records.agentTitle': 'Agent History',
-        'history.records.shortTitle': 'History',
         'selector.agent.create_new': 'Create agent',
         'selector.agent.empty_text': 'No agents',
         'selector.agent.search_placeholder': 'Search agents',
@@ -1294,24 +1292,6 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Left Sidebar' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
-  })
-
-  it('opens agent history from the list options menu when provided', () => {
-    const onOpenHistory = vi.fn()
-
-    render(<SessionsForTest onOpenHistory={onOpenHistory} />)
-
-    expect(screen.queryByLabelText('Agent History')).not.toBeInTheDocument()
-
-    openSessionListOptions()
-
-    const historyButton = screen.getByRole('button', { name: 'History' })
-
-    fireEvent.click(historyButton)
-
-    expect(onOpenHistory).toHaveBeenCalledTimes(1)
-    expect(onOpenHistory).toHaveBeenCalledWith()
-    expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('topic.tab.show', false)
   })
 
   it('reveals a history-selected session hidden by search and show-more with row focus', async () => {

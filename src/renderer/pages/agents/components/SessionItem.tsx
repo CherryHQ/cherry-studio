@@ -25,7 +25,7 @@ interface SessionItemProps {
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
   onSelectItem?: () => void
-  onTogglePin?: (id: string) => void | Promise<void | boolean>
+  onTogglePin?: (id: string) => void | Promise<void>
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
   session: AgentSessionEntity

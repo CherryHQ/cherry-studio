@@ -19,7 +19,6 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
-import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -61,7 +60,6 @@ type DraftChatSendOptions = {
 const HomePage: FC = () => {
   const { t } = useTranslation()
   const draftScopeId = useId()
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
   const draftAssistantStartStateRef = useRef<DraftAssistantStartState>({ firstLaunchStarted: false })
@@ -354,15 +352,7 @@ const HomePage: FC = () => {
   ])
 
   const setActiveTopicAndDiscardDraft = useCallback(
-    (topic: Topic | null) => {
-      if (!topic) {
-        if (draftAssistantSelectionRef.current) {
-          setDraftAssistantSelectionState(undefined)
-        }
-        setActiveTopic(null)
-        return true
-      }
-
+    (topic: Topic) => {
       // One tab per topic: if this topic is already open in another tab, focus
       // that tab instead of navigating the current one (which would duplicate
       // it in the tab bar). The current tab keeps its own topic untouched.
@@ -385,20 +375,9 @@ const HomePage: FC = () => {
     }
   }, [])
 
-  const openHistory = useCallback(() => {
-    setHistoryOpen(true)
-  }, [])
-  const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const handleHistoryTopicSelect = useCallback(
-    (topic: Topic | null, messageId?: string) => {
+    (topic: Topic, messageId?: string) => {
       if (!setActiveTopicAndDiscardDraft(topic)) return
-      if (!topic) {
-        setResourceListOpen(false)
-        setPendingLocateMessageId(undefined)
-        setTopicRevealRequest(undefined)
-        return
-      }
-
       setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
       topicRevealRequestIdRef.current += 1
@@ -437,16 +416,6 @@ const HomePage: FC = () => {
     setPendingLocateMessageId(undefined)
   }, [])
 
-  const historyOverlay = (
-    <HistoryRecordsPage
-      mode="assistant"
-      open={historyOpen}
-      activeRecordId={visibleTopic?.id}
-      onClose={closeHistory}
-      onRecordSelect={handleHistoryTopicSelect}
-    />
-  )
-
   if (!visibleTopic && !draftAssistantSelectionSnapshot) {
     if (isMessageOnlyView) {
       return (
@@ -458,12 +427,11 @@ const HomePage: FC = () => {
               missingTitle={t('history.error.topic_not_found')}
             />
           </ContentContainer>
-          {historyOverlay}
         </Container>
       )
     }
 
-    return <Container id="home-page">{historyOverlay}</Container>
+    return <Container id="home-page" />
   }
 
   const panePosition = 'left'
@@ -471,7 +439,6 @@ const HomePage: FC = () => {
     <HomeTabs
       activeTopic={visibleTopic}
       setActiveTopic={setActiveTopicAndDiscardDraft}
-      onOpenHistory={openHistory}
       onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
       revealRequest={topicRevealRequest}
     />
@@ -497,13 +464,12 @@ const HomePage: FC = () => {
             welcomeText={t('chat.home.welcome_title')}
           />
         </ContentContainer>
-        {historyOverlay}
       </Container>
     )
   }
 
   const chatTopic = visibleTopic
-  if (!chatTopic) return <Container id="home-page">{historyOverlay}</Container>
+  if (!chatTopic) return <Container id="home-page" />
 
   return (
     <Container id="home-page">
@@ -522,7 +488,6 @@ const HomePage: FC = () => {
           onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
-      {historyOverlay}
     </Container>
   )
 }
