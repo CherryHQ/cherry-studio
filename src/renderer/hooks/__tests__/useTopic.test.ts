@@ -4,7 +4,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useActiveTopic, useTopicMutations } from '../useTopic'
+import { useTopicMutations } from '../useTopic'
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
@@ -60,45 +60,5 @@ describe('useTopicMutations', () => {
     })
     expect(settled[0]?.status).toBe('fulfilled')
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
-  })
-})
-
-describe('useActiveTopic', () => {
-  beforeEach(() => {
-    MockDataApiUtils.resetMocks()
-    MockUseDataApiUtils.resetMocks()
-    vi.clearAllMocks()
-  })
-
-  it('clears the pending topic when setting the active topic to null', () => {
-    const setActiveTopicId = vi.fn()
-    const initialTopic = {
-      id: 'topic-a',
-      assistantId: 'assistant-a',
-      name: 'Topic A',
-      createdAt: '2026-05-13T08:00:00.000Z',
-      updatedAt: '2026-05-14T08:00:00.000Z',
-      orderKey: 'a',
-      messages: [],
-      pinned: false,
-      isNameManuallyEdited: false
-    }
-
-    const { result } = renderHook(() =>
-      useActiveTopic({
-        initialTopic,
-        activeTopicId: 'topic-a',
-        setActiveTopicId
-      })
-    )
-
-    expect(result.current.activeTopic).toMatchObject({ id: 'topic-a' })
-
-    act(() => {
-      result.current.setActiveTopic(null)
-    })
-
-    expect(setActiveTopicId).toHaveBeenCalledWith(null)
-    expect(result.current.activeTopic).toBeUndefined()
   })
 })

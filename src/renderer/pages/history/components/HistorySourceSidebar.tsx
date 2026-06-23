@@ -1,11 +1,12 @@
 import { Input } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
 import { cn } from '@renderer/utils'
 import { Circle, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { HistoryRecordsMode } from '../historyRecordsTypes'
 
 export type HistorySourceStatus = 'all' | 'running' | 'completed' | 'failed'
 

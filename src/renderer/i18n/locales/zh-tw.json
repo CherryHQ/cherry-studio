@@ -2489,6 +2489,7 @@
         "description": "將選中的 {{count}} 個對話移動到目標助手。",
         "empty": "[to be translated]:No assistants available",
         "error": "移動對話失敗",
+        "partialSuccess": "已移動 {{total}} 個對話中的 {{moved}} 個，{{failed}} 個失敗",
         "placeholder": "[to be translated]:Select assistant",
         "success": "已移動 {{count}} 個對話",
         "target": "[to be translated]:Target assistant",

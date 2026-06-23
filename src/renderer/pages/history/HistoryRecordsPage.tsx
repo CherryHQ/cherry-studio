@@ -48,14 +48,12 @@ import {
   buildAgentSources,
   buildAgentStatusItems,
   buildAssistantSources,
-  findAdjacentHistoryRecord,
   findAdjacentHistoryRecordAfterBulkDelete,
   getAgentHistoryStatus,
   getSessionAgentSourceId,
   getTopicSourceId
 } from './historyRecordsHelpers'
-
-export type HistoryRecordsMode = 'assistant' | 'agent'
+import type { HistoryRecordsMode } from './historyRecordsTypes'
 
 const logger = loggerService.withContext('HistoryRecordsPage')
 type HistoryTopicItem = ApiTopic & {
@@ -306,7 +304,12 @@ const AssistantHistoryRecordsContent = ({
       }
 
       if (topic.id === activeRecordId) {
-        const nextTopic = findAdjacentHistoryRecord(timeSortedTopics, topic.id, (candidate) => candidate.id)
+        const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
+          timeSortedTopics,
+          [topic.id],
+          topic.id,
+          (candidate) => candidate.id
+        )
         onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     },
@@ -360,6 +363,17 @@ const AssistantHistoryRecordsContent = ({
         }
 
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, failedResults })
+        if (movedIds.length > 0) {
+          window.toast.warning(
+            t('history.records.bulkMoveTopics.partialSuccess', {
+              failed: failedResults.length,
+              moved: movedIds.length,
+              total: ids.length
+            })
+          )
+          return
+        }
+
         const firstReason = failedResults[0]?.reason
         const message = firstReason instanceof Error ? firstReason.message : t('history.records.bulkMoveTopics.error')
         window.toast.error(message)
@@ -397,13 +411,19 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const handleRenameTopic = useCallback(
-    (topicId: string, name: string) => {
+    async (topicId: string, name: string) => {
       const topic = rendererTopicById.get(topicId)
       const trimmedName = name.trim()
       if (!topic || !trimmedName || trimmedName === topic.name) return
 
-      void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
-      window.toast.success(t('common.saved'))
+      try {
+        await updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
+        window.toast.success(t('common.saved'))
+      } catch (err) {
+        logger.error('Failed to rename topic from history records', { topicId, err })
+        const message = err instanceof Error ? err.message : t('common.save_failed')
+        window.toast.error(message)
+      }
     },
     [rendererTopicById, t, updateTopic]
   )
@@ -597,7 +617,12 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
 
       const success = await deleteSession(id)
       if (success && activeRecordId === id) {
-        const nextSession = findAdjacentHistoryRecord(timeSortedSessions, id, (session) => session.id)
+        const nextSession = findAdjacentHistoryRecordAfterBulkDelete(
+          timeSortedSessions,
+          [id],
+          id,
+          (session) => session.id
+        )
         onRecordSelect?.(nextSession?.id ?? null)
       }
     },

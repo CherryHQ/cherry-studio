@@ -161,6 +161,7 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Work directory',
         'agent.session.group.no_workdir': 'No work directory',
+        'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task',
@@ -181,6 +182,7 @@ vi.mock('react-i18next', () => ({
         'common.save': 'Save',
         'common.saved': 'Saved',
         'common.select_all': 'Select all',
+        'common.unknown': 'Unknown',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
@@ -486,6 +488,50 @@ describe('HistoryRecordsPage agent mode', () => {
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
+  it('filters completed and failed sessions by stream status', () => {
+    MockCacheUtils.setInitialState({
+      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'error', activeExecutions: [] }]]
+    })
+
+    setupAgentHistory()
+
+    expect(screen.getByRole('button', { name: /Running 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Completed 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Failed 1/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Failed 1/ }))
+
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Completed 1/ }))
+
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('groups sessions with a missing agent under the unknown-agent source', () => {
+    setupAgentHistory({
+      sessions: [
+        createSession(),
+        createSession({
+          id: 'session-missing-agent',
+          agentId: 'agent-missing',
+          name: 'Missing agent session',
+          workspaceId: 'ws-missing',
+          workspace: makeWorkspace('/Users/jd/project-missing'),
+          orderKey: 'b'
+        })
+      ]
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Unknown agent 1/ }))
+
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.getByText('Missing agent session')).toBeInTheDocument()
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
   })
 
   it('searches locally by session name, description, and agent name', () => {

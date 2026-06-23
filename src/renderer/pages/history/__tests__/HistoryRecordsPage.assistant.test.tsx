@@ -219,6 +219,8 @@ vi.mock('react-i18next', () => ({
         'common.name': 'Name',
         'common.required_field': 'Required field',
         'common.save': 'Save',
+        'common.save_failed': 'Save failed',
+        'common.saved': 'Saved',
         'common.select': 'Select',
         'common.select_all': 'Select all',
         'common.unnamed': 'Untitled',
@@ -231,6 +233,8 @@ vi.mock('react-i18next', () => ({
           'Move {{count}} selected conversation(s) to the target assistant.',
         'history.records.bulkMoveTopics.empty': 'No assistants available',
         'history.records.bulkMoveTopics.error': 'Failed to move conversations',
+        'history.records.bulkMoveTopics.partialSuccess':
+          'Moved {{moved}} of {{total}} conversation(s); {{failed}} failed',
         'history.records.bulkMoveTopics.placeholder': 'Select assistant',
         'history.records.bulkMoveTopics.success': 'Moved {{count}} conversation(s)',
         'history.records.bulkMoveTopics.target': 'Target assistant',
@@ -254,7 +258,11 @@ vi.mock('react-i18next', () => ({
       const options = typeof fallbackOrOptions === 'object' ? fallbackOrOptions : maybeOptions
       const defaultValue = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined
       const template = labels[key] ?? defaultValue ?? key
-      return template.replace('{{count}}', String(options?.count ?? ''))
+      return template
+        .replace('{{count}}', String(options?.count ?? ''))
+        .replace('{{failed}}', String(options?.failed ?? ''))
+        .replace('{{moved}}', String(options?.moved ?? ''))
+        .replace('{{total}}', String(options?.total ?? ''))
     }
   })
 }))
@@ -527,6 +535,47 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
+  it('switches to the previous survivor when bulk deleting the last active topics', async () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [
+        createTopic(),
+        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' }),
+        createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
+      ],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockResolvedValueOnce({
+      deletedIds: ['topic-beta', 'topic-gamma'],
+      deletedCount: 2
+    })
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-gamma"
+        onClose={vi.fn()}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
+    const gammaRow = screen.getByText('Gamma topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    fireEvent.click(within(gammaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-beta', 'topic-gamma'])
+    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
+  })
+
   it('skips pinned topics when bulk deleting from the query toolbar', async () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [
@@ -707,7 +756,8 @@ describe('HistoryRecordsPage assistant mode', () => {
       { id: 'topic-alpha', dto: { assistantId: 'assistant-beta' } },
       { id: 'topic-beta', dto: { assistantId: 'assistant-beta' } }
     ])
-    expect(window.toast.error).toHaveBeenCalledWith('move failed')
+    expect(window.toast.warning).toHaveBeenCalledWith('Moved 1 of 2 conversation(s); 1 failed')
+    expect(window.toast.error).not.toHaveBeenCalled()
     expect(window.toast.success).not.toHaveBeenCalled()
 
     // The successfully-moved topic is pruned from the selection; the failed one stays selected.
@@ -971,6 +1021,39 @@ describe('HistoryRecordsPage assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
+    expect(window.toast.success).toHaveBeenCalledWith('Saved')
+  })
+
+  it('shows an error when topic rename from history fails', async () => {
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.updateTopic.mockRejectedValueOnce(new Error('Rename failed'))
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    await act(async () => {
+      await flushAnimationFrame()
+    })
+
+    const dialog = screen.getByRole('dialog')
+    const input = within(dialog).getByLabelText('Name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await flushAnimationFrame()
+    })
+
+    await vi.waitFor(() =>
+      expect(hookMocks.updateTopic).toHaveBeenCalledWith('topic-alpha', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
+    )
+    expect(window.toast.error).toHaveBeenCalledWith('Rename failed')
+    expect(window.toast.success).not.toHaveBeenCalled()
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {
@@ -1199,6 +1282,7 @@ describe('HistoryRecordsPage locale resources', () => {
       'bulkMoveTopics.description',
       'bulkMoveTopics.empty',
       'bulkMoveTopics.error',
+      'bulkMoveTopics.partialSuccess',
       'bulkMoveTopics.placeholder',
       'bulkMoveTopics.success',
       'bulkMoveTopics.target',

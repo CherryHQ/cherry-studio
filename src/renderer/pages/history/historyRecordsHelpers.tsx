@@ -40,17 +40,6 @@ export function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): A
   return 'completed'
 }
 
-export function findAdjacentHistoryRecord<T>(
-  items: readonly T[],
-  deletedId: string,
-  getId: (item: T) => string
-): T | undefined {
-  const index = items.findIndex((item) => getId(item) === deletedId)
-  if (index < 0) return undefined
-
-  return items[index + 1 === items.length ? index - 1 : index + 1]
-}
-
 export function findAdjacentHistoryRecordAfterBulkDelete<T>(
   items: readonly T[],
   deletedIds: readonly string[],

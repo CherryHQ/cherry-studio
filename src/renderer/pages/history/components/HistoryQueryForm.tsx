@@ -1,9 +1,10 @@
 import { Button, ConfirmDialog, Input, SelectDropdown } from '@cherrystudio/ui'
-import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
 import { FolderInput, Search, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { HistoryRecordsMode } from '../historyRecordsTypes'
 
 export interface HistoryBulkMoveTarget {
   id: string

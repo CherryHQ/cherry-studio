@@ -441,13 +441,7 @@ export function useActiveTopic({
   }, [activeTopic, pendingTopic, topics])
 
   const setActiveTopic = useCallback(
-    (next?: RendererTopic | null) => {
-      if (!next) {
-        if (!passive) setActiveTopicId(null)
-        setPendingTopic(undefined)
-        return
-      }
-
+    (next: RendererTopic) => {
       if (passive) {
         setPendingTopic(next)
         return
