@@ -14,6 +14,10 @@ import type { TreeMutationPushPayload } from '@shared/utils/file'
 import type { WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { tryTestRipgrepPath } from './ripgrepTestUtils'
+
+const ripgrepAvailable = tryTestRipgrepPath() !== null
+
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await (importOriginal as () => Promise<typeof lifecycleModule>)()
   return {
@@ -29,10 +33,11 @@ import { BaseService } from '@main/core/lifecycle'
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
 // at the test ripgrep binary so real-builder tests spawn an actual ripgrep scan.
 vi.mock('@main/utils/process', async () => {
-  const { testRipgrepPath } = await import('./ripgrepTestUtils')
+  const { tryTestRipgrepPath: tryPath } = await import('./ripgrepTestUtils')
+  const resolvedRgPath = tryPath() ?? '/nonexistent/rg'
   return {
     getBinaryExecutionEnv: () => ({}),
-    getBinaryPath: async (name?: string) => (name === 'rg' ? testRipgrepPath() : (name ?? ''))
+    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
   }
 })
 
@@ -93,7 +98,7 @@ function makeSender(id: number) {
   return sender as typeof sender & WebContents
 }
 
-describe('DirectoryTreeManager', () => {
+describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
   let tmp: string
   let registry: DirectoryTreeManager
 
