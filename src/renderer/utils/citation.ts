@@ -14,9 +14,6 @@ import type { GroundingSupport } from '@google/genai'
 import { type Citation, WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types'
 import { cleanMarkdownContent, encodeHTML } from '@renderer/utils/formats'
 
-export { WEB_SEARCH_SOURCE }
-export type { WebSearchSource }
-
 /** Pick the first valid source identifier out of a citation-reference list. */
 export function determineCitationSource(
   citationReferences: Array<{ citationBlockId?: string; citationBlockSource?: WebSearchSource }> | undefined
