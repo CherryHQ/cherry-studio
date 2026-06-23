@@ -51,7 +51,28 @@ index 919a33d..054ebf2 100644
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -976,6 +1002,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+@@ -801,6 +827,5 @@ var OpenAICompatibleChatLanguageModel = class {
+                     if (pending.id == null) {
+-                      throw new import_provider3.InvalidResponseDataError({
+-                        data: toolCallDelta,
+-                        message: `Expected 'id' to be a string.`
+-                      });
++                      pending.id = (0, import_provider_utils2.generateId)();
++                    } else if (typeof pending.id === "number") {
++                      pending.id = String(pending.id);
+                     }
+@@ -823,7 +848,6 @@ var OpenAICompatibleChatLanguageModel = class {
+                     if (toolCallDelta.id == null) {
+-                      throw new import_provider3.InvalidResponseDataError({
+-                        data: toolCallDelta,
+-                        message: `Expected 'id' to be a string.`
+-                      });
++                      toolCallDelta.id = (0, import_provider_utils2.generateId)();
++                    } else if (typeof toolCallDelta.id === "number") {
++                      toolCallDelta.id = String(toolCallDelta.id);
+                     }
+                     if (((_l = toolCallDelta.function) == null ? void 0 : _l.name) == null) {
+@@ -976,6 +1000,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -66,7 +87,12 @@ index 919a33d..054ebf2 100644
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -1012,6 +1046,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
+@@ -1002,3 +1034,3 @@ var chunkBaseSchema = import_v43.z.looseObject({
+             //google does not send index
+-            id: import_v43.z.string().nullish(),
++            id: import_v43.z.union([import_v43.z.string(), import_v43.z.number()]).nullish(),
+             function: import_v43.z.object({
+@@ -1012,6 +1044,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -81,7 +107,7 @@ index 919a33d..054ebf2 100644
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1570,7 +1612,7 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1570,7 +1610,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -90,7 +116,7 @@ index 919a33d..054ebf2 100644
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1578,13 +1620,23 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1578,13 +1618,23 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -115,7 +141,7 @@ index 919a33d..054ebf2 100644
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1660,7 +1712,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1660,7 +1710,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -128,7 +154,7 @@ index 919a33d..054ebf2 100644
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1669,7 +1725,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1669,7 +1723,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -137,7 +163,7 @@ index 919a33d..054ebf2 100644
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1680,8 +1736,8 @@ var OpenAICompatibleImageModel = class {
+@@ -1680,8 +1734,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -148,7 +174,7 @@ index 919a33d..054ebf2 100644
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1692,8 +1748,28 @@ var OpenAICompatibleImageModel = class {
+@@ -1692,8 +1746,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -178,7 +204,7 @@ index 919a33d..054ebf2 100644
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1704,7 +1780,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1704,7 +1778,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
