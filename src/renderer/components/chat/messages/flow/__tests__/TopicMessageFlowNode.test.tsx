@@ -145,8 +145,8 @@ describe('TopicMessageFlowNode', () => {
   })
 
   it.each([
-    ['user', 'user-message', 'User preview', 'border-success/35', 'bg-success/8'],
-    ['assistant', 'assistant-message', 'Assistant preview', 'border-info/35', 'bg-info/8'],
+    ['user', 'user-message', 'User preview', 'border-success-border', 'bg-success-bg'],
+    ['assistant', 'assistant-message', 'Assistant preview', 'border-info-border', 'bg-info-bg'],
     ['system', 'system-message', 'System preview', 'border-border', 'bg-muted/45']
   ] as const)('keeps the %s role background color on canvas nodes', (role, messageId, preview, border, background) => {
     renderNode({ messageId, preview, role })
