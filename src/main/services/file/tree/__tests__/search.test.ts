@@ -6,6 +6,10 @@ import path from 'node:path'
 import type { FilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { tryTestRipgrepPath } from './ripgrepTestUtils'
+
+const ripgrepAvailable = tryTestRipgrepPath() !== null
+
 // Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
 //   - `existsSync` drives ripgrep binary discovery
 //   - `promises.stat` drives the EACCES root-path branch
@@ -32,10 +36,14 @@ vi.mock('node:fs', async (importOriginal) => {
 // at the test ripgrep binary so scans spawn a real ripgrep; `existsSync` (mocked
 // above) still governs the "binary not available" branch.
 vi.mock('@main/utils/process', async () => {
-  const { testRipgrepPath } = await import('./ripgrepTestUtils')
+  const { tryTestRipgrepPath } = await import('./ripgrepTestUtils')
+  // When ripgrep is unavailable, return a non-existent sentinel path so
+  // `resolveRipgrepBinary`'s existsSync check (not testRipgrepPath) governs
+  // binary availability — keeping the error-path test's assertion correct.
+  const resolvedRgPath = tryTestRipgrepPath() ?? '/nonexistent/rg'
   return {
     getBinaryExecutionEnv: () => ({}),
-    getBinaryPath: async (name?: string) => (name === 'rg' ? testRipgrepPath() : (name ?? ''))
+    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
   }
 })
 
@@ -63,7 +71,7 @@ const writeMany = async (root: string, count: number, prefix = 'file', ext = '.t
   return created
 }
 
-describe('listDirectory (list mode, no searchPattern)', () => {
+describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-list-'))
@@ -124,7 +132,7 @@ describe('listDirectory (list mode, no searchPattern)', () => {
   })
 })
 
-describe('listDirectory (search mode, fuzzy + maxEntries)', () => {
+describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntries)', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-search-'))

@@ -75,3 +75,12 @@ export function testRipgrepPath(): string {
 
   throw new Error('Test ripgrep binary not found')
 }
+
+/** Non-throwing variant — returns `null` when no ripgrep binary can be located. */
+export function tryTestRipgrepPath(): string | null {
+  try {
+    return testRipgrepPath()
+  } catch {
+    return null
+  }
+}
