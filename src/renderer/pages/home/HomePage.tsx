@@ -12,10 +12,6 @@ import { ChatPlacementComposer } from '@renderer/components/chat/composer/varian
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
-import {
-  createRecentTopicEntryFromTopic,
-  upsertGlobalSearchRecentEntry
-} from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -71,8 +67,6 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
-  const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
 
@@ -250,20 +244,6 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
   }, [activeTopic])
-
-  useEffect(() => {
-    if (isMessageOnlyView) return
-    if (!activeTopic) return
-    const signature = `${activeTopic.id}:${activeTopic.name}:${activeTopic.assistantId ?? ''}`
-    if (lastRecordedRecentTopicRef.current === signature) return
-
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
-    lastRecordedRecentTopicRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems])
 
   const sendDraftMessage = useCallback(
     async (text: string, options?: DraftChatSendOptions) => {
