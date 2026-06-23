@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "已回答",
+      "close": "关闭",
       "customPlaceholder": "输入您的回答...",
       "loading": "正在加载问题...",
       "multiSelect": "多选",
@@ -25,6 +26,8 @@
       "noQuestions": "暂无问题",
       "other": "其他",
       "previous": "上一个",
+      "progress": "{{current}} / {{total}}",
+      "skip": "跳过",
       "submit": "提交",
       "title": "来自 Agent 的问题"
     },
@@ -340,6 +343,11 @@
         "failed": "智能体排序失败"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "上下文用量"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 网关已启用但未正常运行。"
@@ -382,6 +390,11 @@
       "edit": {
         "title": "编辑会话"
       },
+      "file_manager": {
+        "file_explorer": "文件资源管理器",
+        "files": "文件",
+        "finder": "访达"
+      },
       "get": {
         "error": {
           "failed": "获取会话失败",
@@ -395,13 +408,14 @@
           "failed": "会话排序失败"
         }
       },
-      "tool": {
-        "disabled": "{{toolName}} 工具已被此智能体禁用。"
-      },
       "update": {
         "error": {
           "failed": "更新会话失败"
         }
+      },
+      "workspace_selector": {
+        "no_project": "不使用工作目录",
+        "placeholder": "选择工作目录"
       },
       "workspace_status": {
         "inaccessible": "工作区路径不可访问：{{path}}",
@@ -698,8 +712,10 @@
         "showDetails": "显示工具详情"
       },
       "button": {
+        "allow": "允许",
         "allowAll": "总是允许",
         "cancel": "取消",
+        "deny": "拒绝",
         "run": "运行"
       },
       "confirmation": "确定要运行此 Claude 工具吗?",
@@ -1128,6 +1144,7 @@
     "download": "下载",
     "includes_user_questions": "包含用户提问",
     "manage": "管理",
+    "select_assistant": "选择助手",
     "select_model": "选择模型",
     "show": {
       "all": "显示全部"
@@ -1192,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "自动调整高度",
+      "cancel_editing": "取消编辑",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
         "label": "清空消息",
@@ -1201,6 +1219,8 @@
       "context_count": {
         "tip": "上下文数 / 最大上下文数"
       },
+      "editing": "编辑中",
+      "editing_message": "正在编辑已发送消息",
       "estimated_tokens": {
         "tip": "预估 Token 数"
       },
@@ -1208,9 +1228,20 @@
       "file_error": "文件处理出错",
       "file_not_supported": "模型不支持此文件类型",
       "file_not_supported_count": "{{count}} 个文件不被支持",
+      "followup_queue": {
+        "edit": "编辑",
+        "pause": "暂停自动发送",
+        "remove": "移除",
+        "resume": "恢复自动发送",
+        "steer": "插入当前回合",
+        "title": "排队中 ({{count}})"
+      },
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
+      "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
+      "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
+      "locate_editing_message": "定位原消息",
       "new": {
         "context": "清除上下文"
       },
@@ -1247,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
+        "fixed_model": "该模型的推理强度固定",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1260,7 +1292,8 @@
           "tokens": {
             "tip": "设置思考的 Token 数"
           }
-        }
+        },
+        "unsupported_model": "当前模型不支持调整推理强度"
       },
       "tools": {
         "collapse": "折叠",
@@ -1278,6 +1311,8 @@
       "upload": {
         "attachment": "上传附件",
         "document": "上传文档（模型不支持图片）",
+        "document_only": "仅文档",
+        "image_not_supported": "当前模型不支持图片上传，仅可上传文档",
         "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
@@ -1656,10 +1691,10 @@
       "claude_code": "Anthropic 官方 CLI 编程助手",
       "gemini_cli": "Google Gemini 命令行助手",
       "github_copilot_cli": "GitHub Copilot 命令行版本",
-      "iflow_cli": "iFlow 推出的多模型 CLI 助手",
       "kimi_cli": "Moonshot Kimi 命令行助手",
       "openai_codex": "OpenAI 官方代码生成 CLI",
       "opencode": "开源社区的多模型代码 Agent",
+      "qoder_cli": "阿里 Qoder 的智能体命令行编程工具",
       "qwen_code": "阿里通义出品的开源 CLI 编程工具"
     },
     "update_options": "更新选项",
@@ -1726,6 +1761,7 @@
     "clear_all": "清除全部",
     "click_to_replace": "点击替换",
     "close": "关闭",
+    "close_sidebar": "关闭侧栏",
     "collapse": "折叠",
     "completed": "完成",
     "confirm": "确认",
@@ -1776,6 +1812,8 @@
     "knowledge_base": "知识库",
     "language": "语言",
     "loading": "加载中...",
+    "maximize": "最大化",
+    "minimize": "最小化",
     "model": "模型",
     "models": "模型",
     "more": "更多",
@@ -1788,6 +1826,7 @@
     "on": "启用",
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
+    "open_sidebar": "打开侧栏",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -1807,6 +1846,7 @@
     "rename": "重命名",
     "required_field": "必填字段",
     "reset": "重置",
+    "resize_panel": "调整面板宽度",
     "retry": "重试",
     "save": "保存",
     "save_failed": "保存失败",
@@ -2147,13 +2187,13 @@
         "view_chunks": "查看 Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "将递归导入文件夹中的支持文件",
-          "title": "点击选择文件夹"
+        "conflict_dialog": {
+          "description": "有 {{count}} 个数据源与知识库中已存在的项目同名，请选择处理方式。",
+          "keep_all": "全部保留",
+          "replace": "替换",
+          "title": "存在同名数据源"
         },
         "footer": {
-          "selected_directories": "已选 {{count}} 个目录",
-          "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
@@ -2177,6 +2217,8 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "too_many_sources": "单次最多添加 {{count}} 个数据源，请减少选择后重试",
+        "unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
         "url": {
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
@@ -2186,10 +2228,10 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
+        "loaded_only_hint": "仅作用于已加载项，共 {{total}} 项",
         "reindex": "重新索引",
         "selected_count": "已选 {{count}} 项"
       },
@@ -2219,11 +2261,14 @@
         "note": "笔记",
         "url": "链接"
       },
+      "list": {
+        "end_reached": "没有更多了",
+        "loading_more": "加载更多…"
+      },
       "preview": {
         "failed": "预览原文失败",
         "unavailable": "当前数据源没有可预览的原文"
       },
-      "ready_summary": "{{ready}}/{{total}} 就绪",
       "reindex_failed": "数据源重新索引失败",
       "status": {
         "chunking": "分块中",
@@ -2233,6 +2278,7 @@
         "ready": "就绪"
       },
       "table": {
+        "aria_label": "数据源列表",
         "columns": {
           "actions": "操作",
           "name": "名称",
@@ -2241,30 +2287,30 @@
           "updated_at": "更新时间"
         },
         "select_all": "全选",
-        "select_row": "选择行"
+        "select_row": "选择行",
+        "view_chunks_row": "查看「{{title}}」的 Chunks"
       },
       "toolbar": {
-        "add": "添加数据源",
-        "no_search_results": "未找到匹配的数据源",
-        "search_placeholder": "搜索数据源"
+        "add": "添加数据源"
       }
     },
     "dimensions_auto_set": "自动设置嵌入维度",
     "dimensions_size_placeholder": "留空表示不设置",
-    "drag_file": "拖拽文件到这里",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知识库删除失败",
       "failed_to_edit": "知识库编辑失败",
       "failed_to_move": "知识库移动失败",
+      "indexing_interrupted": "索引因应用关闭而中断，请重新索引以完成。",
       "missing_embedding_model": "迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。",
+      "missing_vector_store": "迁移时未能读取该知识库的向量库（缺失、为空或被占用），知识库已保留，请重新索引以恢复。",
       "model_invalid": "未选择模型"
     },
-    "file_hint": "支持 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -2362,6 +2408,8 @@
       "action": "重建知识库",
       "default_name": "{{name}}_副本",
       "failed_to_restore": "知识库重建失败",
+      "skipped_missing_sources_one": "已跳过 {{count}} 个源已丢失的项目",
+      "skipped_missing_sources_other": "已跳过 {{count}} 个源已丢失的项目",
       "submit": "重建",
       "title": "重建知识库"
     },
@@ -2409,7 +2457,9 @@
   "launchpad": {
     "apps": "应用",
     "minapps": "小程序",
-    "miniApps": "小程序"
+    "miniApps": "小程序",
+    "pin_to_sidebar": "固定到侧边栏",
+    "unpin_from_sidebar": "取消固定"
   },
   "library": {
     "action": {
@@ -2996,6 +3046,7 @@
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
         "no_content": "无可导出到 Notion 的内容"
       },
+      "operation_unavailable": "当前消息操作不可用，请重试。",
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
@@ -3403,6 +3454,12 @@
       "placeholder": "搜索模型...",
       "tooltip": "搜索模型"
     },
+    "selection": {
+      "context_window": "上下文 {{count}}",
+      "remove_model": "移除 {{name}}",
+      "restore_default": "恢复助手模型",
+      "selected_models": "已选模型"
+    },
     "stream_output": "流式输出",
     "type": {
       "audio": "音频",
@@ -3576,28 +3633,7 @@
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
   },
   "ocr": {
-    "builtin": {
-      "system": "系统 OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "不能删除内置提供商",
-        "existing": "提供商已存在",
-        "get_providers": "获取可用提供商失败",
-        "not_found": "OCR 提供商不存在",
-        "update_failed": "更新配置失败"
-      },
-      "unknown": "OCR 过程发生错误"
-    },
-    "file": {
-      "not_supported": "不支持的文件类型 {{type}}"
-    },
-    "processing": "OCR 处理中...",
-    "warning": {
-      "provider": {
-        "fallback": "已回退到 {{name}}，这可能导致问题"
-      }
-    }
+    "processing": "OCR 处理中..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -4765,117 +4801,6 @@
       "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
       "title": "频道"
     },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "清空",
-        "configDescription": "调整 props 预览组件行为",
-        "configTitle": "配置",
-        "currentProps": "当前 props",
-        "description": "AgentSelector 现在会读取真实 /agents DataApi 数据，用于验证 id/item 选择、pin、排序与搜索行为。",
-        "emptyShellNotice": "当前预览使用 /agents DataApi 返回的真实智能体列表。",
-        "lastOnChange": "最近一次 onChange",
-        "previewDescription": "点击 trigger 打开选择器",
-        "previewTitle": "预览",
-        "title": "智能体选择器",
-        "triggerPlaceholder": "选择智能体",
-        "valueProp": "当前 value"
-      },
-      "agentTodoList": {
-        "title": "Agent 任务列表"
-      },
-      "assistantSelector": {
-        "clearSelection": "清空",
-        "configDescription": "调整 props 预览组件行为",
-        "configTitle": "配置",
-        "currentProps": "当前 props",
-        "description": "直接挂载 AssistantSelector 业务组件，验证 multi/single、id/item、pin、排序与搜索行为。",
-        "lastOnChange": "最近一次 onChange",
-        "previewDescription": "点击 trigger 打开选择器",
-        "previewTitle": "预览",
-        "title": "助手选择器",
-        "triggerPlaceholder": "选择助手",
-        "triggerSelectedCount": "已选 {{count}} 个助手",
-        "valueProp": "当前 value"
-      },
-      "description": "仅在开发环境显示，用于在应用内直接联调 v2 选择器等新组件。",
-      "fileProcessing": {
-        "artifact": {
-          "file": "Markdown 文件",
-          "text": "文本结果"
-        },
-        "description": "通过真实 file processing IPC 运行所有已配置的文件处理器，并对比结果。",
-        "duration": "{{seconds}} 秒",
-        "jobId": "Job ID",
-        "markdown": {
-          "description": "选择文档，并运行所有文档转 Markdown 处理器。",
-          "fileFilterName": "文档",
-          "noFile": "未选择文档",
-          "select": "选择文档",
-          "start": "测试 Markdown",
-          "title": "Markdown"
-        },
-        "noProcessors": "没有处理器支持这个能力。",
-        "ocr": {
-          "description": "选择图片，并运行所有 OCR 处理器。",
-          "fileFilterName": "图片",
-          "noFile": "未选择图片",
-          "select": "选择图片",
-          "start": "测试 OCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} 个处理器",
-        "status": {
-          "cancelled": "已取消",
-          "completed": "已完成",
-          "delayed": "已延迟",
-          "failed": "失败",
-          "idle": "空闲",
-          "pending": "等待中",
-          "processing": "处理中",
-          "running": "运行中",
-          "starting": "启动中"
-        },
-        "title": "文档解析"
-      },
-      "label": "组件测试",
-      "modelSelector": {
-        "behaviorConfig": "交互与展示配置",
-        "callbackEmpty": "还没有收到组件回调",
-        "clearSelection": "清空选择",
-        "configDescription": "上方切换 ModelSelector 的关键 props，下方直接查看传入值与回调返回值。",
-        "configTitle": "Props Playground",
-        "controlMultiSelectMode": "受控 multiSelectMode",
-        "currentProps": "当前 props",
-        "defaultMultiSelectMode": "defaultMultiSelectMode",
-        "description": "这里直接挂载当前的 ModelSelector 业务组件，方便验证选择、筛选、搜索和置顶能力。",
-        "empty": "当前没有可用模型，暂时无法展示选择器。",
-        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
-        "lastSelectReturn": "最近一次 onSelect 返回",
-        "loading": "正在加载模型...",
-        "modelId": "模型 ID",
-        "multiSelectMode": "multiSelectMode",
-        "multiple": "multiple",
-        "normalizedIds": "归一化选中 ID",
-        "outputEmpty": "当前没有可展示的数据",
-        "provider": "服务商",
-        "resetOutputs": "重置输出",
-        "resultsDescription": "这里会显示组件当前接收的 value、内部归一化后的选中状态，以及最新一次回调输出。",
-        "resultsTitle": "返回数据与状态",
-        "selected": "当前选择",
-        "selectedEmpty": "尚未选择模型",
-        "selectionConfig": "选择值配置",
-        "selectionType": "selectionType",
-        "selectionTypeId": "返回模型 ID",
-        "selectionTypeModel": "返回模型对象",
-        "showPinnedModels": "showPinnedModels",
-        "showTagFilter": "showTagFilter",
-        "title": "模型选择组件",
-        "triggerPlaceholder": "选择一个模型",
-        "triggerSelectedCount": "已选 {{count}} 个模型",
-        "valueProp": "当前传入 value"
-      },
-      "title": "开发环境组件测试"
-    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
@@ -5571,7 +5496,19 @@
         "title": "数据备份与恢复"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "原生",
+            "restart": {
+              "content": "更改菜单样式需要重启应用才能生效，是否现在重启？",
+              "title": "需要重启应用"
+            },
+            "title": "右键菜单样式"
+          }
+        },
         "sections": {
+          "chat_settings": "对话设置",
           "custom_css": "自定义 CSS",
           "display_language": "显示与语言",
           "privacy_advanced": "隐私与高级",
@@ -6060,6 +5997,7 @@
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
       "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
+      "hide_app": "隐藏 {{name}}",
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
@@ -6071,6 +6009,7 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "show_app": "显示 {{name}}",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",
       "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
@@ -6371,7 +6310,8 @@
       "add": {
         "name": {
           "label": "提供商名称",
-          "placeholder": "例如 OpenAI"
+          "placeholder": "例如 OpenAI",
+          "required": "请输入提供商名称"
         },
         "title": "添加提供商",
         "type": "提供商类型"
@@ -6482,7 +6422,8 @@
       "balance": "余额",
       "base_url": {
         "label": "Base URL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "请输入 Base URL"
       },
       "basic_auth": {
         "label": "HTTP 认证",
@@ -6703,6 +6644,14 @@
       "close": "关闭",
       "confirm": "确认",
       "forward": "前进",
+      "mcp": {
+        "agentEmpty": "当前智能体未配置 MCP 服务器",
+        "assistantEmpty": "当前助手未配置 MCP 服务器",
+        "autoEmpty": "暂无已启用的 MCP 服务器",
+        "description": "查看当前 MCP 服务器状态",
+        "disabled": "当前助手已禁用 MCP",
+        "unknownServer": "未知 MCP 服务器"
+      },
       "multiple": "多选",
       "noResult": "未找到结果",
       "page": "翻页",
@@ -6746,6 +6695,7 @@
       },
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
+      "close_tab": "关闭标签页",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "复制上一条消息",
       "edit_last_user_message": "编辑最后一条用户消息",
@@ -6753,8 +6703,11 @@
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
+      "move_tab_to_first": "将标签页移到最左",
       "new_topic": "新建话题",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
+      "open_tab_in_new_window": "在新窗口中打开标签页",
+      "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
@@ -6845,10 +6798,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文档处理"
+            "title": "文档处理",
+            "tooltip": "用于知识库解析文档"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用于识别图片内文字内容"
           }
         },
         "fields": {
@@ -7062,10 +7017,16 @@
       "title": "缩放"
     }
   },
+  "subWindow": {
+    "back_to_main": "回到主窗口",
+    "pin": "窗口置顶",
+    "unpin": "取消置顶"
+  },
   "tab": {
     "close": "关闭标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
+    "open_in_new_window": "从新窗口打开",
     "pin": "固定标签页",
     "unpin": "取消固定"
   },
@@ -7189,6 +7150,7 @@
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
+      "ocr_completed": "图片 OCR 完成",
       "reading": "读取文件内容中...",
       "upload": "拖入或点击上传图片/文档"
     },

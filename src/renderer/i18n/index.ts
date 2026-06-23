@@ -12,7 +12,7 @@ import 'dayjs/locale/zh-tw'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultLanguage } from '@shared/utils/languages'
 import dayjs from 'dayjs'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'

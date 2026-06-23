@@ -15,6 +15,8 @@
  */
 import {
   getThinkModelType,
+  isFunctionCallingModel,
+  isOpenRouterBuiltInWebSearchModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel,
@@ -27,6 +29,14 @@ import type { Model } from '@shared/data/types/model'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string
+}
+
+export function hasModelBuiltinWebSearch(model: Model): boolean {
+  return isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel(model)
+}
+
+export function canModelUseAssistantWebSearch(model: Model): boolean {
+  return hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
 }
 
 export function reconcileReasoningEffortForModel(
@@ -68,6 +78,11 @@ export function reconcileWebSearchForModel(
   current: Pick<AssistantSettings, 'enableWebSearch'>
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
+  // Live shared path keeps v1 behavior: only models with built-in web search
+  // retain an already-on toggle. The broader `canModelUseAssistantWebSearch`
+  // (function-calling models) is the v2 composer's own rule (WebSearchButton /
+  // ChatComposer) and takes effect at the pages switchover, not here — so this
+  // carve stays a no-op for live v1.
   if (isWebSearchModel(nextModel)) return null
   return { enableWebSearch: false }
 }

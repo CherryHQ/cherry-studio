@@ -247,6 +247,28 @@ describe('useUpdateSession', () => {
     expect(updated).toBeUndefined()
   })
 
+  it('updates when called with no agentId (composer path) — only an explicit null gates', async () => {
+    const mockResult = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'New name',
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    const mockTrigger = vi.fn().mockResolvedValue(mockResult)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
+
+    const { result } = renderHook(() => useUpdateSession())
+    const updated = await act(async () => result.current.updateSession({ id: 'session-1', name: 'New name' }))
+
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { sessionId: 'session-1' },
+      body: { name: 'New name' }
+    })
+    expect(updated).toEqual(mockResult)
+  })
+
   it('calls updateTrigger with sessionId-only params and returns session', async () => {
     const mockResult = {
       id: 'session-1',

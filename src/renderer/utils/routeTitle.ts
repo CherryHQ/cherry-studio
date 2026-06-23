@@ -7,12 +7,11 @@ const BASE_URL = 'https://www.cherry-ai.com/'
  * Route to i18n key mapping for default tab titles
  */
 const routeTitleKeys: Record<string, string> = {
-  '/': 'title.home',
-  '/home': 'title.home',
-  '/app/chat': 'common.chat',
-  '/app/agents': 'common.agent_one',
+  '/app/chat': 'agent.session.group.conversation',
+  '/app/agents': 'agent.sidebar_title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
+  '/app/launchpad': 'title.launchpad',
   '/app/mini-app': 'title.apps',
   '/app/knowledge': 'title.knowledge',
   '/app/library': 'library.title',
@@ -52,7 +51,7 @@ function getBasePath(pathname: string): string {
  *
  * @example
  * getDefaultRouteTitle('/settings') // '设置'
- * getDefaultRouteTitle('/app/chat/abc123') // '助手'
+ * getDefaultRouteTitle('/app/chat/abc123') // '对话'
  * getDefaultRouteTitle('/unknown') // 'unknown'
  */
 export function getDefaultRouteTitle(url: string): string {
@@ -92,8 +91,21 @@ export function getRouteTitleKey(url: string): string | undefined {
  * segments). Used to decide whether a tab title should be auto-localized.
  */
 export function isTopLevelRoute(url: string): boolean {
+  const parsedUrl = new URL(url, BASE_URL)
+  return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
+}
+
+/**
+ * Routes whose tab title + icon are owned by the PAGE (the active topic /
+ * session name and its assistant / agent emoji), not derived from the route.
+ * Callers that auto-relabel tabs from the route (route localization, url-sync)
+ * must skip these, or they clobber the page-set title/icon.
+ */
+const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
+
+export function isPageTitledRoute(url: string): boolean {
   const pathname = new URL(url, BASE_URL).pathname
-  return routeTitleKeys[pathname] !== undefined
+  return PAGE_TITLED_ROUTE_BASE_PATHS.has(getBasePath(pathname))
 }
 
 /**

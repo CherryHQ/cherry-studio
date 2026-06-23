@@ -1,125 +1,138 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type * as RouteTitle from '@renderer/utils/routeTitle'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { useEffect, useRef } from 'react'
+import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { languageState, translate } = vi.hoisted(() => {
-  const translations: Record<string, Record<string, string>> = {
-    'en-US': {
-      'title.home': 'Home',
-      'title.paintings': 'Paintings'
-    },
-    'zh-CN': {
-      'title.home': '首页',
-      'title.paintings': '绘画'
-    }
-  }
+let currentLanguage = 'en'
 
+const PINNED_FILES_TAB: Tab = {
+  id: 'files',
+  type: 'route',
+  url: '/app/files',
+  title: 'Files',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
+// Stable reference: re-renders are then driven only by the i18n.language change,
+// not by a fresh pinnedTabs identity — which is what makes the test catch a dropped
+// i18n.language dependency in the tabs useMemo.
+const STABLE_PINNED: [Tab[], () => void] = [[PINNED_FILES_TAB], vi.fn()]
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+  }
+}))
+
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  usePersistCache: () => STABLE_PINNED
+}))
+
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<typeof ReactI18next>()
   return {
-    languageState: { language: 'en-US' },
-    translate: (key: string) => translations[languageState.language]?.[key] ?? key
+    ...actual,
+    useTranslation: () => ({ t: (key: string) => key, i18n: { language: currentLanguage } })
   }
 })
 
-vi.mock('@renderer/i18n', () => ({
-  default: {
-    t: translate
+vi.mock('@renderer/utils/routeTitle', async () => {
+  const actual = await vi.importActual<typeof RouteTitle>('@renderer/utils/routeTitle')
+  const titles: Record<string, Record<string, string>> = {
+    '/app/agents': { en: 'Agent', zh: '代理' },
+    '/app/chat': { en: 'Chat', zh: '聊天' },
+    '/app/files': { en: 'Files', zh: '文件' }
   }
-}))
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: translate,
-    i18n: {
-      language: languageState.language
-    }
-  })
-}))
-
-vi.mock('@renderer/data/hooks/useCache', () => {
-  // Return stable references across renders. With a fresh [] every render the
-  // `tabs` useMemo would recompute unconditionally, masking whether
-  // `i18n.language` is actually wired into its dependency array — so the
-  // language-flip assertion below would pass even if the dep were dropped.
-  const pinnedTabs: unknown[] = []
-  const setPinnedTabs = vi.fn()
   return {
-    usePersistCache: () => [pinnedTabs, setPinnedTabs]
+    ...actual,
+    getDefaultRouteTitle: (url: string) => titles[url]?.[currentLanguage] ?? url
   }
 })
 
 import { TabsProvider, useTabsContext } from '../TabsContext'
 
-function TabsProbe() {
-  const { openTab, tabs } = useTabsContext()
-  const homeTab = tabs.find((tab) => tab.id === 'home')
-  const paintingsTab = tabs.find((tab) => tab.id === 'paintings-tab')
-  const customTab = tabs.find((tab) => tab.id === 'mini-app-tab')
+function TabTitleWriter() {
+  const { tabs, updateTab } = useTabsContext()
+  const didUpdateRef = useRef(false)
 
-  return (
-    <>
-      <div data-testid="home-tab-title">{homeTab?.title}</div>
-      <div data-testid="paintings-tab-title">{paintingsTab?.title}</div>
-      <div data-testid="custom-tab-title">{customTab?.title}</div>
-      <button
-        type="button"
-        onClick={() =>
-          openTab('/app/paintings/zhipu', {
-            id: 'paintings-tab',
-            forceNew: true
-          })
-        }>
-        Open paintings tab
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          openTab('/app/mini-app/weather', {
-            id: 'mini-app-tab',
-            title: 'Weather App',
-            forceNew: true
-          })
-        }>
-        Open custom tab
-      </button>
-    </>
-  )
+  useEffect(() => {
+    if (didUpdateRef.current) return
+    didUpdateRef.current = true
+    updateTab('home', { title: 'Session title', icon: 'icon:spark' })
+  }, [updateTab])
+
+  return <div data-testid="home-title">{tabs.find((tab) => tab.id === 'home')?.title}</div>
 }
 
-describe('TabsContext language refresh', () => {
-  beforeEach(() => {
-    languageState.language = 'en-US'
-  })
+function PinnedRouteTitle() {
+  const { tabs } = useTabsContext()
+  return <div data-testid="files-title">{tabs.find((tab) => tab.id === 'files')?.title}</div>
+}
 
-  afterEach(() => {
-    cleanup()
-  })
+beforeEach(() => {
+  currentLanguage = 'en'
+})
 
-  it('refreshes localized route tab titles when the app language changes without replacing custom titles', () => {
-    const { rerender } = render(
-      <TabsProvider>
-        <TabsProbe />
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('TabsContext', () => {
+  it('preserves page-owned titles for the fixed home conversation tab', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/agents',
+          title: '',
+          lastAccessTime: Date.now(),
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <TabTitleWriter />
       </TabsProvider>
     )
 
-    expect(screen.getByTestId('home-tab-title')).toHaveTextContent('Home')
+    await waitFor(() => expect(screen.getByTestId('home-title')).toHaveTextContent('Session title'))
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open paintings tab' }))
-    expect(screen.getByTestId('paintings-tab-title')).toHaveTextContent('Paintings')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open custom tab' }))
-    expect(screen.getByTestId('custom-tab-title')).toHaveTextContent('Weather App')
-
-    languageState.language = 'zh-CN'
-    rerender(
-      <TabsProvider>
-        <TabsProbe />
+  it('refreshes localized route tab titles when the app language changes', async () => {
+    // A fresh element each render so React doesn't bail out on referential equality.
+    const renderUi = () => (
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <PinnedRouteTitle />
       </TabsProvider>
     )
+    const { rerender } = render(renderUi())
 
-    expect(screen.getByTestId('home-tab-title')).toHaveTextContent('首页')
-    expect(screen.getByTestId('paintings-tab-title')).toHaveTextContent('绘画')
-    expect(screen.getByTestId('custom-tab-title')).toHaveTextContent('Weather App')
+    await waitFor(() => expect(screen.getByTestId('files-title')).toHaveTextContent('Files'))
+
+    // Switch language and re-render: the tabs useMemo must recompute via its
+    // i18n.language dependency so the route-derived title re-localizes.
+    currentLanguage = 'zh'
+    rerender(renderUi())
+
+    await waitFor(() => expect(screen.getByTestId('files-title')).toHaveTextContent('文件'))
   })
 })

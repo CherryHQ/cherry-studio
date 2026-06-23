@@ -305,7 +305,7 @@ class PreferencesGenerator {
  * === AUTO-GENERATED CONTENT START ===
  */
 
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {

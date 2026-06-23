@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
@@ -407,9 +407,15 @@ class DashScopeTransport implements ImageGenerationTransport {
 
   async poll(
     taskId: string,
-    options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
+    options: { signal?: AbortSignal; onProgress?: (progress: number) => void; providerParams?: Record<string, unknown> }
   ): Promise<string[]> {
-    const descriptor = this.pendingDescriptors.get(taskId)
+    // On a cross-restart resume the in-memory descriptor is gone (the transport is
+    // rebuilt without the submit-time `pendingDescriptors` entry); fall back to the
+    // descriptor carried in `providerParams` (persisted in the job input) so the
+    // response family is still resolved correctly instead of defaulting to `results`.
+    const descriptor =
+      this.pendingDescriptors.get(taskId) ??
+      (options.providerParams?.modelDescriptor as DashScopeModelDescriptor | undefined)
     try {
       const result = await this.pollTaskResult(taskId, options)
       const family = descriptor ? responseFamilyFor(descriptor) : 'results'

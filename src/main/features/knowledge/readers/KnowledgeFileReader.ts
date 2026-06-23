@@ -1,9 +1,10 @@
 import { getFileExt } from '@main/utils/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
+import { HTMLReader } from '@vectorstores/readers/html'
 import { JSONReader } from '@vectorstores/readers/json'
 import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
@@ -25,9 +26,14 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
       return new DocxReader()
     case '.epub':
       return new EpubReader()
+    case '.html':
+    case '.htm':
+      return new HTMLReader()
     case '.json':
       return new JSONReader()
+    case '.markdown':
     case '.md':
+    case '.mdx':
       return new MarkdownReader()
     case '.draftsexport':
       return new DraftsExportReader()

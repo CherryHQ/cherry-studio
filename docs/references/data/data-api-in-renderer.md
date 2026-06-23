@@ -121,6 +121,10 @@ Each pagination hook constrains its path generic to the matching pagination
 shape: passing a cursor path to `usePaginatedQuery` or an offset path to
 `useInfiniteQuery` is a compile-time error, not a silent runtime hang.
 
+> For the full pagination model — when to choose offset vs cursor, the wire
+> contract, and the server-side implementation — see the
+> [Pagination Guide](./data-pagination-guide.md).
+
 ## Dynamic Paths
 
 Hooks accept either a **concrete path** (id already inlined, e.g. `/providers/abc123`) or a **template path** with `:placeholders` and a separate `params` option.

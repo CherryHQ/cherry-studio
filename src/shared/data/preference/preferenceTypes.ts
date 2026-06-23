@@ -1,5 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
-import type { ShortcutBinding } from '@shared/shortcuts/tokens'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -82,7 +82,7 @@ export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Comm
 
 export type AssistantTabSortType = 'tags' | 'list'
 
-export type SidebarIcon =
+export type SidebarFavorite =
   | 'assistants'
   | 'agents'
   | 'store'
@@ -94,6 +94,9 @@ export type SidebarIcon =
   | 'code_tools'
   | 'notes'
   | 'openclaw'
+
+/** @deprecated Legacy v1 Redux naming. Use SidebarFavorite for v2 sidebar preferences. */
+export type SidebarIcon = SidebarFavorite
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -235,14 +238,14 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/config/constant'
+import { codeCLI } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
   'qwen-code',
   'claude-code',
   'gemini-cli',
   'openai-codex',
-  'iflow-cli',
+  'qoder-cli',
   'github-copilot-cli',
   'kimi-cli',
   'opencode'

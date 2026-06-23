@@ -28,9 +28,6 @@ export const getItemTitle = (item: KnowledgeItem): string => {
   }
 }
 
-export const getReadyCount = (items: KnowledgeItem[]) =>
-  items.reduce((readyCount, item) => readyCount + (item.status === 'completed' ? 1 : 0), 0)
-
 export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: string): KnowledgeItemRowViewModel => {
   switch (item.type) {
     case 'file': {

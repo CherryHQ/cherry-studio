@@ -1,7 +1,7 @@
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import type { FileProcessingHandlerOutput } from '../processors/types'
 import type { FileProcessingJobPayload } from '../tasks/shared'

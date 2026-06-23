@@ -3,20 +3,25 @@
  *
  * Synthesise V1-shaped `MessageBlock`s from `Message.parts` so block-shape
  * consumers (export, knowledge analysis, etc.) keep their signatures. Pure
- * — no Redux, no DataApi. Parts are the single source of truth.
+ * — no Redux, no DataApi. The v1 message-blocks Redux slice is gone, parts
+ * are the single source of truth.
  */
 import type { FileMetadata } from '@renderer/types'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import type {
   CitationMessageBlock,
+  CodeMessageBlock,
+  ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
-  Message,
   MessageBlock,
-  ThinkingMessageBlock
+  ThinkingMessageBlock,
+  TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
 function syntheticBase(
@@ -31,13 +36,47 @@ function syntheticBase(
   }
 }
 
-function getParts(message: Message): CherryMessagePart[] {
+function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
+}
+
+function getDataPart<T>(part: CherryMessagePart): Partial<T> | undefined {
+  if ('data' in part && part.data && typeof part.data === 'object') {
+    return part.data as Partial<T>
+  }
+  return undefined
+}
+
+function formatCodePart(data: Partial<CodePartData> | undefined): string {
+  const content = data?.content ?? ''
+  if (!content.trim()) return ''
+  const language = data?.language ?? ''
+  return `\`\`\`${language}\n${content}\n\`\`\``
+}
+
+function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
+  if (!data) return ''
+  return [data.name, data.code, data.message].filter(Boolean).join('\n')
+}
+
+function getRenderableTextContent(part: CherryMessagePart): string {
+  switch (part.type) {
+    case 'text':
+      return part.text ?? ''
+    case 'data-code':
+      return formatCodePart(getDataPart<CodePartData>(part))
+    case 'data-translation':
+      return getDataPart<TranslationPartData>(part)?.content ?? ''
+    case 'data-error':
+      return formatErrorPart(getDataPart<ErrorPartData>(part))
+    default:
+      return ''
+  }
 }
 
 // ── Public API ───────────────────────────────────────────────────────
 
-export const findAllBlocks = (message: Message): MessageBlock[] => {
+export const findAllBlocks = (message: ExportableMessage): MessageBlock[] => {
   const parts = getParts(message)
   if (parts.length === 0) return []
   const out: MessageBlock[] = []
@@ -60,6 +99,43 @@ export const findAllBlocks = (message: Message): MessageBlock[] => {
           content: reasoningPart.text ?? '',
           thinking_millsec: readCherryMeta(reasoningPart)?.thinkingMs ?? 0
         } as ThinkingMessageBlock)
+        break
+      }
+      case 'data-code': {
+        const data = getDataPart<CodePartData>(part)
+        out.push({
+          ...base,
+          type: MessageBlockType.CODE,
+          content: data?.content ?? '',
+          language: data?.language ?? ''
+        } as CodeMessageBlock)
+        break
+      }
+      case 'data-error': {
+        const data = getDataPart<ErrorPartData>(part)
+        out.push({
+          ...base,
+          type: MessageBlockType.ERROR,
+          error: data
+            ? {
+                name: data.name ?? undefined,
+                message: data.message ?? data.code ?? 'Error occurred',
+                stack: data.stack ?? undefined
+              }
+            : undefined
+        } as ErrorMessageBlock)
+        break
+      }
+      case 'data-translation': {
+        const data = getDataPart<TranslationPartData>(part)
+        out.push({
+          ...base,
+          type: MessageBlockType.TRANSLATION,
+          content: data?.content ?? '',
+          sourceBlockId: data?.sourceBlockId,
+          sourceLanguage: data?.sourceLanguage,
+          targetLanguage: data?.targetLanguage ?? ''
+        } as TranslationMessageBlock)
         break
       }
       case 'file': {
@@ -96,7 +172,7 @@ export const findAllBlocks = (message: Message): MessageBlock[] => {
   return out
 }
 
-export const findMainTextBlocks = (message: Message): MainTextMessageBlock[] => {
+export const findMainTextBlocks = (message: ExportableMessage): MainTextMessageBlock[] => {
   const out: MainTextMessageBlock[] = []
   getParts(message).forEach((part, i) => {
     if (part.type !== 'text') return
@@ -109,7 +185,7 @@ export const findMainTextBlocks = (message: Message): MainTextMessageBlock[] => 
   return out
 }
 
-export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => {
+export const findThinkingBlocks = (message: ExportableMessage): ThinkingMessageBlock[] => {
   const out: ThinkingMessageBlock[] = []
   getParts(message).forEach((part, i) => {
     if (part.type !== 'reasoning') return
@@ -123,7 +199,7 @@ export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => 
   return out
 }
 
-export const findImageBlocks = (message: Message): ImageMessageBlock[] => {
+export const findImageBlocks = (message: ExportableMessage): ImageMessageBlock[] => {
   const out: ImageMessageBlock[] = []
   getParts(message).forEach((part, i) => {
     if (part.type !== 'file') return
@@ -141,7 +217,7 @@ export const findImageBlocks = (message: Message): ImageMessageBlock[] => {
   return out
 }
 
-export const findFileBlocks = (message: Message): FileMessageBlock[] => {
+export const findFileBlocks = (message: ExportableMessage): FileMessageBlock[] => {
   const out: FileMessageBlock[] = []
   getParts(message).forEach((part, i) => {
     if (part.type !== 'file') return
@@ -157,15 +233,32 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
   return out
 }
 
-export const getMainTextContent = (message: Message): string => {
+// Auxiliary part types whose text belongs in a full export but must NOT steer
+// the topic-naming / summary prompt — error dumps and raw translations would
+// pollute the generated title.
+const NAMING_EXCLUDED_PART_TYPES = new Set<CherryMessagePart['type']>(['data-error', 'data-translation'])
+
+function collectText(message: ExportableMessage, excludedTypes?: ReadonlySet<CherryMessagePart['type']>): string {
   return getParts(message)
-    .filter((p): p is Extract<CherryMessagePart, { type: 'text' }> => p.type === 'text')
-    .map((p) => p.text ?? '')
+    .filter((part) => !excludedTypes?.has(part.type))
+    .map(getRenderableTextContent)
     .filter((t) => t.trim().length > 0)
     .join('\n\n')
 }
 
-export const getThinkingContent = (message: Message): string => {
+export const getMainTextContent = (message: ExportableMessage): string => collectText(message)
+
+/**
+ * Clean plain text for paths that want the answer only — topic-naming / summary
+ * prompts and copy-to-clipboard. Same as `getMainTextContent` but drops
+ * `data-error` / `data-translation` parts, so error dumps and translations don't
+ * reach the naming model or the clipboard. Full-fidelity **export** keeps
+ * `getMainTextContent` (both kinds included).
+ */
+export const getNamingTextContent = (message: ExportableMessage): string =>
+  collectText(message, NAMING_EXCLUDED_PART_TYPES)
+
+export const getThinkingContent = (message: ExportableMessage): string => {
   return getParts(message)
     .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
     .map((p) => p.text ?? '')
@@ -173,7 +266,7 @@ export const getThinkingContent = (message: Message): string => {
     .join('\n\n')
 }
 
-export const getCitationContent = (message: Message): string => {
+export const getCitationContent = (message: ExportableMessage): string => {
   // V2 stores citations on text parts via `providerMetadata.cherry.references`
   // (not as separate `data-citation` parts). Walk text parts and format each
   // citation-category reference into `[N] [title](url)` — same shape v1's
@@ -199,7 +292,7 @@ export const getCitationContent = (message: Message): string => {
   return lines.join('\n\n')
 }
 
-export const getFileContent = (message: Message): FileMetadata[] => {
+export const getFileContent = (message: ExportableMessage): FileMetadata[] => {
   const files: FileMetadata[] = []
   for (const block of findFileBlocks(message)) {
     if (block.file) files.push(block.file)

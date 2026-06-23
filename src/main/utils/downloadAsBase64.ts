@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { MB } from '@shared/config/constant'
+import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('downloadAsBase64')

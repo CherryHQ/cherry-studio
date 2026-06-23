@@ -224,6 +224,30 @@ describe('resolveUserDataLocation', () => {
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
+    it('app.isPackaged=false: appends configured dev suffix', async () => {
+      vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', 'DevQuito')
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubBootConfig()
+      stubFs()
+      const { resolveUserDataLocation } = await loadModule()
+      resolveUserDataLocation()
+      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDevQuito')
+      expect(setPathMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('app.isPackaged=false: blank configured dev suffix falls back to Dev', async () => {
+      vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', '   ')
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubBootConfig()
+      stubFs()
+      const { resolveUserDataLocation } = await loadModule()
+      resolveUserDataLocation()
+      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDev')
+      expect(setPathMock).toHaveBeenCalledTimes(1)
+    })
+
     it('BootConfig has matching exe with valid path: setPath called with that path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })

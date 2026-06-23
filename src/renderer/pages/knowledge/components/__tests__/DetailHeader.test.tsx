@@ -1,4 +1,3 @@
-import type * as KnowledgeV2Utils from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -6,14 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DetailHeader from '../DetailHeader'
 
-vi.mock('@renderer/pages/knowledge/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof KnowledgeV2Utils>()
-
-  return {
-    ...actual,
-    formatRelativeTime: () => '2小时前'
-  }
-})
+vi.mock('@renderer/utils/time', () => ({
+  formatRelativeTime: () => '2小时前'
+}))
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
@@ -115,25 +109,7 @@ vi.mock('@cherrystudio/ui', async () => {
           {children}
         </button>
       )
-    },
-    SearchInput: ({
-      clearLabel,
-      onClear,
-      ...props
-    }: {
-      clearLabel?: string
-      onClear?: () => void
-      [key: string]: unknown
-    }) => (
-      <div>
-        <input type="search" {...props} />
-        {onClear ? (
-          <button type="button" aria-label={clearLabel} onClick={onClear}>
-            {clearLabel}
-          </button>
-        ) : null}
-      </div>
-    )
+    }
   }
 })
 
@@ -158,7 +134,6 @@ vi.mock('react-i18next', () => ({
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge.meta.data_sources_count': `${options?.count ?? 0} 数据源`,
           'knowledge.meta.updated_at': `更新于 ${options?.time ?? ''}`,
-          'knowledge.data_source.toolbar.search_placeholder': '搜索数据源',
           'knowledge.restore.action': '重建知识库',
           'knowledge.status.completed': '就绪',
           'knowledge.status.failed': '失败',
@@ -190,11 +165,10 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('renders the current selected base item count and completed status', () => {
+  it('renders the base name and completed status', () => {
     const { container } = render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={3}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -202,8 +176,6 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.getByText('3 数据源')).toBeInTheDocument()
-    expect(screen.getByText('更新于 2小时前')).toBeInTheDocument()
     expect(screen.getByText('就绪')).toBeInTheDocument()
     expect(screen.getByText('就绪')).toHaveClass('bg-success/10', 'text-success')
     expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
@@ -217,7 +189,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -238,7 +209,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: null })}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -258,7 +228,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={onOpenRagConfig}
         onOpenRecallTest={onOpenRecallTest}
         onRenameBase={vi.fn()}
@@ -272,37 +241,13 @@ describe('DetailHeader', () => {
     expect(onOpenRagConfig).toHaveBeenCalledOnce()
     expect(onOpenRecallTest).toHaveBeenCalledOnce()
     expect(screen.queryByText('RAG 配置')).not.toBeInTheDocument()
-    expect(screen.queryByText('召回测试')).not.toBeInTheDocument()
-  })
-
-  it('expands the top-right search button into an inline data source search field', () => {
-    const onSearchChange = vi.fn()
-
-    render(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        itemCount={1}
-        searchQuery=""
-        onSearchChange={onSearchChange}
-        onOpenRagConfig={vi.fn()}
-        onOpenRecallTest={vi.fn()}
-        onRenameBase={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: '搜索数据源' }))
-    fireEvent.change(screen.getByPlaceholderText('搜索数据源'), { target: { value: '报告' } })
-
-    expect(screen.getByPlaceholderText('搜索数据源')).toBeInTheDocument()
-    expect(onSearchChange).toHaveBeenCalledWith('报告')
+    expect(screen.getByText('召回测试')).toBeInTheDocument()
   })
 
   it('opens the more menu and shows rename and delete actions', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -322,7 +267,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={onRenameBase}
@@ -345,7 +289,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}

@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-syntax */
-import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
+import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
 
 // check if the current process is a worker
 const IS_WORKER = typeof window === 'undefined'

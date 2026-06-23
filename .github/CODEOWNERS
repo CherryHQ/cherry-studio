@@ -1,18 +1,22 @@
-/src/renderer/store/ @0xfullex @DeJeune
-/src/renderer/databases/ @0xfullex @DeJeune
-/src/main/services/ConfigManager.ts @0xfullex @DeJeune
-/src/shared/IpcChannel.ts @0xfullex @DeJeune
-/src/main/ipc.ts @0xfullex @DeJeune
-
 /migrations/ @0xfullex
 /src/main/core/ @0xfullex
-/src/shared/data/ @0xfullex
 /src/main/data/ @0xfullex
+/src/main/ipc/ @0xfullex
 /src/renderer/data/ @0xfullex
-/src/renderer/core/ @0xfullex
 /src/preload/ @0xfullex
 /v2-refactor-temp/ @0xfullex
 /docs/references/data/ @0xfullex
-/packages/ui/ @MyPrototypeWhat
+/docs/references/naming-conventions.md @0xfullex
+/docs/references/lifecycle/ @0xfullex
+/src/shared/data/ @0xfullex
+/src/shared/ipc/ @0xfullex
+/CLAUDE.md @0xfullex
 
+/src/main/ai/ @DeJeune
+/docs/references/ai/ @DeJeune
+/src/shared/ai/ @DeJeune
+/src/main/features/fileProcessing/ @eeeee0717
+/src/main/features/knowledge/ @eeeee0717
+
+/packages/ui/ @kangfenmao
 /app-upgrade-config.json @kangfenmao

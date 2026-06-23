@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
-import { createFileItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createFileItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
 
@@ -32,9 +33,6 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <span {...props}>{children}</span>
-    ),
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button {...props}>{children}</button>
     ),
@@ -53,32 +51,6 @@ vi.mock('@cherrystudio/ui', async () => {
         checked={checked === true}
         onChange={(event) => onCheckedChange?.(event.target.checked)}
       />
-    ),
-    TableRow: ({
-      children,
-      onClick,
-      ...props
-    }: {
-      children: ReactNode
-      onClick?: (event: React.MouseEvent) => void
-      [key: string]: unknown
-    }) => (
-      <tr onClick={onClick} {...props}>
-        {children}
-      </tr>
-    ),
-    TableCell: ({
-      children,
-      onClick,
-      ...props
-    }: {
-      children: ReactNode
-      onClick?: (event: React.MouseEvent) => void
-      [key: string]: unknown
-    }) => (
-      <td onClick={onClick} {...props}>
-        {children}
-      </td>
     ),
     MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
       <button {...props}>
@@ -151,6 +123,7 @@ vi.mock('react-i18next', () => ({
         ({
           'knowledge.data_source.status.ready': '就绪',
           'knowledge.data_source.status.error': '失败',
+          'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
           'knowledge.data_source.status.embedding': '向量化中',
           'knowledge.data_source.status.chunking': '分块中',
           'knowledge.data_source.status.pending': '等待中',
@@ -166,6 +139,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.filters.directory': '目录',
           'knowledge.data_source.filters.url': '链接',
           'knowledge.data_source.table.select_row': '选择行',
+          'knowledge.data_source.table.view_chunks_row': '查看 Chunks 行',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'
         }) as Record<string, string>
@@ -198,13 +172,12 @@ describe('KnowledgeItemRow', () => {
     })
   })
 
-  it('renders the file suffix and meta parts from the knowledge item path', () => {
+  it('renders the file title from the knowledge item path', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', originName: 'old-name.md' })} {...defaultHandlers} />)
 
     expect(screen.getByText('old-name.md')).toBeInTheDocument()
-    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('文件')).toBeInTheDocument()
-    expect(screen.getAllByText('刚刚')).toHaveLength(2)
+    expect(screen.getByText('刚刚')).toBeInTheDocument()
     expect(mockUseQuery).not.toHaveBeenCalledWith('/files/entries/:id', expect.anything())
   })
 
@@ -214,7 +187,6 @@ describe('KnowledgeItemRow', () => {
     )
 
     expect(screen.getByText('fallback.md')).toBeInTheDocument()
-    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('文件')).toBeInTheDocument()
   })
 
@@ -229,6 +201,28 @@ describe('KnowledgeItemRow', () => {
 
     expect(screen.getByText('失败')).toBeInTheDocument()
     expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
+  })
+
+  it('renders a not-migrated directory as a red failure, reindexable but not chunk-viewable', () => {
+    render(
+      <KnowledgeItemRow
+        item={createDirectoryItem({
+          id: 'directory-1',
+          status: 'failed',
+          error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+        })}
+        {...defaultHandlers}
+      />
+    )
+
+    // Red failure label with the localized migration-failed tooltip.
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
+
+    // Re-indexing restores the index, but there are no chunks to view yet.
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
   })
 
   it('renders the processing status label for in-flight items', () => {
@@ -265,6 +259,71 @@ describe('KnowledgeItemRow', () => {
     )
 
     fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('exposes a completed row as a focusable element with an accessible name', () => {
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+      />
+    )
+
+    const row = screen.getByRole('row', { name: '查看 Chunks 行' })
+
+    expect(row).toHaveAttribute('tabindex', '0')
+  })
+
+  it.each(['Enter', ' '])('calls onClick when %s is pressed on a completed row', (key) => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    fireEvent.keyDown(screen.getByRole('row'), { key })
+
+    expect(handleClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onClick when a key bubbles up from a control inside the row', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    fireEvent.keyDown(screen.getByRole('checkbox', { name: '选择行' }), { key: 'Enter' })
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('is not keyboard-activatable for non-completed items', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status: 'processing' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    const row = screen.getByRole('row')
+
+    expect(row).not.toHaveAttribute('tabindex')
+
+    fireEvent.keyDown(row, { key: 'Enter' })
 
     expect(handleClick).not.toHaveBeenCalled()
   })

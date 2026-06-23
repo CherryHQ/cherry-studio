@@ -28,7 +28,7 @@ import type { Message, Topic as RendererTopic } from '@renderer/types'
 import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import { ErrorCode } from '@shared/data/api/apiErrors'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
-import type { BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
+import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -182,7 +182,7 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
     id: shared.id,
     assistantId,
     topicId: shared.topicId,
-    role: shared.role,
+    role: toContentRole(shared.role),
     status: shared.status as Message['status'],
     blocks: [],
     parts: shared.data?.parts ?? [],
@@ -363,12 +363,12 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
   const { topics: apiTopics, isLoading } = useAllTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useState<string | undefined>(
-    () => topic?.id ?? cacheService.get('topic.active')?.id
+    () => topic?.id ?? (cacheService.get('topic.active') as RendererTopic | null)?.id
   )
   // Holds the last Topic object passed to setActiveTopic, used as fallback when
   // the newly-added topic is not yet in `topics` (SWR still refetching).
   const [pendingTopic, setPendingTopic] = useState<RendererTopic | undefined>(
-    () => topic ?? cacheService.get('topic.active') ?? undefined
+    () => topic ?? (cacheService.get('topic.active') as RendererTopic | null) ?? undefined
   )
 
   useEffect(() => {

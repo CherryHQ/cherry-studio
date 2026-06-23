@@ -1,16 +1,16 @@
-import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Field, FieldError, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn, compressImage, convertToBase64, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
+import { cn, fileToAvatarDataUrl, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
 import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -40,6 +40,7 @@ const SECONDARY_ENDPOINT_LABELS: Array<{ type: EndpointType; labelKey: string }>
   { type: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, labelKey: 'settings.provider.more_endpoints.gemini' },
   { type: ENDPOINT_TYPE.OPENAI_RESPONSES, labelKey: 'settings.provider.more_endpoints.openai_responses' }
 ]
+
 function emptyAuthConfigFor(authType: AuthType): AuthConfig {
   switch (authType) {
     case 'iam-azure':
@@ -99,6 +100,8 @@ export default function ProviderEditorDrawer({
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [baseUrlTouched, setBaseUrlTouched] = useState(false)
   const previousOpenRef = useRef(false)
 
   const editingProvider = mode?.kind === 'edit' ? mode.provider : null
@@ -127,7 +130,9 @@ export default function ProviderEditorDrawer({
     }
 
     setName(editingProvider?.name ?? '')
+    setNameTouched(false)
     setBaseUrl('')
+    setBaseUrlTouched(false)
     setApiKey('')
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
@@ -162,15 +167,12 @@ export default function ProviderEditorDrawer({
     }
 
     try {
-      const processedFile = file.type === 'image/gif' ? file : await compressImage(file)
-      const encoded = await convertToBase64(processedFile)
-      if (typeof encoded === 'string') {
-        setLogo(encoded)
-        setLogoDirty(true)
-      }
+      const storedLogo = await fileToAvatarDataUrl(file)
+      setLogo(storedLogo)
+      setLogoDirty(true)
     } catch (error) {
-      // compressImage / convertToBase64 can reject on a corrupt or
-      // unsupported file — tell the user instead of silently doing nothing.
+      // fileToAvatarDataUrl can reject on a corrupt or unsupported file
+      // (compression or base64 encoding) — tell the user instead of silently doing nothing.
       logger.error('Failed to process uploaded provider logo', error as Error)
       window.toast.error(t('settings.provider.logo_upload_failed'))
     }
@@ -248,13 +250,17 @@ export default function ProviderEditorDrawer({
     throw new Error(`Unhandled provider editor mode kind: ${(_exhaustive as { kind: string }).kind}`)
   }
 
-  const submittable = (() => {
-    if (!name.trim() || !mode) return false
-    if (mode.kind === 'create-custom') return baseUrl.trim().length > 0
-    return true
-  })()
+  // Validation surfaces inline beneath each field (see showNameError /
+  // showBaseUrlError) rather than by disabling the button, so the button only
+  // gates on having an active mode and not already submitting.
+  const submittable = Boolean(mode)
+
+  const showNameError = nameTouched && !name.trim()
+  const showBaseUrlError = Boolean(urlForm?.requireBaseUrl) && baseUrlTouched && !baseUrl.trim()
 
   const handleSubmit = async () => {
+    setNameTouched(true)
+    setBaseUrlTouched(true)
     const payload = buildSubmit()
     if (!payload) return
 
@@ -325,7 +331,14 @@ export default function ProviderEditorDrawer({
           onLogoPickerOpenChange={setLogoPickerOpen}
         />
 
-        <NameField name={name} onNameChange={setName} onEnter={handleSubmit} disableEnter={isSubmitting} />
+        <NameField
+          name={name}
+          showError={showNameError}
+          onNameChange={setName}
+          onBlur={() => setNameTouched(true)}
+          onEnter={handleSubmit}
+          disableEnter={isSubmitting}
+        />
 
         {urlForm && (
           <>
@@ -335,6 +348,8 @@ export default function ProviderEditorDrawer({
               value={baseUrl}
               onChange={setBaseUrl}
               required={urlForm.requireBaseUrl}
+              error={showBaseUrlError ? t('settings.provider.base_url.required') : undefined}
+              onBlur={() => setBaseUrlTouched(true)}
             />
             <ApiKeyField value={apiKey} onChange={setApiKey} />
             <MoreEndpointsDisclosure
@@ -348,7 +363,7 @@ export default function ProviderEditorDrawer({
         )}
 
         {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-          <p className="text-(length:--font-size-body-xs) text-muted-foreground/80 leading-[1.4]">
+          <p className="text-muted-foreground/80 text-xs leading-[1.4]">
             {t('settings.provider.duplicate.fill_after_create')}
           </p>
         )}
@@ -362,7 +377,7 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const presetId = source.presetProviderId
   const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-(--section-border) bg-muted/40 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border-muted bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
       <span className="truncate text-foreground/85 text-sm">{label}</span>
     </div>
@@ -446,28 +461,44 @@ function AvatarSection({
 
 interface NameFieldProps {
   name: string
+  showError: boolean
   onNameChange: (value: string) => void
+  onBlur: () => void
   onEnter: () => void
   disableEnter: boolean
 }
 
-function NameField({ name, onNameChange, onEnter, disableEnter }: NameFieldProps) {
+function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnter }: NameFieldProps) {
   const { t } = useTranslation()
+  const uid = useId()
+  const inputId = `${uid}-name-input`
+  const errorId = `${uid}-name-error`
   return (
-    <div className="space-y-2">
-      <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.add.name.label')}</label>
+    <Field className="gap-2">
+      <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground/85">
+        {t('settings.provider.add.name.label')}
+      </FieldLabel>
       <Input
+        id={inputId}
         value={name}
         placeholder={t('settings.provider.add.name.placeholder')}
         maxLength={32}
+        aria-invalid={showError}
+        aria-describedby={showError ? errorId : undefined}
         onChange={(event) => onNameChange(event.target.value)}
+        onBlur={onBlur}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing && !disableEnter) {
             onEnter()
           }
         }}
       />
-    </div>
+      <FieldError
+        id={errorId}
+        className="text-xs"
+        errors={showError ? [{ message: t('settings.provider.add.name.required') }] : undefined}
+      />
+    </Field>
   )
 }
 
@@ -515,17 +546,30 @@ interface BaseUrlFieldProps {
   value: string
   onChange: (value: string) => void
   required?: boolean
+  error?: string
+  onBlur?: () => void
 }
 
-function BaseUrlField({ label, placeholder, value, onChange, required }: BaseUrlFieldProps) {
+function BaseUrlField({ label, placeholder, value, onChange, required, error, onBlur }: BaseUrlFieldProps) {
+  const uid = useId()
+  const inputId = `${uid}-url-input`
+  const errorId = `${uid}-url-error`
   return (
-    <div className="space-y-2">
-      <label className="font-medium text-[13px] text-foreground">
+    <Field className="gap-2">
+      <FieldLabel required={required} htmlFor={inputId} className="text-[13px] text-foreground">
         {label}
-        {required && <span className="ms-1 text-destructive/70">*</span>}
-      </label>
-      <Input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-    </div>
+      </FieldLabel>
+      <Input
+        id={inputId}
+        value={value}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+      />
+      <FieldError id={errorId} className="text-xs" errors={error ? [{ message: error }] : undefined} />
+    </Field>
   )
 }
 
@@ -560,7 +604,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           type="button"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-(--color-surface-fg-subtle) hover:text-foreground">
+          className="-translate-y-1/2 absolute top-1/2 right-2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground">
           {visible ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>

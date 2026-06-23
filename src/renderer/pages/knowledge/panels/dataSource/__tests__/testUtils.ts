@@ -1,4 +1,4 @@
-import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
 
 type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
   ? Pick<TItem, 'error' | 'status'>
@@ -27,11 +27,14 @@ const createLeafLifecycle = (status: KnowledgeItemOf<'file'>['status']): LeafKno
   }
 }
 
-const createContainerLifecycle = (status: KnowledgeItemOf<'directory'>['status']): ContainerKnowledgeItemLifecycle => {
+const createContainerLifecycle = (
+  status: KnowledgeItemOf<'directory'>['status'],
+  error = 'Indexing failed'
+): ContainerKnowledgeItemLifecycle => {
   if (status === 'failed') {
     return {
       status,
-      error: 'Indexing failed'
+      error
     }
   }
 
@@ -79,7 +82,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    relativePath: originName
+    relativePath: getKnowledgePathBasename(source)
   }
 })
 
@@ -108,18 +111,19 @@ export const createUrlItem = ({
 export const createDirectoryItem = ({
   id,
   source = `/Users/eeee/${id}`,
-  status = 'completed'
+  status = 'completed',
+  error
 }: {
   id: string
   source?: string
   status?: KnowledgeItemOf<'directory'>['status']
+  error?: string
 }): KnowledgeItemOf<'directory'> => ({
   ...baseFields,
-  ...createContainerLifecycle(status),
+  ...createContainerLifecycle(status, error),
   id,
   type: 'directory',
   data: {
-    source,
-    path: source
+    source
   }
 })

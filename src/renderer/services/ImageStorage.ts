@@ -11,9 +11,9 @@ export default class ImageStorage {
     const id = IMAGE_PREFIX + key
     try {
       if (typeof value === 'string') {
-        // string（emoji）
+        // Pre-encoded string value, such as an emoji or data URL.
         if (await db.settings.get(id)) {
-          void db.settings.update(id, { value })
+          await db.settings.update(id, { value })
           return
         }
         await db.settings.add({ id, value })
@@ -22,7 +22,7 @@ export default class ImageStorage {
         const base64Image = await convertToBase64(value)
         if (typeof base64Image === 'string') {
           if (await db.settings.get(id)) {
-            void db.settings.update(id, { value: base64Image })
+            await db.settings.update(id, { value: base64Image })
             return
           }
           await db.settings.add({ id, value: base64Image })
@@ -30,6 +30,7 @@ export default class ImageStorage {
       }
     } catch (error) {
       logger.error('Error storing the image', error as Error)
+      throw error
     }
   }
 

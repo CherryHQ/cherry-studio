@@ -6,6 +6,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+  CommandPopupMenu: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
@@ -21,6 +26,19 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   ConfirmDialog: () => null,
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onSelect, ...props }: { children: ReactNode; onSelect?: () => void }) => (
+    <button type="button" onClick={onSelect} {...props}>
+      {children}
+    </button>
+  ),
+  DropdownMenuLabel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuSub: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   MenuDivider: () => <hr />,
   MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
     <button type="button" {...props}>

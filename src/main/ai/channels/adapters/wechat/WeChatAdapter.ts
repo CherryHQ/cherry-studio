@@ -2,7 +2,7 @@ import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { IpcChannel } from '@shared/IpcChannel'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'

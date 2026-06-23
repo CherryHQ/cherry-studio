@@ -33,6 +33,21 @@ export const compressImage = async (file: File): Promise<File> => {
 }
 
 /**
+ * 将上传的头像图片转换为可直接存储/预览的 base64 data URL。
+ * GIF 原样保留以保留动画，其余压缩到头像尺寸。
+ * @param {File} file 用户上传的图片文件
+ * @returns {Promise<string>} base64 data URL
+ */
+export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
+  const processed = file.type === 'image/gif' ? file : await compressImage(file)
+  const base64 = await convertToBase64(processed)
+  if (typeof base64 !== 'string') {
+    throw new Error('Failed to encode avatar image')
+  }
+  return base64
+}
+
+/**
  * 捕获指定元素的图像数据。
  * @param elRef 元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
@@ -114,24 +129,25 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return true
       }
 
-      const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
-        htmlToImage
-          .toCanvas(el, {
-            filter: filterHiddenElements,
-            backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
-            cacheBust: true,
-            pixelRatio: window.devicePixelRatio,
-            skipAutoScale: true,
-            canvasWidth: el.scrollWidth,
-            canvasHeight: el.scrollHeight,
-            style: {
-              backgroundColor: getComputedStyle(el).backgroundColor,
-              color: getComputedStyle(el).color
-            }
-          })
-          .then((canvas) => resolve(canvas))
-          .catch((error) => reject(error))
-      })
+      const captureOptions = {
+        filter: filterHiddenElements,
+        backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
+        cacheBust: true,
+        pixelRatio: window.devicePixelRatio,
+        skipAutoScale: true,
+        canvasWidth: el.scrollWidth,
+        canvasHeight: el.scrollHeight,
+        style: {
+          backgroundColor: getComputedStyle(el).backgroundColor,
+          color: getComputedStyle(el).color
+        }
+      }
+
+      // Warm up html-to-image resource caches before taking the final canvas.
+      const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
+      warmupCanvas.width = 0
+      warmupCanvas.height = 0
+      const canvas = await htmlToImage.toCanvas(el, captureOptions)
 
       // Restore original styles
       el.style.height = originalStyle.height
