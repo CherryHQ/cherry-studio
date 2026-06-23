@@ -16,7 +16,6 @@ const DEFAULT_IMAGE_OFFSET = { x: 0, y: 0 }
 type ImageOffset = typeof DEFAULT_IMAGE_OFFSET
 
 type ImageDragState = {
-  offset: ImageOffset
   pointerId: number
   x: number
   y: number
@@ -112,7 +111,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     setImageScale((scale) => Math.max(MIN_IMAGE_SCALE, scale - IMAGE_SCALE_STEP))
   }, [])
 
-  const rotateImage = useCallback(() => {
+  const rotateImageRight = useCallback(() => {
     setImageRotation((rotation) => rotation + 90)
   }, [])
 
@@ -128,24 +127,20 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     setImageOffset(DEFAULT_IMAGE_OFFSET)
   }, [])
 
-  const onImagePointerDown = useCallback(
-    (event: PointerEvent<HTMLImageElement>) => {
-      if (event.button !== 0) {
-        return
-      }
+  const onImagePointerDown = useCallback((event: PointerEvent<HTMLImageElement>) => {
+    if (event.button !== 0) {
+      return
+    }
 
-      event.preventDefault()
-      event.currentTarget.setPointerCapture(event.pointerId)
-      imageDragRef.current = {
-        offset: imageOffset,
-        pointerId: event.pointerId,
-        x: event.clientX,
-        y: event.clientY
-      }
-      setIsDraggingImage(true)
-    },
-    [imageOffset]
-  )
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    imageDragRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY
+    }
+    setIsDraggingImage(true)
+  }, [])
 
   const onImagePointerMove = useCallback((event: PointerEvent<HTMLImageElement>) => {
     const dragState = imageDragRef.current
@@ -154,10 +149,11 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     }
 
     event.preventDefault()
-    setImageOffset({
-      x: dragState.offset.x + event.clientX - dragState.x,
-      y: dragState.offset.y + event.clientY - dragState.y
-    })
+    const deltaX = event.clientX - dragState.x
+    const deltaY = event.clientY - dragState.y
+    dragState.x = event.clientX
+    dragState.y = event.clientY
+    setImageOffset((offset) => ({ x: offset.x + deltaX, y: offset.y + deltaY }))
   }, [])
 
   const stopImageDrag = useCallback((event: PointerEvent<HTMLImageElement>) => {
@@ -227,7 +223,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               <ArtboardToolButton label={t('preview.rotate_left')} onClick={rotateImageLeft}>
                 <RotateCcwSquare className="size-4" />
               </ArtboardToolButton>
-              <ArtboardToolButton label={t('preview.rotate_right')} onClick={rotateImage}>
+              <ArtboardToolButton label={t('preview.rotate_right')} onClick={rotateImageRight}>
                 <RotateCwSquare className="size-4" />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.reset')} onClick={resetImageTransform}>
