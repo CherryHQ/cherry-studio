@@ -1200,10 +1200,10 @@ describe('AiStreamManager', () => {
     })
 
     // Agent sessions drive their own continuation (terminal listener → markTurnTerminal → startNextTurn),
-    // so AiStreamManager doesn't dispatch here — it only KEEPS the stream alive (isTopicDone=false, no
-    // terminal lifecycle) when `willContinueTopic` is true, so the runtime's next turn can carry the
-    // renderer listeners. Without this the stream is evicted and the follow-up reaches no renderer.
-    it('keeps an agent-session stream alive when the runtime will continue (no terminal lifecycle)', async () => {
+    // so AiStreamManager doesn't dispatch here. It publishes the terminal status for UI indicators
+    // but skips cleanup so the runtime's next turn can carry the renderer listeners. Without this the
+    // stream is evicted and the follow-up reaches no renderer.
+    it('keeps an agent-session stream alive while publishing done when the runtime will continue', async () => {
       mockWillContinueTopic.mockReturnValue(true)
       const topicId = 'agent-session:s1'
       const listener = new FakeListener(`l:${topicId}`)
@@ -1211,11 +1211,13 @@ describe('AiStreamManager', () => {
 
       await mgr.onExecutionDone(topicId, 'provider-a::model-a')
 
-      // The bubble finalises but the topic stays busy and the terminal lifecycle is skipped (no idle
-      // flicker), so the stream object survives for the runtime's follow-up turn to carry listeners.
+      // The bubble finalises with isTopicDone=false so the stream object survives for the runtime's
+      // follow-up turn to carry listeners, while the shared status cache still tells sidebars that
+      // this turn completed.
       expect(listener.doneResults).toHaveLength(1)
       expect(listener.doneResults[0].isTopicDone).toBe(false)
-      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('done')
+      expect(mgr.inspect(topicId)).toMatchObject({ topicId, status: 'done' })
     })
 
     it('tears down an agent-session stream when the runtime will not continue', async () => {
