@@ -113,7 +113,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../components/ChatNavBar', () => ({
+vi.mock('../components/ChatNavbar', () => ({
   default: () => {
     renderCounters.navbar += 1
     return <div data-testid="chat-navbar" />

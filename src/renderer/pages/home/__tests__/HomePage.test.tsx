@@ -357,7 +357,7 @@ vi.mock('../Chat', () => ({
   )
 }))
 
-vi.mock('../components/ChatNavBar', () => ({
+vi.mock('../components/ChatNavbar', () => ({
   default: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
     <nav>
       {onSidebarToggle && (
