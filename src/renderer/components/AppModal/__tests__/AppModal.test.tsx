@@ -23,6 +23,7 @@ vi.mock('@cherrystudio/ui', () => {
     DialogContent: ({ children, ...props }) => {
       delete props.showCloseButton
       delete props.onInteractOutside
+      delete props.overlayClassName
 
       return React.createElement('div', { role: 'dialog', ...props }, children)
     },
@@ -150,6 +151,26 @@ describe('AppModalProvider', () => {
     await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))
 
     await expect(confirmed!).resolves.toBe(true)
+  })
+
+  it('constrains long plain-text feedback content inside the modal', async () => {
+    const modal = await renderModalProvider()
+    const longError =
+      'Error invoking remote method ai:generate-image: AI_RetryError: Failed after 3 attempts. Last error: request failed: ' +
+      'https://example.com/' +
+      'a'.repeat(180)
+
+    act(() => {
+      modal.error({
+        title: 'Generate failed',
+        content: longError
+      })
+    })
+
+    const content = await screen.findByText(longError)
+
+    expect(content).toHaveClass('min-w-0', 'max-w-full', 'break-words')
+    expect(content.className).toContain('[overflow-wrap:anywhere]')
   })
 
   it('uses translated default text for destructive confirmations', async () => {
