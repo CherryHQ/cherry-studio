@@ -414,6 +414,22 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
 
+  it('falls back to record selection when no conversation tab context exists', () => {
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.openConversationTab.mockReturnValueOnce(undefined)
+    const onClose = vi.fn()
+    const onRecordSelect = vi.fn()
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha topic' }))
+
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
+    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('does not select a topic when the selection checkbox is clicked', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
@@ -463,7 +479,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected conversations')
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected conversation(s)?')
@@ -476,6 +492,39 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha', 'topic-beta'])
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('shows an error and keeps the active topic when bulk delete rejects', async () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockRejectedValueOnce(new Error('Bulk delete failed'))
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
+    expect(window.toast.error).toHaveBeenCalledWith('Bulk delete failed')
+    expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
   it('skips pinned topics when bulk deleting from the query toolbar', async () => {
@@ -504,7 +553,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete 1 selected conversation(s)?')
 
@@ -569,7 +618,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
   })
 
   it('bulk moves selected topics to another assistant from the query toolbar', async () => {
@@ -595,7 +644,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Move' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Move/ }))
 
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Move selected conversations')
@@ -646,7 +695,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Move' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Move/ }))
 
     const dialog = screen.getByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Beta assistant/ }))
@@ -911,7 +960,10 @@ describe('HistoryRecordsPage assistant mode', () => {
     const input = within(dialog).getByLabelText('Name')
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await flushAnimationFrame()
+    })
 
     await vi.waitFor(() =>
       expect(hookMocks.updateTopic).toHaveBeenCalledWith('topic-alpha', {
@@ -953,7 +1005,10 @@ describe('HistoryRecordsPage assistant mode', () => {
     const unchangedDialog = screen.getByRole('dialog')
     const unchangedInput = within(unchangedDialog).getByLabelText('Name')
     fireEvent.change(unchangedInput, { target: { value: 'Alpha topic' } })
-    fireEvent.keyDown(unchangedInput, { key: 'Enter' })
+    await act(async () => {
+      fireEvent.keyDown(unchangedInput, { key: 'Enter' })
+      await flushAnimationFrame()
+    })
 
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
   })
@@ -1041,7 +1096,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
     })

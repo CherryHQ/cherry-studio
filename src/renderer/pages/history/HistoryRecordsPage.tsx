@@ -631,14 +631,9 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      try {
-        const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
-        if (updatedSession) {
-          window.toast.success(t('common.saved'))
-        }
-      } catch (err) {
-        logger.error('Failed to rename session from history records', { err, sessionId: id })
-        window.toast.error(t('agent.session.update.error.failed'))
+      const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+      if (updatedSession) {
+        window.toast.success(t('common.saved'))
       }
     },
     [sessions, t, updateSession]

@@ -1,7 +1,7 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 
 export type AgentSessionStreamState = {
   isPending: boolean
@@ -11,6 +11,12 @@ export type AgentSessionStreamState = {
 const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
   `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
 const SESSION_ID_SEPARATOR = '\u0000'
+const EMPTY_AGENT_SESSION_STREAM_STATUSES = new Map<string, AgentSessionStreamState>()
+
+type AgentSessionStreamStatusesSnapshot = {
+  signature: string
+  value: ReadonlyMap<string, AgentSessionStreamState>
+}
 
 function toAgentSessionStreamState(
   entry: TopicStatusSnapshotEntry | null | undefined
@@ -23,6 +29,30 @@ function toAgentSessionStreamState(
   }
 }
 
+function buildAgentSessionStreamStatusesSnapshot(sessionIds: readonly string[]): AgentSessionStreamStatusesSnapshot {
+  const entries: Array<[string, AgentSessionStreamState]> = []
+
+  for (const sessionId of sessionIds) {
+    const entry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
+    const status = toAgentSessionStreamState(entry)
+    if (status) entries.push([sessionId, status])
+  }
+
+  if (entries.length === 0) {
+    return {
+      signature: '',
+      value: EMPTY_AGENT_SESSION_STREAM_STATUSES
+    }
+  }
+
+  return {
+    signature: entries
+      .map(([sessionId, status]) => `${sessionId}:${status.status}:${status.isPending ? '1' : '0'}`)
+      .join(SESSION_ID_SEPARATOR),
+    value: new Map(entries)
+  }
+}
+
 export function useAgentSessionStreamStatuses(
   sessionIds: readonly string[]
 ): ReadonlyMap<string, AgentSessionStreamState> {
@@ -32,29 +62,28 @@ export function useAgentSessionStreamStatuses(
     [sessionIdsKey]
   )
   const cacheKeys = useMemo(() => uniqueSessionIds.map(getAgentSessionStreamStatusCacheKey), [uniqueSessionIds])
+  const snapshotRef = useRef<AgentSessionStreamStatusesSnapshot>({
+    signature: '',
+    value: EMPTY_AGENT_SESSION_STREAM_STATUSES
+  })
 
-  const readSnapshot = useCallback(() => {
-    const statusBySessionId = new Map<string, AgentSessionStreamState>()
-
-    for (const sessionId of uniqueSessionIds) {
-      const entry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
-      const status = toAgentSessionStreamState(entry)
-      if (status) statusBySessionId.set(sessionId, status)
+  const getSnapshot = useCallback(() => {
+    const nextSnapshot = buildAgentSessionStreamStatusesSnapshot(uniqueSessionIds)
+    if (snapshotRef.current.signature === nextSnapshot.signature) {
+      return snapshotRef.current.value
     }
 
-    return statusBySessionId
+    snapshotRef.current = nextSnapshot
+    return nextSnapshot.value
   }, [uniqueSessionIds])
 
-  const [snapshot, setSnapshot] = useState<ReadonlyMap<string, AgentSessionStreamState>>(readSnapshot)
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      const disposers = cacheKeys.map((key) => cacheService.subscribe(key, onStoreChange))
+      return () => disposers.forEach((dispose) => dispose())
+    },
+    [cacheKeys]
+  )
 
-  useEffect(() => {
-    setSnapshot(readSnapshot())
-    const disposers = cacheKeys.map((key) => cacheService.subscribe(key, () => setSnapshot(readSnapshot())))
-
-    return () => {
-      disposers.forEach((dispose) => dispose())
-    }
-  }, [cacheKeys, readSnapshot])
-
-  return snapshot
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

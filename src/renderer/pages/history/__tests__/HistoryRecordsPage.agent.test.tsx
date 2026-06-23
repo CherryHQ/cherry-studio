@@ -519,6 +519,17 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('falls back to record selection when no conversation tab context exists', () => {
+    const { onClose, onRecordSelect } = setupAgentHistory()
+    hookMocks.openConversationTab.mockReturnValueOnce(undefined)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha session' }))
+
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-alpha', 'Alpha session', { forceNew: true })
+    expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('does not activate a session when the selection checkbox is clicked', () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
     const betaRow = screen.getByText('Beta session').closest('[role="row"]')
@@ -563,7 +574,7 @@ describe('HistoryRecordsPage agent mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected tasks')
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected task(s)?')
@@ -603,7 +614,7 @@ describe('HistoryRecordsPage agent mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Delete 1 selected task(s)?')
 
@@ -671,7 +682,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
   })
 
   it('renders an empty state when there are no sessions', () => {
@@ -764,7 +775,10 @@ describe('HistoryRecordsPage agent mode', () => {
     const input = within(dialog).getByLabelText('Name')
     expect(hookMocks.updateSession).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await flushAnimationFrame()
+    })
 
     await vi.waitFor(() =>
       expect(hookMocks.updateSession).toHaveBeenCalledWith(

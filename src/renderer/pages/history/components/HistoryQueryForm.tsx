@@ -86,7 +86,6 @@ const HistoryQueryForm = ({
               className="h-8 gap-1.5 rounded-md border-border-subtle px-2.5 text-xs shadow-none"
               disabled={!canBulkMove}
               variant="outline"
-              aria-label={moveButtonLabel}
               onClick={() => {
                 setMoveTargetId((current) => current || moveTargets[0]?.id || '')
                 setMoveDialogOpen(true)
@@ -103,7 +102,6 @@ const HistoryQueryForm = ({
             className="h-8 gap-1.5 rounded-md border-border-subtle px-2.5 text-xs shadow-none"
             disabled={!canBulkDelete}
             variant="outline"
-            aria-label={deleteButtonLabel}
             onClick={() => setDeleteDialogOpen(true)}>
             <Trash2 className="size-3.5" />
             <span>
