@@ -20,7 +20,6 @@ export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
 export interface AgentToolFlowOpenInput {
   toolCallId: string
   toolName?: string
-  sourceMessageId?: string
   title?: string
 }
 

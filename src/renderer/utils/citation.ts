@@ -11,37 +11,11 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
-import type { Citation } from '@renderer/types'
+import { type Citation, WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types'
 import { cleanMarkdownContent, encodeHTML } from '@renderer/utils/formats'
 
-export type WebSearchSource =
-  | 'websearch'
-  | 'openai'
-  | 'openai-response'
-  | 'openrouter'
-  | 'anthropic'
-  | 'gemini'
-  | 'perplexity'
-  | 'qwen'
-  | 'hunyuan'
-  | 'zhipu'
-  | 'grok'
-  | 'ai-sdk'
-
-export const WEB_SEARCH_SOURCE = {
-  WEBSEARCH: 'websearch',
-  OPENAI: 'openai',
-  OPENAI_RESPONSE: 'openai-response',
-  OPENROUTER: 'openrouter',
-  ANTHROPIC: 'anthropic',
-  GEMINI: 'gemini',
-  PERPLEXITY: 'perplexity',
-  QWEN: 'qwen',
-  HUNYUAN: 'hunyuan',
-  ZHIPU: 'zhipu',
-  GROK: 'grok',
-  AISDK: 'ai-sdk'
-} as const satisfies Record<string, WebSearchSource>
+export { WEB_SEARCH_SOURCE }
+export type { WebSearchSource }
 
 /** Pick the first valid source identifier out of a citation-reference list. */
 export function determineCitationSource(

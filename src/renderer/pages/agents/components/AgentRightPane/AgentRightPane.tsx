@@ -90,7 +90,6 @@ function isFramedFilePreview(filePath: string): boolean {
 interface AgentFlowTab {
   toolCallId: string
   toolName?: string
-  sourceMessageId?: string
   title: string
 }
 
@@ -199,7 +198,6 @@ function AgentRightPaneStateProvider({
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
-        sourceMessageId: input.sourceMessageId,
         title: getFlowTabTitle(input)
       }
       setFlowTabs((currentTabs) => {

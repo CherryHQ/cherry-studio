@@ -163,7 +163,6 @@ export interface MessageErrorDetailInput {
 export interface OpenAgentToolFlowInput {
   toolCallId: string
   toolName?: string
-  sourceMessageId?: string
   title?: string
 }
 
