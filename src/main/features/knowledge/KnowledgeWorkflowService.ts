@@ -1,4 +1,4 @@
-import './jobs/jobTypes'
+import './tasks/jobTypes'
 
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
@@ -17,7 +17,7 @@ import {
 } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { cancelJobOrThrow } from './jobs/utils/cancel'
+import { cancelJobOrThrow } from './tasks/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
 import {
   type KnowledgeBaseId,

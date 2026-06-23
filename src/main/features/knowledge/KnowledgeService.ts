@@ -23,12 +23,12 @@ import {
 } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
-import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
-import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
-import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
-import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
-import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
-import { narrowKnowledgeJobInput } from './jobs/utils/jobInput'
+import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
+import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
+import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
+import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
+import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import {
