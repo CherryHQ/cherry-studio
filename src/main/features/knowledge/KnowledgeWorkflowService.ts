@@ -17,8 +17,8 @@ import {
 } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { cancelJobOrThrow } from './tasks/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
+import { cancelJobOrThrow } from './tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,

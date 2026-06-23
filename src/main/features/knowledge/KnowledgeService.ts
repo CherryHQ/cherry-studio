@@ -23,14 +23,14 @@ import {
 } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
+import { KnowledgeLockManager } from './KnowledgeLockManager'
+import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
 import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
-import { KnowledgeLockManager } from './KnowledgeLockManager'
-import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
