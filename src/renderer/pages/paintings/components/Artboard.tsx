@@ -1,20 +1,36 @@
-import { Button, ImagePreviewTrigger } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
-import { type FC, useCallback, useEffect, useState } from 'react'
+import { RotateCw, Undo2, ZoomIn, ZoomOut } from 'lucide-react'
+import { type FC, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
+
+const DEFAULT_IMAGE_SCALE = 1
+const MIN_IMAGE_SCALE = 0.25
+const MAX_IMAGE_SCALE = 4
+const IMAGE_SCALE_STEP = 0.25
+const DEFAULT_IMAGE_OFFSET = { x: 0, y: 0 }
+
+type ImageOffset = typeof DEFAULT_IMAGE_OFFSET
+
+type ImageDragState = {
+  offset: ImageOffset
+  pointerId: number
+  x: number
+  y: number
+}
 
 export interface ArtboardProps {
   painting: PaintingData
   isLoading: boolean
   onCancel: () => void
-  imageCover?: React.ReactNode
-  loadText?: React.ReactNode
+  imageCover?: ReactNode
+  loadText?: ReactNode
 }
 
-const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancelLabel: string }> = ({
+const LoadingStateCard: FC<{ text: ReactNode; onCancel: () => void; cancelLabel: string }> = ({
   text,
   onCancel,
   cancelLabel
@@ -41,9 +57,36 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
   )
 }
 
+const ArtboardToolButton: FC<{
+  children: ReactNode
+  disabled?: boolean
+  label: string
+  onClick: () => void
+}> = ({ children, disabled, label, onClick }) => {
+  return (
+    <Tooltip content={label} delay={800}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        disabled={disabled}
+        aria-label={label}
+        onClick={onClick}
+        className="rounded-full text-muted-foreground hover:bg-muted/55 hover:text-foreground">
+        {children}
+      </Button>
+    </Tooltip>
+  )
+}
+
 const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover, loadText }) => {
   const { t } = useTranslation()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [imageScale, setImageScale] = useState(DEFAULT_IMAGE_SCALE)
+  const [imageRotation, setImageRotation] = useState(0)
+  const [imageOffset, setImageOffset] = useState<ImageOffset>(DEFAULT_IMAGE_OFFSET)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const imageDragRef = useRef<ImageDragState | null>(null)
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
@@ -61,9 +104,75 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     setCurrentImageIndex((index) => (painting.files.length > 0 ? (index + 1) % painting.files.length : 0))
   }, [painting.files.length])
 
+  const zoomIn = useCallback(() => {
+    setImageScale((scale) => Math.min(MAX_IMAGE_SCALE, scale + IMAGE_SCALE_STEP))
+  }, [])
+
+  const zoomOut = useCallback(() => {
+    setImageScale((scale) => Math.max(MIN_IMAGE_SCALE, scale - IMAGE_SCALE_STEP))
+  }, [])
+
+  const rotateImage = useCallback(() => {
+    setImageRotation((rotation) => (rotation + 90) % 360)
+  }, [])
+
+  const resetImageTransform = useCallback(() => {
+    imageDragRef.current = null
+    setIsDraggingImage(false)
+    setImageScale(DEFAULT_IMAGE_SCALE)
+    setImageRotation(0)
+    setImageOffset(DEFAULT_IMAGE_OFFSET)
+  }, [])
+
+  const onImagePointerDown = useCallback(
+    (event: PointerEvent<HTMLImageElement>) => {
+      if (event.button !== 0) {
+        return
+      }
+
+      event.preventDefault()
+      event.currentTarget.setPointerCapture(event.pointerId)
+      imageDragRef.current = {
+        offset: imageOffset,
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY
+      }
+      setIsDraggingImage(true)
+    },
+    [imageOffset]
+  )
+
+  const onImagePointerMove = useCallback((event: PointerEvent<HTMLImageElement>) => {
+    const dragState = imageDragRef.current
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return
+    }
+
+    event.preventDefault()
+    setImageOffset({
+      x: dragState.offset.x + event.clientX - dragState.x,
+      y: dragState.offset.y + event.clientY - dragState.y
+    })
+  }, [])
+
+  const stopImageDrag = useCallback((event: PointerEvent<HTMLImageElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    if (imageDragRef.current?.pointerId === event.pointerId) {
+      imageDragRef.current = null
+      setIsDraggingImage(false)
+    }
+  }, [])
+
   useEffect(() => {
     setCurrentImageIndex(0)
   }, [painting.id])
+
+  useEffect(() => {
+    resetImageTransform()
+  }, [currentFile?.id, resetImageTransform])
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
@@ -81,12 +190,21 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 ←
               </Button>
             )}
-            <ImagePreviewTrigger
-              item={{ id: currentFile.id, src: currentImageUrl }}
-              // TODO(#15353): same custom-protocol switch as `currentImageUrl` above.
-              items={painting.files.map((file) => ({ id: file.id, src: FileManager.getFileUrl(file) }))}
+            <img
               alt=""
-              className="max-h-full max-w-full cursor-zoom-in rounded-md bg-secondary object-contain"
+              className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
+                isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
+              }`}
+              draggable={false}
+              onPointerCancel={stopImageDrag}
+              onPointerDown={onImagePointerDown}
+              onPointerMove={onImagePointerMove}
+              onPointerUp={stopImageDrag}
+              src={currentImageUrl}
+              style={{
+                transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
+                touchAction: 'none'
+              }}
             />
             {painting.files.length > 1 && (
               <Button
@@ -98,6 +216,29 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 →
               </Button>
             )}
+            <div
+              className="absolute right-2.5 bottom-2.5 z-20 flex items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl"
+              role="toolbar"
+              aria-label={t('preview.label')}>
+              <ArtboardToolButton
+                label={t('preview.zoom_out')}
+                disabled={imageScale <= MIN_IMAGE_SCALE}
+                onClick={zoomOut}>
+                <ZoomOut className="size-4" />
+              </ArtboardToolButton>
+              <ArtboardToolButton
+                label={t('preview.zoom_in')}
+                disabled={imageScale >= MAX_IMAGE_SCALE}
+                onClick={zoomIn}>
+                <ZoomIn className="size-4" />
+              </ArtboardToolButton>
+              <ArtboardToolButton label={t('preview.rotate_right')} onClick={rotateImage}>
+                <RotateCw className="size-4" />
+              </ArtboardToolButton>
+              <ArtboardToolButton label={t('preview.reset')} onClick={resetImageTransform}>
+                <Undo2 className="size-4" />
+              </ArtboardToolButton>
+            </div>
             <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">
               {displayedImageIndex + 1} / {painting.files.length}
             </div>
