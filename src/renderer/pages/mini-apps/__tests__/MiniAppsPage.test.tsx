@@ -60,12 +60,6 @@ vi.mock('@renderer/hooks/useTabs', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useNavbar', () => ({
-  useNavbarPosition: () => ({
-    isTopNavbar: false
-  })
-}))
-
 vi.mock('@cherrystudio/ui', async () => {
   const actual = await vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
 

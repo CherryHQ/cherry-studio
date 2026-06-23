@@ -154,10 +154,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/services/TranslateService', () => ({
-  translateText: translateCoreMock.translateText
-}))
-
 vi.mock('@renderer/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' '),
   getFileExtension: fileMock.getFileExtension,
@@ -179,6 +175,7 @@ vi.mock('@renderer/utils/translate', () => ({
   createInputScrollHandler: () => vi.fn(),
   createOutputScrollHandler: () => vi.fn(),
   determineTargetLanguage: translateCoreMock.determineTargetLanguage,
+  translateText: translateCoreMock.translateText,
   UNKNOWN_LANG_CODE: 'unknown'
 }))
 

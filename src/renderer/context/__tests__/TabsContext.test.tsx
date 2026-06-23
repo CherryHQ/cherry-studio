@@ -80,6 +80,20 @@ function PinnedRouteTitle() {
   return <div data-testid="files-title">{tabs.find((tab) => tab.id === 'files')?.title}</div>
 }
 
+// Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
+function PinnedTabMaterializer() {
+  const { tabs, openTab } = useTabsContext()
+  const didOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/chat?topicId=t1', { id: 'detached', isPinned: true, forceNew: true })
+  }, [openTab])
+
+  return <div data-testid="detached-pinned">{String(tabs.find((tab) => tab.id === 'detached')?.isPinned)}</div>
+}
+
 beforeEach(() => {
   currentLanguage = 'en'
 })
@@ -134,5 +148,29 @@ describe('TabsContext', () => {
     rerender(renderUi())
 
     await waitFor(() => expect(screen.getByTestId('files-title')).toHaveTextContent('文件'))
+  })
+
+  it('keeps isPinned on a tab materialized in a sub-window so it round-trips on re-attach', async () => {
+    render(
+      <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+        <PinnedTabMaterializer />
+      </TabsProvider>
+    )
+
+    // A detached sub-window has no pinned section, so the tab is shown from the normal
+    // list — but it must keep isPinned so Tab_Attach carries the pinned state back…
+    await waitFor(() => expect(screen.getByTestId('detached-pinned')).toHaveTextContent('true'))
+    // …without ever writing the shared pinned-tabs cache from this window.
+    expect(STABLE_PINNED[1]).not.toHaveBeenCalled()
+  })
+
+  it('routes an isPinned tab into the persistent pinned list in the main window', async () => {
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <PinnedTabMaterializer />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(STABLE_PINNED[1]).toHaveBeenCalled())
   })
 })

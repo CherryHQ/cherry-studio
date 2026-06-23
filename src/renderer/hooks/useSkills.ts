@@ -93,7 +93,7 @@ export function useInstalledSkills(agentId?: string) {
   }
 }
 
-export function buildAvailableSkills(globalSkills: readonly InstalledSkill[], localSkills: readonly LocalSkill[]) {
+function buildAvailableSkills(globalSkills: readonly InstalledSkill[], localSkills: readonly LocalSkill[]) {
   const seen = new Set<string>()
   const available: LocalSkill[] = []
 

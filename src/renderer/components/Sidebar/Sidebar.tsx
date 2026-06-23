@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef } from 'react'
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarDocked } from './SidebarDocked'
-import { SidebarFooter } from './SidebarFooter'
+import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarMenu } from './SidebarMenu'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarMenuItem, SidebarTab, SidebarUser } from './types'
@@ -26,7 +26,7 @@ export interface SidebarProps {
   isFloating?: boolean
   searchLabel?: string
   extensionsLabel?: string
-  actions?: React.ReactNode
+  actions?: SidebarFooterActions
   onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void

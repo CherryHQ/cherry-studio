@@ -24,15 +24,6 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
-/**
- * `'topic.active'` caches the renderer's v1 chat topic — renderer-only state.
- * The v2 chat migration removes this outright (feat/chat-page drops both the
- * `'topic.active'` cache key and `CacheTopic`; active topic is managed via
- * DataApi instead). Typed loosely here so the cross-process cache schema does
- * not depend on the renderer's throwaway v1 `Topic` graph; the renderer's own
- * read sites cast the result to `Topic`.
- */
-export type CacheTopic = unknown
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
@@ -104,6 +95,8 @@ export interface ChatScrollAnchor {
   offset: number
 }
 
+export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'
   taskId: string | null
@@ -111,7 +104,5 @@ export type CachePaintingGenerationState = {
   progress: number | null
 }
 
-export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
-
-export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null

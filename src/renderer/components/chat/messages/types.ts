@@ -163,7 +163,6 @@ export interface MessageErrorDetailInput {
 export interface OpenAgentToolFlowInput {
   toolCallId: string
   toolName?: string
-  sourceMessageId?: string
   title?: string
 }
 
@@ -207,6 +206,7 @@ export interface MessageRenderConfig {
   collapseCompletedToolHistory: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
+  showEstimatedTokens: boolean
   multiModelMessageStyle: MultiModelMessageStyle
   multiModelGridColumns: number
   multiModelGridPopoverTrigger: MultiModelGridPopoverTrigger
@@ -224,6 +224,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   collapseCompletedToolHistory: true,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
+  showEstimatedTokens: false,
   multiModelMessageStyle: 'horizontal',
   multiModelGridColumns: 2,
   multiModelGridPopoverTrigger: 'click'

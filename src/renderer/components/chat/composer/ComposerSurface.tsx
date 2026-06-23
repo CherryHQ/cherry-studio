@@ -1,27 +1,23 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type {
-  QuickPanelInputAdapter,
-  QuickPanelInputEvent,
-  QuickPanelListItem
-} from '@renderer/components/chat/composer/panelEngine'
-import { QuickPanelView, useQuickPanel } from '@renderer/components/chat/composer/panelEngine'
 import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
+import SendMessageButton from '@renderer/components/SendMessageButton'
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
-import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import { isPastedTextFileMetadata } from '@renderer/types'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
   readComposerClipboardFragmentFromDataTransfer,
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
-} from '@renderer/utils/messageUtils/composerClipboard'
+} from '@renderer/utils/message/composerClipboard'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { EditorOptions, JSONContent } from '@tiptap/core'
@@ -36,9 +32,6 @@ import { createComposerDocumentContent, serializeComposerDocument } from './comp
 import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-// Composer-local fork of the paste/drag stack: feat migrates these to the
-// `ComposerAttachment` model, which collides with the live v1 Inputbar
-// (`FileMetadata`). Forked here so v1 stays untouched until the pages switchover.
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -1227,12 +1220,15 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
-      setTimeoutTimer('composerSurfaceFocus', () => createdEditor.commands.focus(), 0)
+      setTimeoutTimer(
+        'composerSurfaceFocus',
+        () => {
+          if (!createdEditor || createdEditor.isDestroyed) return
+          createdEditor.commands.focus()
+        },
+        0
+      )
     }
-    // Default (false): no control reads per-transaction `editor.state` during render
-    // — text/send state is parent-driven via `onTextChange`, and the `editor.state`
-    // reads all live in on-demand helpers (serialize/select), not the render path.
-    // Re-rendering this 1500-line component on every cursor/selection move was pure waste.
   })
 
   useEffect(() => {

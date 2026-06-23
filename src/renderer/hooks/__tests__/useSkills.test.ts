@@ -1,5 +1,5 @@
-import type { InstalledSkill, LocalSkill } from '@renderer/types'
-import { act, renderHook } from '@testing-library/react'
+import type { InstalledSkill } from '@renderer/types'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
@@ -9,6 +9,7 @@ const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
+const listLocalSkillsMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -16,7 +17,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock
 }))
 
-import { buildAvailableSkills, useInstalledSkills, useSkillInstall } from '../useSkills'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -61,11 +62,13 @@ describe('useInstalledSkills', () => {
       data: createSkill({ id: skillId, isEnabled, updatedAt: '2024-01-02T00:00:00.000Z' })
     }))
     uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
+    listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     vi.stubGlobal('api', {
       skill: {
         toggle: toggleSkillMock,
-        uninstall: uninstallSkillMock
+        uninstall: uninstallSkillMock,
+        listLocal: listLocalSkillsMock
       }
     })
     vi.stubGlobal('toast', { error: toastErrorMock })
@@ -149,6 +152,58 @@ describe('useInstalledSkills', () => {
       await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
     })
     expect(toastErrorMock).toHaveBeenCalledWith('uninstall failed')
+  })
+
+  it('combines enabled installed skills with local workspace skills', async () => {
+    useQueryMock.mockReturnValue({
+      data: [
+        createSkill({ id: 'global-on', name: 'PDF', folderName: 'pdf', isEnabled: true }),
+        createSkill({ id: 'global-off', name: 'Docx', folderName: 'docx', isEnabled: false })
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    })
+    listLocalSkillsMock.mockResolvedValue({
+      success: true,
+      data: [{ name: 'repo-skill', filename: 'repo-skill', description: 'Repo skill' }]
+    })
+
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+
+    await waitFor(() => expect(listLocalSkillsMock).toHaveBeenCalledWith('/repo'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills).toEqual([
+      expect.objectContaining({ name: 'PDF', filename: 'pdf' }),
+      expect.objectContaining({ name: 'repo-skill', filename: 'repo-skill' })
+    ])
+  })
+
+  it('dedupes local skills already represented by enabled global skills', async () => {
+    useQueryMock.mockReturnValue({
+      data: [createSkill({ id: 'global-pdf', name: 'PDF', folderName: 'pdf', isEnabled: true })],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    })
+    listLocalSkillsMock.mockResolvedValue({
+      success: true,
+      data: [
+        { name: 'Local PDF', filename: 'pdf', description: 'Same directory' },
+        { name: 'repo-skill', filename: 'repo-skill', description: 'Repo skill' }
+      ]
+    })
+
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills.map((skill) => skill.filename)).toEqual(['pdf', 'repo-skill'])
   })
 })
 
@@ -238,34 +293,5 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
-  })
-})
-
-describe('buildAvailableSkills', () => {
-  it('includes only enabled global skills', () => {
-    const result = buildAvailableSkills(
-      [
-        createSkill({ folderName: 'enabled', name: 'Enabled', isEnabled: true }),
-        createSkill({ folderName: 'disabled', name: 'Disabled', isEnabled: false })
-      ],
-      []
-    )
-
-    expect(result).toEqual([{ name: 'Enabled', description: 'First skill', filename: 'enabled' }])
-  })
-
-  it('lets an enabled global win over a same-filename local and keeps local-only skills', () => {
-    const result = buildAvailableSkills(
-      [createSkill({ folderName: 'shared', name: 'Global Shared', isEnabled: true })],
-      [
-        { name: 'Local Shared', description: 'shadowed', filename: 'shared' },
-        { name: 'Local Only', description: 'kept', filename: 'unique' }
-      ] as LocalSkill[]
-    )
-
-    expect(result).toEqual([
-      { name: 'Global Shared', description: 'First skill', filename: 'shared' },
-      { name: 'Local Only', description: 'kept', filename: 'unique' }
-    ])
   })
 })

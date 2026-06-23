@@ -9,9 +9,9 @@ import {
   PopoverTrigger
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
 import type { ComponentProps, KeyboardEvent, MouseEvent } from 'react'
@@ -276,7 +276,7 @@ const KnowledgeItemRow = ({
         KNOWLEDGE_ITEM_ROW_GRID,
         'group/row min-h-12 rounded-lg transition-colors',
         canViewChunks &&
-          'cursor-pointer focus-visible:outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+          'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
         selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
       )}>
       <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
