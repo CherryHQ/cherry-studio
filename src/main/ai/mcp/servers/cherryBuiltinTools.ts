@@ -6,7 +6,8 @@
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
  * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
- * `…__kb_read`, `…__kb_list`, `…__kb_manage`, and `…__report_artifacts`.
+ * `…__kb_read`, `…__kb_list`, `…__kb_manage`, `…__report_artifacts`, and
+ * `…__generate_image`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
  * knowledge selection — the agent sees all of the user's knowledge bases. The
@@ -33,6 +34,7 @@ import {
   readOrGrepConcept,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
+import { GENERATE_IMAGE_DESCRIPTION, generateImageFromPrompt, paintingModelOutput } from '@main/ai/tools/painting'
 import {
   fetchWeb,
   searchWeb,
@@ -49,6 +51,8 @@ import {
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
 import {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageInputSchema,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -147,6 +151,14 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args) => {
       const { artifacts } = reportArtifactsInputSchema.parse(args)
       return { type: 'text', value: `Recorded ${artifacts.length} artifact(s).` }
+    }
+  },
+  [GENERATE_IMAGE_TOOL_NAME]: {
+    description: GENERATE_IMAGE_DESCRIPTION,
+    inputSchema: generateImageInputSchema,
+    run: async (args, signal) => {
+      const input = generateImageInputSchema.parse(args)
+      return paintingModelOutput(await generateImageFromPrompt(input, signal))
     }
   }
 }
