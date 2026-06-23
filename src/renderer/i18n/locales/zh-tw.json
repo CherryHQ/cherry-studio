@@ -6870,6 +6870,9 @@
       "title": "環境依賴",
       "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
     },
+    "power": {
+      "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"

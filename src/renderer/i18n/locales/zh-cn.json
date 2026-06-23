@@ -6870,6 +6870,9 @@
       "title": "环境依赖",
       "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },
+    "power": {
+      "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
