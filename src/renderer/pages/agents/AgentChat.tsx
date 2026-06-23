@@ -32,7 +32,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
-import type { DraftAgentSessionConversation, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'
+import type { DraftAgentSession, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'
 import {
   type AgentSendOptions,
   type AgentTurnInput,
@@ -52,7 +52,7 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-function getDraftConversationKey(draft: DraftAgentSessionConversation): string {
+function getDraftConversationKey(draft: DraftAgentSession): string {
   return draft.workspaceSource.type === 'user'
     ? `agent-draft:${draft.agentId}:workspace:${draft.workspaceSource.workspaceId}`
     : `agent-draft:${draft.agentId}:system`
@@ -73,7 +73,7 @@ interface AgentChatProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
-  draftConversation?: DraftAgentSessionConversation | null
+  draftConversation?: DraftAgentSession | null
   missingAgentDraft?: boolean
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>

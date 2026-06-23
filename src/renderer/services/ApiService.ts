@@ -4,8 +4,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Assistant, Provider, ProviderType, SystemProviderId } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -14,21 +13,11 @@ import { getNamingTextContent } from '@renderer/utils/message/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isFileUIPart } from 'ai'
-import { isEmpty, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
 
 const logger = loggerService.withContext('ApiService')
-
-const NOT_SUPPORT_API_KEY_PROVIDERS: readonly SystemProviderId[] = [
-  'ollama',
-  'lmstudio',
-  'vertexai',
-  'aws-bedrock',
-  'copilot'
-]
-
-const NOT_SUPPORT_API_KEY_PROVIDER_TYPES: readonly ProviderType[] = ['vertexai', 'aws-bedrock']
 
 export async function fetchMessagesSummary({
   messages
@@ -131,42 +120,6 @@ export async function fetchGenerate({
     logger.error('fetchGenerate failed', error)
     if (throwOnError) throw error
     return ''
-  }
-}
-
-export async function fetchModels(provider: { id: string; name?: string }): Promise<Partial<Model>[]> {
-  try {
-    return await window.api.ai.listModels({ providerId: provider.id })
-  } catch (error) {
-    logger.error('Failed to fetch models from provider', {
-      providerId: provider.id,
-      providerName: provider.name ?? provider.id,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return []
-  }
-}
-
-export function checkApiProvider(provider: Provider): void {
-  const isExcludedProvider =
-    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
-    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
-
-  if (!isExcludedProvider) {
-    if (!provider.apiKey) {
-      window.toast.error(i18n.t('message.error.enter.api.label'))
-      throw new Error(i18n.t('message.error.enter.api.label'))
-    }
-  }
-
-  if (!provider.apiHost && provider.type !== 'vertexai') {
-    window.toast.error(i18n.t('message.error.enter.api.host'))
-    throw new Error(i18n.t('message.error.enter.api.host'))
-  }
-
-  if (isEmpty(provider.models)) {
-    window.toast.error(i18n.t('message.error.enter.model'))
-    throw new Error(i18n.t('message.error.enter.model'))
   }
 }
 

@@ -20,7 +20,7 @@ import TopicMessageFlowNode from './TopicMessageFlowNode'
 import type { TopicMessageFlowEdgeModel, TopicMessageFlowLayout, TopicMessageFlowNodeModel } from './types'
 import { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'
 
-export interface TopicMessageFlowCanvasProps {
+interface TopicMessageFlowCanvasProps {
   graph: TopicMessageFlowLayout
   onNodeSelect: (messageId: string) => void
   onNodeContextMenu?: (messageId: string) => void

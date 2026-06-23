@@ -2,7 +2,7 @@ import { cn } from '@renderer/utils'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export interface TopicMessageFlowLegendProps {
+interface TopicMessageFlowLegendProps {
   className?: string
 }
 

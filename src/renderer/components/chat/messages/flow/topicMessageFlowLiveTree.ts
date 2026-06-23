@@ -52,7 +52,7 @@ function getObjectField(value: unknown, key: string): Record<string, unknown> | 
   return field && typeof field === 'object' ? (field as Record<string, unknown>) : undefined
 }
 
-export function extractTopicMessageFlowLivePreview(parts: CherryMessagePart[]): string {
+function extractTopicMessageFlowLivePreview(parts: CherryMessagePart[]): string {
   for (const part of parts) {
     const data = getObjectField(part, 'data')
     const text =
