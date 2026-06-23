@@ -18,7 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "已回答",
-      "close": "[to be translated]:Close",
+      "close": "關閉",
       "customPlaceholder": "輸入你的答案...",
       "loading": "載入問題中...",
       "multiSelect": "多重選擇",
@@ -26,8 +26,8 @@
       "noQuestions": "沒有可用的問題",
       "other": "其他",
       "previous": "之前",
-      "progress": "[to be translated]:{{current}} of {{total}}",
-      "skip": "[to be translated]:Skip",
+      "progress": "第{{current}}項，共{{total}}項",
+      "skip": "跳過",
       "submit": "提交",
       "title": "來自Agent的提問"
     },
@@ -712,10 +712,10 @@
         "showDetails": "顯示工具詳細資訊"
       },
       "button": {
-        "allow": "[to be translated]:Allow",
+        "allow": "允許",
         "allowAll": "總是允許",
         "cancel": "取消",
-        "deny": "[to be translated]:Deny",
+        "deny": "拒絕",
         "run": "執行"
       },
       "confirmation": "確定要執行此 Claude 工具嗎？",
@@ -1144,7 +1144,7 @@
     "download": "下載",
     "includes_user_questions": "包含使用者提問",
     "manage": "管理",
-    "select_assistant": "[to be translated]:Select Assistant",
+    "select_assistant": "選擇助理",
     "select_model": "選擇模型",
     "show": {
       "all": "顯示全部"
@@ -1209,7 +1209,7 @@
     },
     "input": {
       "auto_resize": "自動調整高度",
-      "cancel_editing": "[to be translated]:Cancel editing",
+      "cancel_editing": "取消編輯",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
         "label": "清除",
@@ -1219,8 +1219,8 @@
       "context_count": {
         "tip": "上下文數 / 最大上下文數"
       },
-      "editing": "[to be translated]:Editing",
-      "editing_message": "[to be translated]:Editing sent message",
+      "editing": "編輯",
+      "editing_message": "編輯已傳送的訊息",
       "estimated_tokens": {
         "tip": "預估 Token 數"
       },
@@ -1239,9 +1239,9 @@
       "generate_image": "產生圖片",
       "generate_image_not_supported": "模型不支援產生圖片",
       "knowledge_base": "知識庫",
-      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
-      "locate_editing_message": "[to be translated]:Locate original message",
+      "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
+      "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
+      "locate_editing_message": "找出原始訊息",
       "new": {
         "context": "清除上下文"
       },
@@ -1278,7 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考預算超過最大 Token 數",
-        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
+        "fixed_model": "此模型的推理是固定的",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1293,7 +1293,7 @@
             "tip": "設定思考的 Token 數"
           }
         },
-        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
+        "unsupported_model": "目前模型不支援可調整的推理"
       },
       "tools": {
         "collapse": "折疊",
@@ -1311,8 +1311,8 @@
       "upload": {
         "attachment": "上傳附件",
         "document": "上傳檔案（模型不支援圖片）",
-        "document_only": "[to be translated]:Documents only",
-        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
+        "document_only": "僅限文件",
+        "image_not_supported": "此模型不支援圖片上傳，僅限文件。",
         "image_or_document": "上傳圖片或檔案",
         "upload_from_local": "上傳本機檔案..."
       },
@@ -2188,10 +2188,10 @@
       },
       "add_dialog": {
         "conflict_dialog": {
-          "description": "[to be translated]:{{count}} of the sources you are adding have the same name as existing items. Choose how to handle them.",
-          "keep_all": "[to be translated]:Keep All",
-          "replace": "[to be translated]:Replace",
-          "title": "[to be translated]:Sources already exist"
+          "description": "您正在新增的 {{count}} 個來源與現有項目名稱相同。請選擇處理方式。",
+          "keep_all": "保留全部",
+          "replace": "替換",
+          "title": "來源已存在"
         },
         "footer": {
           "selected_notes": "已选 {{count}} 个笔记"
@@ -3038,7 +3038,7 @@
         "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
         "no_content": "沒有可匯出至 Notion 的內容"
       },
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
+      "operation_unavailable": "訊息操作無法使用，請稍後再試。",
       "siyuan": {
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"
@@ -3447,10 +3447,10 @@
       "tooltip": "搜尋模型"
     },
     "selection": {
-      "context_window": "[to be translated]:Context {{count}}",
-      "remove_model": "[to be translated]:Remove {{name}}",
-      "restore_default": "[to be translated]:Restore assistant model",
-      "selected_models": "[to be translated]:Selected models"
+      "context_window": "情境 {{count}}",
+      "remove_model": "移除 {{name}}",
+      "restore_default": "恢復助理模型",
+      "selected_models": "精選模型"
     },
     "stream_output": "串流輸出",
     "type": {
@@ -5489,17 +5489,17 @@
       "common": {
         "menu": {
           "presentation_mode": {
-            "cherry": "[to be translated]:Cherry",
-            "native": "[to be translated]:Native",
+            "cherry": "櫻桃",
+            "native": "原生",
             "restart": {
-              "content": "[to be translated]:Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
-              "title": "[to be translated]:Restart Required"
+              "content": "變更選單樣式需要重新啟動應用程式才能生效。您要立即重新啟動嗎？",
+              "title": "需要重新啟動"
             },
-            "title": "[to be translated]:Context menu style"
+            "title": "右鍵選單樣式"
           }
         },
         "sections": {
-          "chat_settings": "[to be translated]:Chat Settings",
+          "chat_settings": "聊天設定",
           "custom_css": "自訂 CSS",
           "display_language": "顯示與語言",
           "privacy_advanced": "隱私與進階",
@@ -6636,12 +6636,12 @@
       "confirm": "確認",
       "forward": "前進",
       "mcp": {
-        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
-        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
-        "autoEmpty": "[to be translated]:No enabled MCP servers",
-        "description": "[to be translated]:View current MCP server status",
-        "disabled": "[to be translated]:MCP is disabled for this assistant",
-        "unknownServer": "[to be translated]:Unknown MCP server"
+        "agentEmpty": "此代理尚未設定任何 MCP 伺服器",
+        "assistantEmpty": "此助理未配置任何 MCP 伺服器",
+        "autoEmpty": "未啟用任何 MCP 伺服器",
+        "description": "檢視目前的 MCP 伺服器狀態",
+        "disabled": "此助理已停用 MCP",
+        "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",
       "noResult": "未找到結果",
@@ -7009,15 +7009,15 @@
     }
   },
   "subWindow": {
-    "back_to_main": "[to be translated]:Back to Main Window",
-    "pin": "[to be translated]:Keep on Top",
-    "unpin": "[to be translated]:Cancel Keep on Top"
+    "back_to_main": "返回主視窗",
+    "pin": "保持置頂",
+    "unpin": "取消 置頂"
   },
   "tab": {
     "close": "關閉分頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
-    "open_in_new_window": "[to be translated]:Open in New Window",
+    "open_in_new_window": "在新視窗中開啟",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
   },

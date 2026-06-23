@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "beantwortet",
+      "close": "Schließen",
       "customPlaceholder": "Gib deine Antwort ein...",
       "loading": "Fragen werden geladen...",
       "multiSelect": "Mehrfachauswahl",
@@ -25,6 +26,8 @@
       "noQuestions": "Keine Fragen verfügbar",
       "other": "Andere",
       "previous": "Vorherige",
+      "progress": "{{current}} von {{total}}",
+      "skip": "Überspringen",
       "submit": "Einreichen",
       "title": "Fragen vom Agenten"
     },
@@ -340,6 +343,11 @@
         "failed": "Fehler beim Neuanordnen der Agenten"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "Kontextverwendung"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API server is enabled but not running properly."
@@ -382,6 +390,11 @@
       "edit": {
         "title": "Sitzung bearbeiten"
       },
+      "file_manager": {
+        "file_explorer": "Datei-Explorer",
+        "files": "Dateien",
+        "finder": "Finder"
+      },
       "get": {
         "error": {
           "failed": "Sitzung abrufen fehlgeschlagen",
@@ -399,6 +412,10 @@
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
         }
+      },
+      "workspace_selector": {
+        "no_project": "Kein Arbeitsverzeichnis",
+        "placeholder": "Arbeitsverzeichnis auswählen"
       },
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
@@ -695,8 +712,10 @@
         "showDetails": "Zeige Werkzeugdetails"
       },
       "button": {
+        "allow": "Erlauben",
         "allowAll": "Immer erlauben",
         "cancel": "Abbrechen",
+        "deny": "Ablehnen",
         "run": "Laufen"
       },
       "confirmation": "Bist du sicher, dass du dieses Claude-Tool ausführen möchtest?",
@@ -1125,6 +1144,7 @@
     "download": "Herunterladen",
     "includes_user_questions": "Benutzerfragen einschließen",
     "manage": "Verwalten",
+    "select_assistant": "Assistent auswählen",
     "select_model": "Modell auswählen",
     "show": {
       "all": "Alle anzeigen"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "Höhe automatisch anpassen",
+      "cancel_editing": "Bearbeitung abbrechen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
         "label": "Nachrichten leeren {{Command}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "Kontextanzahl / Maximale Kontextanzahl"
       },
+      "editing": "Bearbeiten",
+      "editing_message": "Gesendete Nachricht bearbeiten",
       "estimated_tokens": {
         "tip": "Geschätzte Token-Anzahl"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "Fehler bei der Dateiverarbeitung",
       "file_not_supported": "Modell unterstützt diesen Dateityp nicht",
       "file_not_supported_count": "{{count}} Dateien werden nicht unterstützt",
+      "followup_queue": {
+        "edit": "Bearbeiten",
+        "pause": "Automatisches Senden pausieren",
+        "remove": "Entfernen",
+        "resume": "Auto-Send fortsetzen",
+        "steer": "In aktuelle Runde senden",
+        "title": "In Warteschlange ({{count}})"
+      },
       "generate_image": "Bild generieren",
       "generate_image_not_supported": "Modell unterstützt keine Bildgenerierung",
       "knowledge_base": "Wissensdatenbank",
+      "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
+      "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
+      "locate_editing_message": "Ursprüngliche Nachricht finden",
       "new": {
         "context": "Kontext löschen {{Command}}"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Denkbudget übersteigt maximale Token-Anzahl",
+        "fixed_model": "Das Schließen ist für dieses Modell festgelegt.",
         "label": "Denken",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "Legen Sie die Token-Anzahl zum Denken fest"
           }
-        }
+        },
+        "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
       "tools": {
         "collapse": "Falten",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "Anhang hochladen",
         "document": "Dokument hochladen (Modell unterstützt keine Bilder)",
+        "document_only": "Nur Dokumente",
+        "image_not_supported": "Dieses Modell unterstützt kein Hochladen von Bildern. Nur Dokumente.",
         "image_or_document": "Bild oder Dokument hochladen",
         "upload_from_local": "Lokale Datei hochladen..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "Alles löschen",
     "click_to_replace": "Klicken zum Ersetzen",
     "close": "Schließen",
+    "close_sidebar": "Seitenleiste schließen",
     "collapse": "Einklappen",
     "completed": "Abgeschlossen",
     "confirm": "Bestätigen",
@@ -1773,6 +1812,8 @@
     "knowledge_base": "Wissensdatenbank",
     "language": "Sprache",
     "loading": "Lädt...",
+    "maximize": "Maximieren",
+    "minimize": "Minimieren",
     "model": "Modell",
     "models": "Modelle",
     "more": "Mehr",
@@ -1785,6 +1826,7 @@
     "on": "An",
     "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
+    "open_sidebar": "Seitenleiste öffnen",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "Umbenennen",
     "required_field": "Pflichtfeld",
     "reset": "Zurücksetzen",
+    "resize_panel": "Größe des Bedienfelds ändern",
     "retry": "Wiederholen",
     "save": "Speichern",
     "save_failed": "Speichern fehlgeschlagen",
@@ -2144,13 +2187,13 @@
         "view_chunks": "Ansicht Chunks"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Unterstützte Dateien rekursiv aus einem Ordner importieren",
-          "title": "Klicken, um einen Ordner auszuwählen"
+        "conflict_dialog": {
+          "description": "{{count}} der hinzuzufügenden Quellen haben denselben Namen wie vorhandene Elemente. Wählen Sie, wie damit verfahren werden soll.",
+          "keep_all": "Alle behalten",
+          "replace": "Ersetzen",
+          "title": "Quellen existieren bereits"
         },
         "footer": {
-          "selected_directories": "{{count}} Verzeichnisse ausgewählt",
-          "selected_files": "{{count}} Dateien ausgewählt",
           "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
@@ -2246,7 +2289,6 @@
     },
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
-    "drag_file": "Datei hierher ziehen",
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
@@ -2258,9 +2300,9 @@
       "failed_to_edit": "Bearbeitung der Wissensdatenbank fehlgeschlagen",
       "failed_to_move": "Fehler beim Verschieben der Wissensdatenbank",
       "missing_embedding_model": "Das Embedding-Modell, das von dieser Wissensbasis verwendet wurde, wurde während der Migration nicht gefunden. Erstellen Sie die Wissensbasis neu und wählen Sie ein neues Embedding-Modell.",
+      "missing_vector_store": "Der Vektorspeicher dieser Wissensbasis konnte während der Migration nicht gelesen werden (fehlend, leer oder gesperrt). Die Wissensbasis wurde beibehalten; reindizieren Sie sie, um sie wiederherzustellen.",
       "model_invalid": "Kein Modell ausgewählt"
     },
-    "file_hint": "{{file_types}}-Formate werden unterstützt",
     "groups": {
       "add": "Neue Gruppe",
       "create_base_here": "Erstelle hier",
@@ -2358,6 +2400,8 @@
       "action": "Wissensbasis neu aufbauen",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Fehler beim Wiederaufbau der Wissensdatenbank",
+      "skipped_missing_sources_one": "{{count}} Element übersprungen, dessen Quelle nicht mehr existiert",
+      "skipped_missing_sources_other": "{{count}} Elemente übersprungen, deren Quelle nicht mehr existiert",
       "submit": "Wiederaufbau",
       "title": "Wissensdatenbank neu aufbauen"
     },
@@ -2405,7 +2449,9 @@
   "launchpad": {
     "apps": "Apps",
     "minapps": "Minapps",
-    "miniApps": "Mini-Apps"
+    "miniApps": "Mini-Apps",
+    "pin_to_sidebar": "An Seitenleiste anheften",
+    "unpin_from_sidebar": "Von der Seitenleiste lösen"
   },
   "library": {
     "action": {
@@ -2992,6 +3038,7 @@
         "no_api_key": "Notion API Key oder Notion Database ID nicht konfiguriert",
         "no_content": "Kein Inhalt zum Exportieren nach Notion vorhanden"
       },
+      "operation_unavailable": "Nachrichtenoperation nicht verfügbar. Bitte versuchen Sie es erneut.",
       "siyuan": {
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
@@ -3399,6 +3446,12 @@
       "placeholder": "Modelle durchsuchen...",
       "tooltip": "Modelle durchsuchen"
     },
+    "selection": {
+      "context_window": "Kontext {{count}}",
+      "remove_model": "Entferne {{name}}",
+      "restore_default": "Assistentenmodell wiederherstellen",
+      "selected_models": "Ausgewählte Modelle"
+    },
     "stream_output": "Stream-Ausgabe",
     "type": {
       "audio": "Audio",
@@ -3572,28 +3625,7 @@
     "tip": "Bei erfolgreicher Antwort wird nur für Nachrichten über 30 Sekunden eine Benachrichtigung angezeigt"
   },
   "ocr": {
-    "builtin": {
-      "system": "System-OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
-        "existing": "Anbieter existiert bereits",
-        "get_providers": "Failed to obtain available providers",
-        "not_found": "OCR-Anbieter nicht gefunden",
-        "update_failed": "Konfiguration aktualisieren fehlgeschlagen"
-      },
-      "unknown": "Fehler während OCR-Prozess"
-    },
-    "file": {
-      "not_supported": "Nicht unterstützter Dateityp {{type}}"
-    },
-    "processing": "OCR wird verarbeitet...",
-    "warning": {
-      "provider": {
-        "fallback": "Auf {{name}} zurückgefallen, dies kann zu Problemen führen"
-      }
-    }
+    "processing": "OCR wird verarbeitet..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -5455,7 +5487,19 @@
         "title": "Datensicherung und -wiederherstellung"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Kirsche",
+            "native": "Nativ",
+            "restart": {
+              "content": "Das Ändern des Menüstils erfordert einen Neustart der App, damit die Änderung wirksam wird. Möchten Sie jetzt neu starten?",
+              "title": "Neustart erforderlich"
+            },
+            "title": "Kontextmenü-Stil"
+          }
+        },
         "sections": {
+          "chat_settings": "Chat-Einstellungen",
           "custom_css": "Benutzerdefiniertes CSS",
           "display_language": "Anzeige & Sprache",
           "privacy_advanced": "Privatsphäre & Erweitert",
@@ -6591,6 +6635,14 @@
       "close": "Schließen",
       "confirm": "Bestätigen",
       "forward": "Vorwärts",
+      "mcp": {
+        "agentEmpty": "Für diesen Agenten sind keine MCP-Server konfiguriert.",
+        "assistantEmpty": "Für diesen Assistenten sind keine MCP-Server konfiguriert.",
+        "autoEmpty": "Keine aktivierten MCP-Server",
+        "description": "Aktuellen MCP-Serverstatus anzeigen",
+        "disabled": "MCP ist für diesen Assistenten deaktiviert",
+        "unknownServer": "Unbekannter MCP-Server"
+      },
       "multiple": "Mehrfachauswahl",
       "noResult": "Keine Ergebnisse gefunden",
       "page": "Seite umblättern",
@@ -6956,10 +7008,16 @@
       "title": "Zoom"
     }
   },
+  "subWindow": {
+    "back_to_main": "Zurück zum Hauptfenster",
+    "pin": "Immer oben halten",
+    "unpin": "Abbrechen Immer im Vordergrund"
+  },
   "tab": {
     "close": "Tab schließen",
     "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
+    "open_in_new_window": "In neuem Fenster öffnen",
     "pin": "Tab anheften",
     "unpin": "Tab lösen"
   },
@@ -7083,6 +7141,7 @@
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },
+      "ocr_completed": "Bild-OCR abgeschlossen",
       "reading": "Dateiinhalt wird gelesen...",
       "upload": "Bild/Dokument hier ablegen oder klicken, um hochzuladen"
     },
