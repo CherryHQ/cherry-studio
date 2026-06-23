@@ -642,7 +642,7 @@ const MigrationApp: React.FC = () => {
               </div>
               <ProgressBar value={progress.overallProgress} />
             </div>
-            <MigratorProgressList migrators={progress.migrators} overallProgress={progress.overallProgress} />
+            <MigratorProgressList migrators={progress.migrators} />
             <p className="pt-0.5 text-center text-foreground-muted text-xs">{t('migration.migration.do_not_close')}</p>
           </div>
         )

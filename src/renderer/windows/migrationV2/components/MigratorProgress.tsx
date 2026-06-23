@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   migrators: MigratorProgressType[]
-  overallProgress: number
 }
 
 const ICON_WRAP = 'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg'
