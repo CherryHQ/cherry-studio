@@ -71,8 +71,7 @@ async function ensureClaudeCodeProviderEnabledTx(tx: TxLike): Promise<void> {
 async function ensureClaudeCodeModelsTx(tx: TxLike): Promise<void> {
   // claude-code cannot list models over the API (no API key — subscription
   // login only), so materialize the registry catalog into user_model. Metadata
-  // (capabilities, context window, pricing) is inherited from models.json; the
-  // tier aliases (opus/sonnet/haiku) are synthesized from provider-models.json.
+  // (capabilities, context window, pricing) is inherited from models.json.
   const models = await providerRegistryService.listProviderRegistryModels({ providerId: CLAUDE_CODE_PROVIDER_ID })
   if (models.length === 0) return
 

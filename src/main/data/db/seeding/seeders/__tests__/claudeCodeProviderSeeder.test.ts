@@ -16,18 +16,6 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
 }))
 
 const REGISTRY_MODELS = [
-  // Tier alias synthesized from provider-models.json (no models.json entry).
-  {
-    id: 'claude-code::opus',
-    apiModelId: 'opus',
-    presetModelId: 'opus',
-    name: 'Claude Opus (Latest)',
-    family: 'claude-opus',
-    capabilities: ['function-call'],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false
-  },
   // Concrete model inheriting rich metadata from models.json.
   {
     id: 'claude-code::claude-opus-4-8',
@@ -94,7 +82,6 @@ describe('ClaudeCodeProviderSeeder', () => {
 
     const byId = new Map(models.map((m) => [m.id, m]))
     // Bare model id (not the unique id) lands in modelId; group derives from family.
-    expect(byId.get('claude-code::opus')).toMatchObject({ modelId: 'opus', group: 'Claude Opus', isEnabled: true })
     expect(byId.get('claude-code::claude-opus-4-8')).toMatchObject({
       modelId: 'claude-opus-4-8',
       group: 'Claude Opus',

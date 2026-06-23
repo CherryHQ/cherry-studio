@@ -160,8 +160,8 @@ describe('TopicNamingService', () => {
     )
   })
 
-  it('keeps agent session naming on the agent model when topic naming model preference is invalid', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'bad-value')
+  it('uses topic.naming.model_id for agent session summary naming', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai::gpt-4o-mini')
     mocks.getSession.mockResolvedValue({
       id: 'session-1',
       agentId: 'agent-1',
@@ -169,7 +169,7 @@ describe('TopicNamingService', () => {
     })
     mocks.getAgent.mockResolvedValue({
       id: 'agent-1',
-      model: 'anthropic::claude-3'
+      model: 'claude-code::haiku'
     })
 
     await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
@@ -180,9 +180,38 @@ describe('TopicNamingService', () => {
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
         assistantId: 'agent-1',
-        uniqueModelId: 'anthropic::claude-3'
+        uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
     expect(mocks.updateSession).toHaveBeenCalledWith('session-1', { name: 'Generated Title' })
+  })
+
+  it('falls back when topic naming model points to an agent-only provider', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'claude-code::haiku')
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'Old Session'
+    })
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      model: 'claude-code::haiku'
+    })
+
+    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Agent response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).not.toHaveBeenCalledWith('claude-code', 'haiku')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      })
+    )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'topic.naming.model_id points to an agent-only provider; falling back to managed CherryAI default model',
+      { configured: 'claude-code::haiku' }
+    )
   })
 })

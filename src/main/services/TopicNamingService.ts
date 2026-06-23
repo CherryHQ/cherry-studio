@@ -7,6 +7,7 @@ import type { AiGenerateRequest } from '@main/ai/AiService'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import { isAgentOnlyProviderId } from '@shared/data/presets/claudeCode'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
@@ -186,16 +187,17 @@ export class TopicNamingService {
       const session = await agentSessionService.getById(sessionId).catch(() => null)
       if (!session || !session.agentId) return
       const agent = await agentService.getAgent(session.agentId).catch(() => null)
-      if (!agent || !agent.model) return
+      if (!agent) return
 
       const structuredConversation: StructuredMessage[] = [
         { role: 'user', mainText: cleanMarkdownImages(userText) },
         { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
       ]
 
+      const uniqueModelId = await this.resolveNamingModelId()
       const title = await this.generateSummaryTitle(
         agentId,
-        agent.model,
+        uniqueModelId,
         buildStructuredConversation(structuredConversation)
       )
       if (!title) return
@@ -259,6 +261,16 @@ export class TopicNamingService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
+    if (isAgentOnlyProviderId(providerId)) {
+      logger.warn(
+        'topic.naming.model_id points to an agent-only provider; falling back to managed CherryAI default model',
+        {
+          configured
+        }
+      )
+      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    }
+
     try {
       await modelService.getByKey(providerId, modelId)
       return parsed.data

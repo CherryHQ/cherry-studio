@@ -17,7 +17,8 @@ const mocks = vi.hoisted(() => ({
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  platform: { isMac: false }
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -105,7 +106,9 @@ vi.mock('@main/core/application', () => ({
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
   isWin: false,
-  isMac: false
+  get isMac() {
+    return mocks.platform.isMac
+  }
 }))
 
 vi.mock('@main/services/proxy/nodeProxy', () => ({
@@ -190,6 +193,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
+    mocks.platform.isMac = false
     mocks.getLoginShellEnvironment.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
@@ -627,6 +631,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
 
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+    })
+
+    it('leaves CLAUDE_CONFIG_DIR unset on macOS so the Agent SDK can read the Keychain login', async () => {
+      mocks.platform.isMac = true
+      mocks.getLoginShellEnvironment.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+
+      expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
     })
 
     it('blocks a user env_var override of CLAUDE_CODE_USE_VERTEX', async () => {

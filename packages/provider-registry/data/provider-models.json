@@ -1,29 +1,5 @@
 {
   "overrides": [
-    {
-      "providerId": "claude-code",
-      "modelId": "opus",
-      "name": "Claude Opus (Latest)",
-      "family": "claude-opus",
-      "capabilities": { "force": ["function-call", "reasoning", "image-recognition", "file-input"] },
-      "endpointTypes": ["anthropic-messages"]
-    },
-    {
-      "providerId": "claude-code",
-      "modelId": "sonnet",
-      "name": "Claude Sonnet (Latest)",
-      "family": "claude-sonnet",
-      "capabilities": { "force": ["function-call", "reasoning", "image-recognition", "file-input"] },
-      "endpointTypes": ["anthropic-messages"]
-    },
-    {
-      "providerId": "claude-code",
-      "modelId": "haiku",
-      "name": "Claude Haiku (Latest)",
-      "family": "claude-haiku",
-      "capabilities": { "force": ["function-call", "reasoning", "image-recognition", "file-input"] },
-      "endpointTypes": ["anthropic-messages"]
-    },
     { "providerId": "claude-code", "modelId": "claude-opus-4-8" },
     { "providerId": "claude-code", "modelId": "claude-opus-4-7" },
     { "providerId": "claude-code", "modelId": "claude-opus-4-6" },

@@ -328,6 +328,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      if (!salvaged && !this.abortController.signal.aborted) {
+        logger.error('Claude Code query loop failed', {
+          sessionId: this.input.sessionId,
+          modelId: this.adapterModelId ?? this.input.modelId,
+          error
+        })
+      }
       this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.

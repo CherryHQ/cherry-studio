@@ -544,8 +544,9 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   // / auth token, a base-URL redirect, custom headers (e.g. an inherited
   // Authorization / x-api-key), and a directly-supplied OAuth token. The
   // warm-query builder already skips injecting the API key for this provider.
-  // macOS keeps the credential in the global Keychain (independent of
-  // CLAUDE_CONFIG_DIR); elsewhere it lives in <CLAUDE_CONFIG_DIR>/.credentials.json,
+  // The Agent SDK only falls through to macOS Keychain lookup when CLAUDE_CONFIG_DIR
+  // is absent; Cherry's isolated agent config dir would otherwise mask a valid
+  // CLI login. Elsewhere credentials live in <CLAUDE_CONFIG_DIR>/.credentials.json,
   // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
   // ~/.claude) rather than Cherry's relocated agent config.
   if (isClaudeCodeProviderId(provider.id)) {
@@ -554,7 +555,9 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     delete env.ANTHROPIC_BASE_URL
     delete env.ANTHROPIC_CUSTOM_HEADERS
     delete env.CLAUDE_CODE_OAUTH_TOKEN
-    if (!isMac) {
+    if (isMac) {
+      delete env.CLAUDE_CONFIG_DIR
+    } else {
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
   }
