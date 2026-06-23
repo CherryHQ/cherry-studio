@@ -25,10 +25,10 @@
 - [[P1-S2b-1_MultiBranchUI/README|P1-S2b-1 Multi-Branch UI 基础]] ✅ 2026-06-01（commit `5c7071a69`）
 - [[P1-S2b-2_FollowupRouting/README|P1-S2b-2 follow-up 路由]] ✅ 2026-06-01（commit `1c7f4ba20`）
 - [[P1-S2b-3_Polish/README|P1-S2b-3 交互精修]] ❌ **已废弃**（sticky-stacking via display:contents → B1 重叠;未入库）→ 被 S2c 取代
-- [[P1-S2c_MasterDetail/README|P1-S2c 面板布局（accordion 定稿）+ 统一键盘]] ✅ 2026-06-03（待 commit）—— accordion 手风琴单滚动区(每分支=标题+紧贴其下内容,修 B1 重叠/串位)+ locate(新建/展开滚到顶)+ 统一共享 composer 键盘修 B3 + compose label;中间态 master/detail 被 accordion 取代
-- P1-S2d 余项（hover 联动 / folder-tab 视觉 / 每卡 loading 态 / B4 菜单兜底 / 可选 sticky 当前标题）— 未开始
+- [[P1-S2c_MasterDetail/README|P1-S2c 面板布局（accordion 定稿）+ 统一键盘]] ✅ 2026-06-03（commit `0698edf64`）—— accordion 手风琴单滚动区(每分支=标题+紧贴其下内容,修 B1 重叠/串位)+ locate(新建/展开滚到顶)+ 统一共享 composer 键盘修 B3 + compose label;中间态 master/detail 被 accordion 取代
+- [[P1-S2d_PanelPolish/README|P1-S2d 面板交互打磨]] ✅ 2026-06-07（已提交，**P1 收尾**）—— card↔highlight 双向联动 + 容器相对自动滚入(不带动主线) + 每卡 loading(信号 `loadingByTopic`，非会被 B6 提前标 success 的 `message.status`) + 扁平色条头(弃凸起斜角) + B4 菜单变灰兜底(经核查已正确、仅验证);用户实跑冒烟 4/4 通过
 - P1-B5 关闭中止流式（abort）✅ 2026-06-04（commit `ed8314ec1`）
-- [[P1-S3_Disposition/README|P1-S3 关闭去向路由 + 保留按钮]] ✅ 2026-06-04（待 commit）—— pending(默认)静默删 fork topic / kept 不删 + Keep 按钮;只 CALL 现有 DataApi DELETE
+- [[P1-S3_Disposition/README|P1-S3 关闭去向路由 + 保留按钮]] ✅ 2026-06-07（commit `0452c70c4`，含 delete-after-settle + B6-A abort 取靶修）—— pending(默认)静默删 fork topic / kept 不删 + Keep 按钮;只 CALL 现有 DataApi DELETE
 - B4 右键菜单变灰 — ✅ 已调查=非 bug（见 [[../../问题与Debug记录#B4]]）
 
 ## 触碰边界（整个 P1 都遵守）

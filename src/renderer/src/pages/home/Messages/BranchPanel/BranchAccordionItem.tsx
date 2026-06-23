@@ -13,6 +13,10 @@ interface Props {
   collapsed: boolean
   forkStatus: ForkStatus
   forkErrorMessage?: string
+  /** P1-S2d: this branch's reply is currently streaming → header shows a spinner. */
+  loading?: boolean
+  /** P1-S2d: this branch is hovered/active (via its card OR its source highlight). */
+  emphasized?: boolean
   /** Header chevron / snippet click → toggle this branch (host also handles locate). */
   onToggleCollapse: () => void
   /** Header X OR compose Cancel → close this branch. */
@@ -23,6 +27,9 @@ interface Props {
   onSendFollowUp: (followUp: string) => void
   /** P1-S3: toggle this branch's disposition pending ↔ kept. */
   onToggleKeep: () => void
+  /** P1-S2d: pointer entered/left this card → emphasise the matching source highlight. */
+  onHoverEnter?: () => void
+  onHoverLeave?: () => void
 }
 
 /**
@@ -42,23 +49,30 @@ export default function BranchAccordionItem({
   collapsed,
   forkStatus,
   forkErrorMessage,
+  loading,
+  emphasized,
   onToggleCollapse,
   onClose,
   onCreate,
   onSendFollowUp,
-  onToggleKeep
+  onToggleKeep,
+  onHoverEnter,
+  onHoverLeave
 }: Props) {
   return (
     <div
-      className="flex shrink-0 flex-col rounded-md border border-border bg-background"
+      className={`flex shrink-0 flex-col rounded-md border bg-background ${emphasized ? 'border-primary ring-1 ring-primary' : 'border-border'}`}
       data-testid={`branch-item-${branch.id}`}
       data-branch-item-id={branch.id}>
       <BranchTab
         branch={branch}
         index={index}
         collapsed={collapsed}
+        loading={loading}
         onToggleCollapse={onToggleCollapse}
         onClose={onClose}
+        onHoverEnter={onHoverEnter}
+        onHoverLeave={onHoverLeave}
       />
       {!collapsed && (
         <BranchDetail

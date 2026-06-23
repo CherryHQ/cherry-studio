@@ -127,4 +127,46 @@ describe('BranchAccordionItem (P1-S2c-accordion)', () => {
       expect(el.className.toString()).not.toContain('sticky')
     }
   })
+
+  // ── P1-S2d: emphasis + per-card loading ──────────────────────────────────
+  it('emphasized=true accents the item box border; default keeps border-border', () => {
+    const { rerender } = renderItem(conversationBranch, false)
+    expect(screen.getByTestId(`branch-item-${conversationBranch.id}`).className).toContain('border-border')
+
+    rerender(
+      <BranchAccordionItem
+        branch={conversationBranch}
+        index={0}
+        collapsed={false}
+        forkStatus="idle"
+        emphasized
+        onToggleCollapse={vi.fn()}
+        onClose={vi.fn()}
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+        onToggleKeep={vi.fn()}
+      />
+    )
+    const box = screen.getByTestId(`branch-item-${conversationBranch.id}`)
+    expect(box.className).toContain('border-primary')
+    expect(box.className).not.toContain('border-border')
+  })
+
+  it('loading=true surfaces the header spinner', () => {
+    render(
+      <BranchAccordionItem
+        branch={conversationBranch}
+        index={0}
+        collapsed
+        forkStatus="idle"
+        loading
+        onToggleCollapse={vi.fn()}
+        onClose={vi.fn()}
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+        onToggleKeep={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('branch-tab-loading')).toBeInTheDocument()
+  })
 })

@@ -187,3 +187,17 @@ ul {
 textarea::-webkit-resizer {
   display: none;
 }
+
+/*
+ * P1-S2d card↔highlight linkage (item 1). The source-passage <span>s are
+ * injected by sourceHighlight.ts (frozen — never edited here); the link layer
+ * only toggles the `is-emphasized` class on the spans matching the
+ * hovered/active branch's data-branch-id (see useHighlightCardLink.ts).
+ * Emphasis uses outline, not background, so it never fights the per-branch
+ * `data-hl` background variable sourceHighlight.ts paints.
+ */
+.branch-anchor-highlight.is-emphasized {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  border-radius: 2px;
+}

@@ -1308,6 +1308,7 @@
         "open_as_branch": "Open as branch",
         "panel": {
           "card": {
+            "streaming": "Generating reply…",
             "toggle_collapse": "Toggle branch card"
           },
           "close": "Close branch panel",

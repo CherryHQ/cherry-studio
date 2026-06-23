@@ -80,4 +80,68 @@ describe('BranchTab (P1-S2c master row)', () => {
     expect(tab.className).not.toContain('sticky')
     expect(tab.style.display).not.toBe('contents')
   })
+
+  // ── P1-S2d: flat color bar + whole-bar click + hover + per-card loading ──
+  it('the whole bar is a click target → clicking empty bar area toggles collapse', () => {
+    const onToggleCollapse = vi.fn()
+    render(
+      <BranchTab branch={branch} index={0} collapsed={false} onToggleCollapse={onToggleCollapse} onClose={vi.fn()} />
+    )
+    fireEvent.click(screen.getByTestId(`branch-tab-${branch.id}`))
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1)
+  })
+
+  it('the bar background is the branch palette color (flat, color-coded)', () => {
+    render(<BranchTab branch={branch} index={0} collapsed={false} onToggleCollapse={vi.fn()} onClose={vi.fn()} />)
+    const parseRgba = (s: string): [number, number, number, number] | null => {
+      const m = s.match(/rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)[\s,/]+([\d.]+)\s*\)/)
+      return m ? [+m[1], +m[2], +m[3], +m[4]] : null
+    }
+    const tab = screen.getByTestId(`branch-tab-${branch.id}`)
+    expect(parseRgba(tab.style.backgroundColor)).toEqual(parseRgba(BRANCH_HL_COLOR_VALUES.c2))
+  })
+
+  it('X close does NOT also toggle collapse (stops propagation to the bar)', () => {
+    const onToggleCollapse = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <BranchTab branch={branch} index={0} collapsed={false} onToggleCollapse={onToggleCollapse} onClose={onClose} />
+    )
+    fireEvent.click(screen.getByTestId('branch-tab-close'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onToggleCollapse).not.toHaveBeenCalled()
+  })
+
+  it('renders the streaming spinner only when loading', () => {
+    const { rerender } = render(
+      <BranchTab branch={branch} index={0} collapsed={false} onToggleCollapse={vi.fn()} onClose={vi.fn()} />
+    )
+    expect(screen.queryByTestId('branch-tab-loading')).toBeNull()
+
+    rerender(
+      <BranchTab branch={branch} index={0} collapsed={false} loading onToggleCollapse={vi.fn()} onClose={vi.fn()} />
+    )
+    expect(screen.getByTestId('branch-tab-loading')).toBeInTheDocument()
+  })
+
+  it('fires hover callbacks when the pointer enters/leaves the bar', () => {
+    const onHoverEnter = vi.fn()
+    const onHoverLeave = vi.fn()
+    render(
+      <BranchTab
+        branch={branch}
+        index={0}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        onClose={vi.fn()}
+        onHoverEnter={onHoverEnter}
+        onHoverLeave={onHoverLeave}
+      />
+    )
+    const tab = screen.getByTestId(`branch-tab-${branch.id}`)
+    fireEvent.mouseEnter(tab)
+    fireEvent.mouseLeave(tab)
+    expect(onHoverEnter).toHaveBeenCalledTimes(1)
+    expect(onHoverLeave).toHaveBeenCalledTimes(1)
+  })
 })

@@ -1308,6 +1308,7 @@
         "open_as_branch": "展開為分支",
         "panel": {
           "card": {
+            "streaming": "正在生成回覆…",
             "toggle_collapse": "摺疊/展開分支卡片"
           },
           "close": "關閉分支面板",

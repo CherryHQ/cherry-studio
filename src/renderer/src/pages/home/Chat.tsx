@@ -66,6 +66,11 @@ const Chat: FC<Props> = (props) => {
   const [isTopNavbar] = usePreference('ui.navbar.position')
 
   const mainRef = React.useRef<HTMLDivElement>(null)
+  // P1-S2d: the shared ancestor of BOTH the main-thread highlight spans
+  // (inside <Messages>) and the branch cards (<BranchPane>). BranchPane attaches
+  // its highlight→card event delegation here. Hover state lives in BranchPane,
+  // NOT here, so hovering never re-renders the <Messages> subtree.
+  const chatContainerRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
@@ -180,6 +185,17 @@ const Chat: FC<Props> = (props) => {
       } else {
         next.add(branchId)
       }
+      return next
+    })
+  }, [])
+
+  // P1-S2d: ensure a branch is expanded (used when its source highlight is
+  // clicked). No-op if already expanded so we never collapse on click.
+  const expandBranch = useCallback((branchId: string) => {
+    setCollapsedBranchIds((prev) => {
+      if (!prev.has(branchId)) return prev
+      const next = new Set(prev)
+      next.delete(branchId)
       return next
     })
   }, [])
@@ -374,7 +390,10 @@ const Chat: FC<Props> = (props) => {
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
   return (
-    <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+    <Container
+      ref={chatContainerRef}
+      id="chat"
+      className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       {/*
         T-006D-2B S5' scroll-fix: Container is a flex column with a bounded
         height (calc(100vh - var(--navbar-height))). RowFlex sits inside as a
@@ -494,6 +513,8 @@ const Chat: FC<Props> = (props) => {
             onSendFollowUp={handleSendBranchFollowUp}
             onCloseBranch={handleCloseBranch}
             onToggleKeepBranch={toggleKeepBranch}
+            containerRef={chatContainerRef}
+            onExpandBranch={expandBranch}
           />
         </BranchAssistantContext>
       </RowFlex>

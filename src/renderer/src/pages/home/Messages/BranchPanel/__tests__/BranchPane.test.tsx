@@ -14,6 +14,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+// P1-S2d item 3: BranchPane reads the reliable per-topic loading map (Redux
+// loadingByTopic, NOT message.status). Mock the thin reader so these tests need
+// no store; drive it per-test via `mocks.loadingByTopic`.
+const mocks = vi.hoisted(() => ({ loadingByTopic: {} as Record<string, boolean> }))
+vi.mock('../useBranchTopicLoading', () => ({
+  useLoadingByTopic: () => mocks.loadingByTopic
+}))
+
 // ──────────────────────────────────────────────────────────────────────────
 // SCOPE: jsdom has NO layout/scroll engine. These assert STRUCTURE (single
 // region, per-branch accordion items, header+content together) and BEHAVIOUR
@@ -68,6 +76,7 @@ function renderPane(props: Partial<React.ComponentProps<typeof BranchPane>> = {}
 
 afterEach(() => {
   vi.restoreAllMocks()
+  mocks.loadingByTopic = {}
   document.body.innerHTML = ''
 })
 
@@ -243,5 +252,21 @@ describe('BranchPane (P1-S2c-accordion)', () => {
   it('shows the resize handle when at least one branch is open', () => {
     renderPane()
     expect(screen.getByTestId('branch-pane-resize-handle')).toBeInTheDocument()
+  })
+
+  // ── Per-card streaming loading (P1-S2d item 3) ───────────────────────────
+  it('shows the streaming spinner ONLY on the card whose branch topic is loading', () => {
+    // branchB owns topic-branch-B; branchA is still compose-state (topic null).
+    mocks.loadingByTopic = { 'topic-branch-B': true }
+    renderPane()
+
+    expect(within(screen.getByTestId('branch-item-branch-B')).getByTestId('branch-tab-loading')).toBeInTheDocument()
+    expect(within(screen.getByTestId('branch-item-branch-A')).queryByTestId('branch-tab-loading')).toBeNull()
+  })
+
+  it('shows no spinner when no branch topic is loading', () => {
+    mocks.loadingByTopic = {}
+    renderPane()
+    expect(screen.queryByTestId('branch-tab-loading')).toBeNull()
   })
 })

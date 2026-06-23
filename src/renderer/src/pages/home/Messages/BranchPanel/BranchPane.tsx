@@ -1,4 +1,6 @@
+import { scrollElementIntoView } from '@renderer/utils/dom'
 import { motion } from 'motion/react'
+import type { RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,6 +8,8 @@ import BranchAccordionItem from './BranchAccordionItem'
 import { BRANCH_PANE_DEFAULT_WIDTH } from './constants'
 import type { Branch } from './types'
 import { useBranchPaneResize } from './useBranchPaneResize'
+import { useLoadingByTopic } from './useBranchTopicLoading'
+import { useHighlightCardLink } from './useHighlightCardLink'
 
 type ForkStatus = 'idle' | 'creating' | 'error'
 
@@ -31,6 +35,14 @@ interface Props {
   onCloseBranch: (branchId: string) => void
   /** P1-S3: toggle a single branch's disposition pending ↔ kept (Keep button). */
   onToggleKeepBranch: (branchId: string) => void
+  /**
+   * P1-S2d: shared DOM ancestor of both the main-thread highlight spans and
+   * these cards (the Chat `#chat` container). Used for highlight→card event
+   * delegation. Optional so unit tests can render the pane in isolation.
+   */
+  containerRef?: RefObject<HTMLElement | null>
+  /** P1-S2d: ensure a branch is expanded (used when clicking its source highlight). */
+  onExpandBranch?: (branchId: string) => void
 }
 
 /**
@@ -60,10 +72,17 @@ export default function BranchPane({
   onCreate,
   onSendFollowUp,
   onCloseBranch,
-  onToggleKeepBranch
+  onToggleKeepBranch,
+  containerRef,
+  onExpandBranch
 }: Props) {
   const { t } = useTranslation()
   const isVisible = branches.length > 0
+
+  // P1-S2d item 3: reliable per-card streaming flag (loadingByTopic — NOT
+  // message.status). Keyed by each branch's own fork topic id, so the spinner
+  // lights up only on the card whose reply is in flight.
+  const loadingByTopic = useLoadingByTopic()
 
   const [width, setWidth] = useState<number>(BRANCH_PANE_DEFAULT_WIDTH)
   const widthRef = useRef(width)
@@ -74,13 +93,18 @@ export default function BranchPane({
   const getCurrentWidth = useCallback(() => widthRef.current, [])
   const { isResizing, startResizing } = useBranchPaneResize(setWidth, getCurrentWidth)
 
-  // locate: scroll a branch's item to the top of the scroll region. The item's
-  // header always exists, so this works whether the branch is collapsed or
-  // expanded. Optional chaining keeps it safe under jsdom (no layout engine).
+  // locate: scroll a branch's item into view WITHIN this pane's single scroll
+  // region. The item's header always exists, so this works whether the branch
+  // is collapsed or expanded. `scrollElementIntoView` scrolls the passed
+  // container (not the page), so locating a card never drags the main thread's
+  // scrollbar — the single scroll region is the S2c invariant. Optional
+  // chaining keeps it safe under jsdom (no layout engine).
   const scrollRegionRef = useRef<HTMLDivElement>(null)
-  const scrollItemToTop = useCallback((branchId: string) => {
-    const el = scrollRegionRef.current?.querySelector(`[data-branch-item-id="${branchId}"]`)
-    el?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  const scrollItemIntoView = useCallback((branchId: string) => {
+    const el = scrollRegionRef.current?.querySelector<HTMLElement>(`[data-branch-item-id="${branchId}"]`)
+    // Feature-detect scrollIntoView so jsdom (no layout engine) is a safe no-op,
+    // mirroring the prior `el?.scrollIntoView?.()` guard.
+    if (el && typeof el.scrollIntoView === 'function') scrollElementIntoView(el, scrollRegionRef.current)
   }, [])
 
   // locate on CREATE: a newly-appended branch (expanded by default — Chat never
@@ -91,19 +115,37 @@ export default function BranchPane({
     const added = branches.filter((b) => !prev.has(b.id))
     prevBranchIdsRef.current = new Set(branches.map((b) => b.id))
     const newest = added.at(-1)
-    if (newest) scrollItemToTop(newest.id)
-  }, [branches, scrollItemToTop])
+    if (newest) scrollItemIntoView(newest.id)
+  }, [branches, scrollItemIntoView])
 
-  // locate on EXPAND: expanding (was collapsed) scrolls to the top; collapsing
+  // locate on EXPAND: expanding (was collapsed) scrolls into view; collapsing
   // (was expanded) does not scroll.
   const handleToggleCollapse = useCallback(
     (branchId: string) => {
       const wasCollapsed = collapsedBranchIds.has(branchId)
       onToggleCollapsedBranchId(branchId)
-      if (wasCollapsed) scrollItemToTop(branchId)
+      if (wasCollapsed) scrollItemIntoView(branchId)
     },
-    [collapsedBranchIds, onToggleCollapsedBranchId, scrollItemToTop]
+    [collapsedBranchIds, onToggleCollapsedBranchId, scrollItemIntoView]
   )
+
+  // P1-S2d item 1: clicking a source highlight expands its card AND scrolls it
+  // into view, even if it was already expanded.
+  const handleActivateBranch = useCallback(
+    (branchId: string) => {
+      onExpandBranch?.(branchId)
+      scrollItemIntoView(branchId)
+    },
+    [onExpandBranch, scrollItemIntoView]
+  )
+
+  // P1-S2d item 1: bidirectional card ↔ highlight emphasis. `hoveredBranchId`
+  // is local pane state, so hover churn re-renders only the panel — never the
+  // <Messages> subtree (the isolation invariant); the span side is imperative.
+  const { hoveredBranchId, handleCardMouseEnter, handleCardMouseLeave } = useHighlightCardLink({
+    containerRef,
+    onActivateBranch: handleActivateBranch
+  })
 
   return (
     <motion.div
@@ -141,11 +183,15 @@ export default function BranchPane({
               collapsed={collapsedBranchIds.has(branch.id)}
               forkStatus={creatingBranchId === branch.id ? forkStatus : 'idle'}
               forkErrorMessage={creatingBranchId === branch.id ? forkErrorMessage : undefined}
+              loading={!!(branch.topic && loadingByTopic[branch.topic.id])}
+              emphasized={hoveredBranchId === branch.id}
               onToggleCollapse={() => handleToggleCollapse(branch.id)}
               onClose={() => onCloseBranch(branch.id)}
               onCreate={(followUp) => onCreate(branch.id, followUp)}
               onSendFollowUp={(followUp) => onSendFollowUp(branch.id, followUp)}
               onToggleKeep={() => onToggleKeepBranch(branch.id)}
+              onHoverEnter={() => handleCardMouseEnter(branch.id)}
+              onHoverLeave={handleCardMouseLeave}
             />
           ))}
         </div>
