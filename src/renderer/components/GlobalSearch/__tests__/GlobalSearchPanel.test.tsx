@@ -758,7 +758,45 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(input).toHaveAttribute('aria-activedescendant', secondOption.id)
-      expect(mocks.virtualListScrollToIndex).toHaveBeenLastCalledWith(expect.any(Number), { align: 'auto' })
+      expect(mocks.virtualListScrollToIndex).toHaveBeenLastCalledWith(2, { align: 'auto' })
+    })
+  })
+
+  it('wraps keyboard selection upward to the final footer row and scrolls it into view', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'plan',
+      groups: [
+        {
+          type: 'topic',
+          items: Array.from({ length: 6 }, (_, index) => ({
+            type: 'topic',
+            id: `topic-${index}`,
+            title: `Topic ${index}`,
+            target: { topicId: `topic-${index}` }
+          }))
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')
+    await user.type(input, 'plan')
+    const firstOption = await screen.findByRole('option', { name: /Topic 0/ })
+    const footerOption = await screen.findByRole('option', { name: 'Show 1 more' })
+    fireEvent.mouseEnter(firstOption)
+
+    await waitFor(() => {
+      expect(input).toHaveAttribute('aria-activedescendant', getGlobalSearchOptionDomId('topic:topic-0'))
+    })
+
+    mocks.virtualListScrollToIndex.mockClear()
+    await user.keyboard('{ArrowUp}')
+
+    await waitFor(() => {
+      expect(input).toHaveAttribute('aria-activedescendant', footerOption.id)
+      expect(mocks.virtualListScrollToIndex).toHaveBeenLastCalledWith(6, { align: 'auto' })
     })
   })
 

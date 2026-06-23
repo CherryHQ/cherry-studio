@@ -338,7 +338,7 @@ export function GlobalSearchMessagePreviewPanel({
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
             {t('common.loading')}
           </div>
-        ) : error ? (
+        ) : error && messageItems.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
             {t('globalSearch.error')}
           </div>
@@ -353,6 +353,13 @@ export function GlobalSearchMessagePreviewPanel({
             topic={previewTopic}
             renderConfig={{ narrowMode: false, showMessageOutline: false }}>
             <div ref={contentRef} className="flex flex-col gap-4">
+              {error && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-error-border bg-error-bg px-3 py-2 text-error-text text-xs leading-4">
+                  {t('globalSearch.error')}
+                </div>
+              )}
               {isLoadingMore && (
                 <div className="py-2 text-center text-muted-foreground text-xs">{t('common.loading')}</div>
               )}

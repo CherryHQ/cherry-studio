@@ -18,8 +18,8 @@ export const GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT = 5
 
 export type GlobalSearchFilter = 'all' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge'
 export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
-export type GlobalTopicMessageSearchResult = TopicMessageContentSearchItem & { sourceType: 'topic' }
-export type GlobalSessionMessageSearchResult = SessionMessageContentSearchItem & { sourceType: 'session' }
+type GlobalTopicMessageSearchResult = TopicMessageContentSearchItem & { sourceType: 'topic' }
+type GlobalSessionMessageSearchResult = SessionMessageContentSearchItem & { sourceType: 'session' }
 export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
 type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 
@@ -114,7 +114,7 @@ export function getMessageSearchSources(filter: GlobalMessageSearchSourceFilter)
   }
 }
 
-export function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): string {
+function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): string {
   switch (entry.kind) {
     case 'route':
       return `route:${entry.url}`
@@ -122,6 +122,19 @@ export function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): st
       return `topic:${entry.topicId}`
     case 'session':
       return `session:${entry.sessionId}`
+  }
+}
+
+function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b: GlobalSearchRecentEntry) {
+  if (a.kind !== b.kind || a.title !== b.title || a.lastAccessTime !== b.lastAccessTime) return false
+
+  switch (a.kind) {
+    case 'route':
+      return b.kind === 'route' && a.url === b.url && a.icon === b.icon
+    case 'topic':
+      return b.kind === 'topic' && a.topicId === b.topicId && a.assistantId === b.assistantId
+    case 'session':
+      return b.kind === 'session' && a.sessionId === b.sessionId && a.agentId === b.agentId
   }
 }
 
@@ -139,7 +152,7 @@ export function upsertGlobalSearchRecentEntry(
     next.length === entries.length &&
     next.every((candidate, index) => {
       const previous = entries[index]
-      return previous && JSON.stringify(previous) === JSON.stringify(candidate)
+      return previous && areGlobalSearchRecentEntriesEqual(previous, candidate)
     })
   ) {
     return entries as GlobalSearchRecentEntry[]
@@ -148,9 +161,7 @@ export function upsertGlobalSearchRecentEntry(
   return next
 }
 
-export function getDisplayGlobalSearchRecentEntries(
-  entries: readonly GlobalSearchRecentEntry[]
-): GlobalSearchRecentEntry[] {
+function getDisplayGlobalSearchRecentEntries(entries: readonly GlobalSearchRecentEntry[]): GlobalSearchRecentEntry[] {
   return [...entries].sort((a, b) => b.lastAccessTime - a.lastAccessTime).slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
 }
 

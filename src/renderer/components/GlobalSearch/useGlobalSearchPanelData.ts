@@ -129,7 +129,41 @@ function areContentSearchCursorsEqual(a: ContentSearchCursorMap, b: ContentSearc
 }
 
 function areMessageSearchItemsEqual(a: readonly GlobalMessageSearchResult[], b: readonly GlobalMessageSearchResult[]) {
-  return a.length === b.length && a.every((item, index) => JSON.stringify(item) === JSON.stringify(b[index]))
+  return (
+    a.length === b.length &&
+    a.every((item, index) => {
+      const next = b[index]
+      if (!next) return false
+      if (
+        item.sourceType !== next.sourceType ||
+        item.messageId !== next.messageId ||
+        item.role !== next.role ||
+        item.snippet !== next.snippet ||
+        item.createdAt !== next.createdAt
+      ) {
+        return false
+      }
+
+      if (item.sourceType === 'topic') {
+        return (
+          next.sourceType === 'topic' &&
+          item.topicId === next.topicId &&
+          item.topicName === next.topicName &&
+          item.topicAssistantId === next.topicAssistantId &&
+          item.topicCreatedAt === next.topicCreatedAt &&
+          item.topicUpdatedAt === next.topicUpdatedAt
+        )
+      }
+
+      return (
+        next.sourceType === 'session' &&
+        item.sessionId === next.sessionId &&
+        item.sessionName === next.sessionName &&
+        item.agentId === next.agentId &&
+        item.agentName === next.agentName
+      )
+    })
+  )
 }
 
 export function useGlobalSearchPanelData({

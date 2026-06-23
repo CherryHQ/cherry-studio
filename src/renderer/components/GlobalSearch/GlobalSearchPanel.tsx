@@ -27,7 +27,6 @@ import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { Message as DbMessage } from '@shared/data/types/message'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -206,6 +205,12 @@ function logOpenFailure(error: unknown, context: Record<string, unknown>) {
   logger.error('Failed to open global search result', error as Error, context)
 }
 
+function emitGlobalSearchSelection(eventName: string, payload: unknown, context: Record<string, unknown>) {
+  void Promise.resolve(EventEmitter.emit(eventName, payload)).catch((error) => {
+    logger.error('Failed to emit global search selection event', error as Error, context)
+  })
+}
+
 function getGroupedVirtualListRowIndex<TGroup, TItem, TFooter>(
   groups: readonly GroupedVirtualListGroup<TGroup, TItem, TGroup, TFooter>[],
   itemId: string,
@@ -364,7 +369,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       const topic = mapApiTopicToRendererTopic(apiTopic)
       chatNav.openConversationTab(topic.id)
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic)
+        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic, {
+          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
+          topicId
+        })
       })
       onClose()
     },
@@ -375,7 +383,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     (sessionId: string) => {
       agentNav.openConversationTab(sessionId)
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId)
+        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId, {
+          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
+          sessionId
+        })
       })
       onClose()
     },
@@ -385,10 +396,13 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const openTopicMessageById = useCallback(
     async (topicId: string, messageId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
-      const messagePath = (await dataApiService.get(`/topics/${topicId}/path`, {
+      const messagePathEndpoint = `/topics/${topicId}/path` as const
+      const messagePath = await dataApiService.get(messagePathEndpoint, {
         query: { nodeId: messageId }
-      })) as DbMessage[]
-      const activeNodeId = messagePath[messagePath.length - 1]?.id ?? messageId
+      })
+      const activeNodeId = Array.isArray(messagePath)
+        ? (messagePath[messagePath.length - 1]?.id ?? messageId)
+        : messageId
       const topic = {
         ...mapApiTopicToRendererTopic(apiTopic),
         activeNodeId
@@ -398,7 +412,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`])
       chatNav.openConversationTab(topic.id)
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, { topic, messageId })
+        emitGlobalSearchSelection(
+          EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
+          { topic, messageId },
+          {
+            eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
+            messageId,
+            topicId
+          }
+        )
       })
       onClose()
     },
@@ -415,7 +437,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       ])
       agentNav.openConversationTab(sessionId)
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, { sessionId, messageId })
+        emitGlobalSearchSelection(
+          EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
+          { sessionId, messageId },
+          {
+            eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
+            messageId,
+            sessionId
+          }
+        )
       })
       onClose()
     },
@@ -426,7 +456,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     (knowledgeBaseId: string) => {
       openTab('/app/knowledge')
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, knowledgeBaseId)
+        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, knowledgeBaseId, {
+          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE,
+          knowledgeBaseId
+        })
       })
       onClose()
     },

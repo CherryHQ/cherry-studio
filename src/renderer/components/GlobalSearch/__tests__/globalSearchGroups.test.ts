@@ -43,6 +43,44 @@ describe('globalSearchGroups', () => {
     expect(next.filter((entry) => entry.kind === 'topic' && entry.topicId === 'topic-10')).toHaveLength(1)
   })
 
+  it('preserves the recent items array reference when an upsert is structurally unchanged', () => {
+    const entries = [
+      {
+        kind: 'topic' as const,
+        topicId: 'topic-1',
+        title: 'Topic 1',
+        assistantId: 'assistant-1',
+        lastAccessTime: 20
+      },
+      {
+        kind: 'session' as const,
+        sessionId: 'session-1',
+        title: 'Session 1',
+        agentId: 'agent-1',
+        lastAccessTime: 10
+      }
+    ]
+
+    const unchanged = upsertGlobalSearchRecentEntry(entries, {
+      kind: 'topic',
+      topicId: 'topic-1',
+      title: 'Topic 1',
+      assistantId: 'assistant-1',
+      lastAccessTime: 20
+    })
+    const changed = upsertGlobalSearchRecentEntry(entries, {
+      kind: 'topic',
+      topicId: 'topic-1',
+      title: 'Topic 1',
+      assistantId: 'assistant-1',
+      lastAccessTime: 30
+    })
+
+    expect(unchanged).toBe(entries)
+    expect(changed).not.toBe(entries)
+    expect(changed[0]).toEqual(expect.objectContaining({ kind: 'topic', topicId: 'topic-1', lastAccessTime: 30 }))
+  })
+
   it('shows recent items only before a search query is entered', () => {
     const recentItems = Array.from({ length: GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT + 1 }, (_, index) => ({
       kind: 'route' as const,

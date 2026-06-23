@@ -79,7 +79,7 @@ export type GlobalSearchRecentEntry =
       kind: 'topic'
       topicId: string
       title: string
-      assistantId?: string | null
+      assistantId?: string
       lastAccessTime: number
     }
   | {

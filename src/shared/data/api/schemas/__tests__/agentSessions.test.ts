@@ -55,6 +55,7 @@ describe('AgentSessionMessage schemas', () => {
       messageId: 'message-1',
       limit: 25
     })
+    expect(AgentSessionMessagesListQuerySchema.safeParse({ messageId: '' }).success).toBe(false)
   })
 })
 

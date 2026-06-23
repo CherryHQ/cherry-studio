@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   sessionHasNext: false,
   topicIsRefreshing: false,
   sessionIsRefreshing: false,
+  topicError: undefined as Error | undefined,
+  sessionError: undefined as Error | undefined,
   topicLoadNext: vi.fn(),
   sessionLoadNext: vi.fn(),
   useInfiniteQuery: vi.fn(),
@@ -57,7 +59,7 @@ function mockPreviewInfiniteQuery(path: string) {
       pages: mocks.topicPages,
       isLoading: false,
       isRefreshing: mocks.topicIsRefreshing,
-      error: undefined,
+      error: mocks.topicError,
       hasNext: mocks.topicHasNext,
       loadNext: mocks.topicLoadNext
     }
@@ -67,7 +69,7 @@ function mockPreviewInfiniteQuery(path: string) {
     pages: mocks.sessionPages,
     isLoading: false,
     isRefreshing: mocks.sessionIsRefreshing,
-    error: undefined,
+    error: mocks.sessionError,
     hasNext: mocks.sessionHasNext,
     loadNext: mocks.sessionLoadNext
   }
@@ -162,6 +164,8 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionHasNext = false
     mocks.topicIsRefreshing = false
     mocks.sessionIsRefreshing = false
+    mocks.topicError = undefined
+    mocks.sessionError = undefined
     mocks.useInfiniteQuery.mockImplementation(mockPreviewInfiniteQuery)
   })
 
@@ -408,6 +412,58 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(scroller.scrollTop).toBe(600)
   })
 
+  it('keeps loaded preview messages visible when loading older messages fails', async () => {
+    mocks.topicError = new Error('older page failed')
+
+    render(
+      <GlobalSearchMessagePreviewPanel
+        searchQuery="needle"
+        target={{
+          sourceType: 'topic',
+          topicId: 'topic-1',
+          title: 'Topic A',
+          messageId: 'topic-message-2'
+        }}
+        onClose={mocks.onClose}
+        onOpenMessage={mocks.onOpenMessage}
+      />
+    )
+
+    expect(await screen.findByText('message-content:topic-message-1')).toBeInTheDocument()
+    expect(screen.getByText('message-content:topic-message-2')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Search failed')
+  })
+
+  it('cancels a pending active-message auto-scroll frame on unmount', async () => {
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(42)
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    try {
+      const { unmount } = render(
+        <GlobalSearchMessagePreviewPanel
+          searchQuery="needle"
+          target={{
+            sourceType: 'topic',
+            topicId: 'topic-1',
+            title: 'Topic A',
+            messageId: 'topic-message-2'
+          }}
+          onClose={mocks.onClose}
+          onOpenMessage={mocks.onOpenMessage}
+        />
+      )
+
+      await screen.findByText('message-content:topic-message-2')
+      unmount()
+
+      expect(requestFrame).toHaveBeenCalled()
+      expect(cancelFrame).toHaveBeenCalledWith(42)
+    } finally {
+      requestFrame.mockRestore()
+      cancelFrame.mockRestore()
+    }
+  })
+
   it('does not load older pages on scroll when there are none left', async () => {
     mocks.topicHasNext = false
 
@@ -469,6 +525,45 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     )
 
     expect(await screen.findByText('System')).toBeInTheDocument()
+    expect(screen.queryByText('User')).not.toBeInTheDocument()
+  })
+
+  it('uses the tool role label for tool preview messages', async () => {
+    mocks.topicPages = [
+      {
+        items: [
+          {
+            message: {
+              id: 'topic-message-tool',
+              topicId: 'topic-1',
+              parentId: null,
+              role: 'tool',
+              data: { parts: [{ type: 'text', text: 'tool output' }] },
+              status: 'success',
+              siblingsGroupId: 0,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            }
+          }
+        ]
+      }
+    ]
+
+    render(
+      <GlobalSearchMessagePreviewPanel
+        searchQuery="needle"
+        target={{
+          sourceType: 'topic',
+          topicId: 'topic-1',
+          title: 'Topic A',
+          messageId: 'topic-message-tool'
+        }}
+        onClose={mocks.onClose}
+        onOpenMessage={mocks.onOpenMessage}
+      />
+    )
+
+    expect(await screen.findByText('Tool')).toBeInTheDocument()
     expect(screen.queryByText('User')).not.toBeInTheDocument()
   })
 })
