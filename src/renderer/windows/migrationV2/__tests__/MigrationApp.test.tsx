@@ -26,6 +26,7 @@ const platformState = vi.hoisted(() => ({
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
+    confirmBackup: vi.fn(),
     proceedToBackup: vi.fn(),
     restart: vi.fn(),
     showBackupDialog: vi.fn(),
@@ -148,6 +149,7 @@ describe('MigrationApp', () => {
     on.mockClear()
     removeAllListeners.mockClear()
     vi.mocked(migrationHookMock.actions.cancel).mockClear()
+    vi.mocked(migrationHookMock.actions.confirmBackup).mockClear()
     vi.mocked(migrationHookMock.actions.proceedToBackup).mockClear()
     vi.mocked(migrationHookMock.actions.restart).mockClear()
     vi.mocked(migrationHookMock.actions.showBackupDialog).mockClear()
@@ -243,6 +245,22 @@ describe('MigrationApp', () => {
     fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.back' }))
 
     expect(migrationHookMock.returnToIntroduction).toHaveBeenCalledTimes(1)
+  })
+
+  it('confirms an existing backup from the backup choice step', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Data backup is required before migration can proceed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'backup_required'
+    }
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: /migration\.buttons\.already_backed_up/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.confirm_and_continue' }))
+
+    expect(migrationHookMock.actions.confirmBackup).toHaveBeenCalledTimes(1)
   })
 
   it('calls the return-to-backup-choice action from the existing-backup acknowledgement back button', () => {
