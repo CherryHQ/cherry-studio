@@ -8,10 +8,6 @@ export function isIndexableKnowledgeItem(item: KnowledgeItem): item is Indexable
   return item.type === 'file' || item.type === 'url' || item.type === 'note'
 }
 
-export function filterIndexableKnowledgeItems(items: KnowledgeItem[]): IndexableKnowledgeItem[] {
-  return items.filter(isIndexableKnowledgeItem)
-}
-
 export function isContainerKnowledgeItem(item: KnowledgeItem): item is ContainerKnowledgeItem {
   return item.type === 'directory'
 }
