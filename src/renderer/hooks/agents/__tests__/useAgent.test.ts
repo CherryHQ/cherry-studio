@@ -48,7 +48,6 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      disabledTools: [],
       configuration: { permission_mode: 'default', max_turns: 100, env_vars: {} },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
@@ -75,7 +74,6 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      disabledTools: [],
       configuration: { avatar: '🤖' },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
@@ -96,7 +94,6 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      disabledTools: [],
       // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
       // max_turns/200 is well-typed and must survive.
       configuration: { permission_mode: 'invalid', env_vars: null, max_turns: 200 },
@@ -175,8 +172,7 @@ describe('useAgents', () => {
         result.current.addAgent({
           name: 'New Agent',
           model: 'anthropic::claude-3',
-          type: 'claude-code',
-          disabledTools: []
+          type: 'claude-code'
         })
       )
 
@@ -198,8 +194,7 @@ describe('useAgents', () => {
         result.current.addAgent({
           name: 'New Agent',
           model: 'anthropic::claude-3',
-          type: 'claude-code',
-          disabledTools: []
+          type: 'claude-code'
         })
       )
 
@@ -256,7 +251,6 @@ describe('useUpdateAgent', () => {
         name: 'Updated',
         model: 'claude-3',
         type: 'claude-code',
-        disabledTools: [],
         configuration: { avatar: '🤖' },
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z'
@@ -279,7 +273,6 @@ describe('useUpdateAgent', () => {
         name: 'Updated',
         model: 'claude-3',
         type: 'claude-code',
-        disabledTools: [],
         configuration: {},
         createdAt: '',
         updatedAt: ''
@@ -312,7 +305,6 @@ describe('useUpdateAgent', () => {
         name: 'A',
         model: 'anthropic::new-model',
         type: 'claude-code',
-        disabledTools: [],
         configuration: {},
         createdAt: '',
         updatedAt: ''

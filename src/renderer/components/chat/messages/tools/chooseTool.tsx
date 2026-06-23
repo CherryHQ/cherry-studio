@@ -10,7 +10,7 @@ import { AgentExecutionTimeline } from './agent'
 import { AgentToolsType, isAskUserQuestionToolName } from './agent/types'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
-import { MessageWebSearchToolTitle } from './web-search/MessageWebSearch'
+import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'

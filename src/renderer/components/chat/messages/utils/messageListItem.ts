@@ -1,6 +1,6 @@
 import type { Model } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { resolveUniqueModelId } from '@renderer/utils/messageUtils/modelIdentity'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,

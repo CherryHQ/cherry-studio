@@ -57,6 +57,11 @@ export interface OpenTabOptions {
   icon?: string
   /** Optional tab metadata copied into the newly-created tab. */
   metadata?: Tab['metadata']
+  /**
+   * Materialize the tab as pinned. Set when a detached sub-window re-creates a tab
+   * from its init payload so the pinned state survives the detach → re-attach round-trip.
+   */
+  isPinned?: boolean
 }
 
 export interface TabsContextValue {
@@ -128,6 +133,16 @@ export function TabsProvider({
     [setPinnedTabsRaw]
   )
 
+  // Whether a tab's `isPinned` should route it into the persistent pinned list. The main
+  // window surfaces pinned tabs, so it follows the flag. A detached sub-window passes
+  // `includePinnedTabs={false}`: it has no pinned section and must never write the shared
+  // `ui.tab.pinned_tabs` cache, so every tab lives in the normal list there — `isPinned`
+  // is kept on the object only to round-trip the pinned state back on re-attach.
+  const storesPinned = useCallback(
+    (tab: Pick<Tab, 'isPinned'>) => includePinnedTabs && !!tab.isPinned,
+    [includePinnedTabs]
+  )
+
   // Normal tabs - in-memory storage (cleared on restart)
   const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
 
@@ -174,13 +189,13 @@ export function TabsProvider({
       const savedState: TabSavedState = { scrollPosition: 0 }
       logger.info('Tab hibernated (manual)', { tabId, route: tab.url })
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
       } else {
         setNormalTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
       }
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   /**
@@ -193,7 +208,7 @@ export function TabsProvider({
 
       logger.info('Tab awakened', { tabId, route: tab.url })
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
         )
@@ -203,7 +218,7 @@ export function TabsProvider({
         )
       }
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   const updateTab = useCallback(
@@ -211,13 +226,13 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === id)
       if (!tab) return
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       } else {
         setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       }
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   const setActiveTab = useCallback(
@@ -233,7 +248,7 @@ export function TabsProvider({
       }
 
       // Update lastAccessTime and wake state
-      if (targetTab.isPinned) {
+      if (storesPinned(targetTab)) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
         )
@@ -246,7 +261,7 @@ export function TabsProvider({
       setActiveTabIdState(id)
       performLRUCheck(id)
     },
-    [activeTabId, tabs, setPinnedTabs, performLRUCheck]
+    [activeTabId, tabs, setPinnedTabs, performLRUCheck, storesPinned]
   )
 
   const addTab = useCallback(
@@ -263,7 +278,7 @@ export function TabsProvider({
         isDormant: false
       }
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => [...prev, newTab])
       } else {
         setNormalTabs((prev) => [...prev, newTab])
@@ -272,7 +287,7 @@ export function TabsProvider({
 
       setActiveTabIdState(tab.id)
     },
-    [tabs, setActiveTab, setPinnedTabs, performLRUCheck]
+    [tabs, setActiveTab, setPinnedTabs, performLRUCheck, storesPinned]
   )
 
   const closeTab = useCallback(
@@ -289,7 +304,7 @@ export function TabsProvider({
         newActiveId = nextTab ? nextTab.id : ''
       }
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
       } else {
         setNormalTabs((prev) => prev.filter((t) => t.id !== id))
@@ -297,18 +312,18 @@ export function TabsProvider({
 
       setActiveTabIdState(newActiveId)
     },
-    [tabs, activeTabId, setPinnedTabs]
+    [tabs, activeTabId, setPinnedTabs, storesPinned]
   )
 
   const setTabs = useCallback(
     (newTabs: Tab[] | ((prev: Tab[]) => Tab[])) => {
       const resolvedTabs = typeof newTabs === 'function' ? newTabs(tabs) : newTabs
-      const pinned = resolvedTabs.filter((t) => t.isPinned)
-      const normal = resolvedTabs.filter((t) => !t.isPinned)
+      const pinned = resolvedTabs.filter((t) => storesPinned(t))
+      const normal = resolvedTabs.filter((t) => !storesPinned(t))
       setPinnedTabs(pinned)
       setNormalTabs(normal)
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   /**
@@ -316,7 +331,7 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -333,6 +348,7 @@ export function TabsProvider({
         title: title || getDefaultRouteTitle(url),
         icon,
         metadata,
+        isPinned,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -445,7 +461,7 @@ export function TabsProvider({
       }
 
       // Add to appropriate storage
-      if (restoredTab.isPinned) {
+      if (storesPinned(restoredTab)) {
         setPinnedTabs((prev) => [...prev, restoredTab])
       } else {
         setNormalTabs((prev) => [...prev, restoredTab])
@@ -454,7 +470,7 @@ export function TabsProvider({
       setActiveTabIdState(restoredTab.id)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [tabs, setActiveTab, setPinnedTabs]
+    [tabs, setActiveTab, setPinnedTabs, storesPinned]
   )
 
   // Listen for tab attach requests (from Main Process)

@@ -185,7 +185,7 @@ export default function LaunchpadPage() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <Scrollbar className="min-h-0 flex-1">
-        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5 py-[50px]">
+        <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
           <section className="flex flex-col gap-2">
             <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
               {t('launchpad.apps')}
@@ -199,7 +199,7 @@ export default function LaunchpadPage() {
                     className="group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95">
                     <span className="relative flex size-14 items-center justify-center">
                       <span
-                        className="flex size-14 items-center justify-center rounded-2xl text-white shadow-[0_2px_4px_rgba(0,0,0,0.10)] [&_svg]:size-7 [&_svg]:text-white"
+                        className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
                         style={{ background: item.bgColor }}>
                         {item.icon}
                       </span>

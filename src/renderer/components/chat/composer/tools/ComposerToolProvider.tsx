@@ -1,6 +1,6 @@
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
-import { ensureComposerFileTokenSourceIds } from '@renderer/utils/messageUtils/composerFileTokenSource'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { ensureComposerFileTokenSourceIds } from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'

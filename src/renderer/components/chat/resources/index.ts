@@ -2,7 +2,6 @@ export type {
   ResourceListActionMap,
   ResourceListContextValue,
   ResourceListDragCapabilities,
-  ResourceListExpansionState,
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupReorderPayload,
@@ -33,7 +32,7 @@ export {
   useResourceListRowState,
   useResourceListView
 } from './ResourceList'
-export { remapResourceListExpandedGroupIds, updateResourceListExpansionState } from './resourceListExpansion'
+export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
 export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
 export {
   composeResourceListGroupResolvers,
@@ -44,6 +43,14 @@ export {
   sortByResourceGroupRank
 } from './resourceListGrouping'
 export { RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
+export type { ResourceListOrderAnchor } from './resourceListReorder'
+export {
+  buildResourceListGroupDropAnchor,
+  buildResourceListItemDropAnchor,
+  compareResourceOrderKey,
+  moveResourceListStringGroupAfterDrop,
+  withResourceListGroupIdPrefix
+} from './resourceListReorder'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedState } from './useResourceListPinnedState'
 export { SessionResourceList, TopicResourceList } from './variants'

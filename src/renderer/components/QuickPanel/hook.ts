@@ -9,3 +9,6 @@ export const useQuickPanel = () => {
   }
   return context
 }
+
+/** Like {@link useQuickPanel}, but returns null instead of throwing when no provider is mounted. */
+export const useOptionalQuickPanel = () => use(QuickPanelContext)

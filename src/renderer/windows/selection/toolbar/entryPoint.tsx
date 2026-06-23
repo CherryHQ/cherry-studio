@@ -1,4 +1,4 @@
-import '@ant-design/v5-patch-for-react-19'
+import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
 import { createRoot } from 'react-dom/client'
