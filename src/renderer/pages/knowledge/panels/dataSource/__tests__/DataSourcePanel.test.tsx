@@ -12,6 +12,18 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
 }))
 
+// The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
+// so stub it with a plain pass-through that renders every row.
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: <T,>({ list, children }: { list: T[]; children: (item: T) => ReactNode }) => (
+    <div data-testid="virtual-list">
+      {list.map((item, index) => (
+        <div key={index}>{children(item)}</div>
+      ))}
+    </div>
+  )
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
   const actual = (await importOriginal()) as Record<string, unknown>
@@ -133,12 +145,12 @@ vi.mock('react-i18next', () => ({
       language: 'zh-CN'
     },
     t: (key: string, options?: Record<string, unknown>) => {
-      if (key === 'knowledge.data_source.ready_summary') {
-        return `已就绪 ${options?.ready}/${options?.total}`
-      }
-
       if (key === 'knowledge.data_source.bulk.selected_count') {
         return `已选 ${options?.count} 项`
+      }
+
+      if (key === 'knowledge.data_source.bulk.loaded_only_hint') {
+        return `仅已加载，共 ${options?.total} 项`
       }
 
       if (key === 'knowledge.data_source.bulk.delete_confirm_description') {
@@ -168,6 +180,9 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.table.columns.actions': '操作',
             'knowledge.data_source.table.select_all': '全选',
             'knowledge.data_source.table.select_row': '选择行',
+            'knowledge.data_source.table.aria_label': '数据源列表',
+            'knowledge.data_source.list.loading_more': '加载更多…',
+            'knowledge.data_source.list.end_reached': '没有更多了',
             'common.add': '添加数据源',
             'common.clear': '清除',
             'common.loading': '加载中...',
@@ -316,10 +331,9 @@ describe('DataSourcePanel', () => {
 
     expect(screen.getByText('第一行标题')).toBeInTheDocument()
     expect(screen.getAllByText('笔记')).toHaveLength(2)
-    expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
   })
 
-  it('renders url and directory items from their required source fields and keeps the ready count correct', () => {
+  it('renders url and directory items from their required source fields', () => {
     render(
       <DataSourcePanel
         updatedAt="2026-04-15T09:00:00+08:00"
@@ -338,7 +352,6 @@ describe('DataSourcePanel', () => {
     const directoryTitle = screen.getByText('本地资料夹')
     expect(directoryTitle).toBeInTheDocument()
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
-    expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
     expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
   })
 
@@ -771,6 +784,30 @@ describe('DataSourcePanel', () => {
     })
   })
 
+  it('warns that select-all only covers loaded rows when more pages remain on the server', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        total={10}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+
+    // Selection is accurate (2 loaded), but the bulk bar makes clear it won't touch the
+    // other 8 rows that haven't been paged in yet.
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+    expect(screen.getByText('仅已加载，共 10 项')).toBeInTheDocument()
+  })
+
   it('shows the header select-all checkbox as partially selected after deselecting one selected row', () => {
     render(
       <DataSourcePanel
@@ -825,7 +862,6 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('已就绪 1/1')).toBeInTheDocument()
   })
 
   it('does not forward menu actions as row clicks', async () => {

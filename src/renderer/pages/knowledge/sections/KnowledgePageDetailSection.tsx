@@ -28,7 +28,14 @@ const KnowledgePageDetailSection = () => {
     openRestoreBaseDialog,
     deleteBase
   } = useKnowledgePage()
-  const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
+  const {
+    items: selectedBaseItems,
+    total: selectedBaseItemsTotal,
+    isLoading: isItemsLoading,
+    hasMore: hasMoreItems,
+    isLoadingMore: isLoadingMoreItems,
+    loadMore: loadMoreItems
+  } = useKnowledgeItems(selectedBaseId)
   const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -52,7 +59,11 @@ const KnowledgePageDetailSection = () => {
         ) : (
           <DataSourcePanel
             items={selectedBaseItems}
+            total={selectedBaseItemsTotal}
             isLoading={isItemsLoading}
+            hasMore={hasMoreItems}
+            isLoadingMore={isLoadingMoreItems}
+            onLoadMore={loadMoreItems}
             updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}

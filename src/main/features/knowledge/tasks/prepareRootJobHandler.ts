@@ -24,7 +24,9 @@ export function createPrepareRootJobHandler(
   workflowService: KnowledgeWorkflowService
 ): JobHandler<KnowledgePrepareRootPayload> {
   return {
-    recovery: 'retry',
+    // Don't auto-resume on restart — a deliberate app quit must not re-spend the
+    // embedding API; the item is parked at `failed` and reindexed on demand.
+    recovery: 'abandon',
     defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
     defaultConcurrency: 5,
     defaultRetryPolicy: {

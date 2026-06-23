@@ -5,7 +5,7 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
-import type { OffsetPaginationResponse } from '@shared/data/api'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api'
 import {
   type KnowledgeBase,
   KnowledgeBaseEntitySchema,
@@ -44,7 +44,6 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 
-export const KNOWLEDGE_ITEMS_DEFAULT_PAGE = 1
 export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_ITEMS_MAX_LIMIT = 100
 export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
@@ -69,17 +68,27 @@ export type KnowledgeBaseListItem = KnowledgeBase & {
 /**
  * Query parameters for GET /knowledge-bases/:id/items
  *
- * Returns flat knowledge items for one knowledge base with optional filters.
+ * Returns flat knowledge items for one knowledge base with optional filters,
+ * using cursor-based pagination (keyset on `createdAt`/`id`) so concurrent
+ * inserts during polling never duplicate or skip rows across pages.
  */
 export const ListKnowledgeItemsQuerySchema = z.strictObject({
-  page: z.int().positive().default(KNOWLEDGE_ITEMS_DEFAULT_PAGE),
+  /** Cursor returned by the previous page. Omitted for the first page. */
+  cursor: z.string().optional(),
   limit: z.int().positive().max(KNOWLEDGE_ITEMS_MAX_LIMIT).default(KNOWLEDGE_ITEMS_DEFAULT_LIMIT),
   type: KnowledgeItemTypeSchema.optional(),
   groupId: z.string().nullable().optional()
 })
 
+// This schema declares `cursor` + `limit` inline (above), so `z.input` already covers the
+// cursor-pagination params and the `& CursorPaginationParams` intersection would be redundant.
 export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema>
 export type ListKnowledgeItemsQuery = z.output<typeof ListKnowledgeItemsQuerySchema>
+
+export interface KnowledgeItemListResponse extends CursorPaginationResponse<KnowledgeItem> {
+  items: KnowledgeItem[]
+  total: number
+}
 
 export type KnowledgeSchemas = {
   '/knowledge-bases': {
@@ -99,10 +108,6 @@ export type KnowledgeSchemas = {
       body: UpdateKnowledgeBaseDto
       response: KnowledgeBase
     }
-    DELETE: {
-      params: { id: string }
-      response: void
-    }
   }
 
   '/knowledge-bases/:id/items': {
@@ -112,7 +117,7 @@ export type KnowledgeSchemas = {
     GET: {
       params: { id: string }
       query?: ListKnowledgeItemsQueryParams
-      response: OffsetPaginationResponse<KnowledgeItem>
+      response: KnowledgeItemListResponse
     }
   }
 

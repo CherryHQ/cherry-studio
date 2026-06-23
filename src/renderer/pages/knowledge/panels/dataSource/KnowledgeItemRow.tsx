@@ -6,9 +6,7 @@ import {
   NormalTooltip,
   Popover,
   PopoverContent,
-  PopoverTrigger,
-  TableCell,
-  TableRow
+  PopoverTrigger
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
@@ -16,11 +14,11 @@ import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/e
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
-import type { ComponentProps, MouseEvent } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { knowledgeDataSourceCheckboxClassName } from './styles'
+import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -254,20 +252,34 @@ const KnowledgeItemRow = ({
   const updatedAt = formatRelativeTime(item.updatedAt, language)
   const fullTitle = 'source' in item.data ? item.data.source : title
 
+  // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
+  // itself so Enter/Space on the checkbox or more-button (which bubble up) don't also open chunks.
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onClick()
+    }
+  }
+
   return (
-    <TableRow
+    <div
+      role="row"
       data-state={selected ? 'selected' : undefined}
+      tabIndex={canViewChunks ? 0 : undefined}
+      aria-label={canViewChunks ? t('knowledge.data_source.table.view_chunks_row', { title }) : undefined}
       onClick={canViewChunks ? onClick : undefined}
+      onKeyDown={canViewChunks ? handleRowKeyDown : undefined}
       className={cn(
-        'group/row transition-colors',
-        canViewChunks && 'cursor-pointer',
-        // The shared TableRow paints its highlight on the <tr>, whose corners a rounded cell can't clip.
-        // Neutralize it and paint a rounded inset pill on the cells instead (needs border-separate on the Table).
-        'hover:bg-transparent data-[state=selected]:bg-transparent',
-        '[&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:transition-colors',
-        selected ? '[&>td]:bg-accent' : canViewChunks && '[&:hover>td]:bg-accent/40'
+        KNOWLEDGE_ITEM_ROW_GRID,
+        'group/row min-h-12 rounded-lg transition-colors',
+        canViewChunks &&
+          'cursor-pointer focus-visible:outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
       )}>
-      <TableCell className="w-10 px-3" onClick={(event) => event.stopPropagation()}>
+      <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
         <Checkbox
           size="sm"
           className={knowledgeDataSourceCheckboxClassName}
@@ -275,23 +287,25 @@ const KnowledgeItemRow = ({
           checked={selected}
           onCheckedChange={(next) => onToggleSelect(next === true)}
         />
-      </TableCell>
-      <TableCell className="min-w-0 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
-            <Icon className={cn('size-3.5', icon.iconClassName)} />
-          </span>
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
-            {title}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell className="w-24 text-foreground-secondary text-xs">{typeLabel}</TableCell>
-      <TableCell className="w-32">
+      </div>
+      <div role="gridcell" className="flex min-w-0 items-center gap-2 py-3">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
+          <Icon className={cn('size-3.5', icon.iconClassName)} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
+          {title}
+        </span>
+      </div>
+      <div role="gridcell" className="truncate text-foreground-secondary text-xs">
+        {typeLabel}
+      </div>
+      <div role="gridcell">
         <KnowledgeItemStatusBadge status={status} failureReason={failureReason} />
-      </TableCell>
-      <TableCell className="w-32 text-foreground-muted text-xs">{updatedAt}</TableCell>
-      <TableCell className="w-12 px-2" onClick={(event) => event.stopPropagation()}>
+      </div>
+      <div role="gridcell" className="truncate text-foreground-muted text-xs">
+        {updatedAt}
+      </div>
+      <div role="gridcell" className="flex justify-end" onClick={(event) => event.stopPropagation()}>
         <KnowledgeItemRowMoreMenu
           canReindex={canReindex}
           canViewChunks={canViewChunks}
@@ -300,8 +314,8 @@ const KnowledgeItemRow = ({
           onReindex={onReindex}
           onViewChunks={onViewChunks}
         />
-      </TableCell>
-    </TableRow>
+      </div>
+    </div>
   )
 }
 
