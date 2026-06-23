@@ -144,6 +144,7 @@ export function useChatVirtualizerRuntime<T>({
   const canReleaseScrollAnchor = useCallback(() => !preserveScrollAnchorRef.current, [])
   const anchor = useScrollAnchor({
     scrollerRef,
+    contentRef,
     vlistHandleRef,
     smoothScroll,
     canRelease: canReleaseScrollAnchor
