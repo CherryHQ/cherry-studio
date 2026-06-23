@@ -43,6 +43,20 @@ export function withComposerFileTokenSourceIds(files: readonly FileMetadata[]): 
   return changed ? nextFiles : (files as ComposerFileMetadata[])
 }
 
+/** Ensure each entry carries a valid `fileTokenSourceId`, minting one only when missing. */
+export function ensureComposerFileTokenSourceIds<T extends Pick<FileMetadata, 'fileTokenSourceId'>>(
+  files: readonly T[]
+): T[] {
+  let changed = false
+  const nextFiles = files.map((file) => {
+    if (getComposerFileTokenSourceId(file)) return file
+    changed = true
+    return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
+  })
+
+  return changed ? nextFiles : (files as T[])
+}
+
 export function composerFileTokenIdFromSourceId(sourceId: string) {
   return `${FILE_COMPOSER_TOKEN_ID_PREFIX}${sourceId}`
 }

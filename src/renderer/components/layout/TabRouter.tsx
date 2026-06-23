@@ -1,4 +1,5 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
+import { isMac } from '@renderer/config/constant'
 import { TabIdProvider } from '@renderer/context/TabIdContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -49,7 +50,10 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
       <TabIdProvider tabId={tab.id}>
-        <div ref={setTabPortalContainer} className="flex h-full min-h-0 w-full flex-1 flex-col">
+        <div
+          ref={setTabPortalContainer}
+          data-page-side-panel-root={!isMac && isActive ? 'true' : undefined}
+          className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
             <RouterProvider router={router} />
           </PortalContainerProvider>

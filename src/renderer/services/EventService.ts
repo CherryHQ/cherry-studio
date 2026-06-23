@@ -4,6 +4,8 @@ export const EventEmitter = new Emittery()
 
 export const EVENT_NAMES = {
   SEND_MESSAGE: 'SEND_MESSAGE',
+  // v2 composer: focus the chat input (emitted by ChatComposer).
+  FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
   // v2 knowledge page: global-search selects a knowledge base.
   GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE: 'GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE',
   CLEAR_MESSAGES: 'CLEAR_MESSAGES',
