@@ -1,12 +1,10 @@
 import '@ant-design/v5-patch-for-react-19'
 
 import { preferenceService } from '@data/PreferenceService'
-import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
 
 import SelectionToolbarApp from './SelectionToolbarApp'
 
-loggerService.initWindowSource('SelectionToolbar')
 await preferenceService.preload([
   'app.language',
   'ui.custom_css',
