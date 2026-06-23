@@ -808,7 +808,7 @@ const MigrationApp: React.FC = () => {
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-md object-cover" />
+          <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />
           <span className="font-medium text-foreground text-sm">Cherry Studio</span>
           <span className="text-foreground-muted">·</span>
           <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
