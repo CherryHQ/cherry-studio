@@ -12,30 +12,19 @@ export const zhCN = {
       migration: '迁移',
       completed: '完成'
     },
-    steps: {
-      start: '开始',
-      backup: '备份',
-      migrate: '迁移',
-      complete: '完成'
-    },
     buttons: {
       back: '返回',
       next: '下一步',
       create_backup: '创建新备份',
       already_backed_up: '已有备份',
       confirm_and_continue: '确认并继续',
-      backup_completed: '已完成备份',
-      confirm_backup: '我已备份，开始迁移',
       start_migration: '开始迁移',
       restart: '重启应用',
       retry: '重试',
-      exit: '退出',
       close: '关闭应用',
       ignore_migration: '忽略并使用默认值',
       skip_migration: '跳过迁移',
-      more_options: '更多选项',
-      backing_up: '正在备份...',
-      migrating: '迁移中...'
+      more_options: '更多选项'
     },
     window: {
       minimize: '最小化',
@@ -72,8 +61,7 @@ export const zhCN = {
           title: '安全且可重试',
           description: '旧版数据会保留在磁盘中，迁移失败后可重新尝试。'
         }
-      },
-      confirm_skip: '跳过迁移后，将以全新默认配置启动 Cherry Studio。原有数据将保留在磁盘，不会删除。确定继续吗？'
+      }
     },
     skip_dialog: {
       title: '跳过数据迁移',
@@ -148,8 +136,7 @@ export const zhCN = {
         '您之前的版本（{{previousVersion}}）过旧，无法直接迁移。请先升级到 {{requiredVersion}} 版本并运行一次，然后再安装此版本。',
       v2_gateway_skipped:
         '无法从 {{previousVersion}} 直接升级到 {{currentVersion}}。请先安装 {{gatewayVersion}} 版本完成数据迁移，然后再升级到此版本。',
-      ignore_hint: '您也可以选择忽略旧数据，直接以全新默认配置启动。',
-      confirm_ignore: '这将放弃所有旧数据并以全新默认值启动，继续后将重启应用。确定继续吗？'
+      ignore_hint: '您也可以选择忽略旧数据，直接以全新默认配置启动。'
     }
   }
 }
@@ -163,30 +150,19 @@ export const enUS = {
       migration: 'Migration',
       completed: 'Completed'
     },
-    steps: {
-      start: 'Start',
-      backup: 'Backup',
-      migrate: 'Migrate',
-      complete: 'Complete'
-    },
     buttons: {
       back: 'Back',
       next: 'Next',
       create_backup: 'Create new backup',
       already_backed_up: 'Already backed up',
       confirm_and_continue: 'Confirm and continue',
-      backup_completed: 'Backup Completed',
-      confirm_backup: 'I Have Backup, Start Migration',
       start_migration: 'Start Migration',
       restart: 'Restart App',
       retry: 'Retry',
-      exit: 'Exit',
       close: 'Close App',
       ignore_migration: 'Ignore and Use Defaults',
       skip_migration: 'Skip migration',
-      more_options: 'More options',
-      backing_up: 'Backing up...',
-      migrating: 'Migrating...'
+      more_options: 'More options'
     },
     window: {
       minimize: 'Minimize',
@@ -224,9 +200,7 @@ export const enUS = {
           title: 'Safe and Retryable',
           description: 'Your legacy data stays on disk, so you can retry if a migration fails.'
         }
-      },
-      confirm_skip:
-        "After skipping migration, Cherry Studio will start with default settings. Your existing data will remain on disk and won't be deleted. Continue?"
+      }
     },
     skip_dialog: {
       title: 'Skip Data Migration',
@@ -304,9 +278,7 @@ export const enUS = {
         'Your previous version ({{previousVersion}}) is too old to migrate directly. Please install version {{requiredVersion}} first, then install this version.',
       v2_gateway_skipped:
         'Cannot upgrade directly from {{previousVersion}} to {{currentVersion}}. Please install version {{gatewayVersion}} first to complete the data migration, then upgrade to this version.',
-      ignore_hint: 'You can also choose to ignore old data and start fresh with default settings.',
-      confirm_ignore:
-        'This will discard all previous data and start fresh with defaults. The app will restart after confirming. Continue?'
+      ignore_hint: 'You can also choose to ignore old data and start fresh with default settings.'
     }
   }
 }
