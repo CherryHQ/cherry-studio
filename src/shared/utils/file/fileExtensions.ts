@@ -3,7 +3,7 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
-export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
+export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.xlsm', '.odt', '.odp', '.ods']
 export const knowledgeSupportedFileExts = [
   '.txt',
   '.markdown',
@@ -21,7 +21,7 @@ export const knowledgeSupportedFileExts = [
   '.epub',
   '.draftsexport'
 ] as const
-export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls'] as const
+export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.xlsm'] as const
 
 /**
  * A flat array of all file extensions known by the linguist database.

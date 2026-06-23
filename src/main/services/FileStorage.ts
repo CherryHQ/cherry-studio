@@ -18,6 +18,7 @@ import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
+import * as XLSX from '@e965/xlsx'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
@@ -388,7 +389,7 @@ class FileStorage {
    * @throws Error if file reading fails
    */
   private async readFileCore(filePath: string, detectEncoding: boolean = false): Promise<string> {
-    const fileExtension = path.extname(filePath)
+    const fileExtension = path.extname(filePath).toLowerCase()
 
     if (documentExts.includes(fileExtension)) {
       try {
@@ -396,6 +397,14 @@ class FileStorage {
           const extractor = new WordExtractor()
           const extracted = await extractor.extract(filePath)
           return extracted.getBody()
+        }
+
+        // Legacy (.xls) and macro-enabled (.xlsm) Excel workbooks are NOT supported by
+        // officeparser (it only handles xlsx/docx/pptx/odt/odp/ods/pdf), so they would
+        // throw if routed there. Parse them with SheetJS, which reads BIFF .xls and .xlsm.
+        if (fileExtension === '.xls' || fileExtension === '.xlsm') {
+          const workbook = XLSX.readFile(filePath)
+          return workbook.SheetNames.map((name) => XLSX.utils.sheet_to_csv(workbook.Sheets[name])).join('\n\n')
         }
 
         const data = await officeParser.parseOfficeAsync(filePath, {
