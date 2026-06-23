@@ -169,8 +169,7 @@ describe('AppModalProvider', () => {
 
     const content = await screen.findByText(longError)
 
-    expect(content).toHaveClass('min-w-0', 'max-w-full', 'break-words')
-    expect(content.className).toContain('[overflow-wrap:anywhere]')
+    expect(content).toHaveClass('min-w-0', 'max-w-full', 'wrap-anywhere')
   })
 
   it('uses translated default text for destructive confirmations', async () => {

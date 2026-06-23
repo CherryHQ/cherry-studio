@@ -200,7 +200,7 @@ function AppModalItem({
                 <DialogDescription asChild>
                   <div
                     className={cn(
-                      'wrap-break-word mt-2 min-w-0 max-w-full text-muted-foreground text-sm leading-5',
+                      'wrap-anywhere mt-2 min-w-0 max-w-full text-muted-foreground text-sm leading-5',
                       props.title ? '' : 'mt-0'
                     )}>
                     {props.content}
