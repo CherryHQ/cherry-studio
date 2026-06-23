@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
-import { RotateCw, Undo2, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import { type FC, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -113,7 +113,11 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
   }, [])
 
   const rotateImage = useCallback(() => {
-    setImageRotation((rotation) => (rotation + 90) % 360)
+    setImageRotation((rotation) => rotation + 90)
+  }, [])
+
+  const rotateImageLeft = useCallback(() => {
+    setImageRotation((rotation) => rotation - 90)
   }, [])
 
   const resetImageTransform = useCallback(() => {
@@ -168,11 +172,8 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
 
   useEffect(() => {
     setCurrentImageIndex(0)
-  }, [painting.id])
-
-  useEffect(() => {
     resetImageTransform()
-  }, [currentFile?.id, resetImageTransform])
+  }, [painting.id, resetImageTransform])
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
@@ -180,16 +181,6 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
         className={`relative flex min-h-0 flex-1 flex-col items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
         {painting.files.length > 0 ? (
           <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
-            {painting.files.length > 1 && (
-              <Button
-                size="icon-sm"
-                variant="outline"
-                onClick={onPrevImage}
-                aria-label={t('preview.previous')}
-                className="-translate-y-1/2 absolute top-1/2 left-2.5 z-20 opacity-80 hover:opacity-100">
-                ←
-              </Button>
-            )}
             <img
               alt=""
               className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
@@ -206,20 +197,21 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 touchAction: 'none'
               }}
             />
-            {painting.files.length > 1 && (
-              <Button
-                size="icon-sm"
-                variant="outline"
-                onClick={onNextImage}
-                aria-label={t('preview.next')}
-                className="-translate-y-1/2 absolute top-1/2 right-2.5 z-20 opacity-80 hover:opacity-100">
-                →
-              </Button>
-            )}
             <div
               className="absolute right-2.5 bottom-2.5 z-20 flex items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl"
               role="toolbar"
               aria-label={t('preview.label')}>
+              {painting.files.length > 1 && (
+                <>
+                  <ArtboardToolButton label={t('preview.previous')} onClick={onPrevImage}>
+                    <ChevronLeft className="size-4" />
+                  </ArtboardToolButton>
+                  <ArtboardToolButton label={t('preview.next')} onClick={onNextImage}>
+                    <ChevronRight className="size-4" />
+                  </ArtboardToolButton>
+                  <span className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden />
+                </>
+              )}
               <ArtboardToolButton
                 label={t('preview.zoom_out')}
                 disabled={imageScale <= MIN_IMAGE_SCALE}
@@ -232,11 +224,14 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 onClick={zoomIn}>
                 <ZoomIn className="size-4" />
               </ArtboardToolButton>
+              <ArtboardToolButton label={t('preview.rotate_left')} onClick={rotateImageLeft}>
+                <RotateCcwSquare className="size-4" />
+              </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.rotate_right')} onClick={rotateImage}>
-                <RotateCw className="size-4" />
+                <RotateCwSquare className="size-4" />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.reset')} onClick={resetImageTransform}>
-                <Undo2 className="size-4" />
+                <RefreshCcw className="size-4" />
               </ArtboardToolButton>
             </div>
             <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">
