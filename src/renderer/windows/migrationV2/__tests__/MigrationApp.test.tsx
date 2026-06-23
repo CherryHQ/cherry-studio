@@ -40,6 +40,8 @@ const migrationHookMock = vi.hoisted(() => ({
   } as {
     backupInfo?: { createdBackupPath?: string }
     currentMessage: string
+    i18nMessage?: { key: string; params?: Record<string, string | number> }
+    isCompressing?: boolean
     migrators: unknown[]
     overallProgress: number
     stage: string
@@ -270,5 +272,39 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     expect(screen.queryByRole('button', { name: 'migration.buttons.back' })).not.toBeInTheDocument()
+  })
+
+  // The compressing copy keys off the main-sent `isCompressing` flag, NOT overallProgress.
+  it('shows the compressing copy from isCompressing, decoupled from overallProgress', () => {
+    // High progress but not compressing → generic description copy, never "compressing".
+    migrationHookMock.progress = {
+      currentMessage: 'Creating backup…',
+      i18nMessage: { key: 'migration.backup_progress.description' },
+      isCompressing: false,
+      migrators: [],
+      overallProgress: 85,
+      stage: 'backup_progress'
+    }
+
+    const { unmount } = render(<MigrationApp />)
+
+    expect(screen.getByText('migration.backup_progress.description')).toBeInTheDocument()
+    expect(screen.queryByText('migration.backup_progress.compressing')).not.toBeInTheDocument()
+
+    unmount()
+
+    // Compressing at low progress → compressing copy.
+    migrationHookMock.progress = {
+      currentMessage: 'Creating backup…',
+      i18nMessage: { key: 'migration.backup_progress.compressing' },
+      isCompressing: true,
+      migrators: [],
+      overallProgress: 50,
+      stage: 'backup_progress'
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.getByText('migration.backup_progress.compressing')).toBeInTheDocument()
   })
 })

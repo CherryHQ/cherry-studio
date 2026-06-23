@@ -294,8 +294,7 @@ const MigrationApp: React.FC = () => {
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   const [backupCompressionDelayed, setBackupCompressionDelayed] = useState(false)
   const startGuardRef = useRef(false)
-  const isBackupCompressing =
-    progress.stage === 'backup_progress' && progress.overallProgress >= 80 && progress.overallProgress < 100
+  const isBackupCompressing = progress.stage === 'backup_progress' && progress.isCompressing === true
 
   // Main intercepts an in-flow-stage close (native traffic light / Cmd+Q / custom button) and
   // asks the renderer to show its in-app confirmation dialog here, so the prominent styling

@@ -58,6 +58,8 @@ export interface MigrationProgress {
   summary?: MigrationSummary
   /** Backup display metadata; present only when a new V1 backup was created */
   backupInfo?: MigrationBackupInfo
+  /** True only while the V1 backup is in its compressing stage; held by the backup_progress UI */
+  isCompressing?: boolean
 }
 
 // Prepare phase result

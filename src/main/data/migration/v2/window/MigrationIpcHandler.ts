@@ -502,15 +502,19 @@ function reportBackupProgress({ stage, progress, total }: BackupProgressData): v
   const overallProgress =
     total > 0 ? Math.max(0, Math.min(100, Math.round((progress / total) * 100))) : Math.max(0, Math.min(100, progress))
   // The v1 direct backup() emits `compressing` once at 80% then archives silently,
-  // so the bar holds there. Surface a stage-specific message so the hold reads as
-  // "compressing", not "stuck". Other stages reuse the generic description copy.
-  const i18nKey =
-    stage === 'compressing' ? 'migration.backup_progress.compressing' : 'migration.backup_progress.description'
+  // so the bar holds there. Derive `isCompressing` from the real backup stage (NOT
+  // from overallProgress) and forward it as the single source of truth for the
+  // renderer's indeterminate "compressing" UI — reusing the same flag for the
+  // stage-specific message so the hold reads as "compressing", not "stuck". Other
+  // stages reuse the generic description copy.
+  const isCompressing = stage === 'compressing'
+  const i18nKey = isCompressing ? 'migration.backup_progress.compressing' : 'migration.backup_progress.description'
   updateProgress({
     stage: 'backup_progress',
     overallProgress,
     currentMessage: 'Creating backup…',
     i18nMessage: { key: i18nKey },
+    isCompressing,
     migrators: []
   })
 }

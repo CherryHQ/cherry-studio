@@ -311,13 +311,15 @@ describe('MigrationIpcHandler', () => {
     expect(ticks).toContainEqual(
       expect.objectContaining({
         overallProgress: 60,
-        i18nMessage: { key: 'migration.backup_progress.description' }
+        i18nMessage: { key: 'migration.backup_progress.description' },
+        isCompressing: false
       })
     )
     expect(ticks).toContainEqual(
       expect.objectContaining({
         overallProgress: 80,
-        i18nMessage: { key: 'migration.backup_progress.compressing' }
+        i18nMessage: { key: 'migration.backup_progress.compressing' },
+        isCompressing: true
       })
     )
   })
