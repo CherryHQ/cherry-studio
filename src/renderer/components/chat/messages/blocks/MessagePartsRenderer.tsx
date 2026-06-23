@@ -729,11 +729,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
 
   return (
     <AnimatePresence mode="sync">
-      {isProcessing && (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-        </AnimatedBlockWrapper>
-      )}
       {toolHistoryGroup && (
         <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
           <OuterProcessFold
@@ -749,6 +744,11 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+        </AnimatedBlockWrapper>
+      )}
+      {isProcessing && (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>
