@@ -3,6 +3,7 @@ import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
+import type { ExternalAppId } from '../../types/externalApp'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -112,3 +113,5 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
+
+export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null

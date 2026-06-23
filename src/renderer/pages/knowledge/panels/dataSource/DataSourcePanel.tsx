@@ -1,7 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -10,11 +10,16 @@ import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
-import { getReadyCount } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
+  /** Server-side total across all pages. Defaults to the loaded count when omitted. */
+  total?: number
   isLoading: boolean
+  /** Cursor-pagination controls; default to a fully-loaded list when omitted. */
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
@@ -57,7 +62,11 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
 
 const DataSourcePanel = ({
   items,
+  total = items.length,
   isLoading,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore = () => undefined,
   updatedAt,
   onAdd,
   onItemClick,
@@ -78,8 +87,6 @@ const DataSourcePanel = ({
       return next.size === prev.size ? prev : next
     })
   }, [items])
-
-  const readyCount = useMemo(() => getReadyCount(items), [items])
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
@@ -148,8 +155,8 @@ const DataSourcePanel = ({
       header={
         <div className="border-border-muted border-b pb-3">
           <DataSourcePanelHeader
-            readyCount={readyCount}
-            totalCount={items.length}
+            total={total}
+            loadedCount={items.length}
             selectedCount={selectedIds.size}
             updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}
@@ -165,6 +172,9 @@ const DataSourcePanel = ({
           <KnowledgeItemList
             items={items}
             isLoading={isLoading}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={onLoadMore}
             selectedIds={selectedIds}
             onToggleOne={handleToggleOne}
             onToggleAll={handleToggleAll}

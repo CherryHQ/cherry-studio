@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "respondido",
+      "close": "Cerrar",
       "customPlaceholder": "Introduce tu respuesta...",
       "loading": "Cargando preguntas...",
       "multiSelect": "Selección múltiple",
@@ -25,6 +26,8 @@
       "noQuestions": "No hay preguntas disponibles",
       "other": "Otro",
       "previous": "Anterior",
+      "progress": "{{current}} de {{total}}",
+      "skip": "Omitir",
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
@@ -340,6 +343,11 @@
         "failed": "Error al reordenar los agentes"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "Uso de contexto"
+      }
+    },
     "server": {
       "error": {
         "not_running": "El servidor de API está habilitado pero no funciona correctamente."
@@ -382,6 +390,11 @@
       "edit": {
         "title": "Sesión de edición"
       },
+      "file_manager": {
+        "file_explorer": "Explorador de archivos",
+        "files": "Archivos",
+        "finder": "Buscador"
+      },
       "get": {
         "error": {
           "failed": "Error al obtener la sesión",
@@ -399,6 +412,10 @@
         "error": {
           "failed": "Error al actualizar la sesión"
         }
+      },
+      "workspace_selector": {
+        "no_project": "Sin directorio de trabajo",
+        "placeholder": "Seleccionar directorio de trabajo"
       },
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
@@ -695,8 +712,10 @@
         "showDetails": "Mostrar detalles de la herramienta"
       },
       "button": {
+        "allow": "Permitir",
         "allowAll": "Permitir siempre",
         "cancel": "Cancelar",
+        "deny": "Negar",
         "run": "Correr"
       },
       "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
@@ -1125,6 +1144,7 @@
     "download": "Descargar",
     "includes_user_questions": "Incluye preguntas del usuario",
     "manage": "Administrar",
+    "select_assistant": "Seleccionar Asistente",
     "select_model": "Seleccionar Modelo",
     "show": {
       "all": "Mostrar Todo"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "Ajuste automático de altura",
+      "cancel_editing": "Cancelar edición",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
         "label": "Limpiar mensajes {{Command}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "Número de contextos / Número máximo de contextos"
       },
+      "editing": "Edición",
+      "editing_message": "Editar mensaje enviado",
       "estimated_tokens": {
         "tip": "Número estimado de tokens"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "Error al procesar el archivo",
       "file_not_supported": "El modelo no admite este tipo de archivo",
       "file_not_supported_count": "{{count}} archivos no soportados",
+      "followup_queue": {
+        "edit": "Editar",
+        "pause": "Pausar envío automático",
+        "remove": "Eliminar",
+        "resume": "Reanudar envío automático",
+        "steer": "Enviar al turno actual",
+        "title": "En cola ({{count}})"
+      },
       "generate_image": "Generar imagen",
       "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
       "knowledge_base": "Base de conocimientos",
+      "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
+      "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
+      "locate_editing_message": "Localizar mensaje original",
       "new": {
         "context": "Limpiar contexto {{Command}}"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "El presupuesto de pensamiento excede el número máximo de tokens",
+        "fixed_model": "El razonamiento está fijo para este modelo",
         "label": "Pensando",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "Establecer el número de tokens para el pensamiento"
           }
-        }
+        },
+        "unsupported_model": "El modelo actual no admite razonamiento ajustable"
       },
       "tools": {
         "collapse": "Contraer",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "Subir archivo adjunto",
         "document": "Subir documento (el modelo no admite imágenes)",
+        "document_only": "Solo documentos",
+        "image_not_supported": "Este modelo no admite la carga de imágenes. Solo documentos.",
         "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "Borrar todo",
     "click_to_replace": "Haz clic para reemplazar",
     "close": "Cerrar",
+    "close_sidebar": "Cerrar barra lateral",
     "collapse": "Colapsar",
     "completed": "Completado",
     "confirm": "Confirmar",
@@ -1773,6 +1812,8 @@
     "knowledge_base": "Base de conocimiento",
     "language": "Idioma",
     "loading": "Cargando...",
+    "maximize": "Maximizar",
+    "minimize": "Minimizar",
     "model": "Modelo",
     "models": "Modelos",
     "more": "Más",
@@ -1785,6 +1826,7 @@
     "on": "En",
     "open": "Abrir",
     "open_in": "Abrir en {{name}}",
+    "open_sidebar": "Abrir barra lateral",
     "paste": "Pegar",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "Renombrar",
     "required_field": "Campo obligatorio",
     "reset": "Restablecer",
+    "resize_panel": "Redimensionar panel",
     "retry": "Reintentar",
     "save": "Guardar",
     "save_failed": "Error al guardar",
@@ -2144,13 +2187,13 @@
         "view_chunks": "Ver Fragmentos"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importar recursivamente archivos compatibles desde una carpeta",
-          "title": "Haz clic para seleccionar una carpeta"
+        "conflict_dialog": {
+          "description": "{{count}} de las fuentes que estás agregando tienen el mismo nombre que elementos existentes. Elige cómo manejarlas.",
+          "keep_all": "Mantener todo",
+          "replace": "Reemplazar",
+          "title": "Las fuentes ya existen"
         },
         "footer": {
-          "selected_directories": "{{count}} directorios seleccionados",
-          "selected_files": "{{count}} archivos seleccionados",
           "selected_notes": "{{count}} notas seleccionadas"
         },
         "note": {
@@ -2246,7 +2289,6 @@
     },
     "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
     "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
-    "drag_file": "Arrastre archivos aquí",
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
@@ -2258,9 +2300,9 @@
       "failed_to_edit": "Error al editar la base de conocimientos",
       "failed_to_move": "Error al mover la base de conocimientos",
       "missing_embedding_model": "El modelo de incrustación utilizado por esta base de conocimientos no se encontró durante la migración. Reconstruye la base de conocimientos y elige un nuevo modelo de incrustación.",
+      "missing_vector_store": "No se pudo leer el almacén de vectores de esta base de conocimiento durante la migración (falta, vacío o bloqueado). La base de conocimiento se mantuvo; vuelva a indexarla para recuperarla.",
       "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
     },
-    "file_hint": "Formatos soportados: {{file_types}}",
     "groups": {
       "add": "Nuevo Grupo",
       "create_base_here": "Crea aquí",
@@ -2358,6 +2400,8 @@
       "action": "Reconstruir la base de conocimientos",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Error al reconstruir la base de conocimientos",
+      "skipped_missing_sources_one": "Se omitió {{count}} elemento cuya fuente ya no existe",
+      "skipped_missing_sources_other": "Se omitieron {{count}} elementos cuyo origen ya no existe",
       "submit": "Reconstruir",
       "title": "Reconstruir Base de Conocimientos"
     },
@@ -2405,7 +2449,9 @@
   "launchpad": {
     "apps": "Aplicaciones",
     "minapps": "Minapps",
-    "miniApps": "Miniaplicaciones"
+    "miniApps": "Miniaplicaciones",
+    "pin_to_sidebar": "Anclar a la barra lateral",
+    "unpin_from_sidebar": "Desanclar de la barra lateral"
   },
   "library": {
     "action": {
@@ -2992,6 +3038,7 @@
         "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion",
         "no_content": "No hay contenido que exportar a Notion"
       },
+      "operation_unavailable": "La operación de mensaje no está disponible. Inténtalo de nuevo.",
       "siyuan": {
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
@@ -3399,6 +3446,12 @@
       "placeholder": "Buscar modelo...",
       "tooltip": "Buscar modelo"
     },
+    "selection": {
+      "context_window": "Contexto {{count}}",
+      "remove_model": "Eliminar {{name}}",
+      "restore_default": "Restaurar modelo de asistente",
+      "selected_models": "Modelos seleccionados"
+    },
     "stream_output": "Salida en flujo",
     "type": {
       "audio": "Audio",
@@ -3572,28 +3625,7 @@
     "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
   },
   "ocr": {
-    "builtin": {
-      "system": "OCR del sistema"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "No se puede eliminar el proveedor integrado",
-        "existing": "El proveedor ya existe",
-        "get_providers": "Error al obtener proveedores disponibles",
-        "not_found": "El proveedor de OCR no existe",
-        "update_failed": "Actualización de la configuración fallida"
-      },
-      "unknown": "El proceso OCR ha fallado"
-    },
-    "file": {
-      "not_supported": "Tipo de archivo no compatible {{type}}"
-    },
-    "processing": "Procesando OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "Se ha revertido a {{name}}, lo que podría causar problemas"
-      }
-    }
+    "processing": "Procesando OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -5455,7 +5487,19 @@
         "title": "Copia de seguridad y restauración de datos"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cereza",
+            "native": "Nativo",
+            "restart": {
+              "content": "Cambiar el estilo del menú requiere reiniciar la aplicación para que surta efecto. ¿Desea reiniciar ahora?",
+              "title": "Reinicio requerido"
+            },
+            "title": "Estilo del menú contextual"
+          }
+        },
         "sections": {
+          "chat_settings": "Configuración del chat",
           "custom_css": "CSS personalizado",
           "display_language": "Pantalla e idioma",
           "privacy_advanced": "Privacidad y Avanzado",
@@ -6591,6 +6635,14 @@
       "close": "Cerrar",
       "confirm": "Confirmar",
       "forward": "Adelante",
+      "mcp": {
+        "agentEmpty": "No se han configurado servidores MCP para este agente",
+        "assistantEmpty": "No se han configurado servidores MCP para este asistente",
+        "autoEmpty": "No hay servidores MCP habilitados",
+        "description": "Ver estado actual del servidor MCP",
+        "disabled": "MCP está deshabilitado para este asistente",
+        "unknownServer": "Servidor MCP desconocido"
+      },
       "multiple": "Selección múltiple",
       "noResult": "No se encontraron resultados",
       "page": "Página",
@@ -6956,10 +7008,16 @@
       "title": "Escala"
     }
   },
+  "subWindow": {
+    "back_to_main": "Volver a la ventana principal",
+    "pin": "Mantener encima",
+    "unpin": "Cancelar Mantener encima"
+  },
   "tab": {
     "close": "Cerrar pestaña",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
+    "open_in_new_window": "Abrir en ventana nueva",
     "pin": "Anclar pestaña",
     "unpin": "Desanclar pestaña"
   },
@@ -7083,6 +7141,7 @@
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"
       },
+      "ocr_completed": "Reconocimiento óptico de imagen completado",
       "reading": "Leyendo el contenido del archivo...",
       "upload": "Suelta o haz clic para cargar imagen/documento"
     },

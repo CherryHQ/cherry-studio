@@ -19,7 +19,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 
 ### Reference Guides (Coding Standards)
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
-- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewritewritetx) — required for concurrent write paths to avoid libsql #288 SQLITE_BUSY
+- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewithwritetx) — required for concurrent write paths to avoid libsql #288 SQLITE_BUSY
 - [Database Construction](./database-construction.md) - Boot build order, drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5/`fts_rowid`, additive-vs-rebuild
 - [API Types](./api-types.md) - API type system, schemas, error handling
 - [Cache Schema Guide](./cache-schema-guide.md) - Adding new cache keys (fixed and template)
@@ -28,6 +28,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) - Presets with user overrides
 - [Default Values & Nullability](./best-practice-default-values-and-nullability.md) - Column nullability rules, default value placement across DB / `$defaultFn` / service, PATCH derivation patterns
 - [Ordering Guide](./data-ordering-guide.md) - Unified RESTful spec for sortable resources (fractional indexing)
+- [Pagination Guide](./data-pagination-guide.md) - Canonical spec for offset vs cursor (keyset) pagination: types, server impl, hooks, FTS, gotchas
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 - [Database Seeding Guide](./database-seeding-guide.md) - Seeding architecture, version strategies, adding new seeders
 

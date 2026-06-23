@@ -1,8 +1,8 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { searchSkills } from '@renderer/services/SkillSearchService'
-import type { InstalledSkill, SkillResult, SkillSearchResult } from '@types'
-import { useCallback, useRef, useState } from 'react'
+import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useSkills')
 
@@ -90,6 +90,95 @@ export function useInstalledSkills(agentId?: string) {
     refresh: refetch,
     toggle,
     uninstall
+  }
+}
+
+export function buildAvailableSkills(globalSkills: readonly InstalledSkill[], localSkills: readonly LocalSkill[]) {
+  const seen = new Set<string>()
+  const available: LocalSkill[] = []
+
+  for (const skill of globalSkills) {
+    if (!skill.isEnabled) continue
+    seen.add(skill.folderName)
+    available.push({
+      name: skill.name,
+      description: skill.description ?? undefined,
+      filename: skill.folderName
+    })
+  }
+
+  for (const skill of localSkills) {
+    if (seen.has(skill.filename)) continue
+    seen.add(skill.filename)
+    available.push({
+      name: skill.name,
+      description: skill.description,
+      filename: skill.filename
+    })
+  }
+
+  return available
+}
+
+export function useAvailableSkills(agentId?: string, workdir?: string) {
+  const installed = useInstalledSkills(agentId)
+  const [localSkills, setLocalSkills] = useState<LocalSkill[]>([])
+  const [localLoading, setLocalLoading] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const localRequestIdRef = useRef(0)
+  const nextLocalRequestId = useCallback(() => {
+    localRequestIdRef.current += 1
+    return localRequestIdRef.current
+  }, [])
+  const invalidateLocalRequests = useCallback(() => {
+    localRequestIdRef.current += 1
+  }, [])
+
+  const refreshLocalSkills = useCallback(async () => {
+    const requestId = nextLocalRequestId()
+    if (!workdir) {
+      setLocalSkills([])
+      setLocalError(null)
+      setLocalLoading(false)
+      return
+    }
+
+    setLocalLoading(true)
+    setLocalError(null)
+
+    try {
+      const result = await window.api.skill.listLocal(workdir)
+      const data = unwrapSkillResult(result)
+      if (requestId === localRequestIdRef.current) setLocalSkills(data)
+    } catch (error) {
+      if (requestId !== localRequestIdRef.current) return
+      const message = skillErrorMessage(error)
+      setLocalSkills([])
+      setLocalError(message)
+      logger.warn('Failed to list local skills', { workdir, error: message })
+    } finally {
+      if (requestId === localRequestIdRef.current) setLocalLoading(false)
+    }
+  }, [nextLocalRequestId, workdir])
+
+  useEffect(() => {
+    void refreshLocalSkills()
+
+    return invalidateLocalRequests
+  }, [invalidateLocalRequests, refreshLocalSkills])
+
+  const refreshInstalledSkills = installed.refresh
+  const refresh = useCallback(async () => {
+    await Promise.all([Promise.resolve(refreshInstalledSkills()), refreshLocalSkills()])
+  }, [refreshInstalledSkills, refreshLocalSkills])
+
+  const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
+
+  return {
+    skills,
+    loading: installed.loading || localLoading,
+    error: installed.error ?? localError,
+    refresh
   }
 }
 

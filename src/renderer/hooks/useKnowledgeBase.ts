@@ -156,7 +156,7 @@ export const useRestoreKnowledgeBase = () => {
       setIsRestoring(true)
 
       try {
-        const restoredBase = await ipcApi.request('knowledge.restore_base', {
+        const result = await ipcApi.request('knowledge.restore_base', {
           sourceBaseId,
           name,
           embeddingModelId,
@@ -168,12 +168,12 @@ export const useRestoreKnowledgeBase = () => {
         } catch (invalidateError) {
           logger.error('Failed to refresh knowledge base list after restore', normalizeError(invalidateError), {
             sourceBaseId,
-            restoredBaseId: restoredBase.id
+            restoredBaseId: result.base.id
           })
         }
 
         setIsRestoring(false)
-        return restoredBase
+        return result
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to restore knowledge base', normalizedError, {

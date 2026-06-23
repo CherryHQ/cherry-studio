@@ -8,8 +8,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const fileMock = vi.hoisted(() => ({
   onSelectFile: vi.fn(),
   readText: vi.fn(),
-  isTextFile: vi.fn()
+  readExternal: vi.fn(),
+  startJob: vi.fn(),
+  getFileExtension: vi.fn(() => 'txt'),
+  isTextFile: vi.fn(),
+  getPathForFile: vi.fn(),
+  createTempFile: vi.fn(),
+  write: vi.fn(),
+  get: vi.fn()
 }))
+
+const useJobMock = vi.hoisted(() => vi.fn())
+const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 const dropMock = vi.hoisted(() => ({
   getFilesFromDropEvent: vi.fn(),
@@ -27,6 +38,8 @@ const translateCoreMock = vi.hoisted(() => ({
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
+const toastLoadingMock = vi.hoisted(() => vi.fn())
+const toastCloseToastMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
@@ -100,6 +113,10 @@ vi.mock('@renderer/hooks/useFiles', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useJob', () => ({
+  useJob: useJobMock
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({
     models: [
@@ -114,16 +131,16 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useOcr', () => ({
-  useOcr: () => ({ ocr: vi.fn() })
-}))
-
 vi.mock('@renderer/hooks/useTemporaryValue', () => ({
   useTemporaryValue: () => [false, vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
 }))
 
 vi.mock('@logger', () => ({
@@ -143,9 +160,9 @@ vi.mock('@renderer/services/TranslateService', () => ({
 
 vi.mock('@renderer/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' '),
-  getFileExtension: () => 'txt',
+  getFileExtension: fileMock.getFileExtension,
   isTextFile: fileMock.isTextFile,
-  uuid: () => 'abort-key'
+  uuid: uuidMock
 }))
 
 vi.mock('@renderer/utils/error', () => ({
@@ -187,23 +204,41 @@ vi.mock('../components/TranslateInputPane', () => ({
     text,
     onTextChange,
     onKeyDown,
+    onPaste,
     onSelectFile,
-    onDrop
+    onDrop,
+    onCancelOcr,
+    disabled,
+    ocrProcessing
   }: {
     text: string
     onTextChange: (value: string) => void
     onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
+    onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
+    onCancelOcr: () => void
+    disabled?: boolean
+    ocrProcessing?: boolean
   }) => (
     <div data-testid="translate-input-pane" onDrop={onDrop}>
       <textarea
         aria-label="translate.input.placeholder"
+        disabled={disabled}
         value={text}
         onChange={(event) => onTextChange(event.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
       />
       <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
+      {ocrProcessing && (
+        <div data-testid="translate-input-ocr-processing">
+          ocr.processing
+          <button type="button" onClick={() => onCancelOcr()}>
+            common.cancel
+          </button>
+        </div>
+      )}
     </div>
   )
 }))
@@ -244,7 +279,30 @@ describe('TranslatePage', () => {
     })
     fileMock.onSelectFile.mockReset()
     fileMock.readText.mockReset()
+    fileMock.readExternal.mockReset()
+    fileMock.startJob.mockReset()
+    fileMock.getFileExtension.mockReset()
+    fileMock.getFileExtension.mockReturnValue('txt')
     fileMock.isTextFile.mockResolvedValue(true)
+    fileMock.getPathForFile.mockReset()
+    fileMock.createTempFile.mockReset()
+    fileMock.write.mockReset()
+    fileMock.write.mockResolvedValue(undefined)
+    fileMock.get.mockReset()
+    fileMock.startJob.mockResolvedValue({
+      id: 'job-ocr-1',
+      type: 'file-processing.background',
+      status: 'pending'
+    })
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation((channel: string, payload?: unknown) =>
+      channel === 'file_processing.start_job' ? fileMock.startJob(payload) : Promise.resolve(undefined)
+    )
+    fileMock.readExternal.mockResolvedValue('document content')
+    uuidMock.mockReset()
+    uuidMock.mockReturnValue('abort-key')
+    useJobMock.mockReset()
+    useJobMock.mockReturnValue({ data: undefined, isTerminal: false })
     dropMock.getFilesFromDropEvent.mockReset()
     dropMock.getFilesFromDropEvent.mockResolvedValue(null)
     dropMock.getTextFromDropEvent.mockReset()
@@ -266,6 +324,8 @@ describe('TranslatePage', () => {
     clipboardWriteTextMock.mockReset()
     modelSelectorMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
+    toastLoadingMock.mockReset()
+    toastCloseToastMock.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -273,15 +333,20 @@ describe('TranslatePage', () => {
       }
     })
     ;(window as any).toast = {
+      closeToast: toastCloseToastMock,
       error: vi.fn(),
       info: vi.fn(),
-      loading: vi.fn(),
+      loading: toastLoadingMock,
       success: vi.fn(),
       warning: vi.fn()
     }
     ;(window as any).api = {
       file: {
-        readExternal: vi.fn()
+        readExternal: fileMock.readExternal,
+        getPathForFile: fileMock.getPathForFile,
+        createTempFile: fileMock.createTempFile,
+        write: fileMock.write,
+        get: fileMock.get
       },
       fs: {
         readText: fileMock.readText
@@ -327,6 +392,250 @@ describe('TranslatePage', () => {
     })
     rerender(<TranslatePage />)
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
+  })
+
+  it('starts a File Processing image_to_text job and appends recognized text from the job snapshot', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() =>
+      expect(fileMock.startJob).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: '/tmp/image.png' }
+      })
+    )
+    expect(toastLoadingMock).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.getByTestId('translate-input-ocr-processing')).toHaveTextContent('ocr.processing')
+    )
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeDisabled())
+    expect(fileMock.readText).not.toHaveBeenCalled()
+
+    useJobMock.mockReturnValue({
+      data: {
+        id: 'job-ocr-1',
+        type: 'file-processing.background',
+        status: 'completed',
+        output: { artifact: { kind: 'text', format: 'plain', text: 'recognized image text' } },
+        error: null
+      },
+      isTerminal: true
+    })
+    rerender(<TranslatePage />)
+
+    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('recognized image text'))
+    await waitFor(() => expect((window as any).toast.success).toHaveBeenCalledWith('translate.files.ocr_completed'))
+    await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+    rerender(<TranslatePage />)
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('recognized image text')
+  })
+
+  it('treats a completed OCR job without a text artifact as a failure', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(fileMock.startJob).toHaveBeenCalledTimes(1))
+    expect(toastLoadingMock).not.toHaveBeenCalled()
+
+    useJobMock.mockReturnValue({
+      data: {
+        id: 'job-ocr-1',
+        type: 'file-processing.background',
+        status: 'completed',
+        output: { artifact: { kind: 'file', format: 'markdown', path: '/tmp/ocr.md' } },
+        error: null
+      },
+      isTerminal: true
+    })
+    rerender(<TranslatePage />)
+
+    expect(translateCoreMock.formatErrorMessageWithPrefix).toHaveBeenCalledWith(
+      expect.any(Error),
+      'translate.files.error.ocr'
+    )
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    expect(toastCloseToastMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+  })
+
+  it('locally cancels OCR from the overlay and ignores a later completed snapshot', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(fileMock.startJob).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeDisabled())
+    expect(screen.getByTestId('translate-input-ocr-processing')).toHaveTextContent('ocr.processing')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+
+    useJobMock.mockReturnValue({
+      data: {
+        id: 'job-ocr-1',
+        type: 'file-processing.background',
+        status: 'completed',
+        output: { artifact: { kind: 'text', format: 'plain', text: 'late recognized text' } },
+        error: null
+      },
+      isTerminal: true
+    })
+    rerender(<TranslatePage />)
+
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect((window as any).toast.success).not.toHaveBeenCalled()
+  })
+
+  it('uses readExternal for selected document files', async () => {
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.pdf', size: 10, type: 'document' }])
+    fileMock.readExternal.mockResolvedValueOnce('pdf content')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/input.pdf', true))
+    expect(fileMock.startJob).not.toHaveBeenCalled()
+    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('pdf content'))
+  })
+
+  it('shows an unavailable error when startJob rejects before an OCR job exists', async () => {
+    const ocrError = new Error('Default file processor for image_to_text is not configured')
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+    fileMock.startJob.mockRejectedValueOnce(ocrError)
+    translateCoreMock.formatErrorMessageWithPrefix.mockImplementationOnce((_error: unknown, prefix: string) => {
+      return `${prefix}: Default file processor for image_to_text is not configured`
+    })
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.formatErrorMessageWithPrefix).toHaveBeenCalledWith(ocrError, 'translate.files.error.ocr')
+    )
+    await waitFor(() =>
+      expect((window as any).toast.error).toHaveBeenCalledWith(
+        'translate.files.error.ocr: Default file processor for image_to_text is not configured'
+      )
+    )
+    expect(toastLoadingMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+  })
+
+  it('shows an OCR error and unlocks the page when the observed OCR job fails', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeDisabled())
+    useJobMock.mockReturnValue({
+      data: {
+        id: 'job-ocr-1',
+        type: 'file-processing.background',
+        status: 'failed',
+        output: null,
+        error: { message: 'OCR failed' }
+      },
+      isTerminal: true
+    })
+    rerender(<TranslatePage />)
+
+    expect(translateCoreMock.formatErrorMessageWithPrefix).toHaveBeenCalledWith(
+      expect.any(Error),
+      'translate.files.error.ocr'
+    )
+    const formattedError = translateCoreMock.formatErrorMessageWithPrefix.mock.calls.at(-1)?.[0] as Error | undefined
+    expect(formattedError?.message).toBe('OCR failed')
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    expect(toastCloseToastMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+  })
+
+  it('surfaces an error and unlocks the page when the OCR job becomes unobservable', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeDisabled())
+    useJobMock.mockReturnValue({
+      data: null,
+      isTerminal: false,
+      error: new Error('job not found')
+    })
+    rerender(<TranslatePage />)
+
+    expect(translateCoreMock.formatErrorMessageWithPrefix).toHaveBeenCalledWith(
+      expect.any(Error),
+      'translate.files.error.ocr'
+    )
+    const formattedError = translateCoreMock.formatErrorMessageWithPrefix.mock.calls.at(-1)?.[0] as Error | undefined
+    expect(formattedError?.message).toBe('job not found')
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
+  })
+
+  it('starts an image_to_text job for an image dropped onto the input pane', async () => {
+    dropMock.getFilesFromDropEvent.mockResolvedValue([{ path: '/tmp/x.png', size: 10, type: 'image' }])
+
+    render(<TranslatePage />)
+
+    fireEvent.drop(screen.getByTestId('translate-input-pane'))
+
+    await waitFor(() =>
+      expect(fileMock.startJob).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: '/tmp/x.png' }
+      })
+    )
+  })
+
+  it('starts an image_to_text job for a pasted image without a file path', async () => {
+    fileMock.getPathForFile.mockReturnValue('')
+    fileMock.createTempFile.mockResolvedValue('/tmp/pasted.png')
+    fileMock.get.mockResolvedValue({ path: '/tmp/pasted.png', size: 10, type: 'image' })
+
+    render(<TranslatePage />)
+
+    const pastedImage = {
+      name: 'pasted.png',
+      type: 'image/png',
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
+    }
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [pastedImage]
+      }
+    })
+
+    await waitFor(() =>
+      expect(fileMock.startJob).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: '/tmp/pasted.png' }
+      })
+    )
+    // Pasted images have no path → temp-file fallback (createTempFile + write) runs before the job starts.
+    expect(fileMock.createTempFile).toHaveBeenCalledWith('pasted.png')
+    expect(fileMock.write).toHaveBeenCalled()
   })
 
   it('ignores empty text data when handling drops', async () => {
