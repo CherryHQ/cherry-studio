@@ -146,3 +146,38 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
   'if the task produced no files.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
+
+// ── generate_image ───────────────────────────────────────────────
+
+export const GENERATE_IMAGE_TOOL_NAME = 'generate_image'
+
+export const generateImageInputSchema = z.object({
+  prompt: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4000)
+    .describe(
+      'Vivid, self-contained description of the image to generate. Include subject, style, ' +
+        'composition, and mood; MUST NOT use pronouns or references to earlier messages — ' +
+        'expand the request into a standalone prompt.'
+    ),
+  size: z
+    .string()
+    .trim()
+    .regex(/^\d+x\d+$/, 'Size must be "WIDTHxHEIGHT" in pixels, e.g. "1024x1024"')
+    .optional()
+    .describe('Output dimensions as "WIDTHxHEIGHT" in pixels (e.g. "1024x1024"). Omit to use the model default.'),
+  n: z.number().int().min(1).max(4).optional().describe('How many images to generate (1-4, default 1).')
+})
+
+export const generateImageOutputItemSchema = z.object({
+  id: z.string().describe('File entry id of the generated image.'),
+  name: z.string().describe('File name of the generated image.')
+})
+
+export const generateImageOutputSchema = z.array(generateImageOutputItemSchema)
+
+export type GenerateImageInput = z.infer<typeof generateImageInputSchema>
+export type GenerateImageOutputItem = z.infer<typeof generateImageOutputItemSchema>
+export type GenerateImageOutput = z.infer<typeof generateImageOutputSchema>

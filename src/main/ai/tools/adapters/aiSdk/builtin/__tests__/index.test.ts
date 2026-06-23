@@ -8,6 +8,7 @@ import { ToolRegistry } from '../../registry'
 import { registerBuiltinTools } from '../index'
 import { KB_LIST_TOOL_NAME } from '../KnowledgeListTool'
 import { KB_SEARCH_TOOL_NAME } from '../KnowledgeSearchTool'
+import { GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
 import { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
 
 describe('registerBuiltinTools', () => {
@@ -16,6 +17,7 @@ describe('registerBuiltinTools', () => {
     registerBuiltinTools(reg)
     expect(reg.has(KB_LIST_TOOL_NAME)).toBe(true)
     expect(reg.has(KB_SEARCH_TOOL_NAME)).toBe(true)
+    expect(reg.has(GENERATE_IMAGE_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_FETCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_SEARCH_TOOL_NAME)).toBe(true)
   })

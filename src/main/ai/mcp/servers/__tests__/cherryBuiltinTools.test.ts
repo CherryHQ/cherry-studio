@@ -5,6 +5,8 @@ const fetchUrls = vi.fn()
 const kbSearch = vi.fn()
 const listBases = vi.fn()
 const listRootItems = vi.fn()
+const getPreference = vi.fn()
+const generateImage = vi.fn()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -17,6 +19,8 @@ vi.mock('@main/core/application', () => ({
     get: (name: string) => {
       if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
       if (name === 'KnowledgeService') return { search: kbSearch, listBases, listRootItems }
+      if (name === 'PreferenceService') return { get: getPreference }
+      if (name === 'AiService') return { generateImage }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -48,11 +52,14 @@ describe('cherryBuiltinTools', () => {
     kbSearch.mockReset()
     listBases.mockReset()
     listRootItems.mockReset()
+    getPreference.mockReset()
+    generateImage.mockReset()
   })
 
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
     const tools = listCherryBuiltinTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
+      'generate_image',
       'kb_list',
       'kb_search',
       'report_artifacts',
@@ -234,6 +241,38 @@ describe('cherryBuiltinTools', () => {
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Error:')
+  })
+
+  it('routes generate_image through AiService and summarizes the result', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
+
+    const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat' })
+    )
+    expect(textOf(result)).toContain('Generated 1 image(s)')
+    expect(textOf(result)).toContain('image-1.png')
+  })
+
+  it('steers the model to configure a painting model when none is set', async () => {
+    getPreference.mockReturnValue(null)
+
+    const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('No painting model is configured')
+    expect(textOf(result)).toContain('do not retry')
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('propagates AbortError from generate_image instead of converting it to an MCP error', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+
+    await expect(callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)).rejects.toThrow()
   })
 
   it('returns an error result for an unknown tool', async () => {
