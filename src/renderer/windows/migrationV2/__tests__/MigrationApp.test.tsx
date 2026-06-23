@@ -1,5 +1,5 @@
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,7 +74,18 @@ vi.mock('@cherrystudio/ui', () => {
     AccordionItem: passthrough('div', 'accordion-item'),
     AccordionTrigger: ({ children, ...props }: MockPassthroughProps) =>
       React.createElement('button', { ...props, type: 'button', 'data-testid': 'accordion-trigger' }, children),
-    Alert: passthrough('div', 'alert'),
+    Alert: ({
+      message,
+      showIcon,
+      type,
+      ...props
+    }: MockPassthroughProps & { message?: ReactNode; showIcon?: boolean; type?: string }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-testid': 'alert', 'data-type': type },
+        showIcon ? React.createElement('span', { 'data-testid': 'alert-icon' }) : null,
+        message
+      ),
     Badge: passthrough('span', 'badge'),
     Button: ({ children, disabled, isDisabled, loading, onPress, startContent, ...props }: MockButtonProps) =>
       React.createElement(
@@ -116,13 +127,24 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-vi.mock('../components', () => ({
-  CloseMigrationDialog: () => null,
-  Confetti: () => null,
-  MigrationWindowControls: () => null,
-  MigratorProgressList: () => null,
-  SkipMigrationDialog: () => null
-}))
+vi.mock('../components', () => {
+  const React = require('react')
+  return {
+    // Render an interactive confirm trigger only while open, so tests can drive onConfirm.
+    CloseMigrationDialog: ({ open, onConfirm }: { open?: boolean; onConfirm?: () => void }) =>
+      open
+        ? React.createElement(
+            'button',
+            { type: 'button', 'data-testid': 'confirm-quit-button', onClick: onConfirm },
+            'confirm-quit'
+          )
+        : null,
+    Confetti: () => null,
+    MigrationWindowControls: () => null,
+    MigratorProgressList: () => null,
+    SkipMigrationDialog: () => null
+  }
+})
 
 vi.mock('../exporters', () => ({
   DexieExporter: vi.fn(),
@@ -183,6 +205,24 @@ describe('MigrationApp', () => {
 
     expect(cleanup).toHaveBeenCalledOnce()
     expect(removeAllListeners).not.toHaveBeenCalled()
+  })
+
+  it('shows a deferred-close notice when main defers the confirmed quit', async () => {
+    // Main returns false from ConfirmQuit when a backup/migration write is still in flight.
+    invoke.mockResolvedValue(false)
+
+    render(<MigrationApp />)
+
+    // Main intercepts the in-flow close and asks the renderer to open its confirm dialog.
+    const calls = on.mock.calls as unknown as Array<[string, () => void]>
+    const openCloseDialog = calls.find(([channel]) => channel === MigrationIpcChannels.ConfirmClose)?.[1]
+    expect(openCloseDialog).toBeDefined()
+    act(() => openCloseDialog?.())
+
+    fireEvent.click(screen.getByTestId('confirm-quit-button'))
+
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmQuit)
+    expect(await screen.findByText('migration.window.confirm_close.quit_pending')).toBeInTheDocument()
   })
 
   it('renders the language selector in the right side of the header on macOS', () => {

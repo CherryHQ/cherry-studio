@@ -405,4 +405,75 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetStageMock).toHaveBeenCalledWith('backup_required')
     })
   })
+
+  describe('quit guard', () => {
+    // Let queued microtasks + the trailing setTimeout(0) drain so the deferred
+    // Promise.allSettled(...).then(confirmQuit) has a chance to run.
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+    it('quits immediately when no backup or migration write is in flight', async () => {
+      const quitting = await invoke(MigrationIpcChannels.ConfirmQuit)
+
+      expect(quitting).toBe(true)
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers quit while a backup write is in flight, then quits once it settles', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+      let resolveBackup!: (path: string) => void
+      backupMock.mockImplementation(() => new Promise<string>((resolve) => (resolveBackup = resolve)))
+
+      const backupFlow = invoke(MigrationIpcChannels.ShowBackupDialog)
+      // Advance past the save dialog so the handler reaches the (pending) backup write.
+      await Promise.resolve()
+      await Promise.resolve()
+
+      const quitting = await invoke(MigrationIpcChannels.ConfirmQuit)
+      expect(quitting).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      resolveBackup('/real/backups/v1.zip')
+      await backupFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers quit while a migration is in flight, then quits once it settles', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await Promise.resolve()
+
+      const quitting = await invoke(MigrationIpcChannels.ConfirmQuit)
+      expect(quitting).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await migrationFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not register a second deferred quit on repeated confirmation', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
+      let resolveBackup!: (path: string) => void
+      backupMock.mockImplementation(() => new Promise<string>((resolve) => (resolveBackup = resolve)))
+
+      const backupFlow = invoke(MigrationIpcChannels.ShowBackupDialog)
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+      expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+
+      resolveBackup('/real/backups/v1.zip')
+      await backupFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+  })
 })

@@ -33,7 +33,8 @@ export const zhCN = {
         title: '退出数据迁移',
         message: '迁移流程尚未完成，关闭窗口将退出应用，下次启动需要重新开始。确定要退出吗？',
         continue: '继续迁移',
-        quit: '退出'
+        quit: '退出',
+        quit_pending: '当前步骤完成后将自动退出应用，请稍候…'
       }
     },
     language: {
@@ -172,7 +173,8 @@ export const enUS = {
         message:
           "Migration isn't finished yet. Closing the window will quit the app and you'll need to start over next launch. Quit anyway?",
         continue: 'Continue migration',
-        quit: 'Quit'
+        quit: 'Quit',
+        quit_pending: 'The app will close automatically once the current step finishes…'
       }
     },
     language: {

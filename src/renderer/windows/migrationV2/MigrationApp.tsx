@@ -292,6 +292,9 @@ const MigrationApp: React.FC = () => {
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
+  // Set when the user confirmed quit but main deferred it because a backup/migration write
+  // is still in flight; drives the non-blocking "closing after the current step" notice.
+  const [quitDeferred, setQuitDeferred] = useState(false)
   const [backupCompressionDelayed, setBackupCompressionDelayed] = useState(false)
   const startGuardRef = useRef(false)
   const isBackupCompressing = progress.stage === 'backup_progress' && progress.isCompressing === true
@@ -842,11 +845,26 @@ const MigrationApp: React.FC = () => {
       <CloseMigrationDialog
         open={closeConfirmOpen}
         onOpenChange={setCloseConfirmOpen}
-        onConfirm={() => {
+        onConfirm={async () => {
           setCloseConfirmOpen(false)
-          void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmQuit)
+          // Main returns false when it defers the quit until an in-flight backup/migration
+          // write settles; show a notice instead of quitting right away.
+          const quitting = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmQuit)
+          if (!quitting) {
+            setQuitDeferred(true)
+          }
         }}
       />
+      {quitDeferred && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-20 flex justify-center px-4">
+          <Alert
+            type="info"
+            showIcon
+            message={t('migration.window.confirm_close.quit_pending')}
+            className="pointer-events-auto w-auto shadow-md"
+          />
+        </div>
+      )}
     </div>
   )
 }

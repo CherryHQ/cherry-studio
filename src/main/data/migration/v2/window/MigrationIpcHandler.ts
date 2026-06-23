@@ -34,6 +34,12 @@ let inFlightMigration: Promise<MigrationResult> | null = null
 // Guards the preboot backup flow so a second ShowBackupDialog can't open another
 // save dialog or interleave the scoped container.get override (see performBackupToFile).
 let backupInFlight = false
+// The actual backup *write* (performBackupToFile), tracked separately from the
+// `backupInFlight` dialog guard so ConfirmQuit can wait for it to settle before quitting.
+let inFlightBackup: Promise<MigrationBackupResult> | null = null
+// Set once a deferred quit has been registered, so repeated confirmations while a write
+// is in flight don't stack a second allSettled().then(confirmQuit).
+let quitScheduled = false
 const backupManager = new LegacyBackupManager()
 
 // Current migration progress
@@ -167,8 +173,19 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
           migrators: []
         })
 
-        // Perform the actual backup to the selected location
-        const backupResult = await performBackupToFile(result.filePath)
+        // Perform the actual backup to the selected location. Track the write promise so
+        // ConfirmQuit can wait for it to settle (finalizing the zip + cleaning temp)
+        // instead of terminating mid-write.
+        const backupPromise = performBackupToFile(result.filePath)
+        inFlightBackup = backupPromise
+        let backupResult: MigrationBackupResult
+        try {
+          backupResult = await backupPromise
+        } finally {
+          if (inFlightBackup === backupPromise) {
+            inFlightBackup = null
+          }
+        }
 
         if (backupResult.success) {
           updateProgress({
@@ -404,10 +421,29 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     return true
   })
 
-  // User confirmed quit from the renderer's in-flow close dialog
+  // User confirmed quit from the renderer's in-flow close dialog. If a backup or migration
+  // write is still in flight, defer the quit until it settles so we never terminate
+  // mid-write (which would leave a partial backup zip/temp dir or a half-applied migration).
+  // Returns true when quitting immediately, false when the quit is deferred — the renderer
+  // uses this to show an "app will close when the current step finishes" notice.
   ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => {
-    migrationWindowManager.confirmQuit()
-    return true
+    const pending: Promise<unknown>[] = []
+    if (inFlightBackup) pending.push(inFlightBackup)
+    if (inFlightMigration) pending.push(inFlightMigration)
+
+    if (pending.length === 0) {
+      migrationWindowManager.confirmQuit()
+      return true
+    }
+
+    if (!quitScheduled) {
+      quitScheduled = true
+      logger.info('Quit requested during an active write; deferring until it settles')
+      void Promise.allSettled(pending).then(() => {
+        migrationWindowManager.confirmQuit()
+      })
+    }
+    return false
   })
 }
 
@@ -463,6 +499,8 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
 export function resetMigrationData(): void {
   inFlightMigration = null
   backupInFlight = false
+  inFlightBackup = null
+  quitScheduled = false
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
