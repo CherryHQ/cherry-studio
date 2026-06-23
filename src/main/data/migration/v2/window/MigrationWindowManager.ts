@@ -56,6 +56,11 @@ export class MigrationWindowManager {
 
     logger.info('Creating migration window')
 
+    // Reset per-window guards so a recreated window starts clean (a stale
+    // programmaticClose would otherwise suppress the close-confirmation seam).
+    this.programmaticClose = false
+    this.currentStage = 'introduction'
+
     this.window = new BrowserWindow({
       width: 900,
       height: 620,
