@@ -534,7 +534,7 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
-  const { setTimeoutTimer } = useTimer()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
@@ -824,20 +824,27 @@ const AgentComposerInner = ({
       const previousText = draft.text
       const previousFiles = files
       const previousSkills = selectedSkills
+      const previousDraftTokens = draftTokensRef.current
 
       clearCurrentDraft()
       void sendQueuedPayload(payload).then((sent) => {
         if (!sent) {
+          clearTimeoutTimer('agentComposerSendMessage')
           setText(previousText)
           setFiles(previousFiles)
           setSelectedSkills(previousSkills)
+          setDraftTokens(previousDraftTokens)
+          draftTokensRef.current = previousDraftTokens
+          writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
           window.toast?.error(t('chat.input.send_failed'))
         }
       })
     },
     [
       buildQueuedPayload,
+      clearTimeoutTimer,
       clearCurrentDraft,
+      draftCacheKey,
       enqueueFollowup,
       files,
       isStreaming,
