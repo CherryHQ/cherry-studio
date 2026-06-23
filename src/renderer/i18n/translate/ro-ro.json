@@ -2217,6 +2217,7 @@
           "success": "Sursa de date adăugată la baza de cunoștințe"
         },
         "title": "Adăugare sursă de date",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "S-au omis {{count}} fișier(e) neacceptate",
         "url": {
           "description": "Introduceți un URL de pagină web:",
@@ -2230,6 +2231,7 @@
         "delete": "Șterge",
         "delete_confirm_description": "Ștergeți cele {{count}} surse de date selectate? Această acțiune nu poate fi anulată.",
         "delete_confirm_title": "Șterge sursele de date selectate?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Reindexare",
         "selected_count": "{{count}} selectate"
       },
@@ -2259,11 +2261,14 @@
         "note": "Note",
         "url": "URL-uri"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Nu s-a reușit previzualizarea sursei",
         "unavailable": "Această sursă de date nu are nicio sursă pentru previzualizare."
       },
-      "ready_summary": "{{ready}}/{{total}} gata",
       "reindex_failed": "Nu s-a putut reindexa sursa de date",
       "status": {
         "chunking": "Segmentare",
@@ -2273,6 +2278,7 @@
         "ready": "Gata"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Acțiuni",
           "name": "Nume",
@@ -2281,7 +2287,8 @@
           "updated_at": "Actualizat"
         },
         "select_all": "Selectează tot",
-        "select_row": "Selectați rândul"
+        "select_row": "Selectați rândul",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Adaugă sursă de date"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Nu s-a reușit ștergerea bazei de cunoștințe",
       "failed_to_edit": "Nu s-a reușit editarea bazei de cunoștințe",
       "failed_to_move": "Nu s-a reușit mutarea bazei de cunoștințe",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "Modelul de încorporare utilizat de această bază de cunoștințe nu a fost găsit în timpul migrării. Reconstruiți baza de cunoștințe și alegeți un nou model de încorporare.",
       "missing_vector_store": "Magazinul vectorial al acestei baze de cunoștințe nu a putut fi citit în timpul migrării (lipsește, este gol sau blocat). Baza de cunoștințe a fost păstrată; reindexați-o pentru recuperare.",
       "model_invalid": "Niciun model selectat"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Restaurare eșuată",
       "success": "Restaurat cu succes"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Model rapid",
         "setting_title": "Configurare model rapid",
         "tooltip": "Se recomandă alegerea unui model ușor, nu a unui model de raționament complex."
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Personalizat",

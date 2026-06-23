@@ -2217,6 +2217,7 @@
           "success": "ナレッジベースにデータソースが追加されました"
         },
         "title": "データソースを追加",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "サポートされていないファイル {{count}} 個をスキップしました",
         "url": {
           "description": "ウェブページのURLを入力してください：",
@@ -2230,6 +2231,7 @@
         "delete": "削除",
         "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
         "delete_confirm_title": "選択したデータソースを削除しますか？",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "再インデックス",
         "selected_count": "{{count}} 件選択"
       },
@@ -2259,11 +2261,14 @@
         "note": "メモ",
         "url": "URL"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "ソースのプレビューに失敗しました",
         "unavailable": "このデータソースにはプレビューできるソースがありません"
       },
-      "ready_summary": "{{ready}}/{{total}} 準備完了",
       "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
         "chunking": "チャンキング",
@@ -2273,6 +2278,7 @@
         "ready": "準備完了"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "アクション",
           "name": "名前",
@@ -2281,7 +2287,8 @@
           "updated_at": "更新済み"
         },
         "select_all": "すべて選択",
-        "select_row": "行を選択"
+        "select_row": "行を選択",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "データソースを追加"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "ナレッジベースの削除に失敗しました",
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
       "failed_to_move": "ナレッジベースの移動に失敗しました",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "このナレッジベースで使用されていた埋め込みモデルは移行中に見つかりませんでした。ナレッジベースを再構築し、新しい埋め込みモデルを選択してください。",
       "missing_vector_store": "このナレッジベースのベクターストアは移行中に読み取れませんでした（存在しない、空、またはロックされています）。ナレッジベースは保持されました。再インデックスを実行して復旧してください。",
       "model_invalid": "モデルが選択されていません"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "高速モデル",
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "カスタム",

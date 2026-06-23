@@ -14,6 +14,7 @@ import type {
 } from 'ai'
 
 import type { AppProviderSettingsMap } from '../../../types'
+import type { WrapLanguageModel } from '../retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -57,8 +58,8 @@ export interface AgentLoopHooks {
   /** Aggregate per-run state in your own `onStepFinish`; read it here via closure. */
   onFinish?: () => Promise<void> | void
 
-  /** Return 'retry' to retry the run, 'abort' to stop. Default: 'abort'. Retry is not implemented yet. */
-  onError?: (ctx: ErrorContext) => Promise<'retry' | 'abort'> | 'retry' | 'abort'
+  /** Error notification — the run always aborts after this fires. */
+  onError?: (ctx: ErrorContext) => Promise<void> | void
 }
 
 // ── Agent options ───────────────────────────────────────────────────
@@ -104,6 +105,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   /** Stable id for the first assistant UIMessage emitted by this execution. */
   messageId?: string
   plugins?: AiPlugin[]
+  /** Wraps the resolved model (e.g. ai-retry retry/fallback) before the agent uses it. */
+  wrapModel?: WrapLanguageModel
   tools?: ToolSet
   system?: string
   options?: AgentOptions

@@ -6,7 +6,16 @@
 // 导入内部使用的类和函数
 
 // ==================== 主要用户接口 ====================
-export { createAgent, createExecutor, embedMany, generateImage, generateText, rerank, streamText } from './core/runtime'
+export {
+  createAgent,
+  createExecutor,
+  embedMany,
+  generateImage,
+  generateText,
+  rerank,
+  resolveLanguageModel,
+  streamText
+} from './core/runtime'
 
 // ==================== Embedding 类型 ====================
 export type { CreateAgentOptions, EmbedManyParams, EmbedManyResult, RerankParams, RerankResult } from './core/runtime'

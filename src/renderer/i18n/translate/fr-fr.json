@@ -2217,6 +2217,7 @@
           "success": "Source de données ajoutée à la base de connaissances"
         },
         "title": "Ajouter une source de données",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "{{count}} fichier(s) non pris en charge ignoré(s)",
         "url": {
           "description": "Entrez une URL de page web :",
@@ -2230,6 +2231,7 @@
         "delete": "Supprimer",
         "delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Réindexer",
         "selected_count": "{{count}} sélectionné"
       },
@@ -2259,11 +2261,14 @@
         "note": "Notes",
         "url": "URL"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Échec de l'aperçu de la source",
         "unavailable": "Cette source de données n'a aucune source à prévisualiser"
       },
-      "ready_summary": "{{ready}}/{{total}} prêt",
       "reindex_failed": "Échec de la réindexation de la source de données",
       "status": {
         "chunking": "Fragmentation",
@@ -2273,6 +2278,7 @@
         "ready": "Prêt"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Actions",
           "name": "Nom",
@@ -2281,7 +2287,8 @@
           "updated_at": "Mis à jour"
         },
         "select_all": "Tout sélectionner",
-        "select_row": "Sélectionner la ligne"
+        "select_row": "Sélectionner la ligne",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Ajouter une source de données"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Échec de la suppression de la base de connaissances",
       "failed_to_edit": "Échec de la modification de la base de connaissances",
       "failed_to_move": "Échec du déplacement de la base de connaissances",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "Le modèle d'embedding utilisé par cette base de connaissances n'a pas été trouvé lors de la migration. Reconstruisez la base de connaissances et choisissez un nouveau modèle d'embedding.",
       "missing_vector_store": "Le magasin de vecteurs de cette base de connaissances n'a pas pu être lu pendant la migration (manquant, vide ou verrouillé). La base de connaissances a été conservée ; ré-indexez-la pour la récupérer.",
       "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "La restauration a échoué",
       "success": "La restauration a réussi"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Modèle rapide",
         "setting_title": "Configuration rapide du modèle",
         "tooltip": "Il est recommandé de choisir un modèle léger et déconseillé de choisir un modèle de réflexion."
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Personnalisé",

@@ -2217,6 +2217,7 @@
           "success": "Πηγή δεδομένων προστέθηκε στη βάση γνώσεων"
         },
         "title": "Προσθήκη Πηγής Δεδομένων",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Παραλείφθηκαν {{count}} μη υποστηριζόμενα αρχεία",
         "url": {
           "description": "Εισάγετε διεύθυνση ιστοσελίδας:",
@@ -2230,6 +2231,7 @@
         "delete": "Διαγραφή",
         "delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Επανεισαγωγή ευρετηρίου",
         "selected_count": "{{count}} επιλεγμένα"
       },
@@ -2259,11 +2261,14 @@
         "note": "Σημειώσεις",
         "url": "Διευθύνσεις URL"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Αποτυχία προεπισκόπησης πηγής",
         "unavailable": "Αυτή η πηγή δεδομένων δεν έχει πηγή για προεπισκόπηση"
       },
-      "ready_summary": "{{ready}}/{{total}} έτοιμα",
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
@@ -2273,6 +2278,7 @@
         "ready": "Έτοιμος"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Ενέργειες",
           "name": "Όνομα",
@@ -2281,7 +2287,8 @@
           "updated_at": "Ενημερωμένο"
         },
         "select_all": "Επιλογή όλων",
-        "select_row": "Επιλογή γραμμής"
+        "select_row": "Επιλογή γραμμής",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Προσθήκη Πηγής Δεδομένων"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Αποτυχία διαγραφής της βάσης γνώσεων",
       "failed_to_edit": "Αποτυχία επεξεργασίας της βάσης γνώσεων",
       "failed_to_move": "Αποτυχία μετακίνησης της βάσης γνώσεων",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "Το μοντέλο ενσωμάτωσης που χρησιμοποιούσε αυτή η βάση γνώσης δεν βρέθηκε κατά τη μετεγκατάσταση. Ανακατασκευάστε τη βάση γνώσης και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
       "missing_vector_store": "Η αποθήκη διανυσμάτων αυτής της βάσης γνώσης δεν μπόρεσε να διαβαστεί κατά τη μετεγκατάσταση (λείπει, είναι άδεια ή κλειδωμένη). Η βάση γνώσης διατηρήθηκε· επανευρετηριάστε την για ανάκτηση.",
       "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Η αποκατάσταση απέτυχε",
       "success": "Η αποκατάσταση ήταν επιτυχής"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Γρήγορο μοντέλο",
         "setting_title": "Γρήγορη ρύθμιση μοντέλου",
         "tooltip": "Προτείνεται να επιλέξετε ένα ελαφρύ μοντέλο και δεν συνιστάται να επιλέξετε ένα μοντέλο σκέψης"
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Προσαρμοσμένο",

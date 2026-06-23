@@ -18,6 +18,7 @@
  * - data-compaction-anchor (timeline anchor for completed runtime compaction)
  * - data-agent-task-event (Claude Agent SDK task lifecycle event)
  * - data-code (code blocks)
+ * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
@@ -93,6 +94,20 @@ export interface CodePartData {
   language: string
 }
 
+/**
+ * Model retry/fallback status. Transient: emitted live while a chat model call
+ * is being retried or failed over to a fallback model, and stripped before the
+ * assistant message is persisted (see PersistenceListener). Never written to DB.
+ */
+export interface RetryPartData {
+  /** Model id of the attempt that triggered the retry. */
+  modelId: string
+  /** 1-based count of attempts made so far. */
+  attempt: number
+  /** Short human reason, e.g. "http 429". */
+  reason: string
+}
+
 // ============================================================================
 // Cherry DataUIPart type map (for useChat dataPartSchemas)
 // ============================================================================
@@ -109,6 +124,7 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'agent-task-event': AgentTaskEventPartData
   code: CodePartData
+  retry: RetryPartData
 }
 
 // ============================================================================

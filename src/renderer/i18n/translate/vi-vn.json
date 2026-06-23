@@ -2217,6 +2217,7 @@
           "success": "Nguồn dữ liệu đã được thêm vào cơ sở kiến thức"
         },
         "title": "Thêm Nguồn Dữ Liệu",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Đã bỏ qua {{count}} tệp không được hỗ trợ",
         "url": {
           "description": "Nhập URL của trang web:",
@@ -2230,6 +2231,7 @@
         "delete": "Xóa",
         "delete_confirm_description": "Xóa {{count}} nguồn dữ liệu đã chọn? Thao tác này không thể hoàn tác.",
         "delete_confirm_title": "Xóa các Nguồn Dữ liệu Đã Chọn?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Lập chỉ mục lại",
         "selected_count": "{{count}} đã chọn"
       },
@@ -2259,11 +2261,14 @@
         "note": "Ghi chú",
         "url": "URL"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Không thể xem trước nguồn",
         "unavailable": "Nguồn dữ liệu này không có nguồn để xem trước"
       },
-      "ready_summary": "{{ready}}/{{total}} sẵn sàng",
       "reindex_failed": "Không thể lập chỉ mục lại nguồn dữ liệu",
       "status": {
         "chunking": "Chia nhỏ",
@@ -2273,6 +2278,7 @@
         "ready": "Sẵn sàng"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Hành động",
           "name": "Tên",
@@ -2281,7 +2287,8 @@
           "updated_at": "Đã cập nhật"
         },
         "select_all": "Chọn tất cả",
-        "select_row": "Chọn hàng"
+        "select_row": "Chọn hàng",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Thêm Nguồn Dữ Liệu"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Không thể xóa cơ sở kiến thức",
       "failed_to_edit": "Không thể chỉnh sửa cơ sở kiến thức",
       "failed_to_move": "Không thể di chuyển cơ sở kiến thức",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "Mô hình embedding được sử dụng bởi cơ sở kiến thức này không được tìm thấy trong quá trình di chuyển. Hãy xây dựng lại cơ sở kiến thức và chọn một mô hình embedding mới.",
       "missing_vector_store": "Kho kiến thức này không thể đọc được cửa hàng vector trong quá trình di chuyển (thiếu, trống hoặc bị khóa). Kho kiến thức đã được giữ lại; hãy lập chỉ mục lại để khôi phục.",
       "model_invalid": "Chưa chọn mô hình"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Khôi phục thất bại",
       "success": "Đã khôi phục thành công"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Mô hình Nhanh",
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Khuyến nghị chọn mô hình nhẹ và không nên chọn mô hình suy nghĩ."
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Tùy chỉnh",

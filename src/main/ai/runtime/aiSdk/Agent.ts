@@ -66,6 +66,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       providerSettings: params.providerSettings,
       modelId: params.modelId,
       plugins: params.plugins,
+      wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
         tools: toolsWithHooks as ToolSet,
@@ -152,15 +153,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
     }
 
-    const invokeOnError = async (err: unknown): Promise<'retry' | 'abort' | void> => {
-      if (!hooks.onError) return undefined
+    const invokeOnError = async (err: unknown): Promise<void> => {
+      if (!hooks.onError) return
       try {
-        return await hooks.onError({
+        await hooks.onError({
           error: err instanceof Error ? err : new Error(String(err))
         })
       } catch (hookErr) {
-        logger.error('hooks.onError threw; aborting run', hookErr as Error)
-        return 'abort'
+        logger.error('hooks.onError threw', hookErr as Error)
       }
     }
 
@@ -214,14 +214,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       .then(() => settleWriter())
       .catch(async (err) => {
         if (!signal.aborted) {
-          const action = await invokeOnError(err)
-          if (action === 'retry') {
-            // TODO: retry logic
-            // retry is reserved for a future implementation — today the loop logs and aborts.
-            logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
-          } else {
-            logger.error('agentLoop error', err)
-          }
+          await invokeOnError(err)
+          logger.error('agentLoop error', err)
         }
         await settleWriter(err)
       })

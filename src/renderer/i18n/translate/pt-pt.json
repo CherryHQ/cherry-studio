@@ -2217,6 +2217,7 @@
           "success": "Fonte de dados adicionada à base de conhecimento"
         },
         "title": "Adicionar Fonte de Dados",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Ignorados {{count}} arquivo(s) não suportado(s)",
         "url": {
           "description": "Insira um URL de página web:",
@@ -2230,6 +2231,7 @@
         "delete": "Apagar",
         "delete_confirm_description": "Excluir {{count}} fontes de dados selecionadas? Isso não pode ser desfeito.",
         "delete_confirm_title": "Excluir Fontes de Dados Selecionadas?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Reindexar",
         "selected_count": "{{count}} selecionado"
       },
@@ -2259,11 +2261,14 @@
         "note": "Notas",
         "url": "URLs"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Falha ao pré-visualizar a fonte",
         "unavailable": "Esta fonte de dados não tem nenhuma fonte para pré-visualizar"
       },
-      "ready_summary": "{{ready}}/{{total}} pronto",
       "reindex_failed": "Falha ao reindexar a fonte de dados",
       "status": {
         "chunking": "Fragmentação",
@@ -2273,6 +2278,7 @@
         "ready": "Pronto"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Ações",
           "name": "Nome",
@@ -2281,7 +2287,8 @@
           "updated_at": "Atualizado"
         },
         "select_all": "Selecionar todos",
-        "select_row": "Selecionar linha"
+        "select_row": "Selecionar linha",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Adicionar Fonte de Dados"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Falha ao excluir a base de conhecimento",
       "failed_to_edit": "Falha ao editar a base de conhecimento",
       "failed_to_move": "Falha ao mover a base de conhecimento",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "O modelo de incorporação utilizado por esta base de conhecimento não foi encontrado durante a migração. Reconstrua a base de conhecimento e escolha um novo modelo de incorporação.",
       "missing_vector_store": "O armazenamento de vetores desta base de conhecimento não pôde ser lido durante a migração (ausente, vazio ou bloqueado). A base de conhecimento foi mantida; re-indexe-a para recuperar.",
       "model_invalid": "Modelo não selecionado ou eliminado"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Restauração falhou",
       "success": "Restauração bem-sucedida"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Modelo rápido",
         "setting_title": "Configuração rápida do modelo",
         "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Personalizado",

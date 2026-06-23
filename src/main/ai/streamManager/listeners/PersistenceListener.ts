@@ -13,7 +13,11 @@ import { serializeError } from '@shared/utils/error'
 import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
-import { type PersistenceBackend, statsFromTerminal } from '../persistence/PersistenceBackend'
+import {
+  type PersistenceBackend,
+  statsFromTerminal,
+  stripTransientStatusParts
+} from '../persistence/PersistenceBackend'
 import type {
   SemanticTimings,
   StreamDoneResult,
@@ -111,8 +115,18 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
+    // Strip transient status parts (e.g. data-retry) so they never reach storage.
+    const persistableMessage = finalMessage
+      ? ({
+          ...finalMessage,
+          parts: stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])
+        } as CherryUIMessage)
+      : finalMessage
+
     const finalMessageForPersistence =
-      status === 'success' && finalMessage ? normalizeAssistantMessageCitations(finalMessage) : finalMessage
+      status === 'success' && persistableMessage
+        ? normalizeAssistantMessageCitations(persistableMessage)
+        : persistableMessage
 
     const stats = statsFromTerminal(
       finalMessageForPersistence,

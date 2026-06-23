@@ -2217,6 +2217,7 @@
           "success": "Fuente de datos añadida a la base de conocimientos"
         },
         "title": "Agregar Fuente de Datos",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Se omitieron {{count}} archivo(s) no admitido(s)",
         "url": {
           "description": "Introduce una URL de página web:",
@@ -2230,6 +2231,7 @@
         "delete": "Eliminar",
         "delete_confirm_description": "¿Eliminar {{count}} fuentes de datos seleccionadas? Esta acción no se puede deshacer.",
         "delete_confirm_title": "¿Eliminar las fuentes de datos seleccionadas?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Reindexar",
         "selected_count": "{{count}} seleccionado"
       },
@@ -2259,11 +2261,14 @@
         "note": "Notas",
         "url": "URLs"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Error al previsualizar la fuente",
         "unavailable": "Esta fuente de datos no tiene fuente para previsualizar"
       },
-      "ready_summary": "{{ready}}/{{total}} listos",
       "reindex_failed": "Error al reindexar la fuente de datos",
       "status": {
         "chunking": "Fragmentación",
@@ -2273,6 +2278,7 @@
         "ready": "Listo"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Acciones",
           "name": "Nombre",
@@ -2281,7 +2287,8 @@
           "updated_at": "Actualizado"
         },
         "select_all": "Seleccionar todo",
-        "select_row": "Seleccionar fila"
+        "select_row": "Seleccionar fila",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Agregar fuente de datos"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Error al eliminar la base de conocimientos",
       "failed_to_edit": "Error al editar la base de conocimientos",
       "failed_to_move": "Error al mover la base de conocimientos",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "El modelo de incrustación utilizado por esta base de conocimientos no se encontró durante la migración. Reconstruye la base de conocimientos y elige un nuevo modelo de incrustación.",
       "missing_vector_store": "No se pudo leer el almacén de vectores de esta base de conocimiento durante la migración (falta, vacío o bloqueado). La base de conocimiento se mantuvo; vuelva a indexarla para recuperarla.",
       "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Restauración fallida",
       "success": "Restauración exitosa"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Modelo rápido",
         "setting_title": "Configuración del modelo rápido",
         "tooltip": "Se recomienda elegir un modelo ligero y no se recomienda elegir un modelo de razonamiento"
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Personalizado",

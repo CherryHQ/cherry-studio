@@ -42,6 +42,8 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { buildFallbackModels } from './runtime/aiSdk/retry/buildFallbackModels'
+import { createRetryableWrap } from './runtime/aiSdk/retry/createRetryableWrap'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
@@ -49,6 +51,29 @@ import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequ
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
+
+/**
+ * Max concurrent `doEmbed` batches for `embedMany`. AI SDK defaults to
+ * `Infinity`, which fires every batch of a long document at once and is the
+ * primary embedding rate-limit trigger. Bounded fan-out trades a little
+ * throughput for far fewer 429s.
+ */
+const EMBEDDING_MAX_PARALLEL_CALLS = 5
+
+/** True when any message carries image input (UIMessage `file` part or ModelMessage `image` part). */
+function requestHasImageInput(messages: ReadonlyArray<unknown> | undefined): boolean {
+  if (!messages) return false
+  for (const message of messages) {
+    const m = message as { parts?: unknown[]; content?: unknown }
+    const parts = Array.isArray(m.parts) ? m.parts : Array.isArray(m.content) ? m.content : []
+    for (const part of parts) {
+      const p = part as { type?: string; mediaType?: string }
+      if (p.type === 'image') return true
+      if (p.type === 'file' && typeof p.mediaType === 'string' && p.mediaType.startsWith('image/')) return true
+    }
+  }
+  return false
+}
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -373,7 +398,7 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts } = await this.buildAgentParamsFor(
       request,
       signal,
       extraFeatures
@@ -381,17 +406,41 @@ export class AiService extends BaseService {
 
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
+    // An explicit per-request `maxRetries: 0` means "no retries for this request"
+    // — honor it (like embedding/rerank), overriding the global retry preference.
+    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
+    const agentRef: { current?: Agent } = {}
+    const wrapModel = retryDisabledForRequest
+      ? undefined
+      : createRetryableWrap({
+          fallbacks: buildFallbackModels({
+            request,
+            assistant,
+            signal,
+            primaryUniqueModelId: model.id,
+            primaryHasTools: !!tools && Object.keys(tools).length > 0,
+            requestHasImages: requestHasImageInput(request.messages),
+            extraFeatures
+          }),
+          // Stable `id` so repeated retries reconcile into one live status part (latest wins).
+          // Not transient: it rides message.parts so the renderer can show it; the
+          // PersistenceListener strips it before the message is saved.
+          onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        })
+
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       messageId: request.messageId,
       plugins,
+      wrapModel,
       tools,
       system,
       options,
       hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
+    agentRef.current = agent
 
     return agent.stream(preparedMessages, signal)
   }
@@ -415,17 +464,34 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts } = await this.buildAgentParamsFor(
       request,
       signal,
       extraFeatures
     )
+
+    // An explicit per-request `maxRetries: 0` disables retry for this request.
+    const wrapModel =
+      request.requestOptions?.maxRetries === 0
+        ? undefined
+        : createRetryableWrap({
+            fallbacks: buildFallbackModels({
+              request,
+              assistant,
+              signal,
+              primaryUniqueModelId: model.id,
+              primaryHasTools: !!tools && Object.keys(tools).length > 0,
+              requestHasImages: requestHasImageInput(request.messages),
+              extraFeatures
+            })
+          })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins,
+      wrapModel,
       tools,
       system: request.system ?? system,
       options,
@@ -628,6 +694,24 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
+  /**
+   * AI SDK `maxRetries` (retries beyond the first attempt) derived from the
+   * retry preference. Embedding/rerank use the SDK's built-in per-batch retry
+   * (respects `Retry-After` + exponential backoff) rather than ai-retry — there
+   * is no cross-model fallback for these, so the model wrapper adds no value.
+   *
+   * When the retry feature is off, `disabledDefault` is returned so each caller
+   * keeps its pre-feature behavior (rerank already defaulted to 0; embedMany
+   * relied on the AI SDK default of 2) — i.e. behavior is unchanged unless the
+   * user opts in.
+   */
+  private maxRetriesFromPreference(disabledDefault: number): number {
+    const preferences = application.get('PreferenceService')
+    return preferences.get('chat.retry.enabled')
+      ? Math.max(0, preferences.get('chat.retry.max_attempts'))
+      : disabledDefault
+  }
+
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
@@ -637,6 +721,13 @@ export class AiService extends BaseService {
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
+      // A long document splits into many batches and embedMany defaults to
+      // unbounded parallelism — firing them all at once is the main rate-limit
+      // trigger. Cap fan-out; the SDK's built-in retry handles transient 429s.
+      maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS,
+      // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
+      // its prior transient-error resilience (this PR only adds, never removes).
+      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(2),
       ...(signal ? { abortSignal: signal } : {})
     })
 
@@ -664,7 +755,10 @@ export class AiService extends BaseService {
       documents: request.documents,
       ...(request.topN !== undefined ? { topN: request.topN } : {}),
       ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
-      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
+      // exponential-backoff retry, defaulted from the retry preference. Rerank
+      // already defaulted to 0 retries pre-feature, so keep that when disabled.
+      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(0),
       ...(signal ? { abortSignal: signal } : {})
     }
 

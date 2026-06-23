@@ -2217,6 +2217,7 @@
           "success": "Источник данных добавлен в базу знаний"
         },
         "title": "Добавить источник данных",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "Пропущено {{count}} неподдерживаемых файла(ов)",
         "url": {
           "description": "Введите URL веб-страницы:",
@@ -2230,6 +2231,7 @@
         "delete": "Удалить",
         "delete_confirm_description": "Удалить {{count}} выбранных источников данных? Это действие нельзя отменить.",
         "delete_confirm_title": "Удалить выбранные источники данных?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Переиндексация",
         "selected_count": "{{count}} выбрано"
       },
@@ -2259,11 +2261,14 @@
         "note": "Заметки",
         "url": "URL-адреса"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Не удалось предварительно просмотреть источник",
         "unavailable": "У этого источника данных нет источника для предварительного просмотра"
       },
-      "ready_summary": "{{ready}}/{{total}} готовы",
       "reindex_failed": "Не удалось переиндексировать источник данных",
       "status": {
         "chunking": "Сегментация",
@@ -2273,6 +2278,7 @@
         "ready": "Готов"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Действия",
           "name": "Имя",
@@ -2281,7 +2287,8 @@
           "updated_at": "Обновлено"
         },
         "select_all": "Выбрать все",
-        "select_row": "Выбрать строку"
+        "select_row": "Выбрать строку",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Добавить источник данных"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Не удалось удалить базу знаний",
       "failed_to_edit": "Не удалось изменить базу знаний",
       "failed_to_move": "Не удалось переместить базу знаний",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "Модель встраивания, используемая этой базой знаний, не была найдена во время миграции. Пересоберите базу знаний и выберите новую модель встраивания.",
       "missing_vector_store": "Векторное хранилище этой базы знаний не удалось прочитать во время миграции (отсутствует, пусто или заблокировано). База знаний сохранена; выполните переиндексацию для восстановления.",
       "model_invalid": "Модель не выбрана"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Восстановление не удалось",
       "success": "Успешно восстановлено"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Быстрая модель",
         "setting_title": "Быстрая настройка модели",
         "tooltip": "Рекомендуется выбирать легковесную модель, не рекомендуется выбирать модель с функцией размышления"
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Пользовательский",

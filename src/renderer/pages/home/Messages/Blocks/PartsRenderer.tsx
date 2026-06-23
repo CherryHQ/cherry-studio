@@ -34,6 +34,7 @@ import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
+import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
@@ -299,6 +300,12 @@ function renderPart(
       const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
       return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
+    }
+
+    case 'data-retry': {
+      const rawData = 'data' in part ? part.data : undefined
+      if (!rawData) return null
+      return <RetryStatusBlock key={partId} data={rawData} />
     }
 
     case 'file': {

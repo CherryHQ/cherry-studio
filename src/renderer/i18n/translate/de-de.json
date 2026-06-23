@@ -2217,6 +2217,7 @@
           "success": "Datenquelle zur Wissensbasis hinzugefügt"
         },
         "title": "Datenquelle hinzufügen",
+        "too_many_sources": "[to be translated]:You can add at most {{count}} sources at a time. Reduce your selection and try again.",
         "unsupported_files_skipped": "{{count}} nicht unterstützte Datei(en) übersprungen",
         "url": {
           "description": "Gib eine Webseiten-URL ein:",
@@ -2230,6 +2231,7 @@
         "delete": "Löschen",
         "delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",
         "delete_confirm_title": "Ausgewählte Datenquellen löschen?",
+        "loaded_only_hint": "[to be translated]:Applies to loaded items only ({{total}} total)",
         "reindex": "Neuindizierung",
         "selected_count": "{{count}} ausgewählt"
       },
@@ -2259,11 +2261,14 @@
         "note": "Notizen",
         "url": "URLs"
       },
+      "list": {
+        "end_reached": "[to be translated]:No more items",
+        "loading_more": "[to be translated]:Loading more…"
+      },
       "preview": {
         "failed": "Fehler beim Vorschauen der Quelle",
         "unavailable": "Diese Datenquelle hat keine Quelle zur Vorschau."
       },
-      "ready_summary": "{{ready}}/{{total}} bereit",
       "reindex_failed": "Fehler beim Neuerstellen des Datenquellen-Index",
       "status": {
         "chunking": "Chunking",
@@ -2273,6 +2278,7 @@
         "ready": "Bereit"
       },
       "table": {
+        "aria_label": "[to be translated]:Data sources",
         "columns": {
           "actions": "Aktionen",
           "name": "Name",
@@ -2281,7 +2287,8 @@
           "updated_at": "Aktualisiert"
         },
         "select_all": "Alle auswählen",
-        "select_row": "Zeile auswählen"
+        "select_row": "Zeile auswählen",
+        "view_chunks_row": "[to be translated]:View chunks for {{title}}"
       },
       "toolbar": {
         "add": "Datenquelle hinzufügen"
@@ -2299,6 +2306,7 @@
       "failed_to_delete": "Fehler beim Löschen der Wissensdatenbank",
       "failed_to_edit": "Bearbeitung der Wissensdatenbank fehlgeschlagen",
       "failed_to_move": "Fehler beim Verschieben der Wissensdatenbank",
+      "indexing_interrupted": "[to be translated]:Indexing was interrupted because the app closed. Reindex this item to finish.",
       "missing_embedding_model": "Das Embedding-Modell, das von dieser Wissensbasis verwendet wurde, wurde während der Migration nicht gefunden. Erstellen Sie die Wissensbasis neu und wählen Sie ein neues Embedding-Modell.",
       "missing_vector_store": "Der Vektorspeicher dieser Wissensbasis konnte während der Migration nicht gelesen werden (fehlend, leer oder gesperrt). Die Wissensbasis wurde beibehalten; reindizieren Sie sie, um sie wiederherzustellen.",
       "model_invalid": "Kein Modell ausgewählt"
@@ -3125,6 +3133,9 @@
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",
       "success": "Erfolgreich wiederhergestellt"
+    },
+    "retry": {
+      "status": "[to be translated]:Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -6200,6 +6211,16 @@
         "label": "Schnellmodell",
         "setting_title": "Schnellmodell-Einstellungen",
         "tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen"
+      },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Benutzerdefiniert",

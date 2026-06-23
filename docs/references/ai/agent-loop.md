@@ -51,7 +51,7 @@ interface AgentLoopHooks {
   onToolExecutionStart?: (event) => Promise<void> | void
   onToolExecutionEnd?: (event) => Promise<void> | void
   onFinish?: () => Promise<void> | void
-  onError?: (ctx) => 'retry' | 'abort'
+  onError?: (ctx) => Promise<void> | void   // notification only; loop always aborts
 }
 ```
 
@@ -72,7 +72,7 @@ Composition rules per hook key:
 |---|---|
 | `onStart`, `onFinish`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
 | `prepareStep` | chained — each invocation receives the previous return value |
-| `onError` | every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
+| `onError` | `chainVoid` — every handler invoked sequentially as a notification; the loop always aborts afterward |
 
 All void hooks share the same `chainVoid` helper in `composeHooks.ts` —
 there is no `Promise.allSettled` / parallel path.
@@ -102,9 +102,9 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 - `signal.aborted` is honoured throughout; aborted streams settle with
   the accumulated chunks already broadcast.
-- Thrown errors are caught and routed through `onError`. Returning
-  `'retry'` is reserved for a future implementation — today the loop
-  logs and aborts.
+- Thrown errors are caught and routed through `onError` (a notification
+  hook), then the loop logs and aborts. Call-level retry/fallback lives one
+  layer below at the model wrapper — see [Model Retry & Fallback](./model-retry.md).
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 
