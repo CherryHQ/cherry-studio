@@ -218,7 +218,11 @@
         "edit": "تعديل",
         "empty": "لا مهام مجدولة. أضف واحدة.",
         "error": {
-          "loadFailed": "فشل تحميل المهام"
+          "createFailed": "فشل إنشاء المهمة",
+          "deleteFailed": "فشل حذف المهمة",
+          "loadFailed": "فشل تحميل المهام",
+          "runFailed": "فشل تشغيل المهمة",
+          "updateFailed": "فشل تحديث المهمة"
         },
         "intervalPlaceholder": "الفاصل بالدقائق",
         "intervalUnit": "دقيقة",
@@ -329,6 +333,9 @@
       "success": "تم اكتشاف Git Bash!",
       "tooltip": "Git Bash مطلوب على Windows. ثبته من git-scm.com."
     },
+    "home": {
+      "welcome_title": "ما الذي تريد مناقشته اليوم؟"
+    },
     "input": {
       "placeholder": "اكتب رسالتك، {{key}} للإرسال، @ للمسار، / للأمر",
       "soul_placeholder": "ساعدني في الاتصال بـ Telegram"
@@ -338,14 +345,119 @@
         "failed": "فشل سرد الوكلاء"
       }
     },
+    "pin": {
+      "title": "تثبيت الوكيل"
+    },
+    "preview_pane": {
+      "close": "إغلاق المعاينة",
+      "code": "كود",
+      "code_unavailable": "عرض المصدر غير متوفر للملفات الثنائية",
+      "default_app": "التطبيق الافتراضي",
+      "empty": {
+        "description": "ابدأ الدردشة مع الوكيل؛ سيظهر الكود المولد والمعاينات الحية هنا.",
+        "title": "جاهز"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "يتجاوز هذا ملف Excel حد حجم المعاينة.",
+          "invalid_request": "طلب معاينة Excel غير صالح.",
+          "parse_failed": "غير قادر على قراءة ملف Excel هذا.",
+          "too_complex": "ملف Excel هذا معقد جداً للمعاينة.",
+          "unsupported_extension": "يمكن معاينة ملفات .xlsx و .xlsm فقط.",
+          "unsupported_xls": "ملفات .xls القديمة غير مدعومة في معاينة Excel."
+        },
+        "warnings": {
+          "generic": "قد لا يتم عرض جميع محتويات المصنف بالكامل.",
+          "title": "إشعار المعاينة",
+          "unsupported_images": "الصور غير معروضة بعد في معاينة Excel."
+        }
+      },
+      "file_tree": "شجرة الملفات",
+      "items_one": "{{count}} عنصر",
+      "items_other": "{{count}} عناصر",
+      "maximize": "تكبير",
+      "minimize": "تصغير",
+      "no_search_results": "لا توجد ملفات تطابق بحثك",
+      "office": {
+        "description": "هذا النوع من الملفات يجب فتحه باستخدام التطبيق الافتراضي للنظام.",
+        "title": "فتح ملفات {{extension}} هنا غير مدعوم بعد"
+      },
+      "preview": "معاينة",
+      "refresh": "تحديث",
+      "search_placeholder": "بحث عن ملفات…",
+      "select_file": "اختر ملفًا للمعاينة",
+      "toggle": "إظهار لوحة المعاينة",
+      "too_large": {
+        "description": "الملف يتجاوز حد المعاينة {{limit}}.",
+        "title": "الملف كبير جدًا للمعاينة"
+      },
+      "unavailable": {
+        "description": "لا يمكن فتح هذا الملف — قد يكون تم نقله أو حذفه.",
+        "title": "الملف غير متاح"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "غير قادر على عرض مستند Word هذا.",
+          "read_failed": "غير قادر على قراءة مستند Word هذا."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "فشل إعادة ترتيب الوكلاء"
       }
     },
     "right_pane": {
+      "close": "إغلاق",
+      "flow": {
+        "empty": {
+          "description": "اختر استدعاء أداة الوكيل لعرض تدفق الرسائل الفرعية.",
+          "title": "لا أداة مختارة"
+        },
+        "no_messages": {
+          "description": "ليس لهذا الاستدعاء أي تدفق رسائل فرعي.",
+          "title": "لا رسائل"
+        }
+      },
       "info": {
-        "context_usage": "استخدام السياق"
+        "artifacts": "المخرجات",
+        "context_categories": {
+          "autocompact_buffer": "حافظة إلغاء التجميع",
+          "custom_agents": "وكلاء مخصصون",
+          "free_space": "مساحة فارغة",
+          "mcp_tools": "أدوات MCP",
+          "memory_files": "ملفات الذاكرة",
+          "messages": "رسائل",
+          "plugins": "ملحقات",
+          "skills": "مهارات",
+          "system_prompt": "موجه النظام",
+          "system_tools": "أدوات النظام"
+        },
+        "context_usage": "استخدام السياق",
+        "label": "معلومات الجلسة",
+        "more": "+{{count}} أكثر",
+        "no_artifacts": "لا مخرجات معلنة",
+        "no_subagents": "لا وكلاء فرعيون",
+        "subagents": "الوكلاء الفرعيون"
+      },
+      "status": {
+        "activity": "نشاط",
+        "agent": "وكيل",
+        "context": "السياق",
+        "no_tasks": "لا مهام نشطة",
+        "selected_tool": "الأداة المختارة",
+        "task_count": "{{completed}} / {{total}} مكتمل",
+        "tasks": "مهام",
+        "tools_active": "نشط",
+        "tools_done": "مكتمل",
+        "tools_failed": "فشل",
+        "tools_total": "المجموع",
+        "workspace": "مساحة العمل"
+      },
+      "tabs": {
+        "files": "ملفات",
+        "flow": "تدفق",
+        "status": "حالة"
       }
     },
     "server": {
@@ -368,6 +480,16 @@
       "add": {
         "title": "إضافة جلسة"
       },
+      "agent": {
+        "delete": {
+          "content": "حذف مهام هذا الوكيل سيؤدي إلى حذف جميع المهام المرتبطة به. الوكيل نفسه لن يُحذف.",
+          "error": {
+            "failed": "فشل حذف مهام الوكيل"
+          },
+          "title": "حذف مهام الوكيل",
+          "trigger": "حذف مهام الوكيل"
+        }
+      },
       "allowed_tools": {
         "empty": "لا أدوات متاحة.",
         "helper": "الأدوات المعتمدة تعمل بدون موافقة؛ غيرها تحتاج موافقة.",
@@ -387,8 +509,18 @@
         },
         "title": "حذف الجلسة"
       },
+      "display": {
+        "agent": "وكيل",
+        "time": "الوقت",
+        "title": "وضع العرض",
+        "workdir": "دليل العمل"
+      },
       "edit": {
         "title": "تعديل الجلسة"
+      },
+      "empty": {
+        "description": "ستظهر المهام هنا بعد أن تبدأ واحدة.",
+        "title": "لا مهام بعد"
       },
       "file_manager": {
         "file_explorer": "مستكشف الملفات",
@@ -398,24 +530,73 @@
       "get": {
         "error": {
           "failed": "فشل جلب الجلسة",
+          "not_found": "المهمة غير موجودة",
           "null_id": "معرف الجلسة فارغ"
         }
       },
+      "group": {
+        "collapse": "طي العرض",
+        "collapse_all": "طي الكل",
+        "conversation": "المحادثات",
+        "drag_hint": "اسحب لإعادة الترتيب. اسحب المهام لضبط العرض والمجموعات المخفية.",
+        "earlier": "أقدم",
+        "expand_all": "توسيع الكل",
+        "no_workdir": "لا دليل عمل",
+        "show_more": "توسيع العرض",
+        "this_week": "هذا الأسبوع",
+        "today": "اليوم",
+        "unknown_agent": "وكيل غير معروف",
+        "yesterday": "أمس"
+      },
       "label_one": "جلسة",
       "label_other": "جلسات",
+      "list": {
+        "title": "مهام"
+      },
+      "pin": {
+        "title": "تثبيت المهمة"
+      },
       "reorder": {
         "error": {
           "failed": "فشل إعادة ترتيب الجلسات"
         }
+      },
+      "search": {
+        "placeholder": "بحث عن مهام"
+      },
+      "unpin": {
+        "title": "إلغاء تثبيت المهمة"
       },
       "update": {
         "error": {
           "failed": "فشل تحديث الجلسة"
         }
       },
+      "workdir": {
+        "delete": {
+          "content": "حذف دليل العمل هذا سيؤدي أيضاً إلى حذف جميع المهام تحته. تُحذف سجلات قاعدة البيانات فقط؛ المجلد الفعلي على القرص لن يُحذف.",
+          "error": {
+            "failed": "فشل حذف دليل العمل"
+          },
+          "title": "حذف دليل العمل",
+          "trigger": "حذف دليل العمل"
+        },
+        "rename": {
+          "error": {
+            "failed": "فشل إعادة تسمية دليل العمل"
+          },
+          "title": "إعادة تسمية دليل العمل",
+          "trigger": "إعادة تسمية دليل العمل"
+        }
+      },
       "workspace_selector": {
+        "create_failed": "فشل إضافة دليل العمل.",
+        "create_new": "إضافة دليل عمل جديد",
+        "empty_text": "لا توجد أدلة عمل",
         "no_project": "لا دليل عمل",
-        "placeholder": "اختر دليل عمل"
+        "placeholder": "اختر دليل عمل",
+        "search_placeholder": "بحث عن أدلة العمل",
+        "select_failed": "فشل اختيار المجلد."
       },
       "workspace_status": {
         "inaccessible": "مسار مساحة العمل غير قابل للوصول: {{path}}",
@@ -743,17 +924,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "يخزن ويسترجع الذاكرة عبر الجلسات",
+          "label": "الذاكرة"
+        },
         "Bash": {
-          "description": "ينفذ أوامر سطر الأوامر (Shell) في بيئتك"
+          "description": "ينفذ أوامر سطر الأوامر (Shell) في بيئتك",
+          "label": "باش"
+        },
+        "CherryKbSearch": {
+          "description": "يبحث في قواعد معرفتك",
+          "label": "بحث المعرفة"
+        },
+        "CherryWebFetch": {
+          "description": "يجلب صفحة ويب ويقرأها",
+          "label": "جلب ويب"
+        },
+        "CherryWebSearch": {
+          "description": "يبحث على الويب عبر الموفر المُعد",
+          "label": "بحث ويب"
+        },
+        "ClawCron": {
+          "description": "يدير جدولة التطبيق داخل التطبيق",
+          "label": "المجدول"
         },
         "Edit": {
-          "description": "يجري تعديلات مستهدفة على ملفات محددة"
+          "description": "يجري تعديلات مستهدفة على ملفات محددة",
+          "label": "تحرير"
         },
         "Glob": {
-          "description": "يعثر على الملفات بناءً على مطابقة الأنماط"
+          "description": "يعثر على الملفات بناءً على مطابقة الأنماط",
+          "label": "نمط glob"
         },
         "Grep": {
-          "description": "يبحث عن أنماط في محتويات الملفات"
+          "description": "يبحث عن أنماط في محتويات الملفات",
+          "label": "بحث بنمط"
         },
         "MultiEdit": {
           "description": "ينفذ تعديلات متعددة على ملف واحد بشكل ذري"
@@ -765,7 +970,8 @@
           "description": "يقرأ ويعرض محتويات دفاتر Jupyter"
         },
         "Read": {
-          "description": "يقرأ محتويات الملفات"
+          "description": "يقرأ محتويات الملفات",
+          "label": "قراءة"
         },
         "Task": {
           "description": "يشغل وكيلاً فرعياً لمعالجة المهام المعقدة والمتعددة الخطوات"
@@ -782,14 +988,22 @@
         "WebSearch": {
           "description": "يجري بحثاً في الويب مع تصفية النطاقات"
         },
+        "Workflow": {
+          "description": "ينفذ سير عمل متعدد الخطوات يدير الوكلاء الفرعيين",
+          "label": "سير عمل"
+        },
         "Write": {
-          "description": "ينشئ الملفات أو يستبدلها"
+          "description": "ينشئ الملفات أو يستبدلها",
+          "label": "كتابة"
         }
       }
     },
     "type": {
       "label": "نوع الوكيل",
       "unknown": "نوع غير معروف"
+    },
+    "unpin": {
+      "title": "إلغاء تثبيت الوكيل"
     },
     "update": {
       "error": {
@@ -900,6 +1114,7 @@
     "abbr": "المساعدون",
     "clear": {
       "content": "سيؤدي مسح الموضوع إلى حذف جميع المواضيع والملفات في المساعد. هل أنت متأكد أنك تريد الاستمرار؟",
+      "menu_title": "حذف جميع محادثات المساعد",
       "title": "مسح المواضيع"
     },
     "copy": {
@@ -921,6 +1136,9 @@
     "list": {
       "showByList": "عرض القائمة",
       "showByTags": "عرض الوسوم"
+    },
+    "pin": {
+      "title": "تثبيت المساعد"
     },
     "presets": {
       "add": {
@@ -1016,6 +1234,11 @@
       },
       "title": "مكتبة المساعدين"
     },
+    "reorder": {
+      "error": {
+        "failed": "فشل إعادة ترتيب المساعدين"
+      }
+    },
     "save": {
       "success": "تم الحفظ بنجاح",
       "title": "حفظ في مكتبة المساعدين"
@@ -1109,7 +1332,10 @@
       },
       "untagged": "غير مصنف"
     },
-    "title": "المساعدون"
+    "title": "المساعدون",
+    "unpin": {
+      "title": "إلغاء تثبيت المساعد"
+    }
   },
   "auth": {
     "error": "فشل الحصول على مفتاح API تلقائيًا، الحصول عليه يدويًا",
@@ -1182,12 +1408,16 @@
             "content": "خطأ في فتح المتصفح الخارجي."
           }
         }
-      }
+      },
+      "title": "النتائج القابلة للتسليم"
     },
     "assistant": {
       "search": {
         "placeholder": "بحث"
       }
+    },
+    "conversation": {
+      "new": "دردشة جديدة"
     },
     "deeply_thought": "تفكير عميق ({{seconds}} ثوانٍ)",
     "default": {
@@ -1206,6 +1436,9 @@
       "title": "سجل الدردشة",
       "user_node": "المستخدم",
       "view_full_content": "عرض المحتوى كاملاً"
+    },
+    "home": {
+      "welcome_title": "ما الذي تريد مناقشته اليوم؟"
     },
     "input": {
       "auto_resize": "تغيير الحجم تلقائياً",
@@ -1242,12 +1475,14 @@
       "knowledge_base_disabled_by_files": "إزالة الملفات المرفقة لاستخدام قاعدة المعرفة",
       "knowledge_base_unavailable": "اختر نموذجًا يدعم الأدوات أو فعّل استخدام أدوات المطالبة",
       "locate_editing_message": "تحديد الرسالة الأصلية",
+      "mcp_unavailable": "اختر نموذجًا يدعم الأدوات أو فعّل استخدام أدوات التوجيه",
       "new": {
         "context": "مسح السياق {{Command}}"
       },
       "new_session": "جلسة جديدة {{Command}}",
       "new_topic": "موضوع جديد {{Command}}",
       "paste_text_file": "لصق في الإدخال",
+      "pasted_text_file_name": "نص ملصق.txt",
       "pause": "إيقاف مؤقت",
       "placeholder": "اكتب رسالتك هنا، اضغط {{key}} للإرسال - @ لاختيار النموذج، / لتضمين الأدوات",
       "placeholder_without_triggers": "اكتب رسالتك هنا، اضغط {{key}} للإرسال",
@@ -1273,6 +1508,13 @@
       "send_failed": "فشل إرسال الرسالة",
       "settings": "الإعدادات",
       "slash_commands": {
+        "commands": {
+          "clear": "مسح تاريخ المحادثة",
+          "compact": "ضغط المحادثة مع تعليمات تركيز اختيارية",
+          "context": "تصور استخدام السياق الحالي كشبكة ألوان",
+          "cost": "عرض إحصائيات استهلاك الرموز (راجع دليل تتبع التكلفة للاشتراكات)",
+          "todos": "قائمة مهام الحالية"
+        },
         "description": "أوامر الشرطة المائلة لجلسة الوكيل",
         "title": "أوامر الشرطة المائلة"
       },
@@ -1348,6 +1590,20 @@
       }
     },
     "message": {
+      "editing_current": "هذه الرسالة تُحرَّر في نافذة الإنشاء",
+      "flow": {
+        "branches": "فروع",
+        "copy_topic": {
+          "created": "تم النسخ إلى محادثة جديدة",
+          "label": "نسخ كمحادثة جديدة"
+        },
+        "nodes": "عُقَد",
+        "status": {
+          "awaiting_input": "بانتظار إدخال"
+        },
+        "title": "إدارة الفروع"
+      },
+      "more": "مزيد من الإجراءات",
       "new": {
         "branch": {
           "created": "تم إنشاء فرع جديد",
@@ -1457,6 +1713,7 @@
             "save_failed": "فشل حفظ الموضوع، التحقق من تهيئة قاعدة المعرفة"
           },
           "loading": "جاري تحليل محتوى الموضوع...",
+          "menu_title": "حفظ في قاعدة المعرفة",
           "select": {
             "content": {
               "label": "اختر أنواع المحتوى لحفظها",
@@ -1529,6 +1786,7 @@
       "title": "أسئلة مقترحة"
     },
     "thinking": "جاري التفكير ({{seconds}} ثوانٍ)",
+    "thinking_tokens": "~{{tokens}} رمز",
     "topics": {
       "auto_rename": "إعادة تسمية تلقائية",
       "clear": {
@@ -1543,14 +1801,25 @@
       "delete": {
         "shortcut": "اضغط مطولاً على {{key}} للحذف مباشرة"
       },
+      "display": {
+        "assistant": "مساعد",
+        "tag": "وسم",
+        "time": "الوقت",
+        "title": "وضع العرض"
+      },
       "edit": {
         "placeholder": "أدخل اسماً جديداً",
         "title": "تعديل الاسم",
         "title_tip": "نصيحة: انقر نقراً مزدوجاً فوق اسم الموضوع لتعديله مباشرة"
       },
+      "empty": {
+        "description": "إنشاء محادثة وستظل هنا لتستمر بسياقها لاحقًا.",
+        "title": "لا توجد محادثات"
+      },
       "export": {
         "failed": "فشل التصدير",
         "image": "تصدير كصورة",
+        "image_exporting_keep_page": "جاري تصدير الصورة. يرجى البقاء في هذه الصفحة.",
         "image_saved": "تم حفظ الصورة بنجاح",
         "joplin": "تصدير إلى Joplin",
         "md": {
@@ -1597,6 +1866,17 @@
         "wait_for_title_naming": "جاري إنشاء العنوان...",
         "word": "تصدير بصيغة Word",
         "yuque": "تصدير إلى Yuque"
+      },
+      "group": {
+        "collapse": "طي العرض",
+        "collapse_all": "طي الكل",
+        "earlier": "أقدم",
+        "expand_all": "توسيع الكل",
+        "show_more": "توسيع العرض",
+        "this_week": "هذا الأسبوع",
+        "today": "اليوم",
+        "unknown_assistant": "مساعد غير مرتبط",
+        "yesterday": "أمس"
       },
       "list": "قائمة المواضيع",
       "manage": {
@@ -1746,8 +2026,10 @@
     "add": "إضافة",
     "add_success": "تمت الإضافة بنجاح",
     "advanced_settings": "خيارات متقدمة",
+    "agent": "وكيل",
     "agent_one": "وكيل",
     "agent_other": "وكلاء",
+    "all": "الكل",
     "and": "و",
     "assistant": "وكيل",
     "assistant_one": "مساعد",
@@ -1768,6 +2050,7 @@
     "copied": "تم النسخ",
     "copy": "نسخ",
     "copy_failed": "فشل النسخ",
+    "create_success": "تم الإنشاء بنجاح",
     "current": "الحالي",
     "cut": "قص",
     "default": "افتراضي",
@@ -1826,6 +2109,7 @@
     "on": "تشغيل",
     "open": "افتح",
     "open_in": "افتح في {{name}}",
+    "open_in_new_tab": "فتح في علامة تبويب جديدة",
     "open_sidebar": "فتح الشريط الجانبي",
     "paste": "الصق",
     "placeholders": {
@@ -1880,6 +2164,7 @@
     "upload_image": "ارفع صورة",
     "uploaded_image": "صورة مرفوعة",
     "warning": "تحذير",
+    "yesterday": "أمس",
     "you": "أنت"
   },
   "dialog": {
@@ -2090,6 +2375,85 @@
     "title": "ملفات",
     "type": "النوع"
   },
+  "globalSearch": {
+    "clear": "مسح البحث",
+    "error": "فشل البحث",
+    "filters": {
+      "agent": "وكيل",
+      "all": "الكل",
+      "assistant": "مساعد",
+      "conversation": "محادثة",
+      "knowledge": "معرفة",
+      "label": "نوع البحث",
+      "session": "مهمة",
+      "topic": "محادثة"
+    },
+    "groups": {
+      "agent": "وكيل",
+      "assistant": "مساعد",
+      "conversation": "محادثة",
+      "knowledge-base": "قواعد المعرفة",
+      "message": "رسائل",
+      "recent": "الأخيرة",
+      "session": "مهمة",
+      "topic": "محادثة"
+    },
+    "keyboard": {
+      "select": "اختر"
+    },
+    "messageSearch": {
+      "entry": "رسائل",
+      "hint": "اكتب للبحث في محتوى الرسالة",
+      "jumpToMessage": "الانتقال إلى الرسالة",
+      "more": "عرض {{count}} نتيجة إضافية",
+      "open": "بحث عن الرسائل",
+      "roles": {
+        "assistant": "مساعد",
+        "system": "نظام",
+        "tool": "أداة",
+        "user": "مستخدم"
+      },
+      "sourceLabel": "مصدر الرسالة",
+      "sources": {
+        "all": "كل الرسائل",
+        "session": "رسائل المهمة",
+        "topic": "رسائل المحادثة"
+      },
+      "viewMore": "عرض المزيد في الرسائل"
+    },
+    "no_recent": "لا توجد طرق حديثة",
+    "open": "فتح البحث الشامل",
+    "open_failed": "فشل فتح نتيجة البحث",
+    "placeholder": "ابحث عن المحادثات، المهام، المساعدين، الوكلاء، والمعرفة...",
+    "quickApps": {
+      "hide": "إخفاء {{name}}",
+      "manage": "إدارة",
+      "manager_description": "اسحب لإعادة الترتيب، انقر على العين لإخفاء أو إظهار",
+      "manager_title": "إدارة التطبيقات السريعة",
+      "reset": "إعادة ضبط",
+      "save_failed": "فشل حفظ التطبيقات السريعة",
+      "show": "إظهار {{name}}",
+      "title": "تطبيقات سريعة"
+    },
+    "recent_hint": "اكتب للبحث عن المحادثات، المهام، المساعدين، الوكلاء، والمعرفة",
+    "resultTypes": {
+      "agent": "وكيل",
+      "assistant": "مساعد",
+      "knowledge-base": "معرفة",
+      "session": "مهمة",
+      "topic": "محادثة"
+    },
+    "showMore": "عرض {{count}} المزيد",
+    "timeFilters": {
+      "any": "أي وقت",
+      "label": "وقت التحديث",
+      "messageLabel": "وقت الإنشاء",
+      "month": "الشهر الماضي",
+      "quarter": "آخر ثلاثة أشهر",
+      "today": "اليوم",
+      "week": "آخر 7 أيام"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "الوقت بالدقائق لإبقاء الاتصال نشطاً، الافتراضي هو 5 دقائق.",
@@ -2105,6 +2469,67 @@
     },
     "locate": {
       "message": "حدد موقع الرسالة"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} مهمة",
+      "agentTitle": "سجل الوكيل",
+      "assistantSubtitle": "{{count}} محادثة",
+      "bulkDelete": "حذف دفعي",
+      "bulkDeleteSessions": {
+        "description": "حذف {{count}} مهمة مختارة؟",
+        "title": "حذف المهام المحددة"
+      },
+      "bulkDeleteTopics": {
+        "description": "حذف {{count}} محادثة مختارة؟",
+        "title": "حذف المحادثات المحددة"
+      },
+      "bulkMove": "نقل دفعي",
+      "bulkMoveTopics": {
+        "confirm": "نقل",
+        "description": "نقل {{count}} محادثة إلى المساعد المستهدف.",
+        "empty": "لا يوجد مساعدين",
+        "error": "فشل نقل المحادثات",
+        "partialSuccess": "نقل {{moved}} من {{total}}؛ فشل {{failed}}",
+        "placeholder": "اختر مساعدًا",
+        "success": "تم نقل {{count}} محادثة",
+        "target": "المساعد المستهدف",
+        "title": "نقل المحادثات المحددة"
+      },
+      "empty": {
+        "description": "لا توجد محادثات للمرشحات الحالية.",
+        "sessionsDescription": "لا توجد مهام للمرشحات الحالية.",
+        "sessionsTitle": "لا مهام",
+        "title": "لا محادثات"
+      },
+      "loading": {
+        "description": "جاري تحميل قائمة المحادثات.",
+        "sessionsDescription": "جاري تحميل قائمة المهام.",
+        "sessionsTitle": "جاري تحميل المهام",
+        "title": "جاري تحميل المحادثات"
+      },
+      "resultCount": "{{count}} نتيجة",
+      "searchSession": "بحث عن مهام...",
+      "searchTopic": "بحث عن محادثات...",
+      "shortTitle": "التاريخ",
+      "sidebar": {
+        "searchAssistant": "بحث عن مساعدين...",
+        "status": "حالة",
+        "unknownAssistant": "مساعد غير مرتبط"
+      },
+      "status": {
+        "completed": "مكتمل",
+        "failed": "فشل",
+        "running": "قيد التشغيل"
+      },
+      "table": {
+        "actions": "إجراءات",
+        "emptyValue": "—",
+        "messages": "رسائل",
+        "session": "مهمة",
+        "time": "الوقت",
+        "title": "العنوان"
+      },
+      "title": "سجل المحادثات"
     },
     "search": {
       "match": {
@@ -2217,6 +2642,7 @@
           "success": "تم إضافة مصدر البيانات إلى قاعدة المعرفة"
         },
         "title": "إضافة مصدر بيانات",
+        "too_many_sources": "يمكنك إضافة ما لا يزيد عن {{count}} مصدرًا في كل مرة. قلل اختيارك ثم أعد المحاولة.",
         "unsupported_files_skipped": "تم تخطي {{count}} ملف(ات) غير مدعومة",
         "url": {
           "description": "أدخل رابط صفحة ويب:",
@@ -2230,6 +2656,7 @@
         "delete": "حذف",
         "delete_confirm_description": "حذف {{count}} مصادر بيانات محددة؟ لا يمكن التراجع عن هذا.",
         "delete_confirm_title": "حذف مصادر البيانات المحددة؟",
+        "loaded_only_hint": "ينطبق على العناصر المحمَّلة فقط (الإجمالي {{total}})",
         "reindex": "إعادة الفهرسة",
         "selected_count": "{{count}} محددة"
       },
@@ -2259,11 +2686,14 @@
         "note": "الملاحظات",
         "url": "روابط"
       },
+      "list": {
+        "end_reached": "لا مزيد من العناصر",
+        "loading_more": "جارٍ تحميل المزيد…"
+      },
       "preview": {
         "failed": "فشل معاينة المصدر",
         "unavailable": "لا يوجد مصدر لمعاينته في مصدر البيانات هذا"
       },
-      "ready_summary": "{{ready}}/{{total}} جاهز",
       "reindex_failed": "فشل إعادة فهرسة مصدر البيانات",
       "status": {
         "chunking": "جاري التقسيم",
@@ -2273,6 +2703,7 @@
         "ready": "جاهز"
       },
       "table": {
+        "aria_label": "مصادر البيانات",
         "columns": {
           "actions": "الإجراءات",
           "name": "الاسم",
@@ -2281,7 +2712,8 @@
           "updated_at": "تم التحديث"
         },
         "select_all": "تحديد الكل",
-        "select_row": "تحديد الصف"
+        "select_row": "تحديد الصف",
+        "view_chunks_row": "عرض أجزاء لـ {{title}}"
       },
       "toolbar": {
         "add": "إضافة مصدر بيانات"
@@ -2299,6 +2731,7 @@
       "failed_to_delete": "فشل حذف قاعدة المعرفة",
       "failed_to_edit": "فشل تعديل قاعدة المعرفة",
       "failed_to_move": "فشل نقل قاعدة المعرفة",
+      "indexing_interrupted": "تم إيقاف الفهرسة لأن التطبيق أغلق. أعد فهرسة هذا العنصر لإنهائه.",
       "missing_embedding_model": "نموذج التضمين الذي تستخدمه قاعدة المعرفة هذه لم يُعثر عليه أثناء الترحيل. أعد بناء قاعدة المعرفة واختر نموذج تضمين جديد.",
       "missing_vector_store": "تعذر قراءة مخزن المتجهات لقاعدة المعرفة أثناء الترحيل (مفقود، فارغ، أو مقفل). تم الاحتفاظ بقاعدة المعرفة؛ أعد فهرستها للاستعادة.",
       "model_invalid": "لم يتم اختيار نموذج"
@@ -2470,6 +2903,7 @@
       "browse_label": "فئات المساعدين",
       "empty_description": "هذه الفئة لا تحتوي على مساعدات افتراضية بعد.",
       "empty_title": "لا يوجد مساعدات لإضافتها",
+      "go_to_chat": "انتقل إلى الدردشة",
       "mine": "خاصتي",
       "no_match_description": "جرّب كلمة بحث مختلفة",
       "no_match_title": "لا يوجد مساعدات مطابقة",
@@ -2508,7 +2942,8 @@
           },
           "env_vars": {
             "help": "مفتاح=قيمة واحد في كل سطر",
-            "label": "متغيرات البيئة"
+            "label": "متغيرات البيئة",
+            "placeholder": "المفتاح=القيمة\nمفتاح_آخر=قيمة_أخرى"
           },
           "heartbeat_enabled": {
             "label": "فحص النبض"
@@ -2587,6 +3022,14 @@
           },
           "tools": {
             "add": "إضافة",
+            "category": {
+              "context": "السياق",
+              "file": "ملف",
+              "media": "وسائط",
+              "orchestration": "تنسيق",
+              "search": "بحث",
+              "shell": "قشرة"
+            },
             "desc": "اضبط الأدوات وخوادم MCP التي يمكن للوكيل استخدامها",
             "label": "أدوات",
             "no_builtin_enabled": "لا توجد أدوات مدمجة مفعلة",
@@ -2656,6 +3099,7 @@
         "json_invalid": "تنسيق JSON غير صالح",
         "max_tokens": "أقصى عدد للرموز",
         "max_tool_calls": "أقصى عدد لاستدعاءات الأدوات",
+        "mcp_mode": "وضع MCP",
         "model": "النموذج الافتراضي",
         "model_clear": "مسح",
         "model_not_found": "النموذج غير موجود (قد يكون مُزال): {{id}}",
@@ -2675,9 +3119,31 @@
       },
       "breadcrumb": "المكتبة",
       "dialogs": {
+        "create": {
+          "agent_title": "وكيل جديد",
+          "assistant_title": "مساعد جديد",
+          "avatar_aria": "اختر صورة رمزية",
+          "description_placeholder": "صف الغرض من هذا العنصر...",
+          "dialog_description": "أنشئ مساعدًا أو وكيلًا خفيفًا.",
+          "model_placeholder": "اختر نموذجًا",
+          "model_required": "يرجى اختيار نموذج",
+          "name_placeholder": "أدخل اسمًا",
+          "name_required": "يرجى إدخال اسم",
+          "submit": "إنشاء",
+          "submit_failed": "فشل الإنشاء"
+        },
         "edit": {
+          "advanced_tab": "متقدم",
+          "agent_description": "قم بتعديل أساسيات الوكيل بسرعة.",
           "agent_title": "تعديل الوكيل",
-          "assistant_title": "تعديل المساعد"
+          "assistant_description": "قم بتعديل أساسيات المساعد بسرعة.",
+          "assistant_title": "تعديل المساعد",
+          "basic_tab": "أساسي",
+          "knowledge_tab": "معرفة",
+          "permission_tab": "صلاحية",
+          "prompt_tab": "موجه",
+          "save_failed": "فشل الحفظ",
+          "tools_tab": "أدوات"
         }
       },
       "knowledge": {
@@ -2710,11 +3176,15 @@
           }
         },
         "generate": "توليد توجيه",
+        "generate_failed_description": "تحقق أو غيّر النموذج الافتراضي ثم أعد المحاولة.",
+        "generate_failed_title": "فشل توليد الموجه",
         "insert_variable": "إدراج متغير",
         "label": "توجيه النظام",
         "placeholder": "أدخل توجيه النظام. المتغيرات مثل {{date}} و {{model_name}} مدعومة...",
         "title": "توجيه",
         "tokens_label": "الرموز: ",
+        "variables_description": "أدرج هذه المتغيّرات النظامية في موجه النظام؛ تُملأ تلقائيًا قبل كل رد من المساعد بالمعلومات الحالية.",
+        "variables_example": "مثال: اليوم هو {{variable}}، وتُستعمل التاريخ الحالي.",
         "variables_title": "المتغيرات المتاحة",
         "vars": {
           "arch": "معمارية المعالج",
@@ -2898,6 +3368,7 @@
     "title": "المكتبة",
     "toolbar": {
       "add_tag_placeholder": "اسم الوسم...",
+      "all_tags": "جميع الوسوم",
       "new_resource": "مورد جديد",
       "search_placeholder": "ابحث بالاسم أو الوصف...",
       "tag_button": "وسم"
@@ -2994,6 +3465,7 @@
       "chunk_overlap_too_large": "لا يمكن أن يكون تداخل الأجزاء أكبر من حجم الجزء",
       "copy": "فشل النسخ",
       "dimension_too_large": "حجم المحتوى كبير جداً",
+      "dismiss_failed": "فشل إخفاء رسالة الخطأ",
       "enter": {
         "api": {
           "host": "إدخال مضيف API أولاً",
@@ -3104,6 +3576,10 @@
         "label": "نمط الرسالة",
         "plain": "نص عادي"
       },
+      "user_content": {
+        "collapse": "طي",
+        "expand": "توسيع"
+      },
       "video": {
         "error": {
           "local_file_missing": "لم يتم العثور على مسار ملف الفيديو المحلي",
@@ -3170,6 +3646,77 @@
     "tools": {
       "abort_failed": "فشل إلغاء استدعاء الأداة",
       "aborted": "تم إلغاء استدعاء الأداة",
+      "activity": {
+        "archive": "أرشيف",
+        "assistantTask": "مهمة",
+        "availableFeatures": "الميزات المتاحة",
+        "availableResources": "الموارد المتاحة",
+        "branch": "فرع",
+        "build": "بناء",
+        "building": "قيد البناء",
+        "check": "تحقق",
+        "checking": "جارٍ التحقق",
+        "codeFiles": "ملفات الكود",
+        "codeHostInfo": "معلومات استضافة الكود",
+        "commandName": "أمر {{name}}",
+        "configFiles": "ملفات التكوين والمستندات",
+        "copy": "نسخ",
+        "copying": "جارٍ النسخ",
+        "create": "إنشاء",
+        "creating": "جارٍ الإنشاء",
+        "currentFolder": "المجلد الحالي",
+        "delete": "حذف",
+        "deleting": "جارٍ الحذف",
+        "documentFiles": "ملفات المستندات",
+        "download": "تحميل",
+        "downloading": "جاري التحميل",
+        "executeCommand": "تشغيل الأمر",
+        "executingCommand": "جاري تشغيل الأمر",
+        "extract": "استخراج",
+        "extracting": "جاري الاستخراج",
+        "file": "ملف",
+        "fileList": "قائمة الملفات",
+        "folder": "مجلد",
+        "handle": "معالج",
+        "handling": "معالجة",
+        "imageFiles": "ملفات الصور",
+        "install": "تثبيت",
+        "installing": "جاري التثبيت",
+        "matchingFiles": "ملفات مطابقة",
+        "modify": "تعديل",
+        "modifying": "جاري التعديل",
+        "move": "نقل",
+        "moving": "جاري النقل",
+        "open": "فتح",
+        "opening": "جاري الفتح",
+        "plan": "خطة التنفيذ",
+        "projectChanges": "تغييرات المشروع",
+        "projectChecks": "فحوصات المشروع",
+        "projectDependencies": "اعتمادات المشروع",
+        "projectFiles": "ملفات المشروع",
+        "projectRootFiles": "ملفات جذر المشروع",
+        "projectTask": "مهمة المشروع",
+        "relatedContent": "المحتوى المرتبط",
+        "repository": "مستودع الشيفرة",
+        "search": "بحث",
+        "searching": "جاري البحث",
+        "switch": "تبديل",
+        "switching": "جاري التبديل",
+        "sync": "مزامنة",
+        "syncing": "جاري المزامنة",
+        "taskId": "مهمة {{id}}",
+        "taskList": "قائمة المهام",
+        "translationFiles": "ملفات الترجمة",
+        "upload": "رفع",
+        "uploading": "جاري الرفع",
+        "view": "عرض",
+        "viewing": "جاري العرض",
+        "webPage": "صفحة ويب",
+        "webSearch": "محتوى ويب",
+        "workspace": "مساحة العمل",
+        "write": "حفظ",
+        "writing": "جاري الحفظ"
+      },
       "approvalRequired": "تطلب الأداة \"{{tool}}\" موافقة",
       "autoApproveEnabled": "تم تفعيل الموافقة التلقائية لهذه الأداة",
       "cancelled": "ملغى",
@@ -3190,6 +3737,12 @@
         "search": "ابحث",
         "skill": "مهارة",
         "task": "مهمة",
+        "taskCreate": "إنشاء مهمة",
+        "taskGet": "عرض المهمة",
+        "taskList": "قائمة المهام",
+        "taskOutput": "عرض مخرجات المهمة",
+        "taskStop": "إيقاف المهمة",
+        "taskUpdate": "تحديث المهمة",
         "todoWrite": "كتابة المهام",
         "tool": "أداة",
         "webFetch": "جلب الويب",
@@ -3198,9 +3751,22 @@
       },
       "noData": "لا توجد بيانات متاحة لهذه الأداة",
       "pending": "معلق",
+      "placeholder": {
+        "elapsed": {
+          "days": "{{days}} يوم {{hours}} ساعة {{minutes}} دقيقة {{seconds}} ثانية",
+          "hours": "{{hours}} ساعة {{minutes}} دقيقة {{seconds}} ثانية",
+          "minutes": "{{minutes}} دقيقة {{seconds}} ثانية",
+          "seconds": "{{seconds}} ثانية"
+        },
+        "generating": "كتابة الاستجابة",
+        "preparing": "تحضير الاستجابة",
+        "thinking": "التفكير",
+        "usingTools": "العمل على المهمة"
+      },
       "preview": "معاينة",
       "raw": "خام",
       "runningCount": "{{count}} أدوات تعمل",
+      "runningHeader": "جاري العمل…",
       "sections": {
         "args": "وسائط",
         "command": "أمر",
@@ -3222,6 +3788,7 @@
         "success": "نجاح"
       },
       "streaming": "جارٍ البث",
+      "thinkingHeader": "التفكير",
       "truncated": "المخرجات مقتطعة (الأصلية: {{size}})",
       "units": {
         "done_one": "تم {{count}}",
@@ -3266,6 +3833,7 @@
     "websearch": {
       "cutoff": "جارٍ تقليص محتوى البحث...",
       "fetch_complete": "{{count}} نتيجة (نتائج) بحث",
+      "fetch_empty": "لم يتم العثور على نتائج بحث",
       "partial_failure": "{{count}} نتيجة بحث، فشل بعضها"
     }
   },
@@ -3408,6 +3976,14 @@
     "add_parameter": "أضف مُعامل",
     "all": "الكل",
     "custom_parameters": "مُعاملات مخصصة",
+    "detail": {
+      "context_window": "نافذة السياق",
+      "image_modes": "أنماط الصورة",
+      "max_input_tokens": "الحد الأقصى للمدخلات",
+      "max_output_tokens": "الحد الأقصى للمخرجات",
+      "model_id": "معرف النموذج",
+      "provider": "المزود"
+    },
     "dimensions": "الأبعاد {{dimensions}}",
     "edit": "عدّل النموذج",
     "embedding": "تضمين",
@@ -4728,6 +5304,12 @@
       "sort_label": "ترتيب",
       "unpin": "إلغاء التثبيت"
     },
+    "create_dialog": {
+      "refresh_failed": "إنشاء، لكن فشل تحديث القائمة"
+    },
+    "edit_dialog": {
+      "refresh_failed": "حفظ، لكن فشل تحديث القائمة"
+    },
     "workspace": {
       "empty_text": "لا توجد مساحات عمل بعد",
       "placeholder": "اختر مساحة العمل"
@@ -5770,6 +6352,13 @@
         "text": "نص",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "متصل",
+        "connecting": "جاري الاتصال",
+        "disabled": "معطل",
+        "error": "خطأ",
+        "unavailable": "غير متاح"
+      },
       "search": {
         "placeholder": "ابحث عن خوادم MCP...",
         "tooltip": "ابحث عن خوادم MCP"
@@ -5892,10 +6481,10 @@
         "label": "شريط التنقل",
         "none": "بلا"
       },
-      "prompt": "إظهار التوجيه",
       "show_message_outline": "إظهار مخطط الرسالة",
       "title": "إعدادات الرسائل",
-      "use_serif_font": "استخدم خط Serif"
+      "use_serif_font": "استخدم خط Serif",
+      "wide_mode": "وضع تخطيط واسع"
     },
     "miniApps": {
       "cache_change_notice": "ستطبق التغييرات عندما يصل عدد التطبيقات المصغّرة المفتوحة إلى القيمة المحددة",
@@ -6273,6 +6862,7 @@
         "title": "الإسهاب"
       }
     },
+    "parameter_settings": "إعدادات المعامل",
     "plugins": {
       "bunDescription": "بيئة تشغيل JavaScript المستخدمة بواسطة خدمات MCP وسلاسل الأدوات ذات الصلة.",
       "description": "أدر الأدوات الثنائية وتبعيات وقت التشغيل المطلوبة للتطبيق.",
@@ -6280,6 +6870,9 @@
       "notInstalled": "غير مثبت",
       "title": "التبعيات",
       "uvDescription": "مدير حزم Python لخدمات MCP وتثبيت التبعيات."
+    },
+    "power": {
+      "prevent_sleep_when_busy": "إبقاء النظام مستيقظًا أثناء تشغيل المهام"
     },
     "privacy": {
       "enable_privacy_mode": "إبلاغ مجهول عن الأخطاء والإحصائيات",
@@ -6301,7 +6894,8 @@
       },
       "title": "إدارة التوجيهات",
       "titleLabel": "العنوان",
-      "titlePlaceholder": "أدخل عنوان التوجيه"
+      "titlePlaceholder": "أدخل عنوان التوجيه",
+      "variablePlaceholder": "المتغيّر"
     },
     "provider": {
       "add": {
@@ -7040,7 +7634,8 @@
     "paintings": "رسومات",
     "settings": "الإعدادات",
     "store": "مكتبة المساعدين",
-    "translate": "ترجمة"
+    "translate": "ترجمة",
+    "work": "عمل"
   },
   "trace": {
     "agent": "الوكيل",

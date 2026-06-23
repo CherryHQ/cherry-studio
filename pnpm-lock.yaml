@@ -255,10 +255,10 @@ importers:
       '@codemirror/view':
         specifier: 6.39.16
         version: 6.39.16
-      "@dagrejs/dagre":
+      '@dagrejs/dagre':
         specifier: ^3.0.0
         version: 3.0.0
-      "@dnd-kit/core":
+      '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@dnd-kit/modifiers':
@@ -2405,23 +2405,14 @@ packages:
   '@dabh/diagnostics@2.0.8':
     resolution: {integrity: sha512-R4MSXTVnuMzGD7bzHdW2ZhhdPC/igELENcq5IjEverBvq5hn1SXCWcsi6eSsdWP0/Ur+SItRRjAktmdoX/8R/Q==}
 
-  "@dagrejs/dagre@3.0.0":
-    resolution:
-      {
-        integrity: sha512-ZzhnTy1rfuoew9Ez3EIw4L2znPGnYYhfn8vc9c4oB8iw6QAsszbiU0vRhlxWPFnmmNSFAkrYeF1PhM5m4lAN0Q==,
-      }
+  '@dagrejs/dagre@3.0.0':
+    resolution: {integrity: sha512-ZzhnTy1rfuoew9Ez3EIw4L2znPGnYYhfn8vc9c4oB8iw6QAsszbiU0vRhlxWPFnmmNSFAkrYeF1PhM5m4lAN0Q==}
 
-  "@dagrejs/graphlib@4.0.1":
-    resolution:
-      {
-        integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==,
-      }
+  '@dagrejs/graphlib@4.0.1':
+    resolution: {integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==}
 
-  "@date-fns/tz@1.4.1":
-    resolution:
-      {
-        integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==,
-      }
+  '@date-fns/tz@1.4.1':
+    resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
 
   '@discoveryjs/json-ext@0.6.3':
     resolution: {integrity: sha512-4B4OijXeVNOPZlYA2oEwWOTkzyltLao+xbotHQeqN++Rv27Y6s818+n2Qkp8q+Fxhn0t/5lA5X1Mxktud8eayQ==}
@@ -11215,14 +11206,11 @@ packages:
     hasBin: true
 
   og-crd@0.0.2:
-    resolution:
-      {
-        integrity: sha512-P3FnKI6+loqWjAyBzQ3Z+8ebmsPvHFJJ2BBPJOIiqOnurl92dlJlsEYR6qVbnkoij89QmKNsPbOsL9KAFoBXog==,
-      }
+    resolution: {integrity: sha512-P3FnKI6+loqWjAyBzQ3Z+8ebmsPvHFJJ2BBPJOIiqOnurl92dlJlsEYR6qVbnkoij89QmKNsPbOsL9KAFoBXog==}
     hasBin: true
     peerDependencies:
-      react: ">=18"
-      react-dom: ">=18"
+      react: '>=18'
+      react-dom: '>=18'
 
   ollama-ai-provider-v2@3.3.1:
     resolution: {integrity: sha512-j4BBqqQnvf/uDz+aPYcgU4/MQZERw087Fn1DMGtViA/PgahBq36jHKHVoZfx8mxj+w8cxsKd3eYaDgyZPhE6YA==}
@@ -15268,13 +15256,13 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
-  "@dagrejs/dagre@3.0.0":
+  '@dagrejs/dagre@3.0.0':
     dependencies:
-      "@dagrejs/graphlib": 4.0.1
+      '@dagrejs/graphlib': 4.0.1
 
-  "@dagrejs/graphlib@4.0.1": {}
+  '@dagrejs/graphlib@4.0.1': {}
 
-  "@date-fns/tz@1.4.1": {}
+  '@date-fns/tz@1.4.1': {}
 
   '@discoveryjs/json-ext@0.6.3': {}
 
@@ -19564,7 +19552,7 @@ snapshots:
       '@types/linkify-it': 5.0.0
       '@types/mdurl': 2.0.0
 
-  "@types/md5@2.3.6": {}
+  '@types/md5@2.3.6': {}
 
   '@types/mdast@3.0.15':
     dependencies:

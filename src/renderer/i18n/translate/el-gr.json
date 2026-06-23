@@ -6805,6 +6805,9 @@
     "power": {
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
     },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"

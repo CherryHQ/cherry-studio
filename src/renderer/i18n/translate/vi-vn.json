@@ -6805,6 +6805,9 @@
     "power": {
       "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
     },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"

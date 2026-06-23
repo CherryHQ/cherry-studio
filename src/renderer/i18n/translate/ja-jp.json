@@ -6805,6 +6805,9 @@
     "power": {
       "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
     },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"

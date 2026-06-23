@@ -6805,6 +6805,9 @@
     "power": {
       "prevent_sleep_when_busy": "Menține sistemul activ cât timp rulează sarcinile"
     },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"

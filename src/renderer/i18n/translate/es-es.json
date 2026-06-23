@@ -6805,6 +6805,9 @@
     "power": {
       "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
       "title": "Configuración de privacidad"

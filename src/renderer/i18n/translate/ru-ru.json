@@ -6805,6 +6805,9 @@
     "power": {
       "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
     },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
       "title": "Настройки конфиденциальности"

@@ -262,7 +262,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             </WindowButton>
           </Tooltip>
           {showOpacitySlider && (
-            <div className="absolute top-full start-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
+            <div className="absolute start-10 top-full z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
                 orientation="vertical"
                 min={20}
