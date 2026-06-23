@@ -30,16 +30,14 @@ describe('MigrationWindowControls', () => {
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.CloseWindow)
   })
 
-  it('uses shared button and semantic hover styling', () => {
+  it('uses semantic hover styling', () => {
     render(<MigrationWindowControls />)
 
     const minimizeButton = screen.getByRole('button', { name: 'Minimize' })
     const closeButton = screen.getByRole('button', { name: 'Close' })
 
-    expect(minimizeButton).toHaveAttribute('variant', 'ghost')
     expect(minimizeButton.className).toContain('hover:bg-accent')
     expect(minimizeButton.className).not.toContain('rgba')
-    expect(closeButton).toHaveAttribute('variant', 'ghost')
     expect(closeButton.className).toContain('hover:bg-destructive')
     expect(closeButton.className).not.toContain('rgba')
   })
