@@ -44,41 +44,6 @@ export const RagSelectField = ({
   )
 }
 
-export const RagNumericField = ({
-  label,
-  value,
-  suffix,
-  hint,
-  onChange,
-  inputClassName
-}: {
-  label?: string
-  value: string
-  suffix?: string
-  hint?: string
-  onChange: (value: string) => void
-  inputClassName?: string
-}) => {
-  return (
-    <div>
-      {label ? <RagFieldLabel label={label} hint={hint} /> : null}
-      <div className="relative">
-        <Input
-          value={value}
-          inputMode="numeric"
-          onChange={(event) => onChange(event.target.value)}
-          className={cn('shadow-none', inputClassName)}
-        />
-        {suffix ? (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-muted text-xs leading-4">
-            {suffix}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
 /** A single settings row: label (with optional hint) on the left, control on the right. */
 export const RagFieldRow = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) => {
   return (
