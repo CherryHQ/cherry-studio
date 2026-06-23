@@ -175,7 +175,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                   !isError && !active && !done && 'border border-border bg-background text-foreground-muted'
                 )}>
                 {isError ? (
-                  <X size={13} strokeWidth={2.5} />
+                  <X size={13} strokeWidth={2.5} className="lucide-custom text-white" />
                 ) : done ? (
                   <Check size={12} strokeWidth={3} className="lucide-custom text-white" />
                 ) : (
