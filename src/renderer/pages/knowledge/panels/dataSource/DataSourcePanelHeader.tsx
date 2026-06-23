@@ -1,5 +1,5 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useState } from 'react'

@@ -11,9 +11,9 @@ import {
   TableRow
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
 import type { ComponentProps, MouseEvent } from 'react'

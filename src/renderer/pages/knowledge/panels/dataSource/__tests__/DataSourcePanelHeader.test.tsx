@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DataSourcePanelHeader from '../DataSourcePanelHeader'
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 
