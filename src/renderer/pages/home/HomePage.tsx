@@ -36,7 +36,7 @@ import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import Chat from './Chat'
-import ChatNavbar from './components/ChatNavBar'
+import ChatNavbar from './components/ChatNavbar'
 import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'

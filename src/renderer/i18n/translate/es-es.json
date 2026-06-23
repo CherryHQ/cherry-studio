@@ -5888,7 +5888,6 @@
         "label": "Botón de navegación de conversación",
         "none": "No mostrar"
       },
-      "prompt": "Palabra de indicación",
       "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"

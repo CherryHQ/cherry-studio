@@ -16,6 +16,7 @@ import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
 import type { Topic } from '@renderer/types'
+import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -49,34 +50,6 @@ interface UseChatRuntimeStateParams {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
-}
-
-function mergeBranchLiveMessages(...sources: CherryUIMessage[][]): CherryUIMessage[] {
-  const order: string[] = []
-  const byId = new Map<string, CherryUIMessage>()
-
-  for (const messages of sources) {
-    for (const message of messages) {
-      const existing = byId.get(message.id)
-      if (!existing) {
-        order.push(message.id)
-        byId.set(message.id, message)
-        continue
-      }
-
-      const metadata = existing.metadata || message.metadata ? { ...existing.metadata, ...message.metadata } : undefined
-      byId.set(message.id, {
-        ...existing,
-        ...message,
-        ...(metadata && { metadata })
-      })
-    }
-  }
-
-  return order.flatMap((id) => {
-    const message = byId.get(id)
-    return message ? [message] : []
-  })
 }
 
 function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
@@ -200,7 +173,7 @@ export function useChatRuntimeState({
   })
 
   const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
-  const displayMessages = useMemo(() => mergeBranchLiveMessages(messages, liveAssistants), [messages, liveAssistants])
+  const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -227,7 +200,7 @@ export function useChatRuntimeState({
           }
           setBranchLiveExecutions((current) => mergeActiveExecutions(current, reservedExecutions))
         }
-        setBranchLiveMessages((current) => mergeBranchLiveMessages(current, reservedMessages))
+        setBranchLiveMessages((current) => mergeMessagesById(current, reservedMessages))
       }
       await cache.seedReservedMessages(reservedMessages)
     },
@@ -277,7 +250,7 @@ export function useChatRuntimeState({
     [activeStreamingMessageIds, messages]
   )
   const branchFlowLiveMessages = useMemo(
-    () => mergeBranchLiveMessages(branchLiveMessages, activeAnchorMessages, liveAssistants),
+    () => mergeMessagesById(branchLiveMessages, activeAnchorMessages, liveAssistants),
     [activeAnchorMessages, branchLiveMessages, liveAssistants]
   )
 

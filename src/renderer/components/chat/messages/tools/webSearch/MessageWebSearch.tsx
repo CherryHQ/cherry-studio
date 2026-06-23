@@ -86,7 +86,7 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
           <li key={result.id}>
             <Link
               href={result.url}
-              className="-mx-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1 no-underline transition-colors hover:bg-foreground/5">
+              className="-mx-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1 no-underline transition-colors hover:bg-accent">
               {hostname && <Favicon hostname={hostname} alt={result.title || domain} />}
               <span className="min-w-0 flex-1 truncate text-foreground">{result.title || result.url}</span>
               <span className="max-w-[40%] shrink-0 truncate text-foreground-muted">{domain}</span>

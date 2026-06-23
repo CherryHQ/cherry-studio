@@ -18,11 +18,15 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  toastError: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
   getMetadata: vi.fn(),
+  timeoutCallbacks: new Map<string, () => void>(),
+  setTimeoutTimer: vi.fn(),
+  clearTimeoutTimer: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -369,7 +373,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
-    setTimeoutTimer: vi.fn()
+    setTimeoutTimer: mocks.setTimeoutTimer,
+    clearTimeoutTimer: mocks.clearTimeoutTimer
   })
 }))
 
@@ -410,6 +415,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.toastError.mockReset()
+    window.toast = { ...window.toast, error: mocks.toastError }
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -423,6 +430,16 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.getMetadata.mockReset()
     mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
+    mocks.timeoutCallbacks.clear()
+    mocks.setTimeoutTimer.mockReset()
+    mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
+      mocks.timeoutCallbacks.set(key, callback)
+      return () => mocks.clearTimeoutTimer(key)
+    })
+    mocks.clearTimeoutTimer.mockReset()
+    mocks.clearTimeoutTimer.mockImplementation((key: string) => {
+      mocks.timeoutCallbacks.delete(key)
+    })
     window.api = {
       ...window.api,
       file: {
@@ -1173,6 +1190,73 @@ describe('AgentComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+  })
+
+  it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.draftText = 'draft message'
+    mocks.draftTokens = [
+      {
+        ...pdfSkillToken,
+        index: 0,
+        textOffset: 0
+      }
+    ]
+    mocks.files = [file]
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTokensChange(mocks.draftTokens ?? [])
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.draftTokens).toEqual(mocks.draftTokens)
+    })
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('draft message')
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalled()
+    expect(mocks.setFiles).toHaveBeenCalledWith([])
+    expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
+    expect(mocks.surfaceProps?.text).toBe('draft message')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      {
+        ...pdfSkillToken,
+        index: 0,
+        textOffset: 0
+      }
+    ])
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-session-draft-agent-1',
+      {
+        text: 'draft message',
+        tokens: [
+          {
+            ...pdfSkillToken,
+            index: 0,
+            textOffset: 0
+          }
+        ]
+      },
+      86400000
+    )
+    expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
+    expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
+    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

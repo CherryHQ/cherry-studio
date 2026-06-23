@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { AgentContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/AgentContextUsageSummary'
+import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
@@ -428,7 +428,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         content: 'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md'
       }}
       content={
-        <AgentContextUsageSummary usage={usage} percentage={percentage} color={ringColor} isCompacting={isCompacting} />
+        <ContextUsageSummary usage={usage} percentage={percentage} color={ringColor} isCompacting={isCompacting} />
       }>
       <span
         aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
@@ -534,7 +534,7 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
-  const { setTimeoutTimer } = useTimer()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
@@ -785,7 +785,8 @@ const AgentComposerInner = ({
     scopeKey: sessionTopicId,
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
@@ -821,19 +822,39 @@ const AgentComposerInner = ({
         return
       }
 
+      const previousText = draft.text
+      const previousFiles = files
+      const previousSkills = selectedSkills
+      const previousDraftTokens = draftTokensRef.current
+
       clearCurrentDraft()
-      void sendQueuedPayload(payload).catch((error: unknown) => {
-        logger.warn('Failed to send message:', error as Error)
+      void sendQueuedPayload(payload).then((sent) => {
+        if (!sent) {
+          clearTimeoutTimer('agentComposerSendMessage')
+          setText(previousText)
+          setFiles(previousFiles)
+          setSelectedSkills(previousSkills)
+          setDraftTokens(previousDraftTokens)
+          draftTokensRef.current = previousDraftTokens
+          writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
+          window.toast?.error(t('chat.input.send_failed'))
+        }
       })
     },
     [
       buildQueuedPayload,
+      clearTimeoutTimer,
       clearCurrentDraft,
+      draftCacheKey,
       enqueueFollowup,
+      files,
       isStreaming,
       model,
       sendDisabled,
       sendQueuedPayload,
+      setFiles,
+      setText,
+      selectedSkills,
       t,
       workspaceWarning
     ]

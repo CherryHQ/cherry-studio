@@ -2,12 +2,9 @@ import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
-import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
 
 import SelectionActionApp from './SelectionActionApp'
-
-loggerService.initWindowSource('SelectionActionWindow')
 
 await preferenceService.preload([
   'app.language',

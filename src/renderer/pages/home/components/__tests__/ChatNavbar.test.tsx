@@ -33,16 +33,16 @@ vi.mock('i18next', () => ({
   t: (key: string) => key
 }))
 
-import ChatNavBar from '../ChatNavBar'
+import ChatNavbar from '../ChatNavbar'
 
-describe('ChatNavBar', () => {
+describe('ChatNavbar', () => {
   beforeEach(() => {
     preferenceMock.showSidebar = false
     preferenceMock.setShowSidebar.mockClear()
   })
 
   it('uses the conversation style without active state when the sidebar is hidden', () => {
-    render(<ChatNavBar />)
+    render(<ChatNavbar />)
 
     const [toggle] = screen.getAllByRole('button')
 
@@ -52,7 +52,7 @@ describe('ChatNavBar', () => {
   })
 
   it('offers a new-topic button next to the toggle when the sidebar is hidden', () => {
-    render(<ChatNavBar />)
+    render(<ChatNavbar />)
 
     expect(screen.getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
   })
@@ -60,7 +60,7 @@ describe('ChatNavBar', () => {
   it('hides the new-topic button when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
 
-    render(<ChatNavBar />)
+    render(<ChatNavbar />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
@@ -68,7 +68,7 @@ describe('ChatNavBar', () => {
   it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
 
-    render(<ChatNavBar />)
+    render(<ChatNavbar />)
 
     const [toggle] = screen.getAllByRole('button')
 

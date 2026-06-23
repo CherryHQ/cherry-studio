@@ -82,7 +82,7 @@ vi.mock('../ChatContent', () => ({
   default: () => <div data-testid="chat-content" />
 }))
 
-vi.mock('../components/ChatNavBar', () => ({
+vi.mock('../components/ChatNavbar', () => ({
   default: ({ showSidebarControls }: { showSidebarControls?: boolean }) => (
     <div data-show-sidebar-controls={String(showSidebarControls)} data-testid="chat-navbar" />
   )

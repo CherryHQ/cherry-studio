@@ -73,6 +73,18 @@ export interface TopicPreprocessResult {
 
 type FilePartLike = { type: 'file'; mediaType?: string; url?: string; filename?: string }
 
+function filePartUrlToPath(url: string): string {
+  if (!url.startsWith('file://')) return url
+
+  try {
+    const pathname = decodeURIComponent(new URL(url).pathname)
+    if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1).replace(/\//g, '\\')
+    return pathname
+  } catch {
+    return url.replace(/^file:\/\//, '')
+  }
+}
+
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
 }
@@ -254,7 +266,11 @@ function filePartToMetadata(part: CherryMessagePart): FileMetadata | null {
   const filePart = part as FilePartLike
   if (isImageFilePart(filePart)) return null
   if (!filePart.url) return null
-  return { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
+  return {
+    name: filePart.filename ?? '',
+    path: filePartUrlToPath(filePart.url),
+    type: filePart.mediaType ?? ''
+  } as FileMetadata
 }
 
 /**

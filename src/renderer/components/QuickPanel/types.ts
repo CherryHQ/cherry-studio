@@ -59,7 +59,7 @@ export type QuickPanelFilterFn = (
 export type QuickPanelSortFn = (items: QuickPanelListItem[], searchText: string) => QuickPanelListItem[]
 
 export type QuickPanelOpenOptions = {
-  /** 显示在底部左边，类似于Placeholder */
+  /** Displayed at the bottom left, similar to a placeholder. */
   title?: string
   /** default: [] */
   list: QuickPanelListItem[]
@@ -67,16 +67,16 @@ export type QuickPanelOpenOptions = {
   defaultIndex?: number
   /** default: 7 */
   pageSize?: number
-  /** 是否支持按住cmd/ctrl键多选，default: false */
+  /** Whether Cmd/Ctrl multi-select is supported, default: false. */
   multiple?: boolean
   /** Read-only panels display list content without row selection or action execution. */
   readOnly?: boolean
   /**
-   * 用于标识是哪个快捷面板，不是用于触发显示
-   * 可以是 /、# 符号，也可以是其他字符串
+   * Identifies the quick panel, not used to trigger display.
+   * Can be `/`, `#`, or another string.
    */
   symbol: string
-  /** 触发信息，记录面板是如何被打开的 */
+  /** Trigger info describing how the panel was opened. */
   triggerInfo?: QuickPanelTriggerInfo
   /** Input text offset where the current composer-driven query starts. */
   queryAnchor?: number
@@ -101,9 +101,8 @@ export type QuickPanelListItem = {
   label: React.ReactNode | string
   description?: React.ReactNode | string
   /**
-   * 由于title跟description可能是ReactNode，
-   * 所以需要单独提供一个用于搜索过滤的文本,
-   * 这个filterText可以是title跟description的字符串组合
+   * Since title and description can be ReactNode values, provide separate text
+   * for search filtering. This can combine the title and description strings.
    */
   filterText?: string
   icon: React.ReactNode | string
@@ -113,15 +112,16 @@ export type QuickPanelListItem = {
   disabled?: boolean
   hidden?: boolean
   /**
-   * 固定显示项：不参与过滤，始终出现在列表顶部。
-   * 例如“清除”按钮可设置为 alwaysVisible，从而在有匹配项时始终可见；
-   * 折叠判定依然仅依据非固定项数量，从而在无匹配时整体折叠隐藏。
+   * Pinned items do not participate in filtering and always appear at the top.
+   * For example, a clear button can be alwaysVisible so it remains visible with
+   * matches. Collapse checks still use only regular items, so the panel hides
+   * when there are no matches.
    */
   alwaysVisible?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
 }
 
-// 定义上下文类型
+// Context type definition.
 export interface QuickPanelContextType {
   readonly open: (options: QuickPanelOpenOptions) => void
   readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void

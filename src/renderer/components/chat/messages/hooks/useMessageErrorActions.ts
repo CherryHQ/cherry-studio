@@ -22,7 +22,10 @@ export function useMessageErrorActions(): MessageErrorActions {
       const cached = cacheService.getCasual<Promise<string>>(cacheKey)
       if (cached) return cached
 
-      const promise = classifyErrorByAI(error, language)
+      const promise = classifyErrorByAI(error, language).catch((classificationError) => {
+        cacheService.deleteCasual(cacheKey)
+        throw classificationError
+      })
       cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
       return promise
     },

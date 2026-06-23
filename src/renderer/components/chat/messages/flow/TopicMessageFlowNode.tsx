@@ -23,8 +23,8 @@ const bodyXsTypographyClassName = 'text-[length:var(--font-size-body-xs)] leadin
 const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]'
 
 const roleClassNames: Record<MessageRole, string> = {
-  user: 'border-success/35 bg-success/8',
-  assistant: 'border-info/35 bg-info/8',
+  user: 'border-success/35 bg-success-bg',
+  assistant: 'border-info/35 bg-info-bg',
   system: 'border-border bg-muted/45',
   // The virtual root is never rendered as a flow node; entry exists only to satisfy the
   // exhaustive Record<MessageRole> type.
@@ -274,7 +274,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
       </PopoverAnchor>
       <PopoverContent
         align="center"
-        className="z-70 max-h-[60vh] w-96 overflow-y-auto p-4"
+        className="z-80 max-h-[60vh] w-96 overflow-y-auto p-4"
         onMouseEnter={keepOpen}
         onMouseLeave={scheduleClose}
         onOpenAutoFocus={(event) => event.preventDefault()}

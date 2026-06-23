@@ -98,7 +98,6 @@ export function useAppInit() {
     // set files path
     void window.api.getAppInfo().then((info) => {
       cacheService.set('app.path.files', info.filesPath)
-      cacheService.set('app.path.home', info.homePath)
       setInlineFilePathHomePath(info.homePath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })

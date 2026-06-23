@@ -6,7 +6,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { KnowledgeItemStatus } from '@shared/data/types/knowledge'
+import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED, type KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
@@ -32,7 +32,9 @@ export function createReindexSubtreeJobHandler(
   workflowService: KnowledgeWorkflowService
 ): JobHandler<KnowledgeReindexSubtreePayload> {
   return {
-    recovery: 'retry',
+    // Don't auto-resume on restart — a deliberate app quit must not re-spend the
+    // embedding API; the item is parked at `failed` and reindexed on demand.
+    recovery: 'abandon',
     defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
     defaultConcurrency: 5,
     defaultRetryPolicy: {
@@ -144,8 +146,15 @@ export function createReindexSubtreeJobHandler(
           .map((item) => item.id)
           .filter((rootItemId) => !completedSchedulingRootIds.has(rootItemId))
         if (unscheduledRootIds.length > 0) {
+          // A shutdown abort (deliberate quit) lands here when `throwIfAborted` fires in the
+          // scheduling loop. Store the localized `indexing_interrupted` code instead of a raw
+          // `…: JobManager shutdown` string the tooltip would pass through verbatim; a genuine
+          // scheduling failure keeps its diagnostic message.
+          const failError = ctx.signal.aborted
+            ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
+            : `Failed to schedule reindex after reset: ${message}`
           await knowledgeItemService.setSubtreeStatus(baseId, unscheduledRootIds, 'failed', {
-            error: `Failed to schedule reindex after reset: ${message}`
+            error: failError
           })
         }
         throw error
@@ -205,9 +214,15 @@ async function markReindexSubtreeFailedOnSettled(event: JobSettledEvent): Promis
 
     if (rootsToFail.length === 0) return
 
-    await knowledgeItemService.setSubtreeStatus(input.baseId, rootsToFail, 'failed', {
-      error: `Reindex job ${event.status}: ${reason}`
-    })
+    // A cancelled reindex job was aborted by an app quit (knowledge has no per-item user
+    // cancel), so store the localized `indexing_interrupted` code instead of a raw English
+    // string the tooltip would pass through verbatim. Mirrors settled.ts; other terminal
+    // states keep their diagnostic `Reindex job …` message.
+    const error =
+      event.status === 'cancelled'
+        ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
+        : `Reindex job ${event.status}: ${reason}`
+    await knowledgeItemService.setSubtreeStatus(input.baseId, rootsToFail, 'failed', { error })
   } catch (error) {
     logger.error(
       'Failed to flip reindex-subtree targets to failed in onSettled',

@@ -1,20 +1,18 @@
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
-  type ResourceListExpansionState,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
   TopicResourceList,
-  updateResourceListExpansionState,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
@@ -88,7 +86,7 @@ import {
   TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
-} from './Topics.helpers'
+} from './topicsHelpers'
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
@@ -266,8 +264,8 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [topicGroupExpansion, setTopicGroupExpansion] = usePreference('topic.tab.group_expansion')
-  const topicGroupExpansionRef = useRef(topicGroupExpansion)
+  const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
+  const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const [exportMenuOptions] = useMultiplePreferences({
@@ -285,10 +283,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
   })
   const displayMode = topicDisplayMode ?? 'time'
   const isAssistantDisplayMode = displayMode === 'assistant'
-
-  useEffect(() => {
-    topicGroupExpansionRef.current = topicGroupExpansion
-  }, [topicGroupExpansion])
+  const topicExpansion = isAssistantDisplayMode ? topicExpansionAssistant : topicExpansionTime
 
   const {
     isLoading: isTopicPinsLoading,
@@ -531,6 +526,14 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
       event?.stopPropagation()
+      if (topics.length <= 1) {
+        if (deleteTimerRef.current) {
+          clearTimeout(deleteTimerRef.current)
+          deleteTimerRef.current = null
+        }
+        setDeletingTopicId(null)
+        return
+      }
       if (deleteTimerRef.current) {
         clearTimeout(deleteTimerRef.current)
         deleteTimerRef.current = null
@@ -538,7 +541,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
       setDeletingTopicId(null)
       await handleDeleteTopicFromMenu(topic)
     },
-    [handleDeleteTopicFromMenu]
+    [handleDeleteTopicFromMenu, topics.length]
   )
 
   useEffect(
@@ -887,19 +890,13 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
     [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
   )
 
-  const expandedTopicState = topicGroupExpansion[displayMode]
-  const handleTopicExpansionStateChange = useCallback(
-    (nextState: ResourceListExpansionState) => {
-      const nextGroupExpansion = updateResourceListExpansionState(
-        topicGroupExpansionRef.current,
-        displayMode,
-        nextState
-      )
-
-      topicGroupExpansionRef.current = nextGroupExpansion
-      void setTopicGroupExpansion(nextGroupExpansion)
+  const collapsedTopicState = topicExpansion
+  const handleTopicCollapsedStateChange = useCallback(
+    (nextCollapsedIds: string[]) => {
+      if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
+      else setTopicExpansionTime(nextCollapsedIds)
     },
-    [displayMode, setTopicGroupExpansion]
+    [isAssistantDisplayMode, setTopicExpansionAssistant, setTopicExpansionTime]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
@@ -1048,7 +1045,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
         selectedId={activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
-        expandedState={expandedTopicState}
+        collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
@@ -1071,7 +1068,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
         onRenameItem={handleRenameTopic}
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
-        onExpandedStateChange={handleTopicExpansionStateChange}>
+        onCollapsedStateChange={handleTopicCollapsedStateChange}>
         <ResourceList.Header className="gap-1">
           <ResourceList.HeaderItem
             type="button"
@@ -1360,7 +1357,8 @@ function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
-  const showDeleteOrStreamAction = hasTopicStreamIndicator || !topic.pinned
+  const canDeleteTopic = topicsLength > 1 && !topic.pinned
+  const showDeleteOrStreamAction = hasTopicStreamIndicator || canDeleteTopic
   // Reserve right-padding for the title sized to the hover actions and stream indicator.
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const topicTrailingActionPaddingClassName =
@@ -1437,7 +1435,7 @@ function TopicRow({
         )}
         {hasTopicStreamIndicator ? (
           <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
-        ) : !topic.pinned ? (
+        ) : canDeleteTopic ? (
           <Tooltip title={t('common.delete')} delay={500}>
             <ResourceList.ItemAction
               aria-label={t('common.delete')}

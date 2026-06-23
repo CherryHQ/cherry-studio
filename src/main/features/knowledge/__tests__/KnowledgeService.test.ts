@@ -4,6 +4,7 @@ import { Phase } from '@main/core/lifecycle/types'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
@@ -26,6 +27,7 @@ const {
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
+  knowledgeItemFailInterruptedItemsMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemGetOutermostSelectedItemIdsMock,
@@ -59,6 +61,7 @@ const {
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
+  knowledgeItemFailInterruptedItemsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetOutermostSelectedItemIdsMock: vi.fn(),
@@ -149,6 +152,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     create: knowledgeItemCreateMock,
     delete: knowledgeItemDeleteMock,
     getDeletingRootGroups: knowledgeItemGetDeletingRootGroupsMock,
+    failInterruptedItems: knowledgeItemFailInterruptedItemsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
@@ -326,6 +330,7 @@ describe('KnowledgeService', () => {
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
     deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValue([])
+    knowledgeItemFailInterruptedItemsMock.mockResolvedValue(0)
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1')
     })
@@ -474,6 +479,24 @@ describe('KnowledgeService', () => {
     await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
 
     expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('parks items interrupted mid-indexing at failed after all services are ready', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemFailInterruptedItemsMock.mockResolvedValueOnce(3)
+
+    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+
+    expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+  })
+
+  it('does not let interrupted-item recovery failure abort startup', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemFailInterruptedItemsMock.mockRejectedValueOnce(new Error('mark failed'))
+
+    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+
+    expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
   })
 
   it('creates vector artifacts after creating the base and rolls back on artifact failure', async () => {

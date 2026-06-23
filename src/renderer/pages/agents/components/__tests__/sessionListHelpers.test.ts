@@ -19,7 +19,7 @@ import {
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
   sortSessionsForDisplayGroups
-} from '../SessionList.helpers'
+} from '../sessionListHelpers'
 
 const SESSION_GROUP_LABELS = {
   pinned: 'Pinned',

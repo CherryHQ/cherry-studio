@@ -17,7 +17,7 @@ import {
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-} from '../Topics.helpers'
+} from '../topicsHelpers'
 
 const TOPIC_GROUP_LABELS = {
   pinned: 'Pinned',

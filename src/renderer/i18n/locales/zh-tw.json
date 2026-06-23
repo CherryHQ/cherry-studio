@@ -2641,6 +2641,7 @@
           "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
+        "too_many_sources": "單次最多新增 {{count}} 個資料來源，請減少選擇後重試",
         "unsupported_files_skipped": "已跳過 {{count}} 個不支援的檔案",
         "url": {
           "description": "输入网页链接：",
@@ -2654,6 +2655,7 @@
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
         "delete_confirm_title": "確認批次刪除",
+        "loaded_only_hint": "僅作用於已載入項，共 {{total}} 項",
         "reindex": "重新索引",
         "selected_count": "已選 {{count}} 項"
       },
@@ -2683,11 +2685,14 @@
         "note": "笔记",
         "url": "連結"
       },
+      "list": {
+        "end_reached": "沒有更多了",
+        "loading_more": "載入更多…"
+      },
       "preview": {
         "failed": "預覽原文失敗",
         "unavailable": "目前資料來源沒有可預覽的原文"
       },
-      "ready_summary": "{{ready}}/{{total}} 就绪",
       "reindex_failed": "資料來源重新索引失敗",
       "status": {
         "chunking": "分块中",
@@ -2697,6 +2702,7 @@
         "ready": "就绪"
       },
       "table": {
+        "aria_label": "資料來源清單",
         "columns": {
           "actions": "操作",
           "name": "名稱",
@@ -2705,7 +2711,8 @@
           "updated_at": "更新時間"
         },
         "select_all": "全選",
-        "select_row": "選取列"
+        "select_row": "選取列",
+        "view_chunks_row": "查看「{{title}}」的 Chunks"
       },
       "toolbar": {
         "add": "新增資料來源"
@@ -2723,6 +2730,7 @@
       "failed_to_delete": "知識庫刪除失敗",
       "failed_to_edit": "知识库编辑失败",
       "failed_to_move": "知識庫移動失敗",
+      "indexing_interrupted": "索引因應用程式關閉而中斷，請重新索引以完成。",
       "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
       "missing_vector_store": "遷移時未能讀取該知識庫的向量庫（缺失、為空或被占用），知識庫已保留，請重新索引以恢復。",
       "model_invalid": "未選擇模型"
@@ -6472,7 +6480,6 @@
         "label": "訊息導覽",
         "none": "不顯示"
       },
-      "prompt": "提示詞顯示",
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",
@@ -7623,7 +7630,8 @@
     "paintings": "繪畫",
     "settings": "設定",
     "store": "助手庫",
-    "translate": "翻譯"
+    "translate": "翻譯",
+    "work": "工作"
   },
   "trace": {
     "agent": "智能體",

@@ -1,5 +1,6 @@
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import { DataApiErrorFactory } from '@shared/data/api'
+import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
@@ -56,7 +57,7 @@ describe('check-file-processing-result job handler', () => {
   it('declares the knowledge check job contract', () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
 
-    expect(handler.recovery).toBe('retry')
+    expect(handler.recovery).toBe('abandon')
     expect(handler.defaultQueue?.(createCheckPayload())).toBe('base.kb-1')
     expect(handler.defaultRetryPolicy).toEqual({
       maxAttempts: 3,
@@ -378,11 +379,11 @@ describe('check-file-processing-result job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'check failed' })
   })
 
-  it('onSettled falls back to the terminal status when no error message is available', async () => {
+  it('onSettled falls back to the terminal status when a failed job has no error message', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
     getJobMock.mockResolvedValue({
       id: 'job-1',
-      status: 'cancelled',
+      status: 'failed',
       priority: 0,
       queue: 'base.kb-1',
       idempotencyKey: null,
@@ -409,11 +410,53 @@ describe('check-file-processing-result job handler', () => {
       jobId: 'job-1',
       type: 'knowledge.check-file-processing-result',
       scheduleId: null,
-      status: 'cancelled',
+      status: 'failed',
       error: null,
       attempt: 1
     })
 
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'Job cancelled' })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'Job failed' })
+  })
+
+  it('onSettled marks a cancelled (app-quit) item failed with the reindex-to-finish message', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    getJobMock.mockResolvedValue({
+      id: 'job-1',
+      status: 'cancelled',
+      priority: 0,
+      queue: 'base.kb-1',
+      idempotencyKey: null,
+      scheduleId: null,
+      scheduledAt: '2026-04-08T00:00:00.000Z',
+      startedAt: '2026-04-08T00:00:00.000Z',
+      finishedAt: null,
+      attempt: 1,
+      maxAttempts: 3,
+      output: null,
+      error: { code: 'CANCELLED', message: 'JobManager shutdown', retryable: false },
+      parentId: null,
+      cancelRequested: false,
+      metadata: {},
+      timeoutMs: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z',
+      type: 'knowledge.check-file-processing-result',
+      input: createCheckPayload()
+    })
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
+
+    await handler.onSettled?.({
+      jobId: 'job-1',
+      type: 'knowledge.check-file-processing-result',
+      scheduleId: null,
+      status: 'cancelled',
+      error: { code: 'CANCELLED', message: 'JobManager shutdown', retryable: false },
+      attempt: 1
+    })
+
+    // The raw 'JobManager shutdown' abort message is replaced with the localized error code.
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
+    })
   })
 })

@@ -96,7 +96,8 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens = variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
+  const showMessageTokens =
+    renderConfig.showEstimatedTokens && variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
   const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
   const actionContext = useMemo<MessageMenuBarActionContext>(

@@ -5888,7 +5888,6 @@
         "label": "Bouton de navigation des conversations",
         "none": "Ne pas afficher"
       },
-      "prompt": "Mot-clé d'affichage",
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"

@@ -50,6 +50,9 @@ export const knowledgeRequestSchemas = {
   'knowledge.add_items': defineRoute({
     input: z.strictObject({
       baseId: baseIdSchema,
+      // Hard backstop shared with the runtime cap (delete/reindex reuse it). The interactive
+      // add dialog enforces a stricter per-batch limit before calling and surfaces a friendly
+      // hint; this bound only stops an oversized batch from reaching the workflow service.
       items: z.array(KnowledgeAddItemInputSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX),
       // Omitted by internal callers (defaults to 'rename'); an interactive add sends
       // 'detect' first, then 'rename'/'replace' once the user resolves a conflict.

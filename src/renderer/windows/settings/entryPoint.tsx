@@ -12,8 +12,6 @@ import { createRoot } from 'react-dom/client'
 
 import SettingsApp, { SettingsWindowFatalError } from './SettingsApp'
 
-loggerService.initWindowSource('SettingsWindow')
-
 const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'app.language',
   'ui.theme_mode',

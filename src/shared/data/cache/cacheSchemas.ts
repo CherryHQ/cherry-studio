@@ -117,7 +117,6 @@ export type UseCacheSchema = {
   'app.user.avatar': string
 
   'app.path.files': string
-  'app.path.home': string
   'app.path.resources': string
 
   // Chat context
@@ -201,7 +200,6 @@ export const DefaultUseCache: UseCacheSchema = {
   },
   'app.user.avatar': '',
   'app.path.files': '',
-  'app.path.home': '',
   'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,
@@ -311,9 +309,17 @@ export type RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': number
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
+  // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
+  // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
+  // Stores the flat list of collapsed section/group ids; empty = everything expanded.
+  'ui.topic.expansion.time': string[]
+  'ui.topic.expansion.assistant': string[]
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
+  'ui.agent.session.expansion.time': string[]
+  'ui.agent.session.expansion.agent': string[]
+  'ui.agent.session.expansion.workdir': string[]
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -333,9 +339,14 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
+  'ui.topic.expansion.time': [],
+  'ui.topic.expansion.assistant': [],
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
+  'ui.agent.session.expansion.time': [],
+  'ui.agent.session.expansion.agent': [],
+  'ui.agent.session.expansion.workdir': [],
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,

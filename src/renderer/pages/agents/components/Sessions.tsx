@@ -11,22 +11,21 @@ import {
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  remapResourceListExpandedGroupIds,
+  remapResourceListCollapsedGroupIds,
   ResourceList,
-  type ResourceListExpansionState,
   type ResourceListGroup,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
-  SessionResourceList,
-  updateResourceListExpansionState
+  SessionResourceList
 } from '@renderer/components/chat/resources'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useCurrentTabId } from '@renderer/context/TabIdContext'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
@@ -84,7 +83,7 @@ import {
   SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
   sortSessionsForDisplayGroups
-} from './SessionList.helpers'
+} from './sessionListHelpers'
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
@@ -349,8 +348,9 @@ const Sessions = ({
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionGroupExpansion, setSessionGroupExpansion] = usePreference('agent.session.group_expansion')
-  const sessionGroupExpansionRef = useRef(sessionGroupExpansion)
+  const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
+  const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
+  const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
   const {
     sessions,
     pinIdBySessionId,
@@ -395,10 +395,12 @@ const Sessions = ({
   const displayMode: AgentSessionDisplayMode =
     sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' ? sessionDisplayMode : 'time'
   const isDraggableMode = displayMode !== 'time'
-
-  useEffect(() => {
-    sessionGroupExpansionRef.current = sessionGroupExpansion
-  }, [sessionGroupExpansion])
+  const sessionExpansion =
+    displayMode === 'agent'
+      ? sessionExpansionAgent
+      : displayMode === 'workdir'
+        ? sessionExpansionWorkdir
+        : sessionExpansionTime
 
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
   const {
@@ -591,31 +593,24 @@ const Sessions = ({
     }
   }, [displayMode, t])
 
-  const expandedSessionState = useMemo(() => {
-    const modeExpansionState = sessionGroupExpansion[displayMode]
-
+  const collapsedSessionState = useMemo(() => {
     if (displayMode !== 'workdir') {
-      return modeExpansionState
+      return sessionExpansion
     }
 
-    return remapResourceListExpandedGroupIds(modeExpansionState, (groupId) => {
+    return remapResourceListCollapsedGroupIds(sessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
-  }, [displayMode, sessionGroupExpansion, workdirDisplay])
+  }, [displayMode, sessionExpansion, workdirDisplay])
 
-  const handleSessionExpansionStateChange = useCallback(
-    (nextState: ResourceListExpansionState) => {
-      const nextGroupExpansion = updateResourceListExpansionState(
-        sessionGroupExpansionRef.current,
-        displayMode,
-        nextState
-      )
-
-      sessionGroupExpansionRef.current = nextGroupExpansion
-      void setSessionGroupExpansion(nextGroupExpansion)
+  const handleSessionCollapsedStateChange = useCallback(
+    (nextCollapsedIds: string[]) => {
+      if (displayMode === 'agent') setSessionExpansionAgent(nextCollapsedIds)
+      else if (displayMode === 'workdir') setSessionExpansionWorkdir(nextCollapsedIds)
+      else setSessionExpansionTime(nextCollapsedIds)
     },
-    [displayMode, setSessionGroupExpansion]
+    [displayMode, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
   const getCreateSessionSeedForGroup = useCallback(
     (groupId: string) =>
@@ -1373,7 +1368,7 @@ const Sessions = ({
       selectedId={activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
-      expandedState={expandedSessionState}
+      collapsedState={collapsedSessionState}
       revealRequest={revealRequest}
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
@@ -1399,7 +1394,7 @@ const Sessions = ({
       onRenameItem={handleRenameSession}
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
-      onExpandedStateChange={handleSessionExpansionStateChange}>
+      onCollapsedStateChange={handleSessionCollapsedStateChange}>
       <ResourceList.Header className="gap-1">
         <ResourceList.HeaderItem
           type="button"

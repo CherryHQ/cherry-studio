@@ -237,10 +237,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'context-usage', usage: contextUsage }
+      value: { type: 'turn-complete' }
     })
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'turn-complete' }
+      value: { type: 'context-usage', usage: contextUsage }
     })
     void connection.close()
   })

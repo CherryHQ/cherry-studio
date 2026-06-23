@@ -1,6 +1,6 @@
 import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { EmptyState } from '@renderer/components/chat'
-import { AgentContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/AgentContextUsageSummary'
+import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
@@ -90,7 +90,6 @@ function isFramedFilePreview(filePath: string): boolean {
 interface AgentFlowTab {
   toolCallId: string
   toolName?: string
-  sourceMessageId?: string
   title: string
 }
 
@@ -199,7 +198,6 @@ function AgentRightPaneStateProvider({
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
-        sourceMessageId: input.sourceMessageId,
         title: getFlowTabTitle(input)
       }
       setFlowTabs((currentTabs) => {
@@ -504,7 +502,7 @@ function AgentAgentRightPaneStatusPanel() {
         </section>
       )}
 
-      <AgentContextUsageSummary
+      <ContextUsageSummary
         usage={usage}
         percentage={percentage}
         color={contextUsageColor}
@@ -755,7 +753,7 @@ function AgentRightPaneInfoCardBody() {
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
-      <AgentContextUsageSummary
+      <ContextUsageSummary
         usage={usage}
         percentage={percentage}
         color={contextUsageColor}

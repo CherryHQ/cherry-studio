@@ -71,14 +71,14 @@ const MultiSelectActionPopup: FC<Props> = ({
 }
 
 const Container: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('fixed inset-x-0 bottom-0 z-[1000] flex items-center justify-center p-4', className)} {...props} />
+  <div className={cn('fixed inset-x-0 bottom-0 z-300 flex items-center justify-center p-4', className)} {...props} />
 )
 
 const ActionBar: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'flex items-center justify-between gap-4 rounded-[99px] border-[0.5px] border-[var(--color-border)]',
-      'bg-[var(--color-background)] p-1 shadow-[0_2px_8px_0_rgb(128_128_128_/_20%)]',
+      'flex items-center justify-between gap-4 rounded-[99px] border-[0.5px] border-border',
+      'bg-background p-1 shadow-md',
       className
     )}
     {...props}

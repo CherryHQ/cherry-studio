@@ -317,7 +317,6 @@ export function CommandContextMenu({
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
-  const [, setInternalOpen] = useState(false)
   const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
   const extraItemsRequestIdRef = useRef(0)
   const runtime = useCommandRuntime()
@@ -428,7 +427,6 @@ export function CommandContextMenu({
 
   const handleCherryOpenChange = useCallback(
     (open: boolean) => {
-      setInternalOpen(open)
       onOpenChange?.(open)
       if (!open && getExtraItems) {
         extraItemsRequestIdRef.current += 1

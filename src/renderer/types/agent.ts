@@ -51,11 +51,6 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 }
 
 // ------------------ Form models (UI-only) --------------------------------
-// Editable agent base keyed by id. `model` is optional during editing (may be
-// unset / mid-selection) but must stay a `UniqueModelId` — NOT widened to
-// `string`, so consumers don't need unsafe `as UniqueModelId` casts.
-export type AgentBaseWithId = Omit<AgentBase, 'model'> & { id: string; model?: UniqueModelId }
-
 export type BaseAgentForm = {
   id?: string
   type: AgentType
@@ -119,14 +114,6 @@ export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionF
 
 // ------------------ Renderer-side DTO aliases ----------------------------
 export type GetAgentResponse = AgentEntity & { tools?: Tool[] }
-
-// ------------------ Form-only effort / thinking discriminators -----------
-export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-
-export type AgentThinkingConfig =
-  | { type: 'enabled'; budgetTokens?: number }
-  | { type: 'disabled' }
-  | { type: 'adaptive'; display?: 'omitted' | 'summarized' }
 
 // ------------------ Server error envelope (parsed in utils/error.ts) -----
 export const AgentServerErrorSchema = z.object({

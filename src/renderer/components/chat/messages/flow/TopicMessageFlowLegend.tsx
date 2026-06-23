@@ -2,7 +2,7 @@ import { cn } from '@renderer/utils'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export interface TopicMessageFlowLegendProps {
+interface TopicMessageFlowLegendProps {
   className?: string
 }
 
@@ -37,7 +37,7 @@ const TopicMessageFlowLegend = ({ className }: TopicMessageFlowLegendProps) => {
         {t('common.current')}
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <LegendLine className="border-gray-400" />
+        <LegendLine className="border-foreground-muted" />
         {t('common.disabled')}
       </span>
     </div>

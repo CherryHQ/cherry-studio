@@ -1,13 +1,18 @@
 import {
+  buildResourceListGroupDropAnchor,
+  buildResourceListItemDropAnchor,
+  compareResourceOrderKey,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
+  moveResourceListStringGroupAfterDrop,
   type ResourceListGroup,
   type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket
+  type ResourceListTimeBucket,
+  withResourceListGroupIdPrefix
 } from '@renderer/components/chat/resources'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -87,11 +92,7 @@ const NO_PROJECT_GROUP_RANK = Number.MAX_SAFE_INTEGER
 const UNKNOWN_GROUP_RANK = Number.MAX_SAFE_INTEGER - 1
 
 function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `session:${group.id}` }
-  }
+  return withResourceListGroupIdPrefix('session:', resolver)
 }
 
 function getSessionAgentGroupId(agentId: string) {
@@ -343,15 +344,6 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   })
 }
 
-function compareOrderKey(a?: string, b?: string) {
-  if (a && b) {
-    if (a < b) return -1
-    if (a > b) return 1
-  }
-
-  return 0
-}
-
 function getWorkdirGroupRank(
   session: SessionWorkdirSource,
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
@@ -414,7 +406,7 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
       const rankDelta = a.rank - b.rank
       if (rankDelta !== 0) return rankDelta
       if (a.session.pinned === true || b.session.pinned === true) return a.index - b.index
-      return compareOrderKey(a.session.orderKey, b.session.orderKey) || a.index - b.index
+      return compareResourceOrderKey(a.session.orderKey, b.session.orderKey) || a.index - b.index
     })
     .map(({ session }) => session)
 }
@@ -424,25 +416,21 @@ export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayl
 }
 
 export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
-  if (payload.overType === 'item') {
-    return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
-  }
-
-  return { position: 'last' }
+  return buildResourceListItemDropAnchor(payload)
 }
 
 export function buildSessionWorkdirGroupDropAnchor(
   payload: ResourceListGroupReorderPayload,
   overWorkspaceId: string
 ): OrderRequest {
-  return payload.sourceIndex < payload.targetIndex ? { after: overWorkspaceId } : { before: overWorkspaceId }
+  return buildResourceListGroupDropAnchor(payload, overWorkspaceId)
 }
 
 export function buildSessionAgentGroupDropAnchor(
   payload: ResourceListGroupReorderPayload,
   overAgentId: string
 ): OrderRequest {
-  return payload.sourceIndex < payload.targetIndex ? { after: overAgentId } : { before: overAgentId }
+  return buildResourceListGroupDropAnchor(payload, overAgentId)
 }
 
 export function canDropSessionItemInDisplayGroup({
@@ -505,17 +493,5 @@ export function moveSessionAgentGroupAfterDrop(
   overAgentId: string,
   payload: Pick<ResourceListGroupReorderPayload, 'sourceIndex' | 'targetIndex'>
 ): string[] {
-  const activeIndex = agentIds.indexOf(activeAgentId)
-  const overIndex = agentIds.indexOf(overAgentId)
-
-  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
-    return [...agentIds]
-  }
-
-  const next = agentIds.filter((agentId) => agentId !== activeAgentId)
-  const adjustedOverIndex = next.indexOf(overAgentId)
-  const insertIndex = payload.sourceIndex < payload.targetIndex ? adjustedOverIndex + 1 : adjustedOverIndex
-  next.splice(insertIndex, 0, activeAgentId)
-
-  return next
+  return moveResourceListStringGroupAfterDrop(agentIds, activeAgentId, overAgentId, payload)
 }

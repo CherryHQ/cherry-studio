@@ -27,7 +27,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, opts?: Record<string, unknown>) => {
       if (key === 'knowledge.data_source.bulk.selected_count') return `已选 ${opts?.count}`
       if (key === 'knowledge.meta.updated_at') return `更新于 ${opts?.time}`
-      if (key === 'knowledge.data_source.ready_summary') return `${opts?.ready}/${opts?.total}`
+      if (key === 'knowledge.data_source.bulk.loaded_only_hint') return `仅已加载，共 ${opts?.total} 项`
       return (
         (
           {
@@ -43,8 +43,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 const baseProps = {
-  readyCount: 3,
-  totalCount: 5,
+  total: 5,
+  loadedCount: 5,
   selectedCount: 0,
   updatedAt: '2026-06-16T00:00:00.000Z',
   onBulkReindex: vi.fn(),
@@ -53,11 +53,10 @@ const baseProps = {
 }
 
 describe('DataSourcePanelHeader', () => {
-  it('renders the updated time, ready summary and add button in the default state', () => {
+  it('renders the updated time and add button in the default state', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
 
     expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
-    expect(screen.getByText('3/5')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
   })
 
@@ -68,6 +67,19 @@ describe('DataSourcePanelHeader', () => {
     expect(screen.queryByRole('button', { name: '取消' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+  })
+
+  it('warns that a selection only covers loaded rows when unloaded pages remain', () => {
+    const { rerender } = render(
+      <DataSourcePanelHeader {...baseProps} total={200} loadedCount={50} selectedCount={50} />
+    )
+
+    expect(screen.getByText('仅已加载，共 200 项')).toBeInTheDocument()
+
+    // Fully loaded (total === loadedCount): no hint.
+    rerender(<DataSourcePanelHeader {...baseProps} total={50} loadedCount={50} selectedCount={50} />)
+
+    expect(screen.queryByText('仅已加载，共 50 项')).not.toBeInTheDocument()
   })
 
   // Regression for the QA issue "选中文件后列表轻微上移": the default toolbar

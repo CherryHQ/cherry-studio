@@ -33,17 +33,6 @@ export interface ConversationNavigation {
   openConversationWindow: (key: string, title?: string) => void
 }
 
-/**
- * App-parameterized variant of {@link ConversationNavigation}: same focus/open intents,
- * but the conversation app is chosen per call. Lets a single consumer (e.g. the sidebar)
- * dispatch to any registry conversation app without instantiating one hook per app or
- * branching on `app.id`.
- */
-export interface ConversationNavigator {
-  focusExistingTab: (appId: SidebarIcon, key: string, options?: { excludeTabId?: string }) => boolean
-  openConversationTab: (appId: SidebarIcon, key: string, title?: string) => string | undefined
-}
-
 // Only conversation apps that own a resource sidebar emit a reveal on focus/open.
 function resolveRevealSource(appId: SidebarIcon): ResourceListRevealSource | null {
   return appId === 'assistants' || appId === 'agents' ? appId : null
@@ -131,23 +120,5 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
       openConversationWindow: (key, title) => openConversationWindowImpl(appId, key, title)
     }),
     [appId, tabs]
-  )
-}
-
-/**
- * App-parameterized conversation navigation for callers that dispatch dynamically
- * (e.g. the global search launchpad, where the clicked app is only known at runtime).
- * Avoids one `useConversationNavigation` hook per app plus `app.id` branching at the call
- * site; multi-instance-ness comes from the registry's `instanceKey`, not an id list.
- */
-export function useConversationNavigator(): ConversationNavigator {
-  const tabs = useOptionalTabsContext()
-
-  return useMemo<ConversationNavigator>(
-    () => ({
-      focusExistingTab: (appId, key, options) => focusConversationTabImpl(tabs, appId, key, options?.excludeTabId),
-      openConversationTab: (appId, key, title) => openConversationTabImpl(tabs, appId, key, title)
-    }),
-    [tabs]
   )
 }

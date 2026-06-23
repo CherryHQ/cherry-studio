@@ -17,8 +17,6 @@ export type DraftAgentSession = {
   workspace?: DraftAgentWorkspacePreview
 }
 
-export type DraftAgentSessionConversation = DraftAgentSession
-
 export type PersistentAgentSessionConversation = {
   sessionId: string
   topicId: string
