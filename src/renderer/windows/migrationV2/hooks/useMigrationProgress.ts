@@ -61,16 +61,12 @@ export function useMigrationProgress() {
     }
   }, [])
 
-  // Local navigation back to the introduction step (frontend only). Main stays at
-  // backup_required; clicking "next" again re-broadcasts backup_required.
   const returnToIntroduction = useCallback(() => {
-    setProgress((prev) => ({ ...prev, stage: 'introduction' }))
+    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToIntroduction)
   }, [])
 
-  // Local navigation back to the backup-choice step (frontend only). Main stays at
-  // backup_confirmed; re-confirming an existing backup re-broadcasts backup_confirmed.
   const returnToBackupChoice = useCallback(() => {
-    setProgress((prev) => ({ ...prev, stage: 'backup_required' }))
+    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToBackupChoice)
   }, [])
 
   // Stage helpers

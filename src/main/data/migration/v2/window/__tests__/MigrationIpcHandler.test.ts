@@ -83,6 +83,63 @@ describe('MigrationIpcHandler', () => {
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
   })
 
+  it('proceeds to backup_required and broadcasts the authoritative progress', async () => {
+    const result = await invoke(MigrationIpcChannels.ProceedToBackup)
+
+    expect(result).toBe(true)
+    expect(lastProgress()).toMatchObject({
+      stage: 'backup_required',
+      overallProgress: 0,
+      currentMessage: 'Data backup is required before migration can proceed',
+      migrators: []
+    })
+    expect(windowSetStageMock).toHaveBeenCalledWith('backup_required')
+  })
+
+  it('returns from backup_required to introduction through IPC', async () => {
+    await invoke(MigrationIpcChannels.ProceedToBackup)
+
+    const result = await invoke(MigrationIpcChannels.ReturnToIntroduction)
+
+    expect(result).toBe(true)
+    expect(lastProgress()).toMatchObject({
+      stage: 'introduction',
+      overallProgress: 0,
+      currentMessage: 'Ready to start data migration',
+      migrators: []
+    })
+    expect(windowSetStageMock).toHaveBeenCalledWith('introduction')
+  })
+
+  it('returns an existing-backup acknowledgement to backup_required through IPC', async () => {
+    await invoke(MigrationIpcChannels.BackupCompleted)
+
+    const result = await invoke(MigrationIpcChannels.ReturnToBackupChoice)
+
+    expect(result).toBe(true)
+    const progress = lastProgress()
+    expect(progress).toMatchObject({
+      stage: 'backup_required',
+      overallProgress: 0,
+      currentMessage: 'Data backup is required before migration can proceed',
+      migrators: []
+    })
+    expect(progress.backupInfo).toBeUndefined()
+    expect(windowSetStageMock).toHaveBeenCalledWith('backup_required')
+  })
+
+  it('rebroadcasts backup_confirmed with backupInfo when returning from an app-created backup checkpoint', async () => {
+    await createBackup('/real/backups/v1.zip')
+
+    const result = await invoke(MigrationIpcChannels.ReturnToBackupChoice)
+
+    expect(result).toBe(true)
+    expect(lastProgress()).toMatchObject({
+      stage: 'backup_confirmed',
+      backupInfo: { createdBackupPath: '/real/backups/v1.zip' }
+    })
+  })
+
   it('attaches the created backup path to backupInfo on backup_confirmed', async () => {
     await createBackup('/real/backups/v1.zip')
 

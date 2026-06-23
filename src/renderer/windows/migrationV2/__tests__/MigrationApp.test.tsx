@@ -1,5 +1,5 @@
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +22,30 @@ const removeAllListeners = vi.fn()
 const invoke = vi.fn()
 const platformState = vi.hoisted(() => ({
   isMac: false
+}))
+const migrationHookMock = vi.hoisted(() => ({
+  actions: {
+    cancel: vi.fn(),
+    proceedToBackup: vi.fn(),
+    restart: vi.fn(),
+    showBackupDialog: vi.fn(),
+    skipMigration: vi.fn(),
+    startMigration: vi.fn()
+  },
+  progress: {
+    currentMessage: 'Ready',
+    migrators: [],
+    overallProgress: 0,
+    stage: 'introduction'
+  } as {
+    backupInfo?: { createdBackupPath?: string }
+    currentMessage: string
+    migrators: unknown[]
+    overallProgress: number
+    stage: string
+  },
+  returnToBackupChoice: vi.fn(),
+  returnToIntroduction: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -104,24 +128,12 @@ vi.mock('../exporters', () => ({
 }))
 
 vi.mock('../hooks/useMigrationProgress', () => ({
-  useMigrationActions: () => ({
-    cancel: vi.fn(),
-    proceedToBackup: vi.fn(),
-    restart: vi.fn(),
-    showBackupDialog: vi.fn(),
-    skipMigration: vi.fn(),
-    startMigration: vi.fn()
-  }),
+  useMigrationActions: () => migrationHookMock.actions,
   useMigrationProgress: () => ({
     lastError: null,
-    progress: {
-      currentMessage: 'Ready',
-      migrators: [],
-      overallProgress: 0,
-      stage: 'introduction'
-    },
-    returnToBackupChoice: vi.fn(),
-    returnToIntroduction: vi.fn()
+    progress: migrationHookMock.progress,
+    returnToBackupChoice: migrationHookMock.returnToBackupChoice,
+    returnToIntroduction: migrationHookMock.returnToIntroduction
   })
 }))
 
@@ -133,6 +145,20 @@ describe('MigrationApp', () => {
     invoke.mockClear()
     on.mockClear()
     removeAllListeners.mockClear()
+    vi.mocked(migrationHookMock.actions.cancel).mockClear()
+    vi.mocked(migrationHookMock.actions.proceedToBackup).mockClear()
+    vi.mocked(migrationHookMock.actions.restart).mockClear()
+    vi.mocked(migrationHookMock.actions.showBackupDialog).mockClear()
+    vi.mocked(migrationHookMock.actions.skipMigration).mockClear()
+    vi.mocked(migrationHookMock.actions.startMigration).mockClear()
+    migrationHookMock.returnToBackupChoice.mockClear()
+    migrationHookMock.returnToIntroduction.mockClear()
+    migrationHookMock.progress = {
+      currentMessage: 'Ready',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'introduction'
+    }
     platformState.isMac = false
     window.history.replaceState(null, '', '/')
     ;(window as unknown as { electron: { ipcRenderer: unknown } }).electron = {
@@ -200,5 +226,49 @@ describe('MigrationApp', () => {
 
     expect(languageContainer).toHaveClass('left-3')
     expect(languageContainer).not.toHaveClass('right-3')
+  })
+
+  it('calls the return-to-introduction action from the backup choice back button', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Data backup is required before migration can proceed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'backup_required'
+    }
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.back' }))
+
+    expect(migrationHookMock.returnToIntroduction).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls the return-to-backup-choice action from the existing-backup acknowledgement back button', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Backup confirmed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'backup_confirmed'
+    }
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.back' }))
+
+    expect(migrationHookMock.returnToBackupChoice).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not show a back button on the app-created backup checkpoint', () => {
+    migrationHookMock.progress = {
+      backupInfo: { createdBackupPath: '/real/backups/v1.zip' },
+      currentMessage: 'Backup confirmed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'backup_confirmed'
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.queryByRole('button', { name: 'migration.buttons.back' })).not.toBeInTheDocument()
   })
 })

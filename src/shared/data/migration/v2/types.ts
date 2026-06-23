@@ -152,6 +152,8 @@ export const MigrationIpcChannels = {
   // Flow control
   Start: 'migration:start',
   ProceedToBackup: 'migration:proceed-to-backup',
+  ReturnToIntroduction: 'migration:return-to-introduction',
+  ReturnToBackupChoice: 'migration:return-to-backup-choice',
   ShowBackupDialog: 'migration:show-backup-dialog',
   BackupCompleted: 'migration:backup-completed',
   StartMigration: 'migration:start-migration',

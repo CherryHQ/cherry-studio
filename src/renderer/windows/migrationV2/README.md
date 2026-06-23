@@ -20,7 +20,7 @@ src/renderer/windows/migrationV2/
 1. `entryPoint.tsx` initializes styles, logger source (`MigrationV2`), and i18n, then mounts `MigrationApp`.
 2. `MigrationApp.tsx` renders the staged wizard: introduction → backup choice/progress/confirmation → migration → completion/error. It calls action hooks to trigger IPC and exporter routines, and listens for progress updates to drive the steps/progress bars.
 3. Hooks:
-   - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress`, queries last error/initial progress on load, and provides local back-navigation helpers.
+   - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress`, queries last error/initial progress on load, and provides IPC-backed back-navigation helpers.
    - `useMigrationActions` wraps IPC invokes for backup, start, retry, cancel, restart, and skip.
 4. Exporters:
    - `ReduxExporter` pulls Redux Persist payload from `localStorage` (`persist:cherry-studio`), parses slices, and returns clean JS objects for main.

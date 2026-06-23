@@ -96,6 +96,46 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
+  ipcMain.handle(MigrationIpcChannels.ReturnToIntroduction, async () => {
+    try {
+      if (currentProgress.stage !== 'backup_required') {
+        rebroadcastCurrentProgress()
+        return true
+      }
+
+      updateProgress({
+        stage: 'introduction',
+        overallProgress: 0,
+        currentMessage: 'Ready to start data migration',
+        migrators: []
+      })
+      return true
+    } catch (error) {
+      logger.error('Error returning to introduction', error as Error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(MigrationIpcChannels.ReturnToBackupChoice, async () => {
+    try {
+      if (currentProgress.stage !== 'backup_confirmed' || currentProgress.backupInfo?.createdBackupPath) {
+        rebroadcastCurrentProgress()
+        return true
+      }
+
+      updateProgress({
+        stage: 'backup_required',
+        overallProgress: 0,
+        currentMessage: 'Data backup is required before migration can proceed',
+        migrators: []
+      })
+      return true
+    } catch (error) {
+      logger.error('Error returning to backup choice', error as Error)
+      throw error
+    }
+  })
+
   // Show Backup Dialog
   ipcMain.handle(MigrationIpcChannels.ShowBackupDialog, async () => {
     // Single-flight: while a backup flow is active we must not open a second save
@@ -399,6 +439,10 @@ function updateProgress(progress: MigrationProgress, options: { preserveBackupIn
   currentProgress = next
   migrationWindowManager.setStage(next.stage)
   migrationWindowManager.send(MigrationIpcChannels.Progress, next)
+}
+
+function rebroadcastCurrentProgress(): void {
+  migrationWindowManager.send(MigrationIpcChannels.Progress, currentProgress)
 }
 
 /**
