@@ -33,28 +33,36 @@ vi.mock('@cherrystudio/ui', async () => {
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
-    Combobox: ({
-      emptyText: _emptyText,
-      options = [],
-      popoverClassName: _popoverClassName,
-      renderOption: _renderOption,
-      searchPlacement: _searchPlacement,
-      triggerStyle: _triggerStyle,
-      value,
-      ...props
-    }: any) =>
-      React.createElement(
+    Combobox: ({ options = [], value, ...props }: any) => {
+      const cleanProps = { ...props }
+      delete cleanProps.emptyText
+      delete cleanProps.popoverClassName
+      delete cleanProps.renderOption
+      delete cleanProps.searchPlacement
+      delete cleanProps.triggerStyle
+
+      return React.createElement(
         'select',
-        { ...props, value: value ?? '', readOnly: true },
+        { ...cleanProps, value: value ?? '', readOnly: true },
         options.map((option: any) =>
           React.createElement('option', { key: option.value, value: option.value }, option.label)
         )
-      ),
+      )
+    },
     Flex: passthrough('div'),
     InfoTooltip: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
     Input: (props: any) => React.createElement('input', props),
-    MenuItem: ({ active, icon, label, labelClassName: _labelClassName, onClick, ...props }: any) =>
-      React.createElement('button', { ...props, 'aria-pressed': active, onClick, type: 'button' }, icon, label),
+    MenuItem: ({ active, icon, label, onClick, ...props }: any) => {
+      const cleanProps = { ...props }
+      delete cleanProps.labelClassName
+
+      return React.createElement(
+        'button',
+        { ...cleanProps, 'aria-pressed': active, onClick, type: 'button' },
+        icon,
+        label
+      )
+    },
     MenuList: passthrough('div'),
     PageHeader: ({ title }: { title: string }) => React.createElement('h1', null, title),
     Popover: ({ children, open = false, onOpenChange }: any) =>
