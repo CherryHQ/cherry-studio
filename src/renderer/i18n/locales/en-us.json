@@ -6903,6 +6903,9 @@
       },
       "update": "Update to latest version"
     },
+    "power": {
+      "prevent_sleep_when_busy": "Keep the system awake while tasks are running"
+    },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"

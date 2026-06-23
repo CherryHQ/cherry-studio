@@ -6903,6 +6903,9 @@
       },
       "update": "更新到最新版本"
     },
+    "power": {
+      "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"

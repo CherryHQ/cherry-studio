@@ -53,8 +53,8 @@ export async function registerIpc() {
   const notificationService = new NotificationService()
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-  // const powerMonitorService = application.get('PowerMonitorService')
-  // powerMonitorService.registerShutdownHandler(() => {
+  // const powerService = application.get('PowerService')
+  // powerService.registerShutdownHandler(() => {
   //   const mw = application.get('MainWindowService').getMainWindow()
   //   if (mw && !mw.isDestroyed()) {
   //     mw.webContents.send(IpcChannel.App_SaveData)
