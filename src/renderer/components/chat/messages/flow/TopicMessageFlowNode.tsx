@@ -274,7 +274,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
       </PopoverAnchor>
       <PopoverContent
         align="center"
-        className="z-70 max-h-[60vh] w-96 overflow-y-auto p-4"
+        className="z-[80] max-h-[60vh] w-96 overflow-y-auto p-4"
         onMouseEnter={keepOpen}
         onMouseLeave={scheduleClose}
         onOpenAutoFocus={(event) => event.preventDefault()}
