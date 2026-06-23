@@ -1,14 +1,14 @@
 import type { Topic } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CONTENT_TYPES } from '../knowledge'
+import { CONTENT_TYPES, processMessageContent } from '../knowledge'
 
 // Mock modules to prevent circular dependencies during test loading
 vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: {}
 }))
 
-vi.mock('@renderer/pages/home/Messages/MessageMenubar', () => ({
+vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', () => ({
   default: {}
 }))
 
@@ -75,6 +75,37 @@ describe('Topic Knowledge Functions', () => {
     it('should handle getTopicMessages mock correctly', async () => {
       const { getTopicMessages } = await import('@renderer/hooks/useTopic')
       expect(typeof getTopicMessages).toBe('function')
+    })
+  })
+
+  describe('processMessageContent', () => {
+    it('converts file part URLs to absolute filesystem paths for file metadata', () => {
+      const result = processMessageContent(
+        {
+          id: 'message-1',
+          role: 'user',
+          topicId: 'topic-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          status: 'success',
+          parts: [
+            {
+              type: 'file',
+              url: 'file:///tmp/report%20final.pdf',
+              filename: 'report final.pdf',
+              mediaType: 'application/pdf'
+            }
+          ]
+        },
+        [CONTENT_TYPES.FILE]
+      )
+
+      expect(result.files).toEqual([
+        expect.objectContaining({
+          name: 'report final.pdf',
+          path: '/tmp/report final.pdf',
+          type: 'application/pdf'
+        })
+      ])
     })
   })
 })

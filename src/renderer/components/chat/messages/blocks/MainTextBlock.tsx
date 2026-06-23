@@ -4,7 +4,7 @@ import { ComposerToken } from '@renderer/components/chat/tokens'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
-import { getDisplayComposerTokens } from '@renderer/utils/messageUtils/composerTokens'
+import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -17,6 +17,7 @@ import type { Components } from 'streamdown'
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
+import { useScrollAnchor } from './useScrollAnchor'
 
 interface Props {
   id: string
@@ -184,9 +185,13 @@ function CollapsibleUserMessageContent({
 }) {
   const { t } = useTranslation()
   const contentId = useId()
+  // Keep the message's top stable when expand/collapse changes its height, so a
+  // toggle on a message above the fold doesn't jump the content the user is
+  // reading — matching ThinkingBlock / CompactBlock.
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   return (
-    <div className="flex max-w-full flex-col items-start">
+    <div ref={anchorRef} className="flex max-w-full flex-col items-start">
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
@@ -199,7 +204,7 @@ function CollapsibleUserMessageContent({
           aria-expanded={isExpanded}
           aria-controls={contentId}
           className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-foreground-secondary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-          onClick={onToggle}>
+          onClick={() => withScrollAnchor(onToggle)}>
           <span className="shrink-0 font-normal leading-5">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
           </span>

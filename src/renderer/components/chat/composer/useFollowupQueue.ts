@@ -31,10 +31,7 @@ interface UseFollowupQueueParams {
   markSeen: () => void
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
-  /**
-   * Called when an auto-drain attempt fails. The completion edge was already consumed by
-   * `markSeen`, so the head stays stuck with no auto-retry — surface it (e.g. a toast).
-   */
+  /** Called when auto-drain fails and leaves the queued item in place. */
   onDrainFailed?: () => void
 }
 
@@ -121,10 +118,11 @@ export function useFollowupQueue({
     const head = itemsRef.current[0]
     if (!head) return
     markSeen()
+    const reportDrainFailure = () => onDrainFailedRef.current?.()
     void onDrainRef.current(head.payload).then((sent) => {
       if (sent) removeId(head.id)
-      else onDrainFailedRef.current?.()
-    })
+      else reportDrainFailure()
+    }, reportDrainFailure)
   }, [isFulfilled, paused, markSeen, removeId])
 
   return { items, enqueue, removeId, reorder, paused, setPaused }

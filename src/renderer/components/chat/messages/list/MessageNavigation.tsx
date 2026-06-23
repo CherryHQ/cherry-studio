@@ -301,7 +301,7 @@ const NavigationContainer = ({
   ...props
 }: ComponentPropsWithoutRef<'div'> & NavigationContainerProps) => (
   <div
-    className={['absolute top-1/2 right-4 z-[1000] transition-[transform,opacity] duration-300 ease-in-out', className]
+    className={['absolute top-1/2 right-4 z-[80] transition-[transform,opacity] duration-300 ease-in-out', className]
       .filter(Boolean)
       .join(' ')}
     style={{

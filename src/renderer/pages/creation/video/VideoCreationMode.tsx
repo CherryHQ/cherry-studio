@@ -1,7 +1,7 @@
 import { Tabs, TabsList, TabsTrigger, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import SendMessageButton from '@renderer/components/SendMessageButton'
 import { useCreations } from '@renderer/hooks/useCreations'
-import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import type { FileMetadata } from '@renderer/types'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { VideoGenerationMode } from '@shared/data/types/model'

@@ -136,6 +136,7 @@ const CommonSettings: FC = () => {
   const [launchToTray, setLaunchToTray] = usePreference('app.tray.on_launch')
   const [trayOnClose, setTrayOnClose] = usePreference('app.tray.on_close')
   const [tray, setTray] = usePreference('app.tray.enabled')
+  const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
@@ -659,6 +660,11 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
 

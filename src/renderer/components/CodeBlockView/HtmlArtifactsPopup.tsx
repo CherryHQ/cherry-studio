@@ -81,7 +81,7 @@ const CodePanel = memo<CodePanelProps>(
             <Button
               variant="secondary"
               size="icon"
-              className="border border-border bg-popover text-popover-foreground shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] hover:bg-accent hover:text-accent-foreground"
+              className="border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent hover:text-accent-foreground"
               onClick={onClickSave}>
               {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} />}
             </Button>
@@ -295,13 +295,13 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             </div>
 
             <div
-              className="flex flex-1 items-center justify-end gap-2 pr-3"
+              className="flex flex-1 items-center justify-end gap-2 pr-1"
               onDoubleClick={(event) => event.stopPropagation()}>
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="[-webkit-app-region:no-drag]">
-                      <Camera size={16} />
+                    <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                      <Camera className="size-3.5" />
                     </Button>
                   </PopoverTrigger>
                 </Tooltip>
@@ -323,12 +323,12 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
               <Button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 className="[-webkit-app-region:no-drag]">
-                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </Button>
-              <Button onClick={onClose} variant="ghost" size="icon" className="[-webkit-app-region:no-drag]">
-                <X size={16} />
+              <Button onClick={onClose} variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                <X className="size-3.5" />
               </Button>
             </div>
           </header>

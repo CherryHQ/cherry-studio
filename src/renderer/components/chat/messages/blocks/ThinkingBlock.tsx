@@ -1,12 +1,9 @@
-import { type MarkdownSource, Tooltip } from '@cherrystudio/ui'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { Check } from 'lucide-react'
+import { type MarkdownSource } from '@cherrystudio/ui'
 import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
-import { useMessageListActions, useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
 
@@ -35,26 +32,11 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
     [id, content, isStreaming]
   )
   const { messageFont, fontSize, thoughtAutoCollapse } = useMessageRenderConfig()
-  const actions = useMessageListActions()
-  const copyText = actions.copyText
-  const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
-  const { t } = useTranslation()
 
   const isThinking = isStreaming
-
-  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation()
-    if (!content || !copyText) return
-    try {
-      await copyText(content, { successMessage: t('message.copied') })
-      setCopied(true)
-    } catch {
-      actions.notifyError?.(t('common.copy_failed'))
-    }
-  }
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -92,19 +74,6 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
               startedAt={startedAt}
               thoughtsTokens={thoughtsTokens}
             />
-          }
-          trailing={
-            copyText ? (
-              <Tooltip content={t('common.copy')} delay={800}>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  aria-label={t('common.copy')}
-                  className="pointer-events-auto mr-1 ml-0 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground-muted opacity-0 transition-opacity duration-200 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary group-hover/thought:opacity-100">
-                  {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
-                </button>
-              </Tooltip>
-            ) : undefined
           }
         />
       </div>

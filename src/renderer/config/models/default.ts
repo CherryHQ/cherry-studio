@@ -1,10 +1,16 @@
 import type { Model, SystemProviderId } from '@renderer/types'
+import {
+  CHERRYAI_DEFAULT_MODEL_GROUP,
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_DEFAULT_MODEL_NAME,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
 
 export const qwenModel: Model = {
-  id: 'qwen',
-  name: 'Qwen',
-  provider: 'cherryai',
-  group: 'Qwen'
+  id: CHERRYAI_DEFAULT_MODEL_ID,
+  name: CHERRYAI_DEFAULT_MODEL_NAME,
+  provider: CHERRYAI_PROVIDER_ID,
+  group: CHERRYAI_DEFAULT_MODEL_GROUP
 }
 
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {

@@ -1,7 +1,7 @@
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
 import type { FC } from 'react'

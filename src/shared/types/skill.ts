@@ -190,7 +190,7 @@ export interface SkillFileNode {
 }
 
 // ============================================================================
-// Legacy plugins (per-agent .claude/commands/ and .claude/agents/)
+// Workspace skill metadata (from .claude/skills)
 // ============================================================================
 
 export interface LocalSkill {

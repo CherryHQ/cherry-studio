@@ -3,7 +3,7 @@ import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
 import { useQuery } from '@tanstack/react-query'
-import React, { memo, useCallback, useMemo } from 'react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import * as z from 'zod'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
@@ -31,10 +31,15 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
 
   const isXPost = useMemo(() => isXPostUrl(citation.url), [citation.url])
 
+  // Defer the X oEmbed network request until the tooltip is actually opened —
+  // firing it on mount for every X-post citation is a perf + privacy leak.
+  // `staleTime: Infinity` keeps the result cached after the first open.
+  const [isOpen, setIsOpen] = useState(false)
+
   const { data: oembedData } = useQuery({
     queryKey: ['xOembed', citation.url],
     queryFn: () => fetchXOEmbed(citation.url),
-    enabled: isXPost && !citation.content?.trim(),
+    enabled: isXPost && !citation.content?.trim() && isOpen,
     staleTime: Infinity
   })
 
@@ -109,6 +114,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   return (
     <Tooltip
       content={tooltipContent}
+      onOpenChange={setIsOpen}
       showArrow={false}
       className="rounded-[8px] border border-border bg-card p-3 text-foreground dark:bg-card dark:text-foreground">
       {children}

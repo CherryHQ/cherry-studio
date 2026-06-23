@@ -14,13 +14,14 @@ import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
+import { useJob } from '@renderer/hooks/useJob'
 import { useModels } from '@renderer/hooks/useModel'
-import { useOcr } from '@renderer/hooks/useOcr'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
-import { isSupportedOcrFile } from '@renderer/types'
+import { ipcApi } from '@renderer/ipc'
+import type { FileMetadata } from '@renderer/types'
+import { isImageFileMetadata } from '@renderer/types'
 import { cn, getFileExtension, isTextFile } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
@@ -31,6 +32,7 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
   isUniqueModelId,
   type Model as SelectorModel,
@@ -39,7 +41,9 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
+import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
+import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
 import { isEmpty } from 'lodash'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
@@ -65,6 +69,78 @@ const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUn
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
+type OcrJob = {
+  jobId: string
+}
+
+/**
+ * Observes a single image OCR job via `useJob` and reports its terminal result.
+ * Mounted only while the translate page tracks an active job.
+ */
+const OcrJobWatcher: FC<{
+  job: OcrJob
+  onCompleted: (text: string) => void
+  onSettled: (jobId: string) => void
+}> = ({ job, onCompleted, onSettled }) => {
+  const { t } = useTranslation()
+  const { data: snapshot, isTerminal, error } = useJob(job.jobId)
+  const handledRef = useRef(false)
+
+  useEffect(() => {
+    if (handledRef.current) return
+
+    const normalizeError = (error: unknown, fallbackMessage: string) => {
+      if (error instanceof Error) return error
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as { message?: unknown }).message
+        if (typeof message === 'string' && message) return new Error(message)
+      }
+      return new Error(fallbackMessage)
+    }
+
+    const rejectJob = (error: unknown, fallbackMessage: string) => {
+      const normalizedError = normalizeError(error, fallbackMessage)
+      const prefix = t('translate.files.error.ocr')
+      window.toast.error(formatErrorMessageWithPrefix(normalizedError, prefix))
+    }
+
+    // Job became unobservable (post-GC 404 / DataApi fetch failure): surface it once
+    // and unlock the input pane instead of spinning behind the overlay forever.
+    if (error) {
+      handledRef.current = true
+      logger.error('Failed to observe OCR job.', error, { jobId: job.jobId })
+      rejectJob(error, 'Image OCR job became unobservable')
+      onSettled(job.jobId)
+      return
+    }
+
+    if (!isTerminal || !snapshot) return
+    handledRef.current = true
+
+    if (snapshot.status === 'completed') {
+      const parsedOutput = FileProcessingJobOutputSchema.safeParse(snapshot.output)
+      if (parsedOutput.success && parsedOutput.data.artifact.kind === 'text') {
+        onCompleted(parsedOutput.data.artifact.text)
+        window.toast.success(t('translate.files.ocr_completed'))
+      } else {
+        const failure = new Error('Image OCR completed without a text artifact')
+        if (!parsedOutput.success) {
+          logger.warn('Image OCR job output failed schema validation.', parsedOutput.error, { jobId: job.jobId })
+        } else {
+          logger.warn('Image OCR job completed without a text artifact.', { jobId: job.jobId })
+        }
+        rejectJob(failure, failure.message)
+      }
+    } else {
+      rejectJob(snapshot.error, 'Image OCR failed')
+    }
+
+    onSettled(job.jobId)
+  }, [isTerminal, snapshot, error, job, onCompleted, onSettled, t])
+
+  return null
+}
+
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
@@ -73,7 +149,6 @@ const TranslatePage: FC = () => {
   const { add: addHistory } = useTranslateHistory()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
-  const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
@@ -104,6 +179,8 @@ const TranslatePage: FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
+  const isOcrRunning = ocrJob !== null
 
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -412,27 +489,44 @@ const TranslatePage: FC = () => {
     [appendTranslateInput, t]
   )
 
-  const ocrFile = useCallback(
-    async (file: SupportedOcrFile) => {
-      const ocrResult = await ocr(file)
-      appendTranslateInput(ocrResult.text)
+  // Renderer-local only: clears the tracked OCR job so the input pane unlocks.
+  // The backend File Processing job keeps running and its result is discarded
+  // (deliberate — Cancel/settle is a local "dismiss", not a backend cancel).
+  const clearOcrJob = useCallback(() => setOcrJob(null), [])
+
+  const startOcr = useCallback(
+    async (file: FileMetadata) => {
+      let jobId: string
+      try {
+        const snapshot = await ipcApi.request('file_processing.start_job', {
+          feature: 'image_to_text',
+          file: createFilePathHandle(file.path as FilePath)
+        })
+        jobId = snapshot.id
+      } catch (error) {
+        logger.error('Failed to start image OCR.', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
+        return
+      }
+
+      setOcrJob({ jobId })
     },
-    [appendTranslateInput, ocr]
+    [t]
   )
 
   const processFile = useCallback(
     async (file: FileMetadata) => {
-      if (isSupportedOcrFile(file)) {
-        await ocrFile(file)
+      if (isImageFileMetadata(file)) {
+        await startOcr(file)
       } else {
         await readFile(file)
       }
     },
-    [ocrFile, readFile]
+    [readFile, startOcr]
   )
 
   const handleSelectFile = useCallback(async () => {
-    if (selecting || isTranslating) return
+    if (selecting || isTranslating || isOcrRunning) return
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
@@ -446,7 +540,7 @@ const TranslatePage: FC = () => {
       clearFiles()
       setIsProcessing(false)
     }
-  }, [clearFiles, onSelectFile, processFile, selecting, t, isTranslating])
+  }, [clearFiles, isOcrRunning, onSelectFile, processFile, selecting, t, isTranslating])
 
   const getSingleFile = useCallback(
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
@@ -464,6 +558,7 @@ const TranslatePage: FC = () => {
 
   const onDrop = useCallback(
     async (e: DragEvent<HTMLDivElement>) => {
+      if (isProcessing || isOcrRunning) return
       setIsProcessing(true)
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
@@ -494,12 +589,12 @@ const TranslatePage: FC = () => {
         setIsProcessing(false)
       }
     },
-    [appendTranslateInput, getSingleFile, processFile, t]
+    [appendTranslateInput, getSingleFile, isOcrRunning, isProcessing, processFile, t]
   )
 
   const onPaste = useCallback(
     async (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      if (isProcessing) return
+      if (isProcessing || isOcrRunning) return
       const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
       if (!hasFiles) return
       setIsProcessing(true)
@@ -542,13 +637,18 @@ const TranslatePage: FC = () => {
         setIsProcessing(false)
       }
     },
-    [getSingleFile, isProcessing, processFile, t]
+    [getSingleFile, isOcrRunning, isProcessing, processFile, t]
   )
 
   const couldTranslate =
-    !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing
+    !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
   const couldExchange =
-    sourceLanguage !== 'auto' && sourceLanguage !== targetLanguage && !isTranslating && !isDetecting && !isProcessing
+    sourceLanguage !== 'auto' &&
+    sourceLanguage !== targetLanguage &&
+    !isTranslating &&
+    !isDetecting &&
+    !isProcessing &&
+    !isOcrRunning
 
   return (
     <div
@@ -557,6 +657,9 @@ const TranslatePage: FC = () => {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={preventDrop}>
+      {ocrJob && (
+        <OcrJobWatcher key={ocrJob.jobId} job={ocrJob} onCompleted={appendTranslateInput} onSettled={clearOcrJob} />
+      )}
       <Navbar />
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -684,7 +787,9 @@ const TranslatePage: FC = () => {
               onDrop={onDrop}
               onSelectFile={handleSelectFile}
               onCopy={onCopyInput}
-              disabled={isTranslating || isDetecting || isProcessing}
+              onCancelOcr={clearOcrJob}
+              disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
+              ocrProcessing={isOcrRunning}
               selecting={selecting}
             />
           </section>

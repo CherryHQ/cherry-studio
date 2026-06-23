@@ -228,9 +228,14 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, extra: true }).success).toBe(false)
-    expect(ListKnowledgeItemsQuerySchema.safeParse({ page: 1, limit: 20, type: 'note', extra: true }).success).toBe(
-      false
-    )
+    // Cursor-paginated: a valid query plus an unknown field must be rejected.
+    expect(
+      ListKnowledgeItemsQuerySchema.safeParse({ cursor: '1700000000000:item-1', limit: 20, type: 'note' }).success
+    ).toBe(true)
+    expect(
+      ListKnowledgeItemsQuerySchema.safeParse({ cursor: '1700000000000:item-1', limit: 20, type: 'note', extra: true })
+        .success
+    ).toBe(false)
   })
 
   it('rejects invalid numeric tuning fields in update schema', () => {
