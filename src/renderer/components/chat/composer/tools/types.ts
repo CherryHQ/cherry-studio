@@ -16,11 +16,6 @@ const logger = loggerService.withContext('ComposerToolRegistry')
 export type ComposerToolScope = TopicType | 'quick-assistant'
 
 export interface ComposerToolScopeConfig {
-  minRows?: number
-  maxRows?: number
-  showTokenCount?: boolean
-  showTools?: boolean
-  toolsCollapsible?: boolean
   enableQuickPanel?: boolean
   enableDragDrop?: boolean
 }
