@@ -856,7 +856,7 @@ const MigrationApp: React.FC = () => {
         }}
       />
       {quitDeferred && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-20 flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-20 flex justify-center px-4">
           <Alert
             type="info"
             showIcon
