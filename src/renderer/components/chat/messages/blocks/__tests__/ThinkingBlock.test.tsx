@@ -161,12 +161,12 @@ describe('ThinkingBlock', () => {
       })
     })
 
-    it('should show copy button in both streaming and success states', () => {
+    it('should not show copy button in streaming or success states', () => {
       // When thinking (streaming)
       const thinkingBlock = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(thinkingBlock)
 
-      expect(getCopyButton()).toBeInTheDocument()
+      expect(getCopyButton()).not.toBeInTheDocument()
 
       // When thinking is complete
       const completedBlock = createThinkingBlock({ status: 'success' })
@@ -180,7 +180,7 @@ describe('ThinkingBlock', () => {
         />
       )
 
-      expect(getCopyButton()).toBeInTheDocument()
+      expect(getCopyButton()).not.toBeInTheDocument()
     })
   })
 
@@ -465,104 +465,15 @@ describe('ThinkingBlock', () => {
 
       // Should still render correctly
       expect(getThinkingContent()).toBeInTheDocument()
-      expect(getCopyButton()).toBeInTheDocument()
-    })
-  })
-
-  describe('copy button', () => {
-    it('exposes an accessible label that mirrors the i18n tooltip copy', () => {
-      renderThinkingBlock(createThinkingBlock())
-
-      const button = getCopyButton()
-      expect(button).not.toBeNull()
-      expect(button).toHaveAttribute('aria-label', 'Copy')
-    })
-
-    it('is hidden by default and only revealed on hover/focus', () => {
-      renderThinkingBlock(createThinkingBlock())
-
-      const button = getCopyButton()
-      expect(button).toHaveClass('opacity-0')
-      expect(button).toHaveClass('group-hover/thought:opacity-100')
-      expect(button).toHaveClass('focus-visible:opacity-100')
-    })
-
-    it('forwards the thinking markdown to actions.copyText on click', async () => {
-      const block = createThinkingBlock({ content: 'I am thinking very hard...' })
-      renderThinkingBlock(block)
-
-      await act(async () => {
-        fireEvent.click(getCopyButton()!)
-        await vi.runAllTimersAsync()
-        await Promise.resolve()
-      })
-
-      expect(mockMessageActions.copyText).toHaveBeenCalledTimes(1)
-      expect(mockMessageActions.copyText).toHaveBeenCalledWith('I am thinking very hard...', {
-        successMessage: 'Copied'
-      })
+      expect(getCopyButton()).not.toBeInTheDocument()
     })
 
     it('does not invoke actions.copyText when there is no content', () => {
       const block = createThinkingBlock({ content: '' })
       const { container } = renderThinkingBlock(block)
 
-      // ThinkingBlock returns null when content is empty, so no button exists
       expect(container.firstChild).toBeNull()
       expect(mockMessageActions.copyText).not.toHaveBeenCalled()
-    })
-
-    it('does not render copy button when copy action is unavailable', () => {
-      mockMessageActions.copyText = undefined
-
-      renderThinkingBlock(createThinkingBlock())
-
-      expect(getCopyButton()).not.toBeInTheDocument()
-    })
-
-    it('keeps the copy button click from toggling the expand/collapse button', async () => {
-      renderThinkingBlock(createThinkingBlock())
-
-      const toggleButton = getToggleButton()
-      expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
-
-      await act(async () => {
-        fireEvent.click(getCopyButton()!)
-        await vi.runAllTimersAsync()
-        await Promise.resolve()
-      })
-
-      // The outer toggle button should still report the original state
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-    })
-
-    it('keeps copy button keyboard activation from toggling the expand/collapse button', () => {
-      renderThinkingBlock(createThinkingBlock())
-
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-
-      fireEvent.keyDown(getCopyButton()!, { key: 'Enter' })
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-
-      fireEvent.keyDown(getCopyButton()!, { key: ' ' })
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-    })
-
-    it('surfaces a failure notification when copyText rejects', async () => {
-      mockMessageActions.copyText?.mockRejectedValueOnce(new Error('clipboard unavailable'))
-
-      renderThinkingBlock(createThinkingBlock({ content: 'I am thinking...' }))
-
-      await act(async () => {
-        fireEvent.click(getCopyButton()!)
-        await vi.runAllTimersAsync()
-        await Promise.resolve()
-      })
-
-      expect(mockMessageActions.copyText).toHaveBeenCalledTimes(1)
-      expect(mockMessageActions.notifyError).toHaveBeenCalledWith('Copy failed')
-      // After failure the success state must NOT flip on
-      expect(getCopyButton()?.querySelector('svg.lucide-check')).toBeNull()
     })
   })
 })
