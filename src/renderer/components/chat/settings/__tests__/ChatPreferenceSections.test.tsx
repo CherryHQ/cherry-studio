@@ -112,9 +112,9 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.math.engine.label')).toBeNull()
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
-    expect(screen.queryByText('settings.messages.show_message_outline')).toBeNull()
-    expect(screen.queryByText('message.message.multi_model_style.label')).toBeNull()
-    expect(screen.queryByText('settings.messages.input.show_estimated_tokens')).toBeNull()
+    expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
+    expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
   })
 
@@ -126,22 +126,6 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
     expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
     expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
-  })
-
-  it('renders assistant-only controls when enabled', () => {
-    render(
-      <ChatPreferenceSections
-        features={{
-          showMessageOutline: true,
-          showMultiModelStyle: true,
-          showInputEstimatedTokens: true
-        }}
-      />
-    )
-
-    expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
-    expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {
