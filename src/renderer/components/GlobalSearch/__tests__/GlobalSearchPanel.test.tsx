@@ -565,7 +565,7 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
-    window.toast = { error: mocks.toastError } as typeof window.toast
+    window.toast = { error: mocks.toastError } as unknown as typeof window.toast
     mocks.useQuery.mockImplementation(
       (
         path: string,

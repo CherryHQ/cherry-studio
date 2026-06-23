@@ -174,7 +174,7 @@ export function GlobalSearchRow({
   const emoji =
     !isRecent && ['assistant', 'agent', 'knowledge-base'].includes(item.result.type) ? item.result.emoji : undefined
   const updatedAt = isRecent ? undefined : item.result.updatedAt
-  const updatedAtLabel = formatRelativeTime(updatedAt, language)
+  const updatedAtLabel = updatedAt ? formatRelativeTime(updatedAt, language) : undefined
 
   return (
     <button
