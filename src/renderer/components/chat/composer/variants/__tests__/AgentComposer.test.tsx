@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  toastError: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   createInternalEntry: vi.fn(),
@@ -410,6 +411,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.toastError.mockReset()
+    window.toast = { ...window.toast, error: mocks.toastError }
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -1173,6 +1176,33 @@ describe('AgentComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+  })
+
+  it('restores the current draft and files when sending a new agent message fails', async () => {
+    mocks.draftText = 'draft message'
+    mocks.files = [file]
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('draft message')
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalled()
+    expect(mocks.setFiles).toHaveBeenCalledWith([])
+    expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
+    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

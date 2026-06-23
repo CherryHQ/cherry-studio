@@ -821,19 +821,32 @@ const AgentComposerInner = ({
         return
       }
 
+      const previousText = draft.text
+      const previousFiles = files
+      const previousSkills = selectedSkills
+
       clearCurrentDraft()
-      void sendQueuedPayload(payload).catch((error: unknown) => {
-        logger.warn('Failed to send message:', error as Error)
+      void sendQueuedPayload(payload).then((sent) => {
+        if (!sent) {
+          setText(previousText)
+          setFiles(previousFiles)
+          setSelectedSkills(previousSkills)
+          window.toast?.error(t('chat.input.send_failed'))
+        }
       })
     },
     [
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
+      files,
       isStreaming,
       model,
       sendDisabled,
       sendQueuedPayload,
+      setFiles,
+      setText,
+      selectedSkills,
       t,
       workspaceWarning
     ]
