@@ -313,4 +313,54 @@ describe('JobManager smoke (dummy.echo)', () => {
     const settled = await Promise.all(handles.map((h) => h.finished))
     expect(settled.map((s) => s.status)).toEqual(Array(6).fill('completed'))
   }, 10_000)
+
+  // Regression for #16291 (defense-in-depth): spawnExecute must refuse to run a
+  // handler for a jobId already executing in THIS process, guarding any stray
+  // re-dispatch path (not just startup recovery) from double-running a job.
+  it('refuses to double-run a job already in-flight in this process', async () => {
+    let executeCount = 0
+    let releaseGate!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve
+    })
+    const gateHandler: JobHandler<EchoInput> = {
+      recovery: 'retry',
+      cancelTimeoutMs: 1000,
+      defaultConcurrency: 1,
+      async execute(ctx) {
+        executeCount++
+        await new Promise<void>((resolve, reject) => {
+          if (ctx.signal.aborted) return reject(new Error('AbortError'))
+          const onAbort = () => reject(new Error('AbortError'))
+          ctx.signal.addEventListener('abort', onAbort, { once: true })
+          void gate.then(() => {
+            ctx.signal.removeEventListener('abort', onAbort)
+            resolve()
+          })
+        })
+        return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
+      }
+    }
+    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler as JobHandler)
+
+    const handle = await jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
+    await drainTrailingDispatch()
+    expect(executeCount).toBe(1)
+
+    const row = await jobService.getById(handle.id)
+    const firstExecuted = inFlightExecutedOf(handle.id)
+
+    // Simulate a stray re-dispatch invoking spawnExecute for an id already
+    // executing in this process.
+    ;(jobManager as unknown as { spawnExecute: (r: unknown) => void }).spawnExecute(row)
+
+    // Guard prevented a second execution and did not clobber the in-flight marker.
+    expect(executeCount).toBe(1)
+    expect(inFlightExecutedOf(handle.id)).toBe(firstExecuted)
+
+    releaseGate()
+    const settled = await handle.finished
+    expect(settled.status).toBe('completed')
+    expect(executeCount).toBe(1)
+  })
 })

@@ -1,5 +1,4 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import HistoryPage from '@renderer/pages/history/HistoryPage'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,11 +40,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="h-[80vh] max-h-[80vh] max-w-[700px] overflow-hidden rounded-[20px] p-0 pb-4">
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        overlayClassName="bg-black/50 backdrop-blur-[8px]"
+        className="flex h-[80vh] max-h-[80vh] w-[60vw] max-w-[60vw] flex-col gap-0 overflow-hidden rounded-[32px] border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[60vw]">
         <DialogHeader className="sr-only">
-          <DialogTitle>{t('common.search')}</DialogTitle>
+          <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>
-        <HistoryPage />
+        {/* Global search panel is deferred out of feat/chat-page; the re-add PR restores it here. */}
+        <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
+          {t('globalSearch.open')}
+        </div>
       </DialogContent>
     </Dialog>
   )

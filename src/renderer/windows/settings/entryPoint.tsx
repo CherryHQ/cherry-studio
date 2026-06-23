@@ -5,13 +5,12 @@ import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_SETTINGS_PATH, normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import { createRoot } from 'react-dom/client'
 
 import SettingsApp, { SettingsWindowFatalError } from './SettingsApp'
-
-loggerService.initWindowSource('SettingsWindow')
 
 const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'app.language',
@@ -22,7 +21,8 @@ const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'chat.code.editor.theme_light',
   'chat.code.editor.theme_dark',
   'chat.code.viewer.theme_light',
-  'chat.code.viewer.theme_dark'
+  'chat.code.viewer.theme_dark',
+  'menu.presentation_mode'
 ]
 
 const logger = loggerService.withContext('SettingsWindowEntry')
@@ -39,7 +39,7 @@ async function preloadSettingsPreferences() {
 
 async function getInitialSettingsPath() {
   try {
-    return normalizeSettingsPath(await window.api.windowManager.getInitData<unknown>())
+    return normalizeSettingsPath(await ipcApi.request('window.get_init_data'))
   } catch (error) {
     logger.error('Failed to get settings window init data', error as Error)
     return DEFAULT_SETTINGS_PATH

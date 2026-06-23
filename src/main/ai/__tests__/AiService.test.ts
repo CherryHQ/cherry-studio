@@ -53,7 +53,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
-const { AiService } = await import('../AiService')
+const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
 /**
@@ -655,5 +655,146 @@ describe('AiService tool approval', () => {
         uniqueModelId: 'test-provider::test-reranker'
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
+  })
+})
+
+describe('imageInputEntryParams', () => {
+  it('maps a base64 data URL to a base64 entry', () => {
+    expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
+      source: 'base64',
+      data: 'data:image/png;base64,AAAA'
+    })
+  })
+
+  it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
+    expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
+      source: 'url',
+      url: 'https://cdn.example.com/in.png'
+    })
+  })
+})
+
+describe('AiService.generateImage — custom async transport (job path)', () => {
+  // Force the job branch by resolving to a custom-transport provider id; real
+  // resolveImageTransport('ppio', …) returns a transport, so generateImage routes
+  // through generateImageViaJob.
+  function stubResolution(service: InstanceType<typeof AiService>) {
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' }
+    } as never)
+  }
+
+  it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
+    const service = createService()
+    stubResolution(service)
+
+    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
+    const enqueue = vi.fn().mockResolvedValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry, permanentDelete }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    const result = await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      inputImages: ['data:image/png;base64,AAAA'],
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
+    )
+    expect(result).toEqual({ files: outputFiles })
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+
+  it('maps a failed job snapshot to a thrown error', async () => {
+    const service = createService()
+    stubResolution(service)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager')
+        return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
+      if (name === 'JobManager') {
+        return {
+          enqueue: vi.fn().mockResolvedValue({
+            id: 'job-1',
+            snapshot: {},
+            finished: Promise.resolve({ status: 'failed', output: null, error: { message: 'vendor exploded' } })
+          }),
+          cancel: vi.fn()
+        }
+      }
+      return undefined
+    })
+
+    await expect(service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat' })).rejects.toThrow(
+      'vendor exploded'
+    )
+  })
+
+  it('cancels the job and throws AbortError when the request is aborted', async () => {
+    const service = createService()
+    stubResolution(service)
+    const controller = new AbortController()
+    controller.abort()
+    const cancel = vi.fn().mockResolvedValue({ outcome: 'cancelled' })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager')
+        return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
+      if (name === 'JobManager') {
+        return {
+          enqueue: vi.fn().mockResolvedValue({
+            id: 'job-1',
+            snapshot: {},
+            finished: Promise.resolve({ status: 'cancelled', output: null, error: null })
+          }),
+          cancel
+        }
+      }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        requestOptions: { signal: controller.signal }
+      })
+    ).rejects.toThrow(/abort/i)
+    expect(cancel).toHaveBeenCalledWith('job-1', expect.any(String))
+  })
+
+  it('cleans up already-created temp input entries when setup fails before enqueue', async () => {
+    const service = createService()
+    stubResolution(service)
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') {
+        return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
+      }
+      // enqueue fails after the temp input entry was already created → the entry is in
+      // no payload, so generateImageViaJob's setup catch must delete it.
+      if (name === 'JobManager')
+        return { enqueue: vi.fn().mockRejectedValue(new Error('enqueue boom')), cancel: vi.fn() }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'edit',
+        inputImages: ['data:image/png;base64,AAAA']
+      })
+    ).rejects.toThrow('enqueue boom')
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
   })
 })

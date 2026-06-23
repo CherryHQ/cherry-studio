@@ -52,4 +52,4 @@ See [Handler Authoring](../../../../docs/references/job-and-scheduler/handler-au
 
 ## Renderer Boundary
 
-The renderer observes job state read-only via `useJob` / `useJobProgress` (shared cache + GET `/jobs/:id`). Triggering a job is decided in main by the owning business service, which calls `jobManager.enqueue(...)` directly; renderer-initiated triggering goes through a dedicated IPC channel (e.g. `IpcChannel.Knowledge_IndexFile`). See [overview.md — Renderer-side consumers](../../../../docs/references/job-and-scheduler/overview.md#renderer-side-consumers).
+The renderer observes job state read-only via `useJob` / `useJobProgress` (shared cache + GET `/jobs/:id`). Triggering a job is decided in main by the owning business service, which calls `jobManager.enqueue(...)` directly; renderer-initiated triggering goes through a dedicated IPC route (e.g. the `knowledge.add_items` IpcApi route, whose main handler enqueues the index job). See [overview.md — Renderer-side consumers](../../../../docs/references/job-and-scheduler/overview.md#renderer-side-consumers).

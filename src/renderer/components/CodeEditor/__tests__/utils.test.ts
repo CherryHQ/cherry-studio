@@ -9,7 +9,7 @@ const hoisted = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@shared/config/languages', () => ({
+vi.mock('@shared/utils/languages', () => ({
   languages: hoisted.languages
 }))
 

@@ -32,7 +32,6 @@ vi.mock('@renderer/store/settings', () => {
 
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: vi.fn(() => ({})),
-  useNavbarPosition: vi.fn(() => ({ navbarPosition: 'left' })),
   useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
   getStoreSetting: vi.fn()
 }))

@@ -14,6 +14,7 @@ import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
@@ -31,6 +32,11 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
       return await topicService.create(parsed)
+    },
+
+    DELETE: async ({ query }) => {
+      const parsed = DeleteTopicsQuerySchema.parse(query)
+      return await topicService.deleteByIds(parsed.ids)
     }
   },
 
@@ -61,6 +67,12 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = DuplicateTopicSchema.parse(body)
       return await topicService.duplicate(params.id, parsed)
+    }
+  },
+
+  '/assistants/:assistantId/topics': {
+    DELETE: async ({ params }) => {
+      return await topicService.deleteByAssistantId(params.assistantId)
     }
   },
 

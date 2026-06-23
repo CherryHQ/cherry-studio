@@ -1,5 +1,5 @@
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FileHandle, FilePath } from '@shared/file/types'
+import type { FileHandle, FilePath } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
 
 import { dispatchHandle } from '../dispatch'

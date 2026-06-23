@@ -110,6 +110,21 @@ const unsubscribe = ipcApi.on('window.maximized_changed', (p) => { /* ... */ })
 
 The `handlers/` directory is the single audited list of every main capability the renderer can reach.
 
+## Testing
+
+Test the **handler**, not the schema. A per-domain schema is a thin structural contract — a TS type's runtime mirror — so asserting that `z.boolean()` rejects a string, or that `z.infer` yields `boolean`, only re-tests zod. The contract is already locked three ways:
+
+1. compile-time `IpcHandlersFor<typeof schemas>` — every route needs a handler, no extras;
+2. `z.infer` drives the handler signature and the renderer call types — a mismatch is a compile error;
+3. the single framework type test (`src/shared/ipc/__tests__/schema.types.test.ts`) exercises the reusable `IpcHandlersFor` generic once.
+
+So unit-test the handler (`src/main/ipc/handlers/__tests__/<domain>.test.ts`) for real behavior — senderId routing, null-window fallback, service delegation — and do **not** add a per-domain `schemas/__tests__`. Business validation belongs in the handler/service, not the schema, so a schema with custom logic worth testing effectively never arises; if a genuine custom `.refine` predicate ever appears, test that predicate as a plain function rather than through the schema.
+
 ## High-Frequency / Topic Streams
 
 Token streams and file-tree mutations do **not** go through `broadcast`. The owning service keeps a listener registry (preserving its batching) and directs `send(windowId, …)` per topic to attached windows — avoiding the O(windows × frequency) fan-out of broadcasting a hot event. See the migration guide (class B).
+
+The two directions diverge under load:
+
+- **M→R high-frequency** stays in IpcApi — its transport is already one-way `webContents.send`, so frequency costs no extra round-trip; just use directed `send` + batching (above).
+- **R→M high-frequency** (per-frame, e.g. tab-drag window moves) gets no such luck — R→M is `invoke`/`handle`, so the rare per-frame channel may leave IpcApi via the escape hatch. See the [migration guide](./ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out).

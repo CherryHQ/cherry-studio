@@ -1,4 +1,5 @@
-import type { Message, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import i18next from 'i18next'
 
 import { messageToPlainText, topicToMarkdown, topicToPlainText } from './export'
@@ -15,7 +16,7 @@ export const copyTopicAsPlainText = async (topic: Topic) => {
   window.toast.success(i18next.t('message.copy.success'))
 }
 
-export const copyMessageAsPlainText = async (message: Message) => {
+export const copyMessageAsPlainText = async (message: ExportableMessage) => {
   const plainText = messageToPlainText(message)
   await navigator.clipboard.writeText(plainText)
   window.toast.success(i18next.t('message.copy.success'))

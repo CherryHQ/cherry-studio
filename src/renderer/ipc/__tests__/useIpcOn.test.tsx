@@ -7,7 +7,8 @@ const onMock = vi.fn()
 const unsubscribe = vi.fn()
 let captured: ((payload: unknown) => void) | undefined
 
-// Stage-0 IpcEventName is `never`; drive the hook through `as never`-style casts.
+// Exercises the hook's runtime plumbing with a throwaway event name, casting past
+// the typed signature rather than coupling to a real event.
 const useEvent = useIpcOn as unknown as (event: string, handler: (p: unknown) => void) => void
 
 beforeEach(() => {

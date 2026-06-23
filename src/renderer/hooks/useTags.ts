@@ -36,6 +36,39 @@ export function useTagList(): TagListResult {
   }
 }
 
+export function useRenameTag() {
+  const { trigger } = useMutation('PATCH', '/tags/:id', {
+    refresh: ['/tags', '/assistants']
+  })
+
+  const renameTag = useCallback(
+    (id: string, name: string): Promise<Tag> =>
+      trigger({
+        params: { id },
+        body: { name: name.trim() }
+      }),
+    [trigger]
+  )
+
+  return { renameTag }
+}
+
+export function useDeleteTag() {
+  const { trigger } = useMutation('DELETE', '/tags/:id', {
+    refresh: ['/tags', '/assistants']
+  })
+
+  const deleteTag = useCallback(
+    (id: string): Promise<void> =>
+      trigger({
+        params: { id }
+      }).then(() => undefined),
+    [trigger]
+  )
+
+  return { deleteTag }
+}
+
 /**
  * Resolve a list of tag names to Tag records, creating any that don't exist yet.
  *

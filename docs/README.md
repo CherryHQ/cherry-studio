@@ -67,11 +67,17 @@
 | Document | Description |
 |----------|-------------|
 | [Message System](./references/messaging/message-system.md) | Message lifecycle, state management, operations |
+| [Composer Rich Clipboard](./references/messaging/composer-rich-clipboard.md) | Private composer token clipboard format and copy/paste flow |
+| [Message Tree](./references/chat/message-tree.md) | Chat message-tree model: adjacency list, per-topic virtual root, sibling groups, invariants, delete semantics, getTree / flow-canvas contract |
+| [Chat UI Design & Conventions](./references/chat/conventions.md) | How the chat UI is divided by responsibility (presentation / view-state / contracts / orchestration) and the conventions modules follow (context, refs, render stability) |
+| [Chat Adapters](./references/chat/adapters.md) | The chat contract layer: projecting topics / sessions / messages into stable UI shapes, the pane / action registries, and render-stability rules |
 
 ### Knowledge
 
 | Document | Description |
 |----------|-------------|
+| [Knowledge Product Spec](./references/knowledge/experiment/knowledge-product-spec.md) | Condensed product semantics for Agent-managed knowledge bases (full version lives in Feishu) |
+| [Knowledge Technical Design](./references/knowledge/experiment/knowledge-technical-design.md) | Condensed per-base index.sqlite schema, index store contracts, and retrieval decisions (full version lives in Feishu) |
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 

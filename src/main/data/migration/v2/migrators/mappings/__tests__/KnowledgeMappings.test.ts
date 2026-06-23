@@ -1,19 +1,29 @@
 import { FILE_TYPE } from '@shared/data/types/file'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
+  KNOWLEDGE_NOTE_CONTENT_MAX
+} from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
-import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
+import {
+  expandLegacyDirectoryItem,
+  inferKnowledgeItemStatus,
+  transformKnowledgeBase,
+  transformKnowledgeItem
+} from '../KnowledgeMappings'
 
 const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
 
-// Keep the three filename-bearing fields distinct so each assertion below can
-// independently tell where a value came from: `name` (v1 storage name) feeds
-// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, and
-// `path` (stale column) feeds `data.source`. A crossed wiring fails the asserts.
+// Keep the filename-bearing fields distinct so each assertion below can independently tell
+// where a value came from: `id`+`ext` (the v1 storage name `{id}{ext}`) feeds
+// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, `path` (stale column)
+// feeds `data.source`, and `name` is a deliberate DISTRACTOR that must NOT feed storageName
+// (v1's dedup path emits a malformed double-extension `name`). A crossed wiring fails the asserts.
 const fileMetadata = {
   id: LEGACY_FILE_ID,
   name: 'stored-019606a0.pdf',
@@ -269,8 +279,7 @@ describe('KnowledgeMappings', () => {
         type: 'note',
         data: {
           source: 'https://dexie.example.com',
-          content: 'dexie-content',
-          sourceUrl: 'https://dexie.example.com'
+          content: 'dexie-content'
         },
         status: 'idle',
         error: null,
@@ -278,6 +287,60 @@ describe('KnowledgeMappings', () => {
         updatedAt: expect.any(Number)
       }
     })
+  })
+
+  it('transformKnowledgeItem keeps note content unchanged when within the read-side max', () => {
+    const warnings: string[] = []
+    const content = 'short note body'
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-1', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.value.data).toMatchObject({ content })
+    expect(warnings).toEqual([])
+  })
+
+  it('transformKnowledgeItem clamps over-long note content to the read-side max and warns', () => {
+    // v1 notes had no length cap; the v2 read path enforces .max(KNOWLEDGE_NOTE_CONTENT_MAX), so a
+    // longer note would parse-fail and poison the whole base's item-list query. It must be
+    // truncated (not dropped) and the truncation surfaced as a warning.
+    const warnings: string[] = []
+    const content = 'a'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX + 10)
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-long', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || !('content' in result.value.data)) throw new Error('expected a note result')
+    expect(result.value.data.content).toHaveLength(KNOWLEDGE_NOTE_CONTENT_MAX)
+    expect(result.value.data.content).toBe('a'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('note-long')
+    expect(warnings[0]).toContain('truncated')
+  })
+
+  it('transformKnowledgeItem keeps note content exactly at the max without warning (boundary)', () => {
+    const warnings: string[] = []
+    const content = 'b'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX)
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-exact', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || !('content' in result.value.data)) throw new Error('expected a note result')
+    expect(result.value.data.content).toHaveLength(KNOWLEDGE_NOTE_CONTENT_MAX)
+    expect(warnings).toEqual([])
   })
 
   it('transformKnowledgeItem skips a note with neither sourceUrl nor content', () => {
@@ -338,8 +401,7 @@ describe('KnowledgeMappings', () => {
         type: 'note',
         data: {
           source: 'https://example.com/origin',
-          content: '',
-          sourceUrl: 'https://example.com/origin'
+          content: ''
         }
       })
     })
@@ -369,8 +431,7 @@ describe('KnowledgeMappings', () => {
         type: 'note',
         data: {
           source: 'recoverable body',
-          content: 'recoverable body',
-          sourceUrl: ''
+          content: 'recoverable body'
         }
       })
     })
@@ -407,7 +468,7 @@ describe('KnowledgeMappings', () => {
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       },
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
   })
 
@@ -445,7 +506,7 @@ describe('KnowledgeMappings', () => {
           relativePath: 'stored-019606a0.pdf'
         }
       }),
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
     // The fallback leaves a diagnostic trail in the migration log.
     expect(warnings).toHaveLength(1)
@@ -495,7 +556,7 @@ describe('KnowledgeMappings', () => {
         status: 'completed',
         error: null
       }),
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
   })
 
@@ -612,8 +673,7 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'directory',
         data: {
-          source: '/tmp/docs',
-          path: '/tmp/docs'
+          source: '/tmp/docs'
         },
         status: 'idle',
         error: null,
@@ -621,5 +681,200 @@ describe('KnowledgeMappings', () => {
         updatedAt: expect.any(Number)
       }
     })
+  })
+
+  it('transformKnowledgeItem marks a v1-indexed directory `failed` with the not-migrated code', () => {
+    // V1 embedded the folder's files under the directory item's loader ids; the
+    // vector migrator drops those container-level vectors, so a `completed`
+    // directory would be an empty shell that never re-indexes. It must surface
+    // as `failed` with the code the UI renders as a delete-and-re-upload prompt.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueId: 'DirectoryLoader_1'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.status).toBe('failed')
+      expect(result.value.error).toBe(KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED)
+    }
+  })
+
+  it('transformKnowledgeItem keeps the shared failed mapping for an interrupted directory', () => {
+    // Only the lying `completed` state is overridden; a v1-interrupted directory
+    // stays on the shared transient-state mapping and its retry message.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        processingStatus: 'processing'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.status).toBe('failed')
+      expect(result.value.error).toBe('Legacy knowledge item indexing was interrupted and needs to be retried.')
+    }
+  })
+})
+
+describe('expandLegacyDirectoryItem', () => {
+  it('expands a v1-indexed directory into a completed container plus one completed file child per embedded file', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueIds: ['LocalPathLoader_a', 'LocalPathLoader_b'],
+        created_at: 1735689600000, // 2025-01-01T00:00:00.000Z
+        updated_at: 1738454400000 // 2025-02-02T00:00:00.000Z
+      },
+      new Map([
+        ['LocalPathLoader_a', '/tmp/docs/a.md'],
+        ['LocalPathLoader_b', '/tmp/docs/b.md']
+      ])
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    // Container: a completed `directory` rooted at the folder path, no parent. It is
+    // `completed` (not the tombstone `failed`) precisely because its children carry
+    // migrated vectors — the folder is searchable, not an empty shell.
+    expect(result.container).toStrictEqual({
+      id: expect.stringMatching(UUIDV7_PATTERN),
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'directory',
+      data: { source: '/tmp/docs' },
+      status: 'completed',
+      error: null,
+      createdAt: 1735689600000,
+      updatedAt: 1738454400000
+    })
+
+    // One completed `file` child per loader id, parented to the container, each
+    // carrying its external source and a virtual relativePath equal to its own id.
+    const [childA, childB] = result.children
+    expect(childA).toStrictEqual({
+      id: expect.stringMatching(UUIDV7_PATTERN),
+      baseId: 'kb-1',
+      groupId: result.container.id,
+      type: 'file',
+      data: { source: '/tmp/docs/a.md', relativePath: childA.id },
+      status: 'completed',
+      error: null,
+      createdAt: 1735689600000,
+      updatedAt: 1738454400000
+    })
+    expect(childB).toStrictEqual({
+      id: expect.stringMatching(UUIDV7_PATTERN),
+      baseId: 'kb-1',
+      groupId: result.container.id,
+      type: 'file',
+      data: { source: '/tmp/docs/b.md', relativePath: childB.id },
+      status: 'completed',
+      error: null,
+      createdAt: 1735689600000,
+      updatedAt: 1738454400000
+    })
+
+    // childLoaderRemap routes each v1 loader id to the synthesized child id so the
+    // vector migrator can re-attribute the folder's chunks per file.
+    expect(result.childLoaderRemap.get('LocalPathLoader_a')).toBe(childA.id)
+    expect(result.childLoaderRemap.get('LocalPathLoader_b')).toBe(childB.id)
+  })
+
+  it('keeps same-named files in different folders collision-free via the virtual per-id relativePath', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/project',
+        uniqueIds: ['L1', 'L2']
+      },
+      new Map([
+        ['L1', '/tmp/project/api/README.md'],
+        ['L2', '/tmp/project/web/README.md']
+      ])
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    // Two same-named README.md sources expand without collision: the relativePath is
+    // each child's own id (no copy into the base, so no shared raw/ path to clash on).
+    const [childA, childB] = result.children
+    expect(childA.id).not.toBe(childB.id)
+    expect(childA.data).toStrictEqual({ source: '/tmp/project/api/README.md', relativePath: childA.id })
+    expect(childB.data).toStrictEqual({ source: '/tmp/project/web/README.md', relativePath: childB.id })
+  })
+
+  it('skips loader ids whose source cannot be resolved and keeps the rest', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueIds: ['known', 'orphan']
+      },
+      new Map([['known', '/tmp/docs/known.md']])
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    expect(result.children).toHaveLength(1)
+    expect(result.childLoaderRemap.has('orphan')).toBe(false)
+    expect(result.childLoaderRemap.get('known')).toBe(result.children[0].id)
+  })
+
+  it('returns null when no loader id resolves to a source so the caller keeps the tombstone', () => {
+    // Every loader id is orphaned (vector DB unreadable/empty) → no children → null.
+    expect(
+      expandLegacyDirectoryItem(
+        'kb-1',
+        { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['orphan'] },
+        new Map()
+      )
+    ).toBeNull()
+
+    // No loader ids at all (v1 never indexed the folder) → null.
+    expect(
+      expandLegacyDirectoryItem(
+        'kb-1',
+        { id: 'dir-1', type: 'directory', content: '/tmp/docs' },
+        new Map([['x', '/tmp/docs/x.md']])
+      )
+    ).toBeNull()
+  })
+
+  it('returns null for a directory with blank content', () => {
+    expect(
+      expandLegacyDirectoryItem(
+        'kb-1',
+        { id: 'dir-1', type: 'directory', content: '   ', uniqueIds: ['L1'] },
+        new Map([['L1', '/tmp/docs/a.md']])
+      )
+    ).toBeNull()
   })
 })

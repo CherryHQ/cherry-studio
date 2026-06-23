@@ -63,8 +63,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       threshold: null,
       documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
-      hybridAlpha: null
+      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
@@ -72,7 +71,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
         baseId: BASE_ID,
         groupId: null,
         type: 'directory',
-        data: { source: 'root', path: '/docs' },
+        data: { source: 'root' },
         status: 'processing',
         error: null
       },
@@ -101,7 +100,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
             baseId: BASE_ID,
             groupId: null,
             type: 'directory',
-            data: { source: 'root', path: '/docs' },
+            data: { source: 'root' },
             status: 'processing',
             error: null,
             createdAt: '2026-04-08T00:00:00.000Z',

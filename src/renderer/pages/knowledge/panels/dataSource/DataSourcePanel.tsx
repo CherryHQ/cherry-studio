@@ -1,8 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
-import type { ChangeEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -11,23 +10,21 @@ import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
-import { getItemTitle, getReadyCount } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
+  /** Server-side total across all pages. Defaults to the loaded count when omitted. */
+  total?: number
   isLoading: boolean
-  searchQuery?: string
+  /** Cursor-pagination controls; default to a fully-loaded list when omitted. */
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  onLoadMore?: () => void
+  updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
-}
-
-const matchesSearch = (item: KnowledgeItem, query: string) => {
-  if (!query) {
-    return true
-  }
-  return getItemTitle(item).toLowerCase().includes(query.toLowerCase())
 }
 
 const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: KnowledgeItemType) => void }) => {
@@ -65,8 +62,12 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
 
 const DataSourcePanel = ({
   items,
+  total = items.length,
   isLoading,
-  searchQuery = '',
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore = () => undefined,
+  updatedAt,
   onAdd,
   onItemClick,
   onDelete,
@@ -74,23 +75,18 @@ const DataSourcePanel = ({
 }: DataSourcePanelProps) => {
   const { t } = useTranslation()
   const { previewSource } = usePreviewKnowledgeSource()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
 
-  const visibleItems = useMemo(() => items.filter((item) => matchesSearch(item, searchQuery)), [items, searchQuery])
-
   useEffect(() => {
     setSelectedIds((prev) => {
-      const visibleItemIds = new Set(visibleItems.map((item) => item.id))
-      const next = new Set([...prev].filter((itemId) => visibleItemIds.has(itemId)))
+      const itemIds = new Set(items.map((item) => item.id))
+      const next = new Set([...prev].filter((itemId) => itemIds.has(itemId)))
 
       return next.size === prev.size ? prev : next
     })
-  }, [visibleItems])
-
-  const readyCount = useMemo(() => getReadyCount(items), [items])
+  }, [items])
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
@@ -108,17 +104,13 @@ const DataSourcePanel = ({
 
   const handleToggleAll = useCallback(
     (next: boolean) => {
-      setSelectedIds(next ? new Set(visibleItems.map((item) => item.id)) : new Set())
+      setSelectedIds(next ? new Set(items.map((item) => item.id)) : new Set())
     },
-    [visibleItems]
+    [items]
   )
 
-  const handleCancelBulk = useCallback(() => {
-    setSelectedIds(new Set())
-  }, [])
-
   const handleBulkReindex = useCallback(async () => {
-    const targets = visibleItems.filter((item) => selectedIds.has(item.id))
+    const targets = items.filter((item) => selectedIds.has(item.id))
     try {
       await Promise.all(targets.map((item) => onReindex(item)))
     } catch (error) {
@@ -126,10 +118,10 @@ const DataSourcePanel = ({
       return
     }
     setSelectedIds(new Set())
-  }, [onReindex, selectedIds, t, visibleItems])
+  }, [items, onReindex, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const targets = visibleItems.filter((item) => selectedIds.has(item.id))
+    const targets = items.filter((item) => selectedIds.has(item.id))
     try {
       await Promise.all(targets.map((item) => onDelete(item)))
     } catch (error) {
@@ -138,7 +130,7 @@ const DataSourcePanel = ({
     }
     setSelectedIds(new Set())
     setIsBulkDeleteOpen(false)
-  }, [onDelete, selectedIds, t, visibleItems])
+  }, [items, onDelete, selectedIds, t])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) {
@@ -155,69 +147,34 @@ const DataSourcePanel = ({
     setPendingDeleteItem(null)
   }
 
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? [])
-    event.target.value = ''
-
-    if (files.length > 0) {
-      onAdd('file', files)
-    }
-  }
-
-  const openFilePicker = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
-
-  const handleAddSource = useCallback(
-    (source?: KnowledgeItemType, files?: File[]) => {
-      if (source === 'file' && !files?.length) {
-        openFilePicker()
-        return
-      }
-
-      if (files?.length) {
-        onAdd(source, files)
-        return
-      }
-
-      onAdd(source)
-    },
-    [onAdd, openFilePicker]
-  )
+  const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
 
   return (
     <KnowledgePanelShell
-      headerClassName="shrink-0 px-3 pt-4"
+      headerClassName="shrink-0 px-3 pt-1"
       header={
         <div className="border-border-muted border-b pb-3">
           <DataSourcePanelHeader
-            readyCount={readyCount}
-            totalCount={items.length}
+            total={total}
+            loadedCount={items.length}
             selectedCount={selectedIds.size}
+            updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
-            onCancelBulk={handleCancelBulk}
             onAdd={handleAddSource}
           />
         </div>
       }>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={handleFileSelect}
-      />
       <div className="flex min-h-0 flex-1 flex-col">
         {!isLoading && items.length === 0 ? (
           <DataSourceEmptyState onAddSource={handleAddSource} />
         ) : (
           <KnowledgeItemList
-            items={visibleItems}
-            allItemsCount={items.length}
+            items={items}
             isLoading={isLoading}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={onLoadMore}
             selectedIds={selectedIds}
             onToggleOne={handleToggleOne}
             onToggleAll={handleToggleAll}

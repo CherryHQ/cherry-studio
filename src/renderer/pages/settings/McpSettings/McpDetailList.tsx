@@ -45,9 +45,3 @@ export const McpDetailItem = ({
     </dd>
   </div>
 )
-
-export const RequiredMark = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('text-destructive', className)} {...props}>
-    *
-  </span>
-)

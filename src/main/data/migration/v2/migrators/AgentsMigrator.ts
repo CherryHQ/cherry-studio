@@ -1,5 +1,6 @@
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -161,6 +162,7 @@ export class AgentsMigrator extends BaseMigrator {
         db: ctx.db,
         filesDataDir: ctx.paths.filesDataDir
       })
+      await migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -931,6 +933,60 @@ export async function importLegacySessionMessages(
 
   logger.info('Imported legacy agent session messages with UUID ids', { imported })
   return imported
+}
+
+/**
+ * Migrate legacy `agent.mcps` JSON arrays into `agent_mcp_server` junction
+ * table rows. Legacy rows reference old-format MCP ids that McpServerMigrator
+ * regenerated as new UUIDs, so each id is remapped via the shared
+ * `mcpServerIdMapping`; ids with no mapping (deleted/skipped servers) are
+ * dropped to avoid FK constraint violations. Runs while agents_legacy is
+ * attached and BEFORE remapAgentPrefixIds — the inserted `agentId` is the
+ * legacy agent id, which that step rewrites alongside `agent.id`.
+ */
+export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): Promise<void> {
+  const rows = await db.all<{ agentId: string; oldMcpId: string }>(
+    sql.raw(
+      `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
+       FROM agents_legacy.agents a, json_each(a.mcps) AS je
+       WHERE json_type(a.mcps) = 'array'
+         AND json_array_length(a.mcps) > 0
+         AND a.id IN (SELECT id FROM agent)`
+    )
+  )
+  if (rows.length === 0) return
+
+  if (!mcpServerIdMapping) {
+    throw new Error(
+      `mcpServerIdMapping not found in sharedData but ${rows.length} agent_mcp_server rows need remapping. McpServerMigrator must run before AgentsMigrator.`
+    )
+  }
+
+  const now = Date.now()
+  const values = rows.reduce<{ agentId: string; mcpServerId: string; createdAt: number; updatedAt: number }[]>(
+    (acc, row) => {
+      const newMcpId = mcpServerIdMapping.get(row.oldMcpId)
+      if (!newMcpId) {
+        logger.warn(`Dropping dangling agent_mcp_server ref: agent=${row.agentId}, mcpServer=${row.oldMcpId}`)
+        return acc
+      }
+      acc.push({ agentId: row.agentId, mcpServerId: newMcpId, createdAt: now, updatedAt: now })
+      return acc
+    },
+    []
+  )
+
+  if (values.length === 0) return
+  await db.insert(agentMcpServerTable).values(values)
+  const dropped = rows.length - values.length
+  const summary = { rows: values.length, dropped }
+  // A non-zero `dropped` count is FK-mandated data loss (legacy refs to MCP
+  // servers that no longer exist) — surface it at warn so it stands out.
+  if (dropped > 0) {
+    logger.warn('Migrated agent MCP associations to junction table; dropped dangling refs', summary)
+  } else {
+    logger.info('Migrated agent MCP associations to junction table', summary)
+  }
 }
 
 /**

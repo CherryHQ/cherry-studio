@@ -60,10 +60,10 @@ export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    refresh: ['/agents']
+    refresh: ['/agents', '/agents/*']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/agents']
+    refresh: ['/agents', '/agents/*']
   })
 
   const updateAgent = useCallback(

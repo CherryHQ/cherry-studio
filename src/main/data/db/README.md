@@ -4,20 +4,20 @@ This directory contains database schemas and configuration.
 
 ## Documentation
 
-- **Database Patterns**: [docs/references/data/database-patterns.md](../../../../docs/references/data/database-patterns.md)
+- **Database Construction** (migrations, custom SQL, FTS5): [docs/references/data/database-construction.md](../../../../docs/references/data/database-construction.md)
+- **Database Patterns** (schema authoring): [docs/references/data/database-patterns.md](../../../../docs/references/data/database-patterns.md)
 
 ## Directory Structure
 
 ```
 src/main/data/db/
 ├── schemas/              # Drizzle table definitions
-│   ├── columnHelpers.ts  # Reusable column definitions
+│   ├── _columnHelpers.ts # Reusable column definitions
 │   ├── topic.ts          # Topic table
-│   ├── message.ts        # Message table
-│   ├── messageFts.ts     # FTS5 virtual table & triggers
+│   ├── message.ts        # Message table + MESSAGE_FTS_STATEMENTS (FTS5 vtable & triggers)
 │   └── ...               # Other tables
 ├── seeding/              # Data seeding (see seeding/README.md)
-├── customSql.ts          # Custom SQL (triggers, virtual tables, etc.)
+├── customSqls.ts         # Custom SQL (triggers, virtual tables) — replayed every boot
 └── DbService.ts          # Database connection management
 ```
 
@@ -33,17 +33,17 @@ src/main/data/db/
 
 ```bash
 # Generate migrations after schema changes
-yarn db:migrations:generate
+pnpm db:migrations:generate
 ```
 
 ### Custom SQL (Triggers, Virtual Tables)
 
-Drizzle cannot manage triggers and virtual tables. See `customSql.ts` for how these are handled.
+Drizzle cannot manage triggers and virtual tables. See `customSqls.ts` and [database-construction.md](../../../../docs/references/data/database-construction.md) for how these are handled.
 
 ### Column Helpers
 
 ```typescript
-import { uuidPrimaryKey, createUpdateTimestamps } from './columnHelpers'
+import { uuidPrimaryKey, createUpdateTimestamps } from './_columnHelpers'
 
 export const myTable = sqliteTable('my_table', {
   id: uuidPrimaryKey(),

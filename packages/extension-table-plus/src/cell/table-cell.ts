@@ -38,7 +38,7 @@ function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selec
   let tablePos = -1
 
   for (let depth = $anchor.depth; depth > 0; depth--) {
-    const nodeAtDepth = $anchor.node(depth) as ProseMirrorNode
+    const nodeAtDepth = $anchor.node(depth)
     if (isTableNode(nodeAtDepth)) {
       tableNode = nodeAtDepth
       tablePos = $anchor.before(depth)

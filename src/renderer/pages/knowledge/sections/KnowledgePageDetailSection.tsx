@@ -1,6 +1,5 @@
 import { PageSidePanel } from '@cherrystudio/ui'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
@@ -12,7 +11,6 @@ import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
 
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
-  const [dataSourceSearchQuery, setDataSourceSearchQuery] = useState('')
   const {
     selectedBase,
     selectedBaseId,
@@ -30,7 +28,14 @@ const KnowledgePageDetailSection = () => {
     openRestoreBaseDialog,
     deleteBase
   } = useKnowledgePage()
-  const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
+  const {
+    items: selectedBaseItems,
+    total: selectedBaseItemsTotal,
+    isLoading: isItemsLoading,
+    hasMore: hasMoreItems,
+    isLoadingMore: isLoadingMoreItems,
+    loadMore: loadMoreItems
+  } = useKnowledgeItems(selectedBaseId)
   const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -42,9 +47,6 @@ const KnowledgePageDetailSection = () => {
     <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <DetailHeader
         base={selectedBase}
-        itemCount={selectedBaseItems.length}
-        searchQuery={dataSourceSearchQuery}
-        onSearchChange={selectedItemId ? undefined : setDataSourceSearchQuery}
         onOpenRagConfig={openRagConfigDrawer}
         onOpenRecallTest={openRecallTestDrawer}
         onRenameBase={openRenameBaseDialog}
@@ -57,8 +59,12 @@ const KnowledgePageDetailSection = () => {
         ) : (
           <DataSourcePanel
             items={selectedBaseItems}
+            total={selectedBaseItemsTotal}
             isLoading={isItemsLoading}
-            searchQuery={dataSourceSearchQuery}
+            hasMore={hasMoreItems}
+            isLoadingMore={isLoadingMoreItems}
+            onLoadMore={loadMoreItems}
+            updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}
             onDelete={deleteItem}

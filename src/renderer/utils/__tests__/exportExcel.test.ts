@@ -1,6 +1,86 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseMarkdownTable } from '../exportExcel'
+import { exportTableToExcel, parseMarkdownTable } from '../exportExcel'
+
+const xlsxMock = vi.hoisted(() => {
+  const worksheet = {}
+  const workbook = {}
+  return {
+    aoaToSheet: vi.fn(() => worksheet),
+    bookAppendSheet: vi.fn(),
+    bookNew: vi.fn(() => workbook),
+    workbook,
+    worksheet,
+    write: vi.fn()
+  }
+})
+
+vi.mock('@e965/xlsx', () => ({
+  utils: {
+    aoa_to_sheet: xlsxMock.aoaToSheet,
+    book_append_sheet: xlsxMock.bookAppendSheet,
+    book_new: xlsxMock.bookNew
+  },
+  write: xlsxMock.write
+}))
+
+vi.mock('dayjs', () => ({
+  default: () => ({
+    format: () => '2026-06-01_010203'
+  })
+}))
+
+const fileApiMock = {
+  selectFolder: vi.fn(),
+  write: vi.fn()
+}
+
+describe('exportTableToExcel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    delete (xlsxMock.worksheet as Record<string, unknown>)['!cols']
+    xlsxMock.write.mockReturnValue([1, 2, 3])
+    fileApiMock.selectFolder.mockResolvedValue('/tmp/cherry-export')
+    fileApiMock.write.mockResolvedValue(undefined)
+
+    Object.assign(window, {
+      api: {
+        ...window.api,
+        file: {
+          ...window.api?.file,
+          selectFolder: fileApiMock.selectFolder,
+          write: fileApiMock.write
+        }
+      }
+    })
+  })
+
+  it('should export parsed table rows through @e965/xlsx', async () => {
+    const markdown = `| Name | Age |
+|------|-----|
+| Alice | 30 |
+| Bob | 25 |`
+
+    const result = await exportTableToExcel(markdown)
+
+    expect(result).toBe(true)
+    expect(xlsxMock.aoaToSheet).toHaveBeenCalledWith([
+      ['Name', 'Age'],
+      ['Alice', '30'],
+      ['Bob', '25']
+    ])
+    expect(xlsxMock.worksheet).toMatchObject({
+      '!cols': [{ wch: 10 }, { wch: 10 }]
+    })
+    expect(xlsxMock.bookNew).toHaveBeenCalledTimes(1)
+    expect(xlsxMock.bookAppendSheet).toHaveBeenCalledWith(xlsxMock.workbook, xlsxMock.worksheet, 'Sheet1')
+    expect(xlsxMock.write).toHaveBeenCalledWith(xlsxMock.workbook, { type: 'array', bookType: 'xlsx' })
+    expect(fileApiMock.write).toHaveBeenCalledWith(
+      '/tmp/cherry-export/table_2026-06-01_010203.xlsx',
+      new Uint8Array([1, 2, 3])
+    )
+  })
+})
 
 describe('parseMarkdownTable', () => {
   it('should parse standard markdown table', () => {

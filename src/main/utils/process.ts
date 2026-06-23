@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
+import type { GitBashPathInfo, GitBashPathSource } from '@shared/types/codeCli'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
