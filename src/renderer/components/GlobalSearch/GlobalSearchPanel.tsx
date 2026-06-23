@@ -55,6 +55,7 @@ import {
 import {
   getGlobalSearchFooterItemId,
   getGlobalSearchOptionDomId,
+  GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID,
   type GlobalSearchKeyboardItem,
   useGlobalSearchKeyboard
 } from './useGlobalSearchKeyboard'
@@ -330,6 +331,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
     useGlobalSearchKeyboard({
       groups,
+      hasMoreMessageResults,
       isMessageSearchMode,
       messageGroups,
       panelMode
@@ -553,6 +555,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     setPanelMode('message-search')
   }, [])
 
+  const handleLoadMoreMessageResults = useCallback(() => {
+    if (isLoadingMoreMessageResults) return
+    loadMoreMessageResults()
+  }, [isLoadingMoreMessageResults, loadMoreMessageResults])
+
   const openPanelItem = useCallback(
     async (item: GlobalSearchKeyboardItem) => {
       try {
@@ -656,13 +663,26 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         if (!item) return
         event.preventDefault()
         if (isMessageSearchMode) {
+          if (item.kind === 'message-load-more') {
+            handleLoadMoreMessageResults()
+            return
+          }
           openMessagePanelItem(item as GlobalMessageSearchPanelItem)
           return
         }
         void openPanelItem(item as GlobalSearchKeyboardItem)
       }
     },
-    [activeItemId, isMessageSearchMode, keyboardItems, moveActiveItem, onClose, openMessagePanelItem, openPanelItem]
+    [
+      activeItemId,
+      handleLoadMoreMessageResults,
+      isMessageSearchMode,
+      keyboardItems,
+      moveActiveItem,
+      onClose,
+      openMessagePanelItem,
+      openPanelItem
+    ]
   )
 
   const handleFilterSelect = useCallback((nextFilter: Exclude<GlobalSearchFilter, 'all'>) => {
@@ -695,7 +715,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const activeMessageRowIndex = useMemo(() => {
     if (!isMessageListboxVisible || !activeItemId) return undefined
 
-    return getGroupedVirtualListRowIndex(messageVirtualGroupsWithLoadMore, activeItemId, (item) => item.id)
+    return getGroupedVirtualListRowIndex(
+      messageVirtualGroupsWithLoadMore,
+      activeItemId,
+      (item) => item.id,
+      () => GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID
+    )
   }, [activeItemId, isMessageListboxVisible, messageVirtualGroupsWithLoadMore])
   const activeSearchRowIndex = useMemo(() => {
     if (!isSearchListboxVisible || !activeItemId) return undefined
@@ -743,20 +768,32 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             estimateGroupFooterSize={() => 48}
             className="pt-2 pb-2"
             renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
-            renderGroupFooter={() => (
-              <div className="h-12 px-5 pt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isLoadingMoreMessageResults}
-                  onClick={loadMoreMessageResults}
-                  className="h-8 w-full rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
-                  {isLoadingMoreMessageResults
-                    ? t('common.loading')
-                    : t('globalSearch.showMore', { count: messageLoadMoreCount })}
-                </Button>
-              </div>
-            )}
+            renderGroupFooter={() => {
+              const active = activeItemId === GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID
+
+              return (
+                <div className="h-12 px-5 pt-2">
+                  <Button
+                    type="button"
+                    id={getGlobalSearchOptionDomId(GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID)}
+                    role="option"
+                    aria-selected={active}
+                    aria-disabled={isLoadingMoreMessageResults}
+                    variant="ghost"
+                    disabled={isLoadingMoreMessageResults}
+                    onMouseEnter={() => setActiveItemId(GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID)}
+                    onClick={handleLoadMoreMessageResults}
+                    className={cn(
+                      'h-8 w-full rounded-[8px] font-medium text-xs hover:bg-muted/50 hover:text-foreground',
+                      active ? 'bg-muted/60 text-accent-foreground' : 'text-muted-foreground'
+                    )}>
+                    {isLoadingMoreMessageResults
+                      ? t('common.loading')
+                      : t('globalSearch.showMore', { count: messageLoadMoreCount })}
+                  </Button>
+                </div>
+              )
+            }}
             renderItem={(item) => (
               <GlobalMessageSearchRow
                 item={item}

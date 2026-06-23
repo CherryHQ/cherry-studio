@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type {
   GlobalMessageSearchPanelGroup,
+  GlobalMessageSearchPanelItem,
   GlobalSearchPanelGroup,
   GlobalSearchPanelGroupFooter,
   GlobalSearchPanelItem
@@ -24,6 +25,14 @@ export function getGlobalSearchFooterItemId(
   return `footer:${groupId}:${footer.kind}`
 }
 
+export const GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID = 'message-search:load-more'
+
+export type GlobalMessageSearchLoadMoreItem = {
+  kind: 'message-load-more'
+  id: typeof GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID
+}
+export type GlobalMessageSearchKeyboardItem = GlobalMessageSearchPanelItem | GlobalMessageSearchLoadMoreItem
+
 /** Stable DOM id for a listbox option, so the search input can reference it via `aria-activedescendant`. */
 export function getGlobalSearchOptionDomId(itemId: string) {
   return `global-search-option-${encodeURIComponent(itemId)}`
@@ -31,11 +40,13 @@ export function getGlobalSearchOptionDomId(itemId: string) {
 
 export function useGlobalSearchKeyboard({
   groups,
+  hasMoreMessageResults,
   isMessageSearchMode,
   messageGroups,
   panelMode
 }: {
   groups: readonly GlobalSearchPanelGroup[]
+  hasMoreMessageResults: boolean
   isMessageSearchMode: boolean
   messageGroups: readonly GlobalMessageSearchPanelGroup[]
   panelMode: GlobalSearchPanelMode
@@ -57,7 +68,14 @@ export function useGlobalSearchKeyboard({
     ])
   }, [groups, panelMode])
   const messageSelectableItems = useMemo(() => messageGroups.flatMap((group) => group.items), [messageGroups])
-  const keyboardItems = isMessageSearchMode ? messageSelectableItems : selectableItems
+  const messageKeyboardItems = useMemo<GlobalMessageSearchKeyboardItem[]>(
+    () =>
+      hasMoreMessageResults
+        ? [...messageSelectableItems, { kind: 'message-load-more', id: GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID }]
+        : messageSelectableItems,
+    [hasMoreMessageResults, messageSelectableItems]
+  )
+  const keyboardItems = isMessageSearchMode ? messageKeyboardItems : selectableItems
 
   useEffect(() => {
     if (keyboardItems.length === 0) {

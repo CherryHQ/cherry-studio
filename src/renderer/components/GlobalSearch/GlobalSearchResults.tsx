@@ -14,7 +14,7 @@ import {
   MousePointerClick,
   Sparkles
 } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type {
@@ -101,7 +101,9 @@ export function GlobalSearchGroupHeader({ group }: { group: GlobalSearchPanelGro
   const { t } = useTranslation()
 
   return (
-    <div className="flex h-7 items-center gap-1.5 px-5 pt-1 font-medium text-muted-foreground text-sm">
+    <div
+      role="presentation"
+      className="flex h-7 items-center gap-1.5 px-5 pt-1 font-medium text-muted-foreground text-sm">
       <span>{t(getGroupLabelKey(group.id))}</span>
       <span>·</span>
       <span>{group.total ?? group.items.length}</span>
@@ -231,7 +233,9 @@ export function GlobalMessageSearchGroupHeader({
       : 'globalSearch.messageSearch.sources.session'
 
   return (
-    <div className={cn('flex h-8 items-center gap-2 text-sm', inset === 'nested' ? 'px-8' : 'px-5')}>
+    <div
+      role="presentation"
+      className={cn('flex h-8 items-center gap-2 text-sm', inset === 'nested' ? 'px-8' : 'px-5')}>
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/50">
         <Icon className="size-3.5" />
       </span>
@@ -269,6 +273,7 @@ export function GlobalMessageSearchRow({
   onJump: () => void
 }) {
   const { t } = useTranslation()
+  const [isJumpActionVisible, setIsJumpActionVisible] = useState(false)
 
   if (item.kind === 'more') {
     return (
@@ -302,13 +307,18 @@ export function GlobalMessageSearchRow({
     event.stopPropagation()
     onJump()
   }
+  const handleMouseEnter = () => {
+    setIsJumpActionVisible(true)
+    onMouseEnter()
+  }
 
   return (
     <div
       id={getGlobalSearchOptionDomId(item.id)}
       role="option"
       aria-selected={active}
-      onMouseEnter={onMouseEnter}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setIsJumpActionVisible(false)}
       onClick={onOpen}
       className={cn(
         'group flex h-11 cursor-pointer items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
@@ -330,6 +340,8 @@ export function GlobalMessageSearchRow({
           <button
             type="button"
             aria-label={jumpLabel}
+            aria-hidden={!isJumpActionVisible}
+            tabIndex={isJumpActionVisible ? 0 : -1}
             title={jumpLabel}
             onClick={handleJumpClick}
             className="pointer-events-none absolute right-0 flex size-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-[background-color,color,opacity] hover:bg-accent hover:text-foreground group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">

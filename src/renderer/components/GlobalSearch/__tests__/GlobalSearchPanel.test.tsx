@@ -526,7 +526,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { GlobalSearchPanel } from '../GlobalSearchPanel'
-import { getGlobalSearchOptionDomId } from '../useGlobalSearchKeyboard'
+import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
 afterEach(() => {
   cleanup()
@@ -1120,11 +1120,24 @@ describe('GlobalSearchPanel', () => {
 
     expect(await screen.findByRole('option', { name: /needle first page/ })).toBeInTheDocument()
 
-    const loadMoreButton = screen.getByRole('button', { name: 'Show 50 more' })
+    const input = screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')
+    const loadMoreOption = screen.getByRole('option', { name: 'Show 50 more' })
 
-    expect(screen.getByRole('listbox')).toContainElement(loadMoreButton)
+    expect(loadMoreOption).toHaveAttribute('id', getGlobalSearchOptionDomId(GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID))
+    expect(screen.getByRole('listbox')).toContainElement(loadMoreOption)
 
-    await user.click(loadMoreButton)
+    await waitFor(() => {
+      expect(input).toHaveAttribute('aria-activedescendant', getGlobalSearchOptionDomId('topic:topic-1:message-page-1'))
+    })
+    mocks.virtualListScrollToIndex.mockClear()
+    input.focus()
+    await user.keyboard('{ArrowUp}')
+
+    await waitFor(() => {
+      expect(input).toHaveAttribute('aria-activedescendant', loadMoreOption.id)
+      expect(mocks.virtualListScrollToIndex).toHaveBeenLastCalledWith(2, { align: 'auto' })
+    })
+    await user.keyboard('{Enter}')
 
     await waitFor(() => {
       expect(mocks.useQuery).toHaveBeenCalledWith(
@@ -1488,6 +1501,9 @@ describe('GlobalSearchPanel', () => {
       'needle'
     )
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    const messageOption = await screen.findByRole('option', { name: /needle topic reply/ })
+    expect(screen.queryByRole('button', { name: 'Jump to message' })).not.toBeInTheDocument()
+    fireEvent.mouseEnter(messageOption)
     await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
@@ -1643,6 +1659,8 @@ describe('GlobalSearchPanel', () => {
       'needle'
     )
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    const messageOption = await screen.findByRole('option', { name: /needle session reply/ })
+    fireEvent.mouseEnter(messageOption)
     await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
@@ -1691,6 +1709,8 @@ describe('GlobalSearchPanel', () => {
       'needle'
     )
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    const messageOption = await screen.findByRole('option', { name: /needle session reply/ })
+    fireEvent.mouseEnter(messageOption)
     await user.click(await screen.findByRole('button', { name: 'Jump to message' }))
 
     await waitFor(() => {

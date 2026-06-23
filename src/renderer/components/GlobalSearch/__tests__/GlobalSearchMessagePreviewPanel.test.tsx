@@ -412,26 +412,44 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     expect(scroller.scrollTop).toBe(600)
   })
 
-  it('keeps loaded preview messages visible when loading older messages fails', async () => {
-    mocks.topicError = new Error('older page failed')
+  it('keeps loaded preview messages visible and allows retry when loading older messages fails', async () => {
+    mocks.topicHasNext = true
 
-    render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'topic',
-          topicId: 'topic-1',
-          title: 'Topic A',
-          messageId: 'topic-message-2'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    const props = {
+      searchQuery: 'needle',
+      target: {
+        sourceType: 'topic' as const,
+        topicId: 'topic-1',
+        title: 'Topic A',
+        messageId: 'topic-message-2'
+      },
+      onClose: mocks.onClose,
+      onOpenMessage: mocks.onOpenMessage
+    }
+    const { container, rerender } = render(<GlobalSearchMessagePreviewPanel {...props} />)
 
     expect(await screen.findByText('message-content:topic-message-1')).toBeInTheDocument()
     expect(screen.getByText('message-content:topic-message-2')).toBeInTheDocument()
+    const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
+
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4000 })
+    fireEvent.scroll(scroller)
+    expect(mocks.topicLoadNext).toHaveBeenCalledTimes(1)
+
+    mocks.topicIsRefreshing = true
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4020 })
+    rerender(<GlobalSearchMessagePreviewPanel {...props} />)
+
+    mocks.topicIsRefreshing = false
+    mocks.topicError = new Error('older page failed')
+    setScrollGeometry(scroller, { scrollTop: 20, scrollHeight: 4020 })
+    rerender(<GlobalSearchMessagePreviewPanel {...props} />)
+
     expect(screen.getByRole('alert')).toHaveTextContent('Search failed')
+
+    setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4020 })
+    fireEvent.scroll(scroller)
+    expect(mocks.topicLoadNext).toHaveBeenCalledTimes(2)
   })
 
   it('cancels a pending active-message auto-scroll frame on unmount', async () => {
