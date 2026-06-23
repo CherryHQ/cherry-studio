@@ -12,20 +12,20 @@ interface Props {
   children?: React.ReactNode
   searchTarget: React.RefObject<React.ReactNode> | React.RefObject<HTMLElement> | HTMLElement
   /**
-   * 过滤`node`，`node`只会是`Node.TEXT_NODE`类型的文本节点
+   * Filter `node`; it is always a `Node.TEXT_NODE` text node.
    *
-   * 返回`true`表示该`node`会被搜索
+   * Return `true` to include the node in search.
    */
   filter: NodeFilter
   includeUser?: boolean
   onIncludeUserChange?: (value: boolean) => void
   /**
-   * 是否显示“包含用户问题”切换按钮（默认为 true）。
-   * 在富文本编辑器场景通常不需要该按钮。
+   * Whether to show the "include user question" toggle (default: true).
+   * Rich text editor surfaces usually do not need this button.
    */
   showUserToggle?: boolean
   /**
-   * 搜索条定位方式
+   * Search bar positioning mode.
    */
   positionMode?: 'fixed' | 'absolute' | 'sticky'
 }
@@ -38,13 +38,13 @@ enum SearchCompletedState {
 export interface ContentSearchRef {
   disable(): void
   enable(initialText?: string): void
-  // 搜索下一个并定位
+  // Search next and scroll into view.
   searchNext(): void
-  // 搜索上一个并定位
+  // Search previous and scroll into view.
   searchPrev(): void
-  // 搜索并定位
+  // Search and scroll into view.
   search(): void
-  // 搜索但不定位，或者说是更新
+  // Search without scrolling, used for updates.
   silentSearch(): void
   focus(): void
 }
@@ -65,10 +65,10 @@ const findRangesInTarget = (
 
   const escapedSearchText = escapeRegExp(searchText)
 
-  // 检查搜索文本是否仅包含拉丁字母
+  // Check whether the search text contains only Latin letters.
   const hasOnlyLatinLetters = /^[a-zA-Z\s]+$/.test(searchText)
 
-  // 只有当搜索文本仅包含拉丁字母时才应用大小写敏感
+  // Apply case sensitivity only when the search text contains only Latin letters.
   const regexFlags = hasOnlyLatinLetters && isCaseSensitive ? 'g' : 'gi'
   const regexPattern = isWholeWord ? `\\b${escapedSearchText}\\b` : escapedSearchText
   const searchRegex = new RegExp(regexPattern, regexFlags)
@@ -76,7 +76,7 @@ const findRangesInTarget = (
   const allTextNodes: { node: Node; startOffset: number }[] = []
   let fullText = ''
 
-  // 1. 拼接所有文本节点内容
+  // 1. Concatenate all text node content.
   while (treeWalker.nextNode()) {
     allTextNodes.push({
       node: treeWalker.currentNode,
@@ -85,19 +85,19 @@ const findRangesInTarget = (
     fullText += treeWalker.currentNode.nodeValue
   }
 
-  // 2.在完整文本中查找匹配项
+  // 2. Find matches in the full text.
   let match: RegExpExecArray | null = null
   while ((match = searchRegex.exec(fullText))) {
     const matchStart = match.index
     const matchEnd = matchStart + match[0].length
 
-    // 3. 将匹配项的索引映射回DOM Range
+    // 3. Map match indexes back to DOM ranges.
     let startNode: Node | null = null
     let endNode: Node | null = null
     let startOffset = 0
     let endOffset = 0
 
-    // 找到起始节点和偏移
+    // Find the start node and offset.
     for (const nodeInfo of allTextNodes) {
       if (
         matchStart >= nodeInfo.startOffset &&
@@ -109,7 +109,7 @@ const findRangesInTarget = (
       }
     }
 
-    // 找到结束节点和偏移
+    // Find the end node and offset.
     for (const nodeInfo of allTextNodes) {
       if (
         matchEnd > nodeInfo.startOffset &&
@@ -121,7 +121,7 @@ const findRangesInTarget = (
       }
     }
 
-    // 如果起始和结束节点都找到了，则创建一个 Range
+    // Create a range when both start and end nodes are found.
     if (startNode && endNode) {
       const range = new Range()
       range.setStart(startNode, startOffset)
@@ -169,25 +169,25 @@ export function ContentSearch({
 
   const locateByIndex = useCallback(
     (shouldScroll = true) => {
-      // 清理旧的高亮
+      // Clear previous highlights.
       CSS.highlights.clear()
 
       if (allRanges.length > 0) {
-        // 1. 创建并注册所有匹配项的高亮
+        // 1. Create and register highlights for all matches.
         const allMatchesHighlight = new Highlight(...allRanges)
         CSS.highlights.set('search-matches', allMatchesHighlight)
 
-        // 2. 如果有当前项，为其创建并注册一个特殊的高亮
+        // 2. Create and register a special highlight for the current match.
         if (currentIndex !== -1 && allRanges[currentIndex]) {
           const currentMatchRange = allRanges[currentIndex]
           const currentMatchHighlight = new Highlight(currentMatchRange)
           CSS.highlights.set('current-match', currentMatchHighlight)
 
-          // 3. 将当前项滚动到视图中
-          // 获取第一个文本节点的父元素来进行滚动
+          // 3. Scroll the current match into view.
+          // Use the first text node's parent element for scrolling.
           const parentElement = currentMatchRange.startContainer.parentElement
           if (shouldScroll && parentElement) {
-            // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来"跳到第一条"
+            // Prefer the provided scroll container to avoid page-level jumps.
             scrollElementIntoView(parentElement, target)
           }
         }

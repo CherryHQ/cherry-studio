@@ -331,14 +331,6 @@ vi.mock('@cherrystudio/ui', () => {
         badge,
         shortcut ? React.createElement('span', null, shortcut) : null
       ),
-    ContextMenuItemContent: ({ badge, children, icon, shortcut, ...props }) =>
-      React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('span', { ...props }, icon, children),
-        badge,
-        shortcut ? React.createElement('span', null, shortcut) : null
-      ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
     ContextMenuSub: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'context-menu-sub' }, children),

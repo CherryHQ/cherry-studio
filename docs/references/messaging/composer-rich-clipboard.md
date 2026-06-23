@@ -6,8 +6,8 @@ composer.
 
 ## Goals
 
-- Preserve composer tokens across internal copy/paste for `skill`, `knowledge`,
-  `file`, `quote`, and `promptVariable` content.
+- Preserve composer tokens across internal copy/paste for `skill`, `file`,
+  `command`, `knowledge`, `reference`, `quote`, and `promptVariable` content.
 - Keep regular clipboard behavior useful outside Cherry Studio through
   `text/plain` and `text/html`.
 - Never expose unsanitized token JSON, parseable composer token metadata in
@@ -76,6 +76,8 @@ markers.
 
 - `skill` and `knowledge` tokens are restored only through the current surface's
   resolver, so Chat and Agent keep their existing token ownership boundaries.
+- `reference` tokens, plus any private token kind without a restore rule such as
+  `command`, fall back to visible text.
 - `file` tokens are restored only when the private payload has a handle that
   resolves in the current renderer session's restoration context. Restored files
   are deduplicated by `id:path`.
@@ -123,6 +125,6 @@ Use focused checks for this feature instead of full-suite runs during local
 iteration:
 
 ```bash
-pnpm vitest run src/renderer/components/chat/composer/__tests__/ComposerSurface.test.tsx src/renderer/utils/messageUtils/__tests__/composerClipboard.test.ts
-pnpm vitest run src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx src/renderer/components/chat/messages/utils/__tests__/messageSelection.test.ts src/renderer/pages/shared/messages/hooks/__tests__/useMessagePlatformActions.test.tsx src/renderer/pages/shared/messages/hooks/__tests__/useMessageSelectionController.test.tsx
+pnpm vitest run src/renderer/components/chat/composer/__tests__/ComposerSurface.test.tsx src/renderer/utils/message/__tests__/composerClipboard.test.ts
+pnpm vitest run src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx src/renderer/components/chat/messages/utils/__tests__/messageSelection.test.ts src/renderer/components/chat/messages/hooks/__tests__/useMessagePlatformActions.test.tsx src/renderer/components/chat/messages/hooks/__tests__/useMessageSelectionController.test.tsx
 ```

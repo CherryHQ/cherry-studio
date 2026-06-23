@@ -57,9 +57,9 @@ interface Props {
 }
 
 /**
- * @description 快捷面板内容视图;
- * 请不要往这里添加入参，避免耦合;
- * 这里只读取来自上下文QuickPanelContext的数据
+ * @description Quick panel content view.
+ * Avoid adding props here to keep coupling low.
+ * This component reads data only from QuickPanelContext.
  */
 export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const ctx = use(QuickPanelContext)
@@ -76,7 +76,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
 
-  // 避免上下翻页时，鼠标干扰
+  // Prevent the mouse from interfering during page up/down navigation.
   const [isMouseOver, setIsMouseOver] = useState(false)
 
   const scrollTriggerRef = useRef<QuickPanelScrollTrigger>('initial')
@@ -101,17 +101,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const activeSearchText = isTrackedInputPanel ? inputSearchText : ''
   const activeSearchQuery = getInputQueryText(activeSearchText, inputTriggerSymbol)
 
-  // 缓存：按 item 缓存拼音文本，避免重复转换
+  // Cache pinyin text by item to avoid repeated conversion.
   const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
 
-  // 跟踪上一次的搜索文本和符号，用于判断是否需要重置index
+  // Track the previous search text and symbol to decide whether to reset index.
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
 
   // Use injected filter and sort functions, or fall back to defaults
   const filterFn = ctx.filterFn || defaultFilterFn
   const sortFn = ctx.sortFn || defaultSortFn
-  // 处理搜索，过滤列表（始终保留 alwaysVisible 项在顶部）
+  // Handle search and filtering while keeping alwaysVisible items at the top.
   const list = useMemo(() => {
     // Reset stale state when panel fully closes (both isVisible false AND symbol cleared)
     if (!ctx.isVisible && !ctx.symbol) {
@@ -132,7 +132,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       .join('.*')
     const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
 
-    // 拆分：固定显示项（不参与过滤）与普通项
+    // Split pinned items (not filtered) from regular items.
     const pinnedItems = baseList.filter((item) => item.alwaysVisible)
     const normalItems = baseList.filter((item) => !item.alwaysVisible)
 
@@ -144,7 +144,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     // Sort filtered items using injected sort function
     const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
-    // 固定项置顶 + 排序后的普通项
+    // Pinned items first, followed by sorted regular items.
     return [...pinnedItems, ...sortedNormalItems]
   }, [
     ctx.isVisible,
@@ -200,14 +200,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    // 只有在搜索文本变化或面板符号变化时才重置index
+    // Reset index only when the search text or panel symbol changes.
     const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
       setActiveIndex(firstQuickPanelSelectableIndex(list))
     } else {
-      // 如果当前index超出范围，调整到有效范围内
+      // Clamp the current index into the valid range.
       setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
     }
 
@@ -305,12 +305,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
       const panelGenerationBeforeAction = ctx.getPanelGeneration()
 
-      // 在多选模式下，先更新选中状态
+      // In multi-select mode, update selection state first.
       if (ctx.multiple && !item.isMenu) {
         const newSelectedState = !item.isSelected
         ctx.updateItemSelection(item, newSelectedState)
 
-        // 创建更新后的item对象用于回调
+        // Create the updated item object for callbacks.
         const updatedItem = { ...item, isSelected: newSelectedState }
         const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
           context: ctx,
@@ -354,7 +354,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         return
       }
 
-      // 多选模式下不关闭面板
+      // Keep the panel open in multi-select mode.
       if (ctx.multiple) return
 
       if (ctx.getPanelGeneration() !== panelGenerationBeforeAction) {
@@ -605,7 +605,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             return false
           }
 
-          // 折叠/软隐藏时也要拦截，避免把查询输入当作发送消息。
+          // Intercept while collapsed/soft-hidden so query input is not sent as a message.
           const hasSearch = activeSearchQuery.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
@@ -616,8 +616,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             return true
           }
 
-          // 面板可见且未折叠时：拦截所有 Enter 变体；
-          // 纯 Enter 选择项，带修饰键仅拦截不处理
+          // When visible and not collapsed, intercept every Enter variant.
+          // Plain Enter selects an item; modified Enter is only intercepted.
           if (e.ctrlKey || e.metaKey || e.altKey) {
             e.preventDefault()
             e.stopPropagation()
@@ -768,7 +768,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   }, [ctx.isVisible, ctx.fillToAvailableHeight])
 
   const hasSearchText = useMemo(() => activeSearchQuery.length > 0, [activeSearchQuery])
-  // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
+  // Collapse is based only on regular matches. Pinned-only results still count as no match.
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
   // Read-only panels keep the original fixed height to avoid header offset changes.
