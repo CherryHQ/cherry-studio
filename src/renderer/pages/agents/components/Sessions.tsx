@@ -11,9 +11,8 @@ import {
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  remapResourceListExpandedGroupIds,
+  remapResourceListCollapsedGroupIds,
   ResourceList,
-  type ResourceListExpansionState,
   type ResourceListGroup,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
@@ -594,22 +593,22 @@ const Sessions = ({
     }
   }, [displayMode, t])
 
-  const expandedSessionState = useMemo(() => {
+  const collapsedSessionState = useMemo(() => {
     if (displayMode !== 'workdir') {
       return sessionExpansion
     }
 
-    return remapResourceListExpandedGroupIds(sessionExpansion, (groupId) => {
+    return remapResourceListCollapsedGroupIds(sessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
   }, [displayMode, sessionExpansion, workdirDisplay])
 
-  const handleSessionExpansionStateChange = useCallback(
-    (nextState: ResourceListExpansionState) => {
-      if (displayMode === 'agent') setSessionExpansionAgent(nextState)
-      else if (displayMode === 'workdir') setSessionExpansionWorkdir(nextState)
-      else setSessionExpansionTime(nextState)
+  const handleSessionCollapsedStateChange = useCallback(
+    (nextCollapsedIds: string[]) => {
+      if (displayMode === 'agent') setSessionExpansionAgent(nextCollapsedIds)
+      else if (displayMode === 'workdir') setSessionExpansionWorkdir(nextCollapsedIds)
+      else setSessionExpansionTime(nextCollapsedIds)
     },
     [displayMode, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
@@ -1369,7 +1368,7 @@ const Sessions = ({
       selectedId={activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
-      expandedState={expandedSessionState}
+      collapsedState={collapsedSessionState}
       revealRequest={revealRequest}
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
@@ -1395,7 +1394,7 @@ const Sessions = ({
       onRenameItem={handleRenameSession}
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
-      onExpandedStateChange={handleSessionExpansionStateChange}>
+      onCollapsedStateChange={handleSessionCollapsedStateChange}>
       <ResourceList.Header className="gap-1">
         <ResourceList.HeaderItem
           type="button"

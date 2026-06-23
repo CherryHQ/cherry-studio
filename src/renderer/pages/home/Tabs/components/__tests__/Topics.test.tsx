@@ -332,35 +332,30 @@ import {
 const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
 const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'
 
-const DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS: string[] = []
-const DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS = [
+// The full set of collapsible time groups; the stored cache is a flat list of
+// the ones the user explicitly collapsed (denylist). Empty = everything expanded.
+const ALL_TOPIC_TIME_GROUP_IDS = [
   TOPIC_PINNED_GROUP_ID,
   'topic:time:today',
   'topic:time:yesterday',
   'topic:time:this-week',
   'topic:time:earlier'
 ]
-const DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS = [TOPIC_PINNED_SECTION_ID, TOPIC_ASSISTANT_SECTION_ID]
-const DEFAULT_EXPANDED_TOPIC_ASSISTANT_GROUP_IDS = [
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-  'topic:assistant:assistant-1',
-  'topic:assistant:assistant-2'
-]
 
-function createExpandedTopicGroupExpansionFixture() {
+type TopicGroupCollapseFixture = {
+  time: string[]
+  assistant: string[]
+}
+
+// Default fixture: nothing collapsed (everything expanded).
+function createExpandedTopicGroupExpansionFixture(): TopicGroupCollapseFixture {
   return {
-    time: {
-      expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS],
-      expandedGroupIds: [...DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS]
-    },
-    assistant: {
-      expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
-      expandedGroupIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_GROUP_IDS]
-    }
+    time: [],
+    assistant: []
   }
 }
 
-function setTopicGroupExpansionCache(value: ReturnType<typeof createExpandedTopicGroupExpansionFixture>) {
+function setTopicGroupExpansionCache(value: TopicGroupCollapseFixture) {
   cacheHookMocks.values.set(TOPIC_EXPANSION_TIME_KEY, value.time)
   cacheHookMocks.values.set(TOPIC_EXPANSION_ASSISTANT_KEY, value.assistant)
 }
@@ -369,7 +364,7 @@ function getTopicGroupExpansionCache() {
   return {
     time: cacheHookMocks.values.get(TOPIC_EXPANSION_TIME_KEY),
     assistant: cacheHookMocks.values.get(TOPIC_EXPANSION_ASSISTANT_KEY)
-  } as ReturnType<typeof createExpandedTopicGroupExpansionFixture>
+  } as TopicGroupCollapseFixture
 }
 
 function createApiTopic(overrides: Partial<ApiTopic> = {}) {
@@ -1244,7 +1239,7 @@ describe('Topics', () => {
     expect(collapseAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-down-up')
     fireEvent.click(collapseAllButton)
     await vi.waitFor(() => {
-      expect(getTopicGroupExpansionCache().assistant.expandedGroupIds).not.toEqual(
+      expect(getTopicGroupExpansionCache().assistant).toEqual(
         expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
       )
     })
@@ -1254,10 +1249,8 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha topic 1')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta topic 1')).not.toBeInTheDocument()
-    expect(getTopicGroupExpansionCache().assistant.expandedSectionIds).toEqual(
-      expect.arrayContaining([TOPIC_ASSISTANT_SECTION_ID])
-    )
-    expect(getTopicGroupExpansionCache().assistant.expandedGroupIds).not.toEqual(
+    expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
+    expect(getTopicGroupExpansionCache().assistant).toEqual(
       expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
     )
 
@@ -1366,14 +1359,12 @@ describe('Topics', () => {
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
-  it('restores and persists expanded topic groups from cache', () => {
+  it('restores and persists collapsed topic groups from cache', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
-      time: {
-        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS],
-        expandedGroupIds: ['topic:time:today']
-      }
+      // Collapse everything except "today".
+      time: ALL_TOPIC_TIME_GROUP_IDS.filter((id) => id !== 'topic:time:today')
     })
 
     const { rerenderTopicList } = renderTopicList()
@@ -1384,13 +1375,13 @@ describe('Topics', () => {
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
-    expect(getTopicGroupExpansionCache().time.expandedGroupIds).toEqual([])
+    expect(getTopicGroupExpansionCache().time).toContain('topic:time:today')
     rerenderTopicList()
     expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
-    expect(getTopicGroupExpansionCache().time.expandedGroupIds).toEqual(['topic:pinned'])
+    expect(getTopicGroupExpansionCache().time).not.toContain('topic:pinned')
     rerenderTopicList()
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
@@ -1469,10 +1460,8 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
-      time: {
-        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS],
-        expandedGroupIds: ['topic:time:today']
-      }
+      // Collapse everything except "today".
+      time: ALL_TOPIC_TIME_GROUP_IDS.filter((id) => id !== 'topic:time:today')
     })
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1607,10 +1596,8 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
-      assistant: {
-        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
-        expandedGroupIds: []
-      }
+      // Collapse all assistant groups; sections stay expanded.
+      assistant: [TOPIC_UNLINKED_ASSISTANT_GROUP_ID, 'topic:assistant:assistant-1', 'topic:assistant:assistant-2']
     })
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -1740,10 +1727,11 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
-    expect(getTopicGroupExpansionCache().assistant.expandedSectionIds).toEqual([
-      ...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS
-    ])
-    expect(getTopicGroupExpansionCache().assistant.expandedGroupIds).toEqual(['topic:assistant:assistant-1'])
+    // Sections stay expanded; expanding Alpha removes it from the collapsed list.
+    expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_PINNED_SECTION_ID)
+    expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
+    expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
@@ -1886,7 +1874,7 @@ describe('Topics', () => {
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(getTopicGroupExpansionCache().assistant.expandedGroupIds).toContain('topic:assistant:assistant-2')
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
 
     rerenderTopicList(
       undefined,
@@ -1898,7 +1886,7 @@ describe('Topics', () => {
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
-    expect(getTopicGroupExpansionCache().assistant.expandedGroupIds).not.toContain('topic:assistant:assistant-2')
+    expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')
 
     rerenderTopicList(
       undefined,
@@ -1980,14 +1968,12 @@ describe('Topics', () => {
     })
   })
 
-  it('persists assistant group expansion state without affecting time groups', () => {
+  it('persists assistant group collapse without affecting time groups', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
-      assistant: {
-        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
-        expandedGroupIds: ['topic:assistant:assistant-2']
-      }
+      // Collapse assistant-1; assistant-2 stays expanded.
+      assistant: ['topic:assistant:assistant-1']
     })
 
     renderTopicList()
@@ -1998,10 +1984,10 @@ describe('Topics', () => {
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
-    expect(getTopicGroupExpansionCache().assistant.expandedGroupIds).toEqual(
-      expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
-    )
-    expect(getTopicGroupExpansionCache().time.expandedGroupIds).toEqual(DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS)
+    // Expanding Alpha clears the assistant collapse list; time groups stay untouched.
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
+    expect(getTopicGroupExpansionCache().time).toEqual([])
   })
 
   it('persists assistant group reorder and applies the assistant order optimistically', async () => {

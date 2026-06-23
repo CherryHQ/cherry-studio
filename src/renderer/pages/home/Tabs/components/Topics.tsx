@@ -8,7 +8,6 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
-  type ResourceListExpansionState,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -883,11 +882,11 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
     [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
   )
 
-  const expandedTopicState = topicExpansion
-  const handleTopicExpansionStateChange = useCallback(
-    (nextState: ResourceListExpansionState) => {
-      if (isAssistantDisplayMode) setTopicExpansionAssistant(nextState)
-      else setTopicExpansionTime(nextState)
+  const collapsedTopicState = topicExpansion
+  const handleTopicCollapsedStateChange = useCallback(
+    (nextCollapsedIds: string[]) => {
+      if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
+      else setTopicExpansionTime(nextCollapsedIds)
     },
     [isAssistantDisplayMode, setTopicExpansionAssistant, setTopicExpansionTime]
   )
@@ -1038,7 +1037,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
         selectedId={activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
-        expandedState={expandedTopicState}
+        collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
@@ -1061,7 +1060,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
         onRenameItem={handleRenameTopic}
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
-        onExpandedStateChange={handleTopicExpansionStateChange}>
+        onCollapsedStateChange={handleTopicCollapsedStateChange}>
         <ResourceList.Header className="gap-1">
           <ResourceList.HeaderItem
             type="button"

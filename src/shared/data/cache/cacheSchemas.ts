@@ -310,16 +310,17 @@ export type RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': number
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
-  // Sidebar section/group expansion — one fixed key per display mode so toggling a group in one
+  // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
-  'ui.topic.expansion.time': CacheValueTypes.ResourceListExpansionCacheState
-  'ui.topic.expansion.assistant': CacheValueTypes.ResourceListExpansionCacheState
+  // Stores the flat list of collapsed section/group ids; empty = everything expanded.
+  'ui.topic.expansion.time': string[]
+  'ui.topic.expansion.assistant': string[]
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
-  'ui.agent.session.expansion.time': CacheValueTypes.ResourceListExpansionCacheState
-  'ui.agent.session.expansion.agent': CacheValueTypes.ResourceListExpansionCacheState
-  'ui.agent.session.expansion.workdir': CacheValueTypes.ResourceListExpansionCacheState
+  'ui.agent.session.expansion.time': string[]
+  'ui.agent.session.expansion.agent': string[]
+  'ui.agent.session.expansion.workdir': string[]
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -338,41 +339,14 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
-  'ui.topic.expansion.time': {
-    expandedGroupIds: [
-      'topic:pinned',
-      'topic:time:today',
-      'topic:time:yesterday',
-      'topic:time:this-week',
-      'topic:time:earlier'
-    ],
-    expandedSectionIds: []
-  },
-  'ui.topic.expansion.assistant': {
-    expandedGroupIds: [],
-    expandedSectionIds: ['topic:section:pinned', 'topic:section:assistant']
-  },
+  'ui.topic.expansion.time': [],
+  'ui.topic.expansion.assistant': [],
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
-  'ui.agent.session.expansion.time': {
-    expandedGroupIds: [
-      'session:pinned',
-      'session:time:today',
-      'session:time:yesterday',
-      'session:time:this-week',
-      'session:time:earlier'
-    ],
-    expandedSectionIds: []
-  },
-  'ui.agent.session.expansion.agent': {
-    expandedGroupIds: [],
-    expandedSectionIds: ['session:section:pinned', 'session:section:agent']
-  },
-  'ui.agent.session.expansion.workdir': {
-    expandedGroupIds: [],
-    expandedSectionIds: ['session:section:pinned', 'session:section:workdir', 'session:section:no-project']
-  },
+  'ui.agent.session.expansion.time': [],
+  'ui.agent.session.expansion.agent': [],
+  'ui.agent.session.expansion.workdir': [],
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
