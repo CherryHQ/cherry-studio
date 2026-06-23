@@ -1,41 +1,43 @@
 {
-  "generated_at": "2026-06-22T00:00:00Z",
-  "snapshot_date": "2026-06-22",
-  "v2_status": "v2 branch merged into main — active page-carve sprint in progress (DeJeune)",
+  "generated_at": "2026-06-23T17:00:00Z",
+  "snapshot_date": "2026-06-23",
+  "v2_status": "v2 branch merged into main — active v2 page-carve sprint (8 PRs in review since Jun 21) + new migration window redesign",
   "pr_pipeline": {
-    "open_to_main": 86,
-    "open_to_v1": 12,
-    "open_to_feat_chat_page": 2,
+    "open_to_main": 81,
+    "open_to_v1": 19,
     "open_to_v2": 0,
-    "draft_prs": 8,
-    "prs_14d_no_activity": 27,
-    "prs_30d_no_activity": 0
+    "total_open": 250,
+    "fresh_prs_lt7d": 38,
+    "stale_prs_gt30d": 14,
+    "zombie_prs_gt90d": 4
   },
   "v2_page_carve_sprint": {
-    "description": "DeJeune opened 8 page-carve PRs on 2026-06-21 bringing v2 pages onto main as additive/dormant code",
+    "description": "DeJeune opened 8 page-carve PRs on 2026-06-21 bringing v2 pages onto main as additive/dormant code. All 8 remain in review as of 2026-06-23.",
     "prs_open": [
-      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main", "status": "open"},
-      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main", "status": "open"},
-      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main", "status": "open"},
-      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main", "status": "open"},
-      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main", "status": "open"},
-      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main", "status": "open"},
-      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main", "status": "open"},
-      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)", "status": "open"}
+      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main", "status": "open", "opened": "2026-06-21"},
+      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)", "status": "open", "opened": "2026-06-21"}
     ],
     "prs_merged_recently": [
-      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "merged": "2026-06-21", "author": "DeJeune"}
+      {"number": 16229, "title": "feat(chat): carve the v2 message renderer onto the foundation layer", "merged": "2026-06-21", "author": "DeJeune"},
+      {"number": 16104, "title": "refactor(ui): v2 UI overhaul — design system, focus-aware shell, settings", "merged": "2026-06-16", "author": "Raymond8196"}
     ]
   },
-  "active_draft_features": [
-    {"number": 16208, "title": "feat(ai-video): video generation for custom providers on the job system", "status": "draft"},
-    {"number": 16190, "title": "feat(library): add open-folder action for skills in management page", "status": "draft"},
-    {"number": 16164, "title": "feat: add Claude (Anthropic) conversation import support", "status": "draft"},
-    {"number": 15988, "title": "feat(ai-params): context-build — truncate tool results + history compression", "status": "draft"},
-    {"number": 15960, "title": "fix(settings): align initial language selector with active UI language", "status": "draft"},
-    {"number": 15806, "title": "fix(code-tools): filter out providers without enabled API keys", "status": "draft"},
-    {"number": 15719, "title": "feat(excel-word-preview): reintroduce main-process previews", "status": "draft"},
-    {"number": 15520, "title": "fix(privacy): update policy and data collection defaults", "status": "draft"}
+  "new_prs_today_jun23": [
+    {"number": 16318, "title": "feat(message-snapshot): per-message snapshot of producing entities", "author": "DeJeune", "status": "open"},
+    {"number": 16316, "title": "fix(file): read legacy .xls and macro-enabled .xlsm via SheetJS", "status": "open"},
+    {"number": 16315, "title": "fix(paintings): improve generated image preview interactions", "status": "open"},
+    {"number": 16314, "title": "feat(migration-v2-window): redesign V2 migration window", "status": "open"},
+    {"number": 16312, "title": "feat(painting-tool): expose image generation as an agent/chat tool", "status": "open"},
+    {"number": 16311, "title": "fix(painting): omit request size for the 'auto' sentinel", "status": "open"},
+    {"number": 16310, "title": "refactor(paths): route main-process service paths through application.getPath", "status": "open"},
+    {"number": 16309, "title": "feat(rich-editor): add diagram preview rendering in code blocks", "status": "open"},
+    {"number": 16308, "title": "feat(knowledge): recover knowledge bases that lose their embedding model", "status": "open"}
   ],
   "milestones": {
     "v2_4_0": {
@@ -44,31 +46,30 @@
       "open_issues": 20,
       "closed_issues": 3,
       "p1_issues": [14899],
-      "note": "Unified Notification Center (#14899) is a P1 planned feature for this milestone (46 days old, not yet started)"
+      "note": "Unified Notification Center (#14899) is a P1 planned feature for this milestone (47 days old, not yet started)"
     }
   },
   "v1_maintenance": {
-    "open_prs": 12,
-    "top_contributors": ["Raymond8196", "DeJeune", "404-Page-Found"],
+    "open_prs": 19,
     "note": "v1 branch receives hotfixes only; forward-port to main required if bug exists there too"
   },
   "recent_merged_themes_30d": [
-    "feat(chat): v2 message renderer foundation (DeJeune, 2026-06-21)",
-    "feat(ui-markdown): simplify markdown imports (eeee0717)",
-    "chore(pnpm): migrate to pnpm 11 (kangfenmao)",
-    "feat(llm-provider): new providers (Commonstack, others)",
-    "feat(paintings): painting page refactor with usePaintingPage hook",
-    "feat(api): Zod validation schemas, rate limiting middleware",
-    "feat(stats): conversation usage statistics dashboard",
-    "feat(export): self-contained HTML conversation export",
-    "feat(onboarding): simplified setup flow",
-    "feat(notes): redesigned sidebar and navbar",
-    "feat(tabs): middle-click and double-click close",
-    "perf(messages): React.memo + useDeferredValue optimization",
-    "fix(mcp): clean up stale MCP references on server delete",
-    "fix(models): regex for versioned GPT image models",
-    "fix(mini-apps): hide global MiniMax Agent in CN region",
-    "fix(data): normalize backslash paths from cross-platform backup restore"
+    "feat(message-snapshot): per-message producing entity capture (DeJeune, in review)",
+    "chore(chat-page): scaffold chat component tree — PR #14997 merged Jun 23 (DeJeune)",
+    "feat(data-api): per-topic virtual-root message tree — PR #15951 merged Jun 17",
+    "feat(ai-runtime): agent runtime warm sessions + Claude MCP tool runtime — PR #15939 merged Jun 15",
+    "feat(agent-data): agent resource API + agent workspace DataApi workflow — PR #15941 merged Jun 11",
+    "feat(ai-trace): trace capture + container trace DataApi + chat trace pane — PR #15942 merged Jun 11",
+    "refactor(ui): v2 UI overhaul — design system, focus-aware shell (Raymond8196)",
+    "feat(claude-code): agent-only Claude Code provider reusing CLI login",
+    "feat(knowledge): custom chunk strategy and separator",
+    "feat(read-file): agentic read_file tool for chat attachments",
+    "feat(painting-tool): image generation as agent/chat tool",
+    "fix(agents): skip unreachable MCP servers during agent startup (#16245 — closes #16242)",
+    "fix(claude-code): skip stale system proxy in agent subprocess env (#16252 — closes #16016)",
+    "fix(renderer-app-shell): preserve pinned tab state across detach roundtrip",
+    "feat: support audio file attachments",
+    "feat: Arabic RTL support"
   ],
   "data_layer_migration": {
     "status": "in_progress",
@@ -77,11 +78,24 @@
     "note": "v2 data layer coexists with v1; migration via src/main/data/migration/v2/"
   },
   "top_contributors_30d": [
-    {"login": "DeJeune", "merged_prs": 27, "open_prs": 12, "focus": "v2 chat renderer, page-carve sprint"},
-    {"login": "eeee0717", "merged_prs": 15, "focus": "knowledge v2, markdown"},
-    {"login": "kangfenmao", "merged_prs": 10, "focus": "toolchain, misc fixes"},
-    {"login": "AtomsH4", "merged_prs": 9, "focus": "various features"},
-    {"login": "Pleasurecruise", "merged_prs": 6, "focus": "various"},
-    {"login": "ousugo", "merged_prs": 6, "open_prs": 5, "focus": "various"}
-  ]
+    {"login": "DeJeune", "merged_prs": 39, "open_prs": 11, "focus": "v2 data API, agent runtime, chat page carve, message snapshots"},
+    {"login": "eeee0717", "merged_prs": 17, "focus": "knowledge v2, markdown, UI"},
+    {"login": "kangfenmao", "merged_prs": 9, "focus": "toolchain, providers, misc fixes"},
+    {"login": "AtomsH4", "merged_prs": 8, "focus": "various features and fixes"},
+    {"login": "Pleasurecruise", "merged_prs": 6, "open_prs": 4, "focus": "various"},
+    {"login": "Raymond8196", "merged_prs": 3, "open_prs": 12, "focus": "UI overhaul, various"}
+  ],
+  "velocity": {
+    "prs_merged_last_30d": 165,
+    "prs_merged_last_7d": 58,
+    "daily_merge_rate": "~5.5",
+    "merge_breakdown_by_type": {
+      "feat": 50,
+      "fix": 25,
+      "chore": 12,
+      "refactor": 10,
+      "ci": 1,
+      "style": 1
+    }
+  }
 }
