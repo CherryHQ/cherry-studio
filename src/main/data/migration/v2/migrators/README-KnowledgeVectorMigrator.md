@@ -76,29 +76,48 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 ## File-Safety Contract
 
-- The migrator writes each rebuilt store to a temporary sibling of the target
-  (`{targetDbPath}.vectorstore.tmp`), then renames it onto the target path.
-- Before renaming, the WAL is folded into the main db file via
-  `PRAGMA wal_checkpoint(TRUNCATE)`: only the main file is renamed, and libsql does
-  not reliably checkpoint on close, so without this the renamed store would read
-  short (`SQLITE_IOERR_SHORT_READ`) with its committed pages stranded in the
-  orphaned `-wal` sidecar. The store's `index.sqlite{,-wal,-shm}` family is removed
-  (with EBUSY-survivable retries) on both temp and target before (re)creation.
+- The migrator builds each rebuilt store **directly** at its runtime path
+  (`{migratedBaseId}/.cherry/index.sqlite`) — no temp file, no rename. The rename
+  was the migration's most fragile step on Windows: libsql opens the store in WAL
+  mode, which is known to keep the **main** db file locked past `close()`
+  (`wal_checkpoint(TRUNCATE)`, `PERSIST_WAL` and multi-second waits do not release
+  it — oven-sh/bun#25964), on top of an AV/Search-Indexer scan opening the
+  just-written file without `DELETE` share. `MoveFileEx` needs `DELETE` access on
+  the source, so the rename threw `EBUSY`/`EPERM` and the base lost its store. A
+  retry only waits out a transient AV scan; it cannot wait out a handle `close()`
+  never released. Building in place removes the move entirely — whatever lock
+  lingers after `close()` is harmless because nothing moves or reopens the file
+  here; the runtime opens it only after bootstrap, long after migration finishes.
+- Building in place trades the rename's crash-atomicity (an interrupted build
+  leaves a partial index at the runtime path) for that robustness. This is safe
+  because the migration gate re-runs from scratch on any non-completed run
+  (`verifyAndClearNewTables()` wipes the rows, `KnowledgeMigrator` re-mints a fresh
+  uuid dir, the runtime never opens a store mid-migration), and the per-base catch
+  wipes a partial on a caught failure. A crash-orphaned dir is never referenced by
+  a `knowledge_base` row, so it is never mounted (dead disk, like the rename path
+  produced). The `index.sqlite{,-wal,-shm}` family at the target is removed (with
+  EBUSY-survivable retries) before (re)building, and the WAL is folded back into the
+  main file via `PRAGMA wal_checkpoint(TRUNCATE)` so the runtime opens a
+  self-contained store.
 - The v1 legacy embedjs DB (`{knowledgeBaseDir}/{legacyBaseId}`) is **never**
   moved or deleted. Each migrated base gets a new uuid, so the rebuilt V2 store
   lives under a different path (`{migratedBaseId}/.cherry/index.sqlite`) and never
   collides with the legacy flat path — the legacy source needs no relocation. A
   user who rolls back to v1 after a failed, abandoned, or even successful
   migration keeps a working knowledge base.
-- Before the rename, any pre-existing target (the runtime may have auto-created an
-  empty store there) is removed; that unlink retries on `EBUSY` so a transient
-  Windows file lock does not abort the migration.
 - Retry is naturally idempotent: the legacy source is still in place, so a retry
   re-reads the original legacy DB directly via `KnowledgeVectorSourceReader`.
 
 ## IMPORTANT: Current Limitations
 
-- Base-level execution failures are treated as migration failures, not as skippable data warnings. If rebuilding or replacing one base fails, `execute()` returns `success: false`.
+- A single base's execution failure is **non-fatal**, not a whole-migration abort. When one base's
+  vector store cannot be rebuilt, that base is skipped, marked a restorable
+  `failed`/`missing_vector_store` row (so the UI surfaces a re-index entry), and the failure is
+  surfaced as a warning — `execute()` still returns `success: true` and the remaining bases migrate.
+  This keeps a per-base migration error from blocking the user out of the app: the failed base is
+  recovered in-UI rather than by re-running the whole migration. The migration only fails as a whole
+  on a structural/integrity error (a migrator throwing, or `validate()`'s reconciliation failing),
+  never on per-base data that could not be migrated.
 - After a successful migration the v1 legacy vector DBs (and the copied legacy
   upload files) remain on disk as orphans; disk space is not reclaimed. Reclaiming
   it is intentionally left to a separate future cleanup step gated on the user

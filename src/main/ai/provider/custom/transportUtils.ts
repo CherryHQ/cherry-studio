@@ -1,5 +1,5 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 /**
  * Shared building blocks for transports / image-model adapters.

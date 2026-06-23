@@ -18,8 +18,13 @@ import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AssistantMigrator } from '../AssistantMigrator'
 import { FileMigrator } from '../FileMigrator'
-import { KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, KnowledgeMigrator } from '../KnowledgeMigrator'
+import {
+  KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
+  KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY,
+  KnowledgeMigrator
+} from '../KnowledgeMigrator'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -180,6 +185,91 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     })
     const rows = await dbh.db.select().from(assistantKnowledgeBaseTable)
     expect(rows).toHaveLength(0)
+  })
+
+  it('preserves assistant↔KB associations across the production migrator order (KnowledgeMigrator → AssistantMigrator)', async () => {
+    // Production order: KnowledgeMigrator runs at order 1.8 BEFORE AssistantMigrator at order 2.
+    // v1 stores assistant.knowledge_bases[] with the legacy Redux base id; AssistantMigrator must
+    // translate each junction row legacy→new (via the remap KnowledgeMigrator publishes to
+    // sharedData) before inserting. Without that translation the junction row carries a legacy id
+    // that never matches the new-uuid base set, so the association is silently dropped (F2).
+    // This drives BOTH real migrators against one shared context — the white-box test above only
+    // exercises KnowledgeMigrator's own remap UPDATE, which is dead in this order.
+    const legacyBaseId = 'legacy-kb-prod-order'
+    const sharedData = new Map<string, unknown>()
+
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: legacyBaseId,
+          name: 'KB One',
+          // A dangling embedding model (no user_model row) migrates the base as a restorable
+          // `failed` row under a fresh uuid with no vector DB access — enough to drive the
+          // junction remap end to end without seeding a legacy vector store.
+          model: { id: 'emb', name: 'emb', provider: 'openai' },
+          items: []
+        }
+      ]
+    }
+    const reduxAssistants = {
+      assistants: [
+        {
+          id: 'ast-prod-order',
+          name: 'Assistant',
+          knowledge_bases: [{ id: legacyBaseId }]
+        }
+      ]
+    }
+
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn(async () => false),
+          createStreamReader: vi.fn(() => ({ readInBatches: vi.fn(async () => {}) }))
+        },
+        reduxState: {
+          getCategory: vi.fn((category: string) =>
+            category === 'knowledge' ? reduxKnowledge : category === 'assistants' ? reduxAssistants : undefined
+          )
+        }
+      },
+      db: dbh.db,
+      sharedData,
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      paths: {
+        userData: MOCK_USER_DATA,
+        knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
+        filesDataDir: `${MOCK_USER_DATA}/Data/Files`
+      }
+    } as never
+
+    const knowledgeMigrator = new KnowledgeMigrator()
+    expect((await knowledgeMigrator.prepare(ctx)).success).toBe(true)
+    expect((await knowledgeMigrator.execute(ctx)).success).toBe(true)
+
+    const migratedBaseId = (sharedData.get(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY) as Map<string, string>).get(
+      legacyBaseId
+    )
+    expect(migratedBaseId).toBeDefined()
+    // KnowledgeMigrator mints a fresh uuid — the legacy id must not survive verbatim.
+    expect(migratedBaseId).not.toBe(legacyBaseId)
+
+    const assistantMigrator = new AssistantMigrator()
+    assistantMigrator.setProgressCallback(vi.fn())
+    expect((await assistantMigrator.prepare(ctx)).success).toBe(true)
+    expect((await assistantMigrator.execute(ctx)).success).toBe(true)
+
+    const rows = await dbh.db
+      .select({
+        assistantId: assistantKnowledgeBaseTable.assistantId,
+        knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
+      })
+      .from(assistantKnowledgeBaseTable)
+
+    // The association survives and points at the migrated base id, not the dropped legacy id.
+    expect(rows).toEqual([{ assistantId: 'ast-prod-order', knowledgeBaseId: migratedBaseId }])
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
   })
 
   it('migrates legacy file items to relative paths without creating file_refs', async () => {

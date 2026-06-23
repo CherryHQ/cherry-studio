@@ -1,5 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +21,11 @@ vi.mock('@renderer/services/AssistantService', () => ({
 // Mock dependencies
 const mockUseAppSelector = vi.fn()
 const mockUseTranslation = vi.fn()
+const mockNavigate = vi.hoisted(() => vi.fn())
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate
+}))
 
 vi.mock('@renderer/store', () => ({
   useAppSelector: (selector: any) => mockUseAppSelector(selector),
@@ -171,6 +176,7 @@ describe('MessageAgentTools', () => {
   beforeEach(() => {
     mockUseAppSelector.mockReturnValue(null) // No pending permission
     mockPartsMap.mockReturnValue(null) // V2 PartsContext: no pending approval
+    mockNavigate.mockClear()
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | { count?: number }) => {
         // Handle plural keys with count option
@@ -299,6 +305,29 @@ describe('MessageAgentTools', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('renders navigate tool for current settings routes', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__assistant__navigate',
+          name: 'mcp__assistant__navigate',
+          description: 'Navigate',
+          type: 'provider'
+        },
+        status: 'done',
+        arguments: { path: '/settings/general' },
+        response: 'Navigated to /settings/general'
+      })
+
+      render(<MessageAgentTools toolResponse={toolResponse} />)
+
+      const button = screen.getByRole('button', { name: /Common Settings/ })
+      expect(button).toBeInTheDocument()
+
+      fireEvent.click(button)
+
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/general' })
+    })
+
     it('should render tool with full arguments when done', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },

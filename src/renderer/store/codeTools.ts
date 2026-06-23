@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { Model } from '@renderer/types'
-import { codeCLI, terminalApps } from '@shared/config/constant'
+import { codeCLI, terminalApps } from '@shared/types/codeCli'
 
 // 常量定义
 const MAX_DIRECTORIES = 10 // 最多保存10个目录

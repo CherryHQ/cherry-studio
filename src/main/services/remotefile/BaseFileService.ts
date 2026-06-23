@@ -1,4 +1,5 @@
-import type { FileListResponse, FileMetadata, FileUploadResponse } from '@types'
+import type { FileListResponse, FileUploadResponse } from '@main/services/remotefile/types'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 
 export abstract class BaseFileService {
   protected readonly apiKey: string

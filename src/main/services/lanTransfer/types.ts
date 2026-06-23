@@ -1,7 +1,7 @@
 import type * as fs from 'node:fs'
 import type { Socket } from 'node:net'
 
-import type { LanClientEvent, LanTransferPeer } from '@shared/config/types'
+import type { LanClientEvent, LanTransferPeer } from '@shared/types/lanTransfer'
 
 /**
  * Pending response handler for awaiting control messages

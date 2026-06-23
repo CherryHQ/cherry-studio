@@ -1,7 +1,7 @@
 import { application } from '@application'
-import type { FileHandle } from '@shared/file/types'
 import type { fileProcessingRequestSchemas } from '@shared/ipc/schemas/fileProcessing'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+import type { FileHandle } from '@shared/types/file'
 
 /**
  * Thin adapters for the file-processing request routes: each one translates a parsed

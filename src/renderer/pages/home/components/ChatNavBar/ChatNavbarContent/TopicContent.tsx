@@ -43,7 +43,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
     (model: SharedModel | undefined) => {
       if (!model || !assistant) return
       const enabledWebSearch = isWebSearchModel(model)
-      setModel(model, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      void setModel(model, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
     [assistant, setModel]
   )

@@ -1,7 +1,7 @@
 import { getFileExt } from '@main/utils/file'
-import { knowledgeFileProcessingExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import { knowledgeFileProcessingExts } from '@shared/utils/file'
 
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 

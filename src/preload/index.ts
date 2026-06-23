@@ -14,20 +14,6 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/command'
-import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
-import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type {
-  CodeToolsRunResult,
-  LanClientEvent,
-  LanFileCompleteMessage,
-  LanHandshakeAckMessage,
-  LanTransferConnectPayload,
-  LanTransferState,
-  McpServerLogEntry,
-  OperationResult,
-  WebviewKeyEvent
-} from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -36,34 +22,34 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
-import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
-import type { FileHandle } from '@shared/file/types/handle'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
+import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import type { GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
+import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
+import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { FilePath, PhysicalFileMetadata } from '@shared/types/file/common'
+import type { FileHandle } from '@shared/types/file/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
-} from '@shared/file/types/ipc'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import type { StorageHealth } from '@shared/types/storageMonitor'
+} from '@shared/types/file/ipc'
 import type {
-  ApiGatewayStatusResult,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  OcrResult,
-  S3Config,
-  SupportedOcrFile,
-  WebDavConfig
-} from '@types'
-import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
-
+  LanClientEvent,
+  LanFileCompleteMessage,
+  LanHandshakeAckMessage,
+  LanTransferConnectPayload,
+  LanTransferState
+} from '@shared/types/lanTransfer'
+import type { LogLevel, LogSourceWithContext } from '@shared/types/logger'
+import type { McpServerLogEntry } from '@shared/types/mcp'
+import type { Notification } from '@shared/types/notification'
+import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type {
   InstalledSkill,
   LocalSkill,
@@ -73,7 +59,15 @@ import type {
   SkillInstallOptions,
   SkillResult,
   SkillToggleOptions
-} from '../renderer/types/skill'
+} from '@shared/types/skill'
+import type { StorageHealth } from '@shared/types/storageMonitor'
+import type { WebviewKeyEvent } from '@shared/types/webview'
+import type { CommandId } from '@shared/utils/command'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file/tree'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
+
 import { ipcApi } from './ipc'
 
 // OpenClaw types
@@ -646,11 +640,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
-  },
-  ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
-    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

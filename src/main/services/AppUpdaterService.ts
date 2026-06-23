@@ -5,9 +5,9 @@ import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
+import { APP_NAME } from '@shared/utils/constants'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
@@ -16,6 +16,21 @@ import { autoUpdater } from 'electron-updater'
 import semver from 'semver'
 
 const logger = loggerService.withContext('AppUpdaterService')
+
+export enum FeedUrl {
+  PRODUCTION = 'https://releases.cherry-ai.com',
+  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
+}
+
+export enum UpdateConfigUrl {
+  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
+  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
+}
+
+export enum UpdateMirror {
+  GITHUB = 'github',
+  GITCODE = 'gitcode'
+}
 
 function getCommonHeaders() {
   return {

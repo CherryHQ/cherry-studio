@@ -19,8 +19,8 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Base64String, URLString } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { Base64String, URLString } from '@shared/types/file/common'
 import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,

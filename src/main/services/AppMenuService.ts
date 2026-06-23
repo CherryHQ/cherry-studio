@@ -3,16 +3,16 @@ import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase }
 import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/adapters/nativeMenuAdapter'
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import { getAppLanguage, locales } from '@main/utils/language'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { SupportedPlatform } from '@shared/types/command'
 import {
   type CommandId,
   evaluateContextExpr,
   findCommandDefinition,
   findKeybindingRule,
-  menuRegistry,
   resolveCommandKeybinding,
-  type SupportedPlatform
-} from '@shared/command'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+  resolveMenu
+} from '@shared/utils/command'
 import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'
 
@@ -192,7 +192,7 @@ export class AppMenuService extends BaseService {
   private resolveAppMenuCommandItems(
     labels: Partial<Record<CommandId, string>>
   ): Map<CommandId, NativeCommandMenuItem> {
-    const model = menuRegistry.resolve({
+    const model = resolveMenu({
       location: 'app.menu',
       context: { platform: process.platform },
       getCommandState: (command) => {

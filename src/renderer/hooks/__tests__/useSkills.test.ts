@@ -1,4 +1,4 @@
-import type { InstalledSkill } from '@renderer/types'
+import type { InstalledSkill, LocalSkill } from '@renderer/types'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +16,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock
 }))
 
-import { useInstalledSkills, useSkillInstall } from '../useSkills'
+import { buildAvailableSkills, useInstalledSkills, useSkillInstall } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -238,5 +238,34 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('buildAvailableSkills', () => {
+  it('includes only enabled global skills', () => {
+    const result = buildAvailableSkills(
+      [
+        createSkill({ folderName: 'enabled', name: 'Enabled', isEnabled: true }),
+        createSkill({ folderName: 'disabled', name: 'Disabled', isEnabled: false })
+      ],
+      []
+    )
+
+    expect(result).toEqual([{ name: 'Enabled', description: 'First skill', filename: 'enabled' }])
+  })
+
+  it('lets an enabled global win over a same-filename local and keeps local-only skills', () => {
+    const result = buildAvailableSkills(
+      [createSkill({ folderName: 'shared', name: 'Global Shared', isEnabled: true })],
+      [
+        { name: 'Local Shared', description: 'shadowed', filename: 'shared' },
+        { name: 'Local Only', description: 'kept', filename: 'unique' }
+      ] as LocalSkill[]
+    )
+
+    expect(result).toEqual([
+      { name: 'Global Shared', description: 'First skill', filename: 'shared' },
+      { name: 'Local Only', description: 'kept', filename: 'unique' }
+    ])
   })
 })

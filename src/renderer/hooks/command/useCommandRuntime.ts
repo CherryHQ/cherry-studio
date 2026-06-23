@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import type { CommandId, MenuPresentationMode } from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { MenuPresentationMode } from '@shared/types/command'
+import type { CommandId } from '@shared/utils/command'
 import { createContext, use, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useCommandRuntime')

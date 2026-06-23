@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { PluginError, PluginMetadata } from '@types'
+import type { PluginMetadata } from '@shared/types/plugin'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
 import matter from 'gray-matter'
@@ -9,6 +9,12 @@ import { parse } from 'yaml'
 import { getDirectorySize } from './fileOperations'
 
 const logger = loggerService.withContext('Utils:MarkdownParser')
+
+// Error handling types (used by markdownParser)
+export type PluginError =
+  | { type: 'FILE_NOT_FOUND'; path: string; message?: string }
+  | { type: 'INVALID_METADATA'; reason: string; path: string }
+  | { type: 'READ_FAILED'; path: string; reason: string }
 
 const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 

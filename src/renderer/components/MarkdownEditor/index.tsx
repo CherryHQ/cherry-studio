@@ -1,7 +1,7 @@
-import '@cherrystudio/ui/composites/markdown/styles'
+import '@cherrystudio/ui/components/composites/markdown/styles'
 import 'katex/dist/katex.min.css'
 
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui/composites/markdown'
+import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import React, { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'

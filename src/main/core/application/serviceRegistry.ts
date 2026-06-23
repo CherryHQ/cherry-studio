@@ -26,13 +26,12 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
-import { CodeCliService } from '@main/services/CodeCliService'
+import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
@@ -101,7 +100,6 @@ export const services = {
   TraceStorageService,
   NodeTraceService,
   ClaudeCodeTraceBridgeService,
-  OcrService,
   OvmsManager,
   ProtocolService,
   ProxyManager,

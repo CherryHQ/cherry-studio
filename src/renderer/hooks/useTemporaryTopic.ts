@@ -104,7 +104,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
 
-        if (cacheService.get('topic.active')?.id === idToCleanup) {
+        if ((cacheService.get('topic.active') as { id: string } | null)?.id === idToCleanup) {
           cacheService.set('topic.active', null)
         }
       }

@@ -16,7 +16,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 

@@ -45,7 +45,12 @@ export interface ActiveExecution {
 export interface ComposerQueuedMessagePayload {
   text: string
   userMessageParts: CherryMessagePart[]
-  files?: Array<Record<string, unknown>>
+  /**
+   * Composer attachments held for this queued draft. Loosely typed here (the
+   * concrete `ComposerAttachment` lives in the renderer); main ignores it — only
+   * the renderer queue (re-edit/restore + send-time part build) reads it.
+   */
+  attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   knowledgeBaseIds?: string[]
