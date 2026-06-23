@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   getLoginShellEnvironment: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
+  getNodeProxyConfigFromEnvironment: vi.fn(),
+  isProxyReachable: vi.fn(),
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
@@ -108,7 +110,9 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/services/proxy/nodeProxy', () => ({
-  getProxyEnvironment: mocks.getProxyEnvironment
+  getProxyEnvironment: mocks.getProxyEnvironment,
+  getNodeProxyConfigFromEnvironment: mocks.getNodeProxyConfigFromEnvironment,
+  isProxyReachable: mocks.isProxyReachable
 }))
 
 vi.mock('@main/utils', () => ({
@@ -192,6 +196,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getLoginShellEnvironment.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
+    mocks.getNodeProxyConfigFromEnvironment.mockReturnValue(null)
+    mocks.isProxyReachable.mockResolvedValue(true)
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.reconcileAgentSkills.mockResolvedValue(undefined)
@@ -469,6 +475,47 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.loggerWarn).toHaveBeenCalledWith('Failed to list channels for tool policy context', {
       agentId: 'agent-1',
       error: 'channel db down'
+    })
+  })
+
+  describe('proxy env handling (stale system proxy, #16016)', () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    } as never
+
+    it('includes proxy env vars when the proxy is reachable', async () => {
+      mocks.getProxyEnvironment.mockReturnValue({
+        HTTP_PROXY: 'http://127.0.0.1:7890',
+        HTTPS_PROXY: 'http://127.0.0.1:7890'
+      })
+      mocks.getNodeProxyConfigFromEnvironment.mockReturnValue({ proxyRules: 'http://127.0.0.1:7890' })
+      mocks.isProxyReachable.mockResolvedValue(true)
+
+      const settings = await buildClaudeCodeSessionSettings(session, {} as never)
+
+      expect(settings.env?.HTTP_PROXY).toBe('http://127.0.0.1:7890')
+      expect(settings.env?.HTTPS_PROXY).toBe('http://127.0.0.1:7890')
+      expect(mocks.isProxyReachable).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    })
+
+    it('skips proxy env vars when the proxy is not reachable (stale system proxy)', async () => {
+      mocks.getProxyEnvironment.mockReturnValue({
+        HTTP_PROXY: 'http://127.0.0.1:7890',
+        HTTPS_PROXY: 'http://127.0.0.1:7890'
+      })
+      mocks.getNodeProxyConfigFromEnvironment.mockReturnValue({ proxyRules: 'http://127.0.0.1:7890' })
+      mocks.isProxyReachable.mockResolvedValue(false)
+
+      const settings = await buildClaudeCodeSessionSettings(session, {} as never)
+
+      expect(settings.env?.HTTP_PROXY).toBeUndefined()
+      expect(settings.env?.HTTPS_PROXY).toBeUndefined()
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        'Proxy is not reachable, skipping proxy for Claude Code subprocess',
+        { proxyUrl: 'http://127.0.0.1:7890' }
+      )
     })
   })
 
