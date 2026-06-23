@@ -62,11 +62,20 @@ export const zhCN = {
       confirm_skip: '跳过迁移后，将以全新默认配置启动 Cherry Studio。原有数据将保留在磁盘，不会删除。确定继续吗？'
     },
     skip_dialog: {
-      title: '跳过迁移？',
-      body: '跳过后，Cherry Studio 将以全新默认配置启动。旧数据会保留在磁盘中，但不会导入到 V2。之后将不会再次自动提示迁移。确定继续吗？',
-      cancel: '返回',
-      confirm: '跳过并重启',
-      confirm_countdown: '跳过并重启 ({{seconds}}s)'
+      title: '跳过数据迁移',
+      warning_prefix: '高危操作：',
+      warning_body: '将以默认配置启动，并不再自动提示迁移。',
+      points: {
+        retained_strong: '旧数据会保留在磁盘中',
+        retained_rest: '，但不会导入 V2。',
+        not_visible: '旧版对话、设置、知识库等内容不会出现在新版本中。',
+        skip_before: '仅当你确定要',
+        skip_strong: '放弃本次自动迁移',
+        skip_after: '时继续。'
+      },
+      cancel: '返回继续迁移',
+      confirm: '已知晓风险，跳过并重启',
+      confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)'
     },
     backup_required: {
       title: '创建数据备份',
@@ -189,11 +198,20 @@ export const enUS = {
         "After skipping migration, Cherry Studio will start with default settings. Your existing data will remain on disk and won't be deleted. Continue?"
     },
     skip_dialog: {
-      title: 'Skip migration?',
-      body: 'Cherry Studio will start with fresh default settings. Your old data will remain on disk, but it will not be imported into V2. You will not be prompted to migrate again automatically. Continue?',
-      cancel: 'Back',
-      confirm: 'Skip and restart',
-      confirm_countdown: 'Skip and restart ({{seconds}}s)'
+      title: 'Skip Data Migration',
+      warning_prefix: 'High-risk action: ',
+      warning_body: 'Starts with default settings, and migration will not be prompted again.',
+      points: {
+        retained_strong: 'Old data will remain on disk',
+        retained_rest: ', but it will not be imported into V2.',
+        not_visible: 'Legacy chats, settings, knowledge bases, and related content will not appear in the new version.',
+        skip_before: 'Continue only if you are sure you want to ',
+        skip_strong: 'skip this automatic migration',
+        skip_after: '.'
+      },
+      cancel: 'Return to migration',
+      confirm: 'I understand the risk, skip and restart',
+      confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)'
     },
     backup_required: {
       title: 'Create Data Backup',

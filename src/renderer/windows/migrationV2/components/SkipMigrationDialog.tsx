@@ -8,6 +8,7 @@
  */
 
 import {
+  Alert,
   Button,
   Dialog,
   DialogClose,
@@ -56,10 +57,44 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm" showCloseButton={false}>
+      <DialogContent size="default" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{t('migration.skip_dialog.title')}</DialogTitle>
-          <DialogDescription>{t('migration.skip_dialog.body')}</DialogDescription>
+          <DialogDescription asChild>
+            <div className="space-y-3 pt-2">
+              <Alert type="error" showIcon={false} className="shadow-none">
+                <span className="text-sm leading-relaxed">
+                  <strong className="font-semibold">{t('migration.skip_dialog.warning_prefix')}</strong>
+                  {t('migration.skip_dialog.warning_body')}
+                </span>
+              </Alert>
+              <ul className="space-y-2 text-foreground-muted text-sm leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+                  <span>
+                    <strong className="font-medium text-foreground">
+                      {t('migration.skip_dialog.points.retained_strong')}
+                    </strong>
+                    {t('migration.skip_dialog.points.retained_rest')}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+                  <span>{t('migration.skip_dialog.points.not_visible')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+                  <span>
+                    {t('migration.skip_dialog.points.skip_before')}
+                    <strong className="font-medium text-foreground">
+                      {t('migration.skip_dialog.points.skip_strong')}
+                    </strong>
+                    {t('migration.skip_dialog.points.skip_after')}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
