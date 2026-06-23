@@ -843,6 +843,7 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
     const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    expect(rootSource.char).toBe('/')
     expect(rootSource.renderMode).toBe('headless')
     expect(rootSource.allowedPrefixes).toEqual([' ', '\n', '\t'])
     expect(rootSource.items({ query: 'image' })).toEqual([])
@@ -886,6 +887,59 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
   })
 
+  it('opens the QuickPanel root from the ideographic comma suggestion bridge', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'generate-image',
+            kind: 'command',
+            label: 'Generate image',
+            description: 'Generate an image',
+            icon: 'image'
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const commaSource = mocks.editorPresetOptions.suggestionSources[1]
+    expect(commaSource.char).toBe('、')
+    expect(commaSource.renderMode).toBe('headless')
+    expect(commaSource.allowedPrefixes).toEqual([' ', '\n', '\t'])
+    expect(commaSource.items({ query: 'image' })).toEqual([])
+
+    commaSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 6 },
+      query: 'image',
+      text: '、image',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
+      title: 'settings.quickPanel.title',
+      list: [expect.objectContaining({ label: 'Generate image', description: 'Generate an image' })],
+      symbol: '/',
+      queryAnchor: 0,
+      triggerInfo: {
+        type: 'input',
+        position: 0,
+        originalText: '、image'
+      },
+      trackInputQuery: true
+    })
+  })
+
   it('bridges external suggestion sources into QuickPanel items', async () => {
     const command = vi.fn()
     const sourceOnKeyDown = vi.fn(() => false)
@@ -917,8 +971,9 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
-    const resourceSource = mocks.editorPresetOptions.suggestionSources[1]
-    expect(resourceSource.renderMode).toBe('headless')
+    const resourceSource = mocks.editorPresetOptions.suggestionSources.find((source) => source.char === '@')
+    expect(resourceSource).toBeDefined()
+    expect(resourceSource?.renderMode).toBe('headless')
 
     const editor = {
       state: {
@@ -932,7 +987,7 @@ describe('ComposerSurface', () => {
     }
     const range = { from: 1, to: 5 }
 
-    resourceSource.onActiveChange({
+    resourceSource?.onActiveChange({
       editor,
       range,
       query: 'doc',
@@ -1040,6 +1095,41 @@ describe('ComposerSurface', () => {
     rootSource.onExit(activeChangeOptions)
     rootSource.onActiveChange(activeChangeOptions)
     expect(onRootPanelOpen).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not request another root panel refresh when switching between root trigger sources', async () => {
+    const onRootPanelOpen = vi.fn()
+    render(
+      <ComposerSurface {...baseProps} quickPanelEnabled onRootPanelOpen={onRootPanelOpen} getToolLaunchers={() => []} />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const slashSource = mocks.editorPresetOptions.suggestionSources[0]
+    const commaSource = mocks.editorPresetOptions.suggestionSources[1]
+    const slashOptions = {
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 2 },
+      query: '',
+      text: '/',
+      items: []
+    }
+    const commaOptions = {
+      ...slashOptions,
+      text: '、'
+    }
+
+    slashSource.onActiveChange(slashOptions)
+    slashSource.onExit(slashOptions)
+    commaSource.onActiveChange(commaOptions)
+
+    expect(onRootPanelOpen).toHaveBeenCalledOnce()
   })
 
   it('updates the open QuickPanel root list when additional items change', async () => {
@@ -2442,6 +2532,55 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
   })
 
+  it('does not open the QuickPanel root when ideographic comma is attached to previous text', async () => {
+    render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const commaSource = mocks.editorPresetOptions.suggestionSources[1]
+    commaSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '你好')
+          }
+        }
+      },
+      range: { from: 3, to: 4 },
+      query: '',
+      text: '、',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+  })
+
+  it('does not open the QuickPanel root when cursor is not at the end of the ideographic comma query', async () => {
+    render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const commaSource = mocks.editorPresetOptions.suggestionSources[1]
+    commaSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn((_from: number, to: number) => (to === 7 ? 'hello ' : 'hello 、i'))
+          },
+          selection: {
+            from: 9
+          }
+        }
+      },
+      range: { from: 7, to: 13 },
+      query: 'image',
+      text: '、image',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+  })
+
   it('does not open the QuickPanel root when cursor is not at the end of the slash query', async () => {
     render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
@@ -2492,6 +2631,46 @@ describe('ComposerSurface', () => {
     })
 
     await waitFor(() => expect(mocks.quickPanelClose).toHaveBeenCalledWith())
+  })
+
+  it('does not close a root panel opened by another root trigger source after slash exits', async () => {
+    const { rerender } = render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const slashSource = mocks.editorPresetOptions.suggestionSources[0]
+    const commaSource = mocks.editorPresetOptions.suggestionSources[1]
+    const slashOptions = {
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 2 },
+      query: '',
+      text: '/',
+      items: []
+    }
+    const commaOptions = {
+      ...slashOptions,
+      text: '、'
+    }
+
+    slashSource.onActiveChange(slashOptions)
+    slashSource.onExit(slashOptions)
+    commaSource.onActiveChange(commaOptions)
+
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    rerender(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.quickPanelClose).not.toHaveBeenCalled()
   })
 
   it('does not close a child panel when the slash suggestion exits', async () => {

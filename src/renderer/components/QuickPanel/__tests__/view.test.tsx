@@ -722,6 +722,45 @@ describe('QuickPanelView', () => {
     )
   })
 
+  it('tracks ideographic comma input queries under the root symbol and consumes the trigger range on selection', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const deleteTriggerRange = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange,
+      focus: vi.fn(),
+      getCursorOffset: () => 6,
+      getText: () => '、notes',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [{ id: 'notes', label: 'notes.md', icon: 'file', action }]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol="/" />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('notes.md')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    const { event } = createKeyDownEvent('Enter')
+
+    let handled = false
+    act(() => {
+      handled = dispatchKeyDown(event)
+    })
+
+    expect(handled).toBe(true)
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(action).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        searchText: 'notes'
+      })
+    )
+  })
+
   it('resets the active item when a tracked externally managed list is reopened', async () => {
     const captureDispatch = vi.fn()
     let inputText = '@a'

@@ -61,6 +61,10 @@ import { FileComposerToken } from './tokenView'
 import type { ComposerToolLauncher } from './toolLauncher'
 
 const COMPOSER_INPUT_MAX_LENGTH = 40000
+const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
+  { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
+  { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
+] as const
 type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
 interface ComposerClipboardCopyView {
   state: {
@@ -735,6 +739,12 @@ export default function ComposerSurface({
   }, [focusEditor, getDraft, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
+  // Per-pluginKey record of the last generation the source itself was active at.
+  // Read by onExit so a stale exit cannot borrow another source's active generation
+  // (e.g. when two root sources' onActiveChange/onExit interleave across microtasks).
+  const lastActiveRootSuggestionSessionGenByPluginKeyRef = useRef<Record<string, number>>({})
+  const activeRootSuggestionSessionRef = useRef<{ pluginKey: string; generation: number } | null>(null)
+  const pendingRootSuggestionExitRef = useRef<{ pluginKey: string; generation: number } | null>(null)
   const rootSuggestionStateRef = useRef({
     getToolLaunchers,
     onRootPanelOpen,
@@ -750,74 +760,137 @@ export default function ComposerSurface({
     rootPanelAdditionalItems
   }
 
-  const rootSuggestionSource = useMemo<ComposerSuggestionSource>(
-    () => ({
-      pluginKey: 'composer-root-suggestion',
-      char: ComposerPanelSymbol.Root,
-      title: t('settings.quickPanel.title'),
-      renderMode: 'headless',
-      allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
-      items: () => [],
-      onActiveChange: ({ editor, query, range, text }) => {
-        const { getToolLaunchers, onRootPanelOpen, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
-          rootSuggestionStateRef.current
-        const launchers = getToolLaunchers?.() ?? []
-        const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
-          editor,
-          {
-            range,
-            query,
-            text,
-            triggerChar: ComposerPanelSymbol.Root
-          }
-        )
+  const rootSuggestionSources = useMemo<ComposerSuggestionSource[]>(
+    () =>
+      ROOT_QUICK_PANEL_TRIGGER_SOURCES.map(({ char, pluginKey }) => ({
+        pluginKey,
+        char,
+        title: t('settings.quickPanel.title'),
+        renderMode: 'headless',
+        allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
+        items: () => [],
+        onActiveChange: ({ editor, query, range, text }) => {
+          const { getToolLaunchers, onRootPanelOpen, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
+            rootSuggestionStateRef.current
+          const launchers = getToolLaunchers?.() ?? []
+          const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
+            editor,
+            {
+              range,
+              query,
+              text,
+              triggerChar: char
+            }
+          )
 
-        if (
-          !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
-          cursorOffset !== queryAnchor + triggerText.length
-        ) {
-          if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
-            quickPanel.close('input_prefix_invalid')
+          if (
+            !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
+            cursorOffset !== queryAnchor + triggerText.length
+          ) {
+            const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+            const canCloseRootPanel =
+              !activeRootSuggestionSession || activeRootSuggestionSession.pluginKey === pluginKey
+
+            if (canCloseRootPanel) {
+              activeRootSuggestionSessionRef.current = null
+              pendingRootSuggestionExitRef.current = null
+              rootPanelOpenRefreshRequestedRef.current = false
+
+              if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+                quickPanel.close('input_prefix_invalid')
+              }
+            }
+            return
           }
-          return
+
+          const lastActiveGenForThisPluginKey =
+            (lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0) + 1
+          const pendingRootSuggestionExit = pendingRootSuggestionExitRef.current
+          // "Restart" means: I exited (pending records that) and no one — including
+          // myself — has activated me since. So pending.generation must equal the
+          // last active gen I observed before this onActiveChange increments it.
+          const isRestartingExitedRootSource =
+            pendingRootSuggestionExit != null &&
+            pendingRootSuggestionExit.pluginKey === pluginKey &&
+            pendingRootSuggestionExit.generation === lastActiveGenForThisPluginKey - 1
+          if (isRestartingExitedRootSource) {
+            pendingRootSuggestionExitRef.current = null
+          }
+
+          lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] = lastActiveGenForThisPluginKey
+          activeRootSuggestionSessionRef.current = {
+            pluginKey,
+            generation: lastActiveGenForThisPluginKey
+          }
+
+          const triggerInfo = {
+            type: 'input',
+            position: queryAnchor,
+            originalText: triggerText
+          } as const
+
+          if (!rootPanelOpenRefreshRequestedRef.current || isRestartingExitedRootSource) {
+            rootPanelOpenRefreshRequestedRef.current = true
+            onRootPanelOpen?.()
+          }
+
+          quickPanel.open(
+            createRootQuickPanelOpenOptions(launchers, {
+              onToolLauncherSelect,
+              inputAdapter: createComposerInputAdapter(editor),
+              quickPanel,
+              title: t('settings.quickPanel.title'),
+              additionalItems: rootPanelAdditionalItems,
+              queryAnchor,
+              triggerInfo
+            })
+          )
+        },
+        onKeyDown: ({ event }) => {
+          return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
+        },
+        onExit: () => {
+          // Read this pluginKey's own last-active generation. @tiptap/suggestion
+          // only fires onExit when prev.active was true, so this should be at
+          // least 1; ?? 0 is a defensive fallback for the type system, not a
+          // reachable state.
+          const lastActiveGenForThisPluginKey = lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0
+          const exitingRootSuggestionSession = { pluginKey, generation: lastActiveGenForThisPluginKey }
+          pendingRootSuggestionExitRef.current = exitingRootSuggestionSession
+
+          window.setTimeout(() => {
+            const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+            const isExitingSessionStillActive =
+              !activeRootSuggestionSession ||
+              (activeRootSuggestionSession.pluginKey === exitingRootSuggestionSession.pluginKey &&
+                activeRootSuggestionSession.generation === exitingRootSuggestionSession.generation)
+
+            if (!isExitingSessionStillActive) {
+              if (
+                pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
+                pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
+              ) {
+                pendingRootSuggestionExitRef.current = null
+              }
+              return
+            }
+
+            activeRootSuggestionSessionRef.current = null
+            rootPanelOpenRefreshRequestedRef.current = false
+            if (
+              pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
+              pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
+            ) {
+              pendingRootSuggestionExitRef.current = null
+            }
+
+            const { quickPanel } = rootSuggestionStateRef.current
+            if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+              quickPanel.close()
+            }
+          }, 0)
         }
-
-        const triggerInfo = {
-          type: 'input',
-          position: queryAnchor,
-          originalText: triggerText
-        } as const
-
-        if (!rootPanelOpenRefreshRequestedRef.current) {
-          rootPanelOpenRefreshRequestedRef.current = true
-          onRootPanelOpen?.()
-        }
-
-        quickPanel.open(
-          createRootQuickPanelOpenOptions(launchers, {
-            onToolLauncherSelect,
-            inputAdapter: createComposerInputAdapter(editor),
-            quickPanel,
-            title: t('settings.quickPanel.title'),
-            additionalItems: rootPanelAdditionalItems,
-            queryAnchor,
-            triggerInfo
-          })
-        )
-      },
-      onKeyDown: ({ event }) => {
-        return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
-      },
-      onExit: () => {
-        rootPanelOpenRefreshRequestedRef.current = false
-        window.setTimeout(() => {
-          const { quickPanel } = rootSuggestionStateRef.current
-          if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
-            quickPanel.close()
-          }
-        }, 0)
-      }
-    }),
+      })),
     [t]
   )
 
@@ -895,8 +968,8 @@ export default function ComposerSurface({
   )
 
   const activeSuggestionSources = useMemo(
-    () => (quickPanelEnabled ? [rootSuggestionSource, ...quickPanelSuggestionSources] : []),
-    [quickPanelEnabled, rootSuggestionSource, quickPanelSuggestionSources]
+    () => (quickPanelEnabled ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
+    [quickPanelEnabled, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
