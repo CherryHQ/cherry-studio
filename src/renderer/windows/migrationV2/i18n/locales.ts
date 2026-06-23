@@ -33,8 +33,22 @@ export const zhCN = {
       close: '关闭应用',
       ignore_migration: '忽略并使用默认值',
       skip_migration: '跳过迁移',
+      more_options: '更多选项',
       backing_up: '正在备份...',
       migrating: '迁移中...'
+    },
+    window: {
+      minimize: '最小化',
+      close: '关闭',
+      confirm_close: {
+        title: '退出数据迁移',
+        message: '迁移流程尚未完成，关闭窗口将退出应用，下次启动需要重新开始。确定要退出吗？',
+        continue: '继续迁移',
+        quit: '退出'
+      }
+    },
+    language: {
+      select: '切换语言'
     },
     status: {
       pending: '等待中',
@@ -88,7 +102,8 @@ export const zhCN = {
     backup_progress: {
       title: '正在备份 V1 数据…',
       description: '正在创建旧版数据的完整备份，请勿关闭应用…',
-      compressing: '压缩中，请勿关闭应用…'
+      compressing: '压缩中，请勿关闭应用…',
+      compressing_long: '备份文件较大，压缩仍在继续，请保持应用打开…'
     },
     backup_confirmed: {
       created_title: '备份成功',
@@ -113,7 +128,7 @@ export const zhCN = {
       description: '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
       steps_label: '步骤已完成',
       items_label: '迁移项',
-      duration_label: '总耗时',
+      duration_label: '迁移耗时',
       backup_heading: 'V1 备份',
       warning_heading: '{{count}} 条迁移提示',
       warning_description: '数据已迁移完成，但以下内容需要注意。'
@@ -168,8 +183,23 @@ export const enUS = {
       close: 'Close App',
       ignore_migration: 'Ignore and Use Defaults',
       skip_migration: 'Skip migration',
+      more_options: 'More options',
       backing_up: 'Backing up...',
       migrating: 'Migrating...'
+    },
+    window: {
+      minimize: 'Minimize',
+      close: 'Close',
+      confirm_close: {
+        title: 'Exit data migration',
+        message:
+          "Migration isn't finished yet. Closing the window will quit the app and you'll need to start over next launch. Quit anyway?",
+        continue: 'Continue migration',
+        quit: 'Quit'
+      }
+    },
+    language: {
+      select: 'Switch language'
     },
     status: {
       pending: 'Pending',
@@ -225,7 +255,8 @@ export const enUS = {
     backup_progress: {
       title: 'Backing up V1 data…',
       description: 'Creating a full backup of your legacy data — please do not close the app…',
-      compressing: 'Compressing, please do not close the app…'
+      compressing: 'Compressing, please do not close the app…',
+      compressing_long: 'The backup is large, so compression is still running. Please keep the app open…'
     },
     backup_confirmed: {
       created_title: 'Backup successful',
@@ -250,7 +281,7 @@ export const enUS = {
       description: 'Migration is complete. Your data is ready. Restart the app to start using V2.',
       steps_label: 'Steps completed',
       items_label: 'Migration items',
-      duration_label: 'Total time',
+      duration_label: 'Migration time',
       backup_heading: 'V1 backup',
       warning_heading: '{{count}} migration notice(s)',
       warning_description: 'Migration completed, but the following items need attention.'

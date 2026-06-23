@@ -61,7 +61,7 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
         <DialogHeader>
           <DialogTitle>{t('migration.skip_dialog.title')}</DialogTitle>
           <DialogDescription asChild>
-            <div className="space-y-3 pt-2">
+            <div className="space-y-4 pt-2">
               <Alert type="error" showIcon={false} className="shadow-none">
                 <span className="text-sm leading-relaxed">
                   <strong className="font-semibold">{t('migration.skip_dialog.warning_prefix')}</strong>

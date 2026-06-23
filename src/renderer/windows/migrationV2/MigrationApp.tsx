@@ -6,6 +6,11 @@ import {
   Alert,
   Badge,
   Button,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -13,6 +18,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { isMac } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
@@ -29,12 +35,19 @@ import {
   RotateCcw,
   Shield,
   Sparkles,
+  Wrench,
   X
 } from 'lucide-react'
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Confetti, MigratorProgressList, SkipMigrationDialog } from './components'
+import {
+  CloseMigrationDialog,
+  Confetti,
+  MigrationWindowControls,
+  MigratorProgressList,
+  SkipMigrationDialog
+} from './components'
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
 
@@ -67,7 +80,7 @@ const ProgressBar: React.FC<{ value: number; indeterminate?: boolean }> = ({ val
       className={cn(
         'h-full rounded-full bg-primary transition-[width] duration-300',
         indeterminate &&
-          'absolute left-0 w-1/3 min-w-20 bg-gradient-to-r from-primary/0 via-primary to-primary/0 transition-none'
+          'absolute left-0 w-1/3 min-w-20 bg-linear-to-r from-primary/0 via-primary to-primary/0 transition-none'
       )}
       style={
         indeterminate
@@ -131,12 +144,8 @@ function errorMessage(error: unknown): string {
 }
 
 const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const current = stageStepNumber(stage)
-
-  const handleLanguageChange = (lang: string) => {
-    void i18n.changeLanguage(lang)
-  }
 
   return (
     <aside className="flex w-44 shrink-0 flex-col border-border border-r bg-muted/20">
@@ -186,17 +195,6 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
           )
         })}
       </ol>
-      <div className="p-3">
-        <Select value={i18n.language} onValueChange={handleLanguageChange}>
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="zh-CN">中文</SelectItem>
-            <SelectItem value="en-US">English</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
     </aside>
   )
 }
@@ -244,16 +242,85 @@ const TopContent: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="mx-auto max-w-115 text-center">{children}</div>
 )
 
-const MigrationApp: React.FC = () => {
+type MigrationToolsMenuProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSkipMigration: () => void
+}
+
+const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenChange, onSkipMigration }) => {
   const { t } = useTranslation()
-  const { progress, lastError, returnToIntroduction } = useMigrationProgress()
+
+  const handleSkipMigration = () => {
+    onOpenChange(false)
+    onSkipMigration()
+  }
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('migration.buttons.more_options')}
+          className="text-foreground-muted/60 hover:text-foreground-muted">
+          <Wrench size={15} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto min-w-36 p-1.5">
+        <MenuList className="gap-1">
+          <MenuItem
+            icon={<AlertTriangle size={14} />}
+            label={t('migration.buttons.skip_migration')}
+            onClick={handleSkipMigration}
+          />
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const MigrationApp: React.FC = () => {
+  const { t, i18n } = useTranslation()
+  const { progress, lastError, returnToIntroduction, returnToBackupChoice } = useMigrationProgress()
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
   const [backupLoading, setBackupLoading] = useState(false)
   const [backupChoice, setBackupChoice] = useState<'create' | 'existing'>('create')
   const [backupError, setBackupError] = useState<string | null>(null)
   const [skipOpen, setSkipOpen] = useState(false)
+  const [skipMenuOpen, setSkipMenuOpen] = useState(false)
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
+  const [backupCompressionDelayed, setBackupCompressionDelayed] = useState(false)
   const startGuardRef = useRef(false)
+  const isBackupCompressing =
+    progress.stage === 'backup_progress' && progress.overallProgress >= 80 && progress.overallProgress < 100
+
+  // Main intercepts an in-flow-stage close (native traffic light / Cmd+Q / custom button) and
+  // asks the renderer to show its in-app confirmation dialog here, so the prominent styling
+  // and copy are owned by the renderer's design system.
+  useEffect(() => {
+    const handleConfirmClose = () => setCloseConfirmOpen(true)
+    const cleanup = window.electron.ipcRenderer.on(MigrationIpcChannels.ConfirmClose, handleConfirmClose)
+    return () => {
+      cleanup()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isBackupCompressing) {
+      setBackupCompressionDelayed(false)
+      return
+    }
+
+    setBackupCompressionDelayed(false)
+    const timer = window.setTimeout(() => {
+      setBackupCompressionDelayed(true)
+    }, 10_000)
+
+    return () => window.clearTimeout(timer)
+  }, [isBackupCompressing])
 
   // Create-backup path: enter a loading/disabled state immediately on click and
   // hold it until main returns (success → backup_confirmed, cancel → backup_required).
@@ -397,12 +464,6 @@ const MigrationApp: React.FC = () => {
                 {t('migration.buttons.next')}
                 <ArrowRight size={14} />
               </Button>
-              <button
-                type="button"
-                onClick={() => setSkipOpen(true)}
-                className="mx-auto block text-foreground-muted text-xs transition-colors hover:text-foreground">
-                {t('migration.buttons.skip_migration')}
-              </button>
             </div>
           </div>
         )
@@ -490,8 +551,6 @@ const MigrationApp: React.FC = () => {
         )
 
       case 'backup_progress': {
-        const isBackupCompressing = progress.overallProgress >= 80 && progress.overallProgress < 100
-
         return (
           <div className="space-y-5">
             <TopContent>
@@ -500,7 +559,13 @@ const MigrationApp: React.FC = () => {
               </StageBadge>
               <h2 className="font-medium text-foreground text-lg">{t('migration.backup_progress.title')}</h2>
               <p className="mt-1.5 text-foreground-muted text-sm">
-                {isBackupCompressing ? t('migration.backup_progress.compressing') : progressMessage}
+                {isBackupCompressing
+                  ? t(
+                      backupCompressionDelayed
+                        ? 'migration.backup_progress.compressing_long'
+                        : 'migration.backup_progress.compressing'
+                    )
+                  : progressMessage}
               </p>
             </TopContent>
             <ProgressBar value={progress.overallProgress} indeterminate={isBackupCompressing} />
@@ -535,15 +600,28 @@ const MigrationApp: React.FC = () => {
                 )}
               </p>
             </TopContent>
-            <Button
-              variant="default"
-              size="lg"
-              className="w-full gap-2"
-              loading={isLoading ? true : undefined}
-              onClick={handleStartMigration}>
-              <ArrowRight size={14} />
-              {t('migration.buttons.start_migration')}
-            </Button>
+            <div className="flex items-center gap-2">
+              {!hasCreatedBackup && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="gap-1.5"
+                  disabled={isLoading}
+                  onClick={returnToBackupChoice}>
+                  <ArrowLeft size={13} />
+                  {t('migration.buttons.back')}
+                </Button>
+              )}
+              <Button
+                variant="default"
+                size="lg"
+                className="flex-1 gap-2"
+                loading={isLoading ? true : undefined}
+                onClick={handleStartMigration}>
+                <ArrowRight size={14} />
+                {t('migration.buttons.start_migration')}
+              </Button>
+            </div>
           </div>
         )
       }
@@ -710,26 +788,63 @@ const MigrationApp: React.FC = () => {
   return (
     <div className="flex h-screen w-screen flex-col bg-card text-card-foreground">
       <header className="relative flex h-11 shrink-0 items-center justify-center border-border border-b [-webkit-app-region:drag]">
+        <div
+          data-migration-language-select=""
+          className={cn(
+            '-translate-y-1/2 absolute top-1/2 z-10 w-fit [-webkit-app-region:no-drag]',
+            isMac ? 'right-3' : 'left-3'
+          )}>
+          <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
+            <SelectTrigger
+              aria-label={t('migration.language.select')}
+              size="sm"
+              className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-foreground-muted text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="zh-CN">中文</SelectItem>
+              <SelectItem value="en-US">English</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex items-center gap-2">
           <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-md object-cover" />
           <span className="font-medium text-foreground text-sm">Cherry Studio</span>
           <span className="text-foreground-muted">·</span>
           <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
         </div>
+        <MigrationWindowControls />
       </header>
 
       <div className="flex min-h-0 flex-1">
         {showRail && <StepRail stage={progress.stage} />}
         <main
           className={cn(
-            'min-w-0 flex-1 overflow-y-auto',
+            'relative min-w-0 flex-1 overflow-y-auto',
             progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
           )}>
+          {progress.stage === 'introduction' && (
+            <div className="absolute top-2 right-3 z-10">
+              <MigrationToolsMenu
+                open={skipMenuOpen}
+                onOpenChange={setSkipMenuOpen}
+                onSkipMigration={() => setSkipOpen(true)}
+              />
+            </div>
+          )}
           <div className="flex min-h-full w-full flex-col justify-center px-16 py-8">{renderStage()}</div>
         </main>
       </div>
 
       <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
+      <CloseMigrationDialog
+        open={closeConfirmOpen}
+        onOpenChange={setCloseConfirmOpen}
+        onConfirm={() => {
+          setCloseConfirmOpen(false)
+          void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmQuit)
+        }}
+      />
     </div>
   )
 }

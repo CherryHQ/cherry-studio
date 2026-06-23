@@ -67,6 +67,12 @@ export function useMigrationProgress() {
     setProgress((prev) => ({ ...prev, stage: 'introduction' }))
   }, [])
 
+  // Local navigation back to the backup-choice step (frontend only). Main stays at
+  // backup_confirmed; re-confirming an existing backup re-broadcasts backup_confirmed.
+  const returnToBackupChoice = useCallback(() => {
+    setProgress((prev) => ({ ...prev, stage: 'backup_required' }))
+  }, [])
+
   // Stage helpers
   const isInProgress = progress.stage === 'migration'
   const isCompleted = progress.stage === 'completed'
@@ -80,7 +86,8 @@ export function useMigrationProgress() {
     isCompleted,
     isError,
     canCancel,
-    returnToIntroduction
+    returnToIntroduction,
+    returnToBackupChoice
   }
 }
 
