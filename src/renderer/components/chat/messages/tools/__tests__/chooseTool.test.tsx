@@ -10,7 +10,7 @@ vi.mock('../meta/MessageMetaTool', () => ({
 vi.mock('../knowledge/MessageKnowledgeSearch', () => ({
   MessageKnowledgeSearchToolTitle: () => <div data-testid="kb-card" />
 }))
-vi.mock('../web-search/MessageWebSearch', () => ({
+vi.mock('../webSearch/MessageWebSearch', () => ({
   MessageWebSearchToolTitle: () => <div data-testid="web-card" />
 }))
 vi.mock('../agent', () => ({

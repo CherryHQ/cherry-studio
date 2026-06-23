@@ -1,11 +1,11 @@
 import '@renderer/databases'
 
+import { type WindowFrame, WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { SubWindowControls } from '@renderer/components/layout/SubWindowControls'
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
-import { type WindowFrame, WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'

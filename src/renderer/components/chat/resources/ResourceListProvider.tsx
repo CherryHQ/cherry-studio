@@ -33,7 +33,7 @@ import {
   type ResourceListViewSection
 } from './ResourceListContext'
 import { RESOURCE_LIST_DEFAULT_ROW_SIZE } from './resourceListLayout'
-import { ResourceListUiStore } from './ResourceListUiStore'
+import { ResourceListUiService } from './ResourceListUiService'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
@@ -594,9 +594,9 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const expandedStateRef = useRef<ResourceListExpansionState>({ expandedSectionIds: [], expandedGroupIds: [] })
   const hasCheckedSingleGroupExpansionRef = useRef(false)
   const handledSingleGroupExpansionKeyRef = useRef<string | null>(null)
-  const uiStoreRef = useRef<ResourceListUiStore | null>(null)
+  const uiStoreRef = useRef<ResourceListUiService | null>(null)
   if (!uiStoreRef.current) {
-    uiStoreRef.current = new ResourceListUiStore({
+    uiStoreRef.current = new ResourceListUiService({
       activeId: state.activeId,
       draggingId: state.draggingId,
       renamingId: state.renamingId,
@@ -784,6 +784,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   useLayoutEffect(() => {
     uiStore.setSelectedId(effectiveSelectedId)
   }, [effectiveSelectedId, uiStore])
+
+  useEffect(() => {
+    uiStore.setActiveId(state.activeId)
+  }, [state.activeId, uiStore])
 
   useLayoutEffect(() => {
     uiStore.setActiveId(effectiveSelectedId)

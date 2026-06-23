@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { ModelSelector } from '@renderer/components/Selector'
+import { ModelSelector } from '@renderer/components/Selector/model'
 import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useModel'

@@ -985,6 +985,38 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('stays sendable with attachments but no text (pure-attachment, matching the v1 Inputbar)', () => {
+    mocks.files = [{ fileTokenSourceId: 'src-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any]
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // No text typed, but a file is attached → the composer must not disable send.
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+  })
+
+  it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued', tokens: [] })
+    })
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent).toBeTruthy()
+    const itemId = queueContent.props.items[0].id
+
+    onSend.mockRejectedValueOnce(new Error('send failed'))
+    await act(async () => {
+      await queueContent.props.onSteer(itemId)
+    })
+
+    // A failed manual steer must not silently drop the queued item.
+    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
+  })
+
   it('keeps the current draft when sending a new message fails', async () => {
     const onSend = vi.fn().mockRejectedValue(new Error('open failed'))
 

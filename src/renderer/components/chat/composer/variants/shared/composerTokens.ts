@@ -1,9 +1,9 @@
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   composerFileTokenIdFromSourceId,
   getComposerFileTokenSourceId
-} from '@renderer/utils/messageUtils/composerFileTokenSource'
+} from '@renderer/utils/message/composerFileTokenSource'
 
-import type { ComposerAttachment } from '../../composerAttachment'
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
 export const composerFileTokenId = (file: Pick<ComposerAttachment, 'fileTokenSourceId'>) => {

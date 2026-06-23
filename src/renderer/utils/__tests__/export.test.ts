@@ -41,7 +41,7 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 // Mock the find utility functions - crucial for the test
-vi.mock('@renderer/utils/messageUtils/find', () => ({
+vi.mock('@renderer/utils/message/find', () => ({
   // Provide type safety for mocked message
   getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
     if (message.parts?.length) {

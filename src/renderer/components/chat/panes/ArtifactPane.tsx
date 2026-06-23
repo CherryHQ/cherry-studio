@@ -11,6 +11,7 @@ import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { joinPath } from '@renderer/utils/path'
 import type { FilePath } from '@shared/types/file/common'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file/tree'
 import { toFileUrl } from '@shared/utils/file/urlUtil'
@@ -29,6 +30,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { CHAT_SHELL_TRANSITION } from '../shell/paneLayout'
+import { getVerticalSplitterProps } from '../shell/splitterA11y'
 import OpenExternalAppButton from './OpenExternalAppButton'
 
 const logger = loggerService.withContext('ArtifactPane')
@@ -103,12 +105,6 @@ const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => 
   return next
 }
 
-const joinPath = (base: string, rel: string): string => {
-  const trimmed = rel.replace(/^[/\\]+/, '')
-  if (!base) return trimmed
-  return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
-}
-
 const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')
   if (!trimmed) return path
@@ -125,6 +121,8 @@ const normalizeTreePath = (path: string): string => {
 }
 
 const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
+
+const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
 
 const getPathDirname = (path: string): string => {
   const normalized = normalizeTreePath(path)
@@ -160,7 +158,20 @@ export const resolveArtifactPaneFileSelection = (
   if (workspacePath) {
     const workspaceFilePath = normalizeArtifactPaneFilePath(workspacePath, normalized)
     if (workspaceFilePath) {
-      return { workspacePath, filePath: workspaceFilePath }
+      if (!hasParentTraversal(workspaceFilePath)) {
+        return { workspacePath, filePath: workspaceFilePath }
+      }
+      // Deliberate: a workspace-relative artifact path that climbs out via `..` is allowed — the
+      // agent legitimately creates files outside the workspace — but re-root it to the resolved
+      // file's directory (like the absolute-path branch below) so the displayed tree root and the
+      // previewed file stay consistent, instead of showing the workspace while reading outside it.
+      // Sandboxing, if ever needed, is the consumer's responsibility at the trust boundary.
+      const resolvedAbsolute = joinPath(normalizeTreePath(workspacePath), workspaceFilePath)
+      const escapedWorkspacePath = getPathDirname(resolvedAbsolute)
+      const escapedFilePath = getPathBasename(resolvedAbsolute)
+      return escapedWorkspacePath && escapedFilePath && escapedFilePath !== escapedWorkspacePath
+        ? { workspacePath: escapedWorkspacePath, filePath: escapedFilePath }
+        : null
     }
   }
 
@@ -177,14 +188,12 @@ export const resolveArtifactPaneFileSelection = (
  * Project the main-side `DirectoryTreeBuilder` snapshot into the legacy
  * `FileTreeNode[]` shape `@renderer/components/FileTree` consumes.
  *
- * Identity rule (kept stable so persisted `expandedIds` / `selectedId`
- * survive the migration from the flat-paths era):
+ * Identity rule (kept stable so persisted `expandedIds` / `selectedId` survive):
  *   - synthetic root node uses `id === path === WORKSPACE_ROOT_ID`
  *   - every descendant's `id` is its workspace-relative path
  *     (forward-slash, no leading slash) and `path` is `WORKSPACE_ROOT_ID/<id>`
  *
- * The sort order matches the previous `buildFileTreeNodes` behaviour:
- * folders first, then files, each layer alphabetised by name.
+ * Sort order: folders first, then files, each layer alphabetised by name.
  */
 function projectArtifactTree(root: TreeDirRoot | null, workspacePath: string | undefined): FileTreeNode[] {
   if (!root || !workspacePath) return []
@@ -244,7 +253,12 @@ type PdfPreviewPanelComponent = ComponentType<{
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
 
 const loadPdfPreviewPanel = () => {
-  pdfPreviewPanelPromise ??= import('./PdfPreviewPanel').then((module) => module.default)
+  pdfPreviewPanelPromise ??= import('./PdfPreviewPanel')
+    .then((module) => module.default)
+    .catch((err: unknown) => {
+      pdfPreviewPanelPromise = null
+      throw err
+    })
   return pdfPreviewPanelPromise
 }
 
@@ -307,18 +321,30 @@ function useArtifactFileTreeResize() {
     [measureArtifactPaneWidth, paneWidth, startResizeDrag]
   )
 
+  const setPaneWidth = useCallback(
+    // Clamp against the live measured width (same value that feeds the splitter's aria-valuemax),
+    // not currentArtifactPaneWidthRef — that ref is only written at mouse-drag start, so a keyboard
+    // resize without a prior drag would otherwise clamp to a stale bound and undershoot the max.
+    (nextWidth: number) => setStoredWidth(clampArtifactFileTreeWidth(nextWidth, artifactPaneWidth)),
+    [artifactPaneWidth, setStoredWidth]
+  )
+
+  const { minWidth, maxWidth } = getArtifactFileTreeWidthBounds(artifactPaneWidth)
+
   return {
     artifactPaneRef,
     isResizing,
     paneRef,
     paneWidth,
-    startResizing
+    minWidth,
+    maxWidth,
+    startResizing,
+    setPaneWidth
   }
 }
 
-// Memoized at module scope so the hook's useEffect dependency stays stable
-// across renders — otherwise every render would tear down + recreate the
-// underlying `File_TreeCreate` IPC.
+// Module-level defaults keep the sampled options stable for each tree mount.
+// `useDirectoryTree` rebuilds only when the root path changes.
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   // No extension filter — the workspace pane shows whatever the agent
   // produced. `respectGitignore` defaults to `true` (good for code repos),
@@ -365,6 +391,8 @@ export function ArtifactFilePreview({
   const { t } = useTranslation()
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
+  const [pdfPreviewLoadError, setPdfPreviewLoadError] = useState<Error | null>(null)
+  const [readError, setReadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
@@ -377,6 +405,7 @@ export function ArtifactFilePreview({
   useEffect(() => {
     if (!filePath || !workspacePath) {
       setFileContent(null)
+      setReadError(null)
       setLoadingContent(false)
       return
     }
@@ -384,6 +413,7 @@ export function ArtifactFilePreview({
     // Binary previewers render straight from disk or external apps; no readText needed.
     if (isPdfFile(filePath) || isOfficeDocumentFile(filePath)) {
       setFileContent(null)
+      setReadError(null)
       setLoadingContent(false)
       return
     }
@@ -392,12 +422,14 @@ export function ArtifactFilePreview({
     // out binary files, oversized files, and inaccessible paths.
     if (isText !== 'text' || fileSize.status !== 'ok' || oversizedForPreview) {
       setFileContent(null)
+      setReadError(null)
       setLoadingContent(false)
       return
     }
 
     const absPath = joinPath(workspacePath, filePath)
     let cancelled = false
+    setReadError(null)
     setLoadingContent(true)
 
     void (async () => {
@@ -410,6 +442,7 @@ export function ArtifactFilePreview({
         const normalized = err instanceof Error ? err : new Error(String(err))
         logger.error(`Failed to read file: ${absPath}`, normalized)
         setFileContent(null)
+        setReadError(normalized)
       } finally {
         if (!cancelled) setLoadingContent(false)
       }
@@ -421,23 +454,30 @@ export function ArtifactFilePreview({
   }, [contentRefreshKey, filePath, workspacePath, isText, fileSize.status, oversizedForPreview])
 
   useEffect(() => {
-    if (!isPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
+    if (!isPdfPreview) {
+      setPdfPreviewLoadError(null)
+      return
+    }
+    if (pdfLayoutPending || PdfPreviewPanel) return
 
     let cancelled = false
+    setPdfPreviewLoadError(null)
 
     loadPdfPreviewPanel()
       .then((component) => {
         if (!cancelled) setPdfPreviewPanel(() => component)
       })
       .catch((err: unknown) => {
+        if (cancelled) return
         const normalized = err instanceof Error ? err : new Error(String(err))
         logger.error('Failed to load PDF preview panel', normalized)
+        setPdfPreviewLoadError(normalized)
       })
 
     return () => {
       cancelled = true
     }
-  }, [PdfPreviewPanel, isPdfPreview, pdfLayoutPending])
+  }, [PdfPreviewPanel, filePath, isPdfPreview, pdfLayoutPending])
 
   if (!workspacePath) {
     return (
@@ -454,6 +494,9 @@ export function ArtifactFilePreview({
 
   // PDF: binary but renderable; bypass isText gating.
   if (isPdfFile(filePath)) {
+    if (pdfPreviewLoadError) {
+      return <EmptyState icon={AlertCircle} title={t('common.error')} description={pdfPreviewLoadError.message} />
+    }
     if (pdfLayoutPending || !PdfPreviewPanel) {
       return (
         <div className="flex h-full w-full items-center justify-center">
@@ -522,6 +565,16 @@ export function ArtifactFilePreview({
     return <LoadingState variant="skeleton" rows={4} />
   }
 
+  if (readError) {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={t('agent.preview_pane.unavailable.title')}
+        description={t('agent.preview_pane.unavailable.description')}
+      />
+    )
+  }
+
   if (isHtmlFile(filePath)) {
     return (
       <HtmlPreviewFrame
@@ -572,7 +625,10 @@ const ArtifactPane = ({
     isResizing: isFileTreeResizing,
     paneRef: fileTreePaneRef,
     paneWidth: fileTreeWidth,
-    startResizing: startFileTreeResizing
+    minWidth: fileTreeMinWidth,
+    maxWidth: fileTreeMaxWidth,
+    startResizing: startFileTreeResizing,
+    setPaneWidth: setFileTreeWidth
   } = useArtifactFileTreeResize()
 
   const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
@@ -833,7 +889,14 @@ const ArtifactPane = ({
               <div
                 data-artifact-file-tree-resize-handle
                 onMouseDown={startFileTreeResizing}
-                className="group/artifact-file-tree-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize">
+                {...getVerticalSplitterProps({
+                  width: fileTreeWidth,
+                  min: fileTreeMinWidth,
+                  max: fileTreeMaxWidth,
+                  label: t('common.resize_panel'),
+                  onResize: setFileTreeWidth
+                })}
+                className="group/artifact-file-tree-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                 <div className="absolute top-0 right-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/artifact-file-tree-resize-handle:opacity-100 group-data-[resizing=true]/artifact-file-tree:bg-primary/35 group-data-[resizing=true]/artifact-file-tree:opacity-100" />
               </div>
             </motion.div>

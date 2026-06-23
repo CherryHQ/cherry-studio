@@ -34,7 +34,7 @@ vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsDataURL: vi.fn()
 }))
 
-vi.mock('@renderer/utils/messageUtils/partsHelpers', () => ({
+vi.mock('@renderer/utils/message/partsHelpers', () => ({
   getTranslationFromParts: () => undefined,
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,

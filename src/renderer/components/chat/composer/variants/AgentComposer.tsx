@@ -31,7 +31,6 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { LocalSkill, ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -39,6 +38,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -47,7 +47,6 @@ import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from '
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerAttachment } from '../composerAttachment'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
@@ -59,6 +58,7 @@ import {
   readAgentDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { AgentLabel } from './agent/AgentLabel'
 import { useAgentResourceSuggestion } from './agent/useAgentResourceSuggestion'
 import {
   agentComposerTokenId,
@@ -76,6 +76,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
@@ -131,20 +132,6 @@ type Props = {
 
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
-}
-
-type ProviderActionHandlers = ComposerSurfaceActions & {
-  addNewTopic: () => void
-}
-
-const emptyActions: ProviderActionHandlers = {
-  addNewTopic: () => undefined,
-  focus: () => undefined,
-  onTextChange: () => undefined,
-  toggleExpanded: () => undefined,
-  removeToken: () => undefined,
-  insertToken: () => undefined,
-  getDraft: () => ({ text: '', tokens: [] })
 }
 
 const AgentComposerRoot = ({
@@ -672,7 +659,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef, isExpanded)
+  useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -902,11 +889,14 @@ const AgentComposerInner = ({
               items={queuedFollowups}
               paused={followupPaused}
               onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={(id) => {
+              onSteer={async (id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
                 if (!item) return
-                void sendQueuedPayload(item.payload)
-                removeFollowup(id)
+                // Only drop the item once the send actually succeeds; a failed manual
+                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                const sent = await sendQueuedPayload(item.payload)
+                if (sent) removeFollowup(id)
+                else window.toast?.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)

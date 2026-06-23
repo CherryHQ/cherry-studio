@@ -20,14 +20,11 @@ import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
-const BASE_URL = 'https://www.cherry-ai.com/'
 
+// currentTab.url is always the app-relative route written by openTab(`/app/mini-app/<id>`),
+// never an absolute or live webview URL, so a direct compare is enough.
 function isMiniAppTabUrl(url: string, appId: string): boolean {
-  try {
-    return new URL(url, BASE_URL).pathname === `/app/mini-app/${encodeURIComponent(appId)}`
-  } catch {
-    return url === `/app/mini-app/${encodeURIComponent(appId)}`
-  }
+  return url === `/app/mini-app/${appId}`
 }
 
 const MiniAppPage: FC = () => {

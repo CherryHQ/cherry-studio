@@ -82,16 +82,15 @@ describe('CitationsPanel', () => {
     window.open = vi.fn()
   })
 
-  it('renders citations in a transparent page side panel with a full-height body', () => {
+  it('renders citations in a page side panel with the default modal scrim and a full-height body', () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
     const onClose = vi.fn()
 
     render(<CitationsPanel open={true} onClose={onClose} citations={citations} />)
 
-    expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
-      'data-backdrop-class-name',
-      'bg-transparent dark:bg-transparent'
-    )
+    // No transparent-backdrop override: keep the modal's default scrim so focus-trap +
+    // click-outside-to-close behaviour matches the (already modal) presentation.
+    expect(screen.getByTestId('page-side-panel')).not.toHaveAttribute('data-backdrop-class-name')
     expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
       'data-body-class-name',
       'flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2'

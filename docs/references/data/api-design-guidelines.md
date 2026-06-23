@@ -214,10 +214,13 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 | Purpose | Pattern | Example |
 |---------|---------|---------|
-| Pagination | `page` + `limit` | `?page=1&limit=20` |
+| Pagination (offset) | `page` + `limit` | `?page=1&limit=20` |
+| Pagination (cursor) | `cursor` + `limit` | `?cursor=1700000000000:abc&limit=20` |
 | Sorting | `sortBy` + `sortOrder` (see `SortParams` in [api-types.md](api-types.md)) | `?sortBy=createdAt&sortOrder=desc` |
 | Filtering | direct field names | `?status=active&type=chat` |
 | Search | `q` or `search` | `?q=keyword` |
+
+For offset-vs-cursor selection and the `<key>:<id>` cursor wire format, see the [Pagination Guide](./data-pagination-guide.md).
 
 ## Response Status Codes
 

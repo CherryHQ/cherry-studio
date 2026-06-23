@@ -1148,6 +1148,33 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('keeps a steered follow-up in the dock when its manual send fails', async () => {
+    mocks.draftText = 'queued message'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent).toBeTruthy()
+    const itemId = queueContent.props.items[0].id
+
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    await act(async () => {
+      await queueContent.props.onSteer(itemId)
+    })
+
+    // A failed manual steer must not silently drop the queued item.
+    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+  })
+
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
 

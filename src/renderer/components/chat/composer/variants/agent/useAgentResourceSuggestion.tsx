@@ -1,11 +1,11 @@
 import { FILE_TYPE } from '@renderer/types'
-import { createComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerAttachment } from '../../composerAttachment'
 import { serializeComposerDocument } from '../../composerDraft'
 import type { ComposerSuggestionSource } from '../../quickPanel'
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'

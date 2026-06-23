@@ -11,17 +11,16 @@ import ArtifactPane, {
 } from '@renderer/components/chat/panes/ArtifactPane'
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
-import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -44,6 +43,7 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
   type AgentRightPaneStatus,
   type AgentStatusTask,

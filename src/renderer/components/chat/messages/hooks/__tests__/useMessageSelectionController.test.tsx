@@ -1,4 +1,4 @@
-import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/messageUtils/composerClipboard'
+import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

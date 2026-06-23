@@ -1,4 +1,4 @@
-import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'

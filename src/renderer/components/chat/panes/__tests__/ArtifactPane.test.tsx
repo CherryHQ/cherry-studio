@@ -384,6 +384,20 @@ describe('ArtifactPane', () => {
     })
   })
 
+  it('re-roots a workspace-relative path that escapes via ".." so the tree root and previewed file agree', () => {
+    // Out-of-workspace previews are intentional (the agent creates files outside the workspace), but a
+    // `..`-escaping path must re-root like the absolute branch — otherwise the tree shows the workspace
+    // while the preview reads outside it. Both the bare-relative and workspace-prefixed forms resolve here.
+    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '../secret.md')).toEqual({
+      workspacePath: '/tmp/workspace/..',
+      filePath: 'secret.md'
+    })
+    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '/tmp/workspace/../secret.md')).toEqual({
+      workspacePath: '/tmp/workspace/..',
+      filePath: 'secret.md'
+    })
+  })
+
   it('does not load the PDF preview panel module for non-PDF selections', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Hello')
@@ -1051,6 +1065,24 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByText('agent.preview_pane.unavailable.title')).toBeInTheDocument())
     expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
+  it('shows the file-unavailable state when reading text content fails', async () => {
+    mocks.fsReadText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
+    mockWorkspaceTree('/tmp/workspace', ['locked.ts'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-locked.ts')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-locked.ts'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.unavailable.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.unavailable.description')
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
   })
 
   it('reads unknown extensions when the sniff says text', async () => {

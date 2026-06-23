@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { joinPath } from '@renderer/utils/path'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useIsTextFile')
@@ -7,11 +8,6 @@ export type IsTextState = 'pending' | 'text' | 'binary'
 
 interface UseIsTextFileOptions {
   enabled?: boolean
-}
-
-const joinAbsPath = (base: string, rel: string): string => {
-  const trimmed = rel.replace(/^[/\\]+/, '')
-  return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
 }
 
 /**
@@ -40,7 +36,7 @@ export function useIsTextFile(
     }
 
     setState('pending')
-    const absPath = joinAbsPath(workspacePath, filePath)
+    const absPath = joinPath(workspacePath, filePath)
     let cancelled = false
 
     void (async () => {

@@ -5,10 +5,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DetailHeader from '../DetailHeader'
 
-vi.mock('@renderer/utils/time', () => ({
-  formatRelativeTime: () => '2小时前'
-}))
-
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const PopoverContext = React.createContext<{

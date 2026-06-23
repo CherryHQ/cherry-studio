@@ -4,7 +4,7 @@ import {
   createComposerClipboardFragment,
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
-} from '@renderer/utils/messageUtils/composerClipboard'
+} from '@renderer/utils/message/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
@@ -178,7 +178,7 @@ vi.mock('@tiptap/react', () => ({
   )
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/SendMessageButton', () => ({
+vi.mock('@renderer/components/SendMessageButton', () => ({
   default: () => <button type="button">send</button>
 }))
 
@@ -192,7 +192,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/hooks/useFileDragDrop', () => ({
+vi.mock('@renderer/components/chat/composer/paste/useFileDragDrop', () => ({
   useFileDragDrop: () => ({
     handleDragEnter: vi.fn(),
     handleDragLeave: vi.fn(),
@@ -202,13 +202,13 @@ vi.mock('@renderer/pages/home/Inputbar/hooks/useFileDragDrop', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/hooks/usePasteHandler', () => ({
+vi.mock('@renderer/components/chat/composer/paste/usePasteHandler', () => ({
   usePasteHandler: () => ({
     handlePaste: mocks.pasteHandler
   })
 }))
 
-vi.mock('@renderer/services/PasteService', () => ({
+vi.mock('@renderer/components/chat/composer/paste/pasteHandling', () => ({
   default: {
     init: vi.fn(),
     registerHandler: vi.fn(),

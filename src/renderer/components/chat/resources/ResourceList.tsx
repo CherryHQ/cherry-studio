@@ -573,6 +573,8 @@ type BodyProps<T extends ResourceListItemBase> = {
   listRef?: Ref<HTMLDivElement>
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
   virtualClassName?: string
+  /** Accessible name forwarded to the listbox scroller in both the plain and draggable paths. */
+  ariaLabel?: string
 }
 
 function Body<T extends ResourceListItemBase>({
@@ -581,7 +583,8 @@ function Body<T extends ResourceListItemBase>({
   errorFallback,
   listRef,
   renderItem,
-  virtualClassName
+  virtualClassName,
+  ariaLabel
 }: BodyProps<T>) {
   const state = useResourceListControlsState()
   const view = useResourceListView<T>()
@@ -599,10 +602,12 @@ function Body<T extends ResourceListItemBase>({
   }
 
   if (draggable) {
-    return <VirtualDraggableItems ref={listRef} className={virtualClassName} renderItem={renderItem} />
+    return (
+      <VirtualDraggableItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+    )
   }
 
-  return <VirtualItems ref={listRef} className={virtualClassName} renderItem={renderItem} />
+  return <VirtualItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
 }
 
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>

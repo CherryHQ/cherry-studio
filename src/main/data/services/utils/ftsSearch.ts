@@ -5,6 +5,8 @@ import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from
 import { stripMarkdownFormatting } from '@shared/utils/searchSnippet'
 import { type SQL, sql } from 'drizzle-orm'
 
+import { asNumericKey, encodeCursor, parseCursor } from './keysetCursor'
+
 const DEFAULT_FTS_SEARCH_LIMIT = 500
 const FTS_SEARCH_CHUNK_SIZE = 200
 const FTS_SEARCH_MAX_CANDIDATES = 5_000
@@ -59,28 +61,19 @@ function invalidCursor(config: CursorConfig) {
   return DataApiErrorFactory.validation({ cursor: [config.fieldMessage] }, config.errorMessage)
 }
 
+// Search decode policy: a malformed cursor is a client contract violation and
+// throws 422 (unlike list browsing, which warns and falls back to first page).
+// The `<key>:<id>` parsing itself is shared via `parseCursor`.
 export function decodeSearchCursor(raw: string, config: CursorConfig): SearchCursor {
-  const sep = raw.indexOf(':')
-  if (sep < 0) {
+  const parsed = parseCursor(raw, asNumericKey)
+  if (!parsed) {
     throw invalidCursor(config)
   }
-
-  const key = raw.slice(0, sep)
-  const id = raw.slice(sep + 1)
-  if (!key || !id) {
-    throw invalidCursor(config)
-  }
-
-  const createdAt = Number(key)
-  if (!Number.isFinite(createdAt)) {
-    throw invalidCursor(config)
-  }
-
-  return { createdAt, id }
+  return { createdAt: parsed.key, id: parsed.id }
 }
 
 export function encodeSearchCursor(createdAt: number, id: string): string {
-  return `${createdAt}:${id}`
+  return encodeCursor(createdAt, id)
 }
 
 export function buildFtsLikePattern(term: string): string {

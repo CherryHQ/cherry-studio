@@ -58,16 +58,17 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
 
   const extraItems = useMemo(() => actionsToCommandMenuExtraItems(actions, runAction), [actions, runAction])
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (open) listActions.openContextMenu(getItemId(item))
-    },
-    [listActions, getItemId, item]
-  )
+  // Set the active context-menu item on the right-click itself, not via the cherry-only
+  // `onOpenChange`: the native menu path opens through `onContextMenu` + `showNativePopupMenu`
+  // and never fires `onOpenChange`, so otherwise native-mode right-clicks would leave the
+  // ResourceList pointing at a stale item. This wrapper fires for both presentation modes.
+  const markActiveItem = useCallback(() => listActions.openContextMenu(getItemId(item)), [listActions, getItemId, item])
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={extraItems} onOpenChange={handleOpenChange}>
-      {children}
+    <CommandContextMenu location="webcontents.context" extraItems={extraItems}>
+      <span className="contents" onContextMenu={markActiveItem}>
+        {children}
+      </span>
     </CommandContextMenu>
   )
 }

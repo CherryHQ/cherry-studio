@@ -3,7 +3,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { t } from 'i18next'
 import { Check, ChevronRight } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
-import { useEffect, useRef } from 'react'
 
 export interface QuickPanelRowData {
   id?: string
@@ -13,23 +12,6 @@ export interface QuickPanelRowData {
   suffix?: ReactNode | string
   disabled?: boolean
   isMenu?: boolean
-}
-
-export interface QuickPanelCandidateItem extends QuickPanelRowData {
-  id: string
-  selected?: boolean
-}
-
-interface QuickPanelFrameProps {
-  children: ReactNode
-  className?: string
-}
-
-interface QuickPanelListProps<T extends QuickPanelCandidateItem> {
-  items: readonly T[]
-  activeIndex: number
-  emptyLabel: ReactNode
-  onSelect: (item: T, index: number) => void
 }
 
 interface QuickPanelFooterProps {
@@ -61,16 +43,16 @@ interface QuickPanelRowProps<T extends QuickPanelRowData> {
   selected?: boolean
 }
 
-export function firstQuickPanelSelectableIndex(items: readonly QuickPanelCandidateItem[]) {
+export function firstQuickPanelSelectableIndex(items: readonly { disabled?: boolean }[]) {
   return items.findIndex((item) => !item.disabled)
 }
 
-function selectableIndexes(items: readonly QuickPanelCandidateItem[]) {
+function selectableIndexes(items: readonly { disabled?: boolean }[]) {
   return items.flatMap((item, index) => (item.disabled ? [] : [index]))
 }
 
 export function moveQuickPanelSelectableIndex(
-  items: readonly QuickPanelCandidateItem[],
+  items: readonly { disabled?: boolean }[],
   index: number,
   offset: number,
   options: { wrap: boolean }
@@ -87,33 +69,12 @@ export function moveQuickPanelSelectableIndex(
   const nextPosition = basePosition + offset
 
   if (options.wrap) {
-    return indexes[(nextPosition + indexes.length) % indexes.length]
+    // Wrap with a full modulo so a multi-page negative offset (e.g. Cmd/Ctrl+ArrowUp with
+    // fewer selectable items than the page size) still lands on a valid index, not `undefined`.
+    return indexes[((nextPosition % indexes.length) + indexes.length) % indexes.length]
   }
 
   return indexes[Math.min(Math.max(nextPosition, 0), indexes.length - 1)]
-}
-
-export function toggleQuickPanelSelectedId(ids: ReadonlySet<string>, id: string) {
-  const nextIds = new Set(ids)
-  if (nextIds.has(id)) {
-    nextIds.delete(id)
-  } else {
-    nextIds.add(id)
-  }
-
-  return nextIds
-}
-
-export function QuickPanelFrame({ children, className }: QuickPanelFrameProps) {
-  return (
-    <div
-      className={cn(
-        'w-80 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl',
-        className
-      )}>
-      {children}
-    </div>
-  )
 }
 
 export function QuickPanelFooter({
@@ -232,47 +193,6 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
           </span>
         ) : null}
       </div>
-    </div>
-  )
-}
-
-export function QuickPanelList<T extends QuickPanelCandidateItem>({
-  activeIndex,
-  emptyLabel,
-  items,
-  onSelect
-}: QuickPanelListProps<T>) {
-  const itemRefs = useRef(new Map<string, HTMLDivElement>())
-
-  useEffect(() => {
-    const activeItem = items[activeIndex]
-    if (!activeItem) return
-    itemRefs.current.get(activeItem.id)?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex, items])
-
-  return (
-    <div className="max-h-72 overflow-y-auto">
-      {items.length > 0 ? (
-        items.map((item, itemIndex) => (
-          <QuickPanelRow
-            key={item.id}
-            active={itemIndex === activeIndex}
-            dataId={item.id}
-            item={item}
-            rowRef={(node) => {
-              if (node) {
-                itemRefs.current.set(item.id, node)
-              } else {
-                itemRefs.current.delete(item.id)
-              }
-            }}
-            selected={item.selected}
-            onSelect={() => onSelect(item, itemIndex)}
-          />
-        ))
-      ) : (
-        <div className="p-4 text-center text-[13px] text-muted-foreground">{emptyLabel}</div>
-      )}
     </div>
   )
 }

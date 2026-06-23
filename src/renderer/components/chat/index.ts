@@ -9,7 +9,6 @@ export type {
   CommandDescriptor,
   ResolvedAction
 } from './actions/actionTypes'
-export * from './adapters'
 export * from './composer'
 export {
   MessageList,

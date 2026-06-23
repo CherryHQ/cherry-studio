@@ -26,7 +26,8 @@ import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import { decodeSearchCursor, encodeSearchCursor, type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const MESSAGE_CURSOR_CONFIG = {
@@ -57,16 +58,6 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
-}
-
-// Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
-function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
-  try {
-    return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
-  } catch (error) {
-    logger.warn('Ignoring malformed session message list cursor', { cursor: raw, error })
-    return null
-  }
 }
 
 export class AgentSessionMessageService {
@@ -152,7 +143,11 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
-    const cursor = options.cursor ? decodeMessageCursor(options.cursor) : null
+    const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
+      major: 'desc',
+      tie: 'desc'
+    })
+    const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
     const [anchor] =
       !options.cursor && options.messageId
         ? await database
@@ -170,13 +165,7 @@ export class AgentSessionMessageService {
 
     const filters = [eq(sessionMessagesTable.sessionId, sessionId)]
     if (cursor) {
-      // Walk older: (createdAt, id) < (cursor.createdAt, cursor.id)
-      filters.push(
-        or(
-          lt(sessionMessagesTable.createdAt, cursor.createdAt),
-          and(eq(sessionMessagesTable.createdAt, cursor.createdAt), lt(sessionMessagesTable.id, cursor.id))
-        )!
-      )
+      filters.push(ordering.where(cursor))
     } else if (anchor) {
       // Anchor the first page so previews include the matched message and older context.
       filters.push(
@@ -191,14 +180,14 @@ export class AgentSessionMessageService {
       .select()
       .from(sessionMessagesTable)
       .where(and(...filters))
-      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(limit + 1)
 
     const hasNext = rows.length > limit
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeSearchCursor(tail.createdAt, tail.id) : undefined
+    const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
   }

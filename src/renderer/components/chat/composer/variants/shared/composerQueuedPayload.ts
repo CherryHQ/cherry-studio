@@ -1,6 +1,6 @@
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 
-import type { ComposerAttachment } from '../../composerAttachment'
 import { createComposerUserMessageParts } from '../../composerDraft'
 import type { ComposerSerializedDraft } from '../../tokens'
 import { getComposerTokenIds } from './composerTokens'

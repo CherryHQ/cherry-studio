@@ -1,6 +1,6 @@
-import { type ComposerAttachment, toComposerAttachments } from '@renderer/components/chat/composer/composerAttachment'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
+import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import { Paperclip } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useState } from 'react'

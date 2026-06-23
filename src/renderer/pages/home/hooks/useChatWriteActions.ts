@@ -17,7 +17,7 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { Topic } from '@renderer/types'
-import { resolveUniqueModelId } from '@renderer/utils/messageUtils/modelIdentity'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,

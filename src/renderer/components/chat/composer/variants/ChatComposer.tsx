@@ -29,13 +29,13 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -48,7 +48,6 @@ import { Bot } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerAttachment } from '../composerAttachment'
 import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -74,6 +73,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
@@ -100,20 +100,6 @@ interface ChatComposerProps {
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-}
-
-type ProviderActionHandlers = ComposerSurfaceActions & {
-  addNewTopic: (payload?: AddNewTopicPayload) => void
-}
-
-const emptyActions: ProviderActionHandlers = {
-  addNewTopic: () => undefined,
-  focus: () => undefined,
-  onTextChange: () => undefined,
-  toggleExpanded: () => undefined,
-  removeToken: () => undefined,
-  insertToken: () => undefined,
-  getDraft: () => ({ text: '', tokens: [] })
 }
 
 interface SavedComposerDraft {
@@ -674,7 +660,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef, isExpanded)
+  useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler(
@@ -690,7 +676,8 @@ const ChatComposerInner = ({
       buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: chatComposerTokenId.file,
-        requireText: true,
+        // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
+        requireText: false,
         extra: (tokenIds) => {
           const knowledgeBaseIds = selectedKnowledgeBasesInScope
             .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
@@ -946,7 +933,7 @@ const ChatComposerInner = ({
         resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
         placeholder={searching ? t('chat.input.translating') : placeholderText}
         sendDisabled={
-          text.trim().length === 0 ||
+          (text.trim().length === 0 && files.length === 0) ||
           (loading && !canSteer) ||
           sendDisabled ||
           searching ||
@@ -979,11 +966,14 @@ const ChatComposerInner = ({
               items={queuedFollowups}
               paused={followupPaused}
               onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={(id) => {
+              onSteer={async (id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
                 if (!item) return
-                void sendQueuedPayload(item.payload)
-                removeFollowup(id)
+                // Only drop the item once the send actually succeeds; a failed manual
+                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                const sent = await sendQueuedPayload(item.payload)
+                if (sent) removeFollowup(id)
+                else window.toast?.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
+import type * as React from 'react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,42 +21,66 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    variant,
-    size,
-    ...props
-  }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'> & { variant?: string; size?: string }>) => (
-    <button type="button" data-size={size} data-variant={variant} {...props}>
-      {children}
-    </button>
-  ),
-  ButtonGroup: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-    <div {...props}>{children}</div>
-  ),
-  MenuItem: ({
-    label,
-    icon,
-    active,
-    onClick
-  }: {
-    label: string
-    icon?: React.ReactNode
-    active?: boolean
-    onClick?: () => void
-  }) => (
-    <button type="button" data-active={String(active)} onClick={onClick}>
-      {icon}
-      {label}
-    </button>
-  ),
-  MenuList: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  NormalTooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  Popover: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  PopoverContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: PropsWithChildren) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const ReactActual = await vi.importActual<typeof React>('react')
+  // Controlled Popover so menu items are hidden until the trigger ("More") opens it — otherwise
+  // the test could click menu entries without the split-button/asChild/open flow ever running.
+  const PopoverContext = ReactActual.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
+    open: false,
+    setOpen: () => {}
+  })
+  return {
+    Button: ({
+      children,
+      variant,
+      size,
+      ...props
+    }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'> & { variant?: string; size?: string }>) => (
+      <button type="button" data-size={size} data-variant={variant} {...props}>
+        {children}
+      </button>
+    ),
+    ButtonGroup: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+      <div {...props}>{children}</div>
+    ),
+    MenuItem: ({
+      label,
+      icon,
+      active,
+      onClick
+    }: {
+      label: string
+      icon?: React.ReactNode
+      active?: boolean
+      onClick?: () => void
+    }) => (
+      <button type="button" data-active={String(active)} onClick={onClick}>
+        {icon}
+        {label}
+      </button>
+    ),
+    MenuList: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    NormalTooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
+    Popover: ({ children }: PropsWithChildren) => {
+      const [open, setOpen] = ReactActual.useState(false)
+      return <PopoverContext value={{ open, setOpen }}>{children}</PopoverContext>
+    },
+    PopoverContent: ({ children }: PropsWithChildren) => {
+      const { open } = ReactActual.use(PopoverContext)
+      return open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({ children }: PropsWithChildren) => {
+      const { setOpen } = ReactActual.use(PopoverContext)
+      return ReactActual.isValidElement(children) ? (
+        ReactActual.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
+          onClick: () => setOpen(true)
+        })
+      ) : (
+        <>{children}</>
+      )
+    }
+  }
+})
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [mocks.lastUsedTarget, mocks.setLastUsedTarget]
@@ -166,6 +190,8 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
+    // Menu targets live behind the split button's "More" popover trigger.
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
     fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace'))
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
@@ -195,6 +221,7 @@ describe('OpenExternalAppButton', () => {
     expect(mocks.windowOpen).not.toHaveBeenCalled()
     expect(mocks.setLastUsedTarget).not.toHaveBeenCalled()
 
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
     fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
   })

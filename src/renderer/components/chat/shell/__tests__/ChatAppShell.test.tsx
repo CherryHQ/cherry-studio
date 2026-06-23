@@ -1,5 +1,5 @@
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
