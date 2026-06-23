@@ -5,13 +5,6 @@ import ThinkingBlock from '../ThinkingBlock'
 
 // Mock dependencies
 const mockUseTranslation = vi.fn()
-const mockMessageActions = vi.hoisted<{
-  copyText?: ReturnType<typeof vi.fn>
-  notifyError?: ReturnType<typeof vi.fn>
-}>(() => ({
-  copyText: vi.fn().mockResolvedValue(undefined),
-  notifyError: vi.fn()
-}))
 const mockRenderConfig = vi.hoisted(() => ({
   messageFont: 'sans-serif',
   fontSize: 14,
@@ -27,8 +20,7 @@ type ThinkingBlockFixture = {
 }
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => mockRenderConfig,
-  useMessageListActions: () => mockMessageActions
+  useMessageRenderConfig: () => mockRenderConfig
 }))
 
 vi.mock('react-i18next', () => ({
@@ -64,20 +56,6 @@ describe('ThinkingBlock', () => {
     mockRenderConfig.fontSize = 14
     mockRenderConfig.thoughtAutoCollapse = false
 
-    mockMessageActions.copyText = vi.fn().mockResolvedValue(undefined)
-    mockMessageActions.notifyError = vi.fn()
-
-    // Stub clipboard + toast utilities used by the platform actions
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
-    })
-    ;(window as any).toast = {
-      success: vi.fn(),
-      error: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn()
-    }
-
     mockUseTranslation.mockReturnValue({
       t: (key: string, params?: any) => {
         if (key === 'chat.thinking' && params?.seconds) {
@@ -90,9 +68,6 @@ describe('ThinkingBlock', () => {
           return `~${params.tokens} tokens`
         }
         if (key === 'common.reasoning_content') return 'Deep reasoning'
-        if (key === 'common.copy') return 'Copy'
-        if (key === 'message.copied') return 'Copied'
-        if (key === 'common.copy_failed') return 'Copy failed'
         return key
       }
     })
@@ -103,8 +78,6 @@ describe('ThinkingBlock', () => {
     vi.clearAllMocks()
     vi.clearAllTimers()
     vi.useRealTimers()
-    delete (window as any).toast
-    delete (navigator as any).clipboard
   })
 
   // Test data factory functions
@@ -466,14 +439,6 @@ describe('ThinkingBlock', () => {
       // Should still render correctly
       expect(getThinkingContent()).toBeInTheDocument()
       expect(getCopyButton()).not.toBeInTheDocument()
-    })
-
-    it('does not invoke actions.copyText when there is no content', () => {
-      const block = createThinkingBlock({ content: '' })
-      const { container } = renderThinkingBlock(block)
-
-      expect(container.firstChild).toBeNull()
-      expect(mockMessageActions.copyText).not.toHaveBeenCalled()
     })
   })
 })
