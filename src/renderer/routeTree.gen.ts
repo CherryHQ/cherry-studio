@@ -10,9 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as HomeRouteImport } from './routes/home'
 import { Route as AppRouteImport } from './routes/app'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
@@ -58,19 +56,9 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
@@ -272,9 +260,7 @@ const SettingsMcpSettingsServerIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
   '/app/chat': typeof AppChatRoute
@@ -317,9 +303,7 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/app/agents': typeof AppAgentsRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -361,9 +345,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
   '/app/chat': typeof AppChatRoute
@@ -408,9 +390,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/app'
-    | '/home'
     | '/settings'
     | '/app/agents'
     | '/app/chat'
@@ -453,9 +433,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/settings/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/app'
-    | '/home'
     | '/app/agents'
     | '/app/chat'
     | '/app/code'
@@ -496,9 +474,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/settings/$serverId'
   id:
     | '__root__'
-    | '/'
     | '/app'
-    | '/home'
     | '/settings'
     | '/app/agents'
     | '/app/chat'
@@ -542,9 +518,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
-  HomeRoute: typeof HomeRoute
   SettingsRoute: typeof SettingsRouteWithChildren
 }
 
@@ -557,25 +531,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/app': {
       id: '/app'
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/': {
@@ -961,9 +921,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
-  HomeRoute: HomeRoute,
   SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport

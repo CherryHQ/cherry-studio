@@ -25,8 +25,8 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getHttpMessageLabel: (status: string) => `HTTP ${status}`,
-  getProviderLabel: (providerId: string) => providerId
+  getHttpMessageLabelKey: (status: string) => `HTTP ${status}`,
+  getProviderLabelKey: (providerId: string) => providerId
 }))
 
 vi.mock('@tanstack/react-router', () => ({

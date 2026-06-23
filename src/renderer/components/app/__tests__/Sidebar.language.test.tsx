@@ -40,7 +40,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarFavoriteLabelKey: (key: string) => key
+  getSidebarIconLabelKey: (key: string) => key
 }))
 
 vi.mock('@renderer/i18n', () => ({
@@ -89,6 +89,10 @@ vi.mock('../../Popups/UserPopup', () => ({
   default: {
     show: vi.fn()
   }
+}))
+
+vi.mock('../../layout/ShellTabBarActions', () => ({
+  SidebarShellActions: () => null
 }))
 
 import Sidebar from '../Sidebar'

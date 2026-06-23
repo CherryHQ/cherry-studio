@@ -2704,9 +2704,11 @@
           }
         },
         "generate": "Gerar prompt",
+        "generate_failed_description": "Verifique ou altere o modelo predefinido e tente novamente.",
+        "generate_failed_title": "Falha ao gerar o prompt",
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
-        "placeholder": "Insira o prompt do sistema. Variáveis como {{date}} e {{model_name}} são suportadas...",
+        "placeholder": "Introduza instruções para o assistente, como estilo de resposta, função ou contexto",
         "title": "Prompt",
         "tokens_label": "Tokens:",
         "variables_title": "Variáveis disponíveis",
@@ -5886,7 +5888,6 @@
         "label": "Botão de navegação de conversa",
         "none": "Não mostrar"
       },
-      "prompt": "Exibir palavra-chave",
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"

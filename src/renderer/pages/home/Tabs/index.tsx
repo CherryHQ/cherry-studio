@@ -1,72 +1,50 @@
-import { usePreference } from '@data/hooks/usePreference'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
-import type { FC } from 'react'
-import styled from 'styled-components'
+import { cn } from '@renderer/utils'
+import type { FC, HTMLAttributes } from 'react'
 
-import Topics from './TopicsTab'
+import type { AddNewTopicPayload } from '../types'
+import { Topics } from './components/Topics'
 
 interface Props {
-  activeTopic: Topic
+  activeTopic?: Topic
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   setActiveTopic: (topic: Topic) => void
-  position: 'left' | 'right'
+  revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, setActiveTopic, position, style }) => {
-  const [topicPosition] = usePreference('topic.position')
-  const { isLeftNavbar } = useNavbarPosition()
-
-  const borderStyle = '0.5px solid var(--color-border)'
-  const border =
-    position === 'left'
-      ? { borderRight: isLeftNavbar ? borderStyle : 'none' }
-      : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
-
+const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, setActiveTopic, revealRequest, style }) => {
   return (
-    <Container
-      style={{ ...border, ...style }}
-      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
+    <Container style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
-        <Topics activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={position} />
+        <Topics
+          activeTopic={activeTopic}
+          setActiveTopic={setActiveTopic}
+          onNewTopic={onNewTopic}
+          revealRequest={revealRequest}
+        />
       </TabContent>
     </Container>
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: var(--assistants-width);
-  transition: width 0.3s;
-  height: calc(100vh - var(--navbar-height));
-  position: relative;
+function Container({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'relative flex h-[calc(100vh_-_var(--navbar-height))] w-[var(--assistants-width)] flex-col overflow-hidden transition-[width] duration-300 [&_.collapsed]:w-0 [&_.collapsed]:border-l-0',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
-  &.right {
-    height: calc(100vh - var(--navbar-height));
-  }
-
-  [navbar-position='left'] & {
-    background-color: var(--color-background);
-  }
-  [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height));
-  }
-  overflow: hidden;
-  .collapsed {
-    width: 0;
-    border-left: none;
-  }
-`
-
-const TabContent = styled.div`
-  display: flex;
-  transition: width 0.3s;
-  flex: 1;
-  flex-direction: column;
-  overflow-y: hidden;
-  overflow-x: hidden;
-`
+function TabContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('flex flex-1 flex-col overflow-hidden transition-[width] duration-300', className)} {...props} />
+  )
+}
 
 export default HomeTabs

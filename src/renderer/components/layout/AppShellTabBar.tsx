@@ -1,4 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
+import {
+  emitResourceListReveal,
+  type ResourceListRevealSource
+} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
@@ -99,6 +103,12 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 // Threshold below which the right-side X is hidden and icon-overlay X is used instead
 const NARROW_TAB_THRESHOLD = 64
+
+function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
+  if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
+  if (url === '/app/agents' || url.startsWith('/app/agents?') || url.startsWith('/app/agents/')) return 'agents'
+  return null
+}
 
 type NormalTabButtonProps = {
   tab: Tab
@@ -451,7 +461,12 @@ export const AppShellTabBar = ({
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
-      handleTabClick(tab.id)
+      if (!handleTabClick(tab.id)) return
+
+      const revealSource = getResourceListRevealSourceFromUrl(tab.url)
+      if (revealSource) {
+        emitResourceListReveal({ source: revealSource, tabId: tab.id })
+      }
     },
     [handleTabClick]
   )

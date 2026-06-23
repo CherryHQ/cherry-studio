@@ -87,11 +87,12 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
   })
 
-  it('keeps the head and surfaces onDrainFailed when an auto-drain fails', async () => {
+  it('keeps the head queued and reports failure when auto-drain fails', async () => {
     const onDrain = vi.fn().mockResolvedValue(false)
     const onDrainFailed = vi.fn()
     const markSeen = vi.fn()
-    store.set('followup-queue.s1', [{ id: 'h', draft: draft('head'), payload: payload('head') }])
+    const head = item('h', 'head')
+    store.set('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
       ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
@@ -102,11 +103,31 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    // The completion edge was consumed (markSeen) but the send failed — the item stays put
-    // and the failure is surfaced instead of silently stuck.
     expect(markSeen).toHaveBeenCalled()
-    expect(onDrainFailed).toHaveBeenCalledTimes(1)
-    expect(result.current.items.map((item) => item.id)).toEqual(['h'])
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(onDrainFailed).toHaveBeenCalledOnce()
+    expect(result.current.items).toEqual([head])
+  })
+
+  it('keeps the head queued and reports failure when auto-drain rejects', async () => {
+    const onDrain = vi.fn().mockRejectedValue(new Error('drain blew up'))
+    const onDrainFailed = vi.fn()
+    const markSeen = vi.fn()
+    const head = item('h', 'head')
+    store.set('followup-queue.s1', [head])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(onDrainFailed).toHaveBeenCalledOnce()
+    expect(result.current.items).toEqual([head])
   })
 
   it('does not drain while paused', async () => {

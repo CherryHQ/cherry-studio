@@ -1,4 +1,4 @@
-import { readComposerClipboardFragment } from '@renderer/utils/messageUtils/composerClipboard'
+import { readComposerClipboardFragment } from '@renderer/utils/message/composerClipboard'
 import { describe, expect, it } from 'vitest'
 
 import {

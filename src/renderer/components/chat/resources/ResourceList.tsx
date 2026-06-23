@@ -35,7 +35,6 @@ export type {
   ResourceListActionMap,
   ResourceListContextValue,
   ResourceListDragCapabilities,
-  ResourceListExpansionState,
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupHeaderClickBehavior,

@@ -1,6 +1,6 @@
 import { FILE_TYPE } from '@renderer/types'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
-import { createComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'

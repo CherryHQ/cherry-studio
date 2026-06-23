@@ -14,7 +14,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
 }))
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 

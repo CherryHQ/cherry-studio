@@ -23,7 +23,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -310,11 +310,11 @@ function renderPart(
   isStreaming: boolean,
   isTranslationOverlayActive: boolean
 ): React.ReactNode {
-  const partType = part.type as string
+  const partType = part.type
 
   switch (partType) {
     case 'reasoning': {
-      const reasoningPart = part as ReasoningUIPart
+      const reasoningPart = part
       const cherryMeta = getCherryMeta(part)
       const metadataBlock =
         'providerMetadata' in part && part.providerMetadata
@@ -365,7 +365,6 @@ function renderPart(
     }
 
     case 'text': {
-      const textPart = part as { text?: string }
       const cherryMeta = getCherryMeta(part)
       const citations = cherryMeta?.references
         ? convertReferencesToCitations(cherryMeta.references as ContentReference[])
@@ -377,7 +376,7 @@ function renderPart(
         <MainTextBlock
           key={partId}
           id={partId}
-          content={textPart.text || ''}
+          content={part.text || ''}
           isStreaming={isStreaming}
           citations={citations}
           citationReferences={citationReferences}
@@ -396,20 +395,16 @@ function renderPart(
     }
 
     case 'data-error': {
-      const rawData = 'data' in part ? (part.data as ErrorPartData) : undefined
+      const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
       return <ErrorPartView key={partId} partId={partId} rawData={rawData} message={message} />
     }
 
     case 'data-video': {
-      const rawData = 'data' in part ? (part.data as VideoPartData) : undefined
+      const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
       return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
     }
-
-    case 'data-citation':
-      // Citation data is embedded in MainTextBlock.citationReferences; no standalone render is needed.
-      return null
 
     case 'data-agent-task-event':
       // Agent task events are hidden inline state consumed by the agent status panes.
@@ -734,11 +729,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
 
   return (
     <AnimatePresence mode="sync">
-      {isProcessing && (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-        </AnimatedBlockWrapper>
-      )}
       {toolHistoryGroup && (
         <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
           <OuterProcessFold
@@ -754,6 +744,11 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+        </AnimatedBlockWrapper>
+      )}
+      {isProcessing && (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>
