@@ -14,9 +14,9 @@ import { ToolArgsTable } from '../../messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '../../messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '../../messages/tools/toolResponse'
 import type { ComposerOverride } from '../ComposerContext'
-import type { PermissionRequestComposerRequest } from './PermissionRequestComposerRequest'
-export type { PermissionRequestComposerRequest } from './PermissionRequestComposerRequest'
-export { findLatestPendingPermissionRequest } from './PermissionRequestComposerRequest'
+import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
+export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
+export { findLatestPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
 
