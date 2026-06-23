@@ -188,7 +188,9 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 
 | Area | Current state | Target |
 |---|---|---|
-| App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, tab icons) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
+| App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, `tab icons`) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
+
+> **RTL support** – UI now relies on logical CSS properties (e.g. `margin-inline-start`, `padding-block-end`). The `.mirror-rtl` utility flips icons when the document has `dir="rtl"` (used for Arabic `ar‑ye` locale). This ensures automatic layout direction handling without manual overrides.
 | `components/app/Navbar` | a shared page-header component (`Navbar`/`NavbarCenter`/…) consumed by ~10 pages, mislabeled under an `app/` (shell) subdirectory | it is shared UI, **not** shell: keep in `components/` (regroup as `components/Navbar/`) |
 | `components/app/Sidebar` | no importers found — likely dead code | verify; remove if unused, otherwise place by its actual consumer (window shell → `windows/`, reusable UI → `components/`) |
 | Cross-page imports | `pages/<domain>/` import each other (`pages → pages` coupling) | a page must not import another page; route shared needs through the shared layer |
