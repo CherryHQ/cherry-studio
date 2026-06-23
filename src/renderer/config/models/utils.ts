@@ -34,7 +34,7 @@ import {
   isGPT52SeriesModel,
   isSupportVerbosityModel
 } from './openai'
-import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
+import { isAudioModel, isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 
 // ── Re-exports (public API preserved) ─────────────────────────────────────
 export const GEMINI_FLASH_MODEL_REGEX = SHARED_GEMINI_FLASH_MODEL_REGEX
@@ -109,6 +109,8 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => sharedI
 export const isVisionModels = (models: Model[]): boolean => models.every(isVisionModel)
 
 export const isGenerateImageModels = (models: Model[]): boolean => models.every(isGenerateImageModel)
+
+export const isAudioModels = (models: Model[]): boolean => models.every(isAudioModel)
 
 // ── Renderer-only data grouping ─────────────────────────────────────────
 /**

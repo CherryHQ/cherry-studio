@@ -1,7 +1,14 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
+import {
+  isAudioModel,
+  isAudioModels,
+  isGenerateImageModel,
+  isGenerateImageModels,
+  isVisionModel,
+  isVisionModels
+} from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -25,7 +32,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
-import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { audioExts, documentExts, imageExts, textExts } from '@shared/utils/file'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -158,6 +165,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   }, [topic.id])
   const loading = isPending || isSending || awaitingApproval
   const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
+  const isAudioAssistant = useMemo(() => (model ? isAudioModel(model) : false), [model])
   const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
   const { setTimeoutTimer } = useTimer()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
@@ -176,29 +184,34 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     [mentionedModels, isGenerateImageAssistant]
   )
 
+  const isAudioSupported = useMemo(
+    () =>
+      (mentionedModels.length > 0 && isAudioModels(mentionedModels)) ||
+      (mentionedModels.length === 0 && isAudioAssistant),
+    [mentionedModels, isAudioAssistant]
+  )
+
   const canAddImageFile = useMemo(() => {
     return isVisionSupported || isGenerateImageSupported
   }, [isGenerateImageSupported, isVisionSupported])
+
+  const canAddAudioFile = useMemo(() => {
+    return isAudioSupported
+  }, [isAudioSupported])
 
   const canAddTextFile = useMemo(() => {
     return isVisionSupported || (!isVisionSupported && !isGenerateImageSupported)
   }, [isGenerateImageSupported, isVisionSupported])
 
   const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    }
-
-    if (canAddImageFile) {
-      return [...imageExts]
-    }
+    const mediaExts = [...(canAddImageFile ? imageExts : []), ...(canAddAudioFile ? audioExts : [])]
 
     if (canAddTextFile) {
-      return [...documentExts, ...textExts]
+      return [...mediaExts, ...documentExts, ...textExts]
     }
 
-    return []
-  }, [canAddImageFile, canAddTextFile])
+    return mediaExts
+  }, [canAddAudioFile, canAddImageFile, canAddTextFile])
 
   useEffect(() => {
     setCouldAddImageFile(canAddImageFile)
