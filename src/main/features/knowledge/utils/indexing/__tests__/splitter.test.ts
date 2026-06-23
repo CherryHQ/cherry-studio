@@ -172,6 +172,39 @@ describe('splitTextWithOffsets — separator and strategy', () => {
     expect(withDefault).toEqual(withStructured)
   })
 
+  // The migrated/default base runs structured mode with chunkSeparator='\n\n' (the column
+  // default), not "no separator". That adds a paragraph-level break (score 30) just after
+  // each '\n\n', so the default is an *active* break, not a no-op: it keeps the chunk count
+  // but shifts some interior cut offsets versus a no-separator run, while staying verbatim.
+  // This is why "reproduces the previous behavior" only holds for already-indexed content
+  // (chunking affects newly-added content only), not byte-for-byte under re-chunking.
+  it('treats the migrated "\\n\\n" default as an active paragraph-level break in structured mode', () => {
+    const text = [
+      '# Title',
+      'First paragraph with several words to fill up some space here for chunking.',
+      'Second paragraph that also carries a fair amount of words for the splitter.',
+      'Third paragraph continuing the document with yet more filler content inside.',
+      'Fourth and final paragraph wrapping up this example body of text quite nicely.'
+    ].join('\n\n')
+
+    const withDefaultSeparator = splitTextWithOffsets(text, {
+      chunkSize: 12,
+      chunkOverlap: 4,
+      separator: '\\n\\n',
+      strategy: 'structured'
+    })
+    const withoutSeparator = splitTextWithOffsets(text, {
+      chunkSize: 12,
+      chunkOverlap: 4,
+      strategy: 'structured'
+    })
+
+    expect(withDefaultSeparator).not.toEqual(withoutSeparator)
+    expect(withDefaultSeparator.length).toBe(withoutSeparator.length)
+    expectVerbatimSlices(text, withDefaultSeparator)
+    expectVerbatimSlices(text, withoutSeparator)
+  })
+
   it('keeps the invariant across strategies and separators (fuzz)', () => {
     const fragments = [
       'Hello world. ',
