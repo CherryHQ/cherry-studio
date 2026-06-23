@@ -1221,8 +1221,7 @@ export default function ComposerSurface({
     },
     onCreate: ({ editor: createdEditor }) => {
       setTimeoutTimer('composerSurfaceFocus', () => createdEditor.commands.focus(), 0)
-    },
-    shouldRerenderOnTransaction: true
+    }
   })
 
   useEffect(() => {
