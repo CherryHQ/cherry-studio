@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { type MouseEvent as ReactMouseEvent, type MouseEventHandler, type ReactNode, useEffect } from 'react'
+import { type MouseEvent as ReactMouseEvent, useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerErrorMock, loggerWarnMock, preferenceValues, showNativePopupMenuMock } = vi.hoisted(() => ({
@@ -35,22 +35,48 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => {
+  const React = require('react')
+  const MenuOpenContext = React.createContext(null)
+
   return {
-    ContextMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    ContextMenuTrigger: ({ children, onContextMenu }: { children: ReactNode; onContextMenu?: MouseEventHandler }) => (
-      <span onContextMenu={onContextMenu}>{children}</span>
+    ContextMenu: ({
+      children,
+      onOpenChange
+    }: {
+      children: React.ReactNode
+      onOpenChange?: (open: boolean) => void
+    }) => (
+      <MenuOpenContext value={onOpenChange ?? null}>
+        <div>{children}</div>
+      </MenuOpenContext>
     ),
-    ContextMenuContent: ({ children }: { children: ReactNode }) => <div data-testid="menu-content">{children}</div>,
+    ContextMenuTrigger: ({
+      children,
+      onContextMenu
+    }: {
+      children: React.ReactNode
+      onContextMenu?: React.MouseEventHandler
+    }) => {
+      const onOpenChange = React.use(MenuOpenContext)
+      const handleContextMenu = (e: React.MouseEvent) => {
+        onOpenChange?.(true)
+        onContextMenu?.(e)
+      }
+      return <span onContextMenu={handleContextMenu}>{children}</span>
+    },
+    ContextMenuContent: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="menu-content">{children}</div>
+    ),
     ContextMenuSeparator: () => <hr />,
-    ContextMenuSub: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    ContextMenuSubContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    ContextMenuSubTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    ContextMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    ContextMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    ContextMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     ContextMenuCheckboxItem: ({
       children,
       disabled,
       onCheckedChange
     }: {
-      children: ReactNode
+      children: React.ReactNode
       disabled?: boolean
       onCheckedChange?: () => void
     }) => (
@@ -63,7 +89,7 @@ vi.mock('@cherrystudio/ui', () => {
       disabled,
       onSelect
     }: {
-      children: ReactNode
+      children: React.ReactNode
       disabled?: boolean
       onSelect?: () => void
     }) => (
@@ -76,8 +102,8 @@ vi.mock('@cherrystudio/ui', () => {
       icon,
       shortcut
     }: {
-      children: ReactNode
-      icon?: ReactNode
+      children: React.ReactNode
+      icon?: React.ReactNode
       shortcut?: string
     }) => (
       <span>
@@ -85,6 +111,58 @@ vi.mock('@cherrystudio/ui', () => {
         <span>{children}</span>
         {shortcut ? <span>{shortcut}</span> : null}
       </span>
+    ),
+
+    DropdownMenu: ({
+      children,
+      onOpenChange
+    }: {
+      children: React.ReactNode
+      onOpenChange?: (open: boolean) => void
+    }) => (
+      <MenuOpenContext value={onOpenChange ?? null}>
+        <div>{children}</div>
+      </MenuOpenContext>
+    ),
+    DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => {
+      const onOpenChange = React.use(MenuOpenContext)
+      const handleClick = () => {
+        onOpenChange?.(true)
+      }
+      return <span onClick={handleClick}>{children}</span>
+    },
+    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="dropdown-menu-content">{children}</div>
+    ),
+    DropdownMenuSeparator: () => <hr />,
+    DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuCheckboxItem: ({
+      children,
+      disabled,
+      onCheckedChange
+    }: {
+      children: React.ReactNode
+      disabled?: boolean
+      onCheckedChange?: () => void
+    }) => (
+      <button type="button" disabled={disabled} onClick={onCheckedChange}>
+        {children}
+      </button>
+    ),
+    DropdownMenuItem: ({
+      children,
+      disabled,
+      onSelect
+    }: {
+      children: React.ReactNode
+      disabled?: boolean
+      onSelect?: () => void
+    }) => (
+      <button type="button" disabled={disabled} onClick={onSelect}>
+        {children}
+      </button>
     )
   }
 })
@@ -92,7 +170,7 @@ vi.mock('@cherrystudio/ui', () => {
 import { useCommandHandler } from '@renderer/hooks/command'
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '../CommandMenus'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '../CommandMenus'
 import { CommandProvider } from '../CommandProvider'
 
 function RegisteredTopicCreate({ onExecute }: { onExecute: () => void }) {
@@ -452,6 +530,91 @@ describe('CommandContextMenu', () => {
 
     await waitFor(() => {
       expect(loggerWarnMock).toHaveBeenCalledWith('Failed to resolve command menu extra items', expect.any(Error))
+    })
+  })
+
+  it('triggers onOpenChange(true) when clicked in native mode, and onOpenChange(false) when closed', async () => {
+    const onOpenChange = vi.fn()
+    showNativePopupMenuMock.mockResolvedValueOnce(null)
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect: vi.fn() }]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+
+    await waitFor(() => {
+      expect(showNativePopupMenuMock).toHaveBeenCalled()
+      expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    })
+  })
+
+  it('triggers onOpenChange(true) when clicked in cherry mode, and onOpenChange(false) when selecting item', async () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+    expect(onOpenChange).toHaveBeenNthCalledWith(1, true)
+
+    fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
+    expect(onOpenChange).toHaveBeenNthCalledWith(2, false)
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledOnce()
+    })
+  })
+
+  it('triggers onOpenChange(true) when right-clicked in cherry mode, and onOpenChange(false) when selecting item', async () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandContextMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
+            <button type="button">trigger-context</button>
+          </CommandContextMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger-context' }))
+    expect(onOpenChange).toHaveBeenNthCalledWith(1, true)
+
+    fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
+    expect(onOpenChange).toHaveBeenNthCalledWith(2, false)
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledOnce()
     })
   })
 })

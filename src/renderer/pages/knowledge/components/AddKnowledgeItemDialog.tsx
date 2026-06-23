@@ -12,7 +12,7 @@ import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
 import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeItemDialogHeader'
 import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowledgeItemDialogSourceTabs'
-import { DEFAULT_SOURCE_TYPE } from './addKnowledgeItemDialog/constants'
+import { DEFAULT_SOURCE_TYPE, KNOWLEDGE_ADD_ITEMS_MAX } from './addKnowledgeItemDialog/constants'
 import KnowledgeAddConflictDialog from './addKnowledgeItemDialog/KnowledgeAddConflictDialog'
 import type { NoteItem } from './addKnowledgeItemDialog/types'
 
@@ -118,6 +118,26 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     return []
   }, [activeSource, selectedNotes, urlValue])
 
+  // An interactive batch can be huge (the OS picker has no cap), but add_items rejects
+  // oversized batches at the IPC boundary with a generic "Invalid input". Stop them here
+  // with a friendly, source-appropriate hint — a toast for direct-pick (no panel), inline
+  // otherwise. Returns true when the batch is within the limit and may be submitted.
+  const ensureWithinAddLimit = useCallback(
+    (items: KnowledgeAddItemInput[]): boolean => {
+      if (items.length <= KNOWLEDGE_ADD_ITEMS_MAX) {
+        return true
+      }
+      const message = t('knowledge.data_source.add_dialog.too_many_sources', { count: KNOWLEDGE_ADD_ITEMS_MAX })
+      if (directPick) {
+        window.toast.warning(message)
+      } else {
+        setSubmitErrorMessage(message)
+      }
+      return false
+    },
+    [directPick, t]
+  )
+
   // 'detect' (first pass) surfaces the conflict dialog when same-name collisions
   // exist; 'rename'/'replace' apply the user's choice. Closes the whole dialog
   // once the batch is actually added.
@@ -142,14 +162,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setIsResolvingSubmit(true)
 
     void buildPanelSubmitItems()
-      .then((items) => submitWithStrategy(items, 'detect'))
+      .then((items) => {
+        if (!ensureWithinAddLimit(items)) {
+          return
+        }
+        return submitWithStrategy(items, 'detect')
+      })
       .catch((error) => {
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
       .finally(() => {
         setIsResolvingSubmit(false)
       })
-  }, [buildPanelSubmitItems, canSubmit, isResolvingSubmit, submitWithStrategy, t])
+  }, [buildPanelSubmitItems, canSubmit, ensureWithinAddLimit, isResolvingSubmit, submitWithStrategy, t])
 
   // Collect file inputs from the OS picker (or page-level pending files, if any) and submit.
   // Returns null when the user cancels the picker so the caller can close the flow.
@@ -210,6 +235,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           handleOpenChange(false)
           return
         }
+        // Over the per-batch limit: the hint is a toast (no panel), so close afterwards.
+        if (!ensureWithinAddLimit(items)) {
+          handleOpenChange(false)
+          return
+        }
         await submitWithStrategy(items, 'detect')
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
@@ -225,6 +255,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     collectDirectoryInputs,
     collectFileInputs,
     directPick,
+    ensureWithinAddLimit,
     handleOpenChange,
     open,
     submitWithStrategy,

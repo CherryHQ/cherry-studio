@@ -1,10 +1,9 @@
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import type { FileMetadata, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
-
-import { findAllBlocks } from './messageUtils/find'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 
 /**
  * 内容类型常量定义
@@ -67,12 +66,48 @@ export interface TopicPreprocessResult {
   files: FileMetadata[]
 }
 
+// ── Parts helpers ────────────────────────────────────────────────────
+// Read content units directly from `Message.parts` (CherryMessagePart[]).
+// V2 has no standalone citation parts — citations live on text-part metadata
+// and were never surfaced by the v1 block path either, so they stay at 0.
+
+type FilePartLike = { type: 'file'; mediaType?: string; url?: string; filename?: string }
+
+function filePartUrlToPath(url: string): string {
+  if (!url.startsWith('file://')) return url
+
+  try {
+    const pathname = decodeURIComponent(new URL(url).pathname)
+    if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1).replace(/\//g, '\\')
+    return pathname
+  } catch {
+    return url.replace(/^file:\/\//, '')
+  }
+}
+
+function getParts(message: ExportableMessage): CherryMessagePart[] {
+  return message.parts ?? []
+}
+
+function getDataPart<T>(part: CherryMessagePart): Partial<T> | undefined {
+  if ('data' in part && part.data && typeof part.data === 'object') {
+    return part.data as Partial<T>
+  }
+  return undefined
+}
+
+function isToolPart(type: string): boolean {
+  return type.startsWith('tool-') || type === 'dynamic-tool'
+}
+
+function isImageFilePart(part: FilePartLike): boolean {
+  return Boolean(part.mediaType?.startsWith('image/'))
+}
+
 /**
  * 分析消息内容，统计各类型内容数量
  */
-export function analyzeMessageContent(message: Message): MessageContentStats {
-  const blocks = findAllBlocks(message)
-
+export function analyzeMessageContent(message: ExportableMessage): MessageContentStats {
   const stats: MessageContentStats = {
     text: 0,
     code: 0,
@@ -85,45 +120,31 @@ export function analyzeMessageContent(message: Message): MessageContentStats {
     errors: 0
   }
 
-  for (const block of blocks) {
-    switch (block.type) {
-      case MessageBlockType.MAIN_TEXT: {
-        const mainTextBlock = block
-        if (mainTextBlock.content?.trim()) {
-          stats.text++
-        }
+  for (const part of getParts(message)) {
+    switch (part.type) {
+      case 'text':
+        if ((part.text ?? '').trim()) stats.text++
         break
-      }
-      case MessageBlockType.CODE: {
-        const codeBlock = block
-        if (codeBlock.content?.trim()) {
-          stats.code++
-        }
-        break
-      }
-      case MessageBlockType.THINKING:
+      case 'reasoning':
         stats.thinking++
         break
-      case MessageBlockType.TOOL:
-        stats.tools++
+      case 'data-code':
+        if ((getDataPart<CodePartData>(part)?.content ?? '').trim()) stats.code++
         break
-      case MessageBlockType.IMAGE:
-        stats.images++
-        break
-      case MessageBlockType.FILE:
-        stats.files++
-        break
-      case MessageBlockType.CITATION:
-        stats.citations++
-        break
-      case MessageBlockType.TRANSLATION:
-        stats.translations++
-        break
-      case MessageBlockType.ERROR:
+      case 'data-error':
         stats.errors++
         break
-      case MessageBlockType.UNKNOWN:
-        // 占位符块不计入统计
+      case 'data-translation':
+        stats.translations++
+        break
+      case 'file': {
+        const filePart = part as FilePartLike
+        if (isImageFilePart(filePart)) stats.images++
+        else if (filePart.url) stats.files++
+        break
+      }
+      default:
+        if (isToolPart(part.type)) stats.tools++
         break
     }
   }
@@ -135,29 +156,31 @@ export function analyzeMessageContent(message: Message): MessageContentStats {
  * 根据选择的内容类型，处理消息内容
  * 将选中的文本类型合并为字符串，提取文件列表
  */
-export function processMessageContent(message: Message, selectedTypes: ContentType[]): MessagePreprocessResult {
-  const blocks = findAllBlocks(message)
+export function processMessageContent(
+  message: ExportableMessage,
+  selectedTypes: ContentType[]
+): MessagePreprocessResult {
   const textParts: string[] = []
   const files: FileMetadata[] = []
 
   // 提高查找效率
   const selectedTypeSet = new Set(selectedTypes)
 
-  for (const block of blocks) {
+  getParts(message).forEach((part, index) => {
     // 处理文本内容
-    const textContent = processTextlikeBlocks(block, selectedTypeSet)
+    const textContent = processTextlikePart(part, index, message.id, selectedTypeSet)
     if (textContent.trim()) {
       textParts.push(textContent)
     }
 
     // 处理文件内容
     if (selectedTypeSet.has(CONTENT_TYPES.FILE)) {
-      const fileContent = processFileBlocks(block)
+      const fileContent = filePartToMetadata(part)
       if (fileContent) {
         files.push(fileContent)
       }
     }
-  }
+  })
 
   return {
     text: textParts.join('\n\n'),
@@ -168,113 +191,86 @@ export function processMessageContent(message: Message, selectedTypes: ContentTy
 /**
  * 处理所选类型的文本内容
  */
-function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentType>): string {
-  switch (block.type) {
-    case MessageBlockType.MAIN_TEXT: {
+function processTextlikePart(
+  part: CherryMessagePart,
+  index: number,
+  messageId: string,
+  selectedTypes: Set<ContentType>
+): string {
+  const partId = `${messageId}-part-${index}`
+
+  switch (part.type) {
+    case 'text': {
       if (!selectedTypes.has(CONTENT_TYPES.TEXT)) return ''
-      const mainTextBlock = block
-      return mainTextBlock.content || ''
+      return part.text || ''
     }
 
-    case MessageBlockType.CODE: {
+    case 'data-code': {
       if (!selectedTypes.has(CONTENT_TYPES.CODE)) return ''
-      const codeBlock = block
-      return codeBlock.content || ''
+      return getDataPart<CodePartData>(part)?.content || ''
     }
 
-    case MessageBlockType.THINKING: {
+    case 'reasoning': {
       if (!selectedTypes.has(CONTENT_TYPES.THINKING)) return ''
-      const thinkingBlock = block
-      const thinkingContent = thinkingBlock.content || ''
-      return `<think>\n${thinkingContent}\n</think>`
+      return `<think>\n${part.text || ''}\n</think>`
     }
 
-    case MessageBlockType.TOOL: {
-      if (!selectedTypes.has(CONTENT_TYPES.TOOL_USE)) return ''
-      const toolBlock = block
-      const rawResponse = toolBlock.metadata?.rawMcpToolResponse
-      const toolInfo = {
-        id: toolBlock.toolId,
-        name: toolBlock.toolName || '',
-        description: rawResponse?.tool?.description,
-        arguments: rawResponse?.arguments,
-        status: rawResponse?.status,
-        response: rawResponse?.response
-      }
-      return `<tool>\n${JSON.stringify(toolInfo, null, 2)}\n</tool>`
-    }
-
-    case MessageBlockType.IMAGE: {
-      if (!selectedTypes.has(CONTENT_TYPES.IMAGES)) return ''
-      const imageBlock = block
-      if (imageBlock.file) {
-        return `<image id="${imageBlock.id}" filename="${imageBlock.file.name}" type="${imageBlock.file.type}" />`
-      } else if (imageBlock.url) {
-        return `<image id="${imageBlock.id}" url="${imageBlock.url}" />`
-      }
-      return `<image id="${imageBlock.id}" />`
-    }
-
-    case MessageBlockType.FILE: {
-      // 文件信息在文本中只作为元信息记录，实际文件在files数组中
-      if (!selectedTypes.has(CONTENT_TYPES.FILE)) return ''
-      const fileBlock = block
-      return `<file id="${fileBlock.id}" filename="${fileBlock.file.name}" type="${fileBlock.file.type}" size="${fileBlock.file.size}" />`
-    }
-
-    case MessageBlockType.CITATION: {
-      if (!selectedTypes.has(CONTENT_TYPES.CITATION)) return ''
-      const citationBlock = block
-      const citationInfo = {
-        id: citationBlock.id,
-        response: citationBlock.response,
-        knowledge: citationBlock.knowledge
-      }
-      if (citationInfo.response || citationInfo.knowledge) {
-        return `<citation id="${citationInfo.id}">\n${JSON.stringify(citationInfo, null, 2)}\n</citation>`
-      }
-      return `<citation id="${citationInfo.id}" />`
-    }
-
-    case MessageBlockType.ERROR: {
+    case 'data-error': {
       if (!selectedTypes.has(CONTENT_TYPES.ERROR)) return ''
-      const errorBlock = block
-      const errorContent = errorBlock.error ? JSON.stringify(errorBlock.error) : 'Error occurred'
+      const data = getDataPart<ErrorPartData>(part)
+      const error = data
+        ? { name: data.name ?? undefined, message: data.message ?? data.code ?? 'Error occurred', stack: data.stack }
+        : undefined
+      const errorContent = error ? JSON.stringify(error) : 'Error occurred'
       return `<error>\n${errorContent}\n</error>`
     }
 
-    case MessageBlockType.TRANSLATION: {
+    case 'data-translation': {
       if (!selectedTypes.has(CONTENT_TYPES.TRANSLATION)) return ''
-      const translationBlock = block
-      return `<translation target="${translationBlock.targetLanguage}">\n${translationBlock.content}\n</translation>`
+      const data = getDataPart<TranslationPartData>(part)
+      return `<translation target="${data?.targetLanguage ?? ''}">\n${data?.content ?? ''}\n</translation>`
     }
 
-    case MessageBlockType.UNKNOWN:
-      // 占位符块，通常不需要输出内容
-      return ''
+    case 'file': {
+      const filePart = part as FilePartLike
+      if (isImageFilePart(filePart)) {
+        if (!selectedTypes.has(CONTENT_TYPES.IMAGES)) return ''
+        if (filePart.url) {
+          return `<image id="${partId}" filename="${filePart.filename ?? ''}" type="${filePart.mediaType ?? ''}" />`
+        }
+        return `<image id="${partId}" />`
+      }
+      // 文件信息在文本中只作为元信息记录，实际文件在files数组中
+      if (!selectedTypes.has(CONTENT_TYPES.FILE)) return ''
+      if (!filePart.url) return ''
+      return `<file id="${partId}" filename="${filePart.filename ?? ''}" type="${filePart.mediaType ?? ''}" />`
+    }
 
     default: {
-      // 未知类型的处理
-      const unknownBlock = block as MessageBlock
-      return `<${unknownBlock.type} id="${unknownBlock.id}" />`
+      if (!isToolPart(part.type)) return ''
+      if (!selectedTypes.has(CONTENT_TYPES.TOOL_USE)) return ''
+      const toolInfo = {
+        id: (part as { toolCallId?: string }).toolCallId ?? partId,
+        name: ''
+      }
+      return `<tool>\n${JSON.stringify(toolInfo, null, 2)}\n</tool>`
     }
   }
 }
 
 /**
- * 处理文件块
+ * 将非图片文件 part 转换为文件元信息（图片不计入文件列表）
  */
-function processFileBlocks(block: MessageBlock): FileMetadata | null {
-  switch (block.type) {
-    case MessageBlockType.FILE: {
-      const fileBlock = block
-      return fileBlock.file
-    }
-
-    // 未来可能扩展其他类型
-    default:
-      return null
-  }
+function filePartToMetadata(part: CherryMessagePart): FileMetadata | null {
+  if (part.type !== 'file') return null
+  const filePart = part as FilePartLike
+  if (isImageFilePart(filePart)) return null
+  if (!filePart.url) return null
+  return {
+    name: filePart.filename ?? '',
+    path: filePartUrlToPath(filePart.url),
+    type: filePart.mediaType ?? ''
+  } as FileMetadata
 }
 
 /**

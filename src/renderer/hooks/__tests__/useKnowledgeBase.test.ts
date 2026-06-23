@@ -1,5 +1,5 @@
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -227,10 +227,10 @@ describe('useRestoreKnowledgeBase', () => {
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 1024
     })
-    mockIpcRequest.mockResolvedValueOnce(restoredBase)
+    mockIpcRequest.mockResolvedValueOnce({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     const { result } = renderHook(() => useRestoreKnowledgeBase())
-    let restored: KnowledgeBase | undefined
+    let restored: RestoreKnowledgeBaseResult | undefined
 
     await act(async () => {
       restored = await result.current.restoreBase({
@@ -248,7 +248,7 @@ describe('useRestoreKnowledgeBase', () => {
       dimensions: 1024
     })
     expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
-    expect(restored).toEqual(restoredBase)
+    expect(restored).toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
     expect(result.current.isRestoring).toBe(false)
     expect(result.current.restoreError).toBeUndefined()
   })

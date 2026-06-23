@@ -22,9 +22,10 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('AgentSessionService')
@@ -32,23 +33,6 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
-
-// Cursor wire format: `<orderKey>:<id>`. Stale/legacy cursors fall back
-// to first page (warn) instead of throwing — opaque server-issued tokens.
-function decodeSessionCursor(raw: string): { key: string; id: string } | null {
-  const sep = raw.indexOf(':')
-  if (sep < 0) {
-    logger.warn('decodeSessionCursor: missing separator, falling back to first page', { cursor: raw })
-    return null
-  }
-  const key = raw.slice(0, sep)
-  const id = raw.slice(sep + 1)
-  if (!key || !id) {
-    logger.warn('decodeSessionCursor: empty key or id, falling back to first page', { cursor: raw })
-    return null
-  }
-  return { key, id }
-}
 
 type JoinedSessionRow = {
   session: SessionRow
@@ -201,18 +185,13 @@ export class AgentSessionService {
   async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = query.cursor ? decodeSessionCursor(query.cursor) : null
+    const ordering = keysetOrdering(sessionsTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-session')
 
     const filters: SQL[] = []
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
     if (cursor) {
-      // Strict tuple: (orderKey, id) > (cursor.key, cursor.id)
-      filters.push(
-        or(
-          gt(sessionsTable.orderKey, cursor.key),
-          and(eq(sessionsTable.orderKey, cursor.key), gt(sessionsTable.id, cursor.id))
-        )!
-      )
+      filters.push(ordering.where(cursor))
     }
 
     const rows = await db
@@ -220,13 +199,13 @@ export class AgentSessionService {
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(limit + 1)
 
     const hasNext = rows.length > limit
     const items = (hasNext ? rows.slice(0, limit) : rows).map(rowToSession)
     const last = items[items.length - 1]
-    const nextCursor = hasNext && last ? `${last.orderKey}:${last.id}` : undefined
+    const nextCursor = hasNext && last ? encodeCursor(last.orderKey, last.id) : undefined
 
     return { items, nextCursor }
   }

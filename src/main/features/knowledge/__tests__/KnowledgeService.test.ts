@@ -4,6 +4,7 @@ import { Phase } from '@main/core/lifecycle/types'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
@@ -26,6 +27,7 @@ const {
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
+  knowledgeItemFailInterruptedItemsMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemGetOutermostSelectedItemIdsMock,
@@ -59,6 +61,7 @@ const {
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
+  knowledgeItemFailInterruptedItemsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetOutermostSelectedItemIdsMock: vi.fn(),
@@ -149,6 +152,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     create: knowledgeItemCreateMock,
     delete: knowledgeItemDeleteMock,
     getDeletingRootGroups: knowledgeItemGetDeletingRootGroupsMock,
+    failInterruptedItems: knowledgeItemFailInterruptedItemsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
@@ -326,6 +330,7 @@ describe('KnowledgeService', () => {
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
     deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValue([])
+    knowledgeItemFailInterruptedItemsMock.mockResolvedValue(0)
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1')
     })
@@ -476,6 +481,24 @@ describe('KnowledgeService', () => {
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
+  it('parks items interrupted mid-indexing at failed after all services are ready', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemFailInterruptedItemsMock.mockResolvedValueOnce(3)
+
+    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+
+    expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+  })
+
+  it('does not let interrupted-item recovery failure abort startup', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemFailInterruptedItemsMock.mockRejectedValueOnce(new Error('mark failed'))
+
+    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+
+    expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+  })
+
   it('creates vector artifacts after creating the base and rolls back on artifact failure', async () => {
     const service = new KnowledgeService()
     const base = createBase({ id: 'created-base' })
@@ -609,13 +632,107 @@ describe('KnowledgeService', () => {
         embeddingModelId: 'provider::new',
         dimensions: 6
       })
-    ).resolves.toBe(restoredBase)
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
       expect.objectContaining({ baseId: 'restored-kb' }),
       expect.objectContaining({ idempotencyKey: expect.stringContaining('knowledge:restored-kb:') })
     )
+  })
+
+  it('skips a root item whose source is gone and restores the rest (partial restore)', async () => {
+    // M4: a failed base often holds an item whose source no longer exists — a v1-migrated directory
+    // child has a virtual path with no raw/ file, and a deleted file has no material to copy. Because
+    // addItems is atomic, one such item used to abort the whole restore. Restore now probes each root
+    // and skips only the genuinely-missing ones, restoring the rest.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockResolvedValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
+      .mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([
+      createNoteItem('keep-note', 'source-kb'),
+      createFileItem('gone-file', 'source-kb', '/docs/gone.pdf')
+    ])
+    // The file's material is gone; a note never probes the filesystem (always rebuildable).
+    probeKnowledgeFileMock.mockResolvedValue('missing')
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 1 })
+
+    // The note is restored into the new base; the missing-source file is skipped, not restored.
+    expect(createdItemBaseIds.get('keep-note')).toBe('restored-kb')
+    expect(createdItemBaseIds.has('/docs/gone.pdf')).toBe(false)
+  })
+
+  it('keeps an unverifiable source during restore instead of skipping it (restore is not reindex)', async () => {
+    // The restore docstring promises an `unverifiable` source (a transient/permission probe error, not
+    // a genuine ENOENT) is KEPT — the invariant that separates restore from reindex, which skips both
+    // `missing` and `unverifiable`. Restore skips only `missing`. A refactor that also skipped
+    // `unverifiable` would silently drop recoverable items and still pass every other restore test.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockResolvedValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
+      .mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([
+      createFileItem('probe-fail-file', 'source-kb', '/docs/report.pdf')
+    ])
+    // A transient/permission probe error classifies the source as `unverifiable`, not `missing`.
+    probeKnowledgeFileMock.mockResolvedValue('unverifiable')
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    // The unverifiable-source file is restored into the new base, not dropped.
+    expect(createdItemBaseIds.get('/docs/report.pdf')).toBe('restored-kb')
+  })
+
+  it('creates an empty base and counts every root when all sources are missing', async () => {
+    // When every root's source is genuinely gone, restorableRootItems is empty: createBase still builds
+    // the fully-configured base, addItems([]) short-circuits without enqueuing an index job, and
+    // skippedMissingSourceCount equals the root count. This is the deliberate never-abort tradeoff (the
+    // dialog surfaces the generic skipped-sources warning) — pin the count so it can't silently change.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockResolvedValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
+      .mockResolvedValue(restoredBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([
+      createFileItem('gone-1', 'source-kb', '/docs/gone-1.pdf'),
+      createFileItem('gone-2', 'source-kb', '/docs/gone-2.pdf')
+    ])
+    probeKnowledgeFileMock.mockResolvedValue('missing')
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 2 })
+
+    // The empty base is still created; nothing is enqueued because addItems([]) short-circuits.
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledTimes(1)
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(createdItemBaseIds.size).toBe(0)
   })
 
   it('restores a completed base when embedding model and dimensions are unchanged', async () => {
@@ -633,7 +750,7 @@ describe('KnowledgeService', () => {
         embeddingModelId: 'provider::embed',
         dimensions: 3
       })
-    ).resolves.toBe(restoredBase)
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({

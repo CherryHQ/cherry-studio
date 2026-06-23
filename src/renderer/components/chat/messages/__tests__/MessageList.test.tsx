@@ -1,5 +1,5 @@
 import { TopicType } from '@renderer/types'
-import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils'
+import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils'
 import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -51,7 +51,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/utils', () => ({
-  captureScrollableAsBlob: vi.fn(),
+  captureScrollable: vi.fn(),
   captureScrollableAsDataURL: vi.fn(),
   classNames: (value: unknown) => {
     if (Array.isArray(value)) {
@@ -254,7 +254,7 @@ describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
     scrollToKey.mockClear()
-    vi.mocked(captureScrollableAsBlob).mockReset()
+    vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataURL).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
     messageVirtualListMocks.renderItemLimit = undefined
@@ -555,7 +555,7 @@ describe('MessageList', () => {
 
   it('copies topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsBlobMock = vi.mocked(captureScrollableAsBlob)
+    const captureScrollableMock = vi.mocked(captureScrollable)
     const copyImage = vi.fn().mockResolvedValue(undefined)
     const imageBlob = new Blob(['topic'], { type: 'image/png' })
     let runtime: MessageListRuntime | undefined
@@ -569,12 +569,14 @@ describe('MessageList', () => {
       copyImage
     }
 
-    captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
+    captureScrollableMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
       expect(capturedText).toContain('user-2')
-      await Promise.resolve(callback(imageBlob))
+      return {
+        toBlob: (callback: BlobCallback) => callback(imageBlob)
+      } as unknown as HTMLCanvasElement
     })
 
     render(

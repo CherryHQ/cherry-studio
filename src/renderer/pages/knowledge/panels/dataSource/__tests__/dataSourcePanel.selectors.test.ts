@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getItemStatus, getItemTitle, getReadyCount } from '../utils/selectors'
+import { getItemStatus, getItemTitle } from '../utils/selectors'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 describe('dataSourcePanel.selectors', () => {
@@ -79,16 +79,5 @@ describe('dataSourcePanel.selectors', () => {
       textClassName: 'text-zinc-500/70',
       icon: 'loader'
     })
-  })
-
-  it('counts only completed items as ready', () => {
-    expect(
-      getReadyCount([
-        createFileItem({ id: 'file-1', status: 'completed' }),
-        createFileItem({ id: 'file-2', status: 'embedding' }),
-        createFileItem({ id: 'file-3', status: 'failed' }),
-        createNoteItem({ id: 'note-1', content: '会议纪要', status: 'completed' })
-      ])
-    ).toBe(2)
   })
 })

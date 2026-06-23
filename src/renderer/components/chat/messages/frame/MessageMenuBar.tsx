@@ -1,10 +1,10 @@
-import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBarConfig'
-import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBarConfig'
+import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
+import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
-import { hasTextParts, hasTranslationParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -96,7 +96,8 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens = variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
+  const showMessageTokens =
+    renderConfig.showEstimatedTokens && variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
   const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
   const actionContext = useMemo<MessageMenuBarActionContext>(
