@@ -527,7 +527,7 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
     expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
-    expect(within(alphaCells[2]).getByText('A')).toBeInTheDocument()
+    expect(within(alphaCells[2]).getAllByText('A').length).toBeGreaterThan(0)
     expect(within(alphaCells[2]).getByText('Alpha agent')).toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
     expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)

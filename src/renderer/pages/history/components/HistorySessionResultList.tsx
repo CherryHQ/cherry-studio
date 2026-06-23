@@ -1,14 +1,16 @@
 import { EmptyState, RowFlex } from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import type {
   SessionMenuActionContextOverride,
   SessionMenuPreset
 } from '@renderer/pages/agents/components/useSessionMenuActions'
 import { cn } from '@renderer/utils'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { MessageSquareText, Wrench } from 'lucide-react'
+import { MessageSquareText } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -258,7 +260,7 @@ const HistorySessionRow = ({
   onSelectedChange,
   onTogglePin
 }: HistorySessionRowProps) => {
-  const avatar = agent?.configuration?.avatar?.trim()
+  const avatar = getAgentAvatarFromConfiguration(agent?.configuration)
 
   return (
     <div
@@ -287,8 +289,8 @@ const HistorySessionRow = ({
       </div>
       <div className={historyBodyCellClassName} role="cell">
         <RowFlex className="min-w-0 items-center gap-2">
-          <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
-            {avatar ? <span aria-hidden>{avatar}</span> : <Wrench size={14} />}
+          <span className="flex size-5 shrink-0 items-center justify-center">
+            <EmojiIcon emoji={avatar} size={20} fontSize={12} className="mr-0 text-foreground" />
           </span>
           <span className="truncate text-foreground-secondary text-xs">{sourceName}</span>
         </RowFlex>

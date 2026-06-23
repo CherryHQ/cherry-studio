@@ -137,13 +137,11 @@ const SidebarRow = ({ active, icon, label, count, onClick }: SidebarRowProps) =>
     className={cn(
       'flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-xs leading-4 transition-colors',
       active
-        ? 'bg-muted/50 font-semibold text-foreground'
-        : 'font-medium text-foreground-secondary hover:bg-muted/40 hover:text-foreground'
+        ? 'bg-muted font-semibold text-foreground'
+        : 'font-medium text-foreground-secondary hover:bg-muted hover:text-foreground'
     )}
     onClick={onClick}>
-    {icon ? (
-      <span className="flex size-4.5 shrink-0 items-center justify-center text-foreground-muted">{icon}</span>
-    ) : null}
+    {icon ? <span className="flex size-4.5 shrink-0 items-center justify-center">{icon}</span> : null}
     <span className="min-w-0 flex-1 truncate">{label}</span>
     <span className="shrink-0 font-medium text-foreground-muted tabular-nums">{count}</span>
   </button>

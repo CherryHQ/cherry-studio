@@ -794,6 +794,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     const overlay = screen.getByTestId('history-records-page')
     expect(overlay).toHaveClass('z-40')
+    expect(overlay).toHaveClass('bg-card')
     expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
   })
 

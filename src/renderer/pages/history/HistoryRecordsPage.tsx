@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
@@ -32,6 +33,7 @@ import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/ho
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -1009,13 +1011,18 @@ function buildAgentSources(
     ...Array.from(agentById.values())
       .sort((left, right) => getAgentSourceRank(left.id, agentRankById) - getAgentSourceRank(right.id, agentRankById))
       .map((agent) => {
-        const avatar = agent.configuration?.avatar?.trim()
-
         return {
           id: agent.id,
           label: agent.name,
           count: counts.get(agent.id) ?? 0,
-          icon: avatar ? <span className="text-sm leading-none">{avatar}</span> : <Bot size={15} />
+          icon: (
+            <EmojiIcon
+              emoji={getAgentAvatarFromConfiguration(agent.configuration)}
+              size={18}
+              fontSize={11}
+              className="mr-0 text-foreground"
+            />
+          )
         }
       }),
     ...(unknownCount > 0

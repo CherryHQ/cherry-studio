@@ -16,11 +16,11 @@ export const historyHeaderClassName =
   'sticky top-0 z-10 border-border-muted border-b bg-card text-muted-foreground text-xs leading-4'
 export const historyHeaderCellClassName = 'flex h-10 min-w-0 items-center px-3 py-2 font-semibold'
 export const historyBodyRowClassName =
-  'border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5 transition-colors hover:bg-muted/45 data-[state=selected]:bg-muted/60'
+  'border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5 transition-colors hover:bg-muted data-[state=selected]:bg-muted'
 export const historyBodyCellClassName = 'flex min-w-0 items-center px-3 py-2.5'
 export const historyFixedActionCellClassName =
   'sticky right-0 z-2 justify-center bg-inherit px-2 [border-left:0.5px_solid_var(--color-border-subtle)]'
-export const historyFixedActionShadowClassName = 'shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.45)]'
+export const historyFixedActionShadowClassName = '[box-shadow:-8px_0_12px_-12px_var(--color-border-active)]'
 
 interface HistoryVirtualTableProps<TItem> {
   emptyContent: ReactNode
@@ -186,7 +186,7 @@ export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) =
   <span
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -361,7 +361,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground/70 hover:bg-accent/70 hover:text-foreground"
+      className="text-foreground-secondary hover:bg-accent hover:text-foreground"
       data-testid="history-delete-button"
       disabled={disabled}
       size="icon-sm"
@@ -390,7 +390,7 @@ const PinActionButton = ({ isPinned, pinLabel, unpinLabel, onClick }: PinActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground/70 hover:bg-accent/70 hover:text-foreground"
+      className="text-foreground-secondary hover:bg-accent hover:text-foreground"
       data-testid="history-pin-button"
       size="icon-sm"
       title={label}
