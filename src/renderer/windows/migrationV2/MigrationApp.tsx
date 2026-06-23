@@ -493,7 +493,7 @@ const MigrationApp: React.FC = () => {
                 title={t('migration.buttons.create_backup')}
                 description={t('migration.backup_required.create_desc')}
                 badge={
-                  <Badge className="border-blue-500/30 bg-blue-500/10 px-2 py-0 font-medium text-blue-600 dark:text-blue-400">
+                  <Badge className="border-info-bg-hover bg-info-bg px-2 py-0 font-medium text-info">
                     {t('migration.backup_required.recommended')}
                   </Badge>
                 }
