@@ -136,7 +136,8 @@ export const zhCN = {
     error: {
       title: '迁移失败',
       description: '迁移过程遇到错误，您可以重新尝试或继续使用之前版本（原始数据完好保存）。',
-      error_prefix: '错误信息：'
+      error_prefix: '错误信息：',
+      unknown: '未知错误'
     },
     version_incompatible: {
       title: '版本升级提示',
@@ -290,7 +291,8 @@ export const enUS = {
       title: 'Migration Failed',
       description:
         'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
-      error_prefix: 'Error: '
+      error_prefix: 'Error: ',
+      unknown: 'Unknown error'
     },
     version_incompatible: {
       title: 'Version Upgrade Required',

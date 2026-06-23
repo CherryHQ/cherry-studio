@@ -738,7 +738,7 @@ const MigrationApp: React.FC = () => {
             <div className="rounded-xl border border-destructive/30 bg-destructive/8 px-4 py-3">
               <p className="wrap-break-words text-destructive text-xs leading-relaxed">
                 {t('migration.error.error_prefix')}
-                {lastError || progress.error || 'Unknown error'}
+                {lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
             <div className="flex items-center gap-2">
