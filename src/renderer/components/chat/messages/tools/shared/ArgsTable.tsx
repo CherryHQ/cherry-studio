@@ -75,7 +75,7 @@ export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'tab
 
 export const ArgKey = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
   <td
-    className={cn('w-[1%] whitespace-nowrap py-1 pr-2 pl-0 align-top font-medium text-primary', className)}
+    className={cn('w-[1%] whitespace-nowrap py-1 ps-0 pe-2 align-top font-medium text-primary', className)}
     {...props}
   />
 )

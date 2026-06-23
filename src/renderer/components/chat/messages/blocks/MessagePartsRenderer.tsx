@@ -633,7 +633,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   const activityLabel =
     showLiveProgress && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
   const triggerClassName = [
-    !showLiveProgress && '-ml-0.5',
+    !showLiveProgress && '-ms-0.5',
     'flex min-h-7',
     isExpanded ? 'w-full' : 'w-fit',
     'items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2'

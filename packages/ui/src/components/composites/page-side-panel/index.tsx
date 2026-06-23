@@ -151,7 +151,7 @@ function PageSidePanel({
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(
-                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                      'ms-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
                       closeButtonClassName
                     )}>
                     <XIcon size={16} />

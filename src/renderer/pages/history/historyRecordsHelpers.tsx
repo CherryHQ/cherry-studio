@@ -181,7 +181,7 @@ export function buildAgentSources(
               emoji={getAgentAvatarFromConfiguration(agent.configuration)}
               size={18}
               fontSize={11}
-              className="mr-0 text-foreground"
+              className="me-0 text-foreground"
             />
           )
         }

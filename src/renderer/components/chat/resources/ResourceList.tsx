@@ -558,7 +558,7 @@ function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
       data-active={active || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
+        '-translate-y-1/2 pointer-events-none absolute end-1.5 top-1/2 flex items-center gap-0 opacity-0 transition-opacity duration-150',
         'focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
         className
       )}
@@ -651,7 +651,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
                 <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               </ResourceListLeadingSlot>
               <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
-              <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
+              <Skeleton data-slot="skeleton" className="ms-auto size-5 shrink-0 rounded-md opacity-60" />
             </div>
           ))}
         </div>

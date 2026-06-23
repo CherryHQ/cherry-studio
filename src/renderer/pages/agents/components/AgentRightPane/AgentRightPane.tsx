@@ -861,7 +861,7 @@ function AgentRightPaneInfoCardBody() {
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
-    <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
+    <Scrollbar className="-me-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pe-3">
       <ContextUsageSummary
         usage={usage}
         percentage={percentage}

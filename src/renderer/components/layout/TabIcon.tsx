@@ -21,7 +21,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
           emoji={tab.icon.slice(TAB_ICON_EMOJI_PREFIX.length)}
           size={size}
           fontSize={Math.round(size * 0.62)}
-          className={cn('mr-0', className)}
+          className={cn('me-0', className)}
         />
       )
     }

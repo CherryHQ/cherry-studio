@@ -43,7 +43,7 @@ export function AssistantPresetPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-xl">
-        <DialogHeader className="pr-8">
+        <DialogHeader className="pe-8">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
               {preset.emoji || '🤖'}
@@ -66,7 +66,7 @@ export function AssistantPresetPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        <div className="max-h-[60vh] space-y-5 overflow-y-auto pe-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
           {description && (
             <section>
               <div className="mb-2 text-foreground-secondary text-sm">

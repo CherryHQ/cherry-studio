@@ -82,7 +82,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         {sectionHeaderAction && (
           <div
             className={cn(
-              'ml-auto flex shrink-0 items-center transition-opacity',
+              'ms-auto flex shrink-0 items-center transition-opacity',
               sectionHeaderActionAlwaysVisible
                 ? 'pointer-events-auto opacity-100'
                 : 'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100'
@@ -198,7 +198,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         </button>
         {groupHeaderAction && (
           <div
-            className="pointer-events-none ml-auto hidden shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:flex focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:flex group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:flex group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:flex has-data-[state=open]:opacity-100"
+            className="pointer-events-none ms-auto hidden shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:flex focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:flex group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:flex group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:flex has-data-[state=open]:opacity-100"
             onClick={stopEventPropagation}
             onContextMenu={stopEventPropagation}
             onPointerDown={stopEventPropagation}
@@ -238,7 +238,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       ref={ref}
       style={style}
       className={cn(
-        'flex items-center justify-start pr-1.5 text-foreground',
+        'flex items-center justify-start pe-1.5 text-foreground',
         RESOURCE_LIST_ROW_HEIGHT_CLASS,
         RESOURCE_LIST_TEXT_START_PADDING_CLASS,
         className

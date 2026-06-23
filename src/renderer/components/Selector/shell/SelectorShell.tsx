@@ -492,7 +492,7 @@ export function SelectorShell({
                       {selected ? (
                         <span
                           aria-hidden="true"
-                          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+                          className="-translate-y-1/2 absolute start-0 top-1/2 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
                         />
                       ) : null}
                       {action.icon}

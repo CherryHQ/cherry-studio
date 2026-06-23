@@ -83,7 +83,7 @@ export function ToolDisclosure({
                 <ChevronDown
                   aria-hidden="true"
                   className={cn(
-                    'ml-auto size-4 shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
+                    'ms-auto size-4 shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
                     isOpen && 'rotate-180'
                   )}
                 />

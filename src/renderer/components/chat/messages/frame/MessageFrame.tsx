@@ -191,7 +191,7 @@ const MessageItem: FC<Props> = ({
 
   const plainMessageContent = (
     <Scrollbar
-      className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
+      className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto ps-0"
       style={{
         fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
         fontSize,
@@ -350,7 +350,7 @@ const UserBubbleMessage = ({
         <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
       {!isEditing && (
-        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
+        <div className="MessageFooter relative me-[30px] mt-1 flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
             <MessageMenuBar

@@ -143,7 +143,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     async (to: 'file' | 'clipboard') => {
       try {
         const title = extractHtmlTitle(html)
-        const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
+        const fileName = getFileNameFromHtmlTitle(title) || 'htms-artifact'
 
         if (to === 'file') {
           const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
@@ -295,7 +295,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             </div>
 
             <div
-              className="flex flex-1 items-center justify-end gap-2 pr-1"
+              className="flex flex-1 items-center justify-end gap-2 pe-1"
               onDoubleClick={(event) => event.stopPropagation()}>
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>

@@ -410,7 +410,7 @@ describe('ModelSelector', () => {
 
     const option = screen.getByTestId('model-selector-item-openai::gpt-4')
     const row = option.closest('[data-model-selector-row]')
-    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1.5', 'bg-accent/70')
+    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'pe-0.5', 'py-1.5', 'bg-accent/70')
     expect(row).not.toHaveClass('bg-primary/10')
     expect(screen.getByLabelText('models.action.unpin')).toHaveClass(
       'size-4',

@@ -328,9 +328,9 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
       className={cn(
         // pr reserves the OS window controls corner in a frameless sub-window (--window-controls-width,
         // 0px = pr-3 in the main window and on macOS).
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.75rem+var(--window-controls-width,0px))]',
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pe-[calc(0.75rem+var(--window-controls-width,0px))]',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
-        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+        isWindowTopBar && isMac ? 'ps-[env(titlebar-area-x)]' : 'ps-3'
       )}>
       <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
         <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
@@ -382,7 +382,7 @@ function ShellTab({ value, icon, badge, onClose, children }: ShellTabProps) {
 
   return (
     <div className="group relative shrink-0">
-      <TabsTrigger value={value} className={cn(SHELL_TAB_CLASS, 'max-w-40 pr-7')}>
+      <TabsTrigger value={value} className={cn(SHELL_TAB_CLASS, 'max-w-40 pe-7')}>
         {icon}
         <span className="min-w-0 truncate">{children}</span>
         {badge}
@@ -398,7 +398,7 @@ function ShellTab({ value, icon, badge, onClose, children }: ShellTabProps) {
             onClose()
           }
         }}
-        className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-all duration-150 hover:bg-foreground/10 hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+        className="-translate-y-1/2 pointer-events-none absolute end-1.5 top-1/2 flex h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-all duration-150 hover:bg-foreground/10 hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
         <X size={11} />
       </div>
     </div>

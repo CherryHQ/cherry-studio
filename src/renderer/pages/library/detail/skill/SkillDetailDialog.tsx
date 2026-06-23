@@ -43,7 +43,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
-        <DialogHeader className="pr-8">
+        <DialogHeader className="pe-8">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning-text">
               <Zap size={22} strokeWidth={1.5} />
@@ -66,7 +66,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
           </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        <div className="max-h-[60vh] space-y-6 overflow-y-auto pe-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
           <Badge variant="secondary" className="gap-1.5 border-0 bg-success-bg px-2 py-0.5 text-success-text text-xs">
             <span className="size-1.5 rounded-full bg-success-base" aria-hidden="true" />
             {t('library.skill_detail.installed')}

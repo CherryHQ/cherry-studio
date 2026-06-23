@@ -20,7 +20,7 @@ const TopicMessageFlowLegend = ({ className }: TopicMessageFlowLegendProps) => {
   return (
     <div
       className={cn(
-        'pointer-events-none absolute top-4 right-5 z-10 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-foreground-muted text-sm',
+        'pointer-events-none absolute end-5 top-4 z-10 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-foreground-muted text-sm',
         className
       )}
       data-testid="topic-message-flow-legend">

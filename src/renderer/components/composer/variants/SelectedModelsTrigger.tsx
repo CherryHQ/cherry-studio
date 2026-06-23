@@ -254,7 +254,7 @@ export const SelectedModelsTrigger = ({
           <RotateCcw className="size-3.5" />
           <span>{t('models.selection.restore_default')}</span>
           {assistantModel ? (
-            <span className="ml-auto truncate text-muted-foreground">{assistantModel.name}</span>
+            <span className="ms-auto truncate text-muted-foreground">{assistantModel.name}</span>
           ) : null}
         </Button>
       </div>

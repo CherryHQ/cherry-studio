@@ -519,7 +519,7 @@ const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
 )
 
 const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['ml-auto flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['ms-auto flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
 )
 
 function getToolNameClassName(variant: ToolHeaderProps['variant']): string {

@@ -125,13 +125,13 @@ const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightTool
       data-conversation-shell-topbar
       style={windowNavbarHeightStyle}
       className={cn(
-        'relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]',
+        'relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:start-0 after:end-0 after:bottom-0 after:h-px after:bg-border-subtle after:content-[""]',
         // Window mode: the navbar is the window title bar. Only reserve the macOS traffic-light
         // inset when the left pane is closed; an open pane already owns that area.
         isWindow && [
           TITLE_BAR_HEIGHT_CLASS,
           '[-webkit-app-region:drag]',
-          shouldReserveTrafficLightInset ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+          shouldReserveTrafficLightInset ? 'ps-[env(titlebar-area-x)]' : 'ps-2'
         ],
         // Reserve room for the floating right group: wider in window mode (pin + back + tool),
         // plus the OS window controls corner on frameless Win/Linux (--window-controls-width, 0px elsewhere).
@@ -165,7 +165,7 @@ const ConversationShellTopRightTool = ({ isWindow, trailing, children }: TopRigh
       data-navbar-right-occupant
       className={cn(
         // right offset = 8px gap + the OS window controls corner (--window-controls-width, 0px elsewhere)
-        'absolute top-0 right-[calc(0.5rem+var(--window-controls-width,0px))] z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]',
+        'absolute top-0 end-[calc(0.5rem+var(--window-controls-width,0px))] z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]',
         // Window mode: shorter bar (lines up with the traffic lights) + injected controls
         // (pin / back-to-main) to the left of the page's own tool.
         isWindow ? TITLE_BAR_HEIGHT_CLASS : 'h-(--navbar-height)'

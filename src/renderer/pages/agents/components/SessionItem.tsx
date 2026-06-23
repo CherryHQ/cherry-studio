@@ -65,11 +65,11 @@ const SessionItem = ({
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const sessionTrailingActionPaddingClassName =
     trailingActionCount >= 3
-      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+      ? 'group-focus-within:pe-16 group-hover:pe-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-16'
       : trailingActionCount === 2
-        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+        ? 'group-focus-within:pe-12 group-hover:pe-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-12'
         : trailingActionCount === 1
-          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+          ? 'group-focus-within:pe-7 group-hover:pe-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-7'
           : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)

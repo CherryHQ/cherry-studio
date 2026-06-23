@@ -107,7 +107,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
         // When showing above, use the element's top position for accurate placement
         top: showAbove ? 'auto' : position.y + 10,
         bottom: showAbove ? window.innerHeight - (position.top || position.y) + 10 : 'auto',
-        left: position.x,
+        insetInlineStart: position.x,
         transform: 'translateX(-50%)',
         zIndex: 1000
       }
@@ -116,7 +116,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
     return {
       position: 'fixed',
       top: '50%',
-      left: '50%',
+      insetInlineStart: '50%',
       zIndex: 1000
     }
   }

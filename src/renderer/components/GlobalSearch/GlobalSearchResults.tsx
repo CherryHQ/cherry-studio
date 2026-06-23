@@ -141,7 +141,7 @@ export function GlobalSearchGroupFooter({
         onMouseEnter={onMouseEnter}
         onClick={onOpen}
         className={cn(
-          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 ps-8 pe-3 text-left font-medium text-xs transition-colors',
           active
             ? 'bg-muted/60 text-accent-foreground'
             : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -191,7 +191,7 @@ export function GlobalSearchRow({
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       {emoji ? (
-        <EmojiIcon emoji={emoji} size={32} fontSize={15} className="mr-0 bg-muted/50" />
+        <EmojiIcon emoji={emoji} size={32} fontSize={15} className="me-0 bg-muted/50" />
       ) : (
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
           <Icon className="size-4" />
@@ -208,7 +208,7 @@ export function GlobalSearchRow({
         )}
       </span>
       {updatedAtLabel && (
-        <span className="ml-2 shrink-0 text-muted-foreground text-xs leading-4" title={updatedAt}>
+        <span className="ms-2 shrink-0 text-muted-foreground text-xs leading-4" title={updatedAt}>
           {updatedAtLabel}
         </span>
       )}
@@ -242,7 +242,7 @@ export function GlobalMessageSearchGroupHeader({
       <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
         {group.title || t('common.unnamed')}
       </span>
-      <span className="ml-2 flex h-5 shrink-0 items-center gap-1 rounded-[6px] bg-muted/40 px-1.5 font-medium text-muted-foreground text-xs">
+      <span className="ms-2 flex h-5 shrink-0 items-center gap-1 rounded-[6px] bg-muted/40 px-1.5 font-medium text-muted-foreground text-xs">
         <span>{t(sourceLabelKey)}</span>
         <span>·</span>
         <span>{group.total}</span>
@@ -286,7 +286,7 @@ export function GlobalMessageSearchRow({
           onMouseEnter={onMouseEnter}
           onClick={onOpen}
           className={cn(
-            'flex h-8 items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+            'flex h-8 items-center gap-1 rounded-lg py-0 ps-8 pe-3 text-left font-medium text-xs transition-colors',
             inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
             active
               ? 'bg-muted/60 text-accent-foreground'
@@ -321,7 +321,7 @@ export function GlobalMessageSearchRow({
       onMouseLeave={() => setIsJumpActionVisible(false)}
       onClick={onOpen}
       className={cn(
-        'group flex h-11 cursor-pointer items-center gap-2 rounded-[10px] pr-3 pl-8 text-left transition-colors',
+        'group flex h-11 cursor-pointer items-center gap-2 rounded-[10px] ps-8 pe-3 text-left transition-colors',
         inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
@@ -332,7 +332,7 @@ export function GlobalMessageSearchRow({
       </span>
       {updatedAtLabel && (
         <span
-          className="relative ml-2 flex h-7 min-w-19 shrink-0 items-center justify-end"
+          className="relative ms-2 flex h-7 min-w-19 shrink-0 items-center justify-end"
           title={item.result.createdAt}>
           <span className="whitespace-nowrap text-muted-foreground text-xs leading-4 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
             {updatedAtLabel}
@@ -344,7 +344,7 @@ export function GlobalMessageSearchRow({
             tabIndex={isJumpActionVisible ? 0 : -1}
             title={jumpLabel}
             onClick={handleJumpClick}
-            className="pointer-events-none absolute right-0 flex size-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-[background-color,color,opacity] hover:bg-accent hover:text-foreground group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+            className="pointer-events-none absolute end-0 flex size-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-[background-color,color,opacity] hover:bg-accent hover:text-foreground group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
             <ArrowRight className="size-4" />
           </button>
         </span>
@@ -355,7 +355,7 @@ export function GlobalMessageSearchRow({
 
 export function GlobalSearchRecentHint({ label, offset }: { label: string; offset: number }) {
   return (
-    <div className="pointer-events-none absolute right-5 left-5 text-muted-foreground text-sm" style={{ top: offset }}>
+    <div className="pointer-events-none absolute start-5 end-5 text-muted-foreground text-sm" style={{ top: offset }}>
       {label}
     </div>
   )

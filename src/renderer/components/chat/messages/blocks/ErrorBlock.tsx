@@ -182,7 +182,7 @@ const MessageErrorInfo: React.FC<{
       {canRemoveErrorPart && (
         <button
           type="button"
-          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-muted opacity-0 transition-all duration-150"
+          className="absolute end-2 top-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-muted opacity-0 transition-all duration-150"
           onClick={onRemoveErrorPart}
           aria-label="close"
           title={t('common.close')}>
@@ -195,18 +195,18 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error-base">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
+        <div className="pe-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
       </div>
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
+        className="wrap-break-word ms-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
         style={{ color: 'var(--color-foreground-secondary)' }}>
         <ErrorMessage error={error} />
       </div>
 
       {/* Footer */}
-      <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+      <div className="ms-5.75 mt-2.5 flex items-center gap-2">
         {canNavigate && (
           <Button
             size="sm"
@@ -219,7 +219,7 @@ const MessageErrorInfo: React.FC<{
         )}
         {canOpenDetail && (
           <div
-            className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
+            className="ms-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
             style={{ color: 'var(--color-foreground-muted)' }}>
             {t('common.detail')}
             <ChevronRight size={14} />

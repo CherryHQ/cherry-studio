@@ -393,7 +393,7 @@ export function GlobalSearchMessagePreviewPanel({
         )}
       </div>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0 flex justify-center bg-gradient-to-t from-background via-background/90 to-transparent px-4 pt-8 pb-4">
+      <div className="pointer-events-none absolute start-0 end-0 bottom-0 flex justify-center bg-gradient-to-t from-background via-background/90 to-transparent px-4 pt-8 pb-4">
         <Button
           type="button"
           variant="ghost"

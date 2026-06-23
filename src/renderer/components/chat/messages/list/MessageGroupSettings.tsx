@@ -25,12 +25,12 @@ const MessageGroupSettings: FC = () => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Settings className="ml-1.5 cursor-pointer" size={16} />
+        <Settings className="ms-1.5 cursor-pointer" size={16} />
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="end">
         <div>
           <SettingsRow>
-            <div className="mr-2.5">{t('settings.messages.grid_popover_trigger.label')}</div>
+            <div className="me-2.5">{t('settings.messages.grid_popover_trigger.label')}</div>
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}

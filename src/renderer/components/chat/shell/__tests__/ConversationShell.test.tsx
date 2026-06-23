@@ -79,7 +79,7 @@ describe('ConversationShell', () => {
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
     expect(topBarWrapper).toHaveClass('h-[37.5px]')
     expect(topBarWrapper).not.toHaveClass('h-(--navbar-height)')
-    expect(topBarWrapper).toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(topBarWrapper).toHaveClass('ps-[env(titlebar-area-x)]')
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
   })
 
@@ -100,7 +100,7 @@ describe('ConversationShell', () => {
 
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
     const topRightTool = container.querySelector('[data-navbar-right-occupant]')
-    expect(topBarWrapper).toHaveClass('pr-[76px]')
+    expect(topBarWrapper).toHaveClass('pe-[76px]')
     expect(topRightTool).toHaveClass('gap-0.5')
     expect(topRightTool).not.toHaveClass('w-7.5')
   })
@@ -139,7 +139,7 @@ describe('ConversationShell', () => {
     )
 
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
-    expect(topBarWrapper).toHaveClass('pl-2')
-    expect(topBarWrapper).not.toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(topBarWrapper).toHaveClass('ps-2')
+    expect(topBarWrapper).not.toHaveClass('ps-[env(titlebar-area-x)]')
   })
 })

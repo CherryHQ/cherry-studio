@@ -567,7 +567,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const filterContent =
     tagOptions.length > 0 ? (
       <>
-        {labels.tagFilter ? <span className="mr-1 text-[10px] text-muted-foreground">{labels.tagFilter}</span> : null}
+        {labels.tagFilter ? <span className="me-1 text-[10px] text-muted-foreground">{labels.tagFilter}</span> : null}
         {tagOptions.map((tag) => {
           const active = selectedTagIds.includes(tag.name)
           return (
@@ -610,7 +610,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const trailing =
       item.tags && item.tags.length > 0 ? (
         <div
-          className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
+          className="ms-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
           data-resource-selector-tags={item.id}>
           {item.tags.map((tag) => (
             <ResourceTagChip key={`${item.id}-${tag}`} tag={tag} color={tagColorByName.get(tag)} />
@@ -648,7 +648,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
             onMouseEnter: () => {
               if (!item.disabled) setActiveIndex(flatIndex)
             },
-            className: 'pr-0.5',
+            className: 'pe-0.5',
             'data-option-row': item.id
           }}
           optionProps={{

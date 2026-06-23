@@ -71,7 +71,7 @@ export function ModelSelectorRow({
       {showSelectedIndicator ? (
         <span
           aria-hidden="true"
-          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+          className="-translate-y-1/2 absolute start-0 top-1/2 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
         />
       ) : null}
       <div
@@ -97,7 +97,7 @@ export function ModelSelectorRow({
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">{children}</div>
         {trailing}
       </div>
-      {actions ? <div className="ml-0 flex shrink-0 items-center gap-1">{actions}</div> : null}
+      {actions ? <div className="ms-0 flex shrink-0 items-center gap-1">{actions}</div> : null}
     </div>
   )
 }

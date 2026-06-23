@@ -235,7 +235,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             <SelectionActionIcon name={action.icon} size={16} className="text-foreground" fallback={() => null} />
           </div>
         )}
-        <div className="ml-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
+        <div className="ms-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
           {action.isBuiltIn ? t(action.name) : action.name}
         </div>
         <div className="relative flex gap-2 [-webkit-app-region:no-drag]">

@@ -243,7 +243,7 @@ const CodeCliPage: FC = () => {
       </div>
       <ChevronDown
         size={12}
-        className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+        className="ms-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
       />
     </button>
   )

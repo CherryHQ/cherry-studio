@@ -160,7 +160,7 @@ describe('Table', () => {
       expect(wrapper).not.toHaveClass('overflow-x-auto')
       expect(scrollViewport).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto')
       expect(toolbar?.parentElement).toBe(wrapper)
-      expect(toolbar).toHaveClass('absolute', 'top-2', 'right-2')
+      expect(toolbar).toHaveClass('absolute', 'top-2', 'end-2')
       expect(toolbar).not.toHaveClass('sticky')
       expect(table.className).toContain('[&&]:rounded-none')
       expect(table.className).toContain('[&&]:overflow-visible')

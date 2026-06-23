@@ -113,11 +113,11 @@ const HistoryQueryForm = ({
           <div className="relative w-[236px] max-w-[26vw]">
             <Search
               size={14}
-              className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-foreground-muted"
+              className="-translate-y-1/2 pointer-events-none absolute start-2.5 top-1/2 text-foreground-muted"
             />
             <Input
               value={searchText}
-              className="h-8 rounded-md border-border-subtle bg-card pl-8 text-xs shadow-none"
+              className="h-8 rounded-md border-border-subtle bg-card ps-8 text-xs shadow-none"
               placeholder={searchPlaceholder}
               aria-label={searchPlaceholder}
               onChange={(event) => onSearchTextChange(event.target.value)}

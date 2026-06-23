@@ -476,7 +476,7 @@ describe('ComposerSurface', () => {
     expect(expandButton).toHaveClass(
       'absolute',
       'top-1',
-      'right-1',
+      'end-1',
       'size-5.5',
       'translate-x-2.5',
       '-translate-y-2.5',
@@ -526,7 +526,7 @@ describe('ComposerSurface', () => {
     expect(editingBadge).toHaveClass(
       'absolute',
       'top-0',
-      'left-3',
+      'start-3',
       '-translate-y-1/2',
       'rounded-full',
       'border',

@@ -32,7 +32,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, expande
         aria-hidden="true"
         size={16}
         className={cn(
-          'ml-auto shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
+          'ms-auto shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
           expanded && 'rotate-180'
         )}
       />

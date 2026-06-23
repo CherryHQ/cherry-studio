@@ -109,7 +109,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
             type="button"
             aria-label={`${t('chat.input.tools.open_file')} ${fileName}`}
             onClick={handleOpenExternal}
-            className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted opacity-70 transition-colors hover:bg-background hover:text-foreground hover:opacity-100">
+            className="me-2 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted opacity-70 transition-colors hover:bg-background hover:text-foreground hover:opacity-100">
             <ExternalLink size={15} />
           </button>
         </Tooltip>

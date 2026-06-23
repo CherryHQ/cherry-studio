@@ -14,7 +14,7 @@ exports[`Link > should match snapshot 1`] = `
     >
       <span
         aria-hidden="true"
-        class="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
+        class="markdown-link-favicon me-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
       >
         <span
           data-alt=""

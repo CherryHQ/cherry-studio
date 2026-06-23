@@ -73,7 +73,7 @@ export function ItemContextMenu({
       // Marker so the owning Popover can recognize clicks inside this portal and skip its
       // outside-click dismissal — otherwise right-click menu interactions close the parent popover.
       data-entity-context-menu-root=""
-      style={{ position: 'fixed', left: adjusted.x, top: adjusted.y }}
+      style={{ position: 'fixed', insetInlineStart: adjusted.x, top: adjusted.y }}
       className={cn('z-50 outline-none', className)}>
       {children}
     </div>,

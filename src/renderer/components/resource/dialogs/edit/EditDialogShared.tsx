@@ -367,7 +367,7 @@ export function EditDialogShell<TValues extends FieldValues>({
               onValueChange={handleTabValueChange}
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
-              <div className="w-36 shrink-0 border-border-muted border-r pr-2">
+              <div className="w-36 shrink-0 border-border-muted border-r pe-2">
                 <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-0">
                   <MenuList>
                     {tabs.map((tab) => {
@@ -387,7 +387,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <ChevronDown
                                 size={13}
                                 strokeWidth={1.8}
-                                className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
+                                className="me-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
                                 data-expanded={groupExpanded || undefined}
                               />
                             </button>
@@ -626,7 +626,7 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/40 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  className="-translate-y-1/2 pointer-events-none absolute end-1.5 top-1/2 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/40 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
                   <X size={12} />
                 </Button>
               ) : null}

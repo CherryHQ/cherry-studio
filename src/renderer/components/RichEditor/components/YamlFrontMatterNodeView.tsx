@@ -440,14 +440,14 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
               onContextMenu={(e) => {
                 e.stopPropagation()
               }}>
-              <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+              <div className="me-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
                 {getPropertyIcon(property.type)}
               </div>
-              <div className="mr-3 w-[100px] shrink-0 truncate font-medium text-foreground text-sm capitalize">
+              <div className="me-3 w-[100px] shrink-0 truncate font-medium text-foreground text-sm capitalize">
                 {property.key}
               </div>
               {renderPropertyValue(property)}
-              <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="ms-auto me-1 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 <Popover
                   open={openDropdown === `action-${property.key}`}
                   onOpenChange={(open) => {

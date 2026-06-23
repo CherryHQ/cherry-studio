@@ -301,12 +301,12 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
         <div className="mt-2 flex items-center gap-2 border-border-subtle border-t pt-2">
           <div className="relative min-w-0 flex-1">
-            <Pencil className="-translate-y-1/2 absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
+            <Pencil className="-translate-y-1/2 absolute start-3 top-1/2 size-3.5 text-muted-foreground" />
             <Input
               value={currentCustomAnswer}
               disabled={isSubmitting}
               placeholder={t('agent.askUserQuestion.customPlaceholder')}
-              className="h-9 rounded-full border-transparent bg-muted/70 pl-9 text-sm shadow-none focus-visible:border-transparent"
+              className="h-9 rounded-full border-transparent bg-muted/70 ps-9 text-sm shadow-none focus-visible:border-transparent"
               onChange={(event) =>
                 setCustomAnswers((prev) => ({
                   ...prev,

@@ -7,7 +7,7 @@ export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 export const RESOURCE_LIST_INTERACTIVE_ROW_CLASS =
   'hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring'
 
-export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'pl-9'
+export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'ps-9'
 
 export const RESOURCE_LIST_LEADING_SLOT_BASE_CLASS = 'flex size-6 shrink-0 items-center justify-center'
 

@@ -73,7 +73,7 @@ const Footer: FC<FooterProps> = ({
       <button
         type="button"
         onClick={() => setIsPinned(!isPinned)}
-        className="nodrag mr-1 flex items-center text-foreground transition-colors hover:text-primary"
+        className="nodrag me-1 flex items-center text-foreground transition-colors hover:text-primary"
         aria-pressed={isPinned}
         aria-label={t('quickAssistant.tooltip.pin')}>
         <Tooltip placement="left" content={t('quickAssistant.tooltip.pin')} delay={800}>

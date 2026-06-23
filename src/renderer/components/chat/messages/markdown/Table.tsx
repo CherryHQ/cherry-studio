@@ -81,7 +81,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         </table>
       </div>
       {(canCopyTable || canExportExcel) && (
-        <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
+        <div className="table-toolbar transform-[translateZ(0)] absolute end-2 top-2 z-10 flex gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
           {canCopyTable && (
             <Tooltip content={t('common.copy')} delay={800}>
               <div

@@ -61,7 +61,7 @@ const AgentContent = ({
                     tone="conversation"
                     aria-pressed={showSidebar}
                     onClick={toggleShowSidebar}
-                    style={{ marginRight: 2 }}>
+                    style={{ marginInlineEnd: 2 }}>
                     <SidebarExpandIcon />
                   </NavbarIcon>
                 </CommandTooltip>

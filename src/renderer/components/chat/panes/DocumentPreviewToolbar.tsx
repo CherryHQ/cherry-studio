@@ -43,7 +43,7 @@ const DocumentPreviewToolbar = ({
 
   return (
     <div
-      className="absolute top-2 right-3 z-10 flex items-center gap-1 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-md"
+      className="absolute end-3 top-2 z-10 flex items-center gap-1 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-md"
       role="toolbar"
       aria-label={t('agent.preview_pane.preview')}>
       <Tooltip content={t('common.previous')} delay={800}>
