@@ -80,6 +80,7 @@ describe('paintingMappers', () => {
 
     expect(result).toEqual({
       id: 'painting-1',
+      kind: 'image',
       providerId: 'silicon',
       mode: 'generate',
       model: 'model-1',

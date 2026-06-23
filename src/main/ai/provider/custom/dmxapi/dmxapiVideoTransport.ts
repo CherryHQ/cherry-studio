@@ -147,7 +147,10 @@ export function buildDmxapiVideoTransport(settings: DmxapiProviderSettings, mode
   const apiKey = settings.apiKey ?? ''
   // DMXAPI auth: the raw key, NO `Bearer` prefix.
   const headers = { 'Content-Type': 'application/json', Authorization: apiKey }
-  const doFetch = settings.fetch ?? fetch
+  // undici `fetch`, not Electron net.fetch — tolerates CN aggregators' non-Latin1
+  // response headers (net.fetch throws an uncaught ByteString error); proxied via
+  // the Node global dispatcher.
+  const doFetch = fetch
 
   const post = async (body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> => {
     const res = await doFetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal })

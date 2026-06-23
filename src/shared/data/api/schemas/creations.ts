@@ -13,7 +13,7 @@ const OptionalNullableTrimmedStringSchema = TrimmedStringSchema.nullable()
 
 export const ListCreationsQuerySchema = z
   .object({
-    /** Filter by media kind — the Creation page passes `'image'` / `'video'` per tab. */
+    /** Optional media-kind filter; omit it for the unified Creation gallery. */
     kind: CreationKindSchema.optional(),
     providerId: TrimmedStringSchema.optional(),
     cursor: z.string().optional(),

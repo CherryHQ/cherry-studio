@@ -5,7 +5,7 @@ import type { PaintingData } from '../../model/types/paintingData'
 import { usePaintingInitialSelection } from '../usePaintingInitialSelection'
 
 function makeDraft(providerId: string): PaintingData {
-  return { id: `draft-${providerId}`, providerId, mode: 'generate', prompt: '', files: [], params: {} }
+  return { id: `draft-${providerId}`, kind: 'image', providerId, mode: 'generate', prompt: '', files: [], params: {} }
 }
 
 type Props = Parameters<typeof usePaintingInitialSelection>[0]

@@ -179,10 +179,11 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     config = buildOpenAICompatibleConfig(ctx)
   }
 
-  // Default every provider to the proxy-aware net.fetch base so the app proxy
-  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
-  // that install their own fetch wrapper (e.g. CherryAI request signing) compose
-  // on top of customFetch; `??=` preserves them rather than clobbering them.
+  // Default every provider to the Node/undici fetch base. ProxyManager configures
+  // the Node global dispatcher for provider HTTP traffic, and avoiding Electron
+  // net.fetch prevents uncaught non-ASCII-header crashes (electron/electron#42244).
+  // Builders that install their own fetch wrapper (e.g. CherryAI request signing)
+  // compose on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
   return config

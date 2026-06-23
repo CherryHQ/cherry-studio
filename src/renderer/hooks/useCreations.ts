@@ -7,8 +7,8 @@ import { useCallback } from 'react'
 
 /**
  * Unified hook for generation receipts (image + video) backed by the `/creations`
- * DataApi. `kind` scopes the list + is stamped onto created rows, so the Creation
- * page's Image / Video tabs each call `useCreations('image' | 'video')`.
+ * DataApi. `kind` is stamped onto created rows and can scope consumers that only
+ * create or manage one media type.
  */
 export function useCreations(kind: CreationKind, query?: Omit<ListCreationsQueryParams, 'kind'>) {
   const merged = { kind, ...(query ? omitBy(query, isUndefined) : {}) } as ListCreationsQueryParams

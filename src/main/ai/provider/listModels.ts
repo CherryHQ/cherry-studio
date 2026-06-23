@@ -179,7 +179,7 @@ const ollamaFetcher: ModelFetcher = {
   }
 }
 
-const EXCLUDED_GEMINI_GENERATION_METHODS = ['predictLongRunning', 'bidiGenerateContent'] as const
+const EXCLUDED_GEMINI_GENERATION_METHODS = ['bidiGenerateContent'] as const
 
 const EXCLUDED_GEMINI_MODEL_KEYWORDS = ['tts'] as const
 

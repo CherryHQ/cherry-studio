@@ -23,7 +23,11 @@ export function buildAihubmixVideoTransport(settings: AihubmixProviderSettings):
   const base = (settings.baseURL ?? 'https://aihubmix.com/v1').replace(/\/+$/, '')
   const headers = { Authorization: `Bearer ${settings.apiKey ?? ''}` }
   const jsonHeaders = { ...headers, 'Content-Type': 'application/json' }
-  const doFetch = settings.fetch ?? fetch
+  // undici `fetch` (NOT Electron net.fetch): CN aggregators return UTF-8 (non-Latin1)
+  // response headers, which net.fetch rejects with an uncaught ByteString error that
+  // crashes the main process. undici tolerates them and is still proxied via the Node
+  // global dispatcher (ProxyManager).
+  const doFetch = fetch
 
   /** Authenticated binary download of the completed video. */
   const downloadContent = async (taskId: string, signal?: AbortSignal): Promise<VideoArtifact> => {

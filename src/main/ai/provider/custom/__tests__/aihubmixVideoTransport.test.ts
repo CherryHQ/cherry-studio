@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildAihubmixVideoTransport } from '../aihubmix/aihubmixVideoTransport'
 
 function settings(fetchMock: unknown) {
-  return { baseURL: 'https://aihubmix.com/v1', apiKey: 'sk-aih', fetch: fetchMock } as never
+  // The transport uses the global undici `fetch` (not a settings field); stub it.
+  vi.stubGlobal('fetch', fetchMock)
+  return { baseURL: 'https://aihubmix.com/v1', apiKey: 'sk-aih' } as never
 }
 
 describe('aihubmixVideoTransport', () => {
@@ -11,6 +13,7 @@ describe('aihubmixVideoTransport', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('submit posts the Sora-shaped body to /videos and extracts id', async () => {

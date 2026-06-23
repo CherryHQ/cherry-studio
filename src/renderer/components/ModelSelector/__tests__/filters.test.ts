@@ -73,6 +73,18 @@ describe('matchesModelTag — capability tags', () => {
     expect(matchesModelTag(model, MODEL_CAPABILITY.RERANK)).toBe(false)
     expect(matchesModelTag(model, MODEL_CAPABILITY.EMBEDDING)).toBe(false)
   })
+
+  it('matches the image tag from the IMAGE input modality (i2v video-gen models lack IMAGE_RECOGNITION)', () => {
+    const i2vVideo = makeModel({
+      capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    })
+
+    expect(matchesModelTag(i2vVideo, MODEL_CAPABILITY.IMAGE_RECOGNITION)).toBe(true)
+    // text-to-video (no image input) must NOT get the image tag
+    expect(matchesModelTag(makeModel({ inputModalities: ['text'] }), MODEL_CAPABILITY.IMAGE_RECOGNITION)).toBe(false)
+  })
 })
 
 describe('matchesModelTag — "free" tag', () => {

@@ -44,7 +44,10 @@ export function buildDmxapiHailuoVideoTransport(settings: DmxapiProviderSettings
   }
   const root = rootUrl(baseURL)
   const auth = { Authorization: settings.apiKey ?? '' } // raw key, NO Bearer
-  const doFetch = settings.fetch ?? fetch
+  // undici `fetch`, not Electron net.fetch — tolerates CN aggregators' non-Latin1
+  // response headers (net.fetch throws an uncaught ByteString error); proxied via
+  // the Node global dispatcher.
+  const doFetch = fetch
 
   const getJson = async (url: string, signal?: AbortSignal): Promise<unknown> => {
     const res = await doFetch(url, { method: 'GET', headers: auth, signal })

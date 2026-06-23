@@ -1,44 +1,55 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { type FC, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { CreationKind } from '@shared/data/types/creation'
+import { type FC, useCallback, useState } from 'react'
 
-import PaintingPage from '../paintings'
-import { paintingClasses } from '../paintings/paintingPrimitives'
-import VideoPage from './video/VideoPage'
-
-type CreationTab = 'image' | 'video'
+import ImageCreationMode from '../paintings'
+import type { CreationModelKindSelection, CreationModelSelection } from './CreationModelSelector'
+import type { CreationData } from './types'
+import VideoCreationMode from './video/VideoCreationMode'
 
 /**
- * Unified Creation page: an Image | Video tab shell. The Image tab hosts the
- * existing painting page unchanged; the Video tab hosts the new `VideoPage`.
- * Both already render a full-height `paintingClasses.page` layout, so this
- * shell only adds the top tab bar and fills the remaining height. Inactive
- * tabs unmount (Radix default), which lets the painting page run its
- * save-on-unmount effect when the user switches away.
+ * Unified Creation page. There is no Image | Video tab: the selected generation
+ * model decides which form/artboard flow is shown.
  */
 const CreationPage: FC = () => {
-  const { t } = useTranslation()
-  const [tab, setTab] = useState<CreationTab>('image')
+  const [kind, setKind] = useState<CreationKind>('image')
+  const [handoffSelection, setHandoffSelection] = useState<
+    { kind: CreationKind; selection: CreationModelSelection } | undefined
+  >(undefined)
+  const [handoffCreationItem, setHandoffCreationItem] = useState<CreationData | undefined>(undefined)
+
+  const onModelKindSelect = useCallback((selection: CreationModelKindSelection) => {
+    setHandoffCreationItem(undefined)
+    setHandoffSelection({
+      kind: selection.kind,
+      selection: { providerId: selection.providerId, modelId: selection.modelId }
+    })
+    setKind(selection.kind)
+  }, [])
+
+  const onCreationKindSelect = useCallback((item: CreationData) => {
+    setHandoffSelection(undefined)
+    setHandoffCreationItem(item)
+    setKind(item.kind)
+  }, [])
+
+  if (kind === 'video') {
+    return (
+      <VideoCreationMode
+        initialSelection={handoffSelection?.kind === 'video' ? handoffSelection.selection : undefined}
+        initialCreationItem={handoffCreationItem?.kind === 'video' ? handoffCreationItem : undefined}
+        onModelKindSelect={onModelKindSelect}
+        onCreationKindSelect={onCreationKindSelect}
+      />
+    )
+  }
 
   return (
-    <Tabs value={tab} onValueChange={(value) => setTab(value as CreationTab)} className="flex h-full flex-1 flex-col">
-      <div className={paintingClasses.tabsWrap}>
-        <TabsList className={paintingClasses.tabsList}>
-          <TabsTrigger value="image" className={paintingClasses.tabsTrigger}>
-            {t('paintings.title')}
-          </TabsTrigger>
-          <TabsTrigger value="video" className={paintingClasses.tabsTrigger}>
-            {t('paintings.video.title')}
-          </TabsTrigger>
-        </TabsList>
-      </div>
-      <TabsContent value="image" className="min-h-0 flex-1 focus-visible:outline-none">
-        <PaintingPage />
-      </TabsContent>
-      <TabsContent value="video" className="min-h-0 flex-1 focus-visible:outline-none">
-        <VideoPage />
-      </TabsContent>
-    </Tabs>
+    <ImageCreationMode
+      initialSelection={handoffSelection?.kind === 'image' ? handoffSelection.selection : undefined}
+      initialCreationItem={handoffCreationItem?.kind === 'image' ? handoffCreationItem : undefined}
+      onModelKindSelect={onModelKindSelect}
+      onCreationKindSelect={onCreationKindSelect}
+    />
   )
 }
 

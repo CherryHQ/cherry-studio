@@ -1,15 +1,15 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { net } from 'electron'
 
 /**
  * Base `fetch` for AI provider HTTP calls.
  *
  * Proxy policy is applied centrally by `ProxyManager`
  * (`src/main/services/ProxyManager.ts`), which configures both the Electron
- * session/app proxy and the Node network stack (`src/main/services/proxy`). AI
- * provider traffic intentionally uses Electron
- * `net.fetch` here so it runs on Chromium's network stack and benefits from
- * session-proxy handling (PAC, SOCKS, proxy auth).
+ * session/app proxy and the Node network stack (`src/main/services/proxy`).
+ * Provider traffic must use Node/undici `fetch`, not Electron `net.fetch`:
+ * https://github.com/electron/electron/issues/42244 confirms `net.fetch` can
+ * throw uncaught errors when a server returns non-ASCII response headers, which
+ * is common on CN gateways.
  *
  * Shaped as the AI SDK {@link FetchFunction} (`typeof globalThis.fetch`) so it
  * composes as the innermost layer: higher-level wrappers (HTTP trace, provider
@@ -17,5 +17,4 @@ import { net } from 'electron'
  * call to this one.
  */
 export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) =>
-  // `net.fetch` accepts only `string | Request`; FetchFunction may hand us a URL.
-  net.fetch(input instanceof URL ? input.href : input, init)
+  globalThis.fetch(input, init)

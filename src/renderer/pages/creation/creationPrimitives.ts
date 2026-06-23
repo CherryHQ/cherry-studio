@@ -1,10 +1,6 @@
-export const paintingClasses = {
+export const creationClasses = {
   page: 'flex h-full flex-1 flex-col',
   content: 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background',
-  tabsWrap: 'shrink-0 flex justify-center px-6 pt-3 pb-2',
-  tabsList: 'rounded-full border border-border-muted bg-neutral-100 p-1 shadow-sm backdrop-blur-sm dark:bg-muted/40',
-  tabsTrigger:
-    'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm dark:data-[state=active]:bg-background',
   frame: 'relative flex min-h-0 flex-1 overflow-hidden px-2 pt-2 pb-1',
   surface: 'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-none bg-background',
   centerPane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',

@@ -32,7 +32,10 @@ export function buildPpioVideoTransport(settings: PpioProviderSettings): VideoGe
   }
   const root = rootUrl(baseURL)
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey ?? ''}` }
-  const doFetch = settings.fetch ?? fetch
+  // undici `fetch`, not Electron net.fetch — tolerates CN aggregators' non-Latin1
+  // response headers (net.fetch throws an uncaught ByteString error); proxied via
+  // the Node global dispatcher.
+  const doFetch = fetch
 
   return {
     async submit(input: VideoGenerationSubmitInput) {

@@ -1,4 +1,5 @@
 import type { FileMetadata } from '@renderer/types'
+import type { CreationKind } from '@shared/data/types/creation'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { PaintingMode } from '@shared/data/types/painting'
 
@@ -16,10 +17,9 @@ export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
  * carry wire-format quirks) the AI SDK adapter in
  * `aiCore/provider/custom/`.
  *
- * `mode` is a live form/draft concern only — the persisted painting record
- * (`Painting` in `@shared/data/types/painting`) does NOT carry mode.
- * `mediaType` is similarly not persisted; image vs video is derived from
- * `files` at display time when needed.
+ * `kind` is the persisted image/video discriminator from the unified creation
+ * table. `mode` is a live form/draft concern only — the persisted painting
+ * record (`Painting` in `@shared/data/types/painting`) does NOT carry mode.
  *
  * `inputFiles` is v2-native `FileEntry[]` (the prompt-box attachment
  * surface registers each File via `window.api.file.createInternalEntry`
@@ -29,6 +29,7 @@ export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
  */
 export interface PaintingData {
   id: string
+  kind: CreationKind
   providerId: string
   mode: PaintingMode
   model?: string

@@ -1,29 +1,40 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { getProviderDisplayName } from '@renderer/components/ModelSelector/utils'
+import { ModelSelector } from '@renderer/components/Selector/model'
+import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { isGenerateVideoModel } from '@shared/utils/model'
+import type { CreationKind } from '@shared/data/types/creation'
+import { createUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { isGenerateImageModel, isGenerateVideoModel } from '@shared/utils/model'
 import { first } from 'lodash'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import PaintingSectionTitle from '../../paintings/components/PaintingSectionTitle'
+import CreationSectionTitle from './CreationSectionTitle'
 
-interface VideoModelSelectorProps {
+export interface CreationModelSelection {
+  providerId: string
+  modelId: string
+}
+
+export interface CreationModelKindSelection extends CreationModelSelection {
+  kind: CreationKind
+}
+
+interface CreationModelSelectorProps {
   className?: string
   providerId?: string
   modelId?: string
-  onSelect: (selection: { providerId: string; modelId: string }) => void
+  onSelect: (selection: CreationModelKindSelection) => void
 }
 
-/** Video counterpart of `PaintingModelSelector`: same trigger, filtered to `isGenerateVideoModel`. */
-const VideoModelSelector: FC<VideoModelSelectorProps> = ({ className, providerId, modelId, onSelect }) => {
+const isCreationModel = (model: Model) => isGenerateImageModel(model) || isGenerateVideoModel(model)
+
+const CreationModelSelector: FC<CreationModelSelectorProps> = ({ className, providerId, modelId, onSelect }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
@@ -56,9 +67,9 @@ const VideoModelSelector: FC<VideoModelSelectorProps> = ({ className, providerId
 
   return (
     <div>
-      <PaintingSectionTitle>
+      <CreationSectionTitle>
         <span className="min-w-0 truncate">{t('paintings.model')}</span>
-      </PaintingSectionTitle>
+      </CreationSectionTitle>
       <ModelSelector
         open={open}
         onOpenChange={setOpen}
@@ -68,9 +79,16 @@ const VideoModelSelector: FC<VideoModelSelectorProps> = ({ className, providerId
         onSelect={(uniqueModelId) => {
           if (!uniqueModelId) return
           const parsed = parseUniqueModelId(uniqueModelId)
-          onSelect({ providerId: parsed.providerId, modelId: parsed.modelId })
+          const model = models.find(
+            (item) => item.providerId === parsed.providerId && item.apiModelId === parsed.modelId
+          )
+          onSelect({
+            providerId: parsed.providerId,
+            modelId: parsed.modelId,
+            kind: model && isGenerateVideoModel(model) ? 'video' : 'image'
+          })
         }}
-        filter={isGenerateVideoModel}
+        filter={isCreationModel}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
@@ -115,4 +133,4 @@ const VideoModelSelector: FC<VideoModelSelectorProps> = ({ className, providerId
   )
 }
 
-export default VideoModelSelector
+export default CreationModelSelector

@@ -24,7 +24,9 @@ const initialTagSelection = Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => 
 >
 
 const capabilityTagPredicates: Record<Exclude<ModelSelectorTag, 'free'>, ModelPredict> = {
-  [MODEL_CAPABILITY.IMAGE_RECOGNITION]: (model) => model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION),
+  [MODEL_CAPABILITY.IMAGE_RECOGNITION]: (model) =>
+    model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
+    !!model.inputModalities?.includes(MODALITY.IMAGE),
   [MODEL_CAPABILITY.AUDIO_RECOGNITION]: (model) =>
     model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION) ||
     !!model.inputModalities?.includes(MODALITY.AUDIO),

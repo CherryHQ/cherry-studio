@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildPpioVideoTransport } from '../ppio/ppioVideoTransport'
 
 function settings(fetchMock: unknown) {
-  return { baseURL: 'https://api.ppio.com/v3/openai', apiKey: 'sk-ppio', fetch: fetchMock } as never
+  // The transport uses the global undici `fetch` (not a settings field); stub it.
+  vi.stubGlobal('fetch', fetchMock)
+  return { baseURL: 'https://api.ppio.com/v3/openai', apiKey: 'sk-ppio' } as never
 }
 
 describe('ppioVideoTransport', () => {
@@ -11,6 +13,7 @@ describe('ppioVideoTransport', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('submit posts the flat body to /v3/video/create with Bearer auth and extracts task_id', async () => {

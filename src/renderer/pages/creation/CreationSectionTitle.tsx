@@ -6,7 +6,7 @@ interface Props {
   className?: string
 }
 
-const PaintingSectionTitle: FC<Props> = ({ children, className }) => (
+const CreationSectionTitle: FC<Props> = ({ children, className }) => (
   <section
     className={cn(
       'mb-1.5 flex select-none items-center justify-start gap-1',
@@ -17,4 +17,4 @@ const PaintingSectionTitle: FC<Props> = ({ children, className }) => (
   </section>
 )
 
-export default PaintingSectionTitle
+export default CreationSectionTitle

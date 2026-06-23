@@ -8,7 +8,9 @@ function envelope(obj: Record<string, unknown>): Response {
 }
 
 function settings(fetchMock: unknown) {
-  return { baseURL: 'https://www.dmxapi.cn/v1', apiKey: 'sk-test', fetch: fetchMock } as never
+  // The transport uses the global undici `fetch` (not a settings field); stub it.
+  vi.stubGlobal('fetch', fetchMock)
+  return { baseURL: 'https://www.dmxapi.cn/v1', apiKey: 'sk-test' } as never
 }
 
 describe('dmxapiVideoTransport (HappyHorse family)', () => {
@@ -16,6 +18,7 @@ describe('dmxapiVideoTransport (HappyHorse family)', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('recognizes only HappyHorse model ids', () => {

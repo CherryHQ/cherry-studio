@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildDmxapiHailuoVideoTransport, dmxapiUsesHailuoTransport } from '../dmxapi/dmxapiHailuoVideoTransport'
 
 function settings(fetchMock: unknown) {
-  return { baseURL: 'https://www.dmxapi.cn/v1', apiKey: 'sk-test', fetch: fetchMock } as never
+  // The transport uses the global undici `fetch` (not a settings field); stub it.
+  vi.stubGlobal('fetch', fetchMock)
+  return { baseURL: 'https://www.dmxapi.cn/v1', apiKey: 'sk-test' } as never
 }
 
 describe('dmxapiHailuoVideoTransport', () => {
@@ -11,6 +13,7 @@ describe('dmxapiHailuoVideoTransport', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('recognizes MiniMax-Hailuo model ids (case-insensitive)', () => {

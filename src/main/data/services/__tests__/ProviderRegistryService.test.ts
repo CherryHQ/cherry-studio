@@ -540,4 +540,74 @@ describe('ProviderRegistryService', () => {
       })
     })
   })
+
+  describe('getVideoGenerationSupport', () => {
+    function setupVideoRegistry() {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          // served Veo preview id with a catalog-level videoGeneration block
+          {
+            id: 'veo-3-1-generate-preview',
+            name: 'Veo 3.1',
+            capabilities: ['video-generation'],
+            inputModalities: ['text', 'image'],
+            outputModalities: ['video'],
+            videoGeneration: {
+              modes: { t2v: { supports: { aspectRatio: { type: 'enum', options: ['16:9', '9:16'] } } } }
+            }
+          },
+          // video model with no block anywhere
+          {
+            id: 'veo-no-block',
+            name: 'Veo No Block',
+            capabilities: ['video-generation'],
+            inputModalities: ['text'],
+            outputModalities: ['video']
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          // provider override block wins over the catalog block
+          {
+            providerId: 'gemini',
+            modelId: 'veo-3-1-generate-preview',
+            videoGeneration: { modes: { i2v: { mediaInputs: { firstFrame: true }, supports: {} } } }
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [{ id: 'gemini', name: 'Gemini', defaultChatEndpoint: null, metadata: {} }]
+      } as ReturnType<typeof readProviderRegistry>)
+    }
+
+    it('resolves the block keyed to the served model id (override wins over the catalog block)', async () => {
+      setupVideoRegistry()
+
+      const support = await providerRegistryService.getVideoGenerationSupport('gemini', 'veo-3-1-generate-preview')
+
+      expect(Object.keys(support?.modes ?? {})).toEqual(['i2v'])
+      expect(support?.modes.i2v?.mediaInputs?.firstFrame).toBe(true)
+    })
+
+    it('falls back to the catalog block when there is no provider override', async () => {
+      setupVideoRegistry()
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
+        typeof readProviderModelRegistry
+      >)
+
+      const support = await providerRegistryService.getVideoGenerationSupport('gemini', 'veo-3-1-generate-preview')
+
+      expect(Object.keys(support?.modes ?? {})).toEqual(['t2v'])
+    })
+
+    it('returns null when no block is declared for the model', async () => {
+      setupVideoRegistry()
+
+      expect(await providerRegistryService.getVideoGenerationSupport('gemini', 'veo-no-block')).toBeNull()
+    })
+  })
 })
