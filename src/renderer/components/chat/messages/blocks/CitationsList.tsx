@@ -219,8 +219,8 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
     <SelectionContextMenu>
       <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
         <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
-          {citation.showFavicon && citation.url && (
-            <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
+          {citation.showFavicon && getCitationHostname(citation) && (
+            <Favicon hostname={getCitationHostname(citation)!} alt={citation.title || citation.hostname || ''} />
           )}
           {citation.url ? (
             <a

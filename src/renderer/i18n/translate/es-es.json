@@ -2704,9 +2704,11 @@
           }
         },
         "generate": "Generar indicación",
+        "generate_failed_description": "Comprueba o cambia el modelo predeterminado y vuelve a intentarlo.",
+        "generate_failed_title": "No se pudo generar la indicación",
         "insert_variable": "Insertar variable",
         "label": "Indicación del sistema",
-        "placeholder": "Introduce el prompt del sistema. Se admiten variables como {{date}} y {{model_name}}...",
+        "placeholder": "Introduce instrucciones para el asistente, como estilo de respuesta, rol o contexto",
         "title": "Indicación",
         "tokens_label": "Tokens:",
         "variables_title": "Variables disponibles",
@@ -5886,7 +5888,6 @@
         "label": "Botón de navegación de conversación",
         "none": "No mostrar"
       },
-      "prompt": "Palabra de indicación",
       "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"

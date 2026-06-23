@@ -21,7 +21,8 @@ const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'chat.code.editor.theme_light',
   'chat.code.editor.theme_dark',
   'chat.code.viewer.theme_light',
-  'chat.code.viewer.theme_dark'
+  'chat.code.viewer.theme_dark',
+  'menu.presentation_mode'
 ]
 
 const logger = loggerService.withContext('SettingsWindowEntry')

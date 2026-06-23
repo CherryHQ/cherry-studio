@@ -7,10 +7,10 @@
  * another smooth-scroll on top of the in-flight one.
  *
  * This hook drives the scroll target frame-by-frame and cancels cleanly
- * when the user wheels upward. Behavior modeled on message-list's `vi`
- * (wakaru-unpacked/06-cell-graph-and-actions.js:1279-1418): each frame
- * resamples the target (so streaming growth keeps the destination
- * current) and applies an easing curve over a fixed frame budget.
+ * when the user wheels upward. The fixed-frame path is modeled on
+ * message-list's `vi` (wakaru-unpacked/06-cell-graph-and-actions.js:1279-1418).
+ * The follow path is speed-limited so streaming growth can keep moving toward
+ * the live destination without restarting from the original offset.
  */
 
 import { type RefObject, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -25,6 +25,17 @@ export interface SmoothScrollOptions {
   easing?: (t: number) => number
 }
 
+export interface SmoothFollowOptions {
+  /** Maximum scrollTop movement per frame. Default 64px. */
+  maxStep?: number
+  /** Minimum scrollTop movement per frame until settling. Default 4px. */
+  minStep?: number
+  /** Fraction of the remaining distance to cover each frame. Default 0.32. */
+  damping?: number
+  /** Remaining distance below which we snap exactly to target. Default 1px. */
+  settleThreshold?: number
+}
+
 export interface SmoothScrollController {
   /**
    * Start an animation toward `getTargetOffset()`. The target is resampled
@@ -32,6 +43,11 @@ export interface SmoothScrollController {
    * content keeps growing during a stream).
    */
   scrollTo(getTargetOffset: () => number, options?: SmoothScrollOptions): void
+  /**
+   * Follow a moving target with a per-frame speed limit. New target positions
+   * are picked up without restarting the animation from scratch.
+   */
+  followTo(getTargetOffset: () => number, options?: SmoothFollowOptions): void
   /** Cancel any in-flight animation. */
   cancel(): void
   /** Whether an animation is currently in flight. */
@@ -40,6 +56,10 @@ export interface SmoothScrollController {
 
 const DEFAULT_FRAMES = 50
 const DEFAULT_EASING = (t: number): number => 1 - 2 ** (-10 * t)
+const DEFAULT_FOLLOW_MAX_STEP = 64
+const DEFAULT_FOLLOW_MIN_STEP = 4
+const DEFAULT_FOLLOW_DAMPING = 0.32
+const DEFAULT_FOLLOW_SETTLE_THRESHOLD = 1
 
 type RafLike = (cb: FrameRequestCallback) => number
 type CafLike = (handle: number) => void
@@ -124,11 +144,55 @@ export function useSmoothScrollAnimation(
     [cancelFrame, requestFrame, scrollerRef]
   )
 
+  const followTo = useCallback(
+    (getTargetOffset: () => number, options: SmoothFollowOptions = {}) => {
+      const el = scrollerRef.current
+      if (!el) return
+
+      // A running follow already resamples the live target each frame.
+      if (rafIdRef.current != null) return
+
+      const maxStep = Math.max(1, options.maxStep ?? DEFAULT_FOLLOW_MAX_STEP)
+      const minStep = Math.min(maxStep, Math.max(1, options.minStep ?? DEFAULT_FOLLOW_MIN_STEP))
+      const damping = Math.max(0.01, Math.min(1, options.damping ?? DEFAULT_FOLLOW_DAMPING))
+      const settleThreshold = Math.max(0, options.settleThreshold ?? DEFAULT_FOLLOW_SETTLE_THRESHOLD)
+
+      animatingRef.current = true
+
+      const step = (): void => {
+        const node = scrollerRef.current
+        if (!node) {
+          animatingRef.current = false
+          rafIdRef.current = null
+          return
+        }
+
+        const target = getTargetOffset()
+        const remaining = target - node.scrollTop
+        const distance = Math.abs(remaining)
+
+        if (distance <= settleThreshold) {
+          node.scrollTop = target
+          animatingRef.current = false
+          rafIdRef.current = null
+          return
+        }
+
+        const magnitude = Math.min(distance, Math.min(maxStep, Math.max(minStep, distance * damping)))
+        node.scrollTop += Math.sign(remaining) * magnitude
+        rafIdRef.current = requestFrame(step)
+      }
+
+      rafIdRef.current = requestFrame(step)
+    },
+    [requestFrame, scrollerRef]
+  )
+
   const isAnimating = useCallback(() => animatingRef.current, [])
 
   useEffect(() => {
     return () => cancel()
   }, [cancel])
 
-  return useMemo(() => ({ scrollTo, cancel, isAnimating }), [cancel, isAnimating, scrollTo])
+  return useMemo(() => ({ scrollTo, followTo, cancel, isAnimating }), [cancel, followTo, isAnimating, scrollTo])
 }

@@ -10,6 +10,8 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -809,14 +811,8 @@ const api = {
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {
-      respond: (payload: {
-        approvalId: string
-        approved: boolean
-        reason?: string
-        updatedInput?: Record<string, unknown>
-        topicId?: string
-        anchorId?: string
-      }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+      respond: (payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> =>
+        ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     },
     agent: {
       runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)

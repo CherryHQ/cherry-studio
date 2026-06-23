@@ -1,6 +1,6 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
-import { writeComposerRichClipboardContent } from '@renderer/utils/messageUtils/composerClipboard'
+import { writeComposerRichClipboardContent } from '@renderer/utils/message/composerClipboard'
 import { useCallback, useMemo } from 'react'
 
 export type MessagePlatformActions = Pick<

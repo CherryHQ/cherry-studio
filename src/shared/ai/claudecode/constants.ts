@@ -1,6 +1,3 @@
-/** Tools disabled for ALL agents — replaced by the cherry-tools MCP web tools (`mcp__cherry-tools__web_search` / `mcp__cherry-tools__web_fetch`) */
-export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch'] as const
-
 /**
  * System prompt section injected when the session receives messages from an
  * external messaging channel (Telegram, Feishu, QQ, WeChat, etc.).
@@ -31,9 +28,9 @@ You may freely: answer questions, provide information, explain code, perform rea
 
 /**
  * System prompt section nudging the agent to declare its final deliverable file(s) via the
- * `report_artifacts` tool at task completion. The declarations are a data contract: they mark the
- * final outputs (vs intermediate/scratch files, which can't be told apart in the raw tool stream)
- * for a consumer — a renderer deliverables card — that lands in a separate change.
+ * `report_artifacts` tool at task completion. The renderer reads those declarations to surface a
+ * deliverables card (inline + in the collapsed right-pane info card), distinguishing real outputs
+ * from intermediate/scratch files that can't be told apart in the raw tool stream.
  */
 export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 

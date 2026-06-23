@@ -1,5 +1,5 @@
 import type { LocalSkill } from '@renderer/types'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { describe, expect, it } from 'vitest'
 
 import {

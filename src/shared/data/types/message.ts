@@ -132,9 +132,8 @@ export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
-  //    `adaptedMessages` and every other consumer can read directly from
-  //    `message.metadata` without a parallel `metadataMap` lookup that
-  //    lags behind state.messages.
+  //    shared message-list consumers can read directly from `message.metadata`
+  //    without a parallel `metadataMap` lookup that lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
@@ -463,9 +462,9 @@ export const MessageSchema = z.strictObject({
   parentId: z.string().nullable(),
   /** Message role */
   role: MessageRoleSchema,
-  /** Message content (blocks with inline references) */
+  /** Message content stored as AI SDK UIMessage.parts */
   data: MessageDataSchema,
-  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
+  /** Searchable text extracted from data.parts (DB DEFAULT ''; trigger fills on insert/update) */
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,

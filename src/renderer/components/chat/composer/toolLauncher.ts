@@ -3,7 +3,7 @@ import type {
   QuickPanelInputAdapter,
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
-} from '@renderer/components/chat/composer/panelEngine'
+} from '@renderer/components/QuickPanel'
 import type { ReactNode } from 'react'
 
 export type ComposerToolLauncherKind = 'command' | 'panel' | 'dialog' | 'group'

@@ -1,21 +1,7 @@
-import type { Topic } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MultiSelectActionPopup from '../MultiSelectionPopup'
-
-const mocks = vi.hoisted(() => ({
-  chatContext: {
-    toggleMultiSelectMode: vi.fn(),
-    selectedMessageIds: [] as string[],
-    isMultiSelectMode: false,
-    handleMultiSelectAction: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/hooks/useChatContext', () => ({
-  useChatContext: () => mocks.chatContext
-}))
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, disabled, onClick }: any) => (
@@ -48,8 +34,6 @@ const buttonFor = (testId: string) => screen.getByTestId(testId).closest('button
 describe('MultiSelectionPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.chatContext.selectedMessageIds = []
-    mocks.chatContext.isMultiSelectMode = false
   })
 
   describe('controlled mode (v2 message renderer drives state)', () => {
@@ -82,9 +66,6 @@ describe('MultiSelectionPopup', () => {
       expect(props.onCopy).toHaveBeenCalledTimes(1)
       expect(props.onDelete).toHaveBeenCalledTimes(1)
       expect(props.onClose).toHaveBeenCalledTimes(1)
-      // the controlled branch must NOT fall back to the v1 ChatContext
-      expect(mocks.chatContext.handleMultiSelectAction).not.toHaveBeenCalled()
-      expect(mocks.chatContext.toggleMultiSelectMode).not.toHaveBeenCalled()
     })
 
     it('disables the actions when nothing is selected (isActionDisabled = length === 0)', () => {
@@ -98,42 +79,6 @@ describe('MultiSelectionPopup', () => {
       render(<MultiSelectActionPopup {...controlledProps()} onSave={undefined} />)
       expect(screen.queryByTestId('save-icon')).not.toBeInTheDocument()
       expect(screen.getByTestId('copy-icon')).toBeInTheDocument()
-    })
-  })
-
-  describe('legacy mode (v1 reads from ChatContext)', () => {
-    it('reads selection from useChatContext and dispatches through handleMultiSelectAction', () => {
-      mocks.chatContext.isMultiSelectMode = true
-      mocks.chatContext.selectedMessageIds = ['a', 'b', 'c']
-
-      render(<MultiSelectActionPopup topic={{ id: 't1' } as Topic} />)
-
-      expect(screen.getByText('common.selectedMessages:3')).toBeInTheDocument()
-
-      fireEvent.click(buttonFor('save-icon'))
-      fireEvent.click(buttonFor('copy-icon'))
-      fireEvent.click(buttonFor('delete-icon'))
-      fireEvent.click(buttonFor('close-icon'))
-
-      expect(mocks.chatContext.handleMultiSelectAction).toHaveBeenCalledWith('save', ['a', 'b', 'c'])
-      expect(mocks.chatContext.handleMultiSelectAction).toHaveBeenCalledWith('copy', ['a', 'b', 'c'])
-      expect(mocks.chatContext.handleMultiSelectAction).toHaveBeenCalledWith('delete', ['a', 'b', 'c'])
-      expect(mocks.chatContext.toggleMultiSelectMode).toHaveBeenCalledWith(false)
-    })
-
-    it('keeps actions enabled even with an empty selection (legacy divergence: isActionDisabled = false)', () => {
-      mocks.chatContext.isMultiSelectMode = true
-      mocks.chatContext.selectedMessageIds = []
-
-      render(<MultiSelectActionPopup topic={{ id: 't1' } as Topic} />)
-
-      expect(buttonFor('save-icon')).not.toBeDisabled()
-    })
-
-    it('renders nothing when ChatContext is not in multi-select mode', () => {
-      mocks.chatContext.isMultiSelectMode = false
-      const { container } = render(<MultiSelectActionPopup topic={{ id: 't1' } as Topic} />)
-      expect(container).toBeEmptyDOMElement()
     })
   })
 })
