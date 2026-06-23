@@ -390,6 +390,11 @@
       "edit": {
         "title": "Edit session"
       },
+      "file_manager": {
+        "file_explorer": "File Explorer",
+        "files": "Files",
+        "finder": "Finder"
+      },
       "get": {
         "error": {
           "failed": "Failed to get the session",
@@ -1756,6 +1761,7 @@
     "clear_all": "Clear All",
     "click_to_replace": "Click to replace",
     "close": "Close",
+    "close_sidebar": "Close sidebar",
     "collapse": "Collapse",
     "completed": "Completed",
     "confirm": "Confirm",
@@ -1806,6 +1812,8 @@
     "knowledge_base": "Knowledge Base",
     "language": "Language",
     "loading": "Loading...",
+    "maximize": "Maximize",
+    "minimize": "Minimize",
     "model": "Model",
     "models": "Models",
     "more": "More",
@@ -1818,6 +1826,7 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
+    "open_sidebar": "Open sidebar",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -1837,6 +1846,7 @@
     "rename": "Rename",
     "required_field": "Required field",
     "reset": "Reset",
+    "resize_panel": "Resize panel",
     "retry": "Retry",
     "save": "Save",
     "save_failed": "Save failed",

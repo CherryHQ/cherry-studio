@@ -28,6 +28,25 @@ export function CommandShortcut({
   )
 }
 
+export function CommandHint({ command, className }: { command: CommandId; className?: string }): React.ReactNode {
+  const { shortcutLabel } = useResolvedCommand(command)
+
+  if (!shortcutLabel) {
+    return null
+  }
+
+  return (
+    <Kbd
+      aria-hidden="true"
+      className={cn(
+        'shrink-0 rounded-md bg-transparent px-1 py-0 text-[11px] text-foreground-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100',
+        className
+      )}>
+      {shortcutLabel}
+    </Kbd>
+  )
+}
+
 export function CommandTooltip({
   command,
   children,

@@ -390,6 +390,11 @@
       "edit": {
         "title": "编辑会话"
       },
+      "file_manager": {
+        "file_explorer": "文件资源管理器",
+        "files": "文件",
+        "finder": "访达"
+      },
       "get": {
         "error": {
           "failed": "获取会话失败",
@@ -1756,6 +1761,7 @@
     "clear_all": "清除全部",
     "click_to_replace": "点击替换",
     "close": "关闭",
+    "close_sidebar": "关闭侧栏",
     "collapse": "折叠",
     "completed": "完成",
     "confirm": "确认",
@@ -1806,6 +1812,8 @@
     "knowledge_base": "知识库",
     "language": "语言",
     "loading": "加载中...",
+    "maximize": "最大化",
+    "minimize": "最小化",
     "model": "模型",
     "models": "模型",
     "more": "更多",
@@ -1818,6 +1826,7 @@
     "on": "启用",
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
+    "open_sidebar": "打开侧栏",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -1837,6 +1846,7 @@
     "rename": "重命名",
     "required_field": "必填字段",
     "reset": "重置",
+    "resize_panel": "调整面板宽度",
     "retry": "重试",
     "save": "保存",
     "save_failed": "保存失败",
