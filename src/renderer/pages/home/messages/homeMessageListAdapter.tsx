@@ -185,7 +185,8 @@ export function useHomeMessageListProviderValue({
   }, [assistant, messageItems, onFirstUpdate])
 
   useEffect(() => {
-    requestAnimationFrame(() => onComponentUpdate?.())
+    const handle = requestAnimationFrame(() => onComponentUpdate?.())
+    return () => cancelAnimationFrame(handle)
   }, [onComponentUpdate])
 
   useCommandHandler('chat.message.copy_last', () => {

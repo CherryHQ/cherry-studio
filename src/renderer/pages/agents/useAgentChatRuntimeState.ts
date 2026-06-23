@@ -16,6 +16,7 @@ import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { GetAgentResponse } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -42,35 +43,6 @@ export interface AgentTurnInput {
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
   const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
-}
-
-// FIXME: perf problem maybe
-function mergeLiveAgentMessages(baseMessages: CherryUIMessage[], liveMessages: CherryUIMessage[]): CherryUIMessage[] {
-  const order: string[] = []
-  const byId = new Map<string, CherryUIMessage>()
-
-  for (const messages of [baseMessages, liveMessages]) {
-    for (const message of messages) {
-      const existing = byId.get(message.id)
-      if (!existing) {
-        order.push(message.id)
-        byId.set(message.id, message)
-        continue
-      }
-
-      const metadata = existing.metadata || message.metadata ? { ...existing.metadata, ...message.metadata } : undefined
-      byId.set(message.id, {
-        ...existing,
-        ...message,
-        ...(metadata && { metadata })
-      })
-    }
-  }
-
-  return order.flatMap((id) => {
-    const message = byId.get(id)
-    return message ? [message] : []
-  })
 }
 
 function getToolNameFromPart(part: AskUserQuestionApprovalPart): string {
@@ -305,10 +277,7 @@ export function useAgentChatRuntimeState({
     })
   }, [])
 
-  const displayMessages = useMemo(
-    () => mergeLiveAgentMessages(uiMessages, liveAssistants),
-    [liveAssistants, uiMessages]
-  )
+  const displayMessages = useMemo(() => mergeMessagesById(uiMessages, liveAssistants), [liveAssistants, uiMessages])
 
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {

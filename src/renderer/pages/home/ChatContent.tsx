@@ -177,6 +177,30 @@ const ChatContentInner: FC<InnerProps> = ({
     }
   }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, onLocateMessageHandled, uiMessages])
 
+  const main = (
+    <ChatMain
+      key={topic.id}
+      topic={topic}
+      messages={runtime.messages}
+      partsByMessageId={runtime.partsByMessageId}
+      isInitialLoading={isHistoryLoading}
+      loadOlder={loadOlder}
+      hasOlder={hasOlder}
+      openCitationsPanel={onOpenCitationsPanel}
+    />
+  )
+  const composer = (
+    <ChatComposerSlot
+      isHome={runtime.shouldRenderHomeComposer}
+      topic={topic}
+      onSend={runtime.sendMessage}
+      onNewTopic={onNewTopic}
+      sendDisabled={isHistoryLoading}
+      composerContext={runtime.composerContext}
+    />
+  )
+  const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
+
   return (
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
@@ -185,39 +209,12 @@ const ChatContentInner: FC<InnerProps> = ({
             <TranslationOverlayProvider value={runtime.translationOverlay}>
               <MessageEditingProvider>
                 <ChatLayoutModeProvider>
-                  {(() => {
-                    const main = (
-                      <ChatMain
-                        key={topic.id}
-                        topic={topic}
-                        messages={runtime.messages}
-                        partsByMessageId={runtime.partsByMessageId}
-                        isInitialLoading={isHistoryLoading}
-                        loadOlder={loadOlder}
-                        hasOlder={hasOlder}
-                        openCitationsPanel={onOpenCitationsPanel}
-                      />
-                    )
-                    const composer = (
-                      <ChatComposerSlot
-                        isHome={runtime.shouldRenderHomeComposer}
-                        topic={topic}
-                        onSend={runtime.sendMessage}
-                        onNewTopic={onNewTopic}
-                        sendDisabled={isHistoryLoading}
-                        composerContext={runtime.composerContext}
-                      />
-                    )
-                    const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
-                    return (
-                      <ConversationStageCenter
-                        placement={placement}
-                        main={main}
-                        composer={composer}
-                        homeWelcomeText={t('chat.home.welcome_title')}
-                      />
-                    )
-                  })()}
+                  <ConversationStageCenter
+                    placement={placement}
+                    main={main}
+                    composer={composer}
+                    homeWelcomeText={t('chat.home.welcome_title')}
+                  />
                 </ChatLayoutModeProvider>
               </MessageEditingProvider>
             </TranslationOverlayProvider>
