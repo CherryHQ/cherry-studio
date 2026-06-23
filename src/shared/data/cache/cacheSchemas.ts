@@ -310,6 +310,10 @@ export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
+  'ui.chat.sidebar.width': number
+  'ui.chat.artifact_pane.width': number
+  'ui.chat.artifact_pane.file_tree.width': number
+  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -325,6 +329,10 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
+  'ui.chat.sidebar.width': 275,
+  'ui.chat.artifact_pane.width': 460,
+  'ui.chat.artifact_pane.file_tree.width': 160,
+  'agent.open_external_app.last_used_target': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,

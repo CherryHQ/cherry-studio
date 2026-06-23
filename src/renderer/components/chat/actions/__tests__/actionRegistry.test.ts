@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createActionRegistry, createMessageActionRegistry } from '../actionRegistry'
+import { createActionRegistry } from '../actionRegistry'
 
 interface TestContext {
   enabled?: boolean
@@ -134,43 +134,5 @@ describe('ActionRegistry', () => {
     ])
     await expect(registry.execute('position-left', { run })).resolves.toBe(true)
     expect(run).toHaveBeenCalledWith('left')
-  })
-})
-
-describe('MessageActionRegistry', () => {
-  it('keeps provider registration behavior while supporting generic actions', async () => {
-    const registry = createMessageActionRegistry()
-    const run = vi.fn()
-    const message = {
-      id: 'message-1',
-      role: 'assistant',
-      topicId: 'topic-1',
-      status: 'success',
-      createdAt: '2026-01-01T00:00:00.000Z'
-    } as const
-
-    registry.register({
-      id: 'provider',
-      resolve: ({ message }) => [{ id: `provider:${message.id}`, label: 'Provider action' }]
-    })
-    registry.registerCommand({
-      id: 'copy',
-      run: () => run('copy')
-    })
-    registry.registerAction({
-      id: 'copy-action',
-      commandId: 'copy',
-      label: 'Copy'
-    })
-
-    expect(registry.resolve({ message })).toMatchObject([
-      { id: 'provider:message-1', label: 'Provider action' },
-      { id: 'copy-action', label: 'Copy' }
-    ])
-    await expect(registry.execute('copy-action', { message })).resolves.toBe(true)
-    expect(run).toHaveBeenCalledWith('copy')
-
-    registry.unregister('copy-action')
-    expect(registry.resolve({ message })).toMatchObject([{ id: 'provider:message-1', label: 'Provider action' }])
   })
 })

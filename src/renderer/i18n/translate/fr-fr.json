@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "répondu",
+      "close": "Fermer",
       "customPlaceholder": "Entrez votre réponse...",
       "loading": "Chargement des questions...",
       "multiSelect": "Sélection multiple",
@@ -25,6 +26,8 @@
       "noQuestions": "Aucune question disponible",
       "other": "Autre",
       "previous": "Précédent",
+      "progress": "{{current}} sur {{total}}",
+      "skip": "Passer",
       "submit": "Soumettre",
       "title": "Questions de l'agent"
     },
@@ -340,6 +343,11 @@
         "failed": "Échec du réordonnancement des agents"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "Utilisation du contexte"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Le serveur API est activé mais ne fonctionne pas correctement."
@@ -382,6 +390,11 @@
       "edit": {
         "title": "Session d'édition"
       },
+      "file_manager": {
+        "file_explorer": "Explorateur de fichiers",
+        "files": "Fichiers",
+        "finder": "Finder"
+      },
       "get": {
         "error": {
           "failed": "Échec de l'obtention de la session",
@@ -399,6 +412,10 @@
         "error": {
           "failed": "Échec de la mise à jour de la session"
         }
+      },
+      "workspace_selector": {
+        "no_project": "Aucun répertoire de travail",
+        "placeholder": "Sélectionner le répertoire de travail"
       },
       "workspace_status": {
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
@@ -695,8 +712,10 @@
         "showDetails": "Afficher les détails de l'outil"
       },
       "button": {
+        "allow": "Autoriser",
         "allowAll": "Toujours autoriser",
         "cancel": "Annuler",
+        "deny": "Refuser",
         "run": "Courir"
       },
       "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
@@ -1125,6 +1144,7 @@
     "download": "Télécharger",
     "includes_user_questions": "Inclure les questions de l'utilisateur",
     "manage": "Gérer",
+    "select_assistant": "Sélectionner l'assistant",
     "select_model": "Sélectionner le Modèle",
     "show": {
       "all": "Afficher tout"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "Ajustement automatique de la hauteur",
+      "cancel_editing": "Annuler la modification",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",
         "label": "Effacer le message {{Command}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "Nombre de contextes / Nombre maximal de contextes"
       },
+      "editing": "Édition",
+      "editing_message": "Modification du message envoyé",
       "estimated_tokens": {
         "tip": "Estimation du nombre de tokens"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "Erreur lors du traitement du fichier",
       "file_not_supported": "Le modèle ne prend pas en charge ce type de fichier",
       "file_not_supported_count": "{{count}} fichiers non pris en charge",
+      "followup_queue": {
+        "edit": "Modifier",
+        "pause": "Mettre en pause l'envoi automatique",
+        "remove": "Retirer",
+        "resume": "Reprise de l'envoi automatique",
+        "steer": "Envoyer dans le tour en cours",
+        "title": "Mis en file d’attente ({{count}})"
+      },
       "generate_image": "Générer une image",
       "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
       "knowledge_base": "Base de connaissances",
+      "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
+      "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
+      "locate_editing_message": "Localiser le message original",
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Le budget de réflexion dépasse le nombre maximum de tokens",
+        "fixed_model": "Le raisonnement est fixe pour ce modèle",
         "label": "Pensée",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "Définir le nombre de jetons pour la réflexion"
           }
-        }
+        },
+        "unsupported_model": "Le modèle actuel ne prend pas en charge le raisonnement ajustable"
       },
       "tools": {
         "collapse": "Réduire",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "Télécharger la pièce jointe",
         "document": "Télécharger un document (le modèle ne prend pas en charge les images)",
+        "document_only": "Documents uniquement",
+        "image_not_supported": "Ce modèle ne prend pas en charge le téléchargement d'images. Documents uniquement.",
         "image_or_document": "Télécharger une image ou un document",
         "upload_from_local": "Télécharger un fichier local..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "Tout effacer",
     "click_to_replace": "Cliquer pour remplacer",
     "close": "Fermer",
+    "close_sidebar": "Fermer la barre latérale",
     "collapse": "Réduire",
     "completed": "Terminé",
     "confirm": "Confirmer",
@@ -1773,6 +1812,8 @@
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
     "loading": "Chargement...",
+    "maximize": "Maximiser",
+    "minimize": "Minimiser",
     "model": "Modèle",
     "models": "Modèles",
     "more": "Plus",
@@ -1785,6 +1826,7 @@
     "on": "Marche",
     "open": "Ouvrir",
     "open_in": "Ouvrir dans {{name}}",
+    "open_sidebar": "Ouvrir la barre latérale",
     "paste": "Coller",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "Renommer",
     "required_field": "Champ obligatoire",
     "reset": "Réinitialiser",
+    "resize_panel": "Redimensionner le panneau",
     "retry": "Réessayer",
     "save": "Enregistrer",
     "save_failed": "Échec de la sauvegarde",
@@ -2144,13 +2187,13 @@
         "view_chunks": "Afficher les morceaux"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importer récursivement les fichiers pris en charge depuis un dossier",
-          "title": "Cliquez pour sélectionner un dossier"
+        "conflict_dialog": {
+          "description": "{{count}} des sources que vous ajoutez portent le même nom que des éléments existants. Choisissez comment les traiter.",
+          "keep_all": "Conserver tout",
+          "replace": "Remplacer",
+          "title": "Les sources existent déjà"
         },
         "footer": {
-          "selected_directories": "{{count}} répertoires sélectionnés",
-          "selected_files": "{{count}} fichiers sélectionnés",
           "selected_notes": "{{count}} notes sélectionnées"
         },
         "note": {
@@ -2246,7 +2289,6 @@
     },
     "dimensions_auto_set": "Réglage automatique des dimensions d'incorporation",
     "dimensions_size_placeholder": " Taille de dimension d'incorporation, ex. 1024",
-    "drag_file": "Glissez-déposez un fichier ici",
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
@@ -2258,9 +2300,9 @@
       "failed_to_edit": "Échec de la modification de la base de connaissances",
       "failed_to_move": "Échec du déplacement de la base de connaissances",
       "missing_embedding_model": "Le modèle d'embedding utilisé par cette base de connaissances n'a pas été trouvé lors de la migration. Reconstruisez la base de connaissances et choisissez un nouveau modèle d'embedding.",
+      "missing_vector_store": "Le magasin de vecteurs de cette base de connaissances n'a pas pu être lu pendant la migration (manquant, vide ou verrouillé). La base de connaissances a été conservée ; ré-indexez-la pour la récupérer.",
       "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
     },
-    "file_hint": "Format supporté : {{file_types}}",
     "groups": {
       "add": "Nouveau Groupe",
       "create_base_here": "Créez ici",
@@ -2358,6 +2400,8 @@
       "action": "Reconstruire la base de connaissances",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Échec de la reconstruction de la base de connaissances",
+      "skipped_missing_sources_one": "{{count}} élément ignoré dont la source n'existe plus",
+      "skipped_missing_sources_other": "{{count}} éléments ont été ignorés car leur source n'existe plus",
       "submit": "Reconstruire",
       "title": "Reconstruire la base de connaissances"
     },
@@ -2405,7 +2449,9 @@
   "launchpad": {
     "apps": "Applications",
     "minapps": "Minapps",
-    "miniApps": "Mini-applications"
+    "miniApps": "Mini-applications",
+    "pin_to_sidebar": "Épingler à la barre latérale",
+    "unpin_from_sidebar": "Détacher de la barre latérale"
   },
   "library": {
     "action": {
@@ -2992,6 +3038,7 @@
         "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée",
         "no_content": "Aucun contenu à exporter vers Notion"
       },
+      "operation_unavailable": "L'opération de message est indisponible. Veuillez réessayer.",
       "siyuan": {
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
@@ -3399,6 +3446,12 @@
       "placeholder": "Rechercher un modèle...",
       "tooltip": "Rechercher un modèle"
     },
+    "selection": {
+      "context_window": "Contexte {{count}}",
+      "remove_model": "Supprimer {{name}}",
+      "restore_default": "Restaurer le modèle assistant",
+      "selected_models": "Modèles sélectionnés"
+    },
     "stream_output": "Sortie en flux",
     "type": {
       "audio": "Audio",
@@ -3572,28 +3625,7 @@
     "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
   },
   "ocr": {
-    "builtin": {
-      "system": "OCR système"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
-        "existing": "Le fournisseur existe déjà",
-        "get_providers": "Échec de l'obtention des fournisseurs disponibles",
-        "not_found": "Le fournisseur OCR n'existe pas",
-        "update_failed": "Échec de la mise à jour de la configuration"
-      },
-      "unknown": "Une erreur s'est produite lors du processus OCR"
-    },
-    "file": {
-      "not_supported": "Type de fichier non pris en charge {{type}}"
-    },
-    "processing": "Traitement OCR en cours...",
-    "warning": {
-      "provider": {
-        "fallback": "Revenu à {{name}}, ce qui pourrait entraîner des problèmes"
-      }
-    }
+    "processing": "Traitement OCR en cours..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -5455,7 +5487,19 @@
         "title": "Sauvegarde et restauration des données"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cerise",
+            "native": "Natif",
+            "restart": {
+              "content": "Changer le style du menu nécessite de redémarrer l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
+              "title": "Redémarrage requis"
+            },
+            "title": "Style du menu contextuel"
+          }
+        },
         "sections": {
+          "chat_settings": "Paramètres de discussion",
           "custom_css": "CSS personnalisé",
           "display_language": "Affichage et langue",
           "privacy_advanced": "Confidentialité et avancé",
@@ -6591,6 +6635,14 @@
       "close": "Закрыть",
       "confirm": "Подтвердить",
       "forward": "Вперед",
+      "mcp": {
+        "agentEmpty": "Aucun serveur MCP configuré pour cet agent",
+        "assistantEmpty": "Aucun serveur MCP configuré pour cet assistant",
+        "autoEmpty": "Aucun serveur MCP activé",
+        "description": "Afficher l'état actuel du serveur MCP",
+        "disabled": "MCP est désactivé pour cet assistant",
+        "unknownServer": "Serveur MCP inconnu"
+      },
       "multiple": "Множественный выбор",
       "noResult": "Aucun résultat trouvé",
       "page": "Перелистнуть страницу",
@@ -6956,10 +7008,16 @@
       "title": "Zoom"
     }
   },
+  "subWindow": {
+    "back_to_main": "Retour à la fenêtre principale",
+    "pin": "Garder au-dessus",
+    "unpin": "Annuler Garder au-dessus"
+  },
   "tab": {
     "close": "Fermer l'onglet",
     "move_to_first": "Déplacer vers le premier",
     "new": "Nouvel onglet",
+    "open_in_new_window": "Ouvrir dans une nouvelle fenêtre",
     "pin": "Épingler l'onglet",
     "unpin": "Détacher l'onglet"
   },
@@ -7083,6 +7141,7 @@
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
       },
+      "ocr_completed": "Reconnaissance OCR de l'image terminée",
       "reading": "Lecture du contenu du fichier en cours...",
       "upload": "Déposez ou cliquez pour télécharger une image/un document"
     },

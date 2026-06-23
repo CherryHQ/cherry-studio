@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "回答済み",
+      "close": "閉じる",
       "customPlaceholder": "答えを入力してください...",
       "loading": "質問を読み込んでいます…",
       "multiSelect": "複数選択",
@@ -25,6 +26,8 @@
       "noQuestions": "利用可能な質問はありません",
       "other": "その他",
       "previous": "前",
+      "progress": "{{current}} / {{total}}",
+      "skip": "スキップ",
       "submit": "送信",
       "title": "エージェントからの質問"
     },
@@ -340,6 +343,11 @@
         "failed": "エージェントの並び替えに失敗しました"
       }
     },
+    "right_pane": {
+      "info": {
+        "context_usage": "コンテキストの使用"
+      }
+    },
     "server": {
       "error": {
         "not_running": "APIサーバーは有効になっていますが、正常に動作していません。"
@@ -382,6 +390,11 @@
       "edit": {
         "title": "編集セッション"
       },
+      "file_manager": {
+        "file_explorer": "ファイルエクスプローラー",
+        "files": "ファイル",
+        "finder": "ファインダー"
+      },
       "get": {
         "error": {
           "failed": "セッションの取得に失敗しました",
@@ -399,6 +412,10 @@
         "error": {
           "failed": "セッションの更新に失敗しました"
         }
+      },
+      "workspace_selector": {
+        "no_project": "作業ディレクトリがありません",
+        "placeholder": "作業ディレクトリを選択"
       },
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
@@ -695,8 +712,10 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allow": "許可",
         "allowAll": "常に許可",
         "cancel": "キャンセル",
+        "deny": "拒否",
         "run": "走る"
       },
       "confirmation": "このClaudeツールを実行してもよろしいですか？",
@@ -1125,6 +1144,7 @@
     "download": "ダウンロード",
     "includes_user_questions": "ユーザーからの質問を含む",
     "manage": "管理",
+    "select_assistant": "アシスタントを選択",
     "select_model": "モデルを選択",
     "show": {
       "all": "すべて表示"
@@ -1189,6 +1209,7 @@
     },
     "input": {
       "auto_resize": "高さを自動調整",
+      "cancel_editing": "編集をキャンセル",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
         "label": "クリア {{Command}}",
@@ -1198,6 +1219,8 @@
       "context_count": {
         "tip": "コンテキスト数 / 最大コンテキスト数"
       },
+      "editing": "編集",
+      "editing_message": "送信済みメッセージの編集",
       "estimated_tokens": {
         "tip": "推定トークン数"
       },
@@ -1205,9 +1228,20 @@
       "file_error": "ファイル処理エラー",
       "file_not_supported": "モデルはこのファイルタイプをサポートしません",
       "file_not_supported_count": "{{count}} 個のファイルはサポートされていません",
+      "followup_queue": {
+        "edit": "編集",
+        "pause": "自動送信を一時停止",
+        "remove": "削除",
+        "resume": "自動送信を再開",
+        "steer": "現在のターンに送る",
+        "title": "キューに追加済み（{{count}}）"
+      },
       "generate_image": "画像を生成する",
       "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "knowledge_base": "ナレッジベース",
+      "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
+      "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
+      "locate_editing_message": "元のメッセージを見つける",
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
@@ -1244,6 +1278,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
+        "fixed_model": "このモデルでは推論が固定されています",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1257,7 +1292,8 @@
           "tokens": {
             "tip": "思考のトークン数を設定します"
           }
-        }
+        },
+        "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
       "tools": {
         "collapse": "折りたたむ",
@@ -1275,6 +1311,8 @@
       "upload": {
         "attachment": "添付ファイルをアップロード",
         "document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
+        "document_only": "文書のみ",
+        "image_not_supported": "このモデルは画像のアップロードに対応していません。ドキュメントのみです。",
         "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
@@ -1723,6 +1761,7 @@
     "clear_all": "すべてクリア",
     "click_to_replace": "クリックして置換",
     "close": "閉じる",
+    "close_sidebar": "サイドバーを閉じる",
     "collapse": "折りたたむ",
     "completed": "完了",
     "confirm": "確認",
@@ -1773,6 +1812,8 @@
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
+    "maximize": "最大化",
+    "minimize": "最小化",
     "model": "モデル",
     "models": "モデル",
     "more": "もっと",
@@ -1785,6 +1826,7 @@
     "on": "オン",
     "open": "開く",
     "open_in": "{{name}}で開く",
+    "open_sidebar": "サイドバーを開く",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -1804,6 +1846,7 @@
     "rename": "名前を変更",
     "required_field": "必須項目",
     "reset": "リセット",
+    "resize_panel": "パネルのサイズを変更",
     "retry": "リトライ",
     "save": "保存",
     "save_failed": "保存に失敗しました",
@@ -2144,13 +2187,13 @@
         "view_chunks": "チャンクを表示"
       },
       "add_dialog": {
-        "directory": {
-          "description": "フォルダからサポートされているファイルを再帰的にインポート",
-          "title": "フォルダを選択するにはクリックしてください"
+        "conflict_dialog": {
+          "description": "追加しようとしているソースのうち{{count}}件が既存のアイテムと同じ名前です。処理方法を選択してください。",
+          "keep_all": "すべて保持",
+          "replace": "置換",
+          "title": "ソースは既に存在します"
         },
         "footer": {
-          "selected_directories": "{{count}}個のディレクトリが選択されています",
-          "selected_files": "{{count}}個のファイルが選択されています",
           "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
@@ -2246,7 +2289,6 @@
     },
     "dimensions_auto_set": "埋め込み次元を自動設定",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
-    "drag_file": "ファイルをここにドラッグ",
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
@@ -2258,9 +2300,9 @@
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
       "failed_to_move": "ナレッジベースの移動に失敗しました",
       "missing_embedding_model": "このナレッジベースで使用されていた埋め込みモデルは移行中に見つかりませんでした。ナレッジベースを再構築し、新しい埋め込みモデルを選択してください。",
+      "missing_vector_store": "このナレッジベースのベクターストアは移行中に読み取れませんでした（存在しない、空、またはロックされています）。ナレッジベースは保持されました。再インデックスを実行して復旧してください。",
       "model_invalid": "モデルが選択されていません"
     },
-    "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
       "add": "新しいグループ",
       "create_base_here": "ここに作成",
@@ -2358,6 +2400,8 @@
       "action": "ナレッジベースを再構築する",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "ナレッジベースの再構築に失敗しました",
+      "skipped_missing_sources_one": "ソースがもはや存在しないため、{{count}} 個の項目をスキップしました",
+      "skipped_missing_sources_other": "ソースが存在しなくなったため、{{count}}件の項目をスキップしました",
       "submit": "リビルド",
       "title": "ナレッジベースを再構築"
     },
@@ -2405,7 +2449,9 @@
   "launchpad": {
     "apps": "アプリ",
     "minapps": "ミニアプリ",
-    "miniApps": "アプリ"
+    "miniApps": "アプリ",
+    "pin_to_sidebar": "サイドバーにピン留め",
+    "unpin_from_sidebar": "サイドバーからピンを外す"
   },
   "library": {
     "action": {
@@ -2992,6 +3038,7 @@
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
         "no_content": "Notionにエクスポートできる内容がありません。"
       },
+      "operation_unavailable": "メッセージ操作は利用できません。もう一度お試しください。",
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
@@ -3399,6 +3446,12 @@
       "placeholder": "モデルを検索...",
       "tooltip": "モデルを検索"
     },
+    "selection": {
+      "context_window": "コンテキスト {{count}}",
+      "remove_model": "{{name}}を削除",
+      "restore_default": "アシスタントモデルを復元する",
+      "selected_models": "選択されたモデル"
+    },
     "stream_output": "ストリーム出力",
     "type": {
       "audio": "オーディオ",
@@ -3572,28 +3625,7 @@
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
   "ocr": {
-    "builtin": {
-      "system": "システム OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
-        "existing": "プロバイダーはすでに存在します",
-        "get_providers": "利用可能なプロバイダーの取得に失敗しました",
-        "not_found": "OCRプロバイダーが存在しません",
-        "update_failed": "更新構成に失敗しました"
-      },
-      "unknown": "OCR処理中にエラーが発生しました"
-    },
-    "file": {
-      "not_supported": "サポートされていないファイルタイプ {{type}}"
-    },
-    "processing": "OCR処理中...",
-    "warning": {
-      "provider": {
-        "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"
-      }
-    }
+    "processing": "OCR処理中..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -5455,7 +5487,19 @@
         "title": "データのバックアップと復元"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "桜",
+            "native": "ネイティブ",
+            "restart": {
+              "content": "メニュースタイルを変更するには、アプリを再起動する必要があります。今すぐ再起動しますか？",
+              "title": "再起動が必要です"
+            },
+            "title": "コンテキストメニュースタイル"
+          }
+        },
         "sections": {
+          "chat_settings": "チャット設定",
           "custom_css": "カスタムCSS",
           "display_language": "表示と言語",
           "privacy_advanced": "プライバシーと高度な設定",
@@ -6591,6 +6635,14 @@
       "close": "閉じる",
       "confirm": "確認",
       "forward": "進む",
+      "mcp": {
+        "agentEmpty": "このエージェント用に設定された MCP サーバーはありません",
+        "assistantEmpty": "このアシスタント用に設定された MCP サーバーはありません",
+        "autoEmpty": "有効化された MCP サーバーはありません",
+        "description": "現在のMCPサーバーのステータスを表示",
+        "disabled": "このアシスタントではMCPは無効になっています",
+        "unknownServer": "不明な MCP サーバー"
+      },
       "multiple": "複数選択",
       "noResult": "結果が見つかりません",
       "page": "ページ",
@@ -6956,10 +7008,16 @@
       "title": "ページズーム"
     }
   },
+  "subWindow": {
+    "back_to_main": "メインウィンドウに戻る",
+    "pin": "常に最前面に表示",
+    "unpin": "キャンセル 最前面に表示"
+  },
   "tab": {
     "close": "タブを閉じる",
     "move_to_first": "最初へ移動",
     "new": "新しいタブ",
+    "open_in_new_window": "新しいウィンドウで開く",
     "pin": "タブをピン留め",
     "unpin": "タブを固定解除"
   },
@@ -7083,6 +7141,7 @@
         "too_large": "ファイルが大きすぎます",
         "unknown": "ファイルの内容を読み取るのに失敗しました"
       },
+      "ocr_completed": "画像OCR完了",
       "reading": "ファイルの内容を読み込んでいます...",
       "upload": "画像またはドキュメントをドロップするか、クリックしてアップロード"
     },

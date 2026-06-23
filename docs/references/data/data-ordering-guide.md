@@ -263,7 +263,7 @@ Single field only — composite keys like `${providerId}:${modelName}` are out o
 | **Wrapped pagination** `{ items, total, page }` / `{ items, nextCursor }` | `GET /mini-apps`, `GET /mcp-servers`, `GET /assistants`, `GET /knowledges` | Reads `cache.items`; preserves `total` / `page` / `nextCursor` on optimistic writes. |
 | **Naked items wrapper** `{ items: T[] }` | `GET /knowledges/:id/items` | Reads `cache.items`. |
 
-No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged.
+No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged. For the pagination model itself, see the [Pagination Guide](./data-pagination-guide.md).
 
 ### 4.4 Using accessors for nested shapes
 
