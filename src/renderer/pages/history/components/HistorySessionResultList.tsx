@@ -28,7 +28,7 @@ import {
   HistoryTableHeader,
   HistoryTitleButton,
   HistoryVirtualTable
-} from './HistoryTable.shared'
+} from './HistoryTableParts'
 
 interface HistorySessionResultListProps {
   sessions: readonly AgentSessionEntity[]

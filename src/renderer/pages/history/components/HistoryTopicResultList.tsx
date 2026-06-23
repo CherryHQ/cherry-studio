@@ -26,7 +26,7 @@ import {
   HistoryTableHeader,
   HistoryTitleButton,
   HistoryVirtualTable
-} from './HistoryTable.shared'
+} from './HistoryTableParts'
 
 interface HistoryTopicResultListProps {
   topics: readonly Topic[]

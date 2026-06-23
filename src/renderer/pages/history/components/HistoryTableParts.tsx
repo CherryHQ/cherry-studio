@@ -10,11 +10,11 @@ import { PinIcon, Trash2 } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-export const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
+const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName = 'grid min-w-[760px] grid-cols-[44px_minmax(284px,1fr)_160px_96px_76px]'
-export const historyHeaderClassName =
+const historyHeaderClassName =
   'sticky top-0 z-10 border-border-muted border-b bg-card text-muted-foreground text-xs leading-4'
-export const historyHeaderCellClassName = 'flex h-10 min-w-0 items-center px-3 py-2 font-semibold'
+const historyHeaderCellClassName = 'flex h-10 min-w-0 items-center px-3 py-2 font-semibold'
 export const historyBodyRowClassName =
   'border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5 transition-colors hover:bg-muted data-[state=selected]:bg-muted'
 export const historyBodyCellClassName = 'flex min-w-0 items-center px-3 py-2.5'
