@@ -92,6 +92,10 @@ function getResourceListGroupFromSeed(group: ResourceListGroupSeed): ResourceLis
   return { id: group.id, label: group.label, count: group.count }
 }
 
+function normalizeCollapsedIds(collapsedIds: readonly string[] | unknown): readonly string[] {
+  return Array.isArray(collapsedIds) ? collapsedIds : []
+}
+
 function deriveResourceListItems<T extends ResourceListItemBase>({
   filterById,
   filters,
@@ -564,7 +568,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const isControlled = collapsedState !== undefined
-  const effectiveCollapsedIds = collapsedState ?? state.collapsedGroups
+  const effectiveCollapsedIds = normalizeCollapsedIds(collapsedState ?? state.collapsedGroups)
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)

@@ -1220,7 +1220,14 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
-      setTimeoutTimer('composerSurfaceFocus', () => createdEditor.commands.focus(), 0)
+      setTimeoutTimer(
+        'composerSurfaceFocus',
+        () => {
+          if (!createdEditor || createdEditor.isDestroyed) return
+          createdEditor.commands.focus()
+        },
+        0
+      )
     }
   })
 
