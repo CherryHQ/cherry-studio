@@ -12,7 +12,7 @@ import {
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { AgentTaskEventPartData, CompactPartData } from '@shared/data/types/uiParts'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
@@ -65,18 +65,10 @@ export interface AgentArtifactFile {
 
 export interface AgentRightPaneStatus {
   tasks: AgentStatusTask[]
-  activeTask?: AgentStatusTask
   completedTaskCount: number
   totalTaskCount: number
   subagents: AgentSubagent[]
   artifacts: AgentArtifactFile[]
-  latestCompactSummary?: string
-  toolStats: {
-    total: number
-    active: number
-    completed: number
-    failed: number
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -419,29 +411,16 @@ export function buildAgentRightPaneStatus(
   const taskMap = new Map<string, AgentStatusTask>()
   const subagentByCallId = new Map<string, AgentSubagent>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
-  let latestCompactSummary: string | undefined
-  const toolStats = { total: 0, active: 0, completed: 0, failed: 0 }
 
   for (const message of messages) {
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     parts.forEach((part, partIndex) => {
-      if (isDataUIPart(part) && part.type === 'data-compact') {
-        const content = (part.data as CompactPartData | undefined)?.content
-        if (content?.trim()) latestCompactSummary = content
-      }
-
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         applyAgentTaskEvent(taskMap, part.data)
       }
 
       if (!isToolUIPart(part)) return
-      toolStats.total += 1
       const state = getToolPartState(part)
-      if (state === 'output-available') toolStats.completed += 1
-      if (state === 'output-error') toolStats.failed += 1
-      if (state === 'input-streaming' || state === 'input-available' || state === 'approval-requested') {
-        toolStats.active += 1
-      }
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       applyTaskToolPart(taskMap, part, fallbackId)
 
@@ -472,17 +451,12 @@ export function buildAgentRightPaneStatus(
 
   const tasks = Array.from(taskMap.values())
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
-  const activeTask =
-    tasks.find((task) => task.status === 'in_progress') ?? tasks.find((task) => task.status === 'pending')
 
   return {
     tasks,
-    activeTask,
     completedTaskCount,
     totalTaskCount: tasks.length,
     subagents: Array.from(subagentByCallId.values()),
-    artifacts: Array.from(artifactByPath.values()),
-    latestCompactSummary,
-    toolStats
+    artifacts: Array.from(artifactByPath.values())
   }
 }

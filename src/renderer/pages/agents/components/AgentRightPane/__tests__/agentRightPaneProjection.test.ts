@@ -147,7 +147,6 @@ describe('agent right pane projections', () => {
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
     expect(status.tasks.map((task) => task.title)).toEqual(['Review context'])
-    expect(status.activeTask?.title).toBe('Review context')
     expect(status.completedTaskCount).toBe(0)
     expect(status.totalTaskCount).toBe(1)
   })
@@ -205,7 +204,6 @@ describe('agent right pane projections', () => {
         status: 'in_progress'
       }
     ])
-    expect(status.activeTask?.title).toBe('制作瑞士风格AI产品发布PPT')
     expect(status.totalTaskCount).toBe(1)
   })
 
