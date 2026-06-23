@@ -254,7 +254,7 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (isMessageOnlyView) return
     if (!activeTopic) return
-    const signature = `${activeTopic.id}:${activeTopic.name}:${activeTopic.assistantId ?? ''}`
+    const signature = `${activeTopic.id}:${activeTopic.name}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
     const currentRecentItems = recentItems ?? []

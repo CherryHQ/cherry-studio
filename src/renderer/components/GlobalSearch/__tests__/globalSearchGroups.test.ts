@@ -49,14 +49,12 @@ describe('globalSearchGroups', () => {
         kind: 'topic' as const,
         topicId: 'topic-1',
         title: 'Topic 1',
-        assistantId: 'assistant-1',
         lastAccessTime: 20
       },
       {
         kind: 'session' as const,
         sessionId: 'session-1',
         title: 'Session 1',
-        agentId: 'agent-1',
         lastAccessTime: 10
       }
     ]
@@ -65,14 +63,12 @@ describe('globalSearchGroups', () => {
       kind: 'topic',
       topicId: 'topic-1',
       title: 'Topic 1',
-      assistantId: 'assistant-1',
       lastAccessTime: 20
     })
     const changed = upsertGlobalSearchRecentEntry(entries, {
       kind: 'topic',
       topicId: 'topic-1',
       title: 'Topic 1',
-      assistantId: 'assistant-1',
       lastAccessTime: 30
     })
 
@@ -180,8 +176,7 @@ describe('globalSearchGroups', () => {
       createRecentTopicEntryFromTopic(
         {
           id: 'topic-1',
-          name: 'Topic title',
-          assistantId: 'assistant-1'
+          name: 'Topic title'
         },
         20
       )
@@ -189,7 +184,6 @@ describe('globalSearchGroups', () => {
       kind: 'topic',
       topicId: 'topic-1',
       title: 'Topic title',
-      assistantId: 'assistant-1',
       lastAccessTime: 20
     })
 
@@ -197,8 +191,7 @@ describe('globalSearchGroups', () => {
       createRecentSessionEntryFromSession(
         {
           id: 'session-1',
-          name: 'Session title',
-          agentId: 'agent-1'
+          name: 'Session title'
         },
         30
       )
@@ -206,7 +199,6 @@ describe('globalSearchGroups', () => {
       kind: 'session',
       sessionId: 'session-1',
       title: 'Session title',
-      agentId: 'agent-1',
       lastAccessTime: 30
     })
   })

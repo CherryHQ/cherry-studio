@@ -79,14 +79,12 @@ export type GlobalSearchRecentEntry =
       kind: 'topic'
       topicId: string
       title: string
-      assistantId?: string
       lastAccessTime: number
     }
   | {
       kind: 'session'
       sessionId: string
       title: string
-      agentId?: string | null
       lastAccessTime: number
     }
 

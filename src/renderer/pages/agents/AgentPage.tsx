@@ -183,7 +183,7 @@ const AgentPage = () => {
     if (isMessageOnlyView) return
     if (!activeSession) return
 
-    const signature = `${activeSession.id}:${activeSession.name}:${activeSession.agentId ?? ''}`
+    const signature = `${activeSession.id}:${activeSession.name}`
     if (lastRecordedRecentSessionRef.current === signature) return
 
     const currentRecentItems = recentItems ?? []

@@ -132,9 +132,9 @@ function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b: Global
     case 'route':
       return b.kind === 'route' && a.url === b.url && a.icon === b.icon
     case 'topic':
-      return b.kind === 'topic' && a.topicId === b.topicId && a.assistantId === b.assistantId
+      return b.kind === 'topic' && a.topicId === b.topicId
     case 'session':
-      return b.kind === 'session' && a.sessionId === b.sessionId && a.agentId === b.agentId
+      return b.kind === 'session' && a.sessionId === b.sessionId
   }
 }
 
@@ -189,27 +189,25 @@ export function createRecentRouteEntryFromTab(
 }
 
 export function createRecentTopicEntryFromTopic(
-  topic: Pick<Topic, 'id' | 'name' | 'assistantId'>,
+  topic: Pick<Topic, 'id' | 'name'>,
   lastAccessTime = Date.now()
 ): GlobalSearchRecentEntry {
   return {
     kind: 'topic',
     topicId: topic.id,
     title: topic.name,
-    assistantId: topic.assistantId,
     lastAccessTime
   }
 }
 
 export function createRecentSessionEntryFromSession(
-  session: Pick<AgentSessionEntity, 'id' | 'name' | 'agentId'>,
+  session: Pick<AgentSessionEntity, 'id' | 'name'>,
   lastAccessTime = Date.now()
 ): GlobalSearchRecentEntry {
   return {
     kind: 'session',
     sessionId: session.id,
     title: session.name,
-    agentId: session.agentId,
     lastAccessTime
   }
 }
