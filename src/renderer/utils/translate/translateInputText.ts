@@ -1,6 +1,7 @@
-import { translateText } from './translateText'
 import type { TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { TFunction } from 'i18next'
+
+import { translateText } from './translateText'
 
 interface TranslateInputTextOptions {
   text: string

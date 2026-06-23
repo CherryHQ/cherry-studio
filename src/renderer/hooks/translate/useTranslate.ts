@@ -21,8 +21,8 @@
  */
 
 import { loggerService } from '@logger'
-import { translateText } from '@renderer/utils/translate'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useRef, useState } from 'react'
