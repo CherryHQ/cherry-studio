@@ -4,6 +4,7 @@ import type { UpdateInfo } from 'builder-util-runtime'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { ExternalAppId } from '../../types/externalApp'
+import type { AgentSessionDisplayMode, TopicDisplayMode } from '../preference/preferenceTypes'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -20,6 +21,15 @@ export type CacheAppUpdateState = {
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
+
+export type ResourceListExpansionCacheState = {
+  expandedSectionIds: string[]
+  expandedGroupIds: string[]
+}
+
+export type TopicGroupExpansionCache = Record<TopicDisplayMode, ResourceListExpansionCacheState>
+
+export type AgentSessionGroupExpansionCache = Record<AgentSessionDisplayMode, ResourceListExpansionCacheState>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system

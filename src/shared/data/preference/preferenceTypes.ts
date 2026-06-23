@@ -86,15 +86,6 @@ export type TopicDisplayMode = 'time' | 'assistant'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
-export type ResourceListExpansionPreferenceState = {
-  expandedSectionIds: string[]
-  expandedGroupIds: string[]
-}
-
-export type TopicGroupExpansionPreference = Record<TopicDisplayMode, ResourceListExpansionPreferenceState>
-
-export type AgentSessionGroupExpansionPreference = Record<AgentSessionDisplayMode, ResourceListExpansionPreferenceState>
-
 export type SidebarFavorite =
   | 'assistants'
   | 'agents'

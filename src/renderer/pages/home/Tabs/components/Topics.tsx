@@ -1,7 +1,7 @@
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -266,7 +266,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [topicGroupExpansion, setTopicGroupExpansion] = usePreference('topic.tab.group_expansion')
+  const [topicGroupExpansion, setTopicGroupExpansion] = usePersistCache('ui.topic.group_expansion')
   const topicGroupExpansionRef = useRef(topicGroupExpansion)
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -897,7 +897,7 @@ export function Topics({ activeTopic, onNewTopic, revealRequest, setActiveTopic 
       )
 
       topicGroupExpansionRef.current = nextGroupExpansion
-      void setTopicGroupExpansion(nextGroupExpansion)
+      setTopicGroupExpansion(nextGroupExpansion)
     },
     [displayMode, setTopicGroupExpansion]
   )

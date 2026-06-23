@@ -27,6 +27,7 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useCurrentTabId } from '@renderer/context/TabIdContext'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
@@ -349,7 +350,7 @@ const Sessions = ({
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionGroupExpansion, setSessionGroupExpansion] = usePreference('agent.session.group_expansion')
+  const [sessionGroupExpansion, setSessionGroupExpansion] = usePersistCache('ui.agent.session.group_expansion')
   const sessionGroupExpansionRef = useRef(sessionGroupExpansion)
   const {
     sessions,
@@ -613,7 +614,7 @@ const Sessions = ({
       )
 
       sessionGroupExpansionRef.current = nextGroupExpansion
-      void setSessionGroupExpansion(nextGroupExpansion)
+      setSessionGroupExpansion(nextGroupExpansion)
     },
     [displayMode, setSessionGroupExpansion]
   )

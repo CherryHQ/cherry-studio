@@ -310,9 +310,11 @@ export type RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': number
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
+  'ui.topic.group_expansion': CacheValueTypes.TopicGroupExpansionCache
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
+  'ui.agent.session.group_expansion': CacheValueTypes.AgentSessionGroupExpansionCache
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -331,9 +333,45 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
+  'ui.topic.group_expansion': {
+    assistant: {
+      expandedGroupIds: [],
+      expandedSectionIds: ['topic:section:pinned', 'topic:section:assistant']
+    },
+    time: {
+      expandedGroupIds: [
+        'topic:pinned',
+        'topic:time:today',
+        'topic:time:yesterday',
+        'topic:time:this-week',
+        'topic:time:earlier'
+      ],
+      expandedSectionIds: []
+    }
+  },
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
+  'ui.agent.session.group_expansion': {
+    agent: {
+      expandedGroupIds: [],
+      expandedSectionIds: ['session:section:pinned', 'session:section:agent']
+    },
+    time: {
+      expandedGroupIds: [
+        'session:pinned',
+        'session:time:today',
+        'session:time:yesterday',
+        'session:time:this-week',
+        'session:time:earlier'
+      ],
+      expandedSectionIds: []
+    },
+    workdir: {
+      expandedGroupIds: [],
+      expandedSectionIds: ['session:section:pinned', 'session:section:workdir', 'session:section:no-project']
+    }
+  },
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
