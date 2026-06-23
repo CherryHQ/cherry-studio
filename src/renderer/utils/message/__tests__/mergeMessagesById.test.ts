@@ -23,4 +23,16 @@ describe('mergeMessagesById', () => {
     expect(merged[0].parts).toEqual([{ type: 'text', text: 'updated' }])
     expect(merged[0].metadata).toEqual({ modelId: 'm1', totalTokens: 3 })
   })
+
+  it('merges three or more sources, with the latest source winning same-id collisions', () => {
+    const merged = mergeMessagesById(
+      [message('a', 'a-v1')],
+      [message('b', 'b-only')],
+      [message('a', 'a-v3', { totalTokens: 9 })]
+    )
+
+    expect(merged.map((item) => item.id)).toEqual(['a', 'b'])
+    expect(merged[0].parts).toEqual([{ type: 'text', text: 'a-v3' }])
+    expect(merged[0].metadata).toEqual({ totalTokens: 9 })
+  })
 })
