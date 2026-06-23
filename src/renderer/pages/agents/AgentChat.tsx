@@ -5,9 +5,7 @@ import {
   EmptyState
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { ConversationComposerPlacement } from '@renderer/components/chat/composer'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
-import { useShellActions } from '@renderer/components/chat/panes/Shell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -395,8 +393,6 @@ const AgentChat = ({
       sidebarOpen={sidebarOpen}
       onSidebarToggle={onSidebarToggle}
       session={sessionSnapshot}
-      placement="docked"
-      homeComposer={undefined}
       homeWelcomeText={t('agent.home.welcome_title')}
       agentId={sendableAgentId}
       activeAgent={activeAgent}
@@ -442,8 +438,6 @@ interface AgentChatSessionFrameProps {
   onSidebarToggle?: () => void
   sidePanel?: ReactNode
   session: AgentSessionEntity
-  placement: ConversationComposerPlacement
-  homeComposer?: ReactNode
   homeWelcomeText?: string
   agentId?: string
   activeAgent: GetAgentResponse | undefined
@@ -460,20 +454,6 @@ interface AgentChatSessionFrameProps {
   onNewSessionDraft?: () => void | Promise<void>
 }
 
-const AgentRightPaneDisabledReset = ({ disabled }: { disabled: boolean }) => {
-  const actions = useShellActions()
-  const previousDisabledRef = useRef(disabled)
-
-  useEffect(() => {
-    if (disabled && !previousDisabledRef.current) {
-      actions.close()
-    }
-    previousDisabledRef.current = disabled
-  }, [actions, disabled])
-
-  return null
-}
-
 const AgentChatSessionFrame = ({
   className,
   pane,
@@ -484,8 +464,6 @@ const AgentChatSessionFrame = ({
   onSidebarToggle,
   sidePanel,
   session,
-  placement,
-  homeComposer,
   homeWelcomeText,
   agentId,
   activeAgent,
@@ -551,8 +529,6 @@ const AgentChatSessionFrame = ({
 
   const composer = (
     <AgentComposerSlot
-      placement={placement}
-      homeComposer={homeComposer}
       agentId={agentId}
       isMultiSelectMode={isMultiSelectMode}
       session={session}
@@ -567,7 +543,7 @@ const AgentChatSessionFrame = ({
   )
   const main = (
     <AgentChatMain
-      placement={placement}
+      placement="docked"
       sessionMessagesEnabled={sessionMessagesEnabled}
       agentId={agentId}
       sessionId={runtime.sessionId}
@@ -584,7 +560,6 @@ const AgentChatSessionFrame = ({
       respondToolApproval={runtime.respondToolApproval}
     />
   )
-  const rightPaneDisabled = placement === 'home'
 
   return (
     <AgentRightPane
@@ -598,7 +573,6 @@ const AgentChatSessionFrame = ({
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       modelFallback={runtime.fallbackSnapshot}>
-      <AgentRightPaneDisabledReset disabled={rightPaneDisabled} />
       <ConversationShell
         className={className}
         pane={pane}
@@ -616,22 +590,22 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
-            <AgentRightPane.InfoCard disabled={rightPaneDisabled} />
-            <AgentRightPane.FilesToggle disabled={rightPaneDisabled} />
+            <AgentRightPane.InfoCard />
+            <AgentRightPane.FilesToggle />
           </>
         }
         topRightToolReserve="double"
         center={
           <ConversationStageCenter
-            placement={placement}
+            placement="docked"
             main={main}
             composer={composer}
             homeWelcomeText={homeWelcomeText}
           />
         }
         sidePanel={sidePanel}
-        centerOverlay={rightPaneDisabled ? undefined : <AgentRightPane.MaximizedOverlay />}
-        rightPane={rightPaneDisabled ? undefined : <AgentRightPane.Host />}
+        centerOverlay={<AgentRightPane.MaximizedOverlay />}
+        rightPane={<AgentRightPane.Host />}
         centerClassName="transform-[translateZ(0)] relative justify-between"
       />
     </AgentRightPane>
