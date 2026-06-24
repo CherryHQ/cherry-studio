@@ -31,7 +31,7 @@ export const Confetti: React.FC = () => {
         const velocity = 56 + Math.random() * 148
         const x = Math.cos(angle) * velocity
         const rise = -(36 + Math.random() * 124)
-        const fall = 216 + Math.random() * 284
+        const fall = 210 + Math.random() * 250
         const rotate = (Math.random() - 0.5) * 720
 
         return {
@@ -63,7 +63,7 @@ export const Confetti: React.FC = () => {
       {pieces.map((p) => (
         <span
           key={p.id}
-          className="migration-confetti__piece"
+          className="animation-migration-confetti-piece"
           style={{
             width: p.size,
             height: p.round ? p.size : p.size * 0.5,
@@ -80,23 +80,6 @@ export const Confetti: React.FC = () => {
           }}
         />
       ))}
-      <style>{`
-        .migration-confetti__piece {
-          position: absolute;
-          left: 0;
-          top: 0;
-          opacity: 0;
-          animation-name: migration-confetti-burst;
-          animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
-          animation-iteration-count: 1;
-          animation-fill-mode: forwards;
-        }
-        @keyframes migration-confetti-burst {
-          0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
-          24% { transform: translate3d(var(--confetti-mid-x, 0), var(--confetti-rise, -80px), 0) rotate(var(--confetti-rotate, 180deg)); opacity: 1; }
-          100% { transform: translate3d(var(--confetti-x, 0), var(--confetti-fall, 260px), 0) rotate(var(--confetti-rotate-end, 360deg)); opacity: 0; }
-        }
-      `}</style>
     </span>
   )
 }

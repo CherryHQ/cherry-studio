@@ -84,28 +84,10 @@ const ProgressBar: React.FC<{ value: number; indeterminate?: boolean }> = ({ val
       className={cn(
         'h-full rounded-full bg-primary transition-[width] duration-300',
         indeterminate &&
-          'absolute left-0 w-1/3 min-w-20 bg-linear-to-r from-primary/0 via-primary to-primary/0 transition-none'
+          'animation-migration-backup-progress-indeterminate absolute left-0 w-1/3 min-w-20 bg-linear-to-r from-primary/0 via-primary to-primary/0 transition-none'
       )}
-      style={
-        indeterminate
-          ? { animation: 'migration-backup-progress-indeterminate 1.15s ease-in-out infinite' }
-          : { width: `${Math.max(0, Math.min(100, value))}%` }
-      }
+      style={indeterminate ? undefined : { width: `${Math.max(0, Math.min(100, value))}%` }}
     />
-    {indeterminate && (
-      <style>{`
-        @keyframes migration-backup-progress-indeterminate {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(360%); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          [style*='migration-backup-progress-indeterminate'] {
-            animation: none !important;
-            transform: translateX(100%);
-          }
-        }
-      `}</style>
-    )}
   </div>
 )
 
