@@ -495,4 +495,102 @@ describe('MigrationApp', () => {
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
   })
+
+  describe('theme toggle', () => {
+    const THEME_KEY = 'migration:theme_mode'
+
+    // The mocked `t` returns the key, so the toggle's accessible name is `settings.theme.<mode>`.
+    const themeButton = (mode: 'light' | 'dark' | 'system') =>
+      screen.getByRole('button', { name: `settings.theme.${mode}` })
+
+    // Build a fresh matchMedia stub that captures the registered `change` handler so a test can
+    // simulate the OS flipping appearance while on `system`.
+    const stubMatchMedia = (matches: boolean) => {
+      const listeners: Array<() => void> = []
+      const media = {
+        matches,
+        media: '(prefers-color-scheme: dark)',
+        onchange: null,
+        addEventListener: vi.fn((event: string, cb: () => void) => {
+          if (event === 'change') listeners.push(cb)
+        }),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }
+      Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn().mockReturnValue(media) })
+      return { media, emitChange: () => listeners.forEach((cb) => cb()) }
+    }
+
+    beforeEach(() => {
+      // The window classes both <html> and <body>; reset both (and the persisted mode) so each
+      // case starts from a clean slate regardless of prior renders.
+      localStorage.clear()
+      for (const el of [document.documentElement, document.body]) {
+        el.classList.remove('light', 'dark')
+      }
+    })
+
+    it('defaults to system and resolves to light on both <html> and <body>', () => {
+      render(<MigrationApp />)
+
+      expect(document.documentElement.classList.contains('light')).toBe(true)
+      expect(document.body.classList.contains('light')).toBe(true)
+      expect(themeButton('system')).toBeInTheDocument()
+    })
+
+    it('cycles system → light → dark → system, persisting and classing html + body', () => {
+      render(<MigrationApp />)
+
+      fireEvent.click(themeButton('system')) // → light
+      expect(localStorage.getItem(THEME_KEY)).toBe('light')
+      expect(document.documentElement.classList.contains('light')).toBe(true)
+      expect(document.body.classList.contains('light')).toBe(true)
+
+      fireEvent.click(themeButton('light')) // → dark
+      expect(localStorage.getItem(THEME_KEY)).toBe('dark')
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      expect(document.body.classList.contains('dark')).toBe(true)
+
+      fireEvent.click(themeButton('dark')) // → system (matchMedia matches:false → light)
+      expect(localStorage.getItem(THEME_KEY)).toBe('system')
+      expect(document.documentElement.classList.contains('light')).toBe(true)
+      expect(document.body.classList.contains('light')).toBe(true)
+      expect(themeButton('system')).toBeInTheDocument()
+    })
+
+    it('applies the persisted theme on mount', () => {
+      localStorage.setItem(THEME_KEY, 'dark')
+
+      render(<MigrationApp />)
+
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      expect(document.body.classList.contains('dark')).toBe(true)
+      expect(themeButton('dark')).toBeInTheDocument()
+    })
+
+    it('resolves system to dark when the OS prefers dark', () => {
+      stubMatchMedia(true)
+
+      render(<MigrationApp />)
+
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      expect(document.body.classList.contains('dark')).toBe(true)
+    })
+
+    it('follows live OS appearance changes while on system', () => {
+      const { media, emitChange } = stubMatchMedia(false)
+
+      render(<MigrationApp />)
+      expect(document.documentElement.classList.contains('light')).toBe(true)
+
+      // OS flips to dark; the registered `change` handler re-resolves and re-classes.
+      media.matches = true
+      act(() => emitChange())
+
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      expect(document.body.classList.contains('dark')).toBe(true)
+    })
+  })
 })

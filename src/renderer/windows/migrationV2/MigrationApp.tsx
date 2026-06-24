@@ -300,15 +300,28 @@ const MigrationApp: React.FC = () => {
     localStorage.setItem(THEME_STORAGE_KEY, next)
   }
   useEffect(() => {
-    const resolved =
-      themeMode === 'light' || themeMode === 'dark'
-        ? themeMode
-        : window.matchMedia?.('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light'
-    const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(resolved)
+    // Mirror ThemeProvider: class both <html> (drives Tailwind/@cherrystudio/ui `.dark` tokens)
+    // and <body> so global styles keyed off `body.light` — notably scrollbar.css — also resolve
+    // in this standalone preboot window.
+    const applyResolved = (resolved: 'light' | 'dark') => {
+      for (const el of [document.documentElement, document.body]) {
+        el.classList.remove('light', 'dark')
+        el.classList.add(resolved)
+      }
+    }
+
+    if (themeMode === 'light' || themeMode === 'dark') {
+      applyResolved(themeMode)
+      return
+    }
+
+    // system: follow the live OS appearance (mirrors ThemeProvider's system branch) so toggling
+    // OS light/dark while on "system" updates the window instead of sticking at the mount value.
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const update = () => applyResolved(media.matches ? 'dark' : 'light')
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
   }, [themeMode])
   const ThemeIcon = themeMode === 'dark' ? Moon : themeMode === 'light' ? Sun : Monitor
 
@@ -830,13 +843,14 @@ const MigrationApp: React.FC = () => {
             </SelectContent>
           </Select>
           <Tooltip content={t(themeLabelKey[themeMode] ?? themeLabelKey.system)} delay={800}>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
               onClick={toggleTheme}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-muted/40 hover:text-foreground">
-              <ThemeIcon size={14} strokeWidth={1.6} />
-            </button>
+              className="text-foreground-muted hover:bg-muted/40 hover:text-foreground">
+              <ThemeIcon className="size-3.5" strokeWidth={1.6} />
+            </Button>
           </Tooltip>
         </div>
         <div className="flex items-center gap-2">
