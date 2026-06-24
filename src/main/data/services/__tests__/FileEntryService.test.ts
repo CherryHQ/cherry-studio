@@ -447,6 +447,51 @@ describe('FileEntryService', () => {
       expect(result.items.map((e) => e.name)).toEqual(['alpha', 'bravo', 'charlie'])
     })
 
+    it('sortBy=size treats null sizes as the lowest sentinel value', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d3' as FileEntryId,
+          origin: 'internal',
+          name: 'zero',
+          ext: 'txt',
+          size: 0,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d4' as FileEntryId,
+          origin: 'external',
+          name: 'external-null',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/external-null.txt',
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d5' as FileEntryId,
+          origin: 'internal',
+          name: 'ten',
+          ext: 'txt',
+          size: 10,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const asc = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc' })
+      expect(asc.items.map((e) => e.name)).toEqual(['external-null', 'zero', 'ten'])
+
+      const desc = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'desc' })
+      expect(desc.items.map((e) => e.name)).toEqual(['ten', 'zero', 'external-null'])
+    })
+
     it('returns { items: [], total: 0 } on an empty table', async () => {
       const result = await fileEntryService.listCursor()
       expect(result.items).toEqual([])
