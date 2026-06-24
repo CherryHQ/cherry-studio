@@ -96,9 +96,6 @@ export const Confetti: React.FC = () => {
           24% { transform: translate3d(var(--confetti-mid-x, 0), var(--confetti-rise, -80px), 0) rotate(var(--confetti-rotate, 180deg)); opacity: 1; }
           100% { transform: translate3d(var(--confetti-x, 0), var(--confetti-fall, 260px), 0) rotate(var(--confetti-rotate-end, 360deg)); opacity: 0; }
         }
-        @media (prefers-reduced-motion: reduce) {
-          .migration-confetti { display: none; }
-        }
       `}</style>
     </span>
   )
