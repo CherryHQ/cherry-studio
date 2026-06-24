@@ -10,8 +10,15 @@
  * queries; anything that would touch `fs.stat`, `resolvePhysicalPath`, or
  * `DanglingCache` belongs here instead.
  *
- * These types are shared between main (handler implementation) and
- * preload (method signatures exposed to renderer).
+ * These types are shared between main (handler implementation), the legacy
+ * preload facade, and the IpcApi schema layer during the incremental migration.
+ *
+ * ## Migration marker
+ *
+ * @deprecated This whole file is the legacy File IPC contract. Move route
+ * contracts into `src/shared/ipc/schemas/file.ts` (`fileRequestSchemas` plus
+ * inferred `InputFor` / `OutputFor`) as consumers migrate to IpcApi. Do not add
+ * new File IPC surface here except temporary legacy-preload compatibility notes.
  *
  * ## Unified access via FileHandle
  *
@@ -221,9 +228,9 @@ export interface BatchCreateResult {
  * underlying IPC channel is registered. Renderer code calling a method whose
  * channel is not yet registered will type-check but fail at runtime.
  *
- * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
+ * | Files page IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete`, `getMetadata` | everything else |
+ * | `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder`, `importPaths` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -231,6 +238,9 @@ export interface BatchCreateResult {
  *
  * Grep `@phase 2` to enumerate the still-unwired Phase 2 surface; grep
  * `@phase 1` or `@phase 2 — wired` for what is already callable today.
+ *
+ * @deprecated Legacy preload compatibility surface. New or migrated File IPC
+ * routes belong in `src/shared/ipc/schemas/file.ts`, not this interface.
  */
 export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───
@@ -267,8 +277,9 @@ export interface FileIpcApi {
 
   // ─── B. Entry Creation ───
   //
-  // Section status: `createInternalEntry` and `ensureExternalEntry` are `@phase 2` wired in Batch 0;
-  // `batchCreateInternalEntries` and `batchEnsureExternalEntries` are `@phase 2` (not yet wired).
+  // Section status: `createInternalEntry` and `ensureExternalEntry` are still wired on
+  // the legacy preload surface; Files page import is wired through IpcApi. Generic
+  // batch create/upsert helpers remain type-only.
 
   /**
    * Create a new Cherry-owned (internal) FileEntry. Always inserts a fresh
@@ -301,9 +312,16 @@ export interface FileIpcApi {
 
   /**
    * Batch version of `createInternalEntry`. Each item produces an independent new entry.
-   * @phase 2 — not yet wired
+   * @phase 2 — not yet wired as a generic handle API
    */
   batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchCreateResult>
+
+  /**
+   * Import local paths into Cherry-owned internal entries.
+   *
+   * @phase 2 — wired for Files page as IpcApi route `file.import_paths`.
+   */
+  importPaths(params: { paths: FilePath[] }): Promise<BatchCreateResult>
 
   /**
    * Batch version of `ensureExternalEntry`. Each item is individually upserted
@@ -370,7 +388,7 @@ export interface FileIpcApi {
    * non-existent FileEntry rows (already deleted, never existed) cause the
    * whole batch to throw — this is a caller bug, not a per-id failure.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired for Files page as IpcApi route `file.batch_get_metadata`.
    */
   batchGetMetadata(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, PhysicalFileMetadata | null>>
 
@@ -415,9 +433,9 @@ export interface FileIpcApi {
 
   // ─── E. Trash / Delete ───
   //
-  // Section status: `permanentDelete` (both entry and path handle branches) is
-  // `@phase 2` wired in Batch 0; all other methods in this section are
-  // `@phase 2` (not yet wired).
+  // Section status: batch entry operations used by Files page are wired through
+  // IpcApi routes; handle-level `permanentDelete` remains on the legacy preload
+  // surface for existing non-Files-page consumers.
 
   /**
    * Move entry to Trash (soft delete via deletedAt). Internal-origin entries only.
@@ -465,17 +483,17 @@ export interface FileIpcApi {
 
   /**
    * Batch trash — internal-origin only; external ids fail like `trash`.
-   * @phase 2 — not yet wired
+   * @phase 2 — wired for Files page as IpcApi route `file.batch_trash`.
    */
   batchTrash(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
   /**
    * Batch restore — internal-origin only; external ids fail like `restore`.
-   * @phase 2 — not yet wired
+   * @phase 2 — wired for Files page as IpcApi route `file.batch_restore`.
    */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
   /**
    * Batch permanently delete entries (DB row always removed; physical FS follows origin rules above).
-   * @phase 2 — not yet wired
+   * @phase 2 — wired for Files page as IpcApi route `file.batch_permanent_delete`.
    */
   batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
 
@@ -491,7 +509,8 @@ export interface FileIpcApi {
    * - Path handle: `newTarget` is a full new absolute path. Equivalent to
    *   `fs.rename(path, newTarget)`.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — entry-id rename is wired for Files page as IpcApi route `file.rename`.
+   * The full FileHandle/path variant remains type-only.
    */
   rename(handle: FileHandle, newTarget: string): Promise<FileEntry | void>
 
@@ -512,13 +531,15 @@ export interface FileIpcApi {
   // Section status: all `@phase 2`.
 
   /**
-   * Open file/directory with the system default application
-   * @phase 2 — not yet wired
+   * Open file/directory with the system default application.
+   * @phase 2 — entry-id open is wired for Files page as IpcApi route `file.open`.
+   * The full FileHandle/path variant remains type-only.
    */
   open(handle: FileHandle): Promise<void>
   /**
-   * Reveal file/directory in the system file manager
-   * @phase 2 — not yet wired
+   * Reveal file/directory in the system file manager.
+   * @phase 2 — entry-id reveal is wired for Files page as IpcApi route `file.show_in_folder`.
+   * The full FileHandle/path variant remains type-only.
    */
   showInFolder(handle: FileHandle): Promise<void>
 
@@ -553,8 +574,8 @@ export interface FileIpcApi {
   // rendering lists — it gives the handler room to parallelize and amortize
   // cache lookups, and keeps the per-call IPC overhead O(1).
   //
-  // Section status: dangling pair is `@phase 1` (wired); `getPhysicalPath` is
-  // `@phase 2` wired in Batch 0; `batchGetPhysicalPaths` is `@phase 2` (not yet wired).
+  // Section status: Files page batch enrichment routes are wired through IpcApi.
+  // Legacy single `getPhysicalPath` remains wired for existing non-Files-page consumers.
 
   /**
    * Query the presence state of an external-origin entry (via file_module's
@@ -574,7 +595,7 @@ export interface FileIpcApi {
    * query directly (a refetch re-runs this IPC, which repopulates the cache
    * via a cold `fs.stat`).
    *
-   * @phase 1 — wired in `IpcChannel.File_GetDanglingState`
+   * @phase 1 — not wired as a standalone IpcApi route; Files page uses the batch route.
    */
   getDanglingState(params: { id: FileEntryId }): Promise<DanglingState>
 
@@ -582,7 +603,7 @@ export interface FileIpcApi {
    * Batch form of `getDanglingState`. Each requested id appears in the result
    * map. Unknown ids map to `'unknown'`.
    *
-   * @phase 1 — wired in `IpcChannel.File_BatchGetDanglingStates`
+   * @phase 1 — wired for Files page as IpcApi route `file.batch_get_dangling_states`.
    */
   batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>>
 
@@ -617,7 +638,7 @@ export interface FileIpcApi {
    * Batch form of `getPhysicalPath`. Each requested id appears in the result
    * map. Unknown ids are omitted.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired for Files page as IpcApi route `file.batch_get_physical_paths`.
    */
   batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
 
