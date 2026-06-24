@@ -22,7 +22,7 @@
 import { compactModelMessages } from '@context-chef/ai-sdk-middleware'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { ModelMessage } from 'ai'
+import type { LanguageModelUsage, ModelMessage } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
 import type { RequestFeature } from '../feature'
@@ -45,6 +45,44 @@ function estimateMessageTokens(message: ModelMessage): number {
 /** tokenx estimate of a ModelMessage[]. */
 function estimateModelMessages(messages: ModelMessage[]): number {
   return messages.reduce((acc, m) => acc + estimateMessageTokens(m), 0)
+}
+
+/**
+ * Token estimate for the about-to-send prompt — usage-first, tokenx fallback.
+ *
+ * `prepareStep` fires BEFORE the current step's provider call, so the freshest
+ * real number is the LAST completed step's `usage.totalTokens` (= that step's
+ * input prompt + its output). It covers everything up to and including that
+ * step's assistant message; the only thing in the current prompt it does NOT
+ * cover is what was appended afterwards — the tool results from that step. So we
+ * anchor on the real total and tokenx-estimate just that trailing delta, mirroring
+ * the turn-start trigger. When no trustworthy usage exists — step 0 (no prior
+ * step), or a provider that omits `inputTokens` / reports output-only totals —
+ * fall back to a full tokenx pass over the prompt.
+ */
+function estimatePromptTokens(
+  messages: ModelMessage[],
+  steps: ReadonlyArray<{ usage: LanguageModelUsage }> | undefined
+): number {
+  const usage = steps?.at(-1)?.usage
+  // Trust totalTokens only when inputTokens is also reported — otherwise totalTokens
+  // can collapse to output-only and badly undercount (same guard as the usage observer).
+  const anchor =
+    usage && typeof usage.inputTokens === 'number' && typeof usage.totalTokens === 'number'
+      ? usage.totalTokens
+      : undefined
+  if (anchor === undefined) return estimateModelMessages(messages)
+  // Delta = messages appended after the last assistant output (this step's tool results).
+  let lastAssistant = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') {
+      lastAssistant = i
+      break
+    }
+  }
+  if (lastAssistant === -1) return estimateModelMessages(messages)
+  const delta = messages.slice(lastAssistant + 1).reduce((acc, m) => acc + estimateMessageTokens(m), 0)
+  return anchor + delta
 }
 
 /**
@@ -95,8 +133,8 @@ export const inLoopCompactionFeature: RequestFeature = {
     const trigger = Math.floor(contextWindow * COMPACT_TRIGGER_RATIO)
     const keepBudget = Math.floor(contextWindow * KEEP_BUDGET_RATIO)
     return {
-      prepareStep: async ({ messages }) => {
-        if (estimateModelMessages(messages) < trigger) return undefined
+      prepareStep: async ({ messages, steps }) => {
+        if (estimatePromptTokens(messages, steps) < trigger) return undefined
         const keepRecentTurns = computeKeepRecentTurns(messages, keepBudget)
         const compacted = await compactModelMessages(messages, model, { keepRecentTurns })
         return compacted === messages ? undefined : { messages: compacted }

@@ -40,6 +40,29 @@ const userMessage = (approxTokens: number): ModelMessage => ({
   content: 'word '.repeat(approxTokens)
 })
 
+/** An assistant message whose tokenx estimate is ~`approxTokens`. */
+const assistantMessage = (approxTokens: number): ModelMessage => ({
+  role: 'assistant',
+  content: 'word '.repeat(approxTokens)
+})
+
+/** A tool-result message (the trailing delta after an assistant) ~`approxTokens`. */
+const toolMessage = (approxTokens: number): ModelMessage => ({
+  role: 'tool',
+  content: [
+    {
+      type: 'tool-result',
+      toolCallId: 'c1',
+      toolName: 't',
+      output: { type: 'text', value: 'word '.repeat(approxTokens) }
+    }
+  ]
+})
+
+/** A `steps` array carrying one prior step's provider usage. */
+const stepsWithUsage = (usage: Partial<{ inputTokens: number; outputTokens: number; totalTokens: number }>) =>
+  [{ usage }] as any
+
 describe('inLoopCompactionFeature', () => {
   // --- applies ---
 
@@ -143,6 +166,48 @@ describe('inLoopCompactionFeature', () => {
     await prepareStep({ messages } as any)
     const keepRecentTurns = compactModelMessages.mock.calls[0][2].keepRecentTurns
     expect(keepRecentTurns).toBeGreaterThanOrEqual(1)
+  })
+
+  // --- usage-first trigger (real last-step usage anchor, tokenx fallback) ---
+
+  it('triggers on the real last-step usage anchor even when the message text is tiny', async () => {
+    compactModelMessages.mockClear()
+    const compacted = [userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const prepareStep = getPrepareStep()
+    // tokenx of these messages is ~300 (well under the 80k trigger), but the provider
+    // reported an ~85k-token last step → the anchor crosses the trigger.
+    const messages = [userMessage(100), assistantMessage(100), toolMessage(100)]
+    const steps = stepsWithUsage({ inputTokens: 84_900, outputTokens: 100, totalTokens: 85_000 })
+    const result = await prepareStep({ messages, steps } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    expect(result).toEqual({ messages: compacted })
+  })
+
+  it('adds the trailing-tool delta on top of the anchor (anchor alone is under budget)', async () => {
+    compactModelMessages.mockClear()
+    const compacted = [userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const prepareStep = getPrepareStep()
+    // anchor 70k < 80k trigger; the ~15k-token tool result appended after the last
+    // assistant tips the estimate over → triggers.
+    const messages = [userMessage(100), assistantMessage(100), toolMessage(15_000)]
+    const steps = stepsWithUsage({ inputTokens: 69_900, outputTokens: 100, totalTokens: 70_000 })
+    const result = await prepareStep({ messages, steps } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    expect(result).toEqual({ messages: compacted })
+  })
+
+  it('falls back to tokenx when last-step usage is not trustworthy (no inputTokens)', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+    // totalTokens claims 90k but inputTokens is missing (output-only) → distrust the
+    // anchor → tokenx of the tiny prompt (~300) stays under the trigger → no compaction.
+    const messages = [userMessage(100), assistantMessage(100), toolMessage(100)]
+    const steps = stepsWithUsage({ outputTokens: 90_000, totalTokens: 90_000 })
+    const result = await prepareStep({ messages, steps } as any)
+    expect(result).toBeUndefined()
+    expect(compactModelMessages).not.toHaveBeenCalled()
   })
 })
 
