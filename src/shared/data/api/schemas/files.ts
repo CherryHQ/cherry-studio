@@ -81,7 +81,7 @@ export const ListFilesQuerySchema = z
   .strictObject({
     origin: FileEntryOriginSchema.optional(),
     inTrash: z.boolean().optional(),
-    sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size']).optional(),
+    sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size', 'ext']).optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),
     cursor: z.string().optional(),
     limit: z.int().positive().max(LIST_FILES_MAX_LIMIT).default(LIST_FILES_DEFAULT_LIMIT)
@@ -130,6 +130,9 @@ export type FileSchemas = {
    * using the service's null sentinel before/after sized rows by sort order.
    * Callers that need a live size-sorted view of external entries must fetch
    * unsorted and sort in the renderer after calling `getMetadata`.
+   *
+   * `sortBy: 'ext'` supports format/type-column ordering without requiring
+   * filesystem IO; it sorts by the stored extension value.
    *
    * Trash + origin caveat: the combination `inTrash=true & origin='external'`
    * is rejected by the schema (`ListFilesQuerySchema` `.refine` rule),

@@ -1,4 +1,13 @@
-import { Button, EmptyState } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input
+} from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
@@ -24,6 +33,7 @@ import { FileSidebar } from './FileSidebar'
 const logger = loggerService.withContext('FilesPage')
 const FILES_PAGE_LIMIT = 100
 
+type ServerSortKey = 'name' | 'size' | 'updatedAt' | 'ext'
 type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
@@ -82,19 +92,6 @@ function stripCurrentExtension(name: string, format: string): string {
   return name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length) : name
 }
 
-function compareFiles(a: FileItem, b: FileItem, sortKey: SortKey): number {
-  switch (sortKey) {
-    case 'name':
-      return a.name.localeCompare(b.name)
-    case 'size':
-      return a.sizeBytes - b.sizeBytes
-    case 'updatedAt':
-      return a.updatedAt.localeCompare(b.updatedAt)
-    case 'type':
-      return a.type.localeCompare(b.type)
-  }
-}
-
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
@@ -149,6 +146,15 @@ function logImportFailures(result: { failed: Array<{ sourceRef: string; error: s
   }
 }
 
+function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented) return true
+  const target = event.target
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+
+  return Boolean(target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]'))
+}
+
 // ─── Batch Action Bar ───
 
 const BatchBar = memo(function BatchBar({
@@ -198,9 +204,11 @@ function FilesPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDialogFile, setRenameDialogFile] = useState<FileItem | null>(null)
+  const [renameDialogText, setRenameDialogText] = useState('')
   const pendingLoadMoreRef = useRef(false)
 
-  const serverSortKey = sortKey === 'type' ? 'updatedAt' : sortKey
+  const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
   const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
   const trashedFilesQuery = useMemo(
     () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
@@ -381,13 +389,8 @@ function FilesPage() {
       result = result.filter((f) => !f.trashed && f.origin === 'external' && f.folder === filter.value)
     }
 
-    result = [...result].sort((a, b) => {
-      const cmp = compareFiles(a, b, sortKey)
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-
     return result
-  }, [files, filter, sortKey, sortDir])
+  }, [files, filter])
 
   const fileCounts = useMemo(() => {
     const active = files.filter((f) => !f.trashed)
@@ -508,14 +511,54 @@ function FilesPage() {
     [files, refetchFiles]
   )
 
-  const menuActions = useMemo<FileContextMenuActions>(
+  const startInlineRename = useCallback((id: string) => {
+    setRenameDialogFile(null)
+    setRenamingId(id)
+  }, [])
+
+  const startGridRename = useCallback(
+    (id: string) => {
+      const file = files.find((item) => item.id === id)
+      if (!file) return
+
+      setRenamingId(null)
+      setRenameDialogFile(file)
+      setRenameDialogText(file.name)
+    },
+    [files]
+  )
+
+  const renameDialogBaseName = renameDialogFile
+    ? stripCurrentExtension(renameDialogText, renameDialogFile.format).trim()
+    : ''
+
+  const handleRenameDialogConfirm = useCallback(() => {
+    const file = renameDialogFile
+    const name = renameDialogText.trim()
+    if (!file || !renameDialogBaseName) return
+
+    setRenameDialogFile(null)
+    void handleRename(file.id, name)
+  }, [handleRename, renameDialogBaseName, renameDialogFile, renameDialogText])
+
+  const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
-      onRename: (id) => setRenamingId(id),
+      onRename: startInlineRename,
       onDelete: (id) => void handleDelete(new Set([id])),
       onRestore: (id) => void handleRestore(new Set([id])),
       onShowInFolder: handleShowInFolder
     }),
-    [handleDelete, handleRestore, handleShowInFolder]
+    [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
+  )
+
+  const gridMenuActions = useMemo<FileContextMenuActions>(
+    () => ({
+      onRename: startGridRename,
+      onDelete: (id) => void handleDelete(new Set([id])),
+      onRestore: (id) => void handleRestore(new Set([id])),
+      onShowInFolder: handleShowInFolder
+    }),
+    [handleDelete, handleRestore, handleShowInFolder, startGridRename]
   )
 
   const handleSort = useCallback(
@@ -531,18 +574,19 @@ function FilesPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (renamingId) return
+      if (renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         void handleDelete()
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
-        setRenamingId([...selectedIds][0])
+        if (filter.kind === 'type' && filter.value === 'image') startGridRename([...selectedIds][0])
+        else startInlineRename([...selectedIds][0])
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [selectedIds, handleDelete, renamingId])
+  }, [selectedIds, filter, handleDelete, renamingId, startGridRename, startInlineRename])
 
   const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
 
@@ -554,10 +598,42 @@ function FilesPage() {
           setFilter(f)
           setSelectedIds(new Set())
           setRenamingId(null)
+          setRenameDialogFile(null)
         }}
         fileCounts={fileCounts}
         folders={folderList}
       />
+
+      <Dialog
+        open={renameDialogFile !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameDialogFile(null)
+        }}>
+        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
+          <DialogHeader>
+            <DialogTitle>{t('common.rename')}</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            aria-label={t('common.rename')}
+            value={renameDialogText}
+            onChange={(event) => setRenameDialogText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') handleRenameDialogConfirm()
+              if (event.key === 'Escape') setRenameDialogFile(null)
+            }}
+            className="h-9 rounded-md border-input bg-background"
+          />
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRenameDialogFile(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button size="sm" disabled={!renameDialogBaseName} onClick={handleRenameDialogConfirm}>
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div
         className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
@@ -622,7 +698,7 @@ function FilesPage() {
               onOpen={handleOpen}
               onDelete={(id) => void handleDelete(new Set([id]))}
               isTrash={isTrash}
-              menuActions={menuActions}
+              menuActions={gridMenuActions}
               renamingId={renamingId}
               onRenameConfirm={(id, name) => void handleRename(id, name)}
               onRenameCancel={() => setRenamingId(null)}
@@ -635,7 +711,7 @@ function FilesPage() {
               onContextMenuOpen={handleContextMenuOpen}
               onOpen={handleOpen}
               isTrash={isTrash}
-              menuActions={menuActions}
+              menuActions={listMenuActions}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}

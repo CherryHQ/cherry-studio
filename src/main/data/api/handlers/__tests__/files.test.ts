@@ -74,6 +74,19 @@ describe('fileHandlers (DataApi)', () => {
       expect(result.nextCursor).toBeUndefined()
     })
 
+    it('sorts by extension for the file type column', async () => {
+      await Promise.all([
+        seedEntry('019606a0-0000-7000-8000-000000000a20', { name: 'image', ext: 'png' }),
+        seedEntry('019606a0-0000-7000-8000-000000000a21', { name: 'audio', ext: 'mp3' }),
+        seedEntry('019606a0-0000-7000-8000-000000000a22', { name: 'text', ext: 'txt' })
+      ])
+
+      const result = (await fileHandlers['/files/entries'].GET({
+        query: { sortBy: 'ext', sortOrder: 'asc', limit: 10 }
+      } as never)) as { items: Array<{ name: string; ext: string }> }
+      expect(result.items.map((item) => item.ext)).toEqual(['mp3', 'png', 'txt'])
+    })
+
     it('rejects limit above the MAX cap with ZodError', async () => {
       // Without a `.max()` on the query schema, a caller could ask for an
       // unbounded cursor page (DoS surface against the SELECT). Pin the upper bound.

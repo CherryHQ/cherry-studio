@@ -65,7 +65,7 @@ export interface FindEntriesQuery {
   readonly offset?: number
 }
 
-export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size'
+export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size' | 'ext'
 
 export interface ListCursorQuery {
   readonly origin?: FileEntryOrigin
@@ -282,6 +282,8 @@ function getListSortValue(row: FileEntryRow, sortBy: ListSortBy): string | numbe
       return row.updatedAt
     case 'size':
       return row.size ?? FILE_ENTRY_SIZE_NULL_SORT_VALUE
+    case 'ext':
+      return row.ext ?? ''
     case 'createdAt':
       return row.createdAt
   }
@@ -295,6 +297,8 @@ function getListSortExpression(sortBy: ListSortBy): SQL<string | number> {
       return sql<number>`${fileEntryTable.updatedAt}`
     case 'size':
       return sql<number>`coalesce(${fileEntryTable.size}, ${FILE_ENTRY_SIZE_NULL_SORT_VALUE})`
+    case 'ext':
+      return sql<string>`coalesce(${fileEntryTable.ext}, '')`
     case 'createdAt':
       return sql<number>`${fileEntryTable.createdAt}`
   }
@@ -327,7 +331,7 @@ function decodeListCursor(
       return warnAndIgnoreListCursor(raw, 'missing id')
     }
     const value = parsed.value
-    if (sortBy === 'name') {
+    if (sortBy === 'name' || sortBy === 'ext') {
       if (typeof value !== 'string') return warnAndIgnoreListCursor(raw, 'sort value has wrong type')
       return { sortBy, sortOrder, value, id: parsed.id }
     }
