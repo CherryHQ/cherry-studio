@@ -1,7 +1,7 @@
 import { application } from '@application'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { FilePath } from '@shared/types/file'
+import type { CreateInternalEntryIpcParams } from '@shared/types/file/ipc'
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
@@ -35,14 +35,12 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     return Object.fromEntries(pairs)
   },
   'file.batch_get_dangling_states': async ({ ids }) => application.get('FileManager').batchGetDanglingStates({ ids }),
+  'file.batch_create': async ({ items }) =>
+    application.get('FileManager').batchCreateInternalEntries(items as CreateInternalEntryIpcParams[]),
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
   'file.open': async ({ id }) => application.get('FileManager').open(id),
-  'file.show_in_folder': async ({ id }) => application.get('FileManager').showInFolder(id),
-  'file.import_paths': async ({ paths }) =>
-    application
-      .get('FileManager')
-      .batchCreateInternalEntries(paths.map((path) => ({ source: 'path', path: path as FilePath })))
+  'file.show_in_folder': async ({ id }) => application.get('FileManager').showInFolder(id)
 }

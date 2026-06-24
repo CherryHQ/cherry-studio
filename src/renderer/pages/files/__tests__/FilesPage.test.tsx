@@ -338,7 +338,7 @@ describe('FilesPage file operations', () => {
       if (route === 'file.batch_trash') return Promise.resolve({ succeeded: [], failed: [] })
       if (route === 'file.batch_permanent_delete') return Promise.resolve({ succeeded: [], failed: [] })
       if (route === 'file.batch_restore') return Promise.resolve({ succeeded: [], failed: [] })
-      if (route === 'file.import_paths') return Promise.resolve({ succeeded: [], failed: [] })
+      if (route === 'file.batch_create') return Promise.resolve({ succeeded: [], failed: [] })
       if (route === 'file.rename') return Promise.resolve({})
       return Promise.resolve(input)
     })
@@ -517,7 +517,7 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('imports dropped files through file.import_paths', async () => {
+  it('imports dropped files through file.batch_create', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
     fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
@@ -530,7 +530,9 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.import_paths', { paths: ['/tmp/import.md'] })
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create', {
+        items: [{ source: 'path', path: '/tmp/import.md' }]
+      })
       expect(refetchStats).toHaveBeenCalled()
     })
   })
@@ -542,7 +544,7 @@ describe('FilesPage file operations', () => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.import_paths') {
+      if (route === 'file.batch_create') {
         return Promise.resolve({ succeeded: [], failed: [{ sourceRef: '/tmp/import.md', error: 'denied' }] })
       }
       return Promise.resolve(input)

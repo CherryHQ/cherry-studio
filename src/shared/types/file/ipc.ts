@@ -230,7 +230,7 @@ export interface BatchCreateResult {
  *
  * | Files page IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder`, `importPaths` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
+ * | `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -278,8 +278,8 @@ export interface FileIpcApi {
   // ─── B. Entry Creation ───
   //
   // Section status: `createInternalEntry` and `ensureExternalEntry` are still wired on
-  // the legacy preload surface; Files page import is wired through IpcApi. Generic
-  // batch create/upsert helpers remain type-only.
+  // the legacy preload surface; `batchCreateInternalEntries` is wired through IpcApi.
+  // Generic batch upsert remains type-only.
 
   /**
    * Create a new Cherry-owned (internal) FileEntry. Always inserts a fresh
@@ -312,16 +312,9 @@ export interface FileIpcApi {
 
   /**
    * Batch version of `createInternalEntry`. Each item produces an independent new entry.
-   * @phase 2 — not yet wired as a generic handle API
+   * @phase 2 — wired as IpcApi route `file.batch_create`.
    */
   batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchCreateResult>
-
-  /**
-   * Import local paths into Cherry-owned internal entries.
-   *
-   * @phase 2 — wired for Files page as IpcApi route `file.import_paths`.
-   */
-  importPaths(params: { paths: FilePath[] }): Promise<BatchCreateResult>
 
   /**
    * Batch version of `ensureExternalEntry`. Each item is individually upserted

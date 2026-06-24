@@ -96,14 +96,15 @@ describe('fileHandlers', () => {
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
   })
 
-  it('imports filesystem paths as internal entries', async () => {
+  it('delegates batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
+    const items = [
+      { source: 'path' as const, path: '/tmp/a.txt' },
+      { source: 'path' as const, path: '/tmp/b.txt' }
+    ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 
-    await expect(fileHandlers['file.import_paths']({ paths: ['/tmp/a.txt', '/tmp/b.txt'] }, ctx)).resolves.toBe(result)
-    expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith([
-      { source: 'path', path: '/tmp/a.txt' },
-      { source: 'path', path: '/tmp/b.txt' }
-    ])
+    await expect(fileHandlers['file.batch_create']({ items }, ctx)).resolves.toBe(result)
+    expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 })

@@ -466,7 +466,9 @@ function FilesPage() {
       if (paths.length === 0) return
 
       try {
-        const result = await ipcApi.request('file.import_paths', { paths })
+        const result = await ipcApi.request('file.batch_create', {
+          items: paths.map((path) => ({ source: 'path' as const, path }))
+        })
         reportImportFailures(result, t('files.error.import_partial_failed'))
         await refetchFiles()
       } catch (error) {

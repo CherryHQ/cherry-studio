@@ -1,7 +1,7 @@
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { FILE_IPC_MAX_BATCH_IDS, FILE_IPC_MAX_IMPORT_PATHS, fileRequestSchemas } from '../schemas/file'
+import { FILE_IPC_MAX_BATCH_CREATE_ITEMS, FILE_IPC_MAX_BATCH_IDS, fileRequestSchemas } from '../schemas/file'
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 const BATCH_ID_ROUTES = [
@@ -32,14 +32,25 @@ describe('file IpcApi schemas', () => {
     }
   })
 
-  it('caps imported paths and rejects malformed paths', () => {
-    const input = fileRequestSchemas['file.import_paths'].input
-    const ok = Array.from({ length: FILE_IPC_MAX_IMPORT_PATHS }, () => '/tmp/import.md')
+  it('caps batch create items and validates create sources', () => {
+    const input = fileRequestSchemas['file.batch_create'].input
+    const ok = Array.from({ length: FILE_IPC_MAX_BATCH_CREATE_ITEMS }, () => ({
+      source: 'path' as const,
+      path: '/tmp/import.md'
+    }))
 
-    expect(input.parse({ paths: ok }).paths).toHaveLength(FILE_IPC_MAX_IMPORT_PATHS)
-    expect(() => input.parse({ paths: [] })).toThrow()
-    expect(() => input.parse({ paths: [...ok, '/tmp/import.md'] })).toThrow()
-    expect(() => input.parse({ paths: ['relative.md'] })).toThrow()
+    expect(input.parse({ items: ok }).items).toHaveLength(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
+    expect(() => input.parse({ items: [] })).toThrow()
+    expect(() => input.parse({ items: [...ok, { source: 'path', path: '/tmp/import.md' }] })).toThrow()
+    expect(() => input.parse({ items: [{ source: 'path', path: 'relative.md' }] })).toThrow()
+    expect(() => input.parse({ items: [{ source: 'url', url: 'https://example.com/file.md' }] })).not.toThrow()
+    expect(() => input.parse({ items: [{ source: 'base64', data: 'Zm9v' }] })).not.toThrow()
+    expect(() =>
+      input.parse({ items: [{ source: 'bytes', data: new Uint8Array([1]), name: 'blob', ext: 'bin' }] })
+    ).not.toThrow()
+    expect(() =>
+      input.parse({ items: [{ source: 'bytes', data: new Uint8Array([1]), name: 'blob', ext: '.bin' }] })
+    ).toThrow()
   })
 
   it('uses FileEntryIdSchema for single-entry file operations', () => {
