@@ -63,17 +63,3 @@ pre:not(.shiki)::-webkit-scrollbar-thumb:hover {
 .hide-scrollbar * {
   scrollbar-width: none !important;
 }
-
-/* 虚拟列表滚动条会覆盖前面的全局样式，因此在此强制统一样式。 */
-.rc-virtual-list-scrollbar {
-  width: var(--scrollbar-width) !important;
-}
-
-.rc-virtual-list-scrollbar-thumb {
-  border-radius: var(--scrollbar-thumb-radius) !important;
-  background: var(--color-scrollbar-thumb) !important;
-}
-
-.rc-virtual-list-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-thumb-hover) !important;
-}
