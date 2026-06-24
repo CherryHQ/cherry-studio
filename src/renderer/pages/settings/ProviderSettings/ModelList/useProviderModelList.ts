@@ -1,4 +1,6 @@
+import { useQuery } from '@data/hooks/useDataApi'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
@@ -13,6 +15,7 @@ import {
   type ModelListCapabilityFilter,
   type ModelSections
 } from './modelListDerivedState'
+import { toCreateModelDto } from './modelSync'
 
 export interface ModelListGroupItem {
   model: Model
@@ -93,7 +96,16 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     { providerId },
     { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
   )
-  const { updateModel, updateModels } = useModelMutations()
+  const readsRegistryModels = isClaudeCodeProviderId(providerId)
+  const { data: registryModels, isLoading: isRegistryModelsLoading } = useQuery(
+    '/providers/:providerId/models:resolve',
+    {
+      params: { providerId },
+      enabled: readsRegistryModels,
+      swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS
+    }
+  )
+  const { createModel, createModels, updateModel, updateModels } = useModelMutations()
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
   const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
@@ -108,15 +120,22 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     })
   }, [])
 
-  const modelById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
+  const persistedModelById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
+  const displayModels = useMemo(() => {
+    const missingRegistryModels = (registryModels ?? [])
+      .filter((model) => !persistedModelById.has(model.id))
+      .map((model) => ({ ...model, isEnabled: false }))
+
+    return [...models, ...missingRegistryModels]
+  }, [models, persistedModelById, registryModels])
   const optimisticModels = useMemo(
     () =>
-      models.map((model) =>
+      displayModels.map((model) =>
         optimisticEnabledByModelId[model.id] === undefined
           ? model
           : { ...model, isEnabled: optimisticEnabledByModelId[model.id] }
       ),
-    [models, optimisticEnabledByModelId]
+    [displayModels, optimisticEnabledByModelId]
   )
 
   const derivedState = useMemo(
@@ -141,7 +160,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   }, [derivedState.capabilityModelCounts, selectedCapabilityFilter, setSelectedCapabilityFilter])
 
   useEffect(() => {
-    const validModelIds = new Set(models.map((model) => model.id))
+    const validModelIds = new Set(displayModels.map((model) => model.id))
 
     setPendingModelIdMap((current) => withPrunedModelIds(current, validModelIds))
     setOptimisticEnabledByModelId((current) => {
@@ -154,7 +173,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
           continue
         }
 
-        if (modelById.get(modelId as Model['id'])?.isEnabled === optimisticEnabled) {
+        if (persistedModelById.get(modelId as Model['id'])?.isEnabled === optimisticEnabled) {
           delete next[modelId]
           changed = true
         }
@@ -162,7 +181,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
       return changed ? next : current
     })
-  }, [modelById, models, pendingModelIdMap])
+  }, [displayModels, persistedModelById, pendingModelIdMap])
 
   const displayState = useMemo<DisplayedSectionState>(() => {
     const enabledModels: Model[] = []
@@ -206,7 +225,11 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       setPendingModelIdMap((current) => ({ ...current, [model.id]: true }))
 
       try {
-        await updateModel(model.providerId, modelId, { isEnabled: enabled })
+        if (!persistedModelById.has(model.id) && enabled) {
+          await createModel(toCreateModelDto(model.providerId, model))
+        } else if (persistedModelById.has(model.id)) {
+          await updateModel(model.providerId, modelId, { isEnabled: enabled })
+        }
       } catch (error) {
         setOptimisticEnabledByModelId((current) => {
           const next = { ...current }
@@ -229,7 +252,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [optimisticEnabledByModelId, updateModel]
+    [createModel, optimisticEnabledByModelId, persistedModelById, updateModel]
   )
 
   const onToggleModels = useCallback(
@@ -271,14 +294,23 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       setIsBulkUpdating(true)
 
       try {
-        // `PATCH /models` is atomic: either every row commits or the whole
-        // transaction rolls back, so there is no partial-failure branch.
-        await updateModels(
-          targetStates.map(({ model }) => ({
-            uniqueModelId: model.id,
-            patch: { isEnabled: enabled }
-          }))
-        )
+        const persistedStates = targetStates.filter(({ model }) => persistedModelById.has(model.id))
+        const missingStates = enabled ? targetStates.filter(({ model }) => !persistedModelById.has(model.id)) : []
+
+        // `PATCH /models` is atomic for persisted rows. Claude Code registry-only
+        // rows are created on first enable so ModelList can read its provider
+        // registry data without requiring a seeder to pre-materialize every model.
+        if (persistedStates.length > 0) {
+          await updateModels(
+            persistedStates.map(({ model }) => ({
+              uniqueModelId: model.id,
+              patch: { isEnabled: enabled }
+            }))
+          )
+        }
+        if (missingStates.length > 0) {
+          await createModels(missingStates.map(({ model }) => toCreateModelDto(model.providerId, model)))
+        }
       } catch (error) {
         setOptimisticEnabledByModelId((current) => {
           const next = { ...current }
@@ -308,7 +340,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         setIsBulkUpdating(false)
       }
     },
-    [optimisticEnabledByModelId, updateModels]
+    [createModels, optimisticEnabledByModelId, persistedModelById, updateModels]
   )
 
   const onToggleVisibleModels = useCallback(
@@ -341,7 +373,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   }
 
   const sections: ProviderModelListSectionsSurface = {
-    isLoading: isModelsLoading && models.length === 0,
+    isLoading: (isModelsLoading || isRegistryModelsLoading) && displayModels.length === 0,
     hasNoModels: derivedState.hasNoModels,
     hasVisibleModels: derivedState.hasVisibleModels,
     displayEnabledModelCount: displayState.displayEnabledModelCount,

@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderModelList } from '../useProviderModelList'
 
 const useModelsMock = vi.fn()
+const useQueryMock = vi.fn()
+const createModelMock = vi.fn()
+const createModelsMock = vi.fn()
 const updateModelMock = vi.fn()
 const updateModelsMock = vi.fn()
 
@@ -24,9 +27,15 @@ const models = [
   }
 ] as any
 
+vi.mock('@data/hooks/useDataApi', () => ({
+  useQuery: (...args: any[]) => useQueryMock(...args)
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
+    createModel: createModelMock,
+    createModels: createModelsMock,
     updateModel: updateModelMock,
     updateModels: updateModelsMock
   })
@@ -37,6 +46,9 @@ describe('useProviderModelList', () => {
     vi.clearAllMocks()
 
     useModelsMock.mockReturnValue({ models, isLoading: false })
+    useQueryMock.mockReturnValue({ data: [], isLoading: false })
+    createModelMock.mockResolvedValue(undefined)
+    createModelsMock.mockResolvedValue([])
     updateModelMock.mockResolvedValue(undefined)
     updateModelsMock.mockResolvedValue(undefined)
   })
@@ -53,6 +65,44 @@ describe('useProviderModelList', () => {
 
     expect(result.current.editDrawer.open).toBe(true)
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
+  })
+
+  it('shows provider-registry models missing from user models and creates them on enable', async () => {
+    useModelsMock.mockReturnValue({ models: [], isLoading: false })
+    useQueryMock.mockReturnValue({
+      data: [
+        {
+          id: 'claude-code::claude-opus-4-8',
+          providerId: 'claude-code',
+          apiModelId: 'claude-opus-4-8',
+          name: 'Claude Opus 4.8',
+          group: 'Claude Opus',
+          capabilities: ['reasoning'],
+          isEnabled: true
+        }
+      ],
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'claude-code' }))
+
+    expect(result.current.header.modelCount).toBe(1)
+    expect(result.current.sections.disabledSections[0]?.items[0]?.model).toMatchObject({
+      id: 'claude-code::claude-opus-4-8',
+      isEnabled: false
+    })
+
+    await act(async () => {
+      await result.current.sections.onToggleModel(result.current.sections.disabledSections[0].items[0].model, true)
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith({
+      providerId: 'claude-code',
+      modelId: 'claude-opus-4-8',
+      name: 'Claude Opus 4.8',
+      group: 'Claude Opus'
+    })
+    expect(updateModelMock).not.toHaveBeenCalled()
   })
 
   it('bulk-enables only the currently visible filtered models', async () => {

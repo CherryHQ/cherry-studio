@@ -108,4 +108,43 @@ describe('ClaudeCodeProviderSeeder', () => {
     expect(providers[0]?.isEnabled).toBe(true)
     expect(models).toHaveLength(REGISTRY_MODELS.length)
   })
+
+  it('preserves a user-disabled provider when a later registry re-seed adds missing models', async () => {
+    await seedDisabledProvider(dbh.db)
+    await new ClaudeCodeProviderSeeder().run(dbh.db)
+    await dbh.db
+      .update(userProviderTable)
+      .set({ isEnabled: false })
+      .where(eq(userProviderTable.providerId, CLAUDE_CODE_PROVIDER_ID))
+
+    listProviderRegistryModels.mockResolvedValue([
+      ...REGISTRY_MODELS,
+      {
+        id: 'claude-code::claude-sonnet-5',
+        apiModelId: 'claude-sonnet-5',
+        presetModelId: 'claude-sonnet-5',
+        name: 'Claude Sonnet 5',
+        family: 'claude-sonnet',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      } as unknown as Model
+    ])
+
+    await new ClaudeCodeProviderSeeder().run(dbh.db)
+
+    const [provider] = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, CLAUDE_CODE_PROVIDER_ID))
+      .limit(1)
+    const models = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.providerId, CLAUDE_CODE_PROVIDER_ID))
+
+    expect(provider?.isEnabled).toBe(false)
+    expect(models).toHaveLength(REGISTRY_MODELS.length + 1)
+  })
 })

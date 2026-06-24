@@ -57,23 +57,19 @@ function toModelRow(model: Model): ClaudeCodeModelRow {
   }
 }
 
-async function ensureClaudeCodeProviderEnabledTx(tx: TxLike): Promise<void> {
-  // The provider row is created (disabled, like every preset) by
-  // PresetProviderSeeder from providers.json, which runs earlier in the same
-  // pass. Claude Code works straight off the CLI login with no API-key step, so
-  // flip it on here instead of waiting for the user to enable it manually.
+async function enableClaudeCodeProviderTx(tx: TxLike): Promise<void> {
   await tx
     .update(userProviderTable)
     .set({ isEnabled: true })
     .where(eq(userProviderTable.providerId, CLAUDE_CODE_PROVIDER_ID))
 }
 
-async function ensureClaudeCodeModelsTx(tx: TxLike): Promise<void> {
+async function ensureClaudeCodeModelsTx(tx: TxLike): Promise<{ didFirstMaterialization: boolean }> {
   // claude-code cannot list models over the API (no API key — subscription
   // login only), so materialize the registry catalog into user_model. Metadata
   // (capabilities, context window, pricing) is inherited from models.json.
   const models = await providerRegistryService.listProviderRegistryModels({ providerId: CLAUDE_CODE_PROVIDER_ID })
-  if (models.length === 0) return
+  if (models.length === 0) return { didFirstMaterialization: false }
 
   const rows = models.map(toModelRow)
   const ids = rows.map((r) => r.id)
@@ -84,13 +80,15 @@ async function ensureClaudeCodeModelsTx(tx: TxLike): Promise<void> {
   const existingIds = new Set(existing.map((r) => r.id))
 
   const newRows = rows.filter((r) => !existingIds.has(r.id))
-  if (newRows.length === 0) return
+  if (newRows.length === 0) return { didFirstMaterialization: false }
 
   logger.info('Seeding Claude Code default models', { count: newRows.length })
   await insertManyWithOrderKey(tx, userModelTable, newRows, {
     pkColumn: userModelTable.id,
     scope: eq(userModelTable.providerId, CLAUDE_CODE_PROVIDER_ID)
   })
+
+  return { didFirstMaterialization: existingIds.size === 0 }
 }
 
 export class ClaudeCodeProviderSeeder implements ISeeder {
@@ -111,16 +109,22 @@ export class ClaudeCodeProviderSeeder implements ISeeder {
   }
 
   // Re-seed whenever the registry's provider-model catalog changes (where the
-  // claude-code model set lives). Enabling is idempotent, so over-eager re-runs
-  // from unrelated catalog edits are harmless.
+  // claude-code model set lives). Re-runs only add missing models; they must not
+  // override a user's later provider enablement choice.
   get version(): string {
     return this.getLoader().getProviderModelsVersion()
   }
 
   async run(db: DbType): Promise<void> {
     await db.transaction(async (tx) => {
-      await ensureClaudeCodeProviderEnabledTx(tx)
-      await ensureClaudeCodeModelsTx(tx)
+      const { didFirstMaterialization } = await ensureClaudeCodeModelsTx(tx)
+
+      // The provider row is created disabled by PresetProviderSeeder. Enable it
+      // only the first time Claude Code's default models are materialized; later
+      // catalog re-seeds preserve a user-disabled provider.
+      if (didFirstMaterialization) {
+        await enableClaudeCodeProviderTx(tx)
+      }
     })
   }
 }
