@@ -56,6 +56,10 @@ let currentProgress: MigrationProgress = {
 export function registerMigrationIpcHandlers(userDataPath: string): void {
   logger.info('Registering migration IPC handlers')
 
+  // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
+  // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
+  migrationWindowManager.setQuitRequester(requestQuit)
+
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
     return userDataPath
@@ -421,29 +425,16 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     return true
   })
 
-  // User confirmed quit from the renderer's in-flow close dialog. If a backup or migration
-  // write is still in flight, defer the quit until it settles so we never terminate
-  // mid-write (which would leave a partial backup zip/temp dir or a half-applied migration).
-  // Returns true when quitting immediately, false when the quit is deferred — the renderer
-  // uses this to show an "app will close when the current step finishes" notice.
-  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => {
-    const pending: Promise<unknown>[] = []
-    if (inFlightBackup) pending.push(inFlightBackup)
-    if (inFlightMigration) pending.push(inFlightMigration)
+  // User confirmed quit from the renderer's in-flow close dialog. Returns true when quitting
+  // immediately, false when deferred (an active write must settle first) — the renderer uses this
+  // to show the "app will close when the current step finishes" notice.
+  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => requestQuit())
 
-    if (pending.length === 0) {
-      migrationWindowManager.confirmQuit()
-      return true
-    }
-
-    if (!quitScheduled) {
-      quitScheduled = true
-      logger.info('Quit requested during an active write; deferring until it settles')
-      void Promise.allSettled(pending).then(() => {
-        migrationWindowManager.confirmQuit()
-      })
-    }
-    return false
+  // Renderer dismissed the in-flow close dialog without quitting (Continue / Esc / backdrop).
+  // Drop the pending-close flag so the next close re-prompts instead of force-quitting.
+  ipcMain.handle(MigrationIpcChannels.CancelClose, () => {
+    migrationWindowManager.clearCloseConfirm()
+    return true
   })
 }
 
@@ -457,6 +448,8 @@ export function unregisterMigrationIpcHandlers(): void {
   for (const channel of channels) {
     ipcMain.removeHandler(channel)
   }
+
+  migrationWindowManager.setQuitRequester(null)
 }
 
 /**
@@ -479,6 +472,35 @@ function updateProgress(progress: MigrationProgress, options: { preserveBackupIn
 
 function rebroadcastCurrentProgress(): void {
   migrationWindowManager.send(MigrationIpcChannels.Progress, currentProgress)
+}
+
+/**
+ * Request an app quit. If a backup or migration write is still in flight, defer the quit until it
+ * settles so we never terminate mid-write (which would leave a partial backup zip/temp dir or a
+ * half-applied migration). Returns true when quitting immediately, false when deferred.
+ *
+ * Shared by the ConfirmQuit IPC handler (renderer's in-flow dialog) and the window manager's
+ * force-quit escape hatch (crash / hang / repeated close), so every quit path inherits the same
+ * write-safety. The `quitScheduled` guard dedups repeated triggers into a single deferred quit.
+ */
+function requestQuit(): boolean {
+  const pending: Promise<unknown>[] = []
+  if (inFlightBackup) pending.push(inFlightBackup)
+  if (inFlightMigration) pending.push(inFlightMigration)
+
+  if (pending.length === 0) {
+    migrationWindowManager.confirmQuit()
+    return true
+  }
+
+  if (!quitScheduled) {
+    quitScheduled = true
+    logger.info('Quit requested during an active write; deferring until it settles')
+    void Promise.allSettled(pending).then(() => {
+      migrationWindowManager.confirmQuit()
+    })
+  }
+  return false
 }
 
 /**

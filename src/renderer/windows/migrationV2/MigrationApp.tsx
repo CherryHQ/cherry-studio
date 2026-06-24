@@ -889,7 +889,15 @@ const MigrationApp: React.FC = () => {
       <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
       <CloseMigrationDialog
         open={closeConfirmOpen}
-        onOpenChange={setCloseConfirmOpen}
+        onOpenChange={(open) => {
+          setCloseConfirmOpen(open)
+          // Dismissed via Continue / Esc / backdrop — tell main to drop its pending-close flag so a
+          // later close re-prompts instead of force-quitting. (The Quit path closes via the
+          // controlled prop in onConfirm, which doesn't fire onOpenChange, so this never runs on quit.)
+          if (!open) {
+            void window.electron.ipcRenderer.invoke(MigrationIpcChannels.CancelClose)
+          }
+        }}
         onConfirm={async () => {
           setCloseConfirmOpen(false)
           // Main returns false when it defers the quit until an in-flight backup/migration

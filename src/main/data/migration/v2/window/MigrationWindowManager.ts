@@ -30,6 +30,14 @@ export class MigrationWindowManager {
   // Live migration stage, pushed from the IPC handler's updateProgress(). Used by the
   // close handler to decide whether a user-initiated close needs confirmation.
   private currentStage: MigrationStage = 'introduction'
+  // Set once we've asked the renderer to confirm an in-flow close. While set, any further close
+  // escapes a wedged renderer (crash / frozen tree / lost IPC listener) by force-quitting.
+  // Cleared when the renderer acks a dismissal (CancelClose) or the stage leaves the in-flow set.
+  private closeConfirmPending = false
+  // Routes a force-quit through the IPC handler's write-deferral (await any in-flight
+  // backup/migration before quitting). Wired by registerMigrationIpcHandlers(); null only in
+  // isolated tests, where nothing can be in flight so confirmQuit() is a safe fallback.
+  private requestQuit: (() => boolean) | null = null
 
   /**
    * Check if migration window exists and is not destroyed
@@ -60,6 +68,7 @@ export class MigrationWindowManager {
     // programmaticClose would otherwise suppress the close-confirmation seam).
     this.programmaticClose = false
     this.currentStage = 'introduction'
+    this.closeConfirmPending = false
 
     this.window = new BrowserWindow({
       width: 900,
@@ -90,11 +99,31 @@ export class MigrationWindowManager {
       if (this.programmaticClose) return
       if (CLOSE_CONFIRM_STAGES.has(this.currentStage)) {
         event.preventDefault()
+        // Escape hatch: if a confirmation is already pending and the user closes again, the
+        // renderer's dialog never reached them (crash / frozen tree / lost listener) — force the
+        // quit ourselves (routed through the write-deferral) instead of re-asking into the void.
+        if (this.closeConfirmPending) {
+          this.forceQuit('repeat-close')
+          return
+        }
+        this.closeConfirmPending = true
         this.send(MigrationIpcChannels.ConfirmClose)
         return
       }
       logger.info('Migration window closed by user; quitting app')
       app.quit()
+    })
+
+    // Escape hatch for an unrecoverably wedged renderer: a crashed or hung renderer can never
+    // show the close-confirmation dialog, which would otherwise leave this app-gating window
+    // unclosable. Quit safely (via the write-deferral) on either signal.
+    this.window.webContents.on('render-process-gone', (_event, details) => {
+      logger.error('Migration renderer process gone; forcing safe quit', { reason: details.reason })
+      this.forceQuit(`render-process-gone:${details.reason}`)
+    })
+    this.window.webContents.on('unresponsive', () => {
+      logger.error('Migration renderer unresponsive; forcing safe quit')
+      this.forceQuit('unresponsive')
     })
 
     // Load the migration window.
@@ -170,6 +199,43 @@ export class MigrationWindowManager {
    */
   setStage(stage: MigrationStage): void {
     this.currentStage = stage
+    // Leaving the in-flow set (e.g. to completed/error) means a close now quits immediately, so a
+    // stale pending flag must not carry over and force-quit a re-entered in-flow stage later.
+    if (!CLOSE_CONFIRM_STAGES.has(stage)) {
+      this.closeConfirmPending = false
+    }
+  }
+
+  /**
+   * Wire the force-quit path to the IPC handler's write-deferral. Called by
+   * registerMigrationIpcHandlers(); passing null on unregister.
+   */
+  setQuitRequester(fn: (() => boolean) | null): void {
+    this.requestQuit = fn
+  }
+
+  /**
+   * The renderer dismissed the in-flow close dialog without quitting (Continue / Esc / backdrop).
+   * Drop the pending flag so the next close re-prompts instead of force-quitting.
+   */
+  clearCloseConfirm(): void {
+    this.closeConfirmPending = false
+  }
+
+  /**
+   * Force a quit when the renderer can't drive the normal ConfirmQuit path (crash, hang, or a
+   * repeated close while a confirmation is pending). Routes through the IPC handler's deferral so
+   * an in-flight backup/migration write still settles first; falls back to confirmQuit() only when
+   * no requester is wired (isolated tests), where nothing can be in flight.
+   */
+  private forceQuit(reason: string): void {
+    logger.warn('Forcing migration window quit', { reason })
+    this.closeConfirmPending = false
+    if (this.requestQuit) {
+      this.requestQuit()
+    } else {
+      this.confirmQuit()
+    }
   }
 
   /**

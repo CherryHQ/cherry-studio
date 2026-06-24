@@ -131,13 +131,31 @@ vi.mock('@renderer/services/LoggerService', () => ({
 vi.mock('../components', () => {
   const React = require('react')
   return {
-    // Render an interactive confirm trigger only while open, so tests can drive onConfirm.
-    CloseMigrationDialog: ({ open, onConfirm }: { open?: boolean; onConfirm?: () => void }) =>
+    // Render interactive triggers only while open, so tests can drive onConfirm (Quit) and
+    // onOpenChange(false) (dismiss via Continue / Esc / backdrop) independently.
+    CloseMigrationDialog: ({
+      open,
+      onConfirm,
+      onOpenChange
+    }: {
+      open?: boolean
+      onConfirm?: () => void
+      onOpenChange?: (open: boolean) => void
+    }) =>
       open
         ? React.createElement(
-            'button',
-            { type: 'button', 'data-testid': 'confirm-quit-button', onClick: onConfirm },
-            'confirm-quit'
+            React.Fragment,
+            null,
+            React.createElement(
+              'button',
+              { type: 'button', 'data-testid': 'confirm-quit-button', onClick: onConfirm },
+              'confirm-quit'
+            ),
+            React.createElement(
+              'button',
+              { type: 'button', 'data-testid': 'dismiss-close-button', onClick: () => onOpenChange?.(false) },
+              'dismiss'
+            )
           )
         : null,
     Confetti: () => null,
@@ -241,6 +259,38 @@ describe('MigrationApp', () => {
 
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmQuit)
     expect(await screen.findByText('migration.window.confirm_close.quit_pending')).toBeInTheDocument()
+  })
+
+  it('acks main with CancelClose when the close dialog is dismissed without quitting', () => {
+    render(<MigrationApp />)
+
+    const calls = on.mock.calls as unknown as Array<[string, () => void]>
+    const openCloseDialog = calls.find(([channel]) => channel === MigrationIpcChannels.ConfirmClose)?.[1]
+    act(() => openCloseDialog?.())
+
+    invoke.mockClear()
+    fireEvent.click(screen.getByTestId('dismiss-close-button'))
+
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.CancelClose)
+    expect(invoke).not.toHaveBeenCalledWith(MigrationIpcChannels.ConfirmQuit)
+  })
+
+  it('does not send CancelClose when the user confirms the quit', async () => {
+    invoke.mockResolvedValue(false)
+    render(<MigrationApp />)
+
+    const calls = on.mock.calls as unknown as Array<[string, () => void]>
+    const openCloseDialog = calls.find(([channel]) => channel === MigrationIpcChannels.ConfirmClose)?.[1]
+    act(() => openCloseDialog?.())
+
+    invoke.mockClear()
+    // onConfirm awaits ConfirmQuit then flips deferred state — flush so the update is act-wrapped.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('confirm-quit-button'))
+    })
+
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmQuit)
+    expect(invoke).not.toHaveBeenCalledWith(MigrationIpcChannels.CancelClose)
   })
 
   it('renders the language selector in the right side of the header on macOS', () => {

@@ -12,6 +12,7 @@ type FakeWindow = ReturnType<typeof makeFakeWindow>
  */
 function makeFakeWindow() {
   const handlers: Record<string, (...args: unknown[]) => void> = {}
+  const wcHandlers: Record<string, (...args: unknown[]) => void> = {}
   return {
     show: vi.fn(),
     minimize: vi.fn(),
@@ -25,7 +26,16 @@ function makeFakeWindow() {
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       handlers[event] = cb
     }),
-    webContents: { isLoading: () => false, once: vi.fn(), send: vi.fn() },
+    webContents: {
+      isLoading: () => false,
+      once: vi.fn(),
+      send: vi.fn(),
+      // Capture webContents listeners (render-process-gone / unresponsive) so tests can drive them.
+      on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+        wcHandlers[event] = cb
+      }),
+      emit: (event: string, ...args: unknown[]) => wcHandlers[event]?.(...args)
+    },
     emit: (event: string, ...args: unknown[]) => handlers[event]?.(...args)
   }
 }
@@ -115,5 +125,86 @@ describe('MigrationWindowManager', () => {
 
     expect(event.preventDefault).toHaveBeenCalledTimes(1)
     expect(fakeWindow.webContents.send).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmClose)
+  })
+
+  describe('wedged-renderer escape hatch', () => {
+    // Routes a force-quit through the IPC handler's write-deferral in production; here a spy
+    // stands in for it so the escape paths can be asserted without the confirmQuit fallback.
+    function wireRequester() {
+      const requester = vi.fn(() => true)
+      manager.setQuitRequester(requester)
+      return requester
+    }
+
+    it('force-quits via the requester on a repeated close while a confirmation is pending', () => {
+      const requester = wireRequester()
+      manager.setStage('migration')
+
+      // First close: intercept + ask the renderer to confirm (sets the pending flag).
+      fakeWindow.emit('close', { preventDefault: vi.fn() })
+      expect(fakeWindow.webContents.send).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmClose)
+      fakeWindow.webContents.send.mockClear()
+
+      // Second close while pending: escape hatch fires — quit, no second ConfirmClose.
+      const event = { preventDefault: vi.fn() }
+      fakeWindow.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(requester).toHaveBeenCalledTimes(1)
+      expect(fakeWindow.webContents.send).not.toHaveBeenCalledWith(MigrationIpcChannels.ConfirmClose)
+    })
+
+    it('re-prompts instead of force-quitting after the renderer acks a dismissal', () => {
+      const requester = wireRequester()
+      manager.setStage('backup_confirmed')
+
+      fakeWindow.emit('close', { preventDefault: vi.fn() }) // pending = true
+      manager.clearCloseConfirm() // renderer dismissed the dialog (CancelClose)
+      fakeWindow.webContents.send.mockClear()
+
+      const event = { preventDefault: vi.fn() }
+      fakeWindow.emit('close', event) // pending cleared → fresh prompt, not a force-quit
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(fakeWindow.webContents.send).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmClose)
+      expect(requester).not.toHaveBeenCalled()
+    })
+
+    it('force-quits when the renderer process is gone', () => {
+      const requester = wireRequester()
+      manager.setStage('migration')
+
+      // Electron signature: (event, details).
+      fakeWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
+
+      expect(requester).toHaveBeenCalledTimes(1)
+    })
+
+    it('force-quits when the renderer is unresponsive', () => {
+      const requester = wireRequester()
+      manager.setStage('migration')
+
+      fakeWindow.webContents.emit('unresponsive')
+
+      expect(requester).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears a stale pending close when the stage leaves and re-enters the in-flow set', () => {
+      const requester = wireRequester()
+      manager.setStage('migration')
+      fakeWindow.emit('close', { preventDefault: vi.fn() }) // pending = true
+
+      manager.setStage('error') // leaves the in-flow set → clears pending
+      manager.setStage('backup_confirmed') // retry re-enters an in-flow stage
+      fakeWindow.webContents.send.mockClear()
+
+      const event = { preventDefault: vi.fn() }
+      fakeWindow.emit('close', event)
+
+      // Pending was cleared, so this is a fresh prompt — not a force-quit.
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(fakeWindow.webContents.send).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmClose)
+      expect(requester).not.toHaveBeenCalled()
+    })
   })
 })

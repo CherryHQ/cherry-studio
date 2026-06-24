@@ -19,6 +19,8 @@ const windowMinimizeMock = vi.hoisted(() => vi.fn())
 const windowRequestCloseMock = vi.hoisted(() => vi.fn())
 const windowSetStageMock = vi.hoisted(() => vi.fn())
 const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
+const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
+const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/services/LegacyBackupManager', () => ({
   default: class {
@@ -34,11 +36,17 @@ vi.mock('../MigrationWindowManager', () => ({
     minimize: windowMinimizeMock,
     requestClose: windowRequestCloseMock,
     setStage: windowSetStageMock,
-    confirmQuit: windowConfirmQuitMock
+    confirmQuit: windowConfirmQuitMock,
+    setQuitRequester: windowSetQuitRequesterMock,
+    clearCloseConfirm: windowClearCloseConfirmMock
   }
 }))
 
-import { registerMigrationIpcHandlers, resetMigrationData } from '../MigrationIpcHandler'
+import {
+  registerMigrationIpcHandlers,
+  resetMigrationData,
+  unregisterMigrationIpcHandlers
+} from '../MigrationIpcHandler'
 
 type Handler = (...args: unknown[]) => unknown
 
@@ -517,6 +525,22 @@ describe('MigrationIpcHandler', () => {
       expect(windowRequestCloseMock).toHaveBeenCalledTimes(1)
     })
 
+    it('wires the force-quit requester on registration', () => {
+      expect(windowSetQuitRequesterMock).toHaveBeenCalledWith(expect.any(Function))
+    })
+
+    it('clears the force-quit requester on unregister', () => {
+      windowSetQuitRequesterMock.mockClear()
+      unregisterMigrationIpcHandlers()
+      expect(windowSetQuitRequesterMock).toHaveBeenCalledWith(null)
+    })
+
+    it('clears the pending close when the renderer cancels the close dialog', async () => {
+      const result = await invoke(MigrationIpcChannels.CancelClose)
+      expect(result).toBe(true)
+      expect(windowClearCloseConfirmMock).toHaveBeenCalledTimes(1)
+    })
+
     it('forwards a confirmed quit to the window manager', async () => {
       await invoke(MigrationIpcChannels.ConfirmQuit)
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
@@ -593,6 +617,28 @@ describe('MigrationIpcHandler', () => {
 
       resolveBackup('/real/backups/v1.zip')
       await backupFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers a force-quit requested via the escape hatch while a migration is in flight', async () => {
+      // The window manager's crash/hang/repeat-close paths call the wired requester, which must
+      // share the ConfirmQuit deferral so it never terminates mid-write.
+      const requestQuit = windowSetQuitRequesterMock.mock.calls.at(-1)?.[0] as () => boolean
+      expect(requestQuit).toBeTypeOf('function')
+
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await Promise.resolve()
+
+      expect(requestQuit()).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await migrationFlow
       await tick()
 
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)

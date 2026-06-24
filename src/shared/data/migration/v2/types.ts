@@ -180,9 +180,11 @@ export const MigrationIpcChannels = {
   Minimize: 'migration:minimize',
   CloseWindow: 'migration:close-window',
   // In-flow close confirmation: Main asks the renderer to show its in-app dialog
-  // (ConfirmClose); the renderer reports a confirmed quit back (ConfirmQuit).
+  // (ConfirmClose); the renderer reports a confirmed quit back (ConfirmQuit), or that the
+  // dialog was dismissed without quitting (CancelClose) so Main drops its pending-close flag.
   ConfirmClose: 'migration:confirm-close',
   ConfirmQuit: 'migration:confirm-quit',
+  CancelClose: 'migration:cancel-close',
 
   // Progress broadcast (Main -> Renderer)
   Progress: 'migration:progress',
