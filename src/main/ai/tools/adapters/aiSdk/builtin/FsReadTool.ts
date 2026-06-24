@@ -233,7 +233,7 @@ const fsReadTool = tool({
 
 Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Paths are restricted to allowed roots (the persisted-output directory); reads elsewhere return access-denied.
 
-Pagination: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`.`,
+Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. Each line is truncated to ${MAX_LINE_LENGTH} chars (trailing "..."), and there is no column or byte addressing — so a file that is a single very long physical line (e.g. minified JSON or one long log line) only ever exposes its first ${MAX_LINE_LENGTH} chars. Treat such a result as a head excerpt, not the full content.`,
   inputSchema,
   outputSchema,
   toModelOutput: ({ output }) => {

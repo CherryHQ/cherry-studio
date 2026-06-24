@@ -558,6 +558,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const d = findDeepestMarker(rows)
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
     const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * KEEP_BUDGET_RATIO))
+    // Over-budget-without-compacting edge: when everything in `recent` fits the keep
+    // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
+    // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
+    // missed compaction — the in-loop `prepareStep` hook owns this case as the second
+    // safety net (see inLoopCompaction; the no-double-compact test pins the interaction).
     if (keepIdx === null) return effective.map((r) => this.toServed(r))
 
     const boundary = recent[keepIdx - 1] // real row before the kept user row

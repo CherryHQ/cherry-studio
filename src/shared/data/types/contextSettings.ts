@@ -28,6 +28,13 @@ export const ContextSettingsOverrideSchema = z.object({
 })
 export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSchema>
 
+// NOTE: these Override/Effective zod schemas are validation scaffolding for the
+// not-yet-wired P2-D override layer. In production `resolveRequestContextSettings`
+// builds the effective settings as a plain object cast to the type and never
+// `.parse()`s them, and the global `truncate_threshold` pref has no min — so the
+// `positive()` guards here are NOT enforced at the boundary. A 0/negative threshold
+// is harmless regardless: chef's truncation is bounded by its own head+tail guard.
+// Don't add a speculative `.parse()` until the override layer is actually wired.
 export const EffectiveContextSettingsSchema = z.object({
   enabled: z.boolean(),
   truncateThreshold: z.number().int().positive(),

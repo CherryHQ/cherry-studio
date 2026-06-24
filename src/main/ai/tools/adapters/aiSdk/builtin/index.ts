@@ -17,6 +17,10 @@ import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
+  // fs_read is intentionally always registered (no `applies` gate): its containment
+  // root is only ever the VfsBlobService temp dir (realpath-confined, read-only,
+  // size-capped), and it is inert when truncation is off. The persisted-output
+  // system-prompt section is keyed on its presence, so it stays available too.
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
