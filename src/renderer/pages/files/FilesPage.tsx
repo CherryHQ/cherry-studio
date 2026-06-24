@@ -13,6 +13,7 @@ import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath, FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
@@ -369,11 +370,22 @@ function FilesPage() {
     [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, isTrash, loadMoreActiveFiles, loadMoreTrashedFiles]
   )
 
-  const handleOpen = useCallback((file: FileItem) => {
-    void ipcApi.request('file.open', { id: file.id }).catch((error) => {
-      logger.error('Failed to open file', error as Error)
-    })
-  }, [])
+  const handleOpen = useCallback(
+    (file: FileItem) => {
+      void ipcApi.request('file.open', { id: file.id }).catch((error) => {
+        if (error instanceof IpcError && error.code === IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE) {
+          logger.warn('Blocked unsafe default-open; falling back to show in folder', { id: file.id })
+          void ipcApi
+            .request('file.show_in_folder', { id: file.id })
+            .catch((showError) => logger.error('Failed to show blocked file in folder', showError as Error))
+          return
+        }
+        logger.error('Failed to open file', error as Error)
+        window.toast?.error(t('files.preview.error'))
+      })
+    },
+    [t]
+  )
 
   const handleShowInFolder = useCallback((id: string) => {
     void ipcApi.request('file.show_in_folder', { id }).catch((error) => {

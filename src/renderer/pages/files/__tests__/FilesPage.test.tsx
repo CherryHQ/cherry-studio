@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { FileEntry } from '@shared/data/types/file'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
 import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -311,6 +312,24 @@ describe('FilesPage file operations', () => {
     fireEvent.blur(input)
 
     expect(ipcMocks.request).not.toHaveBeenCalledWith('file.rename', expect.anything())
+  })
+
+  it('falls back to show in folder when default-open is blocked as unsafe', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.open') return Promise.reject(new IpcError(IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE))
+      if (route === 'file.show_in_folder') return Promise.resolve(undefined)
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.doubleClick(screen.getByText('report.md'))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { id: entry.id })
+    })
   })
 
   it('imports dropped files through file.import_paths', async () => {

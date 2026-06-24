@@ -1,11 +1,11 @@
 /**
- * URL formatting utilities for FileEntry paths — pure, cross-platform,
- * renderer-safe (no `node:*` imports).
+ * URL formatting and file-open safety utilities for FileEntry paths — pure,
+ * cross-platform, renderer-safe (no `node:*` imports).
  *
  * These helpers replace what the (now-removed) `getSafeUrl` / `batchGetSafeUrls`
  * IPC methods used to do. Path resolution itself still belongs to Main (via File
  * IPC `getPhysicalPath` / `batchGetPhysicalPaths`) — this module only handles the
- * **formatting / policy layer** on top of an already-resolved path string:
+ * **formatting / safety-policy layer** on top of an already-resolved path string:
  *
  * ## Phase 1 migration status
  *
@@ -21,9 +21,9 @@
  * a speculative forward-looking surface — the contract is binding and the
  * code is the final form.
  *
- * 1. `isDangerExt(ext)` — which extensions count as "dangerous" for
- *    HTML-rendering contexts (should surface the containing directory
- *    instead of the file URL).
+ * 1. `isDangerExt(ext)` — which extensions count as "dangerous" when a file
+ *    path may be handed to OS file associations (safe URL rendering wraps to
+ *    the containing directory; default-open flows block the action).
  * 2. `toFileUrl(path)` — encode an absolute filesystem path into a `file://`
  *    URL (Windows drive letters, URL-encoded segments, forward-slash normalized).
  * 3. `fileUrlToPath(url)` — decode an existing `file://` URL back to a path
@@ -50,14 +50,14 @@ import type { FilePath, FileURLString } from '@shared/types/file'
 // ─── Danger extension policy ───
 
 /**
- * Extensions treated as "dangerous" for HTML rendering contexts. Rendered as
- * dirname URLs (so hovering / dragging / double-clicking from the rendered
- * element does not auto-launch the underlying file through OS file
- * associations).
+ * Extensions treated as "dangerous" when a UI action may hand the path to OS
+ * file associations. HTML rendering callers wrap these to dirname URLs;
+ * system default-open callers block them before invoking Electron shell APIs.
  *
  * This list is a starting point — extend as concrete misuse vectors surface.
- * Scope is **HTML rendering contexts only**; it is NOT a general-purpose
- * allowlist/denylist for path-safe operations.
+ * It is NOT a general-purpose allowlist/denylist for path-safe operations:
+ * reading, hashing, revealing in folder, and explicit save/delete flows have
+ * separate semantics.
  */
 const DANGEROUS_EXTS = new Set([
   // Shell scripts
@@ -81,6 +81,8 @@ const DANGEROUS_EXTS = new Set([
   'psd1',
   'vbs',
   'vbe',
+  'js',
+  'jse',
   'wsf',
   'wsh',
   'hta',
@@ -91,11 +93,16 @@ const DANGEROUS_EXTS = new Set([
   // macOS
   'app',
   'command',
+  'terminal',
+  'workflow',
+  'scpt',
   // Linux launchers — `.desktop` can exec arbitrary commands via the `Exec=` key
   'desktop',
   // Java — executable archives / Web Start
   'jar',
   'jnlp',
+  'py',
+  'pyw',
   // SVG — `<embed>` / `<object>` references can execute embedded script
   // (note: `<img src>` sandboxes SVG script, but toSafeFileUrl serves <embed> too)
   'svg',

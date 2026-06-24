@@ -185,6 +185,7 @@ import {
   runDbSweep,
   runFileSweep
 } from './internal/orphanSweep'
+import { assertSafeForDefaultOpen } from './internal/system/openGuard'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
@@ -627,7 +628,7 @@ export interface IFileManager {
 
   // ─── System ───
 
-  /** Open with the system default application. */
+  /** Open with the system default application. Unsafe executable/script types are blocked. */
   open(id: FileEntryId): Promise<void>
 
   /** Reveal in the system file manager. */
@@ -1055,7 +1056,9 @@ export class FileManager extends BaseService implements IFileManager {
 
   async open(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
-    return internalShellOpen(resolvePhysicalPath(entry))
+    const physicalPath = resolvePhysicalPath(entry)
+    assertSafeForDefaultOpen(entry, physicalPath)
+    return internalShellOpen(physicalPath)
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {

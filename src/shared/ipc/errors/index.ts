@@ -30,7 +30,9 @@ export const IpcErrorCode = {
   /** Sender frame failed the source-trust gate (`validateSender`). */
   FORBIDDEN_SENDER: 'FORBIDDEN_SENDER',
   /** Catch-all for any non-`IpcError` throw. */
-  INTERNAL: 'INTERNAL'
+  INTERNAL: 'INTERNAL',
+  /** File default-open blocked because the extension may execute through OS file associations. */
+  FILE_OPEN_BLOCKED_UNSAFE_TYPE: 'FILE_OPEN_BLOCKED_UNSAFE_TYPE'
 } as const
 
 export type IpcErrorCode = (typeof IpcErrorCode)[keyof typeof IpcErrorCode] | (string & {})

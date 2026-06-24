@@ -6,9 +6,23 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import type { FileEntryId } from '@shared/data/types/file'
+import { IpcErrorCode } from '@shared/ipc/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const electronMocks = vi.hoisted(() => ({
+  ipcMain: {
+    handle: vi.fn(),
+    removeHandler: vi.fn()
+  },
+  shell: {
+    openPath: vi.fn(async () => ''),
+    showItemInFolder: vi.fn()
+  }
+}))
+
+vi.mock('electron', () => electronMocks)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -35,6 +49,11 @@ describe('FileManager (integration)', () => {
       }
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })
+    electronMocks.ipcMain.handle.mockReset()
+    electronMocks.ipcMain.removeHandler.mockReset()
+    electronMocks.shell.openPath.mockReset()
+    electronMocks.shell.openPath.mockResolvedValue('')
+    electronMocks.shell.showItemInFolder.mockReset()
     BaseService.resetInstances()
     danglingCache.clear()
     fm = new FileManager()
@@ -213,6 +232,44 @@ describe('FileManager (integration)', () => {
       })
     ).rejects.toThrow(/ENOENT/)
     expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
+  it('INT-3f: open blocks dangerous file types before invoking the OS default app', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff36' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'payload',
+      ext: 'sh',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    await expect(fm.open(id)).rejects.toMatchObject({ code: IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE })
+    expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
+  })
+
+  it('INT-3g: open allows non-dangerous file types through shell.openPath', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff37' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'doc',
+      ext: 'pdf',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    await fm.open(id)
+    expect(electronMocks.shell.openPath).toHaveBeenCalledWith(path.join(internalRoot, `${id}.pdf`))
   })
 
   it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {
