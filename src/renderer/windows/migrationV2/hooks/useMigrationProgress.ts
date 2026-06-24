@@ -100,19 +100,9 @@ export function useMigrationProgress() {
     void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToBackupChoice)
   }, [])
 
-  // Stage helpers
-  const isInProgress = progress.stage === 'migration'
-  const isCompleted = progress.stage === 'completed'
-  const isError = progress.stage === 'error'
-  const canCancel = progress.stage === 'introduction' || progress.stage === 'backup_required'
-
   return {
     progress,
     lastError,
-    isInProgress,
-    isCompleted,
-    isError,
-    canCancel,
     returnToIntroduction,
     returnToBackupChoice
   }
