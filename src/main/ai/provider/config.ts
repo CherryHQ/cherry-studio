@@ -3,12 +3,14 @@
  * Always async because `providerService.getRotatedApiKey` is async.
  */
 
+import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -102,6 +104,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
 
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
+    { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: buildCodexConfig },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
@@ -183,6 +186,70 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
       headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
       name: ctx.actualProvider.id
     }
+  }
+}
+
+/**
+ * OpenAI Codex routes through the standard OpenAI Responses adapter, but against
+ * the ChatGPT backend codex endpoint (`…/backend-api/codex/responses`, no `/v1`
+ * segment) with OAuth bearer auth instead of an API key. The per-request `fetch`
+ * is the single place that (1) injects a freshly-refreshed OAuth token + account
+ * header, and (2) coerces the body to what the codex backend demands —
+ * `store: false` plus encrypted-reasoning round-tripping — neither of which the
+ * generic Responses adapter sets on its own.
+ */
+function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  // Use the raw configured baseURL (the adapter appends `/responses`); the
+  // formatted one in baseConfig has `/v1` tacked on, which the codex path rejects.
+  const rawBaseUrl =
+    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://chatgpt.com/backend-api/codex'
+  const baseURL = rawBaseUrl.replace(/\/+$/, '')
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      // The SDK rejects an empty key; the real bearer token is injected per
+      // request in the custom fetch below, overriding this placeholder.
+      apiKey: 'codex-oauth',
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      fetch: buildCodexFetch()
+    }
+  }
+}
+
+function buildCodexFetch() {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const creds = await application.get('CodexOauthService').getValidAccessToken()
+    if (!creds) {
+      throw new Error('Not signed in to OpenAI Codex. Open the provider settings and sign in again.')
+    }
+
+    const headers = new Headers(init?.headers)
+    headers.set('Authorization', `Bearer ${creds.accessToken}`)
+    if (creds.accountId) headers.set('chatgpt-account-id', creds.accountId)
+    headers.set('OpenAI-Beta', 'responses=experimental')
+    headers.set('originator', 'cherry-studio')
+
+    let body = init?.body
+    if (typeof body === 'string') {
+      try {
+        const json = JSON.parse(body)
+        // ChatGPT codex backend rejects server-side storage; without it the
+        // encrypted reasoning must round-trip on each request.
+        json.store = false
+        const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
+        include.add('reasoning.encrypted_content')
+        json.include = [...include]
+        body = JSON.stringify(json)
+      } catch {
+        // Non-JSON body (shouldn't happen for responses) — leave untouched.
+      }
+    }
+
+    return customFetch(input, { ...init, headers, body })
   }
 }
 
