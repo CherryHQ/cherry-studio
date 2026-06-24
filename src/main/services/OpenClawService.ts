@@ -796,23 +796,20 @@ export class OpenClawService extends BaseService {
 
     const endpointType =
       primaryModel.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    const apiHost =
-      provider.endpointConfigs?.[endpointType]?.baseUrl ??
-      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl ??
-      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl ??
-      provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl ??
-      provider.endpointConfigs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]?.baseUrl
+    const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
 
     if (!apiHost) {
-      throw new Error(`Provider ${provider.id} has no API host configured`)
+      throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)
     }
+
+    const apiKey = this.resolveSyncApiKey(provider, apiKeys.map((entry) => entry.key).join(','))
 
     return {
       provider: {
         id: provider.id,
         type: this.toOpenClawProviderType(provider.presetProviderId ?? provider.id, endpointType),
         name: provider.name,
-        apiKey: apiKeys.map((entry) => entry.key).join(','),
+        apiKey,
         apiHost,
         anthropicApiHost:
           endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
@@ -823,6 +820,19 @@ export class OpenClawService extends BaseService {
       } as Provider,
       primaryModel: this.toOpenClawModel(primaryModel)
     }
+  }
+
+  private resolveSyncApiKey(provider: DataProvider, apiKey: string): string {
+    if (apiKey) {
+      return apiKey
+    }
+
+    const providerKey = provider.presetProviderId ?? provider.id
+    if (provider.authType === 'api-key' && !NO_KEY_PLACEHOLDERS[providerKey]) {
+      throw new Error(`Provider ${provider.id} has no enabled API key configured`)
+    }
+
+    return ''
   }
 
   private toOpenClawProviderType(providerType: string, endpointType: EndpointType): Provider['type'] {

@@ -430,6 +430,26 @@ describe('OpenClawService gateway status state machine', () => {
       finishInstall?.()
 
       await expect(Promise.all([firstInstall, secondInstall])).resolves.toEqual([{ success: true }, { success: true }])
+      expect((service as any).installPromise).toBeNull()
+
+      const thirdInstall = service.install()
+      await Promise.resolve()
+      expect(installInternalSpy).toHaveBeenCalledTimes(2)
+      finishInstall?.()
+      await expect(thirdInstall).resolves.toEqual({ success: true })
+    })
+
+    it('resets the pending install operation after failure', async () => {
+      const installInternalSpy = vi
+        .spyOn(service as any, 'installInternal')
+        .mockRejectedValueOnce(new Error('install failed'))
+        .mockResolvedValueOnce({ success: true })
+
+      await expect(service.install()).rejects.toThrow('install failed')
+      expect((service as any).installPromise).toBeNull()
+
+      await expect(service.install()).resolves.toEqual({ success: true })
+      expect(installInternalSpy).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -521,7 +541,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Invalid OpenClaw model selection' })
     })
 
-    it('returns an error when the provider has no API host', async () => {
+    it('returns an error when the selected endpoint has no API host', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockResolvedValue(
@@ -536,7 +556,131 @@ describe('OpenClawService gateway status state machine', () => {
 
       const result = await service.syncConfig('openai::gpt-4o')
 
-      expect(result).toEqual({ success: false, message: 'Provider openai has no API host configured' })
+      expect(result).toEqual({
+        success: false,
+        message: `Provider openai has no API host configured for ${ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS}`
+      })
+    })
+
+    it('does not borrow an API host from another endpoint type', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+          }
+        })
+      )
+      const model = createModel({
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({
+        success: false,
+        message: `Provider openai has no API host configured for ${ENDPOINT_TYPE.ANTHROPIC_MESSAGES}`
+      })
+      expect(syncProviderConfigSpy).not.toHaveBeenCalled()
+    })
+
+    it('returns an error when an API-key provider has no enabled API key', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([])
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: false, message: 'Provider openai has no enabled API key configured' })
+    })
+
+    it('maps Anthropic endpoint models to Anthropic OpenClaw provider config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          id: 'new-api',
+          name: 'New API',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com/anthropic' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'new-api::claude-sonnet-4',
+        providerId: 'new-api',
+        apiModelId: 'claude-sonnet-4',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('new-api::claude-sonnet-4')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'anthropic',
+          apiHost: 'https://new-api.example.com/anthropic',
+          anthropicApiHost: 'https://new-api.example.com/anthropic'
+        }),
+        expect.objectContaining({ id: 'claude-sonnet-4', endpoint_type: 'anthropic' })
+      )
+    })
+
+    it('maps OpenAI Responses endpoint models through provider and model config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.openai.com' }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+      )
+      const model = createModel({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'openai-response',
+          apiHost: 'https://api.openai.com'
+        }),
+        expect.objectContaining({ endpoint_type: 'openai-response' })
+      )
+    })
+
+    it('determines OpenAI Responses API type from model endpoint type', () => {
+      const apiType = (service as any).determineApiType(
+        {
+          id: 'openai',
+          type: 'openai',
+          apiHost: 'https://api.openai.com'
+        },
+        { id: 'gpt-4o', provider: 'openai', endpoint_type: 'openai-response' }
+      )
+
+      expect(apiType).toBe('openai-responses')
     })
 
     it('returns an error for providers OpenClaw sync cannot adapt yet', async () => {
