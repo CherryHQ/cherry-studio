@@ -68,6 +68,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
         setLoggingOut(true)
         try {
           await window.api.codex.logout()
+          await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
           setLoggedIn(false)
           setAccountId(null)
           window.toast.success(t('settings.provider.oauth.logout_success'))
@@ -79,7 +80,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
         }
       }
     })
-  }, [t])
+  }, [t, updateProvider])
 
   if (loggedIn === null) {
     return (

@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
@@ -20,7 +20,7 @@ const CODEX_CONFIG = {
   AUTHORIZE_URL: 'https://auth.openai.com/oauth/authorize',
   TOKEN_URL: 'https://auth.openai.com/oauth/token',
   REDIRECT_URI: 'http://localhost:1455/auth/callback',
-  CALLBACK_HOST: '127.0.0.1',
+  CALLBACK_HOSTS: ['127.0.0.1', '::1'],
   CALLBACK_PORT: 1455,
   CALLBACK_PATH: '/auth/callback',
   SCOPE: 'openid profile email offline_access',
@@ -65,7 +65,7 @@ class CodexOauthServiceError extends Error {
 @ServicePhase(Phase.Background)
 export class CodexOauthService extends BaseService {
   // Guards against two concurrent sign-in flows fighting over port 1455.
-  private activeServer: Server | null = null
+  private activeServers: Server[] = []
   private refreshPromise: Promise<string | null> | null = null
 
   protected onInit(): void {
@@ -130,21 +130,26 @@ export class CodexOauthService extends BaseService {
   // ── Loopback callback server ──
 
   private closeActiveServer(): void {
-    if (this.activeServer) {
-      this.activeServer.close()
-      this.activeServer = null
+    for (const server of this.activeServers) {
+      server.close()
     }
+    this.activeServers = []
+  }
+
+  private clearStoredAuth = async (): Promise<void> => {
+    await providerService.update(OPENAI_CODEX_PROVIDER_ID, { authConfig: { type: 'api-key' }, isEnabled: false })
   }
 
   /**
-   * Start the loopback HTTP server and resolve with the authorization `code`
-   * once OpenAI redirects the browser back to `127.0.0.1:1455/auth/callback`.
+   * Start loopback HTTP servers and resolve with the authorization `code` once
+   * OpenAI redirects the browser back to `localhost:1455/auth/callback`. Bind
+   * both IPv4 and IPv6 loopback so either localhost resolution path is handled.
    * The `state` is validated here as CSRF/replay defense.
    */
   private waitForAuthorizationCode(expectedState: string, signal: AbortSignal): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      const server = createServer((req, res) => {
-        const url = new URL(req.url ?? '', `http://${CODEX_CONFIG.CALLBACK_HOST}:${CODEX_CONFIG.CALLBACK_PORT}`)
+      const handleRequest = (req: IncomingMessage, res: ServerResponse) => {
+        const url = new URL(req.url ?? '', CODEX_CONFIG.REDIRECT_URI)
         if (url.pathname !== CODEX_CONFIG.CALLBACK_PATH) {
           res.writeHead(404).end()
           return
@@ -180,22 +185,34 @@ export class CodexOauthService extends BaseService {
 
         respond('Signed in successfully')
         resolve(code)
-      })
+      }
 
-      this.activeServer = server
+      const listen = (host: string) =>
+        new Promise<void>((resolveListen, rejectListen) => {
+          const server = createServer(handleRequest)
+          this.activeServers.push(server)
 
-      server.on('error', (err) => {
-        reject(
-          new CodexOauthServiceError(
-            `Failed to start OAuth callback server on port ${CODEX_CONFIG.CALLBACK_PORT}: ${err.message}`,
-            err
-          )
-        )
-      })
+          server.once('listening', resolveListen)
+          server.once('error', (err: NodeJS.ErrnoException) => {
+            this.activeServers = this.activeServers.filter((activeServer) => activeServer !== server)
+            server.close()
+            if (host === '::1' && err.code === 'EADDRNOTAVAIL') {
+              resolveListen()
+              return
+            }
+            rejectListen(
+              new CodexOauthServiceError(
+                `Failed to start OAuth callback server on ${host}:${CODEX_CONFIG.CALLBACK_PORT}: ${err.message}`,
+                err
+              )
+            )
+          })
 
+          server.listen(CODEX_CONFIG.CALLBACK_PORT, host)
+        })
+
+      void Promise.all(CODEX_CONFIG.CALLBACK_HOSTS.map(listen)).catch(reject)
       signal.addEventListener('abort', () => reject(new CodexOauthServiceError('Sign-in timed out')), { once: true })
-
-      server.listen(CODEX_CONFIG.CALLBACK_PORT, CODEX_CONFIG.CALLBACK_HOST)
     })
   }
 
@@ -291,7 +308,8 @@ export class CodexOauthService extends BaseService {
     }
 
     if (!config.refreshToken) {
-      return { accessToken: config.accessToken, accountId: config.accountId ?? null }
+      await this.clearStoredAuth()
+      return null
     }
 
     const refreshed = await this.refreshAccessToken(config.refreshToken)
@@ -302,7 +320,7 @@ export class CodexOauthService extends BaseService {
   }
 
   public signIn = async (): Promise<CodexSignInResult> => {
-    if (this.activeServer) {
+    if (this.activeServers.length > 0) {
       throw new CodexOauthServiceError('A Codex sign-in is already in progress')
     }
 
@@ -344,7 +362,15 @@ export class CodexOauthService extends BaseService {
 
   public hasToken = async (): Promise<boolean> => {
     const config = await this.getOAuthAuthConfig()
-    return !!config?.accessToken
+    if (!config?.accessToken) return false
+
+    const expired = config.expiresAt !== undefined && Date.now() >= config.expiresAt - TOKEN_EXPIRY_BUFFER_MS
+    if (expired && !config.refreshToken) {
+      await this.clearStoredAuth()
+      return false
+    }
+
+    return true
   }
 
   public getAccount = async (): Promise<CodexAccount> => {
@@ -352,9 +378,9 @@ export class CodexOauthService extends BaseService {
     return { accountId: config?.accountId ?? null }
   }
 
-  /** Clear stored tokens. Resets the provider to api-key auth so `hasToken()` is false. */
+  /** Clear stored tokens and disable the login-only provider. */
   public logout = async (): Promise<void> => {
-    await providerService.update(OPENAI_CODEX_PROVIDER_ID, { authConfig: { type: 'api-key' } })
+    await this.clearStoredAuth()
     logger.info('Cleared Codex OAuth tokens')
   }
 }
