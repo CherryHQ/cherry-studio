@@ -29,6 +29,7 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/codeCli'
+import { CodexOauthService } from '@main/services/CodexOauthService'
 import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
@@ -110,6 +111,7 @@ export const services = {
   WebSearchService,
   WebviewService,
   CherryInOauthService,
+  CodexOauthService,
   MainWindowService,
   QuickAssistantService,
   McpPackageService,

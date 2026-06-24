@@ -466,6 +466,12 @@ const api = {
       }
     }
   },
+  codex: {
+    signIn: (): Promise<{ accountId: string | null }> => ipcRenderer.invoke(IpcChannel.Codex_SignIn),
+    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Codex_HasToken),
+    getAccount: (): Promise<{ accountId: string | null }> => ipcRenderer.invoke(IpcChannel.Codex_GetAccount),
+    logout: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Codex_Logout)
+  },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
