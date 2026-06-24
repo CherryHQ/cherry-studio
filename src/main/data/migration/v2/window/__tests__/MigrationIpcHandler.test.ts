@@ -140,6 +140,69 @@ describe('MigrationIpcHandler', () => {
     })
   })
 
+  describe('stale back-navigation guards', () => {
+    // Drive a migration into its in-flight `migration` stage (engine ticks once, then
+    // hangs) so a late Back command arrives while stage === 'migration'.
+    async function enterMidMigration() {
+      let engineTick: ((progress: MigrationProgress) => void) | undefined
+      engineMock.onProgress.mockImplementation((cb: (progress: MigrationProgress) => void) => {
+        engineTick = cb
+      })
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockImplementation(() => {
+        engineTick?.({
+          stage: 'migration',
+          overallProgress: 40,
+          currentMessage: 'Migrating…',
+          migrators: [{ id: 'a', name: 'A', status: 'running' }]
+        })
+        return new Promise<MigrationResult>((resolve) => {
+          resolveRun = resolve
+        })
+      })
+
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await Promise.resolve()
+      expect(lastProgress().stage).toBe('migration')
+
+      return async () => {
+        resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+        await migrationFlow
+      }
+    }
+
+    it('rebroadcasts the authoritative migration progress for a stale ReturnToIntroduction', async () => {
+      const finish = await enterMidMigration()
+      windowSetStageMock.mockClear()
+      const before = progressBroadcasts().length
+
+      const result = await invoke(MigrationIpcChannels.ReturnToIntroduction)
+
+      expect(result).toBe(true)
+      // No transition: the live `migration` stage is re-asserted, not `introduction`.
+      expect(lastProgress().stage).toBe('migration')
+      expect(progressBroadcasts().length).toBe(before + 1)
+      expect(windowSetStageMock).not.toHaveBeenCalled()
+
+      await finish()
+    })
+
+    it('rebroadcasts the authoritative migration progress for a stale ReturnToBackupChoice', async () => {
+      const finish = await enterMidMigration()
+      windowSetStageMock.mockClear()
+      const before = progressBroadcasts().length
+
+      const result = await invoke(MigrationIpcChannels.ReturnToBackupChoice)
+
+      expect(result).toBe(true)
+      expect(lastProgress().stage).toBe('migration')
+      expect(progressBroadcasts().length).toBe(before + 1)
+      expect(windowSetStageMock).not.toHaveBeenCalled()
+
+      await finish()
+    })
+  })
+
   it('attaches the created backup path to backupInfo on backup_confirmed', async () => {
     await createBackup('/real/backups/v1.zip')
 
@@ -224,6 +287,65 @@ describe('MigrationIpcHandler', () => {
     })
     expect(progress.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
     expect(progress.warnings).toEqual(['w1'])
+  })
+
+  it('uses the live migrator count for totalMigrators, distinct from completedMigrators', async () => {
+    // A progress tick exposes three migrators; the result only carries two. totalMigrators
+    // must come from the live progress (3) and completedMigrators from the result (2), so
+    // the `|| result.migratorResults.length` fallback is NOT exercised here — a field swap
+    // or a dropped fallback would now fail instead of coincidentally passing at 2/2.
+    let engineTick: ((progress: MigrationProgress) => void) | undefined
+    engineMock.onProgress.mockImplementation((cb: (progress: MigrationProgress) => void) => {
+      engineTick = cb
+    })
+    engineMock.run.mockImplementation(async () => {
+      engineTick?.({
+        stage: 'migration',
+        overallProgress: 66,
+        currentMessage: 'Migrating…',
+        migrators: [
+          { id: 'a', name: 'A', status: 'completed' },
+          { id: 'b', name: 'B', status: 'completed' },
+          { id: 'c', name: 'C', status: 'failed', error: 'boom' }
+        ]
+      })
+      return {
+        success: true,
+        totalDuration: 1234,
+        migratorResults: [
+          { migratorId: 'a', migratorName: 'A', success: true, recordsProcessed: 4, duration: 100 },
+          { migratorId: 'b', migratorName: 'B', success: true, recordsProcessed: 6, duration: 200 }
+        ]
+      } satisfies MigrationResult
+    })
+
+    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+    const progress = lastProgress()
+    expect(progress.stage).toBe('completed')
+    expect(progress.summary).toMatchObject({
+      completedMigrators: 2,
+      totalMigrators: 3,
+      itemsProcessed: 10,
+      durationMs: 1234
+    })
+  })
+
+  it('falls back to the result migrator count for totalMigrators when no progress ticked', async () => {
+    engineMock.run.mockResolvedValue({
+      success: true,
+      totalDuration: 500,
+      migratorResults: [
+        { migratorId: 'a', migratorName: 'A', success: true, recordsProcessed: 1, duration: 100 },
+        { migratorId: 'b', migratorName: 'B', success: true, recordsProcessed: 2, duration: 200 }
+      ]
+    } satisfies MigrationResult)
+
+    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+    // No tick → currentProgress.migrators is [], so totalMigrators uses the result-length
+    // fallback and matches completedMigrators.
+    expect(lastProgress().summary).toMatchObject({ completedMigrators: 2, totalMigrators: 2 })
   })
 
   it('preserves backupInfo across engine progress ticks', async () => {
