@@ -361,7 +361,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
-            <div data-testid="provider-settings-model-more-settings" className="space-y-4">
+            <div data-testid="provider-settings-model-more-settings" className="space-yb-4">
               <div className={drawerClasses.sectionCard}>
                 <ModelCapabilityToggles
                   selectedCaps={selectedCaps}

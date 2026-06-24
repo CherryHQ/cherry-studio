@@ -138,7 +138,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           </DialogTitle>
           <DialogDescription className="text-muted-foreground/80 text-sm leading-5">{confirmMessage}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-yb-4">
           <div className="overflow-hidden rounded-xl border border-border-muted bg-transparent">
             {rows.map((row) => (
               <div

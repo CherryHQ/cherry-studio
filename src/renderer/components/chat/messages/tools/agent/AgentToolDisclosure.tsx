@@ -77,7 +77,7 @@ export function AgentToolDisclosure({
           aria-expanded={canExpand ? isExpanded : undefined}
           aria-controls={canExpand ? contentId : undefined}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
+            'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-start font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
             item.classNames?.header
           )}
           onClick={isInteractive ? openOrToggle : undefined}

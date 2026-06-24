@@ -32,7 +32,7 @@ export function ModelCapabilityToggles({
   const isOtherDisabled = selectedCaps.has(MODEL_CAPABILITY.RERANK) || selectedCaps.has(MODEL_CAPABILITY.EMBEDDING)
 
   return (
-    <div className="space-y-3">
+    <div className="space-yb-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1 font-semibold text-foreground/90 text-sm leading-5">
           {t('models.type.select')}

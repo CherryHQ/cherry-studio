@@ -174,7 +174,7 @@ const MessageErrorInfo: React.FC<{
   return (
     <div
       className={cn(
-        'group relative my-2 rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
+        'group relative my-2 rounded-lg border border-border border-s-[3px] border-s-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
         canOpenDetail && 'cursor-pointer'
       )}
       onClick={canOpenDetail ? showErrorDetail : undefined}>

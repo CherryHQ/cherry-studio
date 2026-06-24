@@ -62,7 +62,7 @@ const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted
 
 const sliderValueLabelVariants = cva(
   cn(
-    'absolute left-1/2 -translate-x-1/2 -translate-y-full pointer-events-none',
+    'absolute start-1/2 -translate-x-1/2 -translate-y-full pointer-events-none',
     'rounded bg-primary px-1.5 py-0.5 text-primary-foreground',
     'scale-0 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100'
   ),

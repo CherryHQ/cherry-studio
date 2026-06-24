@@ -557,9 +557,9 @@ function AgentAgentRightPaneStatusPanel() {
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
-    <div className="space-y-4 p-3 text-sm">
+    <div className="space-yb-4 p-3 text-sm">
       {status.tasks.length > 0 && (
-        <section className="space-y-2">
+        <section className="space-yb-2">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.tasks')}</h3>
             <Badge variant="outline" className="text-[11px]">
@@ -569,7 +569,7 @@ function AgentAgentRightPaneStatusPanel() {
               })}
             </Badge>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-yb-1.5">
             {status.tasks.map((task) => (
               <div
                 key={task.id}
@@ -756,7 +756,7 @@ function AgentRightPaneHighlightSection({
   return (
     <section
       className={cn(
-        'space-y-1.5',
+        'space-yb-1.5',
         compact
           ? 'border-border-subtle border-t pt-2.5 first:border-t-0 first:pt-0'
           : 'rounded-md border border-border-subtle px-3 py-2'
@@ -785,13 +785,13 @@ function AgentRightPaneHighlights({
   if (!hasHighlights) return null
 
   return (
-    <div className={cn('space-y-2.5', compact ? 'text-xs' : 'text-sm')}>
+    <div className={cn('space-yb-2.5', compact ? 'text-xs' : 'text-sm')}>
       {tasks.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.status.tasks')}
           icon={<Activity size={14} className="text-muted-foreground" />}
           compact={compact}>
-          <ul className="space-y-1">
+          <ul className="space-yb-1">
             {tasks.map((task) => (
               <li key={task.id} className="flex min-w-0 items-start gap-2">
                 <TaskStatusIcon status={task.status} />
@@ -813,7 +813,7 @@ function AgentRightPaneHighlights({
           title={t('agent.right_pane.info.subagents')}
           icon={<Bot size={14} className="text-muted-foreground" />}
           compact={compact}>
-          <ul className="space-y-1">
+          <ul className="space-yb-1">
             {state.status.subagents.map((subagent) => (
               <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
                 <SubagentStatusIcon status={subagent.status} />
@@ -831,14 +831,14 @@ function AgentRightPaneHighlights({
           title={t('agent.right_pane.info.artifacts')}
           icon={<Package size={14} className="text-muted-foreground" />}
           compact={compact}>
-          <ul className="space-y-0.5">
+          <ul className="space-yb-0.5">
             {state.status.artifacts.map((artifact) => (
               <li key={`${artifact.toolCallId}-${artifact.path}`}>
                 <button
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-primary transition-colors hover:bg-foreground/5">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-start text-primary transition-colors hover:bg-foreground/5">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>
@@ -861,7 +861,7 @@ function AgentRightPaneInfoCardBody() {
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
-    <Scrollbar className="-me-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pe-3">
+    <Scrollbar className="-me-2 max-h-[calc(70vh-1.5rem)] space-yb-3 overflow-x-hidden pe-3">
       <ContextUsageSummary
         usage={usage}
         percentage={percentage}

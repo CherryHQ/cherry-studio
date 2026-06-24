@@ -111,7 +111,7 @@ const KnowledgeBaseRow = ({
               type="button"
               variant="ghost"
               onClick={() => onSelectBase(base.id)}
-              className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-left shadow-none hover:bg-transparent">
+              className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-start shadow-none hover:bg-transparent">
               <KnowledgeBaseIcon />
 
               <div className="min-w-0">

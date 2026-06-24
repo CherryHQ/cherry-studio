@@ -88,7 +88,7 @@ function VerticalDemo(args: any) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
-    <div className="w-full space-y-3">
+    <div className="w-full space-yb-3">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -125,7 +125,7 @@ function HorizontalDemo(args: any) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
-    <div className="w-full space-y-3">
+    <div className="w-full space-yb-3">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -160,7 +160,7 @@ function GridDemo(args: any) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
-    <div className="w-full space-y-3">
+    <div className="w-full space-yb-3">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}

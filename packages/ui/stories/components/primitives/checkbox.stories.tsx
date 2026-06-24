@@ -464,10 +464,10 @@ export const FormExample: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-80 space-y-4">
+      <form onSubmit={handleSubmit} className="w-80 space-yb-4">
         <h3 className="text-sm font-semibold">Account Registration</h3>
 
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <div className="flex items-start gap-2">
             <Checkbox
               id="form-terms"

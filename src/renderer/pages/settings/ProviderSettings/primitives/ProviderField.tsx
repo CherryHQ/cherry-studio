@@ -20,7 +20,7 @@ export default function ProviderField({
   className
 }: ProviderFieldProps) {
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn('space-yb-2', className)}>
       <div className="flex items-center justify-between gap-3">
         <div className={cn('font-medium text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
         {action}

@@ -80,7 +80,7 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
       />
     ),
     children: (
-      <div className="space-y-1">
+      <div className="space-yb-1">
         {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
         {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
         {!normalizedInput && !normalizedOutput && (

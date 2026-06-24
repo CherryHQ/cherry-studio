@@ -53,7 +53,7 @@ export const WithForm: Story = {
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <div className="grid gap-4">
-          <div className="space-y-1">
+          <div className="space-yb-1">
             <h4 className="text-sm font-medium">Profile</h4>
             <p className="text-xs text-muted-foreground">Update your display name and handle.</p>
           </div>

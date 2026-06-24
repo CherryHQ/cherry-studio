@@ -99,6 +99,7 @@ const languagesOptions: { value: LanguageVarious; label: string; flag: string }[
   { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
   { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
   { value: 'en-US', label: 'English', flag: '🇺🇸' },
+  { value: 'ar-YE', label: 'العربية', flag: '🇾🇪' },
   { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
   { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
   { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
@@ -547,7 +548,7 @@ const CommonSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <RowFlex className="mr-4 flex-1 items-center justify-between">
+          <RowFlex className="me-4 flex-1 items-center justify-between">
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && !isMac && (
               <Selector<string>

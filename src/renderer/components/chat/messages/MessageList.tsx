@@ -526,7 +526,7 @@ const MessageList = () => {
           aria-hidden="true"
           data-topic-image-capture
           className={classNames(
-            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
+            '-start-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
             !topicImageCaptureWidth && 'w-full'
           )}
           style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>

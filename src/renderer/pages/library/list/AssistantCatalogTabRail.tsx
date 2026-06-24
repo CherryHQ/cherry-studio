@@ -48,7 +48,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
             </TabsList>
           </Tabs>
         </div>
-        <div className="pointer-events-none absolute inset-y-0 end-0 w-10 bg-linear-to-l from-background to-transparent" />
+        <div className="pointer-events-none absolute inset-yb-0 end-0 w-10 bg-linear-to-l from-background to-transparent" />
       </div>
       <Button
         variant="ghost"

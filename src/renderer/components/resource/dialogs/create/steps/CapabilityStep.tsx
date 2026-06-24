@@ -42,12 +42,12 @@ export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-muted-foreground/70" />
+          <Search size={14} className="-translate-y-1/2 absolute top-1/2 start-2.5 text-muted-foreground/70" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('library.config.dialogs.create.capability.search')}
-            className="h-8 pl-8 text-xs"
+            className="h-8 ps-8 text-xs"
           />
         </div>
         <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setImportOpen(true)}>

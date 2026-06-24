@@ -33,7 +33,7 @@ function Calendar({
         ...defaultClassNames,
         root: cn(defaultClassNames.root, 'w-fit'),
         months: cn(defaultClassNames.months, 'relative flex flex-col gap-4 sm:flex-row'),
-        month: cn(defaultClassNames.month, 'space-y-3'),
+        month: cn(defaultClassNames.month, 'space-yb-3'),
         month_caption: cn(defaultClassNames.month_caption, 'flex h-8 items-center justify-center'),
         caption_label: cn(defaultClassNames.caption_label, 'font-medium text-sm'),
         dropdowns: cn(defaultClassNames.dropdowns, 'flex w-full items-center justify-center gap-2'),
@@ -42,7 +42,7 @@ function Calendar({
           defaultClassNames.dropdown,
           'h-8 rounded-md border border-border bg-background px-2 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50'
         ),
-        nav: cn(defaultClassNames.nav, 'absolute inset-x-0 top-3 flex items-center justify-between px-3'),
+        nav: cn(defaultClassNames.nav, 'absolute inset-xi-0 top-3 flex items-center justify-between px-3'),
         button_previous: cn(
           defaultClassNames.button_previous,
           'inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
@@ -51,7 +51,7 @@ function Calendar({
           defaultClassNames.button_next,
           'inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
         ),
-        month_grid: cn(defaultClassNames.month_grid, 'w-full border-collapse space-y-1'),
+        month_grid: cn(defaultClassNames.month_grid, 'w-full border-collapse space-yb-1'),
         weekdays: cn(defaultClassNames.weekdays, 'flex'),
         weekday: cn(defaultClassNames.weekday, 'w-8 rounded-md text-center font-normal text-muted-foreground text-xs'),
         week: cn(defaultClassNames.week, 'mt-1 flex w-full'),

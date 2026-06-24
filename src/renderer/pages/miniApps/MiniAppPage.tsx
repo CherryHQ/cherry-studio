@@ -151,7 +151,7 @@ const MiniAppPage: FC = () => {
   if (isLoading) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <div className="absolute inset-xi-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <BeatLoader color="var(--color-text-2)" size={8} />
         </div>
       </div>
@@ -163,7 +163,7 @@ const MiniAppPage: FC = () => {
     const isNotFound = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <div className="absolute inset-xi-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <div className="text-[14px] text-foreground-secondary">
             {t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}
           </div>
@@ -177,7 +177,7 @@ const MiniAppPage: FC = () => {
   if (!app) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <div className="absolute inset-xi-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <div className="text-[14px] text-foreground-secondary">{t('miniApp.error.not_found')}</div>
         </div>
       </div>
@@ -212,7 +212,7 @@ const MiniAppPage: FC = () => {
       </div>
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <div className="absolute inset-xi-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </div>

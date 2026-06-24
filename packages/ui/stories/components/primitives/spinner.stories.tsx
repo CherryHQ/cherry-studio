@@ -57,12 +57,12 @@ export const CustomStyle: Story = {
 
 export const LoadingStates: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">不同加载状态</h3>
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div>
           <h4 className="font-medium mb-2">文件操作</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <Spinner text="正在上传文件..." />
             <Spinner text="正在下载文件..." />
             <Spinner text="正在压缩文件..." />
@@ -71,7 +71,7 @@ export const LoadingStates: Story = {
 
         <div>
           <h4 className="font-medium mb-2">数据处理</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <Spinner text="正在加载数据..." />
             <Spinner text="正在保存更改..." />
             <Spinner text="正在同步数据..." />
@@ -80,7 +80,7 @@ export const LoadingStates: Story = {
 
         <div>
           <h4 className="font-medium mb-2">网络请求</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <Spinner text="正在连接服务器..." />
             <Spinner text="正在获取更新..." />
             <Spinner text="正在验证账户..." />
@@ -104,7 +104,7 @@ export const InteractiveDemo: Story = {
     }
 
     return (
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div className="flex gap-2">
           <Button onClick={handleStartLoading} disabled={isLoading}>
             {isLoading ? '正在处理...' : '开始加载'}
@@ -131,12 +131,12 @@ export const InteractiveDemo: Story = {
 
 export const InComponents: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">组件中的应用</h3>
 
-      <div className="space-y-4">
+      <div className="space-yb-4">
         {/* 搜索框 */}
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <h4 className="font-medium">搜索框</h4>
           <div className="relative">
             <input
@@ -151,7 +151,7 @@ export const InComponents: Story = {
         </div>
 
         {/* 按钮加载状态 */}
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <h4 className="font-medium">按钮加载状态</h4>
           <div className="flex gap-2">
             <Button disabled className="cursor-not-allowed opacity-70">
@@ -164,7 +164,7 @@ export const InComponents: Story = {
         </div>
 
         {/* 卡片加载 */}
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <h4 className="font-medium">卡片加载</h4>
           <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg text-center">
             <Spinner text="正在加载内容..." />
@@ -172,9 +172,9 @@ export const InComponents: Story = {
         </div>
 
         {/* 列表加载 */}
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <h4 className="font-medium">列表加载</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
               <p>已加载的项目 1</p>
             </div>
@@ -193,9 +193,9 @@ export const InComponents: Story = {
 
 export const DifferentSizes: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">不同场景的尺寸</h3>
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div className="flex items-center gap-4">
           <span className="w-20 text-sm">小尺寸:</span>
           <Spinner text="加载" className="text-xs" />
@@ -215,10 +215,10 @@ export const DifferentSizes: Story = {
 
 export const ColorVariations: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">颜色变化</h3>
-      <div className="space-y-4">
-        <div className="space-y-2">
+      <div className="space-yb-4">
+        <div className="space-yb-2">
           <Spinner text="默认颜色" />
           <Spinner text="蓝色主题" className="text-blue-600 dark:text-blue-400" />
           <Spinner text="绿色成功" className="text-green-600 dark:text-green-400" />
@@ -233,9 +233,9 @@ export const ColorVariations: Story = {
 
 export const BackgroundVariations: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">背景变化</h3>
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div className="p-4 bg-white dark:bg-gray-800 rounded border">
           <Spinner text="白色背景" />
         </div>
@@ -266,7 +266,7 @@ export const LoadingSequence: Story = {
     const isComplete = step === steps.length - 1
 
     return (
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <Button onClick={nextStep}>{isComplete ? '重新开始' : '下一步'}</Button>
 
         <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -287,14 +287,14 @@ export const LoadingSequence: Story = {
 
 export const RealWorldUsage: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">真实场景应用</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 表单提交 */}
         <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
           <h4 className="font-medium mb-3">表单提交</h4>
-          <div className="space-y-3">
+          <div className="space-yb-3">
             <input type="email" placeholder="邮箱" className="w-full px-3 py-2 border border-gray-300 rounded" />
             <input type="password" placeholder="密码" className="w-full px-3 py-2 border border-gray-300 rounded" />
             <div className="text-center">
@@ -317,7 +317,7 @@ export const RealWorldUsage: Story = {
         {/* 数据获取 */}
         <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
           <h4 className="font-medium mb-3">数据获取</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
             <div className="text-center mt-4">

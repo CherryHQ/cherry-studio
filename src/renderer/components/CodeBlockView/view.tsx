@@ -361,7 +361,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&
             showSourceView &&
-            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
+            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:start-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
         )}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}

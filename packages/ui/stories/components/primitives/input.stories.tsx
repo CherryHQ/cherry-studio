@@ -332,7 +332,7 @@ export const RealTimeValidation: Story = {
     }
 
     return (
-      <div className="w-80 space-y-4">
+      <div className="w-80 space-yb-4">
         <h3 className="text-base font-semibold">Real-time Email Validation</h3>
         <div>
           <label htmlFor="realtime-email" className="mb-1 block text-sm font-medium">
@@ -416,7 +416,7 @@ export const FormExample: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-80 space-y-4">
+      <form onSubmit={handleSubmit} className="w-80 space-yb-4">
         <h3 className="text-base font-semibold">Sign Up Form</h3>
 
         <div>
@@ -498,7 +498,7 @@ export const SearchExample: Story = {
     const filtered = items.filter((item) => item.toLowerCase().includes(query.toLowerCase()))
 
     return (
-      <div className="w-80 space-y-4">
+      <div className="w-80 space-yb-4">
         <div>
           <label htmlFor="search" className="mb-1 flex items-center gap-2 text-sm font-medium">
             <Search className="size-4" />
@@ -516,7 +516,7 @@ export const SearchExample: Story = {
         <div className="rounded-md border p-3">
           <p className="mb-2 text-sm font-medium">Results ({filtered.length})</p>
           {filtered.length > 0 ? (
-            <ul className="space-y-1">
+            <ul className="space-yb-1">
               {filtered.map((item) => (
                 <li key={item} className="text-sm text-muted-foreground">
                   {item}
@@ -539,7 +539,7 @@ export const RealWorldExamples: Story = {
       {/* Login Form */}
       <div className="w-80">
         <h3 className="mb-4 text-base font-semibold">Login Form</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <div>
             <label htmlFor="login-email" className="mb-1 flex items-center gap-2 text-sm font-medium">
               <Mail className="size-4" />
@@ -564,7 +564,7 @@ export const RealWorldExamples: Story = {
       {/* Profile Form */}
       <div className="w-80">
         <h3 className="mb-4 text-base font-semibold">Profile Information</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <div>
             <label htmlFor="profile-name" className="mb-1 flex items-center gap-2 text-sm font-medium">
               <User className="size-4" />
@@ -599,11 +599,11 @@ export const RealWorldExamples: Story = {
 // Accessibility
 export const Accessibility: Story = {
   render: () => (
-    <div className="w-80 space-y-6">
+    <div className="w-80 space-yb-6">
       <div>
         <h3 className="mb-4 text-base font-semibold">Keyboard Navigation</h3>
         <p className="mb-4 text-sm text-muted-foreground">Use Tab to navigate between inputs.</p>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <Input placeholder="First input" />
           <Input placeholder="Second input" />
           <Input placeholder="Third input" />
@@ -615,7 +615,7 @@ export const Accessibility: Story = {
         <p className="mb-4 text-sm text-muted-foreground">
           Inputs include proper ARIA attributes for screen reader support.
         </p>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <Input placeholder="Input with aria-label" aria-label="Username input" />
           <Input placeholder="Invalid input" aria-invalid aria-describedby="error-message" />
           <p id="error-message" className="text-xs text-destructive">

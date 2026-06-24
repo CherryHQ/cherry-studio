@@ -44,7 +44,7 @@ export default function ApiKey({
     <>
       <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
         <ProviderField
-          className="space-y-2"
+          className="space-yb-2"
           title={
             <div className={fieldClasses.titleWithHelp}>
               <span>{t('settings.provider.api_key.label')}</span>

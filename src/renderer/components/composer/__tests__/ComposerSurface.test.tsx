@@ -464,9 +464,9 @@ describe('ComposerSurface', () => {
     expect(expandButton.closest('#inputbar')).toBe(inputbar)
     expect(expandButton.parentElement).toBe(corner)
     expect(inputbar).not.toHaveClass('group/inputbar')
-    expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'right-px', 'size-8')
-    expect(cornerLine).toHaveClass('top-1', 'right-1', 'size-3', 'rounded-tr-[16px]')
-    expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'origin-top-right')
+    expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'end-px', 'size-8')
+    expect(cornerLine).toHaveClass('top-1', 'end-1', 'size-3', 'rounded-se--[16px]')
+    expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-e-[1.5px]', 'origin-top-right')
     expect(cornerLine).toHaveClass(
       'transition-[opacity,scale]',
       'duration-200',

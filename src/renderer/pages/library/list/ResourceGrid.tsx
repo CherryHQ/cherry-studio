@@ -514,7 +514,7 @@ function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
         <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
           <div className="flex items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1 space-yb-2">
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-3 w-full" />
             </div>

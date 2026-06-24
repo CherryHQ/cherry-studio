@@ -166,7 +166,7 @@ const HeaderNavbar = ({
 
     if (item.children) {
       return (
-        <div key={item.key} className="space-y-1">
+        <div key={item.key} className="space-yb-1">
           <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>

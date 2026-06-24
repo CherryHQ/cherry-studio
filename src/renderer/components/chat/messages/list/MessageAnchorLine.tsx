@@ -295,7 +295,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
 const MessageItemContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      'flex origin-right flex-col items-end justify-between gap-[3px] text-right leading-none opacity-0 transition-transform duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:transform] group-hover:opacity-100',
+      'flex origin-right flex-col items-end justify-between gap-[3px] text-end leading-none opacity-0 transition-transform duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:transform] group-hover:opacity-100',
       className
     ]
       .filter(Boolean)

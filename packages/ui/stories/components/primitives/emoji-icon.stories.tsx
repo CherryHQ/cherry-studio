@@ -93,7 +93,7 @@ export const CustomStyle: Story = {
 
 export const EmojiCollection: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <div>
         <h3 className="text-lg font-medium mb-4">表情符号集合</h3>
         <div className="grid grid-cols-6 gap-4">
@@ -139,7 +139,7 @@ export const EmojiCollection: Story = {
 
 export const SizeComparison: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium mb-4">不同尺寸对比</h3>
       <div className="flex items-center gap-6">
         <div className="text-center">
@@ -165,11 +165,11 @@ export const SizeComparison: Story = {
 
 export const InUserInterface: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium mb-4">界面应用示例</h3>
 
       {/* 用户头像 */}
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <h4 className="font-medium">用户头像</h4>
         <div className="flex items-center gap-3">
           <EmojiIcon emoji="👤" size={40} fontSize={20} />
@@ -181,9 +181,9 @@ export const InUserInterface: Story = {
       </div>
 
       {/* 状态指示器 */}
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <h4 className="font-medium">状态指示器</h4>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <div className="flex items-center gap-2">
             <EmojiIcon emoji="✅" size={24} fontSize={14} />
             <span>任务已完成</span>
@@ -200,9 +200,9 @@ export const InUserInterface: Story = {
       </div>
 
       {/* 导航菜单 */}
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <h4 className="font-medium">导航菜单</h4>
-        <div className="space-y-1">
+        <div className="space-yb-1">
           <div className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
             <EmojiIcon emoji="🏠" size={24} fontSize={14} />
             <span>首页</span>
@@ -223,13 +223,13 @@ export const InUserInterface: Story = {
 
 export const CategoryIcons: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium mb-4">分类图标</h3>
 
       <div className="grid grid-cols-2 gap-6">
         <div>
           <h4 className="font-medium mb-3">工作相关</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center gap-2">
               <EmojiIcon emoji="💼" size={24} fontSize={14} />
               <span>商务</span>
@@ -247,7 +247,7 @@ export const CategoryIcons: Story = {
 
         <div>
           <h4 className="font-medium mb-3">生活相关</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center gap-2">
               <EmojiIcon emoji="🍕" size={24} fontSize={14} />
               <span>美食</span>
@@ -269,7 +269,7 @@ export const CategoryIcons: Story = {
 
 export const AnimatedExample: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium mb-4">交互示例</h3>
       <div className="flex gap-4">
         {['🎉', '🎊', '✨', '🌟', '⭐'].map((emoji, index) => (
@@ -288,7 +288,7 @@ export const AnimatedExample: Story = {
 
 export const BlurEffect: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium mb-4">模糊效果展示</h3>
       <p className="text-sm text-gray-600 mb-4">EmojiIcon 组件具有独特的模糊背景效果，让 emoji 看起来更有层次感</p>
       <div className="flex gap-6">

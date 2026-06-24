@@ -28,7 +28,7 @@ const AsyncErrorComponent = () => {
   }
 
   return (
-    <div className="p-4 space-y-2">
+    <div className="p-4 space-yb-2">
       <p>这是一个可以触发异步错误的组件</p>
       <Button onClick={handleAsyncError}>1秒后触发错误</Button>
     </div>
@@ -136,7 +136,7 @@ export const InteractiveDemo: Story = {
     const [errorMessage, setErrorMessage] = useState('用户触发的错误')
 
     return (
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div className="flex gap-2">
           <Button variant={shouldThrow ? 'destructive' : 'default'} onClick={() => setShouldThrow(!shouldThrow)}>
             {shouldThrow ? '取消错误' : '触发错误'}
@@ -201,7 +201,7 @@ export const CustomFallback: Story = {
 
 export const NestedErrorBoundaries: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <h3 className="text-lg font-medium">嵌套错误边界</h3>
 
       <ErrorBoundary errorMessage="外层错误边界">
@@ -223,7 +223,7 @@ export const NestedErrorBoundaries: Story = {
 
 export const MultipleComponents: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <h3 className="text-lg font-medium">多个组件保护</h3>
 
       <ErrorBoundary onReloadClick={() => window.location.reload()} reloadButtonText="刷新页面">

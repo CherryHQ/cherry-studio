@@ -93,7 +93,7 @@ const FeatureMenus = ({
             key={index}
             onClick={feature.onClick}
             className={cn(
-              'flex w-full cursor-pointer select-none flex-row items-center gap-3 rounded-lg border-0 bg-transparent px-4 py-2 text-left transition-colors [-webkit-app-region:no-drag] hover:bg-accent',
+              'flex w-full cursor-pointer select-none flex-row items-center gap-3 rounded-lg border-0 bg-transparent px-4 py-2 text-start transition-colors [-webkit-app-region:no-drag] hover:bg-accent',
               index === selectedIndex && 'bg-accent'
             )}>
             <span className="flex shrink-0 items-center justify-center">{feature.icon}</span>

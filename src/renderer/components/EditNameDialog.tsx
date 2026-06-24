@@ -92,7 +92,7 @@ const EditNameDialog = ({
           <DialogTitle className="leading-4">{title}</DialogTitle>
         </DialogHeader>
         <form className="flex flex-col" onSubmit={handleSubmit}>
-          <div className="space-y-1 px-4 py-3">
+          <div className="space-yb-1 px-4 py-3">
             <Label htmlFor={inputId} className="text-muted-foreground leading-4">
               {inputLabel ?? t('common.name')}
             </Label>

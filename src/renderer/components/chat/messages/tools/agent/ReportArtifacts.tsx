@@ -97,7 +97,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onClick={handlePreview}
         title={displayPath}
         aria-label={`${t('common.preview')} ${fileName}`}
-        className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left disabled:cursor-default">
+        className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-start disabled:cursor-default">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
           <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
         </span>

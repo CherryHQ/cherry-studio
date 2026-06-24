@@ -10,7 +10,7 @@ interface AuthConnectionSlotsLayoutProps {
 
 export default function AuthConnectionSlotsLayout({ providerId, children }: AuthConnectionSlotsLayoutProps) {
   return (
-    <section className="shrink-0 space-y-4">
+    <section className="shrink-0 space-yb-4">
       <ProviderSpecificSettings providerId={providerId} placement="beforeAuth" />
       <div className="flex flex-col gap-3">
         <div className={authConnectionClasses.shell}>

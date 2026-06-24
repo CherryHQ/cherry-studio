@@ -6803,9 +6803,6 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "Halten Sie das System wach, während Aufgaben ausgeführt werden"
-    },
-    "power": {
       "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
     },
     "privacy": {

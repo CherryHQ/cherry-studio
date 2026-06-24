@@ -123,7 +123,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           </DialogDescription>
         </DialogHeader>
         <div className={drawerClasses.fieldList}>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <label className="font-medium text-[13px] text-foreground/85">
               {t('settings.models.add.endpoint_type.label')}
             </label>

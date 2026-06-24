@@ -70,7 +70,7 @@ export function ToolDisclosure({
               type="button"
               aria-expanded={canExpand ? isOpen : undefined}
               className={cn(
-                'flex w-full items-center justify-between rounded-md border-0 bg-transparent text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
+                'flex w-full items-center justify-between rounded-md border-0 bg-transparent text-start outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
                 isLight
                   ? 'min-h-7 justify-start gap-2 py-0.5 font-normal text-[13px] text-foreground-secondary leading-5 hover:no-underline'
                   : 'items-center gap-4 px-2.5 py-2 font-semibold text-foreground/90 text-sm leading-4 hover:no-underline',

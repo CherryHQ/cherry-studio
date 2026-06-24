@@ -258,7 +258,7 @@ export const ScrollableContent: Story = {
           <DialogTitle>Terms of Service</DialogTitle>
           <DialogDescription>Please read the following terms carefully.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 text-sm text-muted-foreground">
+        <div className="space-yb-4 py-4 text-sm text-muted-foreground">
           {Array.from({ length: 10 }, (_, i) => (
             <p key={i}>
               Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et
@@ -389,7 +389,7 @@ export const RealWorldExamples: Story = {
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>Manage your application preferences.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-yb-4 py-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Dark Mode</p>

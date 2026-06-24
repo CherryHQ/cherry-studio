@@ -181,7 +181,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           {enabledCount} / {apiKeys.length} {t('settings.provider.api_key.enabled_suffix')}
         </div>
       }>
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (

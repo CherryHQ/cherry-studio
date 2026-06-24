@@ -144,7 +144,7 @@ export default function ComposerDockTransitionFrame({
             : undefined
         }
         className={cn(
-          'absolute inset-x-0 w-full',
+          'absolute inset-xi-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
           isDocked
             ? 'bottom-0'

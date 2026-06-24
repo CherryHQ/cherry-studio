@@ -49,7 +49,7 @@ const ChunkingSection = ({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-yb-2">
       <div className="flex flex-col gap-4">
         <RagFieldRow label={t('knowledge.rag.smart_chunking')} hint={t('knowledge.rag.hints.smart_chunking')}>
           <Switch

@@ -92,9 +92,9 @@ export function FileTreeRow(props: FileTreeRowProps) {
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
         dragPosition === 'before' &&
-          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
+          "before:-top-px before:absolute before:inset-xi-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
         dragPosition === 'after' &&
-          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
+          "after:-bottom-px after:absolute after:inset-xi-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
       )}>
       {isFolder ? (
         <Button

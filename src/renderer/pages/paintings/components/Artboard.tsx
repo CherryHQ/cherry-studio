@@ -53,7 +53,7 @@ const LoadingStateCard: FC<{ text: ReactNode; onCancel: () => void; cancelLabel:
           transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
         />
         <motion.div
-          className="absolute inset-1 rounded-full border-2 border-primary border-r-transparent border-b-transparent"
+          className="absolute inset-1 rounded-full border-2 border-primary border-e-transparent border-b-transparent"
           animate={{ rotate: -360 }}
           transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
         />
@@ -242,7 +242,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 <RefreshCcw className="size-4" />
               </ArtboardToolButton>
             </div>
-            <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">
+            <div className="-translate-x-1/2 absolute bottom-2.5 start-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">
               {displayedImageIndex + 1} / {painting.files.length}
             </div>
           </div>

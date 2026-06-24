@@ -26,7 +26,7 @@ export function LoadingState({
         data-slot="chat-loading-state"
         role="status"
         aria-live="polite"
-        className={cn('space-y-2', className)}
+        className={cn('space-yb-2', className)}
         {...props}>
         {Array.from({ length: rows }).map((_, index) => (
           <Skeleton key={index} className={cn('h-4', index === rows - 1 ? 'w-2/3' : 'w-full')} />

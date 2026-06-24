@@ -75,7 +75,7 @@ export function ApiHostField({
       title={t('settings.provider.api_host')}
       titleClassName="text-foreground"
       help={
-        <div className="space-y-1 pt-1">
+        <div className="space-yb-1 pt-1">
           {isVertexAI && (
             <div className="text-[12px] text-foreground/55 leading-[1.35]">
               {t('settings.provider.vertex_ai.api_host_help')}

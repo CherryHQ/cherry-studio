@@ -93,7 +93,7 @@ describe('CitationsPanel', () => {
     expect(screen.getByTestId('page-side-panel')).not.toHaveAttribute('data-backdrop-class-name')
     expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
       'data-body-class-name',
-      'flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2'
+      'flex min-h-0 flex-col space-yb-0 overflow-hidden p-0 pb-2'
     )
     expect(screen.getByText('message.citations')).toBeInTheDocument()
     expect(screen.getByLabelText('common.close')).toBeInTheDocument()

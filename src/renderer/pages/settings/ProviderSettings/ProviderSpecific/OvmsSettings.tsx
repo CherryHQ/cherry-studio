@@ -153,7 +153,7 @@ const OvmsSettings: FC = () => {
         className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-        <div className="min-w-0 flex-1 space-y-1">
+        <div className="min-w-0 flex-1 space-yb-1">
           <p className="font-medium">{t('ovms.guide')}</p>
           <div>
             <Trans

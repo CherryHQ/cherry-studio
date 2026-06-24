@@ -141,7 +141,7 @@ const PaintingParamsButton: FC<{
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-[min(340px,calc(100vw-2rem))] rounded-[8px] p-3">
-        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pe-1">
           <PaintingSettings
             painting={painting}
             onConfigChange={onConfigChange}

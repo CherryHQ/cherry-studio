@@ -150,8 +150,8 @@ const TaskScheduleControls: FC<{
   }
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
+    <div className="space-yb-5">
+      <div className="space-yb-3">
         <SettingRowTitle>{t('agent.cherryClaw.tasks.frequency.label')}</SettingRowTitle>
         <SegmentedControl
           size="sm"
@@ -208,7 +208,7 @@ const TaskScheduleControls: FC<{
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
         <div className="flex items-center gap-2">
           <UIInput
@@ -474,7 +474,7 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <div className="space-y-5">
+        <div className="space-yb-5">
           <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
             <SettingRowTitle>{t('agent.cherryClaw.tasks.name.label')}</SettingRowTitle>
             <UIInput
@@ -814,7 +814,7 @@ const CreateForm: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.add')}</SettingTitle>
         <SettingDivider />
-        <div className="space-y-5">
+        <div className="space-yb-5">
           {agents.length > 1 && (
             <>
               <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>

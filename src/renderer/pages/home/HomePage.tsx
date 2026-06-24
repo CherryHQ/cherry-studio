@@ -866,7 +866,7 @@ type MessageOnlyStatusProps = {
 
 function MessageOnlyStatus({ loading, loadingLabel, missingTitle }: MessageOnlyStatusProps) {
   return (
-    <div className="flex h-[calc(100vh_-_var(--navbar-height)_-_6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background">
+    <div className="flex h-[calc(100vh_-_var(--navbar-height)_-_6px)] flex-1 overflow-hidden rounded-ss-[10px]  rounded-bs-[10px] bg-background">
       <ChatAppShell
         centerContent={
           <div className="flex h-full min-h-0 flex-1 items-center justify-center px-6">

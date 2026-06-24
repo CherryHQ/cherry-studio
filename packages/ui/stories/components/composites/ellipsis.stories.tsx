@@ -65,7 +65,7 @@ export const MultiLine: Story = {
 // 不同的最大行数
 export const DifferentMaxLines: Story = {
   render: () => (
-    <div className="space-y-4 max-w-lg">
+    <div className="space-yb-4 max-w-lg">
       <div>
         <h3 className="text-sm font-medium mb-2">单行省略 (maxLine = 1)</h3>
         <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
@@ -124,7 +124,7 @@ export const CustomStyle: Story = {
 // 不同容器宽度的响应式展示
 export const ResponsiveWidth: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <div>
         <h3 className="text-sm font-medium mb-2">窄容器 (200px)</h3>
         <div className="w-50 p-3 border border-gray-200 dark:border-gray-700 rounded">

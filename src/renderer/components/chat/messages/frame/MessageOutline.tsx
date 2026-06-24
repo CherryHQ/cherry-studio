@@ -90,7 +90,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
   if (multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
-    <div className="pointer-events-none absolute inset-y-0 start-2 end-0 z-999 flex items-center">
+    <div className="pointer-events-none absolute inset-yb-0 start-2 end-0 z-999 flex items-center">
       <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 ps-2.5 pe-0 pt-2.5 pb-2.5 hover:overflow-y-auto hover:border-border/40 hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div

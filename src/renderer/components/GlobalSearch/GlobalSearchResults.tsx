@@ -141,7 +141,7 @@ export function GlobalSearchGroupFooter({
         onMouseEnter={onMouseEnter}
         onClick={onOpen}
         className={cn(
-          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 ps-8 pe-3 text-left font-medium text-xs transition-colors',
+          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 ps-8 pe-3 text-start font-medium text-xs transition-colors',
           active
             ? 'bg-muted/60 text-accent-foreground'
             : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -187,7 +187,7 @@ export function GlobalSearchRow({
       onMouseEnter={onMouseEnter}
       onClick={onOpen}
       className={cn(
-        'mx-5 flex h-[48px] w-[calc(100%-2.5rem)] items-center gap-2.5 rounded-[12px] px-3 text-left transition-colors',
+        'mx-5 flex h-[48px] w-[calc(100%-2.5rem)] items-center gap-2.5 rounded-[12px] px-3 text-start transition-colors',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       {emoji ? (
@@ -286,7 +286,7 @@ export function GlobalMessageSearchRow({
           onMouseEnter={onMouseEnter}
           onClick={onOpen}
           className={cn(
-            'flex h-8 items-center gap-1 rounded-lg py-0 ps-8 pe-3 text-left font-medium text-xs transition-colors',
+            'flex h-8 items-center gap-1 rounded-lg py-0 ps-8 pe-3 text-start font-medium text-xs transition-colors',
             inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
             active
               ? 'bg-muted/60 text-accent-foreground'
@@ -321,7 +321,7 @@ export function GlobalMessageSearchRow({
       onMouseLeave={() => setIsJumpActionVisible(false)}
       onClick={onOpen}
       className={cn(
-        'group flex h-11 cursor-pointer items-center gap-2 rounded-[10px] ps-8 pe-3 text-left transition-colors',
+        'group flex h-11 cursor-pointer items-center gap-2 rounded-[10px] ps-8 pe-3 text-start transition-colors',
         inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>

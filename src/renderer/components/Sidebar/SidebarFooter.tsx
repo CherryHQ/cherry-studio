@@ -51,7 +51,7 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
 
 function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="space-y-1 px-2 py-2 [-webkit-app-region:no-drag]">
+    <div className="space-yb-1 px-2 py-2 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"

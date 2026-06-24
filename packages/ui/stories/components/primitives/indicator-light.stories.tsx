@@ -114,7 +114,7 @@ export const CustomStyle: Story = {
 
 export const StatusColors: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">状态指示颜色</h3>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ export const StatusColors: Story = {
 
 export const SizeComparison: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">不同尺寸对比</h3>
       <div className="flex items-center gap-6">
         <div className="text-center">
@@ -178,9 +178,9 @@ export const SizeComparison: Story = {
 
 export const UserStatusList: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <h3 className="text-lg font-medium">用户状态列表</h3>
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded">
           <IndicatorLight color="#22c55e" size={10} />
           <div className="flex-1">
@@ -216,7 +216,7 @@ export const UserStatusList: Story = {
 
 export const ServiceStatus: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <h3 className="text-lg font-medium">服务状态监控</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
@@ -270,7 +270,7 @@ export const ServiceStatus: Story = {
 
 export const AnimationComparison: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">动画效果对比</h3>
       <div className="flex items-center gap-8">
         <div className="text-center">
@@ -288,7 +288,7 @@ export const AnimationComparison: Story = {
 
 export const NotificationDot: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">通知红点示例</h3>
       <div className="flex gap-6">
         <div className="relative">
@@ -316,7 +316,7 @@ export const NotificationDot: Story = {
 
 export const CustomColors: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">自定义颜色</h3>
       <div className="grid grid-cols-4 gap-4">
         {[

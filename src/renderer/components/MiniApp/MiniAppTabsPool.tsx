@@ -110,7 +110,7 @@ const MiniAppTabsPool: React.FC = () => {
 
   return (
     <div
-      className="pointer-events-none absolute right-0 bottom-0 left-0 z-[1] w-full overflow-hidden rounded-b-md [&_webview]:pointer-events-auto"
+      className="pointer-events-none absolute end-0 bottom-0 start-0 z-[1] w-full overflow-hidden rounded-b-md [&_webview]:pointer-events-auto"
       style={
         shouldShow
           ? {

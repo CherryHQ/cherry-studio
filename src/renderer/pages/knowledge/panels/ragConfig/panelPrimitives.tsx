@@ -82,7 +82,7 @@ export const RagInlineField = ({
           placeholder={placeholder}
           inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
-          className={cn('shadow-none', suffix ? 'pr-14' : undefined)}
+          className={cn('shadow-none', suffix ? 'pe-14' : undefined)}
         />
         {suffix ? (
           <span className="-translate-y-1/2 pointer-events-none absolute end-3 top-1/2 text-foreground-muted text-xs leading-4">

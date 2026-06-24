@@ -16,10 +16,10 @@ const ProtocolInstallWarningContent: React.FC<ProtocolInstallWarningContentProps
   commandPreview
 }) => {
   return (
-    <div className="space-y-3 text-start">
+    <div className="space-yb-3 text-start">
       <p>{message}</p>
       {commandPreview && (
-        <div className="space-y-1">
+        <div className="space-yb-1">
           <div className="font-semibold">{commandLabel}</div>
           <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-2">{commandPreview}</pre>
         </div>

@@ -14,7 +14,7 @@ interface ProviderSectionProps {
 
 export default function ProviderSection({ id, title, description, action, children, className }: ProviderSectionProps) {
   return (
-    <section id={id} className={cn('space-y-2.5', className)}>
+    <section id={id} className={cn('space-yb-2.5', className)}>
       {(title || description || action) && (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

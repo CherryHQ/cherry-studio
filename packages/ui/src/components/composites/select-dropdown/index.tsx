@@ -222,7 +222,7 @@ export function SelectDropdown<T extends { id: string }>({
             renderRow={renderRow}
           />
         ) : (
-          <ScrollContainer className={cn(onRemove && 'space-y-1')} maxHeight={maxHeight}>
+          <ScrollContainer className={cn(onRemove && 'space-yb-1')} maxHeight={maxHeight}>
             {items.map((item) => (
               <div key={item.id}>{renderRow(item)}</div>
             ))}

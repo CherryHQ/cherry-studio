@@ -149,7 +149,7 @@ export const SaveShortcut: Story = {
     wrapped: true
   },
   render: (args) => (
-    <div className="w-[720px] space-y-3">
+    <div className="w-[720px] space-yb-3">
       <CodeEditor
         value={args.value}
         language={args.language}
@@ -180,7 +180,7 @@ console.log(fibonacci(10));`,
     wrapped: true
   },
   render: (args) => (
-    <div className="w-[720px] space-y-3">
+    <div className="w-[720px] space-yb-3">
       <CodeEditor
         value={args.value}
         language={args.language}

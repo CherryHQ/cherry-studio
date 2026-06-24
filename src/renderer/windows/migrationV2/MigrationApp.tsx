@@ -84,7 +84,7 @@ const ProgressBar: React.FC<{ value: number; indeterminate?: boolean }> = ({ val
       className={cn(
         'h-full rounded-full bg-primary transition-[width] duration-300',
         indeterminate &&
-          'animation-migration-backup-progress-indeterminate absolute left-0 w-1/3 min-w-20 bg-linear-to-r from-primary/0 via-primary to-primary/0 transition-none'
+          'animation-migration-backup-progress-indeterminate absolute start-0 w-1/3 min-w-20 bg-linear-to-r from-primary/0 via-primary to-primary/0 transition-none'
       )}
       style={indeterminate ? undefined : { width: `${Math.max(0, Math.min(100, value))}%` }}
     />
@@ -152,7 +152,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
               {!isLast && (
                 <span
                   className={cn(
-                    '-translate-x-1/2 absolute top-1/2 left-3 h-11 w-px',
+                    '-translate-x-1/2 absolute top-1/2 start-3 h-11 w-px',
                     done ? 'bg-primary/40' : 'bg-border'
                   )}
                 />
@@ -201,7 +201,7 @@ const BackupChoiceRow: React.FC<{
     type="button"
     onClick={onSelect}
     className={cn(
-      'flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
+      'flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-start transition-colors',
       selected ? 'border-border-active bg-accent' : 'border-border bg-muted/10 hover:bg-muted/20'
     )}>
     <span className={cn('mt-0.5 shrink-0', selected ? 'text-foreground' : 'text-foreground-muted')}>{icon}</span>
@@ -456,7 +456,7 @@ const MigrationApp: React.FC = () => {
     switch (stage) {
       case 'introduction':
         return (
-          <div className="space-y-6">
+          <div className="space-yb-6">
             <TopContent>
               <StageBadge tone="neutral">
                 <Rocket size={28} strokeWidth={1.5} />
@@ -467,7 +467,7 @@ const MigrationApp: React.FC = () => {
               <p className="mt-2 text-foreground-muted text-sm">{t('migration.introduction.subtitle')}</p>
             </TopContent>
 
-            <div className="space-y-2.5">
+            <div className="space-yb-2.5">
               {[
                 {
                   icon: <Sparkles size={16} />,
@@ -499,7 +499,7 @@ const MigrationApp: React.FC = () => {
               ))}
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-yb-2.5">
               <Button variant="default" size="lg" className="w-full gap-2" onClick={() => actions.proceedToBackup()}>
                 {t('migration.buttons.next')}
                 <ArrowRight size={14} />
@@ -510,7 +510,7 @@ const MigrationApp: React.FC = () => {
 
       case 'backup_required':
         return (
-          <div className="space-y-5">
+          <div className="space-yb-5">
             <TopContent>
               <StageBadge tone="neutral">
                 <Shield size={26} strokeWidth={1.5} />
@@ -523,7 +523,7 @@ const MigrationApp: React.FC = () => {
               </p>
             </TopContent>
 
-            <div className="space-y-2">
+            <div className="space-yb-2">
               <BackupChoiceRow
                 selected={backupChoice === 'create'}
                 onSelect={() => {
@@ -592,7 +592,7 @@ const MigrationApp: React.FC = () => {
 
       case 'backup_progress': {
         return (
-          <div className="space-y-5">
+          <div className="space-yb-5">
             <TopContent>
               <StageBadge tone="neutral">
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
@@ -616,7 +616,7 @@ const MigrationApp: React.FC = () => {
       case 'backup_confirmed': {
         const hasCreatedBackup = Boolean(progress.backupInfo?.createdBackupPath)
         return (
-          <div className="space-y-5">
+          <div className="space-yb-5">
             <TopContent>
               <StageBadge tone={hasCreatedBackup ? 'success' : 'neutral'}>
                 {hasCreatedBackup ? (
@@ -668,7 +668,7 @@ const MigrationApp: React.FC = () => {
 
       case 'migration':
         return (
-          <div className="space-y-4">
+          <div className="space-yb-4">
             <TopContent>
               <StageBadge tone="primary">
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
@@ -692,7 +692,7 @@ const MigrationApp: React.FC = () => {
         const backupPath = progress.backupInfo?.createdBackupPath
         const warnings = progress.warnings ?? []
         return (
-          <div className="space-y-5">
+          <div className="space-yb-5">
             <TopContent>
               <div className="relative mx-auto mb-4 inline-block text-[56px] leading-none">
                 🎉
@@ -753,7 +753,7 @@ const MigrationApp: React.FC = () => {
                   </AccordionTrigger>
                   <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
                     <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
-                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
+                    <ul className="mt-2 max-h-40 list-disc space-yb-1 overflow-y-auto ps-5 text-xs leading-relaxed">
                       {warnings.map((warning, index) => (
                         <li key={index} className="wrap-break-words">
                           {warning}
@@ -770,7 +770,7 @@ const MigrationApp: React.FC = () => {
 
       case 'error':
         return (
-          <div className="space-y-5">
+          <div className="space-yb-5">
             <TopContent>
               <StageBadge tone="destructive">
                 <AlertTriangle size={26} strokeWidth={1.5} />
@@ -805,7 +805,7 @@ const MigrationApp: React.FC = () => {
 
       case 'version_incompatible':
         return (
-          <div className="mx-auto w-full max-w-115 space-y-4">
+          <div className="mx-auto w-full max-w-115 space-yb-4">
             <div className="text-center">
               <StageBadge tone="warning">
                 <AlertTriangle size={26} strokeWidth={1.5} />
@@ -814,7 +814,7 @@ const MigrationApp: React.FC = () => {
                 {t('migration.version_incompatible.title')}
               </h2>
             </div>
-            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-foreground-secondary text-sm leading-relaxed">
+            <div className="space-yb-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-foreground-secondary text-sm leading-relaxed">
               <p>{t('migration.version_incompatible.preamble')}</p>
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
@@ -842,7 +842,7 @@ const MigrationApp: React.FC = () => {
           data-migration-language-select=""
           className={cn(
             '-translate-y-1/2 absolute top-1/2 z-10 flex items-center gap-1 [-webkit-app-region:no-drag]',
-            isMac ? 'right-3' : 'left-3'
+            isMac ? 'end-3' : 'start-3'
           )}>
           <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
             <SelectTrigger
@@ -884,7 +884,7 @@ const MigrationApp: React.FC = () => {
             progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
           )}>
           {progress.stage === 'introduction' && (
-            <div className="absolute top-2 start-3 z-10">
+            <div className="absolute start-3 top-2 z-10">
               <MigrationToolsMenu
                 open={skipMenuOpen}
                 onOpenChange={setSkipMenuOpen}
@@ -919,7 +919,7 @@ const MigrationApp: React.FC = () => {
         }}
       />
       {quitDeferred && (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-20 flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-xi-0 top-16 z-20 flex justify-center px-4">
           <Alert
             type="info"
             showIcon

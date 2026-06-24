@@ -132,7 +132,7 @@ export const SubWindowAppShell = () => {
             Win/Linux, so this branch never renders on macOS. */}
         {hasWindowControls && (
           <div
-            className={cn('absolute top-0 right-0 z-[9999] flex [-webkit-app-region:no-drag]', TITLE_BAR_HEIGHT_CLASS)}>
+            className={cn('absolute end-0 top-0 z-[9999] flex [-webkit-app-region:no-drag]', TITLE_BAR_HEIGHT_CLASS)}>
             <WindowControls />
           </div>
         )}

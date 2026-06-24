@@ -6803,9 +6803,6 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
-    },
-    "power": {
       "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
     },
     "privacy": {

@@ -69,8 +69,8 @@ export const providerListClasses = {
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
   scroller: 'min-h-0 flex-1 px-2.5 pb-2',
-  sectionStack: 'space-y-3',
-  section: 'space-y-2',
+  sectionStack: 'space-yb-3',
+  section: 'space-yb-2',
   sectionHeader: 'pb-0.5 ps-2 pe-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
@@ -134,11 +134,11 @@ export const customHeaderDrawerClasses = {
 
 export const drawerClasses = {
   form: 'flex min-h-0 flex-col gap-4 py-0',
-  section: 'space-y-3',
-  sectionCard: 'space-y-3.5 rounded-lg border border-border bg-background px-3 py-3 text-foreground shadow-none',
+  section: 'space-yb-3',
+  sectionCard: 'space-yb-3.5 rounded-lg border border-border bg-background px-3 py-3 text-foreground shadow-none',
   sectionDescription: 'text-xs leading-tight text-foreground-muted',
-  fieldList: 'space-y-3.5',
-  field: 'space-y-1.5',
+  fieldList: 'space-yb-3.5',
+  field: 'space-yb-1.5',
   fieldTitle: 'font-medium text-sm leading-5 text-foreground-secondary',
   input:
     'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
@@ -333,7 +333,7 @@ export const modelSyncClasses = {
     actionClasses.btnNeutral,
     'rounded-lg border-border-muted px-3 py-1.25 text-foreground/70 hover:bg-accent/40 hover:text-foreground'
   ),
-  list: 'mt-4 space-y-2',
+  list: 'mt-4 space-yb-2',
   row: 'flex items-start gap-3 rounded-xl border border-border-subtle bg-muted/30 px-3 py-3',
   rowBody: 'min-w-0 flex-1',
   rowTitle: 'truncate text-sm leading-5 text-foreground/85',
@@ -341,7 +341,7 @@ export const modelSyncClasses = {
   rowBadgeRow: 'mt-2 flex flex-wrap items-center gap-1.5',
   rowBadge:
     'rounded-full border border-border-muted bg-background px-2 py-0.5 text-xs leading-tight text-foreground/65',
-  impactList: 'mt-3 space-y-2',
+  impactList: 'mt-3 space-yb-2',
   impactItem:
     'rounded-xl border border-border-subtle bg-background/80 px-3 py-2 text-[13px] leading-5 text-foreground/78',
   emptyState:
@@ -364,7 +364,7 @@ export const modelSyncClasses = {
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-accent hover:text-foreground',
   fetchGhostAllRemoved:
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
-  fetchList: 'space-y-1',
+  fetchList: 'space-yb-1',
   fetchWarning:
     'my-2 gap-2 rounded-lg border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:

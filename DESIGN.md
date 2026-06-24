@@ -551,15 +551,15 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 | Bar height | 32px | `h-8` |
 | Margin top (gap above) | 12px | `mt-3` |
 | Margin bottom (gap below) | 8px | `mb-2` |
-| Left padding (title aligns with menu item icon column) | 20px | `pl-5` |
-| Right padding (action sits 12px from the column edge) | 12px | `pr-3` |
+| Left padding (title aligns with menu item icon column) | 20px | `ps-5` |
+| Right padding (action sits 12px from the column edge) | 12px | `pe-3` |
 | Title ↔ action gap | 8px | `gap-2` |
 | Bottom border (when `bordered`) | 1px | `border-b border-border` |
 
 **Rules:**
 - Action buttons should be 24×24 (`size-6`); they sit centered inside the 32px bar.
 - Title text comes from i18next; do not hard-code strings.
-- The asymmetric padding is intentional: `pl-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
+- The asymmetric padding is intentional: `ps-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
 - Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical; the title line box starts 20px from the column top.
 - Right-pane detail headers in two-column settings layouts **must** pass `bordered`; left sidebar headers **must not** (the menu list below them already provides visual structure). A right-pane header rendered by a non-`PageHeader` component (e.g. `ProviderHeader`, which carries a `<Switch>` plus multiple icons) must wrap itself in a container that draws an equivalent `border-b border-border` divider — see `providerDetailColumnClasses.headerContentMaxWidth` in `ProviderSettings/primitives/classNames.ts`.
 - Provider settings section headings use full `text-foreground` rather than reduced opacity. The right pane already has dense secondary helper text, badges, and inline controls; fully opaque section labels preserve scan hierarchy without introducing another local color rule.

@@ -29,7 +29,7 @@ const BaseNavigatorContent = ({
         <Accordion
           type="multiple"
           defaultValue={sections.map(({ groupId }) => groupId ?? UNGROUPED_SECTION_VALUE)}
-          className="space-y-3">
+          className="space-yb-3">
           {sections.map((section) => {
             const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
             const group = section.groupId ? groupById.get(section.groupId) : undefined

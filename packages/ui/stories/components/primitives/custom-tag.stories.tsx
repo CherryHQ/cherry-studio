@@ -97,7 +97,7 @@ export const States: Story = {
 // 实际使用场景
 export const UseCases: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <div>
         <h4 className="mb-2">技能标签:</h4>
         <div className="flex flex-wrap gap-2">

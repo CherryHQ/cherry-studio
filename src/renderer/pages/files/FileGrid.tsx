@@ -124,16 +124,16 @@ export const FileGrid = memo(function FileGrid({
                   <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type]} />
                 )}
                 {!isImage && (
-                  <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">
+                  <span className="absolute top-1.5 start-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">
                     {getFormatLabel(file.format)}
                   </span>
                 )}
                 {file.isMissing && (
-                  <span className="absolute bottom-1.5 left-1.5 rounded bg-destructive/10 px-1.5 py-[1px] text-[10px] text-destructive/70">
+                  <span className="absolute bottom-1.5 start-1.5 rounded bg-destructive/10 px-1.5 py-[1px] text-[10px] text-destructive/70">
                     {t('files.missing')}
                   </span>
                 )}
-                <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="absolute top-1 end-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <Button
                     variant="ghost"
                     onClick={(e) => {

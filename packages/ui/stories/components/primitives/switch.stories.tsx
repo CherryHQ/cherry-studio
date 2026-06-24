@@ -583,13 +583,13 @@ export const FormExample: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-[500px] space-y-6">
+      <form onSubmit={handleSubmit} className="w-[500px] space-yb-6">
         <h3 className="text-base font-semibold">Account Preferences</h3>
 
-        <div className="space-y-4">
+        <div className="space-yb-4">
           <div>
             <h4 className="mb-3 text-sm font-medium">Notifications</h4>
-            <div className="space-y-3">
+            <div className="space-yb-3">
               <DescriptionSwitch
                 label="Email notifications"
                 description="Receive updates via email"
@@ -623,7 +623,7 @@ export const FormExample: Story = {
 
           <div>
             <h4 className="mb-3 text-sm font-medium">Security</h4>
-            <div className="space-y-3">
+            <div className="space-yb-3">
               <DescriptionSwitch
                 label="Two-factor authentication"
                 description="Add an extra layer of security"

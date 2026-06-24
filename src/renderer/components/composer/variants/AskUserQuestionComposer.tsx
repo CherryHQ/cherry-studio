@@ -252,7 +252,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 type="button"
                 variant="ghost"
                 className={cn(
-                  'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
+                  'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-start shadow-none',
                   'hover:bg-muted focus-visible:bg-muted',
                   isSelected && 'bg-muted'
                 )}

@@ -256,7 +256,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
               <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
             </div>
 
-            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 [-webkit-app-region:no-drag]">
+            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 start-1/2 [-webkit-app-region:no-drag]">
               <SegmentedControl<ViewMode>
                 size="sm"
                 value={viewMode}

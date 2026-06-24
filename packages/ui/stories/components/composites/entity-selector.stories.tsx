@@ -166,7 +166,7 @@ function WithFilterPanelSlotDemo() {
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       filterActive={tags.length > 0 || sort !== null}
       filterPanel={
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <div className="flex flex-wrap gap-1.5">
             {['Tag A', 'Tag B', 'Tag C', 'Tag D'].map((label, i) => {
               const id = `tag-${i + 1}`
@@ -397,7 +397,7 @@ function FullFeaturedDemo() {
       emptyState={EMPTY_STATE}
       filterActive={tagIds.length > 0 || sort !== null}
       filterPanel={
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <div className="flex flex-wrap gap-1.5">
             {ALL_TAGS.map((t) => {
               const active = tagIds.includes(t.id)

@@ -342,7 +342,7 @@ export default function HealthCheckDrawer({
 
       {!showPipeline ? (
         <>
-          <div className="space-y-4">
+          <div className="space-yb-4">
             <div className="flex items-center justify-between gap-3">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
@@ -387,7 +387,7 @@ export default function HealthCheckDrawer({
           </div>
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
+            <div className="space-yb-3 rounded-xl border border-border-muted bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>

@@ -150,7 +150,7 @@ export function Sidebar({
     return (
       <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
         <div
-          className="absolute inset-y-0 start-0 z-50 w-4 [-webkit-app-region:no-drag]"
+          className="absolute inset-yb-0 start-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
             hoverTimeout.current = setTimeout(() => onHoverChange?.(true), 200)

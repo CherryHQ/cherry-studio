@@ -52,7 +52,7 @@ const BlacklistSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
       <SettingDivider />
-      <div className="space-y-2 py-2.5">
+      <div className="space-yb-2 py-2.5">
         <div className="flex items-center gap-2 text-foreground-muted text-sm leading-5">
           <span>{t('settings.tool.websearch.blacklist_description')}</span>
           <span className="rounded-md bg-muted px-1.5 py-px font-medium text-foreground-muted text-xs leading-tight">

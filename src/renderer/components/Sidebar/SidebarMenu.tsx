@@ -66,7 +66,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
 function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
+    <div className="space-yb-0.5 px-2 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon

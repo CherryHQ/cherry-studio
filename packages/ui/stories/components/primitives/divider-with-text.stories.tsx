@@ -72,10 +72,10 @@ export const CustomStyle: Story = {
 
 export const MultipleUsage: Story = {
   render: () => (
-    <div className="space-y-8">
+    <div className="space-yb-8">
       <div>
         <h3 className="text-lg font-medium mb-4">登录表单示例</h3>
-        <div className="max-w-md mx-auto space-y-4">
+        <div className="max-w-md mx-auto space-yb-4">
           <div>
             <label className="block text-sm font-medium mb-1">邮箱</label>
             <input
@@ -112,7 +112,7 @@ export const MultipleUsage: Story = {
 
 export const InSections: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <div>
         <h2 className="text-xl font-bold mb-4">文章内容</h2>
         <p className="text-gray-600 mb-4">这是文章的第一段内容。在这里我们可以看到一些基本信息和介绍性的内容。</p>
@@ -132,28 +132,28 @@ export const InSections: Story = {
 
 export const WithSteps: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">安装步骤</h3>
 
-      <div className="space-y-1">
+      <div className="space-yb-1">
         <p className="text-sm">下载安装包到本地</p>
       </div>
 
       <DividerWithText text="步骤 1 完成" />
 
-      <div className="space-y-1">
+      <div className="space-yb-1">
         <p className="text-sm">解压缩文件到指定目录</p>
       </div>
 
       <DividerWithText text="步骤 2 完成" />
 
-      <div className="space-y-1">
+      <div className="space-yb-1">
         <p className="text-sm">运行安装程序</p>
       </div>
 
       <DividerWithText text="步骤 3 完成" />
 
-      <div className="space-y-1">
+      <div className="space-yb-1">
         <p className="text-sm font-medium text-green-600">安装完成！</p>
       </div>
     </div>
@@ -162,10 +162,10 @@ export const WithSteps: Story = {
 
 export const DifferentSizes: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <h3 className="text-lg font-medium">不同样式的分割线</h3>
 
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <DividerWithText text="默认样式" />
 
         <DividerWithText text="加粗文字" className="[&>span]:font-bold" />
@@ -185,10 +185,10 @@ export const DifferentSizes: Story = {
 
 export const Timeline: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <h3 className="text-lg font-medium">项目时间线</h3>
 
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
           <h4 className="font-medium">项目启动</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400">确定项目需求和目标</p>

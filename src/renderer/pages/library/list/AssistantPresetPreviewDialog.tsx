@@ -66,7 +66,7 @@ export function AssistantPresetPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-5 overflow-y-auto pe-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        <div className="max-h-[60vh] space-yb-5 overflow-y-auto pe-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
           {description && (
             <section>
               <div className="mb-2 text-foreground-secondary text-sm">

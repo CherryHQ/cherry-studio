@@ -231,7 +231,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
         )}
         style={isMac ? { paddingInlineStart: '70px' } : {}}>
         {action.icon && (
-          <div className="ml-1 flex items-center justify-center">
+          <div className="ms-1 flex items-center justify-center">
             <SelectionActionIcon name={action.icon} size={16} className="text-foreground" fallback={() => null} />
           </div>
         )}

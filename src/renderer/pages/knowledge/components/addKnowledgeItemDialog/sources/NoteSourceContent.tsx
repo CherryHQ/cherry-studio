@@ -67,7 +67,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
             <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-muted">
               <NotebookPen className="size-4" />
             </div>
-            <div className="min-w-0 space-y-1">
+            <div className="min-w-0 space-yb-1">
               <p className="text-foreground text-sm leading-5">
                 {t('knowledge.data_source.add_dialog.note.empty_title')}
               </p>
@@ -82,7 +82,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
 
     return (
       <div data-testid="knowledge-source-note-list" className="min-h-0 flex-1 overflow-y-auto">
-        <div role="list" className="space-y-1.5 pe-1">
+        <div role="list" className="space-yb-1.5 pe-1">
           {noteFiles.map((note) => (
             <label
               key={note.externalPath}

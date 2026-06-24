@@ -62,7 +62,7 @@ const PaintingStripItem: FC<{
       )}
 
       {loading && previewFile && (
-        <span className="pointer-events-none absolute inset-x-1 bottom-1 z-10 h-1 overflow-hidden rounded-full bg-black/10">
+        <span className="pointer-events-none absolute inset-xi-1 bottom-1 z-10 h-1 overflow-hidden rounded-full bg-black/10">
           <span className="block h-full w-5 animate-[painting-history-loading_1.2s_ease-in-out_infinite] rounded-full bg-foreground/70" />
         </span>
       )}

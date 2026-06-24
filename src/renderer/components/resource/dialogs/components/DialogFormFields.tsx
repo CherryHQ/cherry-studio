@@ -98,7 +98,7 @@ export const DialogModelTrigger = ({
     )}>
     <span className="flex min-w-0 flex-1 items-center gap-2">
       {model ? <ModelAvatar model={model} size={18} /> : null}
-      <span className="min-w-0 flex-1 truncate text-left">
+      <span className="min-w-0 flex-1 truncate text-start">
         {displayLabel}
         {providerLabel ? <span className="text-muted-foreground/70"> | {providerLabel}</span> : null}
       </span>

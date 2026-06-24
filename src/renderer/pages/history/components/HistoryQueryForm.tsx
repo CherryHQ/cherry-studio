@@ -146,7 +146,7 @@ const HistoryQueryForm = ({
           count: selectedCount
         })}
         content={
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="font-medium text-foreground-secondary text-xs leading-4">
               {t('history.records.bulkMoveTopics.target')}
             </div>

@@ -202,7 +202,7 @@ function ScrollToBottomButton({ bottomOffset, label, onClick }: ScrollToBottomBu
   return (
     <div
       data-message-scroll-to-bottom-button-layer
-      className="pointer-events-none absolute inset-x-0 z-5 flex justify-center"
+      className="pointer-events-none absolute inset-xi-0 z-5 flex justify-center"
       style={{ bottom: bottomOffset }}>
       <Tooltip content={label} delay={500} placement="top">
         <Button

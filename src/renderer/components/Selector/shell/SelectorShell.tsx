@@ -484,7 +484,7 @@ export function SelectorShell({
                       aria-pressed={action.type === 'selectable' ? selected : undefined}
                       onClick={action.onClick}
                       className={cn(
-                        'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                        'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-start text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                         selected
                           ? 'bg-accent/70 text-foreground'
                           : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'

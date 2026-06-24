@@ -40,7 +40,7 @@ export const Default: Story = {
 export const WithCards: Story = {
   args: {
     children: (
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-yb-4">
         {Array.from({ length: 20 }, (_, i) => (
           <div key={i} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
             <h3 className="mb-2 text-lg font-semibold">Card {i + 1}</h3>

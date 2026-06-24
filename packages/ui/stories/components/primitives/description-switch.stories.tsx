@@ -279,7 +279,7 @@ export const NotificationSettings: Story = {
     })
 
     return (
-      <div className="w-[500px] space-y-6">
+      <div className="w-[500px] space-yb-6">
         <div>
           <h3 className="mb-4 text-base font-semibold">Notification Preferences</h3>
           <div className="flex flex-col gap-4">
@@ -338,7 +338,7 @@ export const PrivacySettings: Story = {
     })
 
     return (
-      <div className="w-[500px] space-y-6">
+      <div className="w-[500px] space-yb-6">
         <div>
           <h3 className="mb-4 text-base font-semibold">Privacy & Data</h3>
           <div className="flex flex-col gap-4">
@@ -393,7 +393,7 @@ export const ApplicationSettings: Story = {
     })
 
     return (
-      <div className="w-[500px] space-y-6">
+      <div className="w-[500px] space-yb-6">
         <div>
           <h3 className="mb-4 text-base font-semibold">Application Settings</h3>
           <div className="flex flex-col gap-4">
@@ -516,7 +516,7 @@ export const LoadingSimulation: Story = {
     }
 
     return (
-      <div className="w-[500px] space-y-6">
+      <div className="w-[500px] space-yb-6">
         <div>
           <h3 className="mb-4 text-base font-semibold">System Settings</h3>
           <div className="flex flex-col gap-4">
@@ -579,7 +579,7 @@ export const ComplexSettingsPanel: Story = {
     })
 
     return (
-      <div className="w-[600px] space-y-8">
+      <div className="w-[600px] space-yb-8">
         {/* Notifications Section */}
         <div>
           <div className="mb-4 flex items-center gap-2">
@@ -759,7 +759,7 @@ export const ComplexSettingsPanel: Story = {
 // Accessibility Features
 export const AccessibilityFeatures: Story = {
   render: () => (
-    <div className="w-[500px] space-y-6">
+    <div className="w-[500px] space-yb-6">
       <div>
         <h3 className="mb-4 text-base font-semibold">Keyboard Navigation</h3>
         <p className="mb-4 text-sm text-muted-foreground">
@@ -784,7 +784,7 @@ export const AccessibilityFeatures: Story = {
 // Responsive Layout
 export const ResponsiveLayout: Story = {
   render: () => (
-    <div className="space-y-6">
+    <div className="space-yb-6">
       <div className="w-[300px]">
         <h3 className="mb-4 text-sm font-semibold">Narrow Layout (300px)</h3>
         <div className="flex flex-col gap-3">

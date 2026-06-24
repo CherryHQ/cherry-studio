@@ -267,9 +267,9 @@ export const WithIcons: Story = {
 // 快捷键列表
 export const ShortcutList: Story = {
   render: () => (
-    <div className="w-96 space-y-2 rounded-lg border p-4">
+    <div className="w-96 space-yb-2 rounded-lg border p-4">
       <h3 className="mb-3 text-base font-semibold">键盘快捷键</h3>
-      <div className="space-y-2">
+      <div className="space-yb-2">
         <div className="flex items-center justify-between">
           <span className="text-sm">保存文件</span>
           <KbdGroup>
@@ -320,13 +320,13 @@ export const ShortcutList: Story = {
 // 编辑器快捷键
 export const EditorShortcuts: Story = {
   render: () => (
-    <div className="w-[600px] space-y-4 rounded-lg border p-6">
+    <div className="w-[600px] space-yb-4 rounded-lg border p-6">
       <h3 className="text-lg font-semibold">编辑器快捷键</h3>
 
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <div>
           <h4 className="mb-2 text-sm font-medium text-muted-foreground">文件操作</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center justify-between">
               <span className="text-sm">新建文件</span>
               <KbdGroup>
@@ -353,7 +353,7 @@ export const EditorShortcuts: Story = {
 
         <div>
           <h4 className="mb-2 text-sm font-medium text-muted-foreground">编辑</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center justify-between">
               <span className="text-sm">复制</span>
               <KbdGroup>
@@ -380,7 +380,7 @@ export const EditorShortcuts: Story = {
 
         <div>
           <h4 className="mb-2 text-sm font-medium text-muted-foreground">导航</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center justify-between">
               <span className="text-sm">转到行</span>
               <KbdGroup>
@@ -413,13 +413,13 @@ export const EditorShortcuts: Story = {
 // 游戏控制
 export const GameControls: Story = {
   render: () => (
-    <div className="w-96 space-y-4 rounded-lg border p-6">
+    <div className="w-96 space-yb-4 rounded-lg border p-6">
       <h3 className="text-lg font-semibold">游戏控制</h3>
 
-      <div className="space-y-3">
+      <div className="space-yb-3">
         <div>
           <h4 className="mb-2 text-sm font-medium text-muted-foreground">移动</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center justify-between">
               <span className="text-sm">向前</span>
               <Kbd>W</Kbd>
@@ -441,7 +441,7 @@ export const GameControls: Story = {
 
         <div>
           <h4 className="mb-2 text-sm font-medium text-muted-foreground">动作</h4>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className="flex items-center justify-between">
               <span className="text-sm">跳跃</span>
               <Kbd>Space</Kbd>
@@ -494,7 +494,7 @@ export const CustomSizes: Story = {
 // 实际应用示例
 export const RealWorldExample: Story = {
   render: () => (
-    <div className="w-[700px] space-y-6">
+    <div className="w-[700px] space-yb-6">
       <div className="rounded-lg border p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">命令面板</h3>
@@ -503,7 +503,7 @@ export const RealWorldExample: Story = {
             <Kbd>K</Kbd>
           </KbdGroup>
         </div>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <div className="flex items-center justify-between rounded-md p-2 hover:bg-muted">
             <div className="flex items-center gap-3">
               <Save className="h-4 w-4" />
@@ -550,7 +550,7 @@ export const RealWorldExample: Story = {
 
       <div className="rounded-lg border p-6">
         <h3 className="mb-4 text-lg font-semibold">提示信息</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <p className="text-sm text-muted-foreground">
             按 <Kbd>Ctrl</Kbd> 并点击链接可在新标签页中打开
           </p>

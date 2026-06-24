@@ -119,7 +119,7 @@ function TokenPreviewCard({
   const hasActions = Boolean(primaryAction)
 
   return (
-    <div className="w-72 overflow-hidden text-left">
+    <div className="w-72 overflow-hidden text-start">
       <div className={tokenPreviewHeaderClassName}>
         <span
           className={cn(
@@ -226,7 +226,7 @@ function FileTokenPreviewCard({
   const hasActions = Boolean(primaryAction || secondaryAction)
 
   return (
-    <div className="w-72 overflow-hidden text-left">
+    <div className="w-72 overflow-hidden text-start">
       {presentation.previewUrl && (
         <div className="h-24 overflow-hidden border-border-subtle border-b bg-muted">
           <img src={presentation.previewUrl} alt={label} className="h-full w-full object-cover" />
@@ -243,7 +243,7 @@ function FileTokenPreviewCard({
           </span>
         </div>
       )}
-      <div className="space-y-2.5 p-3">
+      <div className="space-yb-2.5 p-3">
         <div
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
           data-file-token-actions={hasActions ? '' : undefined}>

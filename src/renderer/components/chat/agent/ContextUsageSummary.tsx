@@ -39,10 +39,10 @@ export function ContextUsageSummary({
   const visibleCategories = usage?.categories.filter((category) => category.tokens > 0).slice(0, 4) ?? []
 
   return (
-    <section className={cn('space-y-2 text-xs', className)} aria-busy={isCompacting || undefined}>
+    <section className={cn('space-yb-2 text-xs', className)} aria-busy={isCompacting || undefined}>
       <h3 className="font-medium text-foreground">{t('agent.right_pane.info.context_usage')}</h3>
       {usage && normalizedPercentage !== null ? (
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
             <div
               className={cn('h-full rounded-full', isCompacting && 'animate-pulse')}
@@ -56,7 +56,7 @@ export function ContextUsageSummary({
             <span className="min-w-0 truncate">{usage.model}</span>
           </div>
           {visibleCategories.length > 0 && (
-            <div className="space-y-1 border-border-subtle border-t pt-2">
+            <div className="space-yb-1 border-border-subtle border-t pt-2">
               {visibleCategories.map((category) => (
                 <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
                   <span className="min-w-0 truncate">

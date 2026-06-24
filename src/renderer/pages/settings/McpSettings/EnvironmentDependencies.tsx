@@ -585,15 +585,15 @@ function AddToolDialog({
               onChange={(e) => setQuery(e.target.value)}
             />
             {searching && (
-              <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 size-3.5 text-muted-foreground motion-safe:animate-spin" />
+              <Loader2 className="-translate-y-1/2 absolute top-1/2 end-3 size-3.5 text-muted-foreground motion-safe:animate-spin" />
             )}
             {results.length > 0 && (
-              <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-md">
+              <div className="absolute start-0 end-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-md">
                 {results.map((r) => (
                   <button
                     type="button"
                     key={r.name}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                    className="flex w-full items-center justify-between px-3 py-2 text-start text-sm transition-colors hover:bg-accent"
                     onClick={() => selectResult(r)}>
                     <span className="font-medium">{r.name}</span>
                     <span className="text-muted-foreground text-xs">{r.tool}</span>

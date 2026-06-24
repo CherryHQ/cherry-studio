@@ -437,7 +437,7 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () =
   }
 
   return (
-    <div className="space-y-3 rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
+    <div className="space-yb-3 rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
       <Field>
         <FieldLabel htmlFor={nameId} className={customLanguageFieldSubtitleClassName}>
           {t('settings.translate.custom.value.label')}
@@ -577,7 +577,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
   }
 
   return (
-    <div className="space-y-3 rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
+    <div className="space-yb-3 rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
       <Field>
         <FieldLabel htmlFor={nameId} className={customLanguageFieldSubtitleClassName}>
           {t('settings.translate.custom.value.label')}

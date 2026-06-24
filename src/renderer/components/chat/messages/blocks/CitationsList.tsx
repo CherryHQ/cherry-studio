@@ -224,7 +224,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
           {fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}
         </div>
         {isLoading ? (
-          <div className="space-y-1">
+          <div className="space-yb-1">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-2/3" />
           </div>

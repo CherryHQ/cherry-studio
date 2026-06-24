@@ -77,7 +77,7 @@ function FullDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 space-y-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
+    <div className="mt-1 space-yb-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 

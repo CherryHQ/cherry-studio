@@ -591,7 +591,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
   const [visible, setVisible] = useState(false)
 
   return (
-    <div className="space-y-2">
+    <div className="space-yb-2">
       <label className="font-medium text-[13px] text-foreground">{t('settings.provider.api_key.label')}</label>
       <div className="relative">
         <Input

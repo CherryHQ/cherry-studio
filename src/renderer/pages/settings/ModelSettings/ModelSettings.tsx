@@ -77,7 +77,7 @@ type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
 const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
-const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
+const SETTINGS_DRAWER_BODY_CLASS = 'space-yb-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 

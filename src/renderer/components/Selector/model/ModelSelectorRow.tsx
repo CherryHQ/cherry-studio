@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 
 export const MODEL_SELECTOR_ROW_CLASS =
-  'group relative flex w-full items-center gap-1 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors'
+  'group relative flex w-full items-center gap-1 rounded-[10px] px-2 py-1.5 text-start text-xs transition-colors'
 
 export const MODEL_SELECTOR_ROW_ACTION_BUTTON_CLASS =
   'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 shadow-none transition hover:bg-accent hover:text-accent-foreground hover:opacity-100! group-hover:opacity-60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'

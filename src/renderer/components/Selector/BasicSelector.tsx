@@ -172,7 +172,7 @@ const Selector = <V extends string | number>({
           aria-selected={isSelected}
           disabled={disabled || option.disabled}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
+            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-start text-sm outline-hidden transition-colors',
             'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground',
             'disabled:pointer-events-none disabled:opacity-50',
             level > 0 && 'ps-4'
@@ -199,7 +199,7 @@ const Selector = <V extends string | number>({
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
           className={cn(
-            'min-w-0 text-left leading-none',
+            'min-w-0 text-start leading-none',
             open && !disabled && 'bg-secondary-active',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'
