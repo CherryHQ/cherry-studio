@@ -472,6 +472,11 @@ const api = {
     getAccount: (): Promise<{ accountId: string | null }> => ipcRenderer.invoke(IpcChannel.Codex_GetAccount),
     logout: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Codex_Logout)
   },
+  grokCli: {
+    signIn: (): Promise<void> => ipcRenderer.invoke(IpcChannel.GrokCli_SignIn),
+    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.GrokCli_HasToken),
+    logout: (): Promise<void> => ipcRenderer.invoke(IpcChannel.GrokCli_Logout)
+  },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
