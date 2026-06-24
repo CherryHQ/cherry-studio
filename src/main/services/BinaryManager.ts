@@ -96,7 +96,16 @@ export { validateManagedBinary }
 @ServicePhase(Phase.Background)
 export class BinaryManager extends BaseService {
   private miseBin: string | null = null
+  // Built lazily on first mise invocation, never in onInit(): the isolated env is
+  // only ever consumed by runMise() (install/reconcile/remove/search), none of
+  // which run during init. buildIsolatedEnv() blocks on a region lookup
+  // (regionService.isInChina, for China mirror selection) whose cache is cold on
+  // every launch, so building it eagerly put a network round-trip on the
+  // Background-phase critical path that gates allReady(), for a value most
+  // launches never use. `isolatedEnvPromise` memoizes the in-flight build so
+  // concurrent first callers share a single build and a single region lookup.
   private isolatedEnv: Record<string, string> | null = null
+  private isolatedEnvPromise: Promise<Record<string, string>> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
   private stateLock: Promise<unknown> = Promise.resolve()
@@ -109,7 +118,9 @@ export class BinaryManager extends BaseService {
       return
     }
     logger.info('mise binary found', { path: this.miseBin })
-    this.isolatedEnv = await this.buildIsolatedEnv()
+    // isolatedEnv is built lazily on first runMise() — see getIsolatedEnv() and
+    // the isolatedEnv field comment. Building it here would block init on a
+    // region lookup that nothing in the init path consumes.
   }
 
   protected override onAllReady() {
@@ -326,15 +337,45 @@ export class BinaryManager extends BaseService {
     return env
   }
 
+  /**
+   * Lazily build (and memoize) the isolated mise env on first use. Deferred out
+   * of onInit() because buildIsolatedEnv() blocks on a region lookup
+   * (regionService.isInChina) that has no place on the startup critical path —
+   * see the isolatedEnv field comment. The in-flight promise is cached so
+   * concurrent first callers share a single build and a single region lookup; a
+   * failed build is not cached, so a later call can retry once a transient cause
+   * (e.g. mkdir failure) clears.
+   */
+  private getIsolatedEnv(): Promise<Record<string, string>> {
+    if (this.isolatedEnv) {
+      return Promise.resolve(this.isolatedEnv)
+    }
+    if (!this.isolatedEnvPromise) {
+      this.isolatedEnvPromise = this.buildIsolatedEnv().then(
+        (env) => {
+          this.isolatedEnv = env
+          return env
+        },
+        (err) => {
+          this.isolatedEnvPromise = null
+          throw err
+        }
+      )
+    }
+    return this.isolatedEnvPromise
+  }
+
   private async runMise(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
-    if (!this.miseBin || !this.isolatedEnv) {
-      // Both must be set before mise can run. The non-null assertion previously
-      // here would have silently fallen back to `process.env`, leaking the
-      // user's real shell environment (API keys, HOME, the real mise config)
-      // into the mise subprocess — defeating the isolation in buildIsolatedEnv.
+    if (!this.miseBin) {
+      // Without mise there is nothing to run. The non-null assertion previously
+      // used for the env would have silently fallen back to `process.env`,
+      // leaking the user's real shell environment (API keys, HOME, the real
+      // mise config) into the mise subprocess — defeating buildIsolatedEnv's
+      // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    return execFileAsync(this.miseBin, args, { cwd, env: this.isolatedEnv, timeout: 120_000 })
+    const env = await this.getIsolatedEnv()
+    return execFileAsync(this.miseBin, args, { cwd, env, timeout: 120_000 })
   }
 
   private withStateLock<T>(fn: () => Promise<T>): Promise<T> {

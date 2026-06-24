@@ -656,6 +656,42 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('lazy isolated env', () => {
+    // buildIsolatedEnv() blocks on a region lookup (regionService.isInChina)
+    // whose cache is cold on every launch. It must NOT run at init — only on the
+    // first actual mise invocation — so that lookup stays off the Background-phase
+    // startup path that gates allReady().
+    it('does not build the isolated env (no region lookup) until the first mise run', async () => {
+      const { regionService } = await import('@main/services/RegionService')
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+
+      expect((service as any).isolatedEnv).toBeNull()
+      expect(regionService.isInChina).not.toHaveBeenCalled()
+
+      mockExecFileAsync.mockResolvedValue({ stdout: 'ok\n', stderr: '' })
+      await (service as any).runMise(['which', 'fd'], '/tmp')
+
+      expect(regionService.isInChina).toHaveBeenCalledTimes(1)
+      expect((service as any).isolatedEnv).not.toBeNull()
+    })
+
+    it('builds the isolated env once across concurrent first mise runs', async () => {
+      const { regionService } = await import('@main/services/RegionService')
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+
+      mockExecFileAsync.mockResolvedValue({ stdout: 'ok\n', stderr: '' })
+      await Promise.all([
+        (service as any).runMise(['registry'], '/tmp'),
+        (service as any).runMise(['registry'], '/tmp')
+      ])
+
+      // Memoized in-flight promise → a single build and a single region lookup.
+      expect(regionService.isInChina).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('extractBundledBinaries', () => {
     let mockFsp: Record<string, ReturnType<typeof vi.fn>>
 
