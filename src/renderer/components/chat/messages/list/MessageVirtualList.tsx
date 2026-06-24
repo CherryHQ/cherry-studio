@@ -106,13 +106,14 @@ export function MessageVirtualList<T>({
     hasMoreTop,
     handleRef,
     topReachOverscanItems: overscan,
+    topPadding,
     scrollToTopKey: forceScrollToBottomKey,
     topicId,
     bottomPadding,
     preserveScrollAnchor
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
-  const { scrollToBottom } = runtime
+  const { scrollToBottom, markUserInput } = runtime
   const { onWheel } = runtime.scrollerProps
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -131,6 +132,22 @@ export function MessageVirtualList<T>({
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
   }, [onWheel, scrollerElement])
+
+  // Flag real user scroll intent (touch/pointer/keyboard) so the runtime can tell
+  // a genuine scroll-away from a programmatic scroll (virtua remeasure jump, a
+  // child `scrollIntoView`) and only release the top pin for the former.
+  useEffect(() => {
+    if (!scrollerElement) return
+    const onInput = () => markUserInput()
+    scrollerElement.addEventListener('pointerdown', onInput, { passive: true })
+    scrollerElement.addEventListener('touchstart', onInput, { passive: true })
+    scrollerElement.addEventListener('keydown', onInput)
+    return () => {
+      scrollerElement.removeEventListener('pointerdown', onInput)
+      scrollerElement.removeEventListener('touchstart', onInput)
+      scrollerElement.removeEventListener('keydown', onInput)
+    }
+  }, [markUserInput, scrollerElement])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom('smooth')
