@@ -299,6 +299,8 @@ const MigrationApp: React.FC = () => {
   const [backupLoading, setBackupLoading] = useState(false)
   const [backupChoice, setBackupChoice] = useState<'create' | 'existing'>('create')
   const [backupError, setBackupError] = useState<string | null>(null)
+  // Some runMigration failures happen before progress can reliably move to error.
+  const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
@@ -382,6 +384,7 @@ const MigrationApp: React.FC = () => {
 
     startGuardRef.current = true
     setIsLoading(true)
+    setLocalMigrationError(null)
     try {
       logger.info('Starting migration process...')
 
@@ -422,6 +425,7 @@ const MigrationApp: React.FC = () => {
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
+      setLocalMigrationError(errorMessage(error))
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
@@ -435,10 +439,12 @@ const MigrationApp: React.FC = () => {
     return progress.currentMessage
   }, [progress, t])
 
-  const showRail = progress.stage !== 'version_incompatible'
+  const stage = localMigrationError ? 'error' : progress.stage
+
+  const showRail = stage !== 'version_incompatible'
 
   const renderStage = () => {
-    switch (progress.stage) {
+    switch (stage) {
       case 'introduction':
         return (
           <div className="space-y-6">
@@ -766,14 +772,21 @@ const MigrationApp: React.FC = () => {
             <div className="rounded-xl border border-error-border bg-error-bg px-4 py-3">
               <p className="wrap-break-words text-error-text text-xs leading-relaxed">
                 {t('migration.error.error_prefix')}
-                {lastError || progress.error || t('migration.error.unknown')}
+                {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
               </Button>
-              <Button variant="default" size="lg" className="flex-1 gap-2" onClick={() => actions.retry()}>
+              <Button
+                variant="default"
+                size="lg"
+                className="flex-1 gap-2"
+                onClick={() => {
+                  setLocalMigrationError(null)
+                  void actions.retry()
+                }}>
                 <RotateCcw size={14} />
                 {t('migration.buttons.retry')}
               </Button>
@@ -854,7 +867,7 @@ const MigrationApp: React.FC = () => {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {showRail && <StepRail stage={progress.stage} />}
+        {showRail && <StepRail stage={stage} />}
         <main
           className={cn(
             'relative min-w-0 flex-1 overflow-y-auto',

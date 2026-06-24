@@ -163,6 +163,7 @@ vi.mock('../hooks/useMigrationProgress', () => ({
   })
 }))
 
+import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters'
 import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
@@ -193,6 +194,9 @@ describe('MigrationApp', () => {
     vi.mocked(migrationHookMock.actions.startMigration).mockClear()
     migrationHookMock.returnToBackupChoice.mockClear()
     migrationHookMock.returnToIntroduction.mockClear()
+    vi.mocked(ReduxExporter).mockReset()
+    vi.mocked(DexieExporter).mockReset()
+    vi.mocked(LocalStorageExporter).mockReset()
     migrationHookMock.progress = {
       currentMessage: 'Ready',
       migrators: [],
@@ -378,5 +382,67 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     expect(screen.getByText('migration.backup_progress.compressing')).toBeInTheDocument()
+  })
+
+  // A renderer-side exporter rejection used to be swallowed (only logged), leaving the user
+  // stranded on the backup_confirmed screen. It must now surface the error stage.
+  it('drives the error stage when a renderer-side export rejects', async () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Backup confirmed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'backup_confirmed'
+    }
+    // Redux export succeeds, then the Dexie export rejects mid-flow.
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+    )
+    invoke.mockResolvedValue('/tmp/userData')
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    // The failure surfaces the error stage locally, without ever handing off to main.
+    expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+    expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
+    expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
+  })
+
+  it('drives the error stage when the migration handoff rejects', async () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Backup confirmed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'backup_confirmed'
+    }
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () =>
+        ({
+          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+        }) as unknown as DexieExporter
+    )
+    vi.mocked(LocalStorageExporter).mockImplementation(
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          getEntryCount: vi.fn(() => 1)
+        }) as unknown as LocalStorageExporter
+    )
+    invoke.mockResolvedValue('/tmp/userData')
+    migrationHookMock.actions.startMigration.mockRejectedValue(new Error('StartMigration failed'))
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+    expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
   })
 })
