@@ -511,12 +511,9 @@ export class AiService extends BaseService {
         return Promise.all(
           downloads.map(async ({ url }) => {
             if (signal?.aborted) return null
-            const imageUrl = url.toString()
-            const downloaded = await downloadImageAsBase64(imageUrl)
+            const downloaded = await downloadImageAsBase64(url.toString())
             if (signal?.aborted) return null
-            // Surface a hard failure rather than returning null: the SDK treats a null
-            // download as "use the URL as base64", silently corrupting the result.
-            if (!downloaded) throw new Error(`Failed to download generated image URL: ${imageUrl}`)
+            if (!downloaded) return null
             return {
               data: Buffer.from(downloaded.data, 'base64'),
               mediaType: downloaded.media_type

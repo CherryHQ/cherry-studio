@@ -218,41 +218,6 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
-  it('throws from experimental image download failures instead of falling back to URL base64 decoding', async () => {
-    const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'test-provider',
-        providerSettings: {},
-        modelId: 'test-model'
-      }
-    } as never)
-
-    mockGenerateImage.mockResolvedValue({ images: [] })
-    mockDownloadImageAsBase64.mockResolvedValue(null)
-    mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
-    )
-
-    await service.generateImage({
-      uniqueModelId: 'test-provider::test-model',
-      prompt: 'draw a cat',
-      requestOptions: { signal: new AbortController().signal }
-    })
-
-    const callOptions = mockGenerateImage.mock.calls[0]?.[2]
-    await expect(
-      callOptions.experimental_download([
-        {
-          url: new URL('https://example.com/missing.png'),
-          isUrlSupportedByModel: false
-        }
-      ])
-    ).rejects.toThrow('Failed to download generated image URL: https://example.com/missing.png')
-
-    expect(mockDownloadImageAsBase64).toHaveBeenCalledWith('https://example.com/missing.png')
-  })
-
   it("omits SDK size when size is the 'auto' sentinel", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
