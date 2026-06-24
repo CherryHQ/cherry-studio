@@ -122,6 +122,19 @@ function findComposerTokenPosition(editor: Editor): number {
   return tokenPosition
 }
 
+function getRenderedFileToken(container: HTMLElement) {
+  const token = container.querySelector('[data-composer-token-kind="file"]')
+  expect(token).toBeInTheDocument()
+  return token as HTMLElement
+}
+
+function expectFileTokenVariant(container: HTMLElement, variant: string, iconClassNames: string[]) {
+  const token = getRenderedFileToken(container)
+  expect(token).toHaveAttribute('data-file-token-variant', variant)
+  expect(token.querySelector(`[data-file-token-icon="${variant}"]`)).toHaveClass('border-0', ...iconClassNames)
+  return token
+}
+
 describe('ComposerToken', () => {
   it('maps active composer token kinds to explicit components', () => {
     expect(Object.keys(composerInputTokenComponentByKind).toSorted()).toEqual(
@@ -132,7 +145,7 @@ describe('ComposerToken', () => {
   it('renders file tokens as compact inline chips with fallback styling', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'unknown.bin' }} />)
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
+    const token = getRenderedFileToken(container)
     expect(token).toHaveTextContent('unknown.bin')
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.getByTestId('composer-token-popover-content')).toBeInTheDocument()
@@ -162,7 +175,7 @@ describe('ComposerToken', () => {
 
     const { container } = render(<ComposerToken token={{ id: 'file:long', kind: 'file', label: longLabel }} />)
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
+    const token = getRenderedFileToken(container)
     const label = token?.querySelector('span.truncate')
 
     expect(token).toHaveClass('max-w-52', 'overflow-hidden')
@@ -190,15 +203,12 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'image')
-    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
-    expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass(
-      'border-0',
+    const token = expectFileTokenVariant(container, 'image', [
       'bg-[var(--color-cyan-100)]',
       'text-[var(--color-cyan-700)]'
-    )
+    ])
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
     expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('avatar-preview.png')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('PNG')
@@ -225,15 +235,9 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'pdf')
+    const token = expectFileTokenVariant(container, 'pdf', ['bg-[var(--color-red-100)]', 'text-[var(--color-red-700)]'])
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="pdf"]')).toHaveClass(
-      'border-0',
-      'bg-[var(--color-red-100)]',
-      'text-[var(--color-red-700)]'
-    )
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('PDF')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('2 KB')
@@ -279,12 +283,7 @@ describe('ComposerToken', () => {
         />
       )
 
-      const token = container.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveAttribute('data-file-token-variant', item.variant)
-      expect(token?.querySelector(`[data-file-token-icon="${item.variant}"]`)).toHaveClass(
-        'border-0',
-        ...item.colorClasses
-      )
+      expectFileTokenVariant(container, item.variant, item.colorClasses)
       unmount()
     }
   })
@@ -295,12 +294,7 @@ describe('ComposerToken', () => {
     for (const label of cases) {
       const { container, unmount } = render(<ComposerToken token={{ id: `file:${label}`, kind: 'file', label }} />)
 
-      const token = container.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveAttribute('data-file-token-variant', 'fallback')
-      expect(token?.querySelector('[data-file-token-icon="fallback"]')).toHaveClass(
-        'bg-accent',
-        'text-muted-foreground'
-      )
+      expectFileTokenVariant(container, 'fallback', ['bg-accent', 'text-muted-foreground'])
       unmount()
     }
   })
@@ -324,15 +318,12 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'code')
-    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
-    expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="code"]')).toHaveClass(
-      'border-0',
+    const token = expectFileTokenVariant(container, 'code', [
       'bg-[var(--color-indigo-100)]',
       'text-[var(--color-indigo-700)]'
-    )
+    ])
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
     expect(token?.querySelector('[data-file-token-icon="code"]')).not.toHaveClass('border-info', 'bg-background')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('TS')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('3 KB')
