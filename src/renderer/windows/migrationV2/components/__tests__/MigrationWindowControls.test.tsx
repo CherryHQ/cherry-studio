@@ -1,6 +1,8 @@
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const platformState = vi.hoisted(() => ({ isMac: false }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -12,10 +14,20 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+vi.mock('@renderer/config/constant', () => ({
+  get isMac() {
+    return platformState.isMac
+  }
+}))
+
 import { MigrationWindowControls } from '../MigrationWindowControls'
 
 describe('MigrationWindowControls', () => {
-  it('invokes the migration window control channels', () => {
+  beforeEach(() => {
+    platformState.isMac = false
+  })
+
+  it('renders custom controls and invokes the window control channels on Windows/Linux', () => {
     const invoke = vi.fn().mockResolvedValue(undefined)
     ;(window as unknown as { electron: { ipcRenderer: { invoke: typeof invoke } } }).electron = {
       ipcRenderer: { invoke }
@@ -30,15 +42,13 @@ describe('MigrationWindowControls', () => {
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.CloseWindow)
   })
 
-  it('uses semantic hover styling', () => {
-    render(<MigrationWindowControls />)
+  it('renders nothing on macOS, deferring to the native traffic lights', () => {
+    platformState.isMac = true
 
-    const minimizeButton = screen.getByRole('button', { name: 'Minimize' })
-    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const { container } = render(<MigrationWindowControls />)
 
-    expect(minimizeButton.className).toContain('hover:bg-accent')
-    expect(minimizeButton.className).not.toContain('rgba')
-    expect(closeButton.className).toContain('hover:bg-destructive')
-    expect(closeButton.className).not.toContain('rgba')
+    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByRole('button', { name: 'Minimize' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
   })
 })
