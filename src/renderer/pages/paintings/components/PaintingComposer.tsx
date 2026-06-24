@@ -27,14 +27,77 @@ import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { BaseConfigItem } from '../form/baseConfigItem'
+import { deriveChipLabel } from '../form/fields/SizeChipsField'
+import { imageGenerationToFields } from '../form/imageGenerationToFields'
+import { resolveOptions } from '../form/resolveOptions'
+import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { PaintingData } from '../model/types/paintingData'
+import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
+
+/** Size-bearing canonical keys — formatted as chip-style dimensions. */
+const SIZE_PREVIEW_KEYS = ['size', 'imageResolution', 'aspectRatio'] as const
+
+/** Field types worth surfacing in the compact button summary. */
+const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
+  'select',
+  'sizeChips',
+  'slider',
+  'radio',
+  'iconRadio',
+  'styleToggle'
+])
+
+function formatSummaryValue(
+  item: BaseConfigItem,
+  value: unknown,
+  params: PaintingData['params'],
+  translate: (key: string) => string
+): string | undefined {
+  // Size-bearing fields render as chip-style dimensions, matching the size chips.
+  if ((SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key ?? '')) {
+    if (value === 'custom') {
+      const w = params?.customSize_width
+      const h = params?.customSize_height
+      return w && h ? `${String(w)}×${String(h)}` : undefined
+    }
+    return deriveChipLabel(String(value), String(value))
+  }
+  if (item.type === 'slider') return String(value)
+  // Option-based: show the selected option's localized label.
+  const match = resolveOptions(item, params ?? {}, translate).find((opt) => String(opt.value) === String(value))
+  return match?.label ?? String(value)
+}
+
+/**
+ * Compact summary of the current parameter selection, shown on the params button so
+ * the popover's choices are visible at a glance. Mirrors the form: each field's
+ * effective value is `params[key] ?? item.initialValue` (PaintingFieldRenderer), so
+ * registry defaults appear before the user explicitly changes them.
+ */
+function paramsSummary(
+  params: PaintingData['params'],
+  items: BaseConfigItem[],
+  translate: (key: string) => string
+): string {
+  const parts: string[] = []
+  for (const item of items) {
+    if (!item.key || !SUMMARY_TYPES.has(item.type)) continue
+    if (item.condition && !item.condition(params ?? {})) continue
+    const value = params?.[item.key] ?? item.initialValue
+    if (value === undefined || value === null || value === '') continue
+    const formatted = formatSummaryValue(item, value, params, translate)
+    if (formatted) parts.push(formatted)
+  }
+  return parts.join(' · ')
+}
 
 export interface PaintingComposerProps {
   painting: PaintingData
@@ -55,6 +118,11 @@ const PaintingParamsButton: FC<{
   onGenerateRandomSeed?: (key: string) => void
 }> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
+  const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+  const summary = useMemo(() => {
+    const items = imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) })
+    return paramsSummary(painting.params, items, t)
+  }, [registrySupport, painting.mode, painting.params, t])
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -65,6 +133,11 @@ const PaintingParamsButton: FC<{
           className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'text-muted-foreground')}
           aria-label={t('common.settings')}>
           <Settings2 className="size-4" />
+          {summary && (
+            <span className="max-w-[220px] truncate" title={summary}>
+              {summary}
+            </span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-[min(340px,calc(100vw-2rem))] rounded-[8px] p-3">

@@ -42,7 +42,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
 }))
 
 vi.mock('@renderer/components/composer/tools/registry', () => ({
-  getComposerToolConfig: () => ({ enableQuickPanel: false, enableDragDrop: true })
+  getComposerToolConfig: () => ({ enableQuickPanel: true, enableDragDrop: true })
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/ComposerControlScaffolding', () => ({
@@ -71,6 +71,21 @@ vi.mock('@renderer/hooks/useModel', () => ({
 vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
 
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
+
+vi.mock('../../hooks/useImageGenerationSupport', () => ({
+  useImageGenerationSupport: () => ({
+    modes: {
+      generate: {
+        supports: {
+          background: { type: 'enum', options: ['auto', 'transparent', 'opaque'], default: 'auto' },
+          numImages: { type: 'range', min: 1, max: 10, default: 1 },
+          quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'], default: 'auto' },
+          size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'], default: '1024x1024' }
+        }
+      }
+    }
+  })
+}))
 
 vi.mock('../PaintingModelSelector', () => ({
   default: () => <div data-testid="painting-model-selector" />
@@ -138,5 +153,32 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('previews the selected size on the params button', () => {
+    renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
+    expect(screen.getByLabelText('common.settings')).toHaveTextContent('1536×1024')
+  })
+
+  it('previews registry defaults when nothing is stored', () => {
+    renderComposer({ painting: makePainting({ params: {} }) })
+    expect(screen.getByLabelText('common.settings')).toHaveTextContent('1024×1024')
+  })
+
+  it('previews custom dimensions when size is custom', () => {
+    renderComposer({
+      painting: makePainting({ params: { size: 'custom', customSize_width: 800, customSize_height: 600 } })
+    })
+    expect(screen.getByLabelText('common.settings')).toHaveTextContent('800×600')
+  })
+
+  it('previews count, quality and background alongside size', () => {
+    renderComposer({ painting: makePainting({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
+    const button = screen.getByLabelText('common.settings')
+    expect(button).toHaveTextContent('6')
+    expect(button).toHaveTextContent('1024×1024')
+    // i18next has no instance in tests, so option labels fall back to their keys.
+    expect(button).toHaveTextContent('paintings.quality_options.low')
+    expect(button).toHaveTextContent('paintings.background_options.auto')
   })
 })
