@@ -44,12 +44,22 @@ const PaintingPage: FC = () => {
     painting: currentPainting
   })
 
+  // Default model is a view/fallback concern, not stored state: a model-less painting
+  // (fresh draft, `+`-created) shows and generates with the first available model
+  // until the user picks or generation persists one. No mount effect writes it, so it
+  // can't race the history bootstrap and disarm usePaintingInitialSelection.
+  const composerPainting = useMemo<PaintingData>(() => {
+    if (currentPainting.model) return currentPainting
+    const fallback = modelCatalog.currentModelOptions[0]?.value
+    return fallback ? { ...currentPainting, model: String(fallback) } : currentPainting
+  }, [currentPainting, modelCatalog.currentModelOptions])
+
   const {
     generating: liveGenerating,
     submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
-    painting: currentPainting,
+    painting: composerPainting,
     onPaintingChange: setCurrentPainting,
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
@@ -65,15 +75,6 @@ const PaintingPage: FC = () => {
     onPaintingChange: patchPainting,
     ensureProviderCatalog: modelCatalog.ensureProviderCatalog
   })
-
-  useEffect(() => {
-    if (!currentPainting.model && modelCatalog.currentModelOptions.length > 0 && !modelCatalog.isLoading) {
-      const firstOption = modelCatalog.currentModelOptions[0]
-      if (firstOption?.value) {
-        patchPainting({ model: String(firstOption.value) })
-      }
-    }
-  }, [currentPainting.model, modelCatalog.currentModelOptions, modelCatalog.isLoading, patchPainting])
 
   const list = usePaintingList({
     painting: currentPainting,
@@ -107,7 +108,7 @@ const PaintingPage: FC = () => {
                 <div className={paintingClasses.promptDock}>
                   <QuickPanelProvider>
                     <PaintingComposer
-                      painting={currentPainting}
+                      painting={composerPainting}
                       generating={generating}
                       onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
                       onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
