@@ -3,10 +3,12 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { t } from '@main/utils/language'
-import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
-import { parseDataUrl } from '@shared/utils'
-import type { FileMetadata, FileType } from '@types'
-import { FILE_TYPE } from '@types'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileType } from '@shared/types/file'
+import { FILE_TYPE } from '@shared/types/file'
+import { KB, MB } from '@shared/utils/constants'
+import { parseDataUrl } from '@shared/utils/dataUrl'
+import { documentExts, imageExts } from '@shared/utils/file'
 import chardet from 'chardet'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
@@ -22,6 +24,11 @@ import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
+
+function resolveHomeRelativeFilePath(filePath: string): string {
+  if (!filePath.startsWith('~/') && !filePath.startsWith('~\\')) return filePath
+  return path.join(application.getPath('sys.home'), filePath.slice(2))
+}
 
 class FileStorage {
   // TODO(v2): Lazy getter is a workaround, not a fix.
@@ -726,7 +733,7 @@ class FileStorage {
   }
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    const resolved = await shell.openPath(path)
+    const resolved = await shell.openPath(resolveHomeRelativeFilePath(path))
     if (resolved !== '') {
       throw new Error(resolved)
     }
@@ -767,7 +774,7 @@ class FileStorage {
       }
 
       // Get app paths to prevent selection of restricted directories
-      const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
+      const appDataPath = path.resolve(application.getPath('sys.appdata'))
       const filesDir = path.resolve(application.getPath('feature.files.data'))
       const currentNotesDir = path.resolve(application.getPath('feature.notes.data'))
 
@@ -814,7 +821,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string> => {
+  ): Promise<string | null> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: t('dialog.save_file'),
@@ -822,13 +829,11 @@ class FileStorage {
         ...options
       })
 
-      if (result.canceled) {
-        return Promise.reject(new Error('User canceled the save dialog'))
+      if (result.canceled || !result.filePath) {
+        return null
       }
 
-      if (!result.canceled && result.filePath) {
-        writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-      }
+      writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
     } catch (err: any) {
@@ -1043,13 +1048,14 @@ class FileStorage {
   }
 
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    if (!fs.existsSync(path)) {
-      const msg = `File or folder does not exist: ${path}`
+    const resolvedPath = resolveHomeRelativeFilePath(path)
+    if (!fs.existsSync(resolvedPath)) {
+      const msg = `File or folder does not exist: ${resolvedPath}`
       logger.error(msg)
       throw new Error(msg)
     }
     try {
-      shell.showItemInFolder(path)
+      shell.showItemInFolder(resolvedPath)
     } catch (error) {
       logger.error('Failed to show item in folder:', error as Error)
     }

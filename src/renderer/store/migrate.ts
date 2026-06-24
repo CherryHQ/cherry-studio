@@ -17,6 +17,13 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
+import {
+  API_SERVER_DEFAULTS,
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+  DEFAULT_TEMPERATURE
+} from '@renderer/config/constant'
+import { defaultByPassRules } from '@renderer/config/constant'
 import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { toSharedCompatModel } from '@renderer/config/models/bridge'
@@ -39,15 +46,7 @@ import type {
 } from '@renderer/types'
 import { isBuiltinMcpServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
-import {
-  API_SERVER_DEFAULTS,
-  DEFAULT_CONTEXTCOUNT,
-  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
-  DEFAULT_TEMPERATURE
-} from '@shared/config/constant'
-import { defaultByPassRules } from '@shared/config/constant'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -61,6 +60,19 @@ import { initialState as notesInitialState } from './note'
 import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
+
+const DEFAULT_LEGACY_SIDEBAR_ICONS = [
+  'assistants',
+  'store',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes'
+]
+
 const logger = loggerService.withContext('Migrate')
 
 // Inlined verbatim from the deleted v1 `@renderer/utils/provider` — this v1
@@ -896,7 +908,8 @@ const migrateConfig = {
         })
       }
       state.settings.sidebarIcons = {
-        visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
+        // @ts-ignore eslint-disable-next-line
+        visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
         disabled: []
       }
       return state
@@ -908,7 +921,8 @@ const migrateConfig = {
     try {
       if (!state.settings.sidebarIcons) {
         state.settings.sidebarIcons = {
-          visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
+          // @ts-ignore eslint-disable-next-line
+          visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
           disabled: []
         }
       }
@@ -2293,10 +2307,10 @@ const migrateConfig = {
   '136': (state: RootState) => {
     try {
       state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
-        DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
+        DEFAULT_LEGACY_SIDEBAR_ICONS.includes(icon)
       )
       state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
-        DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
+        DEFAULT_LEGACY_SIDEBAR_ICONS.includes(icon)
       )
       return state
     } catch (error) {

@@ -1,19 +1,21 @@
 import { loggerService } from '@logger'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { TabLruManager } from '@renderer/services/TabLruManager'
-import { uuid } from '@renderer/utils'
-import { getDefaultRouteTitle, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('TabsContext')
 
 const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
-  url: '/home',
+  url: '/app/chat',
   title: '',
   lastAccessTime: Date.now(),
   isDormant: false
@@ -21,6 +23,13 @@ const DEFAULT_TAB: Tab = {
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
+  // Chat / agent tabs are page-titled (topic / session name + assistant / agent
+  // emoji set by their page) — never auto-localize, or the route title clobbers
+  // the page title even for the bare `/app/chat` default tab.
+  if (isPageTitledRoute(tab.url)) {
+    return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
+  }
+  if (tab.id === 'home') return { ...tab, title: getDefaultRouteTitle(tab.url) }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
@@ -46,6 +55,13 @@ export interface OpenTabOptions {
   id?: string
   /** Per-entity icon descriptor (e.g. mini-app logo string); rendered in the tab bar when set */
   icon?: string
+  /** Optional tab metadata copied into the newly-created tab. */
+  metadata?: Tab['metadata']
+  /**
+   * Materialize the tab as pinned. Set when a detached sub-window re-creates a tab
+   * from its init payload so the pinned state survives the detach → re-attach round-trip.
+   */
+  isPinned?: boolean
 }
 
 export interface TabsContextValue {
@@ -83,7 +99,20 @@ export interface TabsContextValue {
 
 const TabsContext = createContext<TabsContextValue | null>(null)
 
-export function TabsProvider({ children }: { children: ReactNode }) {
+type TabsProviderProps = {
+  children: ReactNode
+  initialDefaultTab?: Tab | null
+  includePinnedTabs?: boolean
+}
+
+export function TabsProvider({
+  children,
+  initialDefaultTab = DEFAULT_TAB,
+  includePinnedTabs = true
+}: TabsProviderProps) {
+  // Route-derived tab titles are localized, so recompute them on language change.
+  const { i18n } = useTranslation()
+
   // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
@@ -104,11 +133,21 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     [setPinnedTabsRaw]
   )
 
-  // Normal tabs - in-memory storage (cleared on restart), excludes home tab
-  const [normalTabs, setNormalTabs] = useState<Tab[]>([])
+  // Whether a tab's `isPinned` should route it into the persistent pinned list. The main
+  // window surfaces pinned tabs, so it follows the flag. A detached sub-window passes
+  // `includePinnedTabs={false}`: it has no pinned section and must never write the shared
+  // `ui.tab.pinned_tabs` cache, so every tab lives in the normal list there — `isPinned`
+  // is kept on the object only to round-trip the pinned state back on re-attach.
+  const storesPinned = useCallback(
+    (tab: Pick<Tab, 'isPinned'>) => includePinnedTabs && !!tab.isPinned,
+    [includePinnedTabs]
+  )
+
+  // Normal tabs - in-memory storage (cleared on restart)
+  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
 
   // Active tab ID - in-memory storage
-  const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
+  const [activeTabId, setActiveTabIdState] = useState<string>(() => initialDefaultTab?.id ?? '')
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLruManager | null>(null)
@@ -133,11 +172,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // Merge tabs: home + pinned + normal (route titles follow current i18n language)
+  // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
-    return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [pinnedTabs, normalTabs])
+    const currentPinnedTabs = includePinnedTabs ? pinnedTabs || [] : []
+    return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
+  }, [includePinnedTabs, pinnedTabs, normalTabs, i18n.language])
 
   /**
    * Hibernate tab (manual)
@@ -150,13 +189,13 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const savedState: TabSavedState = { scrollPosition: 0 }
       logger.info('Tab hibernated (manual)', { tabId, route: tab.url })
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
       } else {
         setNormalTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
       }
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   /**
@@ -169,7 +208,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       logger.info('Tab awakened', { tabId, route: tab.url })
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
         )
@@ -179,7 +218,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         )
       }
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   const updateTab = useCallback(
@@ -187,13 +226,13 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const tab = tabs.find((t) => t.id === id)
       if (!tab) return
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       } else {
         setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       }
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   const setActiveTab = useCallback(
@@ -209,7 +248,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       }
 
       // Update lastAccessTime and wake state
-      if (targetTab.isPinned) {
+      if (storesPinned(targetTab)) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
         )
@@ -222,7 +261,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setActiveTabIdState(id)
       performLRUCheck(id)
     },
-    [activeTabId, tabs, setPinnedTabs, performLRUCheck]
+    [activeTabId, tabs, setPinnedTabs, performLRUCheck, storesPinned]
   )
 
   const addTab = useCallback(
@@ -239,7 +278,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         isDormant: false
       }
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => [...prev, newTab])
       } else {
         setNormalTabs((prev) => [...prev, newTab])
@@ -248,7 +287,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       setActiveTabIdState(tab.id)
     },
-    [tabs, setActiveTab, setPinnedTabs, performLRUCheck]
+    [tabs, setActiveTab, setPinnedTabs, performLRUCheck, storesPinned]
   )
 
   const closeTab = useCallback(
@@ -265,7 +304,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         newActiveId = nextTab ? nextTab.id : ''
       }
 
-      if (tab.isPinned) {
+      if (storesPinned(tab)) {
         setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
       } else {
         setNormalTabs((prev) => prev.filter((t) => t.id !== id))
@@ -273,18 +312,18 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       setActiveTabIdState(newActiveId)
     },
-    [tabs, activeTabId, setPinnedTabs]
+    [tabs, activeTabId, setPinnedTabs, storesPinned]
   )
 
   const setTabs = useCallback(
     (newTabs: Tab[] | ((prev: Tab[]) => Tab[])) => {
       const resolvedTabs = typeof newTabs === 'function' ? newTabs(tabs) : newTabs
-      const pinned = resolvedTabs.filter((t) => t.isPinned)
-      const normal = resolvedTabs.filter((t) => !t.isPinned)
+      const pinned = resolvedTabs.filter((t) => storesPinned(t))
+      const normal = resolvedTabs.filter((t) => !storesPinned(t))
       setPinnedTabs(pinned)
       setNormalTabs(normal)
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, storesPinned]
   )
 
   /**
@@ -292,7 +331,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -308,6 +347,8 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         url,
         title: title || getDefaultRouteTitle(url),
         icon,
+        metadata,
+        isPinned,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -388,7 +429,10 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, tab)
+      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+        ...tab,
+        url: resolveSidebarAppTabEntryUrl(tab)
+      })
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)
@@ -417,7 +461,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       }
 
       // Add to appropriate storage
-      if (restoredTab.isPinned) {
+      if (storesPinned(restoredTab)) {
         setPinnedTabs((prev) => [...prev, restoredTab])
       } else {
         setNormalTabs((prev) => [...prev, restoredTab])
@@ -426,7 +470,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setActiveTabIdState(restoredTab.id)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [tabs, setActiveTab, setPinnedTabs]
+    [tabs, setActiveTab, setPinnedTabs, storesPinned]
   )
 
   // Listen for tab attach requests (from Main Process)

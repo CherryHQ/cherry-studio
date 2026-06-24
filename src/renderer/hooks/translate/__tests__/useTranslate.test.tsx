@@ -17,7 +17,7 @@ const translateTextMock =
       signal?: AbortSignal
     ) => Promise<string>
   >()
-vi.mock('@renderer/services/TranslateService', () => ({
+vi.mock('@renderer/utils/translate/translateText', () => ({
   translateText: (...args: any[]) => translateTextMock(...(args as Parameters<typeof translateTextMock>))
 }))
 

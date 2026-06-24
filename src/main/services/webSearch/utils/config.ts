@@ -9,7 +9,7 @@ import {
   PRESETS_WEB_SEARCH_PROVIDERS,
   WEB_SEARCH_PROVIDER_PRESET_MAP,
   type WebSearchProviderPreset
-} from '@shared/data/presets/web-search-providers'
+} from '@shared/data/presets/webSearchProviders'
 import type { WebSearchExecutionConfig, WebSearchResolvedConfig } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
@@ -141,4 +141,18 @@ export async function getProviderForCapability(
   }
 
   return provider
+}
+
+/**
+ * The permanent (non-retryable) failures the web-search config/dispatch layer throws: no default
+ * provider configured for the capability (`getProviderForCapability`), an unknown configured
+ * provider id (`getWebSearchProviderPresetById` → `getProviderById`), or a provider that doesn't
+ * support/implement the capability (here and `WebSearchService`). Exported so model-facing callers
+ * (the web-lookup tools) branch their note off these instead of re-matching the strings out-of-band
+ * — reword the throws and this predicate together.
+ */
+export function isPermanentWebSearchConfigError(message: string): boolean {
+  return /is not configured for capability|does not (support|implement) capability|Unknown web search provider/i.test(
+    message
+  )
 }

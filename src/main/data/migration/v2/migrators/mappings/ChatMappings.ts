@@ -45,6 +45,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -61,10 +62,9 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
-import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
+import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/file/types/common'
-import type { FileMetadata } from '@types'
+import type { Base64String, FilePath } from '@shared/types/file/common'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -187,7 +187,6 @@ export interface OldMessage {
   // Metadata
   usage?: OldUsage
   metrics?: OldMetrics
-  traceId?: string
 
   // Dropped: mentions are redundant in tree-based architecture
   // (derivable from sibling response messages' modelId + siblingsGroupId)
@@ -199,6 +198,8 @@ export interface OldMessage {
   enabledMCPs?: unknown[]
   agentSessionId?: string
   providerMetadata?: unknown
+  // Legacy span pointer; dropped because v1 span detail files are not migrated.
+  traceId?: string
 }
 
 /**
@@ -430,7 +431,6 @@ export interface NewMessage {
   siblingsGroupId: number
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
-  traceId: string | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -513,7 +513,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
  * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
- * | traceId | traceId | Dropped: legacy span detail files are not migrated |
+ * | traceId | - | Dropped: legacy span detail files are not migrated |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
@@ -566,7 +566,6 @@ export async function transformMessage(
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Snapshot of model at message creation time for historical display
     modelSnapshot: buildModelSnapshot(oldMessage.model),
-    traceId: null,
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
@@ -775,15 +774,49 @@ async function transformSingleBlockToPart(
       const rawName = block.toolName || raw?.tool?.name || 'unknown'
       const serverName = raw?.tool?.serverName
       const toolName = serverName ? `${serverName}: ${rawName}` : rawName
+      const toolCallId = block.toolId || raw?.toolCallId || raw?.id || block.id
       const input = block.arguments ?? raw?.arguments ?? {}
       const output = raw?.response ?? block.content
       const isError = contentObj?.isError === true || raw?.status === 'error'
+      const rawToolType = raw?.tool?.type
+      const toolType =
+        rawToolType === 'mcp' || rawToolType === 'builtin' || rawToolType === 'provider' ? rawToolType : undefined
+      const toolMetadata: CherryToolMeta['tool'] | undefined = raw?.tool
+        ? {
+            ...(toolType ? { type: toolType } : {}),
+            ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+            ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+          }
+        : undefined
+      const callProviderMetadata = raw?.tool
+        ? {
+            cherry: {
+              tool: {
+                ...(toolType ? { type: toolType } : {}),
+                ...(raw.tool.name ? { name: raw.tool.name } : {}),
+                ...(raw.tool.description ? { description: raw.tool.description } : {}),
+                ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+                ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+              }
+            }
+          }
+        : undefined
 
-      const base = { type: 'dynamic-tool' as const, toolName, toolCallId: block.toolId, input }
+      const base = {
+        type: 'dynamic-tool' as const,
+        toolName,
+        toolCallId,
+        input,
+        ...(callProviderMetadata ? { callProviderMetadata } : {})
+      }
 
-      const part: DynamicToolUIPart = isError
+      const partWithoutMeta: DynamicToolUIPart = isError
         ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
         : { ...base, state: 'output-available', output }
+      const part =
+        toolMetadata && Object.keys(toolMetadata).length > 0
+          ? withCherryMeta(partWithoutMeta, { tool: toolMetadata })
+          : partWithoutMeta
 
       return { part, extraParts: null, citations: null, searchableText: null }
     }

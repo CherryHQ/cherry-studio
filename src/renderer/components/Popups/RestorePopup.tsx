@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { getRestoreProgressLabel } from '@renderer/i18n/label'
+import { getRestoreProgressLabelKey } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
@@ -59,7 +59,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         progress: Math.floor(progressData.progress)
       })
     }
-    return getRestoreProgressLabel(progressData.stage)
+    return t(getRestoreProgressLabelKey(progressData.stage))
   }
 
   RestorePopup.hide = onCancel
@@ -68,7 +68,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(event) => event.preventDefault()}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="sm:max-w-[520px]"
+        onPointerDownOutside={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t('restore.title')}</DialogTitle>
         </DialogHeader>

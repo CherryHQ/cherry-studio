@@ -30,7 +30,7 @@ function manyAutoEntries(count: number, descChars: number): ToolEntry[] {
 
 describe('shouldDefer', () => {
   it('returns empty deferred set when no entries have defer policy', () => {
-    const result = shouldDefer([makeEntry({ name: 'web__search', defer: 'never' })], 32_000)
+    const result = shouldDefer([makeEntry({ name: 'web_search', defer: 'never' })], 32_000)
     expect(result.deferredNames.size).toBe(0)
   })
 
@@ -89,16 +89,16 @@ describe('shouldDefer', () => {
   it('mixed defer policies — never stays inline, always defers, auto evaluated by pool', () => {
     const result = shouldDefer(
       [
-        makeEntry({ name: 'web__search', defer: 'never' }),
-        makeEntry({ name: 'kb__search', defer: 'never' }),
+        makeEntry({ name: 'web_search', defer: 'never' }),
+        makeEntry({ name: 'kb_search', defer: 'never' }),
         makeEntry({ name: 'experimental', defer: 'always' }),
         makeEntry({ name: 'mcp__a__t', defer: 'auto' }),
         makeEntry({ name: 'mcp__b__t', defer: 'auto' })
       ],
       32_000
     )
-    expect(result.deferredNames.has('web__search')).toBe(false)
-    expect(result.deferredNames.has('kb__search')).toBe(false)
+    expect(result.deferredNames.has('web_search')).toBe(false)
+    expect(result.deferredNames.has('kb_search')).toBe(false)
     expect(result.deferredNames.has('experimental')).toBe(true)
     // auto entries depend on token cost; with tiny descriptions they stay inline
     expect(result.deferredNames.has('mcp__a__t')).toBe(false)

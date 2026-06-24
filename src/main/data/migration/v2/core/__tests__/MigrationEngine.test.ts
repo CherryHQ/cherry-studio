@@ -147,6 +147,51 @@ describe('MigrationEngine', () => {
     errorSpy.mockRestore()
   })
 
+  it('aborts the whole migration when validate() reports targetCount below sourceCount minus skippedCount', async () => {
+    // The engine reconciliation that KnowledgeVectorMigrator's per-base isolation (C1) depends on:
+    // an uncredited shortfall (a base whose rows counted into sourceCount but produced no target
+    // units and were NOT added to skippedCount) trips `targetCount < sourceCount - skippedCount`
+    // and fails the whole migration.
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const migrator = createTestMigrator('knowledge_vector', 1, events)
+    migrator.validate.mockResolvedValueOnce({
+      success: true,
+      errors: [],
+      stats: { sourceCount: 2, targetCount: 1, skippedCount: 0 }
+    } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('count mismatch')
+    expect((engine as any).markFailed).toHaveBeenCalled()
+
+    errorSpy.mockRestore()
+  })
+
+  it('accepts the run when skippedCount credits the shortfall (per-base failure isolation)', async () => {
+    // The flip side: crediting the failed base's expected units to skippedCount (what C1 does in
+    // the per-base catch) drops expectedCount in lockstep with the missing targetCount, so the same
+    // 2-source / 1-target outcome reconciles and the migration succeeds instead of aborting.
+    const events: string[] = []
+    const migrator = createTestMigrator('knowledge_vector', 1, events)
+    migrator.validate.mockResolvedValueOnce({
+      success: true,
+      errors: [],
+      stats: { sourceCount: 2, targetCount: 1, skippedCount: 1 }
+    } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(true)
+    expect((engine as any).markFailed).not.toHaveBeenCalled()
+  })
+
   it('clears new architecture tables inside one transaction', async () => {
     const deleteFn = vi.fn().mockResolvedValue(undefined)
     const transactionFn = vi.fn(async (fn: (tx: unknown) => Promise<void>) => {

@@ -4,7 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../types'
@@ -19,8 +19,8 @@ vi.mock('tesseract.js', () => ({
   createWorker: createWorkerMock
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  getIpCountry: getIpCountryMock
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { getCountry: getIpCountryMock }
 }))
 
 vi.mock('@main/features/fileProcessing/utils/ocr', () => ({

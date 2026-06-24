@@ -1,6 +1,12 @@
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import { BulkUpdateModelsSchema, CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import {
+  BulkUpdateModelsSchema,
+  CreateModelsSchema,
+  DeleteModelsQuerySchema,
+  MODELS_BATCH_MAX_ITEMS,
+  MODELS_DELETE_MAX_IDS
+} from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
@@ -10,6 +16,7 @@ const {
   getByKeyMock,
   updateMock,
   deleteMock,
+  bulkDeleteMock,
   createMock,
   bulkUpdateMock,
   lookupModelMock,
@@ -21,6 +28,7 @@ const {
   getByKeyMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  bulkDeleteMock: vi.fn(),
   createMock: vi.fn(),
   bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn(),
@@ -35,6 +43,7 @@ vi.mock('@data/services/ModelService', () => ({
     getByKey: getByKeyMock,
     update: updateMock,
     delete: deleteMock,
+    bulkDelete: bulkDeleteMock,
     create: createMock,
     bulkUpdate: bulkUpdateMock
   }
@@ -85,6 +94,30 @@ describe('Model handler validation', () => {
     }))
 
     expect(() => BulkUpdateModelsSchema.parse(items)).not.toThrow()
+  })
+
+  it('accepts delete query ids larger than the create batch limit', () => {
+    const ids = Array.from({ length: MODELS_BATCH_MAX_ITEMS + 63 }, (_, index) => `cherryin::model-${index}`)
+
+    expect(DeleteModelsQuerySchema.parse({ ids }).ids).toHaveLength(ids.length)
+  })
+
+  it('preserves commas inside delete query ids when passed as an array', () => {
+    const ids = ['cherryin::model,with-comma', 'cherryin::model-2']
+
+    expect(DeleteModelsQuerySchema.parse({ ids }).ids).toEqual(ids)
+  })
+
+  it('treats a string delete query id as one id without comma splitting', () => {
+    const id = 'cherryin::model,with-comma'
+
+    expect(DeleteModelsQuerySchema.parse({ ids: id }).ids).toEqual([id])
+  })
+
+  it('rejects delete query ids over the configured limit', () => {
+    const ids = Array.from({ length: MODELS_DELETE_MAX_IDS + 1 }, (_, index) => `cherryin::model-${index}`)
+
+    expect(() => DeleteModelsQuerySchema.parse({ ids })).toThrow()
   })
 })
 
@@ -254,6 +287,51 @@ describe('/models', () => {
       { providerId: 'cherryin', modelId: 'model-1', patch: { isEnabled: false } }
     ])
     expect(result).toBe(updated)
+  })
+  it('delegates DELETE to modelService.bulkDelete', async () => {
+    const result = await modelHandlers['/models'].DELETE({
+      query: { ids: ['openai::gpt-4o', 'anthropic::claude-3-opus'] }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'anthropic', modelId: 'claude-3-opus' }
+    ])
+    expect(result).toBeUndefined()
+  })
+
+  it('accepts a single DELETE query id and delegates to modelService.bulkDelete', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: 'openai::gpt-4o' }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'gpt-4o' }])
+  })
+
+  it('accepts DELETE query id arrays without splitting commas inside model ids', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: ['openai::model,with-comma'] }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'model,with-comma' }])
+  })
+
+  it('accepts a string DELETE query id without splitting commas inside the model id', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: 'openai::model,with-comma' }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'model,with-comma' }])
+  })
+
+  it('rejects malformed unique model ids before calling the service', async () => {
+    await expect(
+      modelHandlers['/models'].DELETE({
+        query: { ids: 'not-a-unique-id' }
+      } as never)
+    ).rejects.toThrow('Must be a valid UniqueModelId')
+
+    expect(bulkDeleteMock).not.toHaveBeenCalled()
   })
 })
 

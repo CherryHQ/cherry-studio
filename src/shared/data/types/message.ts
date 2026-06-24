@@ -132,9 +132,8 @@ export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
-  //    `adaptedMessages` and every other consumer can read directly from
-  //    `message.metadata` without a parallel `metadataMap` lookup that
-  //    lags behind state.messages.
+  //    shared message-list consumers can read directly from `message.metadata`
+  //    without a parallel `metadataMap` lookup that lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
@@ -145,8 +144,12 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
-  /** Trace id for the assistant execution that produced this message. */
-  traceId?: string | null
+  /**
+   * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
+   * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
+   * recompute is owned by the chat-page renderer slice.
+   */
+  isActiveBranch?: boolean
 
   /** Creation timestamp (ISO). */
   createdAt?: string
@@ -383,10 +386,39 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 // ============================================================================
 
 /**
- * Message role - user, assistant, or system
+ * Message role.
+ *
+ * - `user` / `assistant` / `system` — content messages.
+ * - `root` — the per-topic content-less virtual root sentinel (one per topic,
+ *   `parentId IS NULL`). Self-identifying so role-filtered content queries
+ *   (`WHERE role = 'system'`) exclude it for free; never rendered or sent to a
+ *   model. See `docs/references/chat/message-tree.md`.
  */
-export const MessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>
+
+/**
+ * Roles a caller may supply when creating/updating a message — content roles only.
+ * The virtual-root sentinel (`role = 'root'`) is written exclusively by
+ * `createRootMessageTx` / the migrator, never through the public create/update DTOs,
+ * so input schemas use this to reject `'root'` at validation (a clean 422) rather than
+ * letting it reach the DB and trip `message_root_parent_check`.
+ */
+export const ContentMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+/** Roles that carry content — everything except the virtual-root sentinel. */
+export type ContentMessageRole = z.infer<typeof ContentMessageRoleSchema>
+
+/**
+ * Narrow a message role to a content role for model serialization. The virtual root
+ * (`role = 'root'`) is structural and never serialized — it is excluded from every
+ * history/path query — so reaching here with `'root'` is a bug, not a state to map.
+ */
+export function toContentRole(role: MessageRole): ContentMessageRole {
+  if (role === 'root') {
+    throw new Error('virtual root (role=root) must not be serialized into model history')
+  }
+  return role
+}
 
 export const TOPIC_MESSAGE_SEARCH_ROLES = ['user', 'assistant'] as const satisfies readonly MessageRole[]
 export type TopicMessageSearchRole = (typeof TOPIC_MESSAGE_SEARCH_ROLES)[number]
@@ -430,9 +462,9 @@ export const MessageSchema = z.strictObject({
   parentId: z.string().nullable(),
   /** Message role */
   role: MessageRoleSchema,
-  /** Message content (blocks with inline references) */
+  /** Message content stored as AI SDK UIMessage.parts */
   data: MessageDataSchema,
-  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
+  /** Searchable text extracted from data.parts (DB DEFAULT ''; trigger fills on insert/update) */
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,
@@ -443,8 +475,6 @@ export const MessageSchema = z.strictObject({
   modelId: z.string().nullable().optional(),
   /** Snapshot of model at message creation time */
   modelSnapshot: ModelSnapshotSchema.nullable().optional(),
-  /** Trace ID for tracking */
-  traceId: z.string().nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
   /** Creation timestamp (ISO string) */
@@ -465,10 +495,10 @@ export type Message = z.infer<typeof MessageSchema>
 export interface TreeNode {
   /** Message ID */
   id: string
-  /** Parent message ID (null for root, omitted in SiblingsGroup.nodes) */
-  parentId?: string | null
-  /** Message role */
-  role: MessageRole
+  /** Parent message ID — the topic's virtual root for first turns, else a content message; omitted in SiblingsGroup.nodes */
+  parentId: string
+  /** Message role — a tree node is never the virtual root, so content roles only */
+  role: ContentMessageRole
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */
@@ -486,7 +516,7 @@ export interface TreeNode {
  * Used for multi-model responses in tree view
  */
 export interface SiblingsGroup {
-  /** Parent message ID */
+  /** Parent message ID — the virtual root for first-turn groups, else a content message */
   parentId: string
   /** Siblings group ID (non-zero) */
   siblingsGroupId: number
@@ -504,6 +534,8 @@ export interface TreeResponse {
   siblingsGroups: SiblingsGroup[]
   /** Current active node ID */
   activeNodeId: string | null
+  /** The topic's virtual-root id */
+  rootId: string | null
 }
 
 // ============================================================================
@@ -527,6 +559,8 @@ export interface BranchMessage {
 export interface BranchMessagesResponse extends CursorPaginationResponse<BranchMessage> {
   /** Current active node ID */
   activeNodeId: string | null
+  /** The topic's virtual-root id */
+  rootId: string | null
   /**
    * Topic's `assistantId` — embedded in the response so renderers don't
    * need a separate `/topics/:id` round-trip just to enrich each message

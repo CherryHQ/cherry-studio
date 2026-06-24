@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '../message'
 import {
+  CherryFileMetaSchema,
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
@@ -28,6 +29,9 @@ describe('CherryReasoningMetaSchema', () => {
   it('accepts thinkingMs as number', () => {
     expect(CherryReasoningMetaSchema.safeParse({ thinkingMs: 1234 }).success).toBe(true)
   })
+  it('accepts startedAt as number', () => {
+    expect(CherryReasoningMetaSchema.safeParse({ startedAt: 1780913860106 }).success).toBe(true)
+  })
   it('rejects thinkingMs that is not a number', () => {
     expect(CherryReasoningMetaSchema.safeParse({ thinkingMs: '1234' }).success).toBe(false)
   })
@@ -48,6 +52,23 @@ describe('CherryToolMetaSchema', () => {
   })
 })
 
+describe('CherryFileMetaSchema', () => {
+  it('accepts fileEntryId and fileTokenSourceId', () => {
+    const ok = CherryFileMetaSchema.safeParse({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1'
+    })
+
+    expect(ok.success).toBe(true)
+  })
+
+  it('rejects non-string fileTokenSourceId', () => {
+    const bad = CherryFileMetaSchema.safeParse({ fileTokenSourceId: 1 })
+
+    expect(bad.success).toBe(false)
+  })
+})
+
 // ============================================================================
 // readCherryMeta — runtime validation + narrowing
 // ============================================================================
@@ -63,14 +84,15 @@ describe('readCherryMeta', () => {
     expect(meta?.references).toEqual([{ category: 'citation' }])
   })
 
-  it('reads CherryReasoningMeta from a ReasoningUIPart with thinkingMs', () => {
+  it('reads CherryReasoningMeta from a ReasoningUIPart with thinking metadata', () => {
     const part: ReasoningUIPart = {
       type: 'reasoning',
       text: 'thinking...',
-      providerMetadata: { cherry: { thinkingMs: 5000 } }
+      providerMetadata: { cherry: { thinkingMs: 5000, startedAt: 1780913860106 } }
     }
     const meta = readCherryMeta(part)
     expect(meta?.thinkingMs).toBe(5000)
+    expect(meta?.startedAt).toBe(1780913860106)
   })
 
   it('reads CherryToolMeta from a tool-foo part with transport and tool', () => {
@@ -96,6 +118,18 @@ describe('readCherryMeta', () => {
       providerMetadata: { cherry: { transport: 'claude-agent' } }
     } as unknown as Extract<CherryMessagePart, { type: 'dynamic-tool' }>
     expect(readCherryMeta(part)?.transport).toBe('claude-agent')
+  })
+
+  it('reads CherryFileMeta from a file part with token source id', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' } }
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+
+    expect(readCherryMeta(part)).toEqual({ fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' })
   })
 
   it('returns undefined when providerMetadata is missing', () => {
@@ -167,10 +201,22 @@ describe('withCherryMeta', () => {
     expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }] })
   })
 
-  it('writes thinkingMs onto a ReasoningUIPart', () => {
+  it('writes thinking metadata onto a ReasoningUIPart', () => {
     const part: ReasoningUIPart = { type: 'reasoning', text: '' }
-    const next = withCherryMeta(part, { thinkingMs: 1234 })
-    expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234 })
+    const next = withCherryMeta(part, { thinkingMs: 1234, startedAt: 1780913860106 })
+    expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234, startedAt: 1780913860106 })
+  })
+
+  it('writes fileTokenSourceId onto a FileUIPart', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf'
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+    const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
+
+    expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
   })
 
   // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────

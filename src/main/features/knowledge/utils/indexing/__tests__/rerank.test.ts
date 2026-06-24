@@ -55,6 +55,8 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     error: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     threshold: undefined,
     documentCount: 2,
     searchMode: 'hybrid',
@@ -208,12 +210,18 @@ describe('knowledge rerank runtime', () => {
     await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
       searchResults
     )
-    expect(mocks.warnMock).toHaveBeenCalledWith('Knowledge rerank failed, returning vector search results', {
-      baseId: '11111111-1111-4111-8111-111111111111',
-      rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-      error: 'upstream unavailable',
-      topN: 2
-    })
+    // The Error instance itself is logged (stack/cause preserved), with the
+    // structured context alongside.
+    expect(mocks.warnMock).toHaveBeenCalledWith(
+      'Knowledge rerank failed, returning vector search results',
+      expect.objectContaining({ message: 'upstream unavailable' }),
+      {
+        baseId: '11111111-1111-4111-8111-111111111111',
+        rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+        topN: 2
+      }
+    )
+    expect(mocks.warnMock.mock.calls[0][1]).toBeInstanceOf(Error)
     expect(mocks.errorMock).not.toHaveBeenCalled()
   })
 
@@ -239,12 +247,16 @@ describe('knowledge rerank runtime', () => {
     await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
       searchResults
     )
-    expect(mocks.errorMock).toHaveBeenCalledWith('Knowledge rerank failed, returning vector search results', {
-      baseId: '11111111-1111-4111-8111-111111111111',
-      rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-      error: message,
-      topN: 2
-    })
+    expect(mocks.errorMock).toHaveBeenCalledWith(
+      'Knowledge rerank failed, returning vector search results',
+      expect.objectContaining({ message }),
+      {
+        baseId: '11111111-1111-4111-8111-111111111111',
+        rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+        topN: 2
+      }
+    )
+    expect(mocks.errorMock.mock.calls[0][1]).toBeInstanceOf(Error)
     expect(mocks.warnMock).not.toHaveBeenCalled()
   })
 })

@@ -1,9 +1,7 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import React from 'react'
 
 interface ProviderAvatarPrimitiveProps {
@@ -26,7 +24,9 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   className,
   style
 }) => {
-  const { theme } = useTheme()
+  const backgroundColor = generateColorFromChar(providerName)
+  const color = providerName ? getForegroundColor(backgroundColor) : 'white'
+  const fallbackContent = getFirstCharacter(providerName)
   // Resolve the icon: prefer `logo` prop, fall back to `logoSrc` for backwards compat
   const resolvedLogo = logo ?? logoSrc
 
@@ -40,17 +40,15 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       : undefined
   const effectiveLogo = builtinIcon ?? resolvedLogo
 
-  // If logo is a CompoundIcon, render one concrete theme variant to avoid duplicate light/dark SVGs.
+  // CompoundIcon handles light/dark variants internally; size the icon to the avatar container.
   if (effectiveLogo && typeof effectiveLogo !== 'string') {
     const Icon = effectiveLogo
-    const styleSize = typeof style?.width === 'number' ? style.width : undefined
-    const resolvedSize = size ?? styleSize ?? 32
-    const iconSize = resolvedSize * 0.7
+    const resolvedSize = size ?? 32
 
     return (
       <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
-          <Icon variant={theme === ThemeMode.dark ? 'dark' : 'light'} style={{ width: iconSize, height: iconSize }} />
+          <Icon style={{ width: '70%', height: '70%' }} />
         </AvatarFallback>
       </Avatar>
     )
@@ -61,15 +59,13 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
       <Avatar className={className} style={{ width: size, height: size, ...style }}>
-        <AvatarImage src={effectiveLogo} draggable={false} />
+        <AvatarImage src={effectiveLogo} className="object-cover" draggable={false} />
+        <AvatarFallback style={{ backgroundColor, color }}>{fallbackContent}</AvatarFallback>
       </Avatar>
     )
   }
 
   // Default: generate avatar with first character and background color
-  const backgroundColor = generateColorFromChar(providerName)
-  const color = providerName ? getForegroundColor(backgroundColor) : 'white'
-
   return (
     <Avatar
       className={className}
@@ -78,7 +74,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
         height: size,
         ...style
       }}>
-      <AvatarFallback style={{ backgroundColor, color }}>{getFirstCharacter(providerName)}</AvatarFallback>
+      <AvatarFallback style={{ backgroundColor, color }}>{fallbackContent}</AvatarFallback>
     </Avatar>
   )
 }

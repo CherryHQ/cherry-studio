@@ -8,6 +8,9 @@ const mockGenerateImage = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
+const mockMessageGetById = vi.fn()
+const mockMessageUpdate = vi.fn()
+const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
@@ -35,6 +38,14 @@ vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
 
+vi.mock('@main/data/services/MessageService', () => ({
+  messageService: {
+    getById: mockMessageGetById,
+    update: mockMessageUpdate,
+    applyToolApprovalDecisions: mockMessageApplyApproval
+  }
+}))
+
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: vi.fn(),
   embedMany: vi.fn(),
@@ -42,7 +53,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
-const { AiService } = await import('../AiService')
+const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
 /**
@@ -206,6 +217,31 @@ describe('AiService', () => {
     expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
     expect(result).toEqual({ files: [fileEntry] })
   })
+
+  it("omits SDK size when size is the 'auto' sentinel", async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      size: 'auto'
+    })
+
+    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
+    expect(callOptions).not.toHaveProperty('size')
+  })
 })
 
 describe('AiService tool approval', () => {
@@ -230,6 +266,14 @@ describe('AiService tool approval', () => {
       input: {},
       approval: { id: approvalId }
     }
+  }
+
+  function approvalMutationResult(
+    parts: unknown[],
+    appliedApprovalIds: string[] = [],
+    alreadySettledApprovalIds: string[] = []
+  ) {
+    return { parts, appliedApprovalIds, alreadySettledApprovalIds }
   }
 
   /**
@@ -265,7 +309,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -305,18 +349,66 @@ describe('AiService tool approval', () => {
     expect(getById).not.toHaveBeenCalled()
   })
 
-  it('persists the flipped parts and dispatches continue-conversation for an MCP approval present on the row', async () => {
+  it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
     const respondToolApproval = vi.fn(() => false)
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
-    const beforeParts = [{ type: 'text', text: 'hello' }, pendingToolPart('mcp-approval-1')]
-    vi.spyOn(messageService, 'getById').mockResolvedValue({ data: { parts: beforeParts } } as never)
-    const update = vi.spyOn(messageService, 'update').mockResolvedValue({} as never)
+    // The serialized atomic mutation returns the committed parts with the decision applied; the
+    // handler computes "still pending" from THESE committed parts, not a local stale copy.
+    const committed = [
+      { type: 'text', text: 'hello' },
+      { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded', input: { command: 'pwd' } }
+    ]
+    const apply = vi
+      .spyOn(messageService, 'applyToolApprovalDecisions')
+      .mockResolvedValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      updatedInput: { command: 'pwd' },
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    expect(result).toEqual({ ok: true })
+    // The decision goes through the serialized read-modify-write, not an ad-hoc getById+update.
+    expect(apply).toHaveBeenCalledWith('anchor-1', [
+      { approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }
+    ])
+    // Nothing left pending → resume via continue-conversation.
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        trigger: 'continue-conversation',
+        topicId: 'topic-1',
+        parentAnchorId: 'anchor-1',
+        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }]
+      })
+    )
+  })
+
+  it('refuses (ok:false) without mutating the row when a stream is still live on the topic', async () => {
+    // The approval card is clickable the moment the chunk arrives (live overlay), so a response can
+    // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
+    // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
+    // before touching the row, so the card stays actionable and the renderer can retry post-settle.
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    const hasLiveStream = vi.fn(() => true)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      return undefined
+    })
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -326,40 +418,26 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: true })
-    // Target part was on the row → write the flipped parts.
-    expect(update).toHaveBeenCalledTimes(1)
-    const [updatedId, updateDto] = update.mock.calls[0]
-    expect(updatedId).toBe('anchor-1')
-    const writtenParts = (updateDto as { data: { parts: Array<{ state?: string }> } }).data.parts
-    expect(writtenParts[1].state).toBe('approval-responded')
-    // Nothing left pending → resume via continue-conversation.
-    expect(dispatch).toHaveBeenCalledTimes(1)
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        trigger: 'continue-conversation',
-        topicId: 'topic-1',
-        parentAnchorId: 'anchor-1',
-        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true }]
-      })
-    )
+    expect(result).toEqual({ ok: false })
+    expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
+    // Row is NOT mutated and no continuation is dispatched.
+    expect(apply).not.toHaveBeenCalled()
+    expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it('does not write parts when the approval is overlay-only (not present on the row) but still dispatches', async () => {
+  it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
     const respondToolApproval = vi.fn(() => false)
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
-    // Row carries no approval-requested part matching this approvalId.
-    vi.spyOn(messageService, 'getById').mockResolvedValue({
-      data: { parts: [{ type: 'text', text: 'hello' }] }
-    } as never)
-    const update = vi.spyOn(messageService, 'update').mockResolvedValue({} as never)
+    // Overlay-only: the target part isn't on the row, so the committed parts carry no pending approval.
+    const apply = vi
+      .spyOn(messageService, 'applyToolApprovalDecisions')
+      .mockResolvedValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -370,9 +448,8 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    // Part absent on the row → no overwrite of the persisted parts...
-    expect(update).not.toHaveBeenCalled()
-    // ...but the decision still rides the continue dispatch idempotently.
+    expect(apply).toHaveBeenCalledWith('anchor-1', [{ approvalId: 'mcp-approval-missing', approved: false }])
+    // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
       expect.anything(),
@@ -388,14 +465,20 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
-    // Two outstanding approvals on the same row; we only decide the first.
-    const beforeParts = [pendingToolPart('mcp-approval-1'), pendingToolPart('mcp-approval-2', 'mcp_read')]
-    vi.spyOn(messageService, 'getById').mockResolvedValue({ data: { parts: beforeParts } } as never)
-    const update = vi.spyOn(messageService, 'update').mockResolvedValue({} as never)
+    // Committed parts: this approval decided, but a sibling is still approval-requested.
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+      approvalMutationResult(
+        [
+          { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
+          pendingToolPart('mcp-approval-2', 'mcp_read')
+        ],
+        ['mcp-approval-1']
+      ) as never
+    )
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -406,9 +489,39 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    // The decided part is persisted...
-    expect(update).toHaveBeenCalledTimes(1)
-    // ...but the still-pending sibling gates the resume.
+    // The still-pending sibling gates the resume.
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      return undefined
+    })
+
+    const apply = vi
+      .spyOn(messageService, 'applyToolApprovalDecisions')
+      .mockResolvedValue(
+        approvalMutationResult(
+          [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }],
+          [],
+          ['mcp-approval-1']
+        ) as never
+      )
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(apply).toHaveBeenCalledWith('anchor-1', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -417,13 +530,12 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
-    // A stale click on a deleted message: getById rejects.
-    const getById = vi.spyOn(messageService, 'getById').mockRejectedValue(new Error('Message not found'))
-    const update = vi.spyOn(messageService, 'update')
+    // A stale click on a deleted message: the atomic mutation reports the anchor is gone (null).
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(null)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -435,8 +547,7 @@ describe('AiService tool approval', () => {
 
     // Resolves gracefully through the documented result shape instead of throwing.
     expect(result).toEqual({ ok: false })
-    expect(getById).toHaveBeenCalledWith('deleted-anchor')
-    expect(update).not.toHaveBeenCalled()
+    expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -445,7 +556,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -569,5 +680,146 @@ describe('AiService tool approval', () => {
         uniqueModelId: 'test-provider::test-reranker'
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
+  })
+})
+
+describe('imageInputEntryParams', () => {
+  it('maps a base64 data URL to a base64 entry', () => {
+    expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
+      source: 'base64',
+      data: 'data:image/png;base64,AAAA'
+    })
+  })
+
+  it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
+    expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
+      source: 'url',
+      url: 'https://cdn.example.com/in.png'
+    })
+  })
+})
+
+describe('AiService.generateImage — custom async transport (job path)', () => {
+  // Force the job branch by resolving to a custom-transport provider id; real
+  // resolveImageTransport('ppio', …) returns a transport, so generateImage routes
+  // through generateImageViaJob.
+  function stubResolution(service: InstanceType<typeof AiService>) {
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' }
+    } as never)
+  }
+
+  it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
+    const service = createService()
+    stubResolution(service)
+
+    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
+    const enqueue = vi.fn().mockResolvedValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry, permanentDelete }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    const result = await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      inputImages: ['data:image/png;base64,AAAA'],
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
+    )
+    expect(result).toEqual({ files: outputFiles })
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+
+  it('maps a failed job snapshot to a thrown error', async () => {
+    const service = createService()
+    stubResolution(service)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager')
+        return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
+      if (name === 'JobManager') {
+        return {
+          enqueue: vi.fn().mockResolvedValue({
+            id: 'job-1',
+            snapshot: {},
+            finished: Promise.resolve({ status: 'failed', output: null, error: { message: 'vendor exploded' } })
+          }),
+          cancel: vi.fn()
+        }
+      }
+      return undefined
+    })
+
+    await expect(service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat' })).rejects.toThrow(
+      'vendor exploded'
+    )
+  })
+
+  it('cancels the job and throws AbortError when the request is aborted', async () => {
+    const service = createService()
+    stubResolution(service)
+    const controller = new AbortController()
+    controller.abort()
+    const cancel = vi.fn().mockResolvedValue({ outcome: 'cancelled' })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager')
+        return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
+      if (name === 'JobManager') {
+        return {
+          enqueue: vi.fn().mockResolvedValue({
+            id: 'job-1',
+            snapshot: {},
+            finished: Promise.resolve({ status: 'cancelled', output: null, error: null })
+          }),
+          cancel
+        }
+      }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        requestOptions: { signal: controller.signal }
+      })
+    ).rejects.toThrow(/abort/i)
+    expect(cancel).toHaveBeenCalledWith('job-1', expect.any(String))
+  })
+
+  it('cleans up already-created temp input entries when setup fails before enqueue', async () => {
+    const service = createService()
+    stubResolution(service)
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') {
+        return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
+      }
+      // enqueue fails after the temp input entry was already created → the entry is in
+      // no payload, so generateImageViaJob's setup catch must delete it.
+      if (name === 'JobManager')
+        return { enqueue: vi.fn().mockRejectedValue(new Error('enqueue boom')), cancel: vi.fn() }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'edit',
+        inputImages: ['data:image/png;base64,AAAA']
+      })
+    ).rejects.toThrow('enqueue boom')
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
   })
 })

@@ -9,7 +9,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type OpenAI from '@cherrystudio/openai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 

@@ -3,7 +3,7 @@ import { Application, Doc2x, Intel, Mineru, Mistral, Paddleocr, TesseractJs } fr
 import { isWin } from '@renderer/config/constant'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 
 export type FileProcessingMenuEntry = {
   key: string
@@ -156,6 +156,10 @@ export function flattenFeatureSections(featureSections: FileProcessingFeatureSec
 
 export function getFileProcessingFeatureTitleKey(feature: FileProcessorFeature): string {
   return `settings.tool.file_processing.features.${feature}.title`
+}
+
+export function getFileProcessingFeatureTooltipKey(feature: FileProcessorFeature): string {
+  return `settings.tool.file_processing.features.${feature}.tooltip`
 }
 
 export function getProcessorNameKey(processorId: FileProcessorId): string {

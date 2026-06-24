@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  AGENT_SESSION_DELETE_MAX_IDS,
   AgentSessionMessageEntitySchema,
+  AgentSessionMessagesListQuerySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
+  DeleteAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
@@ -17,7 +20,6 @@ describe('AgentSessionMessage schemas', () => {
     status: 'success',
     modelId: null,
     modelSnapshot: null,
-    traceId: null,
     stats: null,
     runtimeResumeToken: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -47,6 +49,14 @@ describe('AgentSessionMessage schemas', () => {
 
     expect(parsed.runtimeResumeToken).toBeUndefined()
   })
+
+  it('accepts messageId as a list pagination anchor', () => {
+    expect(AgentSessionMessagesListQuerySchema.parse({ messageId: 'message-1', limit: '25' })).toEqual({
+      messageId: 'message-1',
+      limit: 25
+    })
+    expect(AgentSessionMessagesListQuerySchema.safeParse({ messageId: '' }).success).toBe(false)
+  })
 })
 
 describe('AgentSession schemas', () => {
@@ -56,5 +66,13 @@ describe('AgentSession schemas', () => {
         workspaceId: 'workspace-1'
       }).success
     ).toBe(false)
+  })
+
+  it('caps bulk delete ids', () => {
+    const validIds = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS }, (_, index) => `session-${index}`).join(',')
+    const tooManyIds = `${validIds},session-overflow`
+
+    expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: validIds }).success).toBe(true)
+    expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: tooManyIds }).success).toBe(false)
   })
 })

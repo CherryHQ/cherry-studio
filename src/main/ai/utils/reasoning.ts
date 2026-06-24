@@ -6,12 +6,12 @@ import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import type OpenAI from '@cherrystudio/openai'
 import type { OpenAIReasoningEffort } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
+import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import {
   computeBudgetTokens,
   FALLBACK_TOKEN_LIMIT,
   getThinkingBudget as sharedGetThinkingBudget
 } from '@shared/ai/reasoningBudget'
-import { DEFAULT_MAX_TOKENS } from '@shared/config/constant'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -55,7 +55,8 @@ import {
   isSupportNoneReasoningEffortModel
 } from '@shared/utils/model'
 import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
-import { EFFORT_RATIO, isSystemProviderId, SystemProviderIds } from '@types'
+import { EFFORT_RATIO } from '@shared/utils/reasoning'
+import { isSystemProviderId, SystemProviderIds } from '@shared/utils/systemProviderId'
 import { toInteger } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
@@ -949,6 +950,11 @@ export function getXAIReasoningParams(
       case 'high':
         return { reasoningEffort }
       default:
+        // grok-4.3 accepts none/low/medium/high — the xAI responses `reasoningEffort` enum, extended
+        // to include 'none' by #15137's `@ai-sdk/xai@3.0.83` patch (still in `patches/`); 'none'
+        // disables reasoning. Genuinely out-of-range values (auto/minimal/xhigh) are dropped — trace
+        // them so the omission is diagnosable.
+        logger.debug('grok-4.3 dropping unsupported reasoning effort', { reasoningEffort })
         return {}
     }
   }

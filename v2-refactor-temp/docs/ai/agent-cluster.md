@@ -87,9 +87,10 @@ single AI SDK pass; a follow-up never folds into the running turn (that
 mutated in-flight history and had no clean turn boundary). Steering is
 handled one level up by `AiStreamManager`:
 
-- **chat** — a resubmit to a live topic is aborted-and-restarted via
-  `AiStreamManager.abortAndAwait(topicId)` (await the executions settling
-  as `paused`, evict, then start a fresh turn).
+- **chat** — a resubmit to a live topic is enqueued via
+  `AiStreamManager.enqueuePendingSteer(topicId, userMessageId)`; the running turn
+  yields at its next step boundary (the `hasPendingSteer` stop condition) and
+  `onExecutionDone` chains a fresh continuation turn carrying the queued message.
 - **agent session** — the follow-up is enqueued on the session's
   `pendingTurns` and the turn is interrupted between tool calls.
 

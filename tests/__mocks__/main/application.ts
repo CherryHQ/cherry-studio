@@ -57,6 +57,16 @@ const mockWindowManager = {
   onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
+/**
+ * Minimal IpcApiService mock — services push main→renderer events via
+ * `application.get('IpcApiService').send(windowId, event, payload)` (directed) or
+ * `.broadcast(event, payload)` (all windows). Tests can assert on these spies.
+ */
+const mockIpcApiService = {
+  send: vi.fn(),
+  broadcast: vi.fn()
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -64,7 +74,8 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   MainWindowService: mockMainWindowService,
-  WindowManager: mockWindowManager
+  WindowManager: mockWindowManager,
+  IpcApiService: mockIpcApiService
 } as const
 
 /** Type for per-service overrides */
@@ -77,13 +88,29 @@ export type ServiceOverrides = Partial<Record<keyof typeof defaultServiceInstanc
 export function createMockApplication(overrides: ServiceOverrides = {}) {
   const serviceInstances = { ...defaultServiceInstances, ...overrides }
 
-  return {
-    get: vi.fn((name: string) => {
+  // Mirror production: `application.get(name)` delegates to `container.get(name)`
+  // (Application.get → this.container.get) and `getContainer()` returns the SAME
+  // instance. `get` lives on the prototype (class method), so code that
+  // temporarily overrides `container.get` and restores it by deleting the own
+  // property behaves exactly as it does against the real ServiceContainer.
+  class MockServiceContainer {
+    get(name: string) {
       if (name in serviceInstances) {
         return serviceInstances[name as keyof typeof serviceInstances]
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    }),
+    }
+    has(name: string) {
+      return name in serviceInstances
+    }
+    register() {}
+    setInstance() {}
+  }
+  const container = new MockServiceContainer()
+
+  return {
+    get: vi.fn((name: string) => container.get(name)),
+    getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with
     // class field initializers like `application.getPath('feature.xxx')`
@@ -94,6 +121,8 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
+    quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
     isQuitting: false
   }

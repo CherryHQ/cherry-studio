@@ -1,12 +1,13 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
   KeyboardEventData,
   MouseEventData,
@@ -50,6 +51,28 @@ type RelativeOrientation =
 @ServicePhase(Phase.WhenReady)
 export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
+
+  /** Latest desired running state — mirrors the `feature.selection.enabled` preference. */
+  private desiredEnabled = false
+  /**
+   * Converges the hook/toolbar running state to `desiredEnabled`. Sole caller of activate/deactivate
+   * (latest-wins, level-triggered against `isActivated`). The reachable race is the deferred startup
+   * warm-up (see onAllReady): a disable arriving before the `setImmediate` fires must win, instead of
+   * the warm-up activating unconditionally. The reconciler holds no OS resources and is a
+   * construct-once field NOT recreated on restart, so it is deliberately never disposed.
+   */
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+    name: 'selection',
+    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    isSettled: ({ desired, actual }) => desired === actual,
+    apply: async ({ desired }) => {
+      if (desired) {
+        await this.activate()
+      } else {
+        await this.deactivate()
+      }
+    }
+  })
 
   private initStatus: boolean = false
 
@@ -157,8 +180,9 @@ export class SelectionService extends BaseService implements Activatable {
     // Load native module if not yet loaded (lazy loading preserved across activation cycles)
     if (!this.initStatus) {
       if (!this.loadModuleAndCreateInstance()) {
-        // Setting preference to false triggers the subscription which calls deactivate(),
-        // but _activating guard in BaseService ensures the deactivate() is a safe no-op.
+        // Flip the preference off so the UI reflects the failure. This fires the subscription
+        // (desiredEnabled=false + reconciler.request()); the reconciler then converges to
+        // deactivated after this onActivate throws — no direct, racing deactivate() call.
         const preferenceService = application.get('PreferenceService')
         void preferenceService.set('feature.selection.enabled', false)
         throw new Error('Failed to load selection-hook module')
@@ -211,7 +235,6 @@ export class SelectionService extends BaseService implements Activatable {
 
   protected async onInit(): Promise<void> {
     this.initZoomFactor()
-    this.registerIpcHandlers()
 
     const wm = application.get('WindowManager')
 
@@ -260,8 +283,8 @@ export class SelectionService extends BaseService implements Activatable {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
-        if (enabled) void this.activate()
-        else void this.deactivate()
+        this.desiredEnabled = enabled
+        this.reconciler.request()
       })
     })
   }
@@ -275,14 +298,16 @@ export class SelectionService extends BaseService implements Activatable {
 
     // Warm up off the boot critical path: onActivate() synchronously loads the native
     // addon and builds the toolbar + action windows (~120ms). setImmediate defers it
-    // past the WhenReady phase so the main window paints first. A pre-fire stop is safe
-    // — _doActivate() no-ops unless the service is Ready.
+    // past the WhenReady phase so the main window paints first.
+    //
+    // Drive the warm-up through the reconciler so a disable landing in the deferred gap is not
+    // clobbered: the old setImmediate activated unconditionally even if the user had just turned the
+    // feature off. Setting `desiredEnabled` makes the deferred request level-triggered — it re-reads
+    // the latest intent and stays deactivated if disabled meanwhile. A pre-fire stop is also safe
+    // (apply's activate() no-ops unless the service is Ready).
+    this.desiredEnabled = true
     this.logInfo('Selection feature enabled, scheduling selection-hook warm-up')
-    setImmediate(() => {
-      void this.activate().catch((error) => {
-        this.logError('Failed to activate selection feature on startup:', error as Error)
-      })
-    })
+    setImmediate(() => this.reconciler.request())
   }
 
   protected async onStop(): Promise<void> {
@@ -494,7 +519,9 @@ export class SelectionService extends BaseService implements Activatable {
     // WM suffices and all cleanup still runs.
 
     window.on('show', () => {
-      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+      if (this.toolbarWindowId) {
+        application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', true)
+      }
       // Mouse-key hook start tied to visibility rather than to specific call
       // sites: normal show path, crash-recovery re-open, and any future
       // caller all inherit this for free.
@@ -502,7 +529,9 @@ export class SelectionService extends BaseService implements Activatable {
     })
 
     window.on('hide', () => {
-      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+      if (this.toolbarWindowId) {
+        application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', false)
+      }
       // Symmetric to the show listener — any path to hidden (business
       // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
       // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
@@ -956,7 +985,9 @@ export class SelectionService extends BaseService implements Activatable {
 
     // [macOS] isFullscreen is only available on macOS
     this.showToolbarAtPosition(refPoint, refOrientation, selectionData.programName)
-    this.toolbarWindow!.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
+    if (this.toolbarWindowId) {
+      application.get('IpcApiService').send(this.toolbarWindowId, 'selection.text_selected', selectionData)
+    }
   }
 
   /**
@@ -1209,7 +1240,7 @@ export class SelectionService extends BaseService implements Activatable {
     const wm = application.get('WindowManager')
 
     // open({ initData }) atomically stores the action payload and, for the
-    // pool-recycle path, emits WindowManager_Reused with the same payload so
+    // pool-recycle path, emits window.reused with the same payload so
     // the renderer can update in-place. For recycled windows the renderer has
     // been mounted and its listener registered since warmup, so the DOM is
     // ready on the next tick. For fresh windows the renderer mounts,
@@ -1374,21 +1405,6 @@ export class SelectionService extends BaseService implements Activatable {
     }, 50)
   }
 
-  public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
-    if (actionWindow.isDestroyed()) return
-    // Route through WindowManager so any future `behavior.alwaysOnTop` on the
-    // SelectionAction registry entry (currently none) flows automatically.
-    // With no level declared, this is equivalent to `setAlwaysOnTop(isPinned)`.
-    const wm = application.get('WindowManager')
-    const id = wm.getWindowId(actionWindow)
-    if (id !== undefined) {
-      wm.behavior.setAlwaysOnTop(id, isPinned)
-    } else {
-      // Untracked window (shouldn't happen in the normal pooled flow).
-      actionWindow.setAlwaysOnTop(isPinned)
-    }
-  }
-
   /**
    * Update trigger mode behavior
    * Switches between selection-based and alt-key based triggering
@@ -1444,53 +1460,6 @@ export class SelectionService extends BaseService implements Activatable {
     }
     if (!this.selectionHook || !this.isActivated) return false
     return this.selectionHook.writeToClipboard(text)
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
-      this.hideToolbar()
-    })
-
-    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
-      return this.writeToClipboard(text) ?? false
-    })
-
-    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
-      this.determineToolbarSize(width, height)
-    })
-
-    // [macOS] only macOS has the available isFullscreen mode
-    this.ipcHandle(
-      IpcChannel.Selection_ProcessAction,
-      (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
-        this.processAction(actionItem, isFullScreen)
-      }
-    )
-
-    // Helper: resolve an action window from an IPC event via WindowManager.
-    // Falls back to BrowserWindow.fromWebContents if the window is not tracked by WM
-    // (e.g., race conditions during deactivate), matching the pre-migration behavior.
-    const resolveActionWindow = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
-      const wm = application.get('WindowManager')
-      const windowId = wm.getWindowIdByWebContents(event.sender)
-      if (windowId) {
-        return wm.getWindow(windowId) ?? null
-      }
-      return BrowserWindow.fromWebContents(event.sender)
-    }
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.pinActionWindow(actionWindow, isPinned)
-      }
-    })
-
-    if (isLinux) {
-      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
-        return this.getLinuxEnvInfo()
-      })
-    }
   }
 
   private logInfo(message: string, forceShow: boolean = false): void {

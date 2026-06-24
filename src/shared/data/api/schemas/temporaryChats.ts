@@ -5,8 +5,8 @@
  * the main process until the user explicitly persists or destroys them.
  *
  * All entity types (Topic, Message) and DTOs (CreateTopicDto, CreateMessageDto)
- * are reused from the persistent topic / message schemas. Fields that don't
- * apply to the linear, non-branching temporary model are rejected at the
+ * are reused from the persistent topic / message schemas. Message fields that
+ * don't apply to the linear, non-branching temporary model are rejected at the
  * service layer (see TemporaryChatService) — this schema does not narrow them
  * at the type level to keep full alignment with the persistent API surface.
  */
@@ -47,7 +47,6 @@ export interface PersistTemporaryChatResponse {
  *
  * Endpoints deliberately NOT provided (and their rationale):
  * - GET /temporary/topics/:id                — create response already carries full Topic
- * - PATCH /temporary/topics/:id              — no rename / reassign in temporary chats
  * - PUT /temporary/topics/:id/active-node    — no activeNode concept
  * - GET /temporary/topics/:topicId/tree      — no tree structure
  * - GET /messages/:id, PATCH, DELETE         — messages are immutable once appended
@@ -58,7 +57,7 @@ export type TemporaryChatSchemas = {
    * @example POST /temporary/topics { "name": "Quick question", "assistantId": "asst_123" }
    */
   '/temporary/topics': {
-    /** Create a new temporary topic. `sourceNodeId` is rejected (fork not supported). */
+    /** Create a new temporary topic. */
     POST: {
       body: CreateTopicDto
       response: Topic

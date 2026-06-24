@@ -1,4 +1,4 @@
-import { codeCLI } from '@shared/config/constant'
+import { codeCLI } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
@@ -119,12 +119,12 @@ describe('generateToolEnvironment', () => {
     expect(env.CHERRY_CODEX_BASE_URL).toBe('https://api.openai.com/v1')
   })
 
-  it('should format baseUrl with /v1 for iFlowCli when missing', () => {
+  it('should inject QODERCN_PERSONAL_ACCESS_TOKEN for qoderCli', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.iFlowCli, providerId: 'iflow', baseUrl: 'https://api.iflow.cn' })
+      baseConfig({ tool: codeCLI.qoderCli, providerId: 'qoder', apiKey: 'test-key', baseUrl: 'https://api.qoder.com' })
     )
 
-    expect(env.IFLOW_BASE_URL).toBe('https://api.iflow.cn/v1')
+    expect(env.QODERCN_PERSONAL_ACCESS_TOKEN).toBe('test-key')
   })
 
   it('should handle trailing slash correctly', () => {

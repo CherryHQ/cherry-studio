@@ -1,4 +1,4 @@
-import type { ChannelLogEntry } from '@shared/config/types'
+import type { ChannelLogEntry } from './types'
 
 /**
  * Lightweight ring buffer for per-channel logs.

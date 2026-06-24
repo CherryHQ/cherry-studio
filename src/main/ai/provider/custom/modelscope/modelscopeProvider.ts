@@ -3,7 +3,7 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createImageGenerationModel } from '../imageGenerationModel'
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
 import { createModelscopeTransport, DEFAULT_MODELSCOPE_BASE_URL } from './modelscopeTransport'
 
 export const MODELSCOPE_PROVIDER_NAME = 'modelscope' as const
@@ -25,6 +25,19 @@ export interface ModelscopeProvider extends ProviderV3 {
   languageModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
+}
+
+/**
+ * Build the ModelScope submit/poll image transport from provider settings.
+ * Shared by the provider factory and the image-generation job's transport
+ * registry (`resolveImageTransport`) so the job handler can rebuild the same
+ * transport after a restart from the re-resolved provider settings.
+ */
+export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport {
+  return createModelscopeTransport({
+    apiKey: settings.apiKey ?? '',
+    baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL
+  })
 }
 
 /**
@@ -56,10 +69,7 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       fetch: customFetch
     })
 
-  const transport = createModelscopeTransport({
-    apiKey: settings.apiKey ?? '',
-    baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL
-  })
+  const transport = buildModelscopeTransport(settings)
 
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const

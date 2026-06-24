@@ -83,8 +83,8 @@ describe('AppModalProvider Dialog integration', () => {
     })
 
     expect(await screen.findByText('Delete model')).toBeInTheDocument()
-    expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('z-[60]')
-    expect(document.querySelector('[data-slot="page-side-panel"]')).toHaveClass('z-[70]')
+    expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('z-60')
+    expect(document.querySelector('[data-slot="page-side-panel"]')).toHaveClass('z-70')
     expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass('z-[90]')
     expect(screen.getByRole('dialog', { name: 'Delete model' })).toHaveClass('z-[90]')
   })

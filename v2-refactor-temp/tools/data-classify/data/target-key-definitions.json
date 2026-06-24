@@ -2,9 +2,16 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2026-03-24"
+    "lastUpdated": "2026-06-01"
   },
   "definitions": [
+    {
+      "targetKey": "app.power.prevent_sleep_when_busy",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
     {
       "targetKey": "app.window.position.x",
       "type": "number",
@@ -97,28 +104,11 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "ui.sidebar.icons.visible",
-      "type": "PreferenceTypes.SidebarIcon[]",
-      "defaultValue": [
-        "assistants",
-        "store",
-        "paintings",
-        "translate",
-        "mini_app",
-        "knowledge",
-        "files",
-        "code_tools",
-        "notes"
-      ],
+      "targetKey": "ui.sidebar.favorites",
+      "type": "PreferenceTypes.SidebarFavorite[]",
+      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
       "status": "classified",
-      "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
-    },
-    {
-      "targetKey": "ui.sidebar.icons.invisible",
-      "type": "PreferenceTypes.SidebarIcon[]",
-      "defaultValue": [],
-      "status": "classified",
-      "description": "Hidden sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+      "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
     },
     {
       "targetKey": "chat.default_model_id",
@@ -133,6 +123,20 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.tab.display_mode",
+      "type": "PreferenceTypes.TopicDisplayMode",
+      "defaultValue": "assistant",
+      "status": "classified",
+      "description": "Topic sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.session.display_mode",
+      "type": "PreferenceTypes.AgentSessionDisplayMode",
+      "defaultValue": "agent",
+      "status": "classified",
+      "description": "Agent session sidebar display grouping mode"
     },
     {
       "targetKey": "feature.quick_assistant.model_id",
@@ -206,6 +210,13 @@
       "defaultValue": "zh-cn",
       "status": "classified",
       "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.binary.tools",
+      "type": "PreferenceTypes.ManagedBinary[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
+      "status": "classified",
+      "description": "List of tools to install via BinaryManager"
     },
     {
       "targetKey": "shortcut.app.fullscreen.exit",

@@ -99,18 +99,20 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('adds the claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp([], true, false)).toEqual(
-      expect.arrayContaining(['mcp__claw__*', 'mcp__agent-memory__*'])
+  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
+    expect(adjustAllowedToolsForMcp(true, false)).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
     )
   })
 
-  it('adds the assistant wildcard for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp([], false, true)).toContain('mcp__assistant__*')
+  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
+    expect(adjustAllowedToolsForMcp(false, true)).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+    )
   })
 
-  it('leaves allowed tools untouched when neither Soul nor Assistant', () => {
-    expect(adjustAllowedToolsForMcp(['existing'], false, false)).toEqual(['existing'])
+  it('leaves the allowlist undefined for a plain agent (all tools permitted)', () => {
+    expect(adjustAllowedToolsForMcp(false, false)).toBeUndefined()
   })
 })
 
@@ -123,6 +125,12 @@ describe('buildMcpServers', () => {
   it('does not inject agent-memory when Soul Mode is off', async () => {
     const result = await buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
+  })
+
+  it('injects cherry-tools for every session and no longer injects exa', async () => {
+    const result = await buildMcpServers(session, agent, false, false)
+    expect(result?.['cherry-tools']).toBeDefined()
+    expect(result?.exa).toBeUndefined()
   })
 })
 

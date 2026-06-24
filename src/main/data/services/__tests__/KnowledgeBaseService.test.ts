@@ -17,6 +17,15 @@ const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
 const FAILED_NULL_ERROR_BASE_ID = '33333333-3333-4333-8333-333333333333'
 const FAILED_EMPTY_ERROR_BASE_ID = '44444444-4444-4444-8444-444444444444'
+const ALPHA_KNOWLEDGE_BASE_ID = '55555555-5555-4555-8555-555555555555'
+const BETA_KNOWLEDGE_BASE_ID = '66666666-6666-4666-8666-666666666666'
+const OTHER_KNOWLEDGE_BASE_ID = '77777777-7777-4777-8777-777777777777'
+const LITERAL_KNOWLEDGE_BASE_ID = '88888888-8888-4888-8888-888888888888'
+const EXPANDED_KNOWLEDGE_BASE_ID = '99999999-9999-4999-8999-999999999999'
+const OLD_KNOWLEDGE_BASE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const CUTOFF_KNOWLEDGE_BASE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
@@ -63,7 +72,6 @@ describe('KnowledgeBaseService', () => {
       threshold: 0.55,
       documentCount: 5,
       searchMode: 'hybrid',
-      hybridAlpha: 0.7,
       ...overrides
     }
     await dbh.db.insert(knowledgeBaseTable).values(values)
@@ -118,6 +126,78 @@ describe('KnowledgeBaseService', () => {
       expect(result.total).toBe(2)
       expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
+    })
+
+    it('should search knowledge bases by name and keep pagination total scoped to the search', async () => {
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Alpha Research' })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta Research' })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Operations' })
+
+      const result = await service.list({ page: 1, limit: 1, search: 'Research' })
+
+      expect(result.total).toBe(2)
+      expect(result.page).toBe(1)
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].name).toContain('Research')
+    })
+
+    it('treats % and _ in knowledge base search as literal characters', async () => {
+      await seedKnowledgeBase({ id: LITERAL_KNOWLEDGE_BASE_ID, name: 'Vector 100%_notes' })
+      await seedKnowledgeBase({ id: EXPANDED_KNOWLEDGE_BASE_ID, name: 'Vector 100xxnotes' })
+
+      const result = await service.list({ page: 1, limit: 10, search: '100%_' })
+
+      expect(result.total).toBe(1)
+      expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
+    })
+
+    it('defaults to createdAt descending', async () => {
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Old', createdAt: 1 })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Newer', createdAt: 3 })
+      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Newest', createdAt: 2 })
+
+      const result = await service.list({ page: 1, limit: 10 })
+
+      expect(result.items.map((item) => item.id)).toEqual([
+        NEWER_KNOWLEDGE_BASE_ID,
+        NEWEST_KNOWLEDGE_BASE_ID,
+        OLD_KNOWLEDGE_BASE_ID
+      ])
+    })
+
+    it('sorts by name ascending', async () => {
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta' })
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Alpha' })
+
+      const result = await service.list({ page: 1, limit: 10, sortBy: 'name', sortOrder: 'asc' })
+
+      expect(result.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID, BETA_KNOWLEDGE_BASE_ID])
+    })
+
+    it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
+      const cutoffIso = '2026-05-01T00:00:00.000Z'
+      const cutoff = Date.parse(cutoffIso)
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Research old', updatedAt: cutoff - 1 })
+      await seedKnowledgeBase({ id: CUTOFF_KNOWLEDGE_BASE_ID, name: 'Research cutoff', updatedAt: cutoff })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Research newer', updatedAt: cutoff + 2000 })
+      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Research newest', updatedAt: cutoff + 3000 })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other', updatedAt: cutoff + 4000 })
+
+      const result = await service.list({
+        page: 1,
+        limit: 10,
+        search: 'Research',
+        updatedAtFrom: cutoffIso,
+        sortBy: 'updatedAt',
+        sortOrder: 'desc'
+      })
+
+      expect(result.items.map((item) => item.id)).toEqual([
+        NEWEST_KNOWLEDGE_BASE_ID,
+        NEWER_KNOWLEDGE_BASE_ID,
+        CUTOFF_KNOWLEDGE_BASE_ID
+      ])
+      expect(result.total).toBe(3)
     })
 
     it('should include non-deleting item counts for each knowledge base', async () => {
@@ -285,6 +365,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
       expect(result.searchMode).toBe('hybrid')
+      expect(result.hybridAlpha).toBeUndefined()
       expect(result.status).toBe('completed')
       expect(result.error).toBeNull()
 
@@ -302,6 +383,20 @@ describe('KnowledgeBaseService', () => {
       expect(row.hybridAlpha).toBeNull()
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()
+    })
+
+    it('should persist a per-base hybridAlpha when provided', async () => {
+      const result = await service.create({
+        name: 'Hybrid Tuned',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        searchMode: 'hybrid',
+        hybridAlpha: 0.8
+      })
+
+      expect(result.hybridAlpha).toBe(0.8)
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.hybridAlpha).toBe(0.8)
     })
 
     it('should create a knowledge base with explicit valid chunk config', async () => {
@@ -336,6 +431,42 @@ describe('KnowledgeBaseService', () => {
         details: {
           fieldErrors: {
             chunkOverlap: ['Chunk overlap must be smaller than chunk size']
+          }
+        }
+      })
+    })
+
+    it('should persist an explicit chunk strategy and separator', async () => {
+      const result = await service.create({
+        name: 'Delimiter Base',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '|'
+      })
+
+      expect(result.chunkStrategy).toBe('delimiter')
+      expect(result.chunkSeparator).toBe('|')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.chunkStrategy).toBe('delimiter')
+      expect(row.chunkSeparator).toBe('|')
+    })
+
+    it('should reject create in delimiter mode when the separator is empty', async () => {
+      await expect(
+        service.create({
+          name: 'Missing Separator',
+          dimensions: 1024,
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          chunkStrategy: 'delimiter',
+          chunkSeparator: ''
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
           }
         }
       })
@@ -423,14 +554,12 @@ describe('KnowledgeBaseService', () => {
       const result = await service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
         chunkSize: 1024,
-        chunkOverlap: 128,
-        hybridAlpha: 0.9
+        chunkOverlap: 128
       })
 
       expect(result.name).toBe('Updated Base')
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(128)
-      expect(result.hybridAlpha).toBe(0.9)
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.name).toBe('Updated Base')
@@ -457,6 +586,16 @@ describe('KnowledgeBaseService', () => {
       expect(row.fileProcessorId).toBeNull()
     })
 
+    it('should update and persist the per-base hybridAlpha', async () => {
+      await seedKnowledgeBase({ searchMode: 'hybrid' })
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, { hybridAlpha: 0.9 })
+
+      expect(result.hybridAlpha).toBe(0.9)
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.hybridAlpha).toBe(0.9)
+    })
+
     it('should clear stale hybrid config when search mode changes during update', async () => {
       await seedKnowledgeBase({
         chunkSize: 256,
@@ -466,16 +605,16 @@ describe('KnowledgeBaseService', () => {
       })
 
       const result = await service.update(KNOWLEDGE_BASE_ID, {
-        searchMode: 'default'
+        searchMode: 'vector'
       })
 
-      expect(result.searchMode).toBe('default')
+      expect(result.searchMode).toBe('vector')
       expect(result.chunkSize).toBe(256)
       expect(result.chunkOverlap).toBe(120)
       expect(result.hybridAlpha).toBeUndefined()
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
-      expect(row.searchMode).toBe('default')
+      expect(row.searchMode).toBe('vector')
       expect(row.chunkSize).toBe(256)
       expect(row.chunkOverlap).toBe(120)
       expect(row.hybridAlpha).toBeNull()
@@ -516,7 +655,7 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
+      await seedKnowledgeBase({ searchMode: 'vector', hybridAlpha: 0.7 })
 
       await expect(
         service.update(KNOWLEDGE_BASE_ID, {
@@ -530,7 +669,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         service.update(KNOWLEDGE_BASE_ID, {
-          searchMode: 'default',
+          searchMode: 'vector',
           hybridAlpha: 0.7
         })
       ).rejects.toMatchObject({
@@ -538,6 +677,57 @@ describe('KnowledgeBaseService', () => {
         details: {
           fieldErrors: {
             hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+          }
+        }
+      })
+    })
+
+    it('should reject switching to delimiter mode with an empty separator', async () => {
+      await seedKnowledgeBase()
+
+      await expect(
+        service.update(KNOWLEDGE_BASE_ID, {
+          chunkStrategy: 'delimiter',
+          chunkSeparator: ''
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
+          }
+        }
+      })
+    })
+
+    it('should persist a switch to delimiter mode with a custom separator', async () => {
+      await seedKnowledgeBase()
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, {
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '|'
+      })
+
+      expect(result.chunkStrategy).toBe('delimiter')
+      expect(result.chunkSeparator).toBe('|')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.chunkStrategy).toBe('delimiter')
+      expect(row.chunkSeparator).toBe('|')
+    })
+
+    it('should reject switching to delimiter mode when the persisted separator is already empty', async () => {
+      await seedKnowledgeBase({ chunkSeparator: '' })
+
+      await expect(
+        service.update(KNOWLEDGE_BASE_ID, {
+          chunkStrategy: 'delimiter'
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
           }
         }
       })

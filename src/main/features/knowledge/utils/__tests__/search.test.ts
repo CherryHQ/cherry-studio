@@ -23,8 +23,8 @@ const createResult = (
 })
 
 describe('knowledge search utils', () => {
-  it('uses relevance score kind only for vector search', () => {
-    expect(getInitialSearchScoreKind({ searchMode: 'default' })).toBe('relevance')
+  it('uses relevance score kind only for vector mode, ranking for bm25 and hybrid', () => {
+    expect(getInitialSearchScoreKind({ searchMode: 'vector' })).toBe('relevance')
     expect(getInitialSearchScoreKind({ searchMode: 'bm25' })).toBe('ranking')
     expect(getInitialSearchScoreKind({ searchMode: 'hybrid' })).toBe('ranking')
   })

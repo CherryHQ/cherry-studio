@@ -7,7 +7,7 @@
  */
 
 import type { InsertMiniAppRow, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniApp'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 
 const presetMap = new Map(PRESETS_MINI_APPS.map((p) => [p.id, p]))
 

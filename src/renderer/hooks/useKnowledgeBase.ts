@@ -1,5 +1,6 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
@@ -88,7 +89,7 @@ export const useCreateKnowledgeBase = () => {
       setIsCreating(true)
 
       try {
-        const createdBase = await window.api.knowledge.createBase(body)
+        const createdBase = await ipcApi.request('knowledge.create_base', { base: body })
 
         try {
           await invalidateCache('/knowledge-bases')
@@ -155,7 +156,7 @@ export const useRestoreKnowledgeBase = () => {
       setIsRestoring(true)
 
       try {
-        const restoredBase = await window.api.knowledge.restoreBase({
+        const result = await ipcApi.request('knowledge.restore_base', {
           sourceBaseId,
           name,
           embeddingModelId,
@@ -167,12 +168,12 @@ export const useRestoreKnowledgeBase = () => {
         } catch (invalidateError) {
           logger.error('Failed to refresh knowledge base list after restore', normalizeError(invalidateError), {
             sourceBaseId,
-            restoredBaseId: restoredBase.id
+            restoredBaseId: result.base.id
           })
         }
 
         setIsRestoring(false)
-        return restoredBase
+        return result
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to restore knowledge base', normalizedError, {
@@ -242,7 +243,7 @@ export const useDeleteKnowledgeBase = () => {
       let mutationError: Error | undefined
 
       try {
-        await window.api.knowledge.deleteBase(baseId)
+        await ipcApi.request('knowledge.delete_base', { baseId })
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to delete knowledge base', normalizedError, {

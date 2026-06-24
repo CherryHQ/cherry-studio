@@ -126,17 +126,12 @@ export function useChatWithHistory(
     }
   }, [resumeActiveStream, topicStreamStatus])
 
-  useEffect(() => {
-    const errorUnsub = window.api.ai.onStreamError((data) => {
-      if (data.topicId !== topicId) return
-      void refreshRef.current().catch((err) => {
-        logger.warn('Failed to refresh messages after stream error', { topicId, err })
-      })
-    })
-    return () => {
-      errorUnsub()
-    }
-  }, [topicId])
+  // PR 3: dropped the per-window `onStreamDone` / `onStreamError` IPC
+  // listeners that previously called `refresh()` here. `useTopicDbRefreshOnTerminal`
+  // above already revalidates SWR on every terminal transition via the
+  // classifier (covers done / aborted / error / awaiting-approval), so the
+  // IPC subscription was a second producer of the same `mutate()` call and
+  // produced the double-mutate race documented in the plan.
 
   return {
     sendMessage,

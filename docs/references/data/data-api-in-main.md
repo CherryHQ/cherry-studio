@@ -112,7 +112,31 @@ Why writes are strict: the owning service is the single source of truth for the 
 
 If you're tempted to write "going through `XxxService` would be over-engineering" — stop. A 5-line method on the owner is not over-engineering; a foreign service writing to its table is.
 
+#### Breaking a circular dependency (`dataServiceRegistry`)
+
+When two services call **each other** (A→B and B→A), a top-level `import { bService } from './BService'` forms a value-level import cycle the bundler cannot order. Do **not** paper over it with `await import('./BService')` at the call site — that infects the caller with `async`, hides the edge from static tooling, and is easy to reintroduce.
+
+Resolve the sibling lazily through `dataServiceRegistry` instead:
+
+- the sibling **self-registers** at the bottom of its module: `registerDataService('BService', bService)`
+- the caller **resolves at call time**: `const bService = getDataService('BService')`
+
+The registry imports services only as `import type`, so it stays a sink in the import graph and no value cycle can form. **Only the services that form a cycle are added to the registry and self-register; every other data service stays a plain direct-import singleton and never touches it.** Acyclic cross-calls keep using a plain direct import (e.g. `pinService` above) — reach for the registry **only** when a real cycle exists.
+
+**Tests:** the registry is populated by module load — in production each service is loaded by its DataApi handler before any call runs. A unit test that drives a cross-service path must load the sibling so it self-registers, via a side-effect import:
+
+```ts
+import '@data/services/BService' // self-registers; otherwise getDataService throws "not registered yet"
+```
+
+Contract and rationale: `src/main/data/services/dataServiceRegistry.ts`.
+
 ### Example Service
+
+> The `list()` below shows the **offset** pagination shape for illustration. The
+> real `TopicService` is cursor-paginated (`listByCursor`); a production offset
+> list looks like `AssistantService.list`. See the
+> [Pagination Guide](./data-pagination-guide.md) for both server patterns.
 
 ```typescript
 // services/TopicService.ts
@@ -256,6 +280,8 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 3. **Date fields: two helpers, clear boundary.** `timestampToISO(value: number | Date): string` is the default for `rowToEntity` — audit columns from `createUpdateTimestamps` are `.notNull()`, so the DB row hands back a real `number`. `timestampToISOOrUndefined(value: number | Date | null | undefined): string | undefined` is reserved for merge paths where the source row itself may be absent (e.g. a builtin/preset definition without a preference row). Do NOT use `timestampToISOOrUndefined` as a "safer default" — if your input is a DB row, it always has these fields.
 
 For function signature details and design-decision history (e.g. why shallow-not-recursive, why not `dnull`), see [services/utils/README.md](../../../src/main/data/services/utils/README.md).
+
+**Cursor (keyset) pagination.** List endpoints that page by a `(sortKey, id)` tuple use the shared codec + ordering helper in `services/utils/keysetCursor.ts` — `decodeListCursor` / `encodeCursor` for the `<key>:<id>` wire format, and `keysetOrdering(keyCol, idCol, { major, tie })` which returns both the strict-tuple WHERE predicate (`.where(cursor)`) and its matching `orderBy`, derived from one direction spec. Do NOT hand-write cursor encode/decode, the keyset WHERE tuple, or the `ORDER BY` in a service. See [services/utils/README.md](../../../src/main/data/services/utils/README.md) for the list-vs-search decode policy split and boundaries, and the [Pagination Guide](./data-pagination-guide.md) for the end-to-end pagination model (offset + cursor).
 
 ### Service with Transaction
 

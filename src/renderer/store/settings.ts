@@ -17,10 +17,9 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
+import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@renderer/config/constant'
 import type { ApiGatewayConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
-import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@shared/config/constant'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {
   AssistantIconType,
   AssistantTabSortType,
@@ -41,6 +40,18 @@ import type { RemoteSyncState } from './backup'
 
 // Re-export for backward compatibility
 // export { DEFAULT_SIDEBAR_ICONS }
+
+const DEFAULT_LEGACY_SIDEBAR_ICONS = [
+  'assistants',
+  'store',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes'
+]
 
 export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
@@ -336,7 +347,8 @@ export const initialState: SettingsState = {
   customCss: '',
   topicNamingPrompt: '',
   sidebarIcons: {
-    visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
+    // @ts-ignore eslint-disable-next-line
+    visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
     disabled: []
   },
   narrowMode: false,

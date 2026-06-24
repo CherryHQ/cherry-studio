@@ -42,7 +42,7 @@ import path from 'node:path'
 import { Writable } from 'node:stream'
 
 import { loggerService } from '@logger'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
 
@@ -79,6 +79,24 @@ export async function exists(path: FilePath): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+/** Outcome of a readability probe: present, genuinely absent, or could-not-be-checked. */
+export type PathReadability = 'readable' | 'missing' | 'unverifiable'
+
+/**
+ * Like {@link exists}, but distinguishes a path that is genuinely absent (`ENOENT` → `missing`)
+ * from one that could not be checked (`EACCES` / `EMFILE` / `EIO` / a network-drive timeout →
+ * `unverifiable`). Callers that drive a destructive remediation off "absent" — e.g. telling the
+ * user to delete and re-add a source — need this so a transient failure is not reported as deletion.
+ */
+export async function probeReadable(path: FilePath): Promise<PathReadability> {
+  try {
+    await access(path, constants.R_OK)
+    return 'readable'
+  } catch (error) {
+    return (error as NodeJS.ErrnoException)?.code === 'ENOENT' ? 'missing' : 'unverifiable'
   }
 }
 

@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { Model } from '@renderer/types'
-import { codeCLI, terminalApps } from '@shared/config/constant'
+import { codeCLI, terminalApps } from '@shared/types/codeCli'
 
 // 常量定义
 const MAX_DIRECTORIES = 10 // 最多保存10个目录
@@ -44,7 +44,6 @@ export const initialState: CodeToolsState = {
     [codeCLI.claudeCode]: null,
     [codeCLI.geminiCli]: null,
     [codeCLI.openaiCodex]: null,
-    [codeCLI.iFlowCli]: null,
     [codeCLI.githubCopilotCli]: null,
     [codeCLI.kimiCli]: null,
     [codeCLI.openCode]: null
@@ -54,7 +53,6 @@ export const initialState: CodeToolsState = {
     'claude-code': '',
     'gemini-cli': '',
     'openai-codex': '',
-    'iflow-cli': '',
     'github-copilot-cli': '',
     'kimi-cli': '',
     opencode: ''
@@ -91,7 +89,6 @@ const codeToolsSlice = createSlice({
           'claude-code': '',
           'gemini-cli': '',
           'openai-codex': '',
-          'iflow-cli': '',
           'github-copilot-cli': '',
           'kimi-cli': '',
           opencode: ''

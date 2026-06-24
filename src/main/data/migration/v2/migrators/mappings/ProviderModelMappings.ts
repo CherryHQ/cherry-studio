@@ -12,6 +12,7 @@ import {
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
+import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/v2/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type {
   ApiFeatures,
@@ -21,7 +22,6 @@ import type {
   ProviderSettings,
   ReasoningFormatType
 } from '@shared/data/types/provider'
-import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')

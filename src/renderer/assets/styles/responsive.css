@@ -10,11 +10,6 @@
   --settings-width: 250px;
 }
 
-[navbar-position='left'] {
-  --navbar-height: 42px;
-  --list-item-border-radius: 20px;
-}
-
 /* lg */
 @media (max-width: 1080px) {
   :root {

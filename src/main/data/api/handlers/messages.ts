@@ -46,6 +46,10 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = CreateMessageSchema.parse(body)
       return await messageService.create(params.topicId, parsed)
+    },
+
+    DELETE: async ({ params }) => {
+      return await messageService.clearTopicMessages(params.topicId)
     }
   },
 

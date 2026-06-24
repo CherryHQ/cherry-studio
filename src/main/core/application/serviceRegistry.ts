@@ -6,35 +6,36 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
-import { DxtService } from '@main/ai/mcp/DxtService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
+import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService } from '@main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService'
-import { SpanCacheService } from '@main/ai/observability/cache/SpanCacheService'
 import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceService'
+import { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
+import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService } from '@main/features/knowledge'
 import { KnowledgeVectorStoreService } from '@main/features/knowledge/vectorstore/KnowledgeVectorStoreService'
+import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
-import { CodeCliService } from '@main/services/CodeCliService'
+import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
-import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
@@ -80,6 +81,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  IpcApiService,
   SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
@@ -91,15 +93,14 @@ export const services = {
   FileManager,
   DirectoryTreeManager,
   FileProcessingService,
-  PowerMonitorService,
+  PowerService,
   SelectionService,
   SettingsWindowService,
   ShortcutService,
   ThemeService,
-  SpanCacheService,
+  TraceStorageService,
   NodeTraceService,
   ClaudeCodeTraceBridgeService,
-  OcrService,
   OvmsManager,
   ProtocolService,
   ProxyManager,
@@ -111,9 +112,10 @@ export const services = {
   CherryInOauthService,
   MainWindowService,
   QuickAssistantService,
-  DxtService,
+  McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  BinaryManager,
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,

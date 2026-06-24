@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "回答済み",
+      "close": "閉じる",
       "customPlaceholder": "答えを入力してください...",
       "loading": "質問を読み込んでいます…",
       "multiSelect": "複数選択",
@@ -25,6 +26,8 @@
       "noQuestions": "利用可能な質問はありません",
       "other": "その他",
       "previous": "前",
+      "progress": "{{current}} / {{total}}",
+      "skip": "スキップ",
       "submit": "送信",
       "title": "エージェントからの質問"
     },
@@ -215,7 +218,11 @@
         "edit": "編集",
         "empty": "スケジュールタスクがありません。追加して開始しましょう。",
         "error": {
-          "loadFailed": "タスクの読み込みに失敗しました"
+          "createFailed": "タスクの作成に失敗しました",
+          "deleteFailed": "タスクの削除に失敗しました",
+          "loadFailed": "タスクの読み込みに失敗しました",
+          "runFailed": "タスクの実行に失敗しました",
+          "updateFailed": "タスクの更新に失敗しました"
         },
         "intervalPlaceholder": "間隔（分）",
         "intervalUnit": "議事録",
@@ -326,6 +333,9 @@
       "success": "Git Bashが正常に検出されました！",
       "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
+    "home": {
+      "welcome_title": "今日は何について話しましょうか？"
+    },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
       "soul_placeholder": "Telegramに接続するのを手伝ってください"
@@ -335,9 +345,119 @@
         "failed": "エージェントの一覧取得に失敗しました。"
       }
     },
+    "pin": {
+      "title": "ピンエージェント"
+    },
+    "preview_pane": {
+      "close": "プレビューを閉じる",
+      "code": "コード",
+      "code_unavailable": "バイナリファイルではソースビューは利用できません",
+      "default_app": "デフォルトアプリ",
+      "empty": {
+        "description": "エージェントとのチャットを開始してください。生成されたコードとライブプレビューがここに表示されます。",
+        "title": "準備完了"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "このExcelファイルはプレビューサイズの上限を超えています。",
+          "invalid_request": "Excel のプレビュー要求が無効です。",
+          "parse_failed": "このExcelファイルを読み取ることができません。",
+          "too_complex": "このExcelファイルはプレビューするには複雑すぎます。",
+          "unsupported_extension": "プレビューできるのは .xlsx および .xlsm ファイルのみです。",
+          "unsupported_xls": "レガシーの .xls ファイルは Excel プレビューではサポートされていません。"
+        },
+        "warnings": {
+          "generic": "一部のワークブックのコンテンツが完全に表示されない場合があります。",
+          "title": "プレビュー通知",
+          "unsupported_images": "Excel のプレビューではまだ画像が表示されません。"
+        }
+      },
+      "file_tree": "ファイルツリー",
+      "items_one": "{{count}} 個のアイテム",
+      "items_other": "{{count}}個のアイテム",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "no_search_results": "検索に一致するファイルはありません",
+      "office": {
+        "description": "このファイルタイプは、システムのデフォルトアプリで開く必要があります。",
+        "title": "ここでは {{extension}} ファイルを開くことはまだサポートされていません"
+      },
+      "preview": "プレビュー",
+      "refresh": "リフレッシュ",
+      "search_placeholder": "ファイルを検索...",
+      "select_file": "ファイルを選択してプレビュー",
+      "toggle": "プレビューパネルを表示",
+      "too_large": {
+        "description": "ファイルが{{limit}}のプレビュー制限を超えています。",
+        "title": "プレビューに対してファイルが大きすぎます"
+      },
+      "unavailable": {
+        "description": "このファイルを開けませんでした — 移動または削除された可能性があります。",
+        "title": "ファイルが利用できません"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "このWord文書をレンダリングできません。",
+          "read_failed": "このWord文書を読み取れません。"
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "エージェントの並び替えに失敗しました"
+      }
+    },
+    "right_pane": {
+      "close": "閉じる",
+      "flow": {
+        "empty": {
+          "description": "エージェントツール呼び出しを選択して、その子メッセージフローを確認してください。",
+          "title": "ツールが選択されていません"
+        },
+        "no_messages": {
+          "description": "このツール呼び出しにはキャプチャされた子メッセージフローがありません。",
+          "title": "メッセージはありません"
+        }
+      },
+      "info": {
+        "artifacts": "納品物",
+        "context_categories": {
+          "autocompact_buffer": "自動圧縮バッファ",
+          "custom_agents": "カスタムエージェント",
+          "free_space": "空き容量",
+          "mcp_tools": "MCPツール",
+          "memory_files": "メモリファイル",
+          "messages": "メッセージ",
+          "plugins": "プラグイン",
+          "skills": "スキル",
+          "system_prompt": "システムプロンプト",
+          "system_tools": "システムツール"
+        },
+        "context_usage": "コンテキストの使用",
+        "label": "セッション情報",
+        "more": "+{{count}} 件",
+        "no_artifacts": "宣言された成果物なし",
+        "no_subagents": "サブエージェントなし",
+        "subagents": "サブエージェント"
+      },
+      "status": {
+        "activity": "活動",
+        "agent": "エージェント",
+        "context": "コンテキスト",
+        "no_tasks": "アクティブなタスクはありません",
+        "selected_tool": "選択されたツール",
+        "task_count": "{{completed}} / {{total}} 完了",
+        "tasks": "タスク",
+        "tools_active": "アクティブ",
+        "tools_done": "完了",
+        "tools_failed": "失敗",
+        "tools_total": "合計",
+        "workspace": "ワークスペース"
+      },
+      "tabs": {
+        "files": "ファイル",
+        "flow": "フロー",
+        "status": "ステータス"
       }
     },
     "server": {
@@ -360,6 +480,16 @@
       "add": {
         "title": "セッションを追加"
       },
+      "agent": {
+        "delete": {
+          "content": "このエージェントのタスクを削除すると、このエージェントに関連付けられたすべてのタスクが削除されます。エージェント自体は削除されません。",
+          "error": {
+            "failed": "エージェントタスクの削除に失敗しました"
+          },
+          "title": "エージェントタスクを削除",
+          "trigger": "エージェントタスクを削除"
+        }
+      },
       "allowed_tools": {
         "empty": "このエージェントが利用できるツールはありません。",
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
@@ -379,26 +509,94 @@
         },
         "title": "セッションを削除"
       },
+      "display": {
+        "agent": "エージェント",
+        "time": "時間",
+        "title": "表示モード",
+        "workdir": "作業ディレクトリ"
+      },
       "edit": {
         "title": "編集セッション"
+      },
+      "empty": {
+        "description": "タスクは、1つを開始するとここに表示されます。",
+        "title": "まだタスクはありません"
+      },
+      "file_manager": {
+        "file_explorer": "ファイルエクスプローラー",
+        "files": "ファイル",
+        "finder": "ファインダー"
       },
       "get": {
         "error": {
           "failed": "セッションの取得に失敗しました",
+          "not_found": "タスクが見つかりません",
           "null_id": "セッション ID が null です"
         }
       },
+      "group": {
+        "collapse": "折りたたみ表示",
+        "collapse_all": "すべて折りたたむ",
+        "conversation": "会話",
+        "drag_hint": "ドラッグして並び替えます。タスクをドラッグして表示グループと非表示グループを調整してください。",
+        "earlier": "以前",
+        "expand_all": "すべて展開",
+        "no_workdir": "作業ディレクトリがありません",
+        "show_more": "表示を拡大",
+        "this_week": "今週",
+        "today": "今日",
+        "unknown_agent": "不明なエージェント",
+        "yesterday": "昨日"
+      },
       "label_one": "セッション",
       "label_other": "セッション",
+      "list": {
+        "title": "タスク"
+      },
+      "pin": {
+        "title": "タスクをピン留め"
+      },
       "reorder": {
         "error": {
           "failed": "セッションの並び替えに失敗しました"
         }
       },
+      "search": {
+        "placeholder": "検索タスク"
+      },
+      "unpin": {
+        "title": "タスクのピンを外す"
+      },
       "update": {
         "error": {
           "failed": "セッションの更新に失敗しました"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "この作業ディレクトリを削除すると、その配下のすべてのタスクも削除されます。削除されるのはデータベースのレコードのみで、ディスク上の実際のフォルダは削除されません。",
+          "error": {
+            "failed": "ワークディレクトリの削除に失敗しました"
+          },
+          "title": "作業ディレクトリを削除",
+          "trigger": "作業ディレクトリを削除"
+        },
+        "rename": {
+          "error": {
+            "failed": "ワークディレクトリの名前変更に失敗しました"
+          },
+          "title": "作業ディレクトリの名前を変更",
+          "trigger": "作業ディレクトリの名前を変更"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "ワークディレクトリの追加に失敗しました。",
+        "create_new": "新しい作業ディレクトリを追加",
+        "empty_text": "作業ディレクトリがありません",
+        "no_project": "作業ディレクトリがありません",
+        "placeholder": "作業ディレクトリを選択",
+        "search_placeholder": "作業ディレクトリを検索",
+        "select_failed": "フォルダを選択できませんでした。"
       },
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
@@ -695,8 +893,10 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allow": "許可",
         "allowAll": "常に許可",
         "cancel": "キャンセル",
+        "deny": "拒否",
         "run": "走る"
       },
       "confirmation": "このClaudeツールを実行してもよろしいですか？",
@@ -724,17 +924,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "セッション間のメモリを保存および呼び出す",
+          "label": "メモリー"
+        },
         "Bash": {
-          "description": "環境でシェルコマンドを実行します"
+          "description": "環境でシェルコマンドを実行します",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "ナレッジベースを検索します",
+          "label": "ナレッジ検索"
+        },
+        "CherryWebFetch": {
+          "description": "ウェブページを取得して読み取る",
+          "label": "Web Fetch"
+        },
+        "CherryWebSearch": {
+          "description": "設定されたプロバイダーを通じてウェブを検索します",
+          "label": "ウェブ検索"
+        },
+        "ClawCron": {
+          "description": "アプリ内スケジューラを管理します",
+          "label": "スケジューラ"
         },
         "Edit": {
-          "description": "特定のファイルに対してターゲットを絞った編集を行う"
+          "description": "特定のファイルに対してターゲットを絞った編集を行う",
+          "label": "編集"
         },
         "Glob": {
-          "description": "パターンマッチングに基づいてファイルを検索する"
+          "description": "パターンマッチングに基づいてファイルを検索する",
+          "label": "グロブ"
         },
         "Grep": {
-          "description": "ファイルの内容内でパターンを検索します"
+          "description": "ファイルの内容内でパターンを検索します",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "単一のファイルに対して複数の編集をアトミックに実行します"
@@ -746,7 +970,8 @@
           "description": "Jupyterノートブックの内容を読み取って表示します"
         },
         "Read": {
-          "description": "ファイルの内容を読み取ります"
+          "description": "ファイルの内容を読み取ります",
+          "label": "読む"
         },
         "Task": {
           "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します"
@@ -763,14 +988,22 @@
         "WebSearch": {
           "description": "ドメインフィルタリング付きのウェブ検索を実行します"
         },
+        "Workflow": {
+          "description": "サブエージェントをオーケストレーションする複数ステップのワークフローを実行する",
+          "label": "ワークフロー"
+        },
         "Write": {
-          "description": "ファイルを作成または上書きします"
+          "description": "ファイルを作成または上書きします",
+          "label": "書け"
         }
       }
     },
     "type": {
       "label": "エージェントタイプ",
       "unknown": "不明なタイプ"
+    },
+    "unpin": {
+      "title": "エージェントのピンを外す"
     },
     "update": {
       "error": {
@@ -881,6 +1114,7 @@
     "abbr": "アシスタント",
     "clear": {
       "content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
+      "menu_title": "すべてのアシスタントとの会話を削除してください",
       "title": "トピックをクリア"
     },
     "copy": {
@@ -902,6 +1136,9 @@
     "list": {
       "showByList": "リスト表示",
       "showByTags": "タグ表示"
+    },
+    "pin": {
+      "title": "ピンアシスタント"
     },
     "presets": {
       "add": {
@@ -997,6 +1234,11 @@
       },
       "title": "アシスタントライブラリ"
     },
+    "reorder": {
+      "error": {
+        "failed": "アシスタントの並び替えに失敗しました"
+      }
+    },
     "save": {
       "success": "保存に成功しました",
       "title": "エージェントに保存"
@@ -1090,7 +1332,10 @@
       },
       "untagged": "未分類"
     },
-    "title": "アシスタント"
+    "title": "アシスタント",
+    "unpin": {
+      "title": "アシスタントのピンを外す"
+    }
   },
   "auth": {
     "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -1125,6 +1370,7 @@
     "download": "ダウンロード",
     "includes_user_questions": "ユーザーからの質問を含む",
     "manage": "管理",
+    "select_assistant": "アシスタントを選択",
     "select_model": "モデルを選択",
     "show": {
       "all": "すべて表示"
@@ -1162,12 +1408,16 @@
             "content": "外部ブラウザの起動に失敗しました。"
           }
         }
-      }
+      },
+      "title": "納品物"
     },
     "assistant": {
       "search": {
         "placeholder": "検索"
       }
+    },
+    "conversation": {
+      "new": "新しいチャット"
     },
     "deeply_thought": "深く考えています（{{seconds}} 秒）",
     "default": {
@@ -1187,8 +1437,12 @@
       "user_node": "ユーザー",
       "view_full_content": "完全な内容を表示"
     },
+    "home": {
+      "welcome_title": "今日は何について話しましょうか？"
+    },
     "input": {
       "auto_resize": "高さを自動調整",
+      "cancel_editing": "編集をキャンセル",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
         "label": "クリア {{Command}}",
@@ -1198,6 +1452,8 @@
       "context_count": {
         "tip": "コンテキスト数 / 最大コンテキスト数"
       },
+      "editing": "編集",
+      "editing_message": "送信済みメッセージの編集",
       "estimated_tokens": {
         "tip": "推定トークン数"
       },
@@ -1205,15 +1461,28 @@
       "file_error": "ファイル処理エラー",
       "file_not_supported": "モデルはこのファイルタイプをサポートしません",
       "file_not_supported_count": "{{count}} 個のファイルはサポートされていません",
+      "followup_queue": {
+        "edit": "編集",
+        "pause": "自動送信を一時停止",
+        "remove": "削除",
+        "resume": "自動送信を再開",
+        "steer": "現在のターンに送る",
+        "title": "キューに追加済み（{{count}}）"
+      },
       "generate_image": "画像を生成する",
       "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "knowledge_base": "ナレッジベース",
+      "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
+      "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
+      "locate_editing_message": "元のメッセージを見つける",
+      "mcp_unavailable": "ツール対応モデルを選択するか、プロンプトでツール使用を有効にしてください",
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
       "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
       "paste_text_file": "入力に貼り付け",
+      "pasted_text_file_name": "Pasted text.txt",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
@@ -1239,11 +1508,19 @@
       "send_failed": "メッセージの送信に失敗しました",
       "settings": "設定",
       "slash_commands": {
+        "commands": {
+          "clear": "会話履歴をクリア",
+          "compact": "オプションのフォーカス指示付きコンパクトな会話",
+          "context": "現在のコンテキスト使用量を色付きグリッドで可視化する",
+          "cost": "トークン使用統計を表示（サブスクリプション固有の詳細についてはコスト追跡ガイドを参照）",
+          "todos": "現在のTODO項目を一覧表示"
+        },
         "description": "エージェントセッションスラッシュコマンド",
         "title": "スラッシュコマンド"
       },
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
+        "fixed_model": "このモデルでは推論が固定されています",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1257,7 +1534,8 @@
           "tokens": {
             "tip": "思考のトークン数を設定します"
           }
-        }
+        },
+        "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
       "tools": {
         "collapse": "折りたたむ",
@@ -1275,6 +1553,8 @@
       "upload": {
         "attachment": "添付ファイルをアップロード",
         "document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
+        "document_only": "文書のみ",
+        "image_not_supported": "このモデルは画像のアップロードに対応していません。ドキュメントのみです。",
         "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
@@ -1310,6 +1590,20 @@
       }
     },
     "message": {
+      "editing_current": "このメッセージはコンポーザーで編集中です",
+      "flow": {
+        "branches": "枝",
+        "copy_topic": {
+          "created": "新しい会話にコピーしました",
+          "label": "新しい会話としてコピー"
+        },
+        "nodes": "ノード",
+        "status": {
+          "awaiting_input": "入力待ち"
+        },
+        "title": "ブランチ管理"
+      },
+      "more": "その他のアクション",
       "new": {
         "branch": {
           "created": "新しいブランチが作成されました",
@@ -1419,6 +1713,7 @@
             "save_failed": "トピックの保存に失敗しました。ナレッジベースの設定を確認してください"
           },
           "loading": "トピックの内容を分析中...",
+          "menu_title": "ナレッジベースに保存",
           "select": {
             "content": {
               "label": "保存するコンテンツの種類を選択",
@@ -1491,6 +1786,7 @@
       "title": "提案された質問"
     },
     "thinking": "思考中（用時 {{seconds}} 秒）",
+    "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
       "clear": {
@@ -1505,14 +1801,25 @@
       "delete": {
         "shortcut": "{{key}}キーを押しながらで直接削除"
       },
+      "display": {
+        "assistant": "アシスタント",
+        "tag": "タグ",
+        "time": "時間",
+        "title": "表示モード"
+      },
       "edit": {
         "placeholder": "新しい名前を入力",
         "title": "名前を編集",
         "title_tip": "ヒント: トピック名をダブルクリックすると、直接その場で名前を変更できます"
       },
+      "empty": {
+        "description": "チャットを作成すると、ここに残るので、後でその文脈を引き継いで会話を続けることができます。",
+        "title": "まだチャットはありません"
+      },
       "export": {
         "failed": "エクスポートに失敗しました",
         "image": "画像としてエクスポート",
+        "image_exporting_keep_page": "画像をエクスポートしています。このページから離れないでください。",
         "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {
@@ -1559,6 +1866,17 @@
         "wait_for_title_naming": "タイトルを生成中...",
         "word": "Wordとしてエクスポート",
         "yuque": "語雀にエクスポート"
+      },
+      "group": {
+        "collapse": "折りたたみ表示",
+        "collapse_all": "すべて折りたたむ",
+        "earlier": "以前",
+        "expand_all": "すべて展開",
+        "show_more": "表示を拡大",
+        "this_week": "今週",
+        "today": "今日",
+        "unknown_assistant": "リンクされていないアシスタント",
+        "yesterday": "昨日"
       },
       "list": "トピックリスト",
       "manage": {
@@ -1653,10 +1971,10 @@
       "claude_code": "Anthropicの公式コマンドラインAIコーディングアシスタント",
       "gemini_cli": "Googleの公式Geminiコマンドラインアシスタント",
       "github_copilot_cli": "GitHubの公式Copilotコマンドラインコンパニオン",
-      "iflow_cli": "iFlowのマルチモデルコマンドラインアシスタント",
       "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
       "openai_codex": "OpenAIの公式コード生成CLI",
       "opencode": "オープンソースのマルチモデルコーディングエージェント",
+      "qoder_cli": "Alibaba Qoderの自律型コマンドラインコーディングツール",
       "qwen_code": "Alibaba TongyiのオープンソースCLIコーディングツール"
     },
     "update_options": "更新オプション",
@@ -1708,8 +2026,10 @@
     "add": "追加",
     "add_success": "追加成功",
     "advanced_settings": "詳細設定",
+    "agent": "エージェント",
     "agent_one": "エージェント",
     "agent_other": "エージェント",
+    "all": "すべて",
     "and": "と",
     "assistant": "アシスタント",
     "assistant_one": "助手",
@@ -1723,12 +2043,14 @@
     "clear_all": "すべてクリア",
     "click_to_replace": "クリックして置換",
     "close": "閉じる",
+    "close_sidebar": "サイドバーを閉じる",
     "collapse": "折りたたむ",
     "completed": "完了",
     "confirm": "確認",
     "copied": "コピーされました",
     "copy": "コピー",
     "copy_failed": "コピーに失敗しました",
+    "create_success": "正常に作成されました",
     "current": "現在",
     "cut": "切り取り",
     "default": "デフォルト",
@@ -1773,6 +2095,8 @@
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
+    "maximize": "最大化",
+    "minimize": "最小化",
     "model": "モデル",
     "models": "モデル",
     "more": "もっと",
@@ -1785,6 +2109,8 @@
     "on": "オン",
     "open": "開く",
     "open_in": "{{name}}で開く",
+    "open_in_new_tab": "新しいタブで開く",
+    "open_sidebar": "サイドバーを開く",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -1804,6 +2130,7 @@
     "rename": "名前を変更",
     "required_field": "必須項目",
     "reset": "リセット",
+    "resize_panel": "パネルのサイズを変更",
     "retry": "リトライ",
     "save": "保存",
     "save_failed": "保存に失敗しました",
@@ -1837,6 +2164,7 @@
     "upload_image": "画像ファイルをアップロード",
     "uploaded_image": "アップロードされた画像",
     "warning": "警告",
+    "yesterday": "昨日",
     "you": "あなた"
   },
   "dialog": {
@@ -2047,6 +2375,85 @@
     "title": "ファイル",
     "type": "タイプ"
   },
+  "globalSearch": {
+    "clear": "検索をクリア",
+    "error": "検索に失敗しました",
+    "filters": {
+      "agent": "エージェント",
+      "all": "すべて",
+      "assistant": "アシスタント",
+      "conversation": "会話",
+      "knowledge": "知識",
+      "label": "検索タイプ",
+      "session": "タスク",
+      "topic": "会話"
+    },
+    "groups": {
+      "agent": "エージェント",
+      "assistant": "アシスタント",
+      "conversation": "会話",
+      "knowledge-base": "知識",
+      "message": "メッセージ",
+      "recent": "最近",
+      "session": "タスク",
+      "topic": "会話"
+    },
+    "keyboard": {
+      "select": "選択"
+    },
+    "messageSearch": {
+      "entry": "メッセージ",
+      "hint": "メッセージの内容を検索する",
+      "jumpToMessage": "メッセージへジャンプ",
+      "more": "さらに{{count}}件の結果を表示",
+      "open": "メッセージを検索",
+      "roles": {
+        "assistant": "アシスタント",
+        "system": "システム",
+        "tool": "ツール",
+        "user": "ユーザー"
+      },
+      "sourceLabel": "メッセージソース",
+      "sources": {
+        "all": "すべてのメッセージ",
+        "session": "タスクメッセージ",
+        "topic": "会話メッセージ"
+      },
+      "viewMore": "メッセージでさらに表示"
+    },
+    "no_recent": "最近のルートはありません",
+    "open": "グローバル検索を開く",
+    "open_failed": "検索結果を開けませんでした",
+    "placeholder": "会話、タスク、アシスタント、エージェント、ナレッジを検索...",
+    "quickApps": {
+      "hide": "{{name}}を隠す",
+      "manage": "管理",
+      "manager_description": "ドラッグして並順序を変更、目のアイコンをクリックして表示・非表示を切り替え",
+      "manager_title": "クイックアプリを管理",
+      "reset": "リセット",
+      "save_failed": "クイックアプリの保存に失敗しました",
+      "show": "{{name}}を表示",
+      "title": "クイックアプリ"
+    },
+    "recent_hint": "会話、タスク、アシスタント、エージェント、ナレッジを検索するには入力してください",
+    "resultTypes": {
+      "agent": "エージェント",
+      "assistant": "アシスタント",
+      "knowledge-base": "知識",
+      "session": "タスク",
+      "topic": "会話"
+    },
+    "showMore": "さらに {{count}} 件を表示",
+    "timeFilters": {
+      "any": "いつでも",
+      "label": "更新時刻",
+      "messageLabel": "作成日時",
+      "month": "先月",
+      "quarter": "過去3ヶ月",
+      "today": "今日",
+      "week": "過去7日間"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -2062,6 +2469,67 @@
     },
     "locate": {
       "message": "メッセージを探す"
+    },
+    "records": {
+      "agentSubtitle": "{{count}}件のタスク",
+      "agentTitle": "エージェント履歴",
+      "assistantSubtitle": "{{count}}件の会話",
+      "bulkDelete": "バッチ削除",
+      "bulkDeleteSessions": {
+        "description": "選択したタスク {{count}} 件を削除しますか？",
+        "title": "選択したタスクを削除"
+      },
+      "bulkDeleteTopics": {
+        "description": "選択した{{count}}件の会話を削除しますか？",
+        "title": "選択した会話を削除"
+      },
+      "bulkMove": "バッチ移動",
+      "bulkMoveTopics": {
+        "confirm": "移動",
+        "description": "選択した会話 {{count}} 件をターゲットアシスタントに移動します。",
+        "empty": "アシスタントが利用できません",
+        "error": "会話の移動に失敗しました",
+        "partialSuccess": "{{total}}件の会話のうち{{moved}}件を移動しました；{{failed}}件は失敗しました",
+        "placeholder": "選択",
+        "success": "{{count}}件の会話を移動しました",
+        "target": "ターゲットアシスタント",
+        "title": "選択した会話を移動"
+      },
+      "empty": {
+        "description": "現在のフィルターに該当する会話はありません。",
+        "sessionsDescription": "現在のフィルターに該当するタスクはありません。",
+        "sessionsTitle": "タスクなし",
+        "title": "会話はありません"
+      },
+      "loading": {
+        "description": "会話リストを読み込んでいます。",
+        "sessionsDescription": "タスクリストを読み込んでいます。",
+        "sessionsTitle": "タスクを読み込んでいます",
+        "title": "会話を読み込んでいます"
+      },
+      "resultCount": "{{count}}件の結果",
+      "searchSession": "タスクを検索...",
+      "searchTopic": "会話を検索...",
+      "shortTitle": "歴史",
+      "sidebar": {
+        "searchAssistant": "検索アシスタント...",
+        "status": "ステータス",
+        "unknownAssistant": "リンクされていないアシスタント"
+      },
+      "status": {
+        "completed": "完了",
+        "failed": "失敗",
+        "running": "走っている"
+      },
+      "table": {
+        "actions": "アクション",
+        "emptyValue": "—",
+        "messages": "メッセージ",
+        "session": "タスク",
+        "time": "時間",
+        "title": "タイトル"
+      },
+      "title": "会話履歴"
     },
     "search": {
       "match": {
@@ -2144,19 +2612,20 @@
         "view_chunks": "チャンクを表示"
       },
       "add_dialog": {
-        "directory": {
-          "description": "フォルダからサポートされているファイルを再帰的にインポート",
-          "title": "フォルダを選択するにはクリックしてください"
+        "conflict_dialog": {
+          "description": "追加しようとしているソースのうち{{count}}件が既存のアイテムと同じ名前です。処理方法を選択してください。",
+          "keep_all": "すべて保持",
+          "replace": "置換",
+          "title": "ソースは既に存在します"
         },
         "footer": {
-          "selected_directories": "{{count}}個のディレクトリが選択されています",
-          "selected_files": "{{count}}個のファイルが選択されています",
           "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
           "description": "既存のノートをナレッジベースのソースとして選択",
           "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダ、URL、またはサイトマップを使用してください。",
-          "empty_title": "ノートはまだ接続されていません"
+          "empty_title": "ノートはまだ接続されていません",
+          "loading": "メモを読み込んでいます…"
         },
         "placeholder": {
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
@@ -2173,6 +2642,8 @@
           "success": "ナレッジベースにデータソースが追加されました"
         },
         "title": "データソースを追加",
+        "too_many_sources": "一度に追加できるソースは最大で {{count}} 個までです。選択を減らして、もう一度お試しください。",
+        "unsupported_files_skipped": "サポートされていないファイル {{count}} 個をスキップしました",
         "url": {
           "description": "ウェブページのURLを入力してください：",
           "help": "ページのテキストは自動的に取得され、チャンク化され、インデックスされます",
@@ -2182,15 +2653,13 @@
         }
       },
       "bulk": {
-        "cancel": "キャンセル",
         "delete": "削除",
         "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
         "delete_confirm_title": "選択したデータソースを削除しますか？",
+        "loaded_only_hint": "読み込まれたアイテムのみに適用されます（合計{{total}}件）",
         "reindex": "再インデックス",
         "selected_count": "{{count}} 件選択"
       },
-      "chunk_delete_confirm_description": "削除後、このチャンクは検索に使用されなくなります。データソースの再インデックスにより、再度生成されます。",
-      "chunk_delete_confirm_title": "チャンクを削除しますか？",
       "chunks_count": "{{count}} チャンク",
       "delete_confirm_description": "このデータソースとそのインデックスデータは、削除後に回復できません。",
       "delete_confirm_title": "データソースを削除しますか？",
@@ -2217,11 +2686,14 @@
         "note": "メモ",
         "url": "URL"
       },
+      "list": {
+        "end_reached": "これ以上のアイテムはありません",
+        "loading_more": "さらに読み込んでいます…"
+      },
       "preview": {
         "failed": "ソースのプレビューに失敗しました",
         "unavailable": "このデータソースにはプレビューできるソースがありません"
       },
-      "ready_summary": "{{ready}}/{{total}} 準備完了",
       "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
         "chunking": "チャンキング",
@@ -2231,6 +2703,7 @@
         "ready": "準備完了"
       },
       "table": {
+        "aria_label": "データソース",
         "columns": {
           "actions": "アクション",
           "name": "名前",
@@ -2239,32 +2712,30 @@
           "updated_at": "更新済み"
         },
         "select_all": "すべて選択",
-        "select_row": "行を選択"
+        "select_row": "行を選択",
+        "view_chunks_row": "{{title}}のチャンクを表示"
       },
       "toolbar": {
-        "add": "データソースを追加",
-        "no_search_results": "一致するデータソースがありません",
-        "search_placeholder": "データソースを検索"
+        "add": "データソースを追加"
       }
     },
-    "dimensions": "埋め込み次元",
     "dimensions_auto_set": "埋め込み次元を自動設定",
-    "dimensions_error_invalid": "無効な埋め込み次元",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
-    "drag_file": "ファイルをここにドラッグ",
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
     "error": {
+      "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
       "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_delete": "ナレッジベースの削除に失敗しました",
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
       "failed_to_move": "ナレッジベースの移動に失敗しました",
+      "indexing_interrupted": "インデックス作成はアプリが終了したため中断されました。この項目を再インデックスして完了してください。",
       "missing_embedding_model": "このナレッジベースで使用されていた埋め込みモデルは移行中に見つかりませんでした。ナレッジベースを再構築し、新しい埋め込みモデルを選択してください。",
+      "missing_vector_store": "このナレッジベースのベクターストアは移行中に読み取れませんでした（存在しない、空、またはロックされています）。ナレッジベースは保持されました。再インデックスを実行して復旧してください。",
       "model_invalid": "モデルが選択されていません"
     },
-    "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
       "add": "新しいグループ",
       "create_base_here": "ここに作成",
@@ -2301,7 +2772,6 @@
       "chunk_size_invalid": "チャンクサイズは0より大きくなければなりません",
       "chunking": "チャンキング",
       "default_separator": "自動（推奨）",
-      "dimensions": "ベクトル次元",
       "document_count": "文書数",
       "embedding_model": "埋め込みモデル",
       "embedding_model_select": "モデル選択",
@@ -2310,7 +2780,6 @@
       "hints": {
         "chunk_overlap": "隣接するチャンク間でセマンティックな途切れを減らすために保持される重複トークンの数。",
         "chunk_size": "各ドキュメントチャンクのターゲットトークン数。これは検索の粒度とコンテキスト長に影響します。",
-        "dimensions": "現在の埋め込みモデルが出力するベクトル次元。ベクトルインデックスの作成とマッチングに使用される。",
         "document_count": "各検索ごとに返されるドキュメントチャンクの最大数。値を大きくするとより多くのコンテンツをカバーできますが、より多くのコンテキストを使用します。",
         "embedding_model": "ナレッジベースのコンテンツをベクトルに変換するために使用されます。モデルを変更すると、通常は既存のコンテンツの再インデックスが必要になります。",
         "hybrid_alpha": "ハイブリッド検索におけるベクトルスコアの重み。値が高いほどセマンティックマッチングが優先される。",
@@ -2321,9 +2790,7 @@
         "threshold_disabled": "この検索モードは順序付けられた結果を返し、類似度の閾値は使用しません。"
       },
       "hybrid_alpha": "ハイブリッド・アルファ",
-      "hybrid_alpha_hint": "ハイブリッド検索モードでのみ設定可能",
       "processor": "処理プロバイダ",
-      "refresh_dimensions": "ベクトル次元を更新",
       "rerank_disabled": "無効",
       "rerank_model": "リランクモデル",
       "reset_action": "デフォルトに戻す",
@@ -2333,9 +2800,9 @@
       "saved": "保存済み",
       "search_mode": {
         "bm25": "全文検索",
-        "default": "ベクターサーチ",
         "hybrid": "ハイブリッド検索（推奨）",
-        "title": "検索モード"
+        "title": "検索モード",
+        "vector": "ベクトル検索"
       },
       "separator_rule": "セパレータルール",
       "threshold": "類似度閾値",
@@ -2366,6 +2833,8 @@
       "action": "ナレッジベースを再構築する",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "ナレッジベースの再構築に失敗しました",
+      "skipped_missing_sources_one": "ソースがもはや存在しないため、{{count}} 個の項目をスキップしました",
+      "skipped_missing_sources_other": "ソースが存在しなくなったため、{{count}}件の項目をスキップしました",
       "submit": "リビルド",
       "title": "ナレッジベースを再構築"
     },
@@ -2413,7 +2882,9 @@
   "launchpad": {
     "apps": "アプリ",
     "minapps": "ミニアプリ",
-    "miniApps": "アプリ"
+    "miniApps": "アプリ",
+    "pin_to_sidebar": "サイドバーにピン留め",
+    "unpin_from_sidebar": "サイドバーからピンを外す"
   },
   "library": {
     "action": {
@@ -2432,6 +2903,7 @@
       "browse_label": "アシスタントカテゴリー",
       "empty_description": "このカテゴリにはまだアシスタントプリセットがありません。",
       "empty_title": "追加するアシスタントはありません",
+      "go_to_chat": "チャットへ移動",
       "mine": "私の",
       "no_match_description": "別の検索キーワードを試してください",
       "no_match_title": "一致するアシスタントがいません",
@@ -2470,7 +2942,8 @@
           },
           "env_vars": {
             "help": "1行に1つのKEY=VALUE",
-            "label": "環境変数"
+            "label": "環境変数",
+            "placeholder": "KEY=値\nANOTHER_KEY=別の値"
           },
           "heartbeat_enabled": {
             "label": "ハートビートチェック"
@@ -2549,6 +3022,14 @@
           },
           "tools": {
             "add": "追加",
+            "category": {
+              "context": "文脈",
+              "file": "ファイル",
+              "media": "メディア",
+              "orchestration": "オーケストレーション",
+              "search": "検索",
+              "shell": "シェル"
+            },
             "desc": "MCPサーバー、許可されたツール、およびランタイム設定",
             "label": "ツールとランタイム",
             "no_builtin_enabled": "組み込みツールは有効になっていません",
@@ -2618,6 +3099,7 @@
         "json_invalid": "無効なJSON形式",
         "max_tokens": "最大トークン",
         "max_tool_calls": "最大ツール呼び出し",
+        "mcp_mode": "MCPモード",
         "model": "デフォルトモデル",
         "model_clear": "クリア",
         "model_not_found": "モデルが見つかりません（削除された可能性があります）: {{id}}",
@@ -2636,6 +3118,34 @@
         "unlimited": "無制限"
       },
       "breadcrumb": "図書館",
+      "dialogs": {
+        "create": {
+          "agent_title": "新エージェント",
+          "assistant_title": "新しいアシスタント",
+          "avatar_aria": "アバターを選択",
+          "description_placeholder": "それが何のためにあるのかを説明してください…",
+          "dialog_description": "軽量なアシスタントまたはエージェントを作成する",
+          "model_placeholder": "モデルを選択してください",
+          "model_required": "モデルを選択してください",
+          "name_placeholder": "名前を入力してください",
+          "name_required": "名前を入力してください",
+          "submit": "作成",
+          "submit_failed": "作成に失敗しました"
+        },
+        "edit": {
+          "advanced_tab": "高度",
+          "agent_description": "このエージェントの基本設定をすぐに調整してください。",
+          "agent_title": "エージェントを編集",
+          "assistant_description": "このアシスタントの基本設定をすぐに調整してください。",
+          "assistant_title": "エディットアシスタント",
+          "basic_tab": "基本",
+          "knowledge_tab": "知識",
+          "permission_tab": "許可",
+          "prompt_tab": "プロンプト",
+          "save_failed": "保存に失敗しました",
+          "tools_tab": "ツール"
+        }
+      },
       "knowledge": {
         "add": "ナレッジベースを追加",
         "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",
@@ -2666,11 +3176,15 @@
           }
         },
         "generate": "プロンプトを生成",
+        "generate_failed_description": "デフォルトモデルを確認または変更してから、もう一度お試しください。",
+        "generate_failed_title": "プロンプトの生成に失敗しました",
         "insert_variable": "変数を挿入",
         "label": "システムプロンプト",
-        "placeholder": "システムプロンプトを入力してください。{{date}}や{{model_name}}のような変数がサポートされています...",
+        "placeholder": "回答スタイル、役割設定、背景情報など、アシスタントへの指示を入力してください",
         "title": "プロンプト",
         "tokens_label": "トークン:",
+        "variables_description": "これらのシステム変数をシステムプロンプトに挿入してください。アシスタントの各返答の前に、現在の情報で変数が埋められます。",
+        "variables_example": "例：今日は{{variable}}で、現在の日付が使用されます。",
         "variables_title": "利用可能な変数",
         "vars": {
           "arch": "CPUアーキテクチャ",
@@ -2854,6 +3368,7 @@
     "title": "図書館",
     "toolbar": {
       "add_tag_placeholder": "タグ名...",
+      "all_tags": "すべてのタグ",
       "new_resource": "新しいリソース",
       "search_placeholder": "リソースを検索...",
       "tag_button": "タグ"
@@ -2950,6 +3465,7 @@
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
+      "dismiss_failed": "エラーメッセージを閉じることができませんでした",
       "enter": {
         "api": {
           "host": "APIホストを入力してください",
@@ -3000,6 +3516,7 @@
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
         "no_content": "Notionにエクスポートできる内容がありません。"
       },
+      "operation_unavailable": "メッセージ操作は利用できません。もう一度お試しください。",
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
@@ -3058,6 +3575,10 @@
         "bubble": "バブル",
         "label": "メッセージスタイル",
         "plain": "プレーン"
+      },
+      "user_content": {
+        "collapse": "折りたたむ",
+        "expand": "拡大"
       },
       "video": {
         "error": {
@@ -3125,6 +3646,77 @@
     "tools": {
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
+      "activity": {
+        "archive": "アーカイブ",
+        "assistantTask": "タスク",
+        "availableFeatures": "利用可能な機能",
+        "availableResources": "利用可能なリソース",
+        "branch": "コードブランチ",
+        "build": "ビルド",
+        "building": "建築",
+        "check": "確認",
+        "checking": "確認中",
+        "codeFiles": "コードファイル",
+        "codeHostInfo": "コードホスティング情報",
+        "commandName": "{{name}} コマンド",
+        "configFiles": "プロジェクトのドキュメントと設定ファイル",
+        "copy": "コピー",
+        "copying": "コピー",
+        "create": "作成",
+        "creating": "作成",
+        "currentFolder": "現在のフォルダ",
+        "delete": "削除",
+        "deleting": "削除",
+        "documentFiles": "ドキュメントファイル",
+        "download": "ダウンロード",
+        "downloading": "ダウンロード中",
+        "executeCommand": "コマンドを実行",
+        "executingCommand": "コマンドを実行中",
+        "extract": "抽出",
+        "extracting": "抽出",
+        "file": "ファイル",
+        "fileList": "ファイルリスト",
+        "folder": "フォルダ",
+        "handle": "扱う",
+        "handling": "取り扱い",
+        "imageFiles": "画像ファイル",
+        "install": "インストール",
+        "installing": "インストール中",
+        "matchingFiles": "一致するファイル",
+        "modify": "変更",
+        "modifying": "修正",
+        "move": "移動",
+        "moving": "移動",
+        "open": "開く",
+        "opening": "オープニング",
+        "plan": "実行計画",
+        "projectChanges": "プロジェクトの変更",
+        "projectChecks": "プロジェクトチェック",
+        "projectDependencies": "プロジェクトの依存関係",
+        "projectFiles": "プロジェクトファイル",
+        "projectRootFiles": "プロジェクトルートファイル",
+        "projectTask": "プロジェクトタスク",
+        "relatedContent": "関連コンテンツ",
+        "repository": "コードリポジトリ",
+        "search": "見つける",
+        "searching": "見つける",
+        "switch": "スイッチ",
+        "switching": "切り替え",
+        "sync": "同期",
+        "syncing": "同期中",
+        "taskId": "タスク{{id}}",
+        "taskList": "タスクリスト",
+        "translationFiles": "翻訳ファイル",
+        "upload": "アップロード",
+        "uploading": "アップロード中",
+        "view": "表示",
+        "viewing": "閲覧",
+        "webPage": "ウェブページ",
+        "webSearch": "ウェブコンテンツ",
+        "workspace": "ワークスペース",
+        "write": "保存",
+        "writing": "保存"
+      },
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
@@ -3145,6 +3737,12 @@
         "search": "検索",
         "skill": "スキル",
         "task": "タスク",
+        "taskCreate": "タスクを作成",
+        "taskGet": "タスクを表示",
+        "taskList": "タスクを一覧表示",
+        "taskOutput": "タスク出力を表示",
+        "taskStop": "タスクを停止",
+        "taskUpdate": "タスクを更新",
         "todoWrite": "やること 書く",
         "tool": "ツール",
         "webFetch": "ウェブフェッチ",
@@ -3153,9 +3751,22 @@
       },
       "noData": "このツールに利用可能なデータはありません",
       "pending": "保留中",
+      "placeholder": {
+        "elapsed": {
+          "days": "{{days}}日 {{hours}}時間 {{minutes}}分 {{seconds}}秒",
+          "hours": "{{hours}}時間{{minutes}}分{{seconds}}秒",
+          "minutes": "{{minutes}}分{{seconds}}秒",
+          "seconds": "{{seconds}}秒"
+        },
+        "generating": "回答を書く",
+        "preparing": "応答を準備中",
+        "thinking": "考える",
+        "usingTools": "タスクに取り組んでいる"
+      },
       "preview": "プレビュー",
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
+      "runningHeader": "作業中…",
       "sections": {
         "args": "議論",
         "command": "コマンド",
@@ -3177,6 +3788,7 @@
         "success": "成功"
       },
       "streaming": "ストリーミング",
+      "thinkingHeader": "考える",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
         "done_one": "{{count}} 完了",
@@ -3221,6 +3833,7 @@
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
+      "fetch_empty": "検索結果は見つかりませんでした",
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
@@ -3363,6 +3976,14 @@
     "add_parameter": "パラメータを追加",
     "all": "すべて",
     "custom_parameters": "カスタムパラメータ",
+    "detail": {
+      "context_window": "コンテキストウィンドウ",
+      "image_modes": "画像モード",
+      "max_input_tokens": "最大入力",
+      "max_output_tokens": "最大出力",
+      "model_id": "モデルID",
+      "provider": "プロバイダー"
+    },
     "dimensions": "{{dimensions}} 次元",
     "edit": "モデルを編集",
     "embedding": "埋め込み",
@@ -3406,6 +4027,12 @@
     "search": {
       "placeholder": "モデルを検索...",
       "tooltip": "モデルを検索"
+    },
+    "selection": {
+      "context_window": "コンテキスト {{count}}",
+      "remove_model": "{{name}}を削除",
+      "restore_default": "アシスタントモデルを復元する",
+      "selected_models": "選択されたモデル"
     },
     "stream_output": "ストリーム出力",
     "type": {
@@ -3580,28 +4207,7 @@
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
   "ocr": {
-    "builtin": {
-      "system": "システム OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
-        "existing": "プロバイダーはすでに存在します",
-        "get_providers": "利用可能なプロバイダーの取得に失敗しました",
-        "not_found": "OCRプロバイダーが存在しません",
-        "update_failed": "更新構成に失敗しました"
-      },
-      "unknown": "OCR処理中にエラーが発生しました"
-    },
-    "file": {
-      "not_supported": "サポートされていないファイルタイプ {{type}}"
-    },
-    "processing": "OCR処理中...",
-    "warning": {
-      "provider": {
-        "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"
-      }
-    }
+    "processing": "OCR処理中..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -4698,6 +5304,12 @@
       "sort_label": "並び替え",
       "unpin": "ピン留めを解除"
     },
+    "create_dialog": {
+      "refresh_failed": "作成しましたが、リストの更新に失敗しました"
+    },
+    "edit_dialog": {
+      "refresh_failed": "保存しましたが、リストの更新に失敗しました"
+    },
     "workspace": {
       "empty_text": "まだワークスペースはありません",
       "placeholder": "ワークスペースを選択"
@@ -4768,117 +5380,6 @@
     "channels": {
       "description": "エージェントをTelegram、Feishu、Discordなどのメッセージングプラットフォームに接続します。",
       "title": "チャンネル"
-    },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "クリア",
-        "configDescription": "プロップを切り替えてコンポーネントの動作をプレビューする",
-        "configTitle": "設定",
-        "currentProps": "現在のプロップ",
-        "description": "AgentSelectorは、ID/アイテムの選択、ピン留め、ソート、検索動作を検証するために、リアルな/agents DataApiデータを読み込むようになりました。",
-        "emptyShellNotice": "このプレビューは、/agents DataApi から返される実際のエージェントリストを使用しています。",
-        "lastOnChange": "最新のonChange",
-        "previewDescription": "トリガーをクリックしてセレクタを開きます",
-        "previewTitle": "プレビュー",
-        "title": "エージェントセレクター",
-        "triggerPlaceholder": "エージェントを選択してください",
-        "valueProp": "現在値"
-      },
-      "agentTodoList": {
-        "title": "エージェントのToDoリスト"
-      },
-      "assistantSelector": {
-        "clearSelection": "クリア",
-        "configDescription": "プロパティを切り替えてコンポーネントの動作をプレビューする",
-        "configTitle": "設定",
-        "currentProps": "現在のプロップ",
-        "description": "AssistantSelectorのビジネスコンポーネントを直接マウントし、複数/単一、ID/項目、ピン留め、ソート、検索の動作を検証します。",
-        "lastOnChange": "最新のonChange",
-        "previewDescription": "トリガーをクリックしてセレクターを開きます",
-        "previewTitle": "プレビュー",
-        "title": "アシスタントセレクター",
-        "triggerPlaceholder": "アシスタントを選択してください",
-        "triggerSelectedCount": "{{count}}人のアシスタントが選択されました",
-        "valueProp": "現在の値"
-      },
-      "description": "開発環境でのみ表示され、アプリ内で直接新しいモデルセレクタをテストするためのものです。",
-      "fileProcessing": {
-        "artifact": {
-          "file": "Markdownファイル",
-          "text": "テキスト結果"
-        },
-        "description": "設定済みのすべてのファイルプロセッサーを実際のファイル処理 IPC を通じて実行し、結果を比較します。",
-        "duration": "{{seconds}}秒",
-        "jobId": "ジョブID",
-        "markdown": {
-          "description": "ドキュメントを選択し、すべてのドキュメント→マークダウンプロセッサーを実行します。",
-          "fileFilterName": "文書",
-          "noFile": "文書が選択されていません",
-          "select": "ドキュメントを選択",
-          "start": "Test markdown",
-          "title": "Markdown"
-        },
-        "noProcessors": "この機能をサポートするプロセッサはありません。",
-        "ocr": {
-          "description": "画像を選択して、すべてのOCRプロセッサを実行します。",
-          "fileFilterName": "画像",
-          "noFile": "画像が選択されていません",
-          "select": "画像を選択",
-          "start": "テストOCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} プロセッサ",
-        "status": {
-          "cancelled": "キャンセル",
-          "completed": "完了",
-          "delayed": "遅延",
-          "failed": "失敗",
-          "idle": "アイドル",
-          "pending": "保留中",
-          "processing": "処理",
-          "running": "走っている",
-          "starting": "開始"
-        },
-        "title": "ドキュメント解析"
-      },
-      "label": "コンポーネントラボ",
-      "modelSelector": {
-        "behaviorConfig": "動作と表示設定",
-        "callbackEmpty": "まだコンポーネントコールバックを受信していません",
-        "clearSelection": "選択をクリア",
-        "configDescription": "上記のキー ModelSelector プロパティを切り替え、下記の入力値とコールバックのペイロードを確認してください。",
-        "configTitle": "プロップス プレイグラウンド",
-        "controlMultiSelectMode": "制御された複数選択モード",
-        "currentProps": "現在のプロップ",
-        "defaultMultiSelectMode": "デフォルトマルチセレクトモード",
-        "description": "このページでは、現在の ModelSelector ビジネスコンポーネントを直接マウントして、選択、フィルタリング、検索、ピン留めの動作を確認できます。",
-        "empty": "現在利用可能なモデルがないため、セレクターはまだ表示できません。",
-        "lastModeChangeReturn": "最新の onMultiSelectModeChange 戻り値",
-        "lastSelectReturn": "最新のonSelect戻り値",
-        "loading": "モデルを読み込んでいます...",
-        "modelId": "モデルID",
-        "multiSelectMode": "マルチセレクトモード",
-        "multiple": "複数",
-        "normalizedIds": "正規化された選択されたID",
-        "outputEmpty": "まだ表示するデータがありません",
-        "provider": "プロバイダー",
-        "resetOutputs": "出力をリセット",
-        "resultsDescription": "これは現在の値のプロップ、正規化された選択されたID、およびコンポーネントからの最新のコールバック出力を示しています。",
-        "resultsTitle": "出力と状態",
-        "selected": "現在の選択",
-        "selectedEmpty": "モデルがまだ選択されていません",
-        "selectionConfig": "選択値設定",
-        "selectionType": "選択タイプ",
-        "selectionTypeId": "モデルIDを返す",
-        "selectionTypeModel": "モデルオブジェクトを返す",
-        "showPinnedModels": "固定されたモデルを表示",
-        "showTagFilter": "タグフィルターを表示",
-        "title": "モデルセレクター",
-        "triggerPlaceholder": "モデルを選択してください",
-        "triggerSelectedCount": "{{count}}件のモデルが選択されています",
-        "valueProp": "現在のバリュープロポジション"
-      },
-      "title": "開発コンポーネントラボ"
     },
     "data": {
       "app_data": {
@@ -5574,7 +6075,19 @@
         "title": "データのバックアップと復元"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "桜",
+            "native": "ネイティブ",
+            "restart": {
+              "content": "メニュースタイルを変更するには、アプリを再起動する必要があります。今すぐ再起動しますか？",
+              "title": "再起動が必要です"
+            },
+            "title": "コンテキストメニュースタイル"
+          }
+        },
         "sections": {
+          "chat_settings": "チャット設定",
           "custom_css": "カスタムCSS",
           "display_language": "表示と言語",
           "privacy_advanced": "プライバシーと高度な設定",
@@ -5679,12 +6192,18 @@
           },
           "invalid": "無効な入力です。JSON形式を確認してください。",
           "json": "JSONからインポート",
+          "mcpb": "MCPBバンドルをインポート",
+          "mcpbFile": "MCPBバンドルファイル",
+          "mcpbHelp": "MCPサーバーバンドルを含む.mcpbファイルを選択してください",
+          "mcpbProcessFailed": "MCPBファイルの処理に失敗しました",
           "method": "インポート方法",
           "nameExists": "サーバーはすでに存在します: {{name}}",
           "noDxtFile": "DXTファイルを選択してください",
+          "noMcpbFile": "MCPBファイルを選択してください",
           "oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
           "placeholder": "MCPサーバーJSON設定を貼り付け",
           "selectDxtFile": "DXT ファイルを選択してください",
+          "selectMcpbFile": "MCPBファイルを選択",
           "tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。"
         },
         "label": "サーバーを追加"
@@ -5833,6 +6352,13 @@
         "text": "テキスト",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "接続済み",
+        "connecting": "接続中",
+        "disabled": "無効",
+        "error": "エラー",
+        "unavailable": "利用不可"
+      },
       "search": {
         "placeholder": "MCP サーバーを検索...",
         "tooltip": "MCP サーバーを検索"
@@ -5955,10 +6481,10 @@
         "label": "メッセージナビゲーション",
         "none": "表示しない"
       },
-      "prompt": "プロンプト表示",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
-      "use_serif_font": "セリフフォントを使用"
+      "use_serif_font": "セリフフォントを使用",
+      "wide_mode": "ワイドレイアウトモード"
     },
     "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
@@ -6057,6 +6583,7 @@
       "disabled": "隠しミニアプリ",
       "display_title": "ミニアプリ表示設定",
       "empty": "左側のアプリの非表示アイコンをクリックすると、ここに移動します",
+      "hide_app": "{{name}}を隠す",
       "open_link_external": {
         "title": "ブラウザで新しいウィンドウのリンクを開く"
       },
@@ -6068,6 +6595,7 @@
         "title": "ミニプログラムフィルター"
       },
       "reset_tooltip": "デフォルトにリセット",
+      "show_app": "{{name}}を表示",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示",
       "sidebar_title": "サイドバー アクティブ ミニアプリ表示",
       "title": "ミニアプリの設定",
@@ -6334,13 +6862,51 @@
         "title": "詳細度"
       }
     },
+    "parameter_settings": "パラメータ設定",
     "plugins": {
-      "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
       "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "[to be translated]:Install",
+      "installError": "Failed to install tool",
       "installing": "インストール中...",
+      "invalidTool": "[to be translated]:Invalid tool name or key",
       "notInstalled": "インストールされていません",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
       "title": "環境依存",
-      "uvDescription": "MCPサービスおよび依存関係インストール用のPythonパッケージマネージャー。"
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
+    "power": {
+      "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
     },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
@@ -6362,13 +6928,15 @@
       },
       "title": "プロンプト管理",
       "titleLabel": "タイトル",
-      "titlePlaceholder": "プロンプトのタイトルを入力してください"
+      "titlePlaceholder": "プロンプトのタイトルを入力してください",
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
         "name": {
           "label": "プロバイダー名",
-          "placeholder": "例：OpenAI"
+          "placeholder": "例：OpenAI",
+          "required": "プロバイダー名を入力してください"
         },
         "title": "プロバイダーを追加",
         "type": "プロバイダータイプ"
@@ -6479,7 +7047,8 @@
       "balance": "バランス",
       "base_url": {
         "label": "ベースURL",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Base URLを入力してください"
       },
       "basic_auth": {
         "label": "HTTP 認証",
@@ -6654,6 +7223,7 @@
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "場所を選択",
         "service_account": {
           "auth_success": "サービスアカウントの認証が成功しました",
           "client_email": "クライアントメール",
@@ -6669,7 +7239,10 @@
           "private_key": "秘密鍵",
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
-          "title": "サービスアカウント設定"
+          "title": "サービスアカウント設定",
+          "toggle_client_email_visibility": "クライアントのメールアドレスの表示を切り替える",
+          "toggle_private_key_visibility": "秘密鍵の表示を切り替える",
+          "toggle_project_id_visibility": "プロジェクトIDの表示を切り替える"
         }
       }
     },
@@ -6696,6 +7269,14 @@
       "close": "閉じる",
       "confirm": "確認",
       "forward": "進む",
+      "mcp": {
+        "agentEmpty": "このエージェント用に設定された MCP サーバーはありません",
+        "assistantEmpty": "このアシスタント用に設定された MCP サーバーはありません",
+        "autoEmpty": "有効化された MCP サーバーはありません",
+        "description": "現在のMCPサーバーのステータスを表示",
+        "disabled": "このアシスタントではMCPは無効になっています",
+        "unknownServer": "不明な MCP サーバー"
+      },
       "multiple": "複数選択",
       "noResult": "結果が見つかりません",
       "page": "ページ",
@@ -6739,6 +7320,7 @@
       },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
+      "close_tab": "タブを閉じる",
       "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
@@ -6746,8 +7328,11 @@
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
+      "move_tab_to_first": "タブを最初に移動",
       "new_topic": "新しいトピック",
       "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
+      "open_tab_in_new_window": "新しいウィンドウでタブを開く",
+      "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
@@ -6838,10 +7423,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "ドキュメント処理"
+            "title": "ドキュメント処理",
+            "tooltip": "ナレッジベースでドキュメントを解析するために使用します"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "翻訳機能で画像内の文字を認識するために使用します"
           }
         },
         "fields": {
@@ -7055,10 +7642,16 @@
       "title": "ページズーム"
     }
   },
+  "subWindow": {
+    "back_to_main": "メインウィンドウに戻る",
+    "pin": "常に最前面に表示",
+    "unpin": "キャンセル 最前面に表示"
+  },
   "tab": {
     "close": "タブを閉じる",
     "move_to_first": "最初へ移動",
     "new": "新しいタブ",
+    "open_in_new_window": "新しいウィンドウで開く",
     "pin": "タブをピン留め",
     "unpin": "タブを固定解除"
   },
@@ -7075,7 +7668,38 @@
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",
-    "translate": "翻訳"
+    "translate": "翻訳",
+    "work": "仕事"
+  },
+  "trace": {
+    "agent": "エージェント",
+    "backList": "リストに戻る",
+    "cachedTokens": "キャッシュされた",
+    "endTime": "終了時刻",
+    "inputs": "入力",
+    "label": "コールチェーン",
+    "model": "モデル",
+    "name": "ノード名",
+    "noTraceList": "トレース情報が見つかりません",
+    "operation": "操作",
+    "outputs": "出力",
+    "pollError": "ポーリングに失敗しました",
+    "reasoningTokens": "推論",
+    "requestHeaders": "リクエストヘッダー",
+    "requestMethod": "リクエストメソッド",
+    "requestUrl": "リクエストURL",
+    "responseHeaders": "レスポンスヘッダー",
+    "responseStatus": "レスポンスステータス",
+    "serverDescription": "サーバーの説明",
+    "serverName": "サーバー名",
+    "serverType": "サーバータイプ",
+    "spanDetail": "スパンの詳細",
+    "spendTime": "時間を過ごす",
+    "startTime": "開始時刻",
+    "status": "ステータス",
+    "tag": "タグ",
+    "tokenUsage": "トークン使用量",
+    "toolCalls": "ツール呼び出し"
   },
   "translate": {
     "alter_language": "備用言語",
@@ -7152,6 +7776,7 @@
         "too_large": "ファイルが大きすぎます",
         "unknown": "ファイルの内容を読み取るのに失敗しました"
       },
+      "ocr_completed": "画像OCR完了",
       "reading": "ファイルの内容を読み込んでいます...",
       "upload": "画像またはドキュメントをドロップするか、クリックしてアップロード"
     },
