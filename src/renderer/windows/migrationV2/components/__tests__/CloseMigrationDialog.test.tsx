@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 type MockButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   isDisabled?: boolean
   onPress?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
+  variant?: string
 }
 type MockChildrenProps = { children?: ReactNode }
 type MockDialogProps = MockChildrenProps & { open?: boolean }
@@ -25,10 +26,12 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
-    Button: ({ children, disabled, isDisabled, onPress, ...props }: MockButtonProps) =>
+    // Mirror the real Button's public contract: it emits the intent as `data-variant`
+    // (not a raw `variant` attribute) and forwards `autoFocus` to the native element.
+    Button: ({ children, disabled, isDisabled, onPress, variant, ...props }: MockButtonProps) =>
       React.createElement(
         'button',
-        { ...props, disabled: disabled || isDisabled, onClick: onPress ?? props.onClick },
+        { ...props, 'data-variant': variant, disabled: disabled || isDisabled, onClick: onPress ?? props.onClick },
         children
       ),
     Dialog: ({ children, open }: MockDialogProps) =>
@@ -52,8 +55,14 @@ describe('CloseMigrationDialog', () => {
   it('marks quitting as the destructive action', () => {
     render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'Quit anyway' })).toHaveAttribute('variant', 'destructive')
-    expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveAttribute('variant', 'emphasis')
+    expect(screen.getByRole('button', { name: 'Quit anyway' })).toHaveAttribute('data-variant', 'destructive')
+    expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveAttribute('data-variant', 'emphasis')
+  })
+
+  it('focuses Continue as the safe default so an Enter/Space dismissal never quits', () => {
+    render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveFocus()
   })
 
   it('keeps migration running when the primary action is clicked', () => {

@@ -40,7 +40,9 @@ export const CloseMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCo
           <Button variant="destructive" onClick={onConfirm}>
             {t('migration.window.confirm_close.quit')}
           </Button>
-          <Button variant="emphasis" onClick={() => onOpenChange(false)}>
+          {/* Continue is the safe default: autoFocus it so Enter/Space on the freshly opened
+              dialog keeps the window instead of quitting (Quit is first in DOM order). */}
+          <Button variant="emphasis" autoFocus onClick={() => onOpenChange(false)}>
             {t('migration.window.confirm_close.continue')}
           </Button>
         </DialogFooter>
