@@ -12,7 +12,12 @@ import { isWin } from '@main/core/platform'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
+import {
+  PRESETS_BINARY_TOOLS,
+  TOOL_KEY_RE,
+  TOOL_NAME_RE,
+  validateManagedBinary
+} from '@shared/data/presets/binary-tools'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
@@ -56,9 +61,6 @@ const MISE_PASSTHROUGH_ENV = [
   'PIP_INDEX_URL'
 ]
 
-const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
-const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$/
-
 // Matches a resolved semver version (1.2.3, 1.2.3-rc.1, 1.2.3+build). Used to
 // distinguish "concrete version we can persist and compare for equality" from
 // floating pins like "latest" / "stable" / "lts" / "1" / "1.2" that mise
@@ -79,17 +81,9 @@ const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.1
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
-export function validateManagedBinary(tool: ManagedBinary): void {
-  if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
-    throw new Error(`Invalid tool name: ${tool.name}`)
-  }
-  if (!tool.tool || !TOOL_KEY_RE.test(tool.tool)) {
-    throw new Error(`Invalid tool key: ${tool.tool}`)
-  }
-  if (tool.version && !TOOL_KEY_RE.test(tool.version)) {
-    throw new Error(`Invalid tool version: ${tool.version}`)
-  }
-}
+// Re-exported from the shared module so existing main-process call sites and
+// tests keep importing it from here.
+export { validateManagedBinary }
 
 @Injectable('BinaryManager')
 @ServicePhase(Phase.Background)

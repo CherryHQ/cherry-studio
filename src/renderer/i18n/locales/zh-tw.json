@@ -6875,6 +6875,7 @@
       "installError": "工具安裝失敗",
       "installViaMise": "透過 mise 安裝",
       "installing": "安裝中...",
+      "invalidTool": "工具名稱或識別碼無效",
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
       "remove": "移除工具",

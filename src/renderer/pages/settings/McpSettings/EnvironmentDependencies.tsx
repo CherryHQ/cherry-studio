@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import { type BinaryToolPreset, PRESETS_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
+import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binary-tools'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Download,
@@ -121,6 +121,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   const handleAddCustomTool = async (tool: ManagedBinary) => {
+    try {
+      validateManagedBinary(tool)
+    } catch {
+      window.toast.error(t('settings.plugins.invalidTool'))
+      throw new Error('invalid')
+    }
+
     const allNames = [...PRESETS_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
       window.toast.error(t('settings.plugins.duplicateName'))

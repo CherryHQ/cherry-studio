@@ -6875,6 +6875,7 @@
       "installError": "工具安装失败",
       "installViaMise": "通过 mise 安装",
       "installing": "安装中...",
+      "invalidTool": "工具名称或标识无效",
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
       "remove": "移除工具",

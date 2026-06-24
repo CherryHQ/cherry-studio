@@ -124,10 +124,6 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  public async getBunPath() {
-    return getBinaryPath('bun')
-  }
-
   // npm package name used only for version registry lookups (not installation)
   private async getPackageName(cliTool: string) {
     switch (cliTool) {

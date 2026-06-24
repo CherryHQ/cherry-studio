@@ -6875,6 +6875,7 @@
       "installError": "Failed to install tool",
       "installViaMise": "Install via mise",
       "installing": "Installing...",
+      "invalidTool": "Invalid tool name or key",
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
