@@ -2,6 +2,7 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -1017,6 +1018,37 @@ describe('ModelService.delete', () => {
     expect(rows).toHaveLength(1)
     expect(pins).toHaveLength(1)
   })
+
+  it('translates knowledge base embedding references into invalid operation', async () => {
+    const targetModelId = createUniqueModelId('openai', 'text-embedding-3-large')
+
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'text-embedding-3-large', {
+        id: targetModelId,
+        name: 'text-embedding-3-large'
+      })
+    )
+    await dbh.db.insert(knowledgeBaseTable).values({
+      name: 'Docs',
+      dimensions: 1536,
+      embeddingModelId: targetModelId,
+      status: 'completed',
+      error: null,
+      chunkSize: 1024,
+      chunkOverlap: 200,
+      searchMode: 'vector'
+    })
+
+    await expect(modelService.delete('openai', 'text-embedding-3-large')).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      status: 400,
+      message: expect.stringContaining('knowledge base')
+    })
+
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
+    expect(rows).toHaveLength(1)
+  })
 })
 
 describe('ModelService.bulkDelete', () => {
@@ -1051,6 +1083,29 @@ describe('ModelService.bulkDelete', () => {
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === secondTargetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
+  })
+
+  it('dedupes duplicate model ids before deleting', async () => {
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }))
+
+    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
+
+    await modelService.bulkDelete([
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'openai', modelId: 'gpt-4o' }
+    ])
+
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
+
+    expect(rows).toHaveLength(0)
+    expect(infoSpy).toHaveBeenCalledWith('Bulk deleted models', {
+      count: 1,
+      providers: ['openai']
+    })
+    infoSpy.mockRestore()
   })
 
   it('deletes the maximum allowed batch without exceeding SQLite parameter caps', async () => {
@@ -1105,6 +1160,47 @@ describe('ModelService.bulkDelete', () => {
 
     expect(rows.map((row) => row.id).sort()).toEqual([siblingModelId, targetModelId].sort())
     expect(pins).toHaveLength(1)
+  })
+
+  it('translates knowledge base embedding references and rolls back bulk delete', async () => {
+    const targetModelId = createUniqueModelId('openai', 'text-embedding-3-large')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o')
+
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values([
+      modelRow('openai', 'text-embedding-3-large', {
+        id: targetModelId,
+        name: 'text-embedding-3-large'
+      }),
+      modelRow('openai', 'gpt-4o', {
+        id: siblingModelId,
+        name: 'GPT-4o'
+      })
+    ])
+    await dbh.db.insert(knowledgeBaseTable).values({
+      name: 'Docs',
+      dimensions: 1536,
+      embeddingModelId: targetModelId,
+      status: 'completed',
+      error: null,
+      chunkSize: 1024,
+      chunkOverlap: 200,
+      searchMode: 'vector'
+    })
+
+    await expect(
+      modelService.bulkDelete([
+        { providerId: 'openai', modelId: 'text-embedding-3-large' },
+        { providerId: 'openai', modelId: 'gpt-4o' }
+      ])
+    ).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      status: 400,
+      message: expect.stringContaining('knowledge base')
+    })
+
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai'))
+    expect(rows.map((row) => row.id).sort()).toEqual([siblingModelId, targetModelId].sort())
   })
 
   it('rejects managed CherryAI default model deletes before writing other rows', async () => {

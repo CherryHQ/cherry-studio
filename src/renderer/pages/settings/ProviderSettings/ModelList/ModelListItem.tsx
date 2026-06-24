@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { FreeTrialModelTag } from '../components/FreeTrialModelTag'
 import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { getModelOperationErrorMessage } from './errorMessage'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
@@ -27,8 +28,13 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
   }, [model, onEdit])
 
   const handleDelete = useCallback(() => {
-    void onDelete(model).catch(() => {
-      window.toast.error(t('settings.models.manage.operation_failed'))
+    void onDelete(model).catch((error) => {
+      window.toast.error(
+        getModelOperationErrorMessage(error, {
+          fallback: t('settings.models.manage.operation_failed'),
+          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base')
+        })
+      )
     })
   }, [model, onDelete, t])
 

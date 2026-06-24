@@ -8,6 +8,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { getModelOperationErrorMessage } from './errorMessage'
 import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupItem } from './useProviderModelList'
@@ -94,7 +95,12 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const handleDeleteGroupModels = useCallback(() => {
     void onDeleteModels(groupModels).catch((error) => {
       logger.error('Failed to delete provider model group', { groupName, error })
-      window.toast.error(t('settings.models.manage.operation_failed'))
+      window.toast.error(
+        getModelOperationErrorMessage(error, {
+          fallback: t('settings.models.manage.operation_failed'),
+          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base')
+        })
+      )
     })
   }, [groupModels, groupName, onDeleteModels, t])
 

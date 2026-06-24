@@ -1,3 +1,4 @@
+import { DataApiErrorFactory } from '@shared/data/api'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -267,6 +268,37 @@ describe('ModelListGroup', () => {
       })
     })
     expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('shows a localized knowledge base in-use message when deleting a group fails', async () => {
+    const error = DataApiErrorFactory.invalidOperation(
+      'delete model batch(2 items)',
+      'model is in use by a knowledge base'
+    )
+    const onDeleteModels = vi.fn().mockRejectedValue(error)
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled={false}
+        bulkToggleLabel="settings.models.group_disable"
+        onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={onDeleteModels}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })[0])
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
+    })
   })
 
   it('toggles the group body from the title row while keeping the action separate', () => {

@@ -312,6 +312,67 @@ describe('useProviderModelList', () => {
     ).toEqual(['openai::vision-gamma'])
   })
 
+  it('deletes only the filtered visible models in a selected group', async () => {
+    const groupedModels = [
+      {
+        id: 'openai::chat-alpha',
+        name: 'Alpha',
+        group: 'chat',
+        capabilities: ['reasoning'],
+        isEnabled: true,
+        providerId: 'openai'
+      },
+      {
+        id: 'openai::chat-beta',
+        name: 'Beta',
+        group: 'chat',
+        capabilities: ['embedding'],
+        isEnabled: true,
+        providerId: 'openai'
+      },
+      {
+        id: 'openai::vision-gamma',
+        name: 'Gamma',
+        group: 'vision',
+        capabilities: ['reasoning'],
+        isEnabled: true,
+        providerId: 'openai'
+      }
+    ] as any
+
+    useModelsMock.mockReturnValue({ models: groupedModels, isLoading: false })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    act(() => {
+      result.current.header.setSelectedCapabilityFilter('embedding')
+    })
+
+    await waitFor(() => {
+      expect(result.current.header.modelCount).toBe(1)
+    })
+
+    const chatSection = result.current.sections.enabledSections.find((section) => section.groupName === 'chat')
+
+    await act(async () => {
+      await result.current.sections.onDeleteModels(chatSection?.items.map((item) => item.model) ?? [])
+    })
+
+    expect(deleteModelsMock).toHaveBeenCalledTimes(1)
+    expect(deleteModelsMock).toHaveBeenCalledWith(['openai::chat-beta'])
+
+    act(() => {
+      result.current.header.setSelectedCapabilityFilter('all')
+    })
+
+    await waitFor(() => {
+      expect(result.current.header.modelCount).toBe(2)
+    })
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).toEqual(['openai::chat-alpha', 'openai::vision-gamma'])
+  })
+
   it('rolls back all group models when the batch delete fails', async () => {
     const error = new Error('delete group failed')
     const groupedModels = [

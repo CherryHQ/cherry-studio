@@ -1,3 +1,4 @@
+import { DataApiErrorFactory } from '@shared/data/api'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -207,6 +208,37 @@ describe('ModelListItem', () => {
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    })
+  })
+
+  it('shows a localized knowledge base in-use message when deleting a model fails', async () => {
+    const error = DataApiErrorFactory.invalidOperation(
+      'delete model openai/alpha',
+      'model is in use by a knowledge base'
+    )
+    const onDelete = vi.fn().mockRejectedValue(error)
+
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+        onToggleEnabled={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('settings.models.manage.remove_model'))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
     })
   })
 })

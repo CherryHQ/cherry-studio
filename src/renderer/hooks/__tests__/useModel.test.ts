@@ -558,4 +558,20 @@ describe('useModelMutations', () => {
     expect(result.current.isUpdating).toBe(false)
     expect(result.current.isBulkUpdating).toBe(false)
   })
+
+  it('should expose bulk delete loading state', () => {
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: vi.fn(),
+      isLoading: _method === 'DELETE' && path === '/models',
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    expect(result.current.isCreating).toBe(false)
+    expect(result.current.isDeleting).toBe(false)
+    expect(result.current.isBulkDeleting).toBe(true)
+    expect(result.current.isUpdating).toBe(false)
+    expect(result.current.isBulkUpdating).toBe(false)
+  })
 })
