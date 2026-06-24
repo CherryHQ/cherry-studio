@@ -1,4 +1,5 @@
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
@@ -165,7 +166,11 @@ class SlackStreamingController {
   private async editMessage(text: string): Promise<void> {
     if (!this.messageTs) return
     const converted = toSlackMarkdown(text)
-    const content = converted.length > SLACK_MAX_LENGTH ? converted.slice(0, SLACK_MAX_LENGTH - 3) + '...' : converted
+    // Keep a surrogate pair at the cut whole so we never send a lone surrogate.
+    const content =
+      converted.length > SLACK_MAX_LENGTH
+        ? converted.slice(0, clampSurrogateBoundary(converted, SLACK_MAX_LENGTH - 3)) + '...'
+        : converted
     await this.apiRequest('chat.update', {
       channel: this.channelId,
       ts: this.messageTs,
