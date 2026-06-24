@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  isUserInChina: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -24,6 +25,10 @@ vi.mock('electron', () => ({
   net: {
     fetch: mocks.fetch
   }
+}))
+
+vi.mock('@main/utils/ipService', () => ({
+  isUserInChina: mocks.isUserInChina
 }))
 
 import { ApiKeyRotationState } from '../../utils/provider'
@@ -152,6 +157,8 @@ describe('main web search API providers', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     mocks.loggerWarn.mockReset()
+    mocks.isUserInChina.mockReset()
+    mocks.isUserInChina.mockResolvedValue(false)
   })
 
   it('matches Exa request and normalized response snapshots from fixtures', async () => {
@@ -372,6 +379,79 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('routes Jina fetch URL to the China mirror when the user is in mainland China', async () => {
+    mocks.isUserInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
+    expect(url).toBe('https://r.jinaai.cn/https://example.com/article')
+  })
+
+  it('routes Jina search URL to the China mirror when the user is in mainland China', async () => {
+    mocks.isUserInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValue(createJsonResponse({ code: 200, data: [] }))
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({ id: 'jina', name: 'Jina', apiKeys: ['jina-key'] })
+    )
+
+    await provider.searchKeywords('hello world', runtimeConfig)
+
+    const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
+    expect(url).toBe(`https://s.jinaai.cn/${encodeURIComponent('hello world')}`)
+  })
+
+  it('keeps a custom Jina apiHost even when the user is in mainland China', async () => {
+    mocks.isUserInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://reader.example.com'
+      })
+    )
+
+    await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
+    expect(url).toBe('https://reader.example.com/https://example.com/article')
   })
 
   it('throws when Jina Reader returns empty content', async () => {
