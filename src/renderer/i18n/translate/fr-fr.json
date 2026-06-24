@@ -218,7 +218,11 @@
         "edit": "Modifier",
         "empty": "Aucune tâche planifiée. Ajoutez-en une pour commencer.",
         "error": {
-          "loadFailed": "Échec du chargement des tâches"
+          "createFailed": "Échec de la création de la tâche",
+          "deleteFailed": "Échec de la suppression de la tâche",
+          "loadFailed": "Échec du chargement des tâches",
+          "runFailed": "Échec de l'exécution de la tâche",
+          "updateFailed": "Échec de la mise à jour de la tâche"
         },
         "intervalPlaceholder": "Intervalle en minutes",
         "intervalUnit": "minutes",
@@ -329,6 +333,9 @@
       "success": "Git Bash détecté avec succès !",
       "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
     },
+    "home": {
+      "welcome_title": "De quoi allons-nous parler aujourd'hui ?"
+    },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",
       "soul_placeholder": "Aidez-moi à me connecter à Telegram"
@@ -338,14 +345,119 @@
         "failed": "Échec de la liste des agents."
       }
     },
+    "pin": {
+      "title": "Agent Pin"
+    },
+    "preview_pane": {
+      "close": "Fermer l'aperçu",
+      "code": "Code",
+      "code_unavailable": "Vue source non disponible pour les fichiers binaires",
+      "default_app": "Application par défaut",
+      "empty": {
+        "description": "Commencez à discuter avec l'agent ; le code généré et les d'aperçu en direct apparaîtront ici.",
+        "title": "Prêt"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "Ce fichier Excel dépasse la limite de taille pour l'aperçu.",
+          "invalid_request": "La demande d’aperçu Excel n’est pas valide.",
+          "parse_failed": "Impossible de lire ce fichier Excel.",
+          "too_complex": "Ce fichier Excel est trop complexe pour être prévisualisé.",
+          "unsupported_extension": "Seuls les fichiers .xlsx et .xlsm peuvent être prévisualisés.",
+          "unsupported_xls": "Les fichiers .xls hérités ne sont pas pris en charge par l’aperçu Excel."
+        },
+        "warnings": {
+          "generic": "Certain contenus du classeur peuvent ne pas être entièrement affichés.",
+          "title": "Aperçu de l'avis",
+          "unsupported_images": "Les images ne sont pas encore affichées dans l'aperçu Excel."
+        }
+      },
+      "file_tree": "Arborescence de fichiers",
+      "items_one": "{{count}} article",
+      "items_other": "{{count}} articles",
+      "maximize": "Maximiser",
+      "minimize": "Minimiser",
+      "no_search_results": "Aucun fichier ne correspond à votre recherche",
+      "office": {
+        "description": "Ce type de fichier doit être ouvert avec l'application par défaut du système.",
+        "title": "L'ouverture des fichiers {{extension}} n'est pas encore prise en charge ici"
+      },
+      "preview": "Aperçu",
+      "refresh": "Actualiser",
+      "search_placeholder": "Rechercher des fichiers...",
+      "select_file": "Sélectionner un fichier à prévisualiser",
+      "toggle": "Afficher le panneau d'aperçu",
+      "too_large": {
+        "description": "Le fichier dépasse la limite d’aperçu de {{limit}}.",
+        "title": "Fichier trop volumineux pour être prévisualisé"
+      },
+      "unavailable": {
+        "description": "Ce fichier n’a pas pu être ouvert — il a peut-être été déplacé ou supprimé.",
+        "title": "Fichier indisponible"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "Impossible de rendre ce document Word.",
+          "read_failed": "Impossible de lire ce document Word."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Échec du réordonnancement des agents"
       }
     },
     "right_pane": {
+      "close": "Fermer",
+      "flow": {
+        "empty": {
+          "description": "Sélectionnez un appel d'outil d'agent pour inspecter le flux de messages enfants.",
+          "title": "Aucun outil sélectionné"
+        },
+        "no_messages": {
+          "description": "Cet appel d'outil n'a capturé aucun flux de messages enfant.",
+          "title": "Aucun message"
+        }
+      },
       "info": {
-        "context_usage": "Utilisation du contexte"
+        "artifacts": "Livrables",
+        "context_categories": {
+          "autocompact_buffer": "Tampon autocompactant",
+          "custom_agents": "Agents personnalisés",
+          "free_space": "Espace libre",
+          "mcp_tools": "Outils MCP",
+          "memory_files": "Fichiers de mémoire",
+          "messages": "Messages",
+          "plugins": "Greffons",
+          "skills": "Compétences",
+          "system_prompt": "Invite système",
+          "system_tools": "Outils système"
+        },
+        "context_usage": "Utilisation du contexte",
+        "label": "Informations de session",
+        "more": "+{{count}} de plus",
+        "no_artifacts": "Aucun livrable déclaré",
+        "no_subagents": "Aucun sous-agent",
+        "subagents": "Sous-agents"
+      },
+      "status": {
+        "activity": "Activité",
+        "agent": "Agent",
+        "context": "Contexte",
+        "no_tasks": "Aucune tâche active",
+        "selected_tool": "Outil sélectionnée",
+        "task_count": "{{completed}} / {{total}} terminé",
+        "tasks": "Tâches",
+        "tools_active": "Actif",
+        "tools_done": "Fait",
+        "tools_failed": "Échec",
+        "tools_total": "Total",
+        "workspace": "Espace de travail"
+      },
+      "tabs": {
+        "files": "Fichiers",
+        "flow": "Flux",
+        "status": "Statut"
       }
     },
     "server": {
@@ -368,6 +480,16 @@
       "add": {
         "title": "Ajouter une session"
       },
+      "agent": {
+        "delete": {
+          "content": "La suppression des tâches de cet agent entraînera la suppression de toutes les tâches associées à cet agent. L'agent lui-même ne sera pas supprimé.",
+          "error": {
+            "failed": "Échec de la suppression des tâches de l’agent"
+          },
+          "title": "Supprimer les tâches de l'agent",
+          "trigger": "Supprimer les tâches de l'agent"
+        }
+      },
       "allowed_tools": {
         "empty": "Aucun outil disponible pour cet agent.",
         "helper": "Choisissez les outils préapprouvés. Les outils non sélectionnés nécessiteront une approbation avant utilisation.",
@@ -387,8 +509,18 @@
         },
         "title": "Supprimer la session"
       },
+      "display": {
+        "agent": "Agent",
+        "time": "Temps",
+        "title": "Mode d'affichage",
+        "workdir": "Répertoire de travail"
+      },
       "edit": {
         "title": "Session d'édition"
+      },
+      "empty": {
+        "description": "Les tâches apparaîtront ici après que vous en aurez commencé une.",
+        "title": "Aucune tâche pour l'instant"
       },
       "file_manager": {
         "file_explorer": "Explorateur de fichiers",
@@ -398,24 +530,73 @@
       "get": {
         "error": {
           "failed": "Échec de l'obtention de la session",
+          "not_found": "Tâche introuvable",
           "null_id": "L'ID de session est nul"
         }
       },
+      "group": {
+        "collapse": "Réduire l'affichage",
+        "collapse_all": "Réduire tout",
+        "conversation": "Conversations",
+        "drag_hint": "Glisser pour réorganiser. Glisser les tâches pour ajuster les groupes affichés et masqués.",
+        "earlier": "Plus tôt",
+        "expand_all": "Développer tout",
+        "no_workdir": "Aucun répertoire de travail",
+        "show_more": "Développer l'affichage",
+        "this_week": "Cette semaine",
+        "today": "Aujourd'hui",
+        "unknown_agent": "Agent inconnu",
+        "yesterday": "Hier"
+      },
       "label_one": "Session",
       "label_other": "Séances",
+      "list": {
+        "title": "Tâches"
+      },
+      "pin": {
+        "title": "Épingler la tâche"
+      },
       "reorder": {
         "error": {
           "failed": "Échec du réordonnancement des sessions"
         }
+      },
+      "search": {
+        "placeholder": "Tâches de recherche"
+      },
+      "unpin": {
+        "title": "Détacher la tâche"
       },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"
         }
       },
+      "workdir": {
+        "delete": {
+          "content": "La suppression de ce répertoire de travail supprimera également toutes les tâches qu’il contient. Seules les enregistrements de la base de données seront supprimés ; le dossier réel sur le disque ne sera pas supprimé.",
+          "error": {
+            "failed": "Échec de la suppression du répertoire de travail"
+          },
+          "title": "Supprimer le répertoire de travail",
+          "trigger": "Supprimer le répertoire de travail"
+        },
+        "rename": {
+          "error": {
+            "failed": "Échec du renommage du répertoire de travail"
+          },
+          "title": "Renommer le répertoire de travail",
+          "trigger": "Renommer le répertoire de travail"
+        }
+      },
       "workspace_selector": {
+        "create_failed": "Échec de l'ajout du répertoire de travail.",
+        "create_new": "Ajouter un nouveau répertoire de travail",
+        "empty_text": "Aucun répertoire de travail",
         "no_project": "Aucun répertoire de travail",
-        "placeholder": "Sélectionner le répertoire de travail"
+        "placeholder": "Sélectionner le répertoire de travail",
+        "search_placeholder": "Rechercher dans les répertoires de travail",
+        "select_failed": "Échec de la sélection du dossier."
       },
       "workspace_status": {
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
@@ -743,17 +924,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "Stocke et rappelle la mémoire entre les sessions",
+          "label": "Mémoire"
+        },
         "Bash": {
-          "description": "Exécute des commandes shell dans votre environnement"
+          "description": "Exécute des commandes shell dans votre environnement",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "Recherche dans vos bases de connaissances",
+          "label": "Recherche de connaissances"
+        },
+        "CherryWebFetch": {
+          "description": "Récupère et lit une page web",
+          "label": "Récupération Web"
+        },
+        "CherryWebSearch": {
+          "description": "Effectue des recherches sur le web via votre fournisseur configuré",
+          "label": "Recherche sur le Web"
+        },
+        "ClawCron": {
+          "description": "Gère le planificateur intégré à l'application",
+          "label": "Planificateur"
         },
         "Edit": {
-          "description": "Effectue des modifications ciblées sur des fichiers spécifiques"
+          "description": "Effectue des modifications ciblées sur des fichiers spécifiques",
+          "label": "Modifier"
         },
         "Glob": {
-          "description": "Trouve des fichiers selon la correspondance de modèles"
+          "description": "Trouve des fichiers selon la correspondance de modèles",
+          "label": "Glob"
         },
         "Grep": {
-          "description": "Recherche des motifs dans le contenu des fichiers"
+          "description": "Recherche des motifs dans le contenu des fichiers",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "Effectue plusieurs modifications sur un fichier unique de manière atomique"
@@ -765,7 +970,8 @@
           "description": "Lit et affiche le contenu des notebooks Jupyter"
         },
         "Read": {
-          "description": "Lit le contenu des fichiers"
+          "description": "Lit le contenu des fichiers",
+          "label": "Lire"
         },
         "Task": {
           "description": "Exécute un sous-agent pour gérer des tâches complexes en plusieurs étapes"
@@ -782,14 +988,22 @@
         "WebSearch": {
           "description": "Effectue des recherches web avec filtrage par domaine"
         },
+        "Workflow": {
+          "description": "Exécute un workflow en plusieurs étapes qui orchestre des sous-agents",
+          "label": "Flux de travail"
+        },
         "Write": {
-          "description": "Crée ou écrase des fichiers"
+          "description": "Crée ou écrase des fichiers",
+          "label": "Écrire"
         }
       }
     },
     "type": {
       "label": "Type d'agent",
       "unknown": "Type inconnu"
+    },
+    "unpin": {
+      "title": "Détacher l'agent"
     },
     "update": {
       "error": {
@@ -900,6 +1114,7 @@
     "abbr": "Aide",
     "clear": {
       "content": "Supprimer le sujet supprimera tous les sujets et fichiers de l'aide. Êtes-vous sûr de vouloir continuer ?",
+      "menu_title": "Supprimer toutes les conversations avec l'assistant",
       "title": "Supprimer les sujets"
     },
     "copy": {
@@ -921,6 +1136,9 @@
     "list": {
       "showByList": "Affichage sous forme de liste",
       "showByTags": "Affichage par balises"
+    },
+    "pin": {
+      "title": "Assistant Épingle"
     },
     "presets": {
       "add": {
@@ -1016,6 +1234,11 @@
       },
       "title": "Bibliothèque d'assistants"
     },
+    "reorder": {
+      "error": {
+        "failed": "Échec du réordonnancement des assistants"
+      }
+    },
     "save": {
       "success": "Sauvegarde réussie",
       "title": "Enregistrer dans l'agent"
@@ -1109,7 +1332,10 @@
       },
       "untagged": "Non groupé"
     },
-    "title": "Agent"
+    "title": "Agent",
+    "unpin": {
+      "title": "Détacher l'assistant"
+    }
   },
   "auth": {
     "error": "Échec de l'obtention automatique de la clé, veuillez la récupérer manuellement",
@@ -1182,12 +1408,16 @@
             "content": "Erreur lors de l'ouverture dans un navigateur externe"
           }
         }
-      }
+      },
+      "title": "Livrables"
     },
     "assistant": {
       "search": {
         "placeholder": "Rechercher"
       }
+    },
+    "conversation": {
+      "new": "Nouveau chat"
     },
     "deeply_thought": "Profondément réfléchi ({{seconds}} secondes)",
     "default": {
@@ -1206,6 +1436,9 @@
       "title": "Historique des chats",
       "user_node": "Utilisateur",
       "view_full_content": "Voir le contenu complet"
+    },
+    "home": {
+      "welcome_title": "De quoi parlerons-nous aujourd'hui ?"
     },
     "input": {
       "auto_resize": "Ajustement automatique de la hauteur",
@@ -1242,12 +1475,14 @@
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
       "locate_editing_message": "Localiser le message original",
+      "mcp_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation des outils dans l'invite.",
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
       "new_session": "Nouvelle Session {{Command}}",
       "new_topic": "Nouveau sujet {{Command}}",
       "paste_text_file": "Coller dans l'entrée",
+      "pasted_text_file_name": "Texte collé.txt",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
@@ -1273,6 +1508,13 @@
       "send_failed": "Échec de l'envoi du message",
       "settings": "Paramètres",
       "slash_commands": {
+        "commands": {
+          "clear": "Effacer l'historique de la conversation",
+          "compact": "Conversation compacte avec instructions de focalisation optionnelles",
+          "context": "Visualiser l'utilisation actuelle du contexte sous forme de grille colorée",
+          "cost": "Afficher les statistiques d'utilisation des jetons (voir le guide de suivi des coûts pour les détails spécifiques à l'abonnement)",
+          "todos": "Lister les éléments actuels de la liste de tâches"
+        },
         "description": "Commandes slash de session d'agent",
         "title": "Commandes Slash"
       },
@@ -1348,6 +1590,20 @@
       }
     },
     "message": {
+      "editing_current": "Ce message est en cours de modification dans le compositeur",
+      "flow": {
+        "branches": "branches",
+        "copy_topic": {
+          "created": "Copié dans une nouvelle conversation",
+          "label": "Copier comme nouvelle conversation"
+        },
+        "nodes": "nœuds",
+        "status": {
+          "awaiting_input": "En attente d'une entrée"
+        },
+        "title": "Gestion des branches"
+      },
+      "more": "Plus d'actions",
       "new": {
         "branch": {
           "created": "Nouvelle branche créée",
@@ -1457,6 +1713,7 @@
             "save_failed": "Échec de l’enregistrement du sujet, veuillez vérifier la configuration de la base de connaissances"
           },
           "loading": "Analyse du contenu du sujet en cours...",
+          "menu_title": "Enregistrer dans la base de connaissances",
           "select": {
             "content": {
               "label": "Sélectionner le type de contenu à enregistrer",
@@ -1529,6 +1786,7 @@
       "title": "Questions suggérées"
     },
     "thinking": "En réflexion",
+    "thinking_tokens": "~{{tokens}} jetons",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
       "clear": {
@@ -1543,14 +1801,25 @@
       "delete": {
         "shortcut": "Maintenez {{key}} pour supprimer directement"
       },
+      "display": {
+        "assistant": "Assistant",
+        "tag": "Étiquette",
+        "time": "Temps",
+        "title": "Mode d'affichage"
+      },
       "edit": {
         "placeholder": "Entrez un nouveau nom",
         "title": "Modifier le nom du sujet",
         "title_tip": "Conseil : double-cliquez sur le nom du sujet pour le renommer directement sur place"
       },
+      "empty": {
+        "description": "Créez une discussion et elle restera ici afin que vous puissiez la reprendre plus tard avec son contexte.",
+        "title": "Aucune discussion pour l'instant"
+      },
       "export": {
         "failed": "Échec de l'exportation",
         "image": "Exporter sous forme d'image",
+        "image_exporting_keep_page": "Exportation de l'image. Veuillez rester sur cette page.",
         "image_saved": "Image enregistrée avec succès",
         "joplin": "Exporter vers Joplin",
         "md": {
@@ -1597,6 +1866,17 @@
         "wait_for_title_naming": "Génération du titre en cours...",
         "word": "Exporter sous forme de Word",
         "yuque": "Exporter vers Yuque"
+      },
+      "group": {
+        "collapse": "Réduire l'affichage",
+        "collapse_all": "Réduire tout",
+        "earlier": "Plus tôt",
+        "expand_all": "Développer tout",
+        "show_more": "Développer l'affichage",
+        "this_week": "Cette semaine",
+        "today": "Aujourd'hui",
+        "unknown_assistant": "Assistant non lié",
+        "yesterday": "Hier"
       },
       "list": "Liste des sujets",
       "manage": {
@@ -1746,8 +2026,10 @@
     "add": "Ajouter",
     "add_success": "Ajout réussi",
     "advanced_settings": "Paramètres avancés",
+    "agent": "Agent",
     "agent_one": "Agent",
     "agent_other": "Agents",
+    "all": "Tous",
     "and": "et",
     "assistant": "Intelligence artificielle",
     "assistant_one": "assistant",
@@ -1768,6 +2050,7 @@
     "copied": "Copié",
     "copy": "Copier",
     "copy_failed": "Échec de la copie",
+    "create_success": "Créé avec succès",
     "current": "Actuel",
     "cut": "Couper",
     "default": "Défaut",
@@ -1826,6 +2109,7 @@
     "on": "Marche",
     "open": "Ouvrir",
     "open_in": "Ouvrir dans {{name}}",
+    "open_in_new_tab": "Ouvrir dans un nouvel onglet",
     "open_sidebar": "Ouvrir la barre latérale",
     "paste": "Coller",
     "placeholders": {
@@ -1880,6 +2164,7 @@
     "upload_image": "Télécharger le fichier image",
     "uploaded_image": "Image téléchargée",
     "warning": "Avertissement",
+    "yesterday": "Hier",
     "you": "Vous"
   },
   "dialog": {
@@ -2090,6 +2375,85 @@
     "title": "Fichier",
     "type": "Type"
   },
+  "globalSearch": {
+    "clear": "Effacer la recherche",
+    "error": "Échec de la recherche",
+    "filters": {
+      "agent": "Agent",
+      "all": "Tout",
+      "assistant": "Assistant",
+      "conversation": "Conversation",
+      "knowledge": "Connaissance",
+      "label": "Type de recherche",
+      "session": "Tâche",
+      "topic": "Conversation"
+    },
+    "groups": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "conversation": "Conversation",
+      "knowledge-base": "Connaissance",
+      "message": "Messages",
+      "recent": "Récent",
+      "session": "Tâche",
+      "topic": "Conversation"
+    },
+    "keyboard": {
+      "select": "Sélectionner"
+    },
+    "messageSearch": {
+      "entry": "Messages",
+      "hint": "Tapez pour rechercher le contenu du message",
+      "jumpToMessage": "Aller au message",
+      "more": "Afficher {{count}} résultats supplémentaires",
+      "open": "Rechercher des messages",
+      "roles": {
+        "assistant": "Assistant",
+        "system": "Système",
+        "tool": "Outil",
+        "user": "Utilisateur"
+      },
+      "sourceLabel": "Source du message",
+      "sources": {
+        "all": "Tous les messages",
+        "session": "Messages de tâche",
+        "topic": "Messages de conversation"
+      },
+      "viewMore": "Voir plus dans Messages"
+    },
+    "no_recent": "Aucun itinéraire récent",
+    "open": "Recherche globale ouverte",
+    "open_failed": "Échec de l'ouverture du résultat de recherche",
+    "placeholder": "Rechercher des conversations, tâches, assistants, agents et connaissances...",
+    "quickApps": {
+      "hide": "Masquer {{name}}",
+      "manage": "Gérer",
+      "manager_description": "Faites glisser pour réorganiser, cliquez sur l'œil pour masquer ou afficher",
+      "manager_title": "Gérer les applications rapides",
+      "reset": "Réinitialiser",
+      "save_failed": "Échec de l'enregistrement des applications rapides",
+      "show": "Afficher {{name}}",
+      "title": "Applications rapides"
+    },
+    "recent_hint": "Tapez pour rechercher des conversations, des tâches, des assistants, des agents et des connaissances",
+    "resultTypes": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "knowledge-base": "Connaissance",
+      "session": "Tâche",
+      "topic": "Conversation"
+    },
+    "showMore": "Afficher {{count}} de plus",
+    "timeFilters": {
+      "any": "À tout moment",
+      "label": "Heure mise à jour",
+      "messageLabel": "Heure de création",
+      "month": "Le mois dernier",
+      "quarter": "3 derniers mois",
+      "today": "Aujourd'hui",
+      "week": "7 derniers jours"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "Le modèle reste en mémoire pendant ce temps (par défaut : 5 minutes)",
@@ -2105,6 +2469,67 @@
     },
     "locate": {
       "message": "Localiser le message"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} tâches",
+      "agentTitle": "Historique de l'agent",
+      "assistantSubtitle": "{{count}} conversations",
+      "bulkDelete": "Suppression par lots",
+      "bulkDeleteSessions": {
+        "description": "Supprimer {{count}} tâche(s) sélectionnée(s) ?",
+        "title": "Supprimer les tâches sélectionnées"
+      },
+      "bulkDeleteTopics": {
+        "description": "Supprimer {{count}} conversation(s) sélectionnée(s) ?",
+        "title": "Supprimer les conversations sélectionnées"
+      },
+      "bulkMove": "Déplacement par lot",
+      "bulkMoveTopics": {
+        "confirm": "Déplacer",
+        "description": "Déplacer {{count}} conversation(s) sélectionnée(s) vers l’assistant cible.",
+        "empty": "Aucun assistant disponible",
+        "error": "Échec du déplacement des conversations",
+        "partialSuccess": "{{moved}} conversation(s) sur {{total}} déplacée(s) ; {{failed}} échec(s)",
+        "placeholder": "Sélectionner",
+        "success": "{{count}} conversation(s) déplacée(s)",
+        "target": "Assistant cible",
+        "title": "Déplacer les conversations sélectionnées"
+      },
+      "empty": {
+        "description": "Aucune conversation pour les filtres actuels.",
+        "sessionsDescription": "Aucune tâche pour les filtres actuels.",
+        "sessionsTitle": "Aucune tâche",
+        "title": "Aucune conversation"
+      },
+      "loading": {
+        "description": "Chargement de la liste des conversations.",
+        "sessionsDescription": "Chargement de la liste des tâches.",
+        "sessionsTitle": "Chargement des tâches",
+        "title": "Chargement des conversations"
+      },
+      "resultCount": "{{count}} résultats",
+      "searchSession": "Rechercher des tâches...",
+      "searchTopic": "Rechercher des conversations...",
+      "shortTitle": "Histoire",
+      "sidebar": {
+        "searchAssistant": "Rechercher des assistants...",
+        "status": "Statut",
+        "unknownAssistant": "Assistant non lié"
+      },
+      "status": {
+        "completed": "Terminé",
+        "failed": "Échoué",
+        "running": "Courir"
+      },
+      "table": {
+        "actions": "Actions",
+        "emptyValue": "—",
+        "messages": "Messages",
+        "session": "Tâche",
+        "time": "Temps",
+        "title": "Titre"
+      },
+      "title": "Historique de conversation"
     },
     "search": {
       "match": {
@@ -2217,6 +2642,7 @@
           "success": "Source de données ajoutée à la base de connaissances"
         },
         "title": "Ajouter une source de données",
+        "too_many_sources": "Vous ne pouvez ajouter au plus que {{count}} sources à la fois. Réduisez votre sélection et réessayez.",
         "unsupported_files_skipped": "{{count}} fichier(s) non pris en charge ignoré(s)",
         "url": {
           "description": "Entrez une URL de page web :",
@@ -2230,6 +2656,7 @@
         "delete": "Supprimer",
         "delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
+        "loaded_only_hint": "S'applique uniquement aux éléments chargés ({{total}} au total)",
         "reindex": "Réindexer",
         "selected_count": "{{count}} sélectionné"
       },
@@ -2259,11 +2686,14 @@
         "note": "Notes",
         "url": "URL"
       },
+      "list": {
+        "end_reached": "Plus d'articles",
+        "loading_more": "Chargement en cours…"
+      },
       "preview": {
         "failed": "Échec de l'aperçu de la source",
         "unavailable": "Cette source de données n'a aucune source à prévisualiser"
       },
-      "ready_summary": "{{ready}}/{{total}} prêt",
       "reindex_failed": "Échec de la réindexation de la source de données",
       "status": {
         "chunking": "Fragmentation",
@@ -2273,6 +2703,7 @@
         "ready": "Prêt"
       },
       "table": {
+        "aria_label": "Sources de données",
         "columns": {
           "actions": "Actions",
           "name": "Nom",
@@ -2281,7 +2712,8 @@
           "updated_at": "Mis à jour"
         },
         "select_all": "Tout sélectionner",
-        "select_row": "Sélectionner la ligne"
+        "select_row": "Sélectionner la ligne",
+        "view_chunks_row": "Afficher les fragments pour {{title}}"
       },
       "toolbar": {
         "add": "Ajouter une source de données"
@@ -2299,6 +2731,7 @@
       "failed_to_delete": "Échec de la suppression de la base de connaissances",
       "failed_to_edit": "Échec de la modification de la base de connaissances",
       "failed_to_move": "Échec du déplacement de la base de connaissances",
+      "indexing_interrupted": "L’indexation a été interrompue car l’application s’est fermée. Réindexez cet élément pour terminer.",
       "missing_embedding_model": "Le modèle d'embedding utilisé par cette base de connaissances n'a pas été trouvé lors de la migration. Reconstruisez la base de connaissances et choisissez un nouveau modèle d'embedding.",
       "missing_vector_store": "Le magasin de vecteurs de cette base de connaissances n'a pas pu être lu pendant la migration (manquant, vide ou verrouillé). La base de connaissances a été conservée ; ré-indexez-la pour la récupérer.",
       "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
@@ -2470,6 +2903,7 @@
       "browse_label": "Catégories d'assistant",
       "empty_description": "Cette catégorie n’a pas encore de préréglages d’assistant.",
       "empty_title": "Aucun assistant à ajouter",
+      "go_to_chat": "Aller au chat",
       "mine": "Mien",
       "no_match_description": "Essayez un autre mot-clé de recherche",
       "no_match_title": "Aucun assistant correspondant",
@@ -2508,7 +2942,8 @@
           },
           "env_vars": {
             "help": "Une clé=VALEUR par ligne",
-            "label": "Variables d'environnement"
+            "label": "Variables d'environnement",
+            "placeholder": "KEY=valeur\nANOTHER_KEY=autre_valeur"
           },
           "heartbeat_enabled": {
             "label": "Vérification du battement de cœur"
@@ -2587,6 +3022,14 @@
           },
           "tools": {
             "add": "Ajouter",
+            "category": {
+              "context": "Contexte",
+              "file": "Fichier",
+              "media": "Média",
+              "orchestration": "Orchestration",
+              "search": "Rechercher",
+              "shell": "Coquille"
+            },
             "desc": "Serveurs MCP, outils autorisés et paramètres d'exécution",
             "label": "Outils et runtime",
             "no_builtin_enabled": "Aucun outil intégré activé",
@@ -2656,6 +3099,7 @@
         "json_invalid": "Format JSON invalide",
         "max_tokens": "Jetons max",
         "max_tool_calls": "Appels d'outil max",
+        "mcp_mode": "Mode MCP",
         "model": "Modèle par défaut",
         "model_clear": "Clair",
         "model_not_found": "Modèle introuvable (peut avoir été supprimé) : {{id}}",
@@ -2674,6 +3118,34 @@
         "unlimited": "Illimité"
       },
       "breadcrumb": "Bibliothèque",
+      "dialogs": {
+        "create": {
+          "agent_title": "Nouvel agent",
+          "assistant_title": "Nouvel Assistant",
+          "avatar_aria": "Choisir un avatar",
+          "description_placeholder": "Décrire à quoi cela sert...",
+          "dialog_description": "Créer un assistant ou agent léger.",
+          "model_placeholder": "Sélectionner un modèle",
+          "model_required": "Veuillez sélectionner un modèle",
+          "name_placeholder": "Entrez un nom",
+          "name_required": "Veuillez entrer un nom",
+          "submit": "Créer",
+          "submit_failed": "Échec de la création"
+        },
+        "edit": {
+          "advanced_tab": "Avancé",
+          "agent_description": "Ajustez rapidement les éléments essentiels de cet agent.",
+          "agent_title": "Modifier l'agent",
+          "assistant_description": "Ajustez rapidement les éléments essentiels de cet assistant.",
+          "assistant_title": "Assistant d'édition",
+          "basic_tab": "Basique",
+          "knowledge_tab": "Connaissance",
+          "permission_tab": "Permission",
+          "prompt_tab": "Invite",
+          "save_failed": "Échec de la sauvegarde",
+          "tools_tab": "Outils"
+        }
+      },
       "knowledge": {
         "add": "Ajouter une base de connaissances",
         "desc": "Liez une ou plusieurs bases de connaissances ; des extraits pertinents seront récupérés pendant la conversation",
@@ -2711,6 +3183,8 @@
         "placeholder": "Saisissez les consignes pour l'assistant, comme le style de réponse, le rôle ou le contexte",
         "title": "Invite",
         "tokens_label": "Jetons :",
+        "variables_description": "Insérez ces variables système dans le prompt système ; avant chaque réponse de l'assistant, elles sont remplies avec les informations actuelles.",
+        "variables_example": "Exemple : Aujourd'hui est {{variable}}, et la date actuelle est utilisée.",
         "variables_title": "Variables disponibles",
         "vars": {
           "arch": "architecture du processeur",
@@ -2894,6 +3368,7 @@
     "title": "Bibliothèque",
     "toolbar": {
       "add_tag_placeholder": "Nom de l'étiquette...",
+      "all_tags": "Toutes les étiquettes",
       "new_resource": "Nouvelle ressource",
       "search_placeholder": "Rechercher des ressources...",
       "tag_button": "Étiquette"
@@ -2990,6 +3465,7 @@
       "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
+      "dismiss_failed": "Échec de la fermeture du message d'erreur",
       "enter": {
         "api": {
           "host": "Veuillez entrer votre adresse API",
@@ -3100,6 +3576,10 @@
         "label": "Style du message",
         "plain": "Simplifié"
       },
+      "user_content": {
+        "collapse": "Effondrer",
+        "expand": "Développer"
+      },
       "video": {
         "error": {
           "local_file_missing": "Chemin du fichier vidéo local introuvable",
@@ -3166,6 +3646,77 @@
     "tools": {
       "abort_failed": "Échec de l'interruption de l'appel de l'outil",
       "aborted": "Appel de l'outil interrompu",
+      "activity": {
+        "archive": "archive",
+        "assistantTask": "tâche",
+        "availableFeatures": "fonctionnalités disponibles",
+        "availableResources": "ressources disponibles",
+        "branch": "branche de code",
+        "build": "Construire",
+        "building": "Construction",
+        "check": "Vérifier",
+        "checking": "Vérification",
+        "codeFiles": "fichiers de code",
+        "codeHostInfo": "informations d'hébergement de code",
+        "commandName": "commande {{name}}",
+        "configFiles": "documents du projet et fichiers de configuration",
+        "copy": "Copier",
+        "copying": "Copie",
+        "create": "Créer",
+        "creating": "Création",
+        "currentFolder": "dossier actuel",
+        "delete": "Supprimer",
+        "deleting": "Suppression",
+        "documentFiles": "fichiers de document",
+        "download": "Télécharger",
+        "downloading": "Téléchargement",
+        "executeCommand": "Exécuter la commande",
+        "executingCommand": "Exécution de la commande",
+        "extract": "Extraire",
+        "extracting": "Extraction",
+        "file": "fichier",
+        "fileList": "liste de fichiers",
+        "folder": "dossier",
+        "handle": "Poignée",
+        "handling": "Manipulation",
+        "imageFiles": "fichiers image",
+        "install": "Installer",
+        "installing": "Installation",
+        "matchingFiles": "fichiers correspondants",
+        "modify": "Modifier",
+        "modifying": "Modification",
+        "move": "Déplacer",
+        "moving": "Déménagement",
+        "open": "Ouvert",
+        "opening": "Ouverture",
+        "plan": "plan d'exécution",
+        "projectChanges": "modifications du projet",
+        "projectChecks": "vérifications de projet",
+        "projectDependencies": "dépendances du projet",
+        "projectFiles": "fichiers de projet",
+        "projectRootFiles": "fichiers racine du projet",
+        "projectTask": "tâche du projet",
+        "relatedContent": "contenu connexe",
+        "repository": "dépôt de code",
+        "search": "Trouver",
+        "searching": "Trouver",
+        "switch": "Commutateur",
+        "switching": "Commutation",
+        "sync": "Synchroniser",
+        "syncing": "Synchronisation",
+        "taskId": "Tâche {{id}}",
+        "taskList": "liste de tâches",
+        "translationFiles": "fichiers de traduction",
+        "upload": "Téléverser",
+        "uploading": "Téléchargement",
+        "view": "Vue",
+        "viewing": "Visualisation",
+        "webPage": "page web",
+        "webSearch": "contenu web",
+        "workspace": "espace de travail",
+        "write": "Enregistrer",
+        "writing": "Épargne"
+      },
       "approvalRequired": "L'outil \"{{tool}}\" nécessite une approbation",
       "autoApproveEnabled": "Cet outil a l'approbation automatique activée",
       "cancelled": "Annulé",
@@ -3186,6 +3737,12 @@
         "search": "Rechercher",
         "skill": "Compétence",
         "task": "Tâche",
+        "taskCreate": "Créer une tâche",
+        "taskGet": "Afficher la tâche",
+        "taskList": "Liste des tâches",
+        "taskOutput": "Afficher la sortie de la tâche",
+        "taskStop": "Arrêter la tâche",
+        "taskUpdate": "Mettre à jour la tâche",
         "todoWrite": "À faire Écrire",
         "tool": "Outil",
         "webFetch": "Récupération Web",
@@ -3194,9 +3751,22 @@
       },
       "noData": "Aucune donnée disponible pour cet outil",
       "pending": "En attente",
+      "placeholder": {
+        "elapsed": {
+          "days": "{{days}}j {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "{{minutes}}m {{seconds}}s",
+          "seconds": "{{seconds}} s"
+        },
+        "generating": "Rédaction de la réponse",
+        "preparing": "Préparation de la réponse",
+        "thinking": "Réfléchir",
+        "usingTools": "Travailler sur la tâche"
+      },
       "preview": "Aperçu",
       "raw": "Brut",
       "runningCount": "{{count}} outils en cours d'exécution",
+      "runningHeader": "En cours…",
       "sections": {
         "args": "Arguments",
         "command": "Commande",
@@ -3218,6 +3788,7 @@
         "success": "Succès"
       },
       "streaming": "Streaming",
+      "thinkingHeader": "Réflexion",
       "truncated": "Sortie tronquée (original : {{size}})",
       "units": {
         "done_one": "{{count}} Terminé",
@@ -3262,6 +3833,7 @@
     "websearch": {
       "cutoff": "Troncature du contenu de recherche en cours...",
       "fetch_complete": "{{count}} résultats de recherche",
+      "fetch_empty": "Aucun résultat de recherche trouvé",
       "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
@@ -3404,6 +3976,14 @@
     "add_parameter": "Ajouter un paramètre",
     "all": "Tout",
     "custom_parameters": "Paramètres personnalisés",
+    "detail": {
+      "context_window": "Fenêtre de contexte",
+      "image_modes": "Modes d'image",
+      "max_input_tokens": "Entrée maximale",
+      "max_output_tokens": "Sortie maximale",
+      "model_id": "ID du modèle",
+      "provider": "Fournisseur"
+    },
     "dimensions": "{{dimensions}} dimensions",
     "edit": "Éditer le modèle",
     "embedding": "Incrustation",
@@ -4724,6 +5304,12 @@
       "sort_label": "Trier",
       "unpin": "Détacher"
     },
+    "create_dialog": {
+      "refresh_failed": "Créé, mais échec de l'actualisation de la liste"
+    },
+    "edit_dialog": {
+      "refresh_failed": "Enregistré, mais échec de l’actualisation de la liste"
+    },
     "workspace": {
       "empty_text": "Aucun espace de travail pour l'instant",
       "placeholder": "Sélectionner l'espace de travail"
@@ -5766,6 +6352,13 @@
         "text": "Текст",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "Connecté",
+        "connecting": "Connexion",
+        "disabled": "[to be translated]:Disabled",
+        "error": "[to be translated]:Error",
+        "unavailable": "[to be translated]:Unavailable"
+      },
       "search": {
         "placeholder": "Rechercher des serveurs MCP...",
         "tooltip": "Rechercher des serveurs MCP"
@@ -5890,7 +6483,8 @@
       },
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
-      "use_serif_font": "Utiliser une police serif"
+      "use_serif_font": "Utiliser une police serif",
+      "wide_mode": "[to be translated]:Wide layout mode"
     },
     "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
@@ -6268,6 +6862,7 @@
         "title": "niveau de détail"
       }
     },
+    "parameter_settings": "Paramètres",
     "plugins": {
       "bunDescription": "Runtime JavaScript utilisé par les services MCP et les chaînes d'outils associées.",
       "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
@@ -6275,6 +6870,9 @@
       "notInstalled": "Non installé",
       "title": "Dépendances de l'environnement",
       "uvDescription": "Gestionnaire de packages Python pour les services MCP et l’installation des dépendances."
+    },
+    "power": {
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
@@ -6296,7 +6894,8 @@
       },
       "title": "Gestion des prompts",
       "titleLabel": "Titre",
-      "titlePlaceholder": "Saisissez le titre du prompt"
+      "titlePlaceholder": "Saisissez le titre du prompt",
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
@@ -7035,7 +7634,8 @@
     "paintings": "Peintures",
     "settings": "Paramètres",
     "store": "Bibliothèque d'assistants",
-    "translate": "Traduire"
+    "translate": "Traduire",
+    "work": "Travail"
   },
   "trace": {
     "agent": "Agent",
