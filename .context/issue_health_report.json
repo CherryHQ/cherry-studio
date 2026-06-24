@@ -1,183 +1,120 @@
 {
-  "generated_at": "2026-06-23T17:00:00Z",
-  "snapshot_date": "2026-06-23",
-  "methodology": "Active=updated<30d; Aging=updated 30-89d; Stale=not updated 30d+; Zombie=not updated 90d+",
-  "health_distribution": {
-    "total_open": 944,
-    "active_lt30d": {
-      "count": 584,
-      "pct": 61.9
+  "generated_at": "2026-06-24",
+  "total_open_issues": 944,
+  "health_summary": {
+    "active": {
+      "count": 169,
+      "pct": 17.9,
+      "definition": "updated within last 7 days (after 2026-06-17)"
     },
-    "aging_30_90d": {
-      "count": 218,
-      "pct": 23.1
+    "aging": {
+      "count": 414,
+      "pct": 43.9,
+      "definition": "updated 7-30 days ago (2026-05-24 to 2026-06-17)"
     },
-    "stale_30d_plus": {
-      "count": 360,
-      "pct": 38.1
+    "stale": {
+      "count": 216,
+      "pct": 22.9,
+      "definition": "updated 30-90 days ago (2026-03-25 to 2026-05-24)"
     },
-    "zombie_90d_plus": {
-      "count": 142,
-      "pct": 15.0
-    }
+    "zombie": {
+      "count": 144,
+      "pct": 15.3,
+      "definition": "not updated in 90+ days (before 2026-03-25)"
+    },
+    "total_check": 943,
+    "total_note": "Sum 943 vs reported 944 due to exact boundary date overlap"
   },
-  "health_grade": "C+",
-  "health_note": "38% of open issues haven't been touched in 30+ days; 142 (15%) dormant 90+ days. High closure rate (409/30d) but ~75% are bot-driven inactive sweeps, not genuine resolutions. Two unresolved disk-exhaustion bugs (13+ and 6+ days old).",
-  "closure_health": {
-    "last_30d_closed": 409,
-    "new_issues_this_week": 45,
-    "closed_this_week": 14,
-    "resolution_rate_pct": 31.1,
-    "inactive_auto_closure_pct_estimate": 75,
-    "note": "~75% of closures are bot-driven 'inactive' sweeps. True resolution velocity is lower than closure count implies."
+  "triage_needs": {
+    "unlabeled": 96,
+    "unlabeled_pct": 10.2,
+    "needs_repro": 11,
+    "needs_more_info": 3,
+    "inactive_auto_labeled": 105,
+    "blocked_v2": 47
   },
-  "label_health": {
-    "no_label_open": 92,
-    "no_label_pct": 9.7,
-    "bug_labeled_open": 103,
-    "p0_open": 0,
-    "p1_open": 3,
-    "inactive_label_open": 112
+  "label_distribution": {
+    "inactive": 105,
+    "UI_UX": 32,
+    "Models": 17,
+    "Assistant": 11,
+    "needs-repro": 11,
+    "help_wanted": 7,
+    "discussion": 7,
+    "MCP": 6,
+    "Data": 5,
+    "RAG": 4,
+    "feature": 4,
+    "Connectivity": 3,
+    "needs-more-info": 3,
+    "internal_team": 3,
+    "Performance": 2,
+    "BUG": 2,
+    "Blocked_v2": 47,
+    "prd": 6,
+    "Agent": 6,
+    "Docs": 1,
+    "Planned": 1
   },
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "type": "feature",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "age_days": 47,
-      "milestone": "v2.4.0",
-      "status": "Planned — in milestone, not yet started",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+  "closed_last_30d": {
+    "total": 423,
+    "sampled": 100,
+    "closed_per_week_sample": {
+      "2026-W21": 1,
+      "2026-W24": 74,
+      "2026-W25": 25
     },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "type": "bug",
-      "labels": ["P1", "Models"],
-      "age_days": 97,
-      "milestone": "v1.8.1 (closed milestone)",
-      "status": "ZOMBIE — 97 days old, assigned milestone is closed",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    "top_closers_sample": {
+      "SiinXu": 8,
+      "kennyzheng-builds": 3,
+      "vaayne": 2,
+      "EurFelux": 2
     },
+    "bulk_closure_note": "Week 24 had 74 closures driven by automated inactive-label sweep. Most closed items had 'inactive' label + no community response."
+  },
+  "notable_open_bugs": [
     {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found)",
-      "type": "bug",
-      "labels": ["P1", "Models"],
-      "age_days": 111,
-      "assignee": "DeJeune",
-      "status": "ZOMBIE — 111 days old, no recent update",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    }
-  ],
-  "critical_open_bugs_unlabeled": [
-    {
-      "number": 15947,
-      "title": "[Bug]: Auto-updater infinite retry loop produces 26GB+ log files",
-      "severity": "CRITICAL",
+      "number": 16353,
+      "title": "[Bug]: TranslateButton mirrors loading prop into local state",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16353",
+      "author": "DeJeune",
+      "updated_at": "2026-06-24T16:12:18Z",
       "labels": [],
-      "age_days": 13,
-      "created": "2026-06-10",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947",
-      "note": "C drive fills in <24h — disk exhaustion. No fix merged. 13 days open."
+      "priority_note": "React anti-pattern, low severity, fix PR already open (#16354)"
     },
     {
-      "number": 16082,
-      "title": "[Bug]: Agent auto-deleted via internal API — 29 sessions permanently lost",
-      "severity": "CRITICAL",
-      "labels": [],
-      "age_days": 7,
-      "created": "2026-06-16",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16082",
-      "note": "Data loss — hard delete (soft:false), no recovery path."
+      "number": 15304,
+      "title": "[Bug]: gpt-image-2 model name mismatch on kia platform",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15304",
+      "author": "MKSP2015",
+      "updated_at": "2026-06-24T01:03:09Z",
+      "labels": ["Models", "inactive"],
+      "priority_note": "Provider-specific issue; flagged inactive but still relevant"
     },
     {
-      "number": 16142,
-      "title": "[Bug]: Log file occupies 17GB+, directory hardcoded",
-      "severity": "CRITICAL",
-      "labels": ["needs-triage"],
-      "age_days": 6,
-      "created": "2026-06-17",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
+      "number": 16155,
+      "title": "[Bug]: Empty assistant content with tool_calls causes 400 from NVIDIA NIM",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16155",
+      "author": "naive000",
+      "updated_at": "2026-06-17T18:38:05Z",
+      "labels": ["Assistant"],
+      "priority_note": "Protocol compliance issue affecting custom OpenAI-compatible providers"
     },
     {
-      "number": 16112,
-      "title": "[Bug]: App crashes/hangs with large context, cannot recover",
-      "severity": "CRITICAL",
-      "labels": ["Performance"],
-      "comments": 4,
-      "age_days": 6,
-      "created": "2026-06-17",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16112",
-      "note": "Unrecoverable hang on large context — no kill path."
-    },
-    {
-      "number": 16313,
-      "title": "[Bug]: 知识库引用的本地文件无法点击打开 - Blocked shell.openExternal for file://",
-      "severity": "HIGH",
-      "labels": ["RAG", "UI/UX"],
-      "comments": 0,
-      "age_days": 0,
-      "created": "2026-06-23",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16313",
-      "note": "NEW TODAY: Security regression from PR #13892 (GHSA-p6vw-w3p8-4g72 fix). file:// whitelist removed broke KB local file opening. Fix: scoped IPC channel for Data/Files/ directory."
-    },
-    {
-      "number": 16300,
-      "title": "[Bug]: Deleting agent messages in Cherry Studio UI does not remove them from Claude Code SDK",
-      "severity": "HIGH",
-      "labels": [],
-      "comments": 0,
-      "age_days": 1,
-      "created": "2026-06-22",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16300",
-      "note": "Agent context corruption — deleted messages persist in .jsonl transcript, resurface on --resume."
-    },
-    {
-      "number": 16291,
-      "title": "[Bug]: Startup recovery re-dispatches a retry job already running in the current process",
-      "severity": "HIGH",
-      "labels": [],
-      "age_days": 1,
-      "created": "2026-06-22",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16291",
-      "note": "Duplicate job execution on startup recovery — race condition in recovery path."
+      "number": 12516,
+      "title": "[Bug]: Program gets stuck when 'Auto' is selected in MCP tool settings",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12516",
+      "author": "youngqqcn",
+      "updated_at": "2026-06-22T03:03:38Z",
+      "labels": ["BUG", "MCP", "needs-repro"],
+      "priority_note": "Closed 2026-06-22, likely resolved"
     }
   ],
-  "stale_issues_analysis": {
-    "total_stale_gt30d": 360,
-    "total_zombie_gt90d": 142,
-    "zombie_notable": [
-      {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025", "days_stale": 205, "comments": 0, "action": "Safe to close — expired internal tracking task"},
-      {"number": 5712, "title": "【需求汇总】Agents with Workflows / 工作流&协同", "days_stale": 243, "comments": "unknown"},
-      {"number": 10844, "title": "[Feature]: Backup feature enhance", "days_stale": 234, "comments": "unknown"}
-    ],
-    "high_community_interest_stale": [
-      {"number": 12618, "title": "Unable to properly configure Anthropic API", "days_stale": 104, "comments": 14},
-      {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter: messages", "days_stale": 104, "comments": 13},
-      {"number": 12168, "title": "Support cache for Gemini 3 Flash", "days_stale": 104, "comments": 9},
-      {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays last line (P1)", "days_stale": 97, "comments": 8}
-    ]
-  },
-  "open_pr_health": {
-    "total_open": 250,
-    "stale_prs_gt90d": 4,
-    "stale_prs_gt30d": 14,
-    "fresh_prs_lt7d": 38,
-    "oldest_pr_days": 185,
-    "oldest_pr_number": 12032
-  },
-  "action_items": [
-    "CRITICAL: #15947 + #16142 — disk exhaustion via log file loops. Both open 6-13 days with no fix merged.",
-    "CRITICAL: #16082 — agent auto-delete lost 29 sessions (data loss, hard delete, no recovery). 7 days open.",
-    "CRITICAL: #16112 — context-overflow causes unrecoverable app hang. 6 days open.",
-    "HIGH: #16313 (NEW TODAY) — KB file:// link broken by security PR #13892 regression. Needs scoped IPC channel fix.",
-    "HIGH: #16300 — agent .jsonl transcript not updated on message delete → ghost messages on resume.",
-    "HIGH: #16291 — startup recovery dispatches duplicate retry job (race condition).",
-    "Re-triage P1 #13608 (97d) and #13193 (111d) — zombie bugs on closed milestone, reassign or close.",
-    "Close #11578 — 205d old zombie (expired MCP deadline, 0 comments).",
-    "Triage 92 unlabeled open issues (9.7% of backlog).",
-    "14 open PRs not updated in 30d — review or close (4 zombie PRs over 90d)."
+  "recommendations": [
+    "96 unlabeled issues need triage (10.2% of open backlog)",
+    "144 zombie issues (>90 days inactive) are candidates for bulk closure review",
+    "47 issues blocked on v2 completion — worth reviewing now that v2 merged to main",
+    "11 'needs-repro' issues awaiting community response",
+    "Protocol issue #16155 (empty content with tool_calls → 400 on NVIDIA NIM) affects OpenAI-compatible providers"
   ]
 }

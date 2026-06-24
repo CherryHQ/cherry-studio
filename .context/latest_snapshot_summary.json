@@ -1,199 +1,156 @@
 {
-  "generated_at": "2026-06-23T17:00:00Z",
-  "snapshot_date": "2026-06-23",
-  "repository": "CherryHQ/cherry-studio",
+  "generated_at": "2026-06-24",
+  "source": "GitHub MCP API (daily automated run)",
   "open_issues": {
     "total": 944,
-    "by_label_sample_top100": {
-      "inactive": 43,
-      "UI/UX": 32,
-      "Models": 16,
-      "Assistant": 12,
-      "needs-repro": 12,
-      "MCP": 9,
-      "help wanted": 6,
-      "discussion": 6,
-      "needs-more-info": 4,
-      "internal_team": 4,
-      "feature": 3,
-      "Data": 3,
-      "RAG": 2,
-      "prd": 2,
-      "Connectivity": 2,
-      "Performance": 1,
-      "Planned": 1,
-      "Blocked: v2": 1,
-      "Dev Team": 1,
-      "BUG": 1,
-      "ready-for-dev": 1,
-      "BUG_total_search": 103
-    },
-    "label_search_totals": {
-      "inactive": 112,
-      "UI/UX": 302,
-      "no_label": 92
-    },
-    "no_label_count": 92,
-    "no_label_pct": 9.7,
-    "health": {
-      "stale_gt30d": 360,
-      "zombie_gt90d": 142,
-      "active_lt30d_estimate": 584,
-      "aging_30_90d": 218,
-      "note": "Stale/zombie counts estimated from yesterday baseline + delta. Active = 944 - 360 stale."
-    }
+    "unlabeled": 96,
+    "unlabeled_pct": 10.2,
+    "inactive_labeled": 105,
+    "bug_open": 103,
+    "blocked_v2": 47
   },
   "open_prs": {
-    "total": 250,
-    "sample_base_main": 81,
-    "sample_base_v1": 19,
-    "base_v2": 0,
-    "unlabeled_pct": 74,
-    "stale_prs_over90d": 4,
-    "stale_prs_over30d": 14,
-    "oldest_pr_days": 185,
-    "oldest_pr_number": 12032,
-    "oldest_pr_title": "Fix trace problems",
-    "top_authors_open": [
-      {"login": "Raymond8196", "count": 12},
-      {"login": "DeJeune", "count": 11},
-      {"login": "LWWZH", "count": 7},
-      {"login": "404-Page-Found", "count": 6},
-      {"login": "kangfenmao", "count": 5},
-      {"login": "zhangjiadi225", "count": 4},
-      {"login": "Pleasurecruise", "count": 4},
-      {"login": "kovsu", "count": 4},
-      {"login": "vaayne", "count": 3},
-      {"login": "ousugo", "count": 3}
-    ]
+    "total_sampled": 200,
+    "sampling_note": "Pages 1-2 of open PRs (sorted by update desc); full count may be higher",
+    "by_base_branch": {
+      "main": 179,
+      "v1": 19,
+      "other": 2
+    },
+    "draft_count": 9,
+    "stale_gt30d": 15
   },
-  "last_30_days": {
-    "issues_closed": 409,
-    "new_issues_this_week": 45,
-    "issues_closed_this_week": 14,
-    "prs_merged_total": 165,
-    "prs_merged_daily_rate": "~5.5",
-    "prs_merged_last_7d": 58,
-    "top_merged_contributors_30d": [
-      {"login": "DeJeune", "count": 39},
-      {"login": "eeee0717", "count": 17},
-      {"login": "kangfenmao", "count": 9},
-      {"login": "AtomsH4", "count": 8},
-      {"login": "Pleasurecruise", "count": 6},
-      {"login": "ousugo", "count": 4}
-    ]
+  "closed_last_30d": {
+    "issues_closed": 423,
+    "prs_merged": 33,
+    "closure_note": "Large bulk closure in W24 (74 issues) driven by inactive-label sweep"
   },
-  "p1_issues_open": [
+  "health_buckets": {
+    "active_7d": 169,
+    "aging_7_30d": 414,
+    "stale_30_90d": 216,
+    "zombie_gt90d": 144
+  },
+  "milestone_v220": {
+    "title": "v2.2.0",
+    "open_issues": 33,
+    "closed_issues": 1
+  },
+  "top_labels": {
+    "inactive": 105,
+    "UI_UX": 32,
+    "Models": 17,
+    "Assistant": 11,
+    "needs-repro": 11,
+    "help_wanted": 7,
+    "discussion": 7,
+    "MCP": 6,
+    "Data": 5,
+    "RAG": 4,
+    "feature": 4,
+    "Connectivity": 3,
+    "needs-more-info": 3,
+    "internal_team": 3,
+    "Performance": 2,
+    "Blocked_v2": 47
+  },
+  "top_pr_contributors_open": {
+    "DeJeune": 15,
+    "Raymond8196": 12,
+    "404-Page-Found": 6,
+    "vaayne": 5,
+    "kangfenmao": 5,
+    "ousugo": 4,
+    "zhangjiadi225": 4,
+    "LWWZH": 4,
+    "kovsu": 4,
+    "Pleasurecruise": 3
+  },
+  "top_pr_contributors_merged_30d": {
+    "eeee0717": 21,
+    "DeJeune": 5,
+    "zhangjiadi225": 4,
+    "ousugo": 2,
+    "Pleasurecruise": 2,
+    "kangfenmao": 2,
+    "vaayne": 1,
+    "AtomsH4": 1,
+    "eeee0717_total_all_time": 64
+  },
+  "p1_issues": [],
+  "p1_note": "No P1/critical priority labels exist in this repo. Uses type-based classification (Bug/Feature) without priority tiers.",
+  "notable_open_bugs": [
     {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "created_at": "2026-05-07",
-      "age_days": 47,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+      "number": 16353,
+      "title": "[Bug]: TranslateButton mirrors loading prop into local state",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16353",
+      "updated_at": "2026-06-24T16:12:18Z",
+      "labels": []
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "milestone": "v1.8.1 (closed)",
-      "created_at": "2026-03-18",
-      "age_days": 97,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      "number": 15304,
+      "title": "[Bug]: gpt-image-2 model name mismatch (frontend calls gpt-image-2, backend returns variant names)",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15304",
+      "updated_at": "2026-06-24T01:03:09Z",
+      "labels": ["Models", "inactive"]
     },
     {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found)",
-      "labels": ["P1", "Models"],
-      "assignee": "DeJeune",
-      "created_at": "2026-03-04",
-      "age_days": 111,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      "number": 16155,
+      "title": "[Bug]: Empty assistant content '' with tool_calls causes 400 from NVIDIA NIM",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16155",
+      "updated_at": "2026-06-17T18:38:05Z",
+      "labels": ["Assistant"]
     }
   ],
-  "p1_candidates_critical_unlabeled": [
+  "recent_hot_prs_today": [
     {
-      "number": 15947,
-      "title": "[Bug]: Auto-updater infinite retry produces 26GB+ log files in one day",
-      "severity_reason": "Disk exhaustion — C drive fills within 24h",
-      "created_at": "2026-06-10",
-      "age_days": 13,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15947"
+      "number": 16356,
+      "title": "feat(ui): update hunyuan icon regex to support hy\\d models",
+      "author": "ousugo",
+      "created_at": "2026-06-24"
     },
     {
-      "number": 16082,
-      "title": "[Bug]: Agent auto-deleted via internal API — 29 sessions permanently lost",
-      "severity_reason": "Data loss — hard delete (soft:false), no recovery path",
-      "created_at": "2026-06-16",
-      "age_days": 7,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16082"
+      "number": 16354,
+      "title": "fix(translate-button): avoid mirroring loading prop",
+      "author": "DeJeune",
+      "created_at": "2026-06-24"
     },
     {
-      "number": 16142,
-      "title": "[Bug]: Log file occupies 17GB+, directory hardcoded",
-      "severity_reason": "Disk exhaustion on C drive, path cannot be changed",
-      "created_at": "2026-06-17",
-      "age_days": 6,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16142"
+      "number": 16352,
+      "title": "fix(channels): keep surrogate pairs whole when truncating outgoing messages",
+      "author": "he-yufeng",
+      "created_at": "2026-06-24"
     },
     {
-      "number": 16112,
-      "title": "[Bug]: App crashes with large context, cannot recover",
-      "severity_reason": "Unrecoverable hang on large context",
-      "comments": 4,
-      "created_at": "2026-06-17",
-      "age_days": 6,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16112"
+      "number": 16349,
+      "title": "feat(binary-manager): allow uninstalling mise-managed preset tools",
+      "author": "vaayne",
+      "created_at": "2026-06-24",
+      "labels": ["ready-to-merge"]
     },
     {
-      "number": 16313,
-      "title": "[Bug]: 知识库引用的本地文件无法点击打开 - Blocked shell.openExternal for file://",
-      "severity_reason": "Security regression from GHSA-p6vw-w3p8-4g72 fix — KB file links broken for all users",
-      "labels": ["RAG", "UI/UX"],
-      "created_at": "2026-06-23",
-      "age_days": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16313"
+      "number": 16345,
+      "title": "feat(knowledge): add agent tool surface for knowledge bases",
+      "author": "eeee0717",
+      "created_at": "2026-06-24"
     },
     {
-      "number": 16300,
-      "title": "[Bug]: Deleting agent messages in Cherry Studio UI does not remove them from Claude Code SDK",
-      "severity_reason": "Agent context corruption — deleted messages resurface via .jsonl transcript on --resume",
-      "created_at": "2026-06-22",
-      "age_days": 1,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16300"
+      "number": 16344,
+      "title": "feat(websearch): add firecrawl web search provider",
+      "author": "ousugo",
+      "created_at": "2026-06-24"
+    },
+    {
+      "number": 16341,
+      "title": "fix(gateway): generate Gemini images via the language API",
+      "author": "DeJeune",
+      "created_at": "2026-06-24"
+    },
+    {
+      "number": 16336,
+      "title": "refactor(ui): remove antd dependency",
+      "author": "kangfenmao",
+      "created_at": "2026-06-24"
     }
-  ],
-  "v2_status": {
-    "note": "v2 merged into main. v2 page-carve sprint active — 8 PRs opened Jun 21 (#16260–#16269) still in review. DeJeune leading with 39 merged PRs in 30d.",
-    "open_prs_to_main": 81,
-    "open_prs_to_v1": 19,
-    "open_prs_to_v2": 0,
-    "v2_carve_prs_open_since_jun21": [
-      {"number": 16265, "title": "feat(launchpad): carve the v2 launchpad page onto main"},
-      {"number": 16269, "title": "feat(settings): carve the v2 settings pages onto main"},
-      {"number": 16268, "title": "feat(knowledge): carve the v2 knowledge page onto main"},
-      {"number": 16267, "title": "feat(code): carve the v2 code CLI page onto main"},
-      {"number": 16266, "title": "feat(openclaw): carve the v2 openclaw page onto main"},
-      {"number": 16264, "title": "feat(mini-apps): carve the v2 mini-apps page onto main"},
-      {"number": 16263, "title": "feat(translate): carve the v2 translate page onto main"},
-      {"number": 16260, "title": "feat(chat-composer): carve the v2 composer onto main (additive, dormant)"}
-    ],
-    "new_today": [
-      {"number": 16318, "title": "feat(message-snapshot): per-message snapshot of producing entities"},
-      {"number": 16314, "title": "feat(migration-v2-window): redesign V2 migration window"}
-    ],
-    "milestone_v2_4_0": {
-      "state": "open",
-      "open_issues": 20,
-      "closed_issues": 3
-    }
-  },
-  "delta_from_yesterday": {
-    "open_issues_change": "+7 (937→944)",
-    "new_critical_issues": "+1 (#16313 — KB file:// link blocked, security regression from GHSA-p6vw-w3p8-4g72)",
-    "prs_merged_30d": "165 (was 146+ yesterday)",
-    "prs_merged_daily_rate": "5.5/day (was ~4.9/day)",
-    "v2_carve_prs_still_open": "8 (opened Jun 21, under review)"
-  }
+  ]
 }

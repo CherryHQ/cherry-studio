@@ -1,117 +1,60 @@
 {
-  "generated_at": "2026-06-23T17:00:00Z",
-  "snapshot_date": "2026-06-23",
-  "data_source": "GitHub Issues API (discussion-labeled issues) + high-engagement issue threads",
-  "note": "GitHub Discussions GraphQL not available in remote execution environment. Analysis derived from issues with 'discussion' / 'help wanted' labels and high-engagement issue threads.",
-  "discussion_labeled_issues": {
-    "open_count": 6,
-    "closed_30d_count": 9,
-    "open_sample": [
-      {"number": 16126, "title": "[Discussion]: 权限始终没法开启", "labels": ["help wanted", "discussion", "UI/UX"], "created": "2026-06-17"},
-      {"number": 16121, "title": "[Discussion]: 无法使用阿里云百炼模型内置联网搜索", "labels": ["help wanted", "discussion"], "created": "2026-06-17"},
-      {"number": 16080, "title": "[Discussion]: 无法关闭qwen3.6 35b思考模式", "labels": ["help wanted", "discussion", "Models"], "created": "2026-06-16"},
-      {"number": 16034, "title": "[Discussion]: How to configure local PaddleOCR Python path?", "labels": ["help wanted", "discussion"], "created": "2026-06-13"},
-      {"number": 16010, "title": "[Discussion]: Which models are supported by the agent?", "labels": ["help wanted", "discussion", "Models"], "created": "2026-06-12"},
-      {"number": 16013, "title": "[Discussion]: How to load skills in assistant?", "labels": ["needs-more-info", "help wanted", "discussion", "Assistant"], "created": "2026-06-12"}
+  "generated_at": "2026-06-24",
+  "data_source_note": "GitHub Discussions GraphQL API not accessible via current MCP tooling. This file is derived from issue/PR signals that overlap with discussion topics.",
+  "discussion_signals_from_issues": {
+    "issues_labeled_discussion": 7,
+    "discussion_topics_inferred": [
+      {
+        "topic": "Agent/MCP tooling stability",
+        "evidence_issues": ["#12516 (MCP Auto mode stall)", "#15039 (tool approval mid-session)", "#16242 (MCP init failure)"],
+        "signal_strength": "high",
+        "notes": "Multiple reports of MCP/Agent stability; #16242 recently closed"
+      },
+      {
+        "topic": "Model provider compatibility (OpenAI-compat)",
+        "evidence_issues": ["#16155 (NVIDIA NIM 400 on tool_calls)", "#15304 (gpt-image-2 name mismatch)", "#15047 (includeServerSideToolInvocations)"],
+        "signal_strength": "high",
+        "notes": "Growing user base on custom/third-party providers hitting protocol edge cases"
+      },
+      {
+        "topic": "v2 migration pain points",
+        "evidence_issues": ["47 issues labeled 'Blocked: v2'"],
+        "signal_strength": "medium",
+        "notes": "Users waiting on v2 features; v2 merged to main so unblocking in progress"
+      },
+      {
+        "topic": "Knowledge Base / RAG enhancements",
+        "evidence_issues": ["label:RAG has 4 open, 7 closed in 30d"],
+        "signal_strength": "medium",
+        "notes": "Active development area; multiple KnowledgeBase PRs merged this week"
+      },
+      {
+        "topic": "UI/UX polish requests",
+        "evidence_issues": ["32 open issues labeled UI/UX"],
+        "signal_strength": "high",
+        "notes": "Largest non-inactive label category; covers sidebar, chat, painting, image UX"
+      }
     ]
   },
-  "hot_topics": [
+  "top_engagement_issues": [
     {
-      "topic": "Log file disk space explosion (dual reports, 13+ days open)",
-      "urgency": "CRITICAL",
-      "issues": [16142, 15947],
-      "note": "Two separate reports: 17GB+ via hardcoded log path (#16142, 6 days) and 26GB+ via auto-updater HTTP 418 retry loop (#15947, 13 days). Both open, no fix merged."
+      "number": 15249,
+      "title": "[Feature]: Unified Recycle Bin for Deleted Items",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15249",
+      "milestone": "v2.2.0",
+      "labels": ["feature", "UI/UX"],
+      "reaction_count": 1,
+      "notes": "In v2.2.0 milestone; detailed spec written"
     },
     {
-      "topic": "Agent Session Data Loss",
-      "urgency": "CRITICAL",
-      "issue": 16082,
-      "note": "29 sessions hard-deleted via internal API (soft:false). No recovery. Open 7 days."
-    },
-    {
-      "topic": "Context-overflow deadlock",
-      "urgency": "CRITICAL",
-      "issue": 16112,
-      "note": "App hangs unrecoverably when context is too large. 4 comments, 6 days open, no resolution."
-    },
-    {
-      "topic": "KB file:// link regression (NEW TODAY)",
-      "urgency": "HIGH",
-      "issue": 16313,
-      "created": "2026-06-23",
-      "note": "Security fix PR #13892 (GHSA-p6vw-w3p8-4g72) removed file:// whitelist, breaking knowledge base local file opening. Users cannot open referenced local files. Proposed fix: scoped IPC channel restricted to Data/Files/ directory."
-    },
-    {
-      "topic": "Agent .jsonl transcript desync",
-      "urgency": "HIGH",
-      "issue": 16300,
-      "created": "2026-06-22",
-      "note": "Deleted messages in UI persist in Claude Code SDK .jsonl transcript. Ghost messages reappear on --resume."
-    },
-    {
-      "topic": "Startup recovery duplicate job dispatch",
-      "urgency": "HIGH",
-      "issue": 16291,
-      "created": "2026-06-22",
-      "note": "Startup recovery re-dispatches a retry job already running — race condition producing duplicate work."
-    },
-    {
-      "topic": "Quick Assistant ghost window (NEW TODAY)",
-      "urgency": "MEDIUM",
-      "issue": 16303,
-      "created": "2026-06-23",
-      "note": "Quick assistant window intercepts mouse clicks/scrolling after being dismissed — invisible phantom window blocks UI."
-    },
-    {
-      "topic": "v2 page-carve sprint progress",
-      "urgency": "INFO",
-      "prs": [16260, 16263, 16264, 16265, 16266, 16267, 16268, 16269],
-      "note": "DeJeune opened 8 page-carve PRs Jun 21 bringing v2 pages onto main (additive/dormant). All in review. New PRs today: migration-v2-window redesign (#16314) + per-message entity snapshot (#16316)."
-    },
-    {
-      "topic": "MCP server failures resolved",
-      "urgency": "RESOLVED",
-      "issue": 16242,
-      "pr": 16245,
-      "note": "RESOLVED Jun 22: #16245 merged (fix: skip unreachable MCP servers during agent startup). #16242 closed."
-    },
-    {
-      "topic": "Agent stale proxy ECONNREFUSED likely resolved",
-      "urgency": "LIKELY_RESOLVED",
-      "issue": 16016,
-      "pr": 16252,
-      "note": "PR #16252 merged (fix(claude-code): skip stale system proxy in agent subprocess env) — likely closes #16016."
+      "number": 16186,
+      "title": "[Feature]: Default Sidebar Leads with Agent for New Users",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16186",
+      "milestone": "v2.2.0",
+      "labels": ["feature", "UI/UX", "prd", "internal_team"],
+      "reaction_count": 1,
+      "notes": "Internal team PRD; authored by SiinXu"
     }
   ],
-  "top_discussions_by_engagement": [
-    {"number": 5640, "title": "【需求汇总】Cherry Studio as a Service (CSaaS)", "comments": 27, "status": "open", "age": "415 days"},
-    {"number": 9943, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题", "comments": 16, "status": "open"},
-    {"number": 11906, "title": "[Feature]: Add video upload support", "comments": 8, "status": "open"},
-    {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line (P1)", "comments": 8, "status": "open"},
-    {"number": 14720, "title": "[Bug]: Gpt-image-2 parse error", "comments": 6, "status": "open"},
-    {"number": 14644, "title": "[Feature]: Create Agent duplicates (copies)", "comments": 6, "status": "open"},
-    {"number": 16112, "title": "[Bug]: App hangs with large context", "comments": 4, "status": "open"}
-  ],
-  "user_pain_points_trending": [
-    "Log file disk exhaustion (2 separate reports: 17GB+ and 26GB+) — 6-13 days unresolved",
-    "Agent sessions lost after data operations (data loss, no recovery) — 7 days unresolved",
-    "KB local file links broken after security fix #13892 (NEW TODAY — regression)",
-    "Agent message delete doesn't sync to .jsonl transcript — ghost messages on resume",
-    "Startup recovery dispatches duplicate retry job (race condition)",
-    "Azure OpenAI routing to wrong API endpoint (P1 open since March, 111 days)",
-    "Large context causing unrecoverable app hang — 6 days unresolved",
-    "Xiaomi mimo streaming only shows last line (P1 open since March, 97 days)",
-    "Quick assistant invisible ghost window intercepts mouse after close"
-  ],
-  "community_sentiment": {
-    "observation": "Open issues increased by 7 (937→944) from yesterday — 45 new issues in last 7 days shows sustained high user activity. Four CRITICAL disk/data-loss bugs remain open with no fix merged (oldest now 13 days). One new HIGH bug today (#16313, KB file regression). Dev velocity very high: 165 PRs merged in 30 days (5.5/day). v2 sprint producing results with MCP graceful degradation and proxy fix resolved.",
-    "engagement_health": "active",
-    "top_open_pr_contributor": "Raymond8196 (12 open PRs)",
-    "top_merged_contributor_30d": "DeJeune (39 merged PRs in 30d)",
-    "knowledge_sprint": "eeee0717 driving knowledge v2 feature: 17 merged PRs in 30d",
-    "alert": "CRITICAL: #15947 and #16142 (disk exhaustion) + #16082 (data loss) remain unresolved for 6-13 days. NEW: #16313 KB file:// regression needs priority fix."
-  },
-  "weekly_new_issues": 45,
-  "weekly_closed_issues": 14,
-  "resolution_rate_pct": 31.1
+  "recommendation": "Enable GraphQL Discussions API access (mcp__github__graphql or direct API) in future runs for richer discussion data."
 }
