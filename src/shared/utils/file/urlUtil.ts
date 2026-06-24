@@ -87,9 +87,18 @@ const DANGEROUS_EXTS = new Set([
   'wsh',
   'hta',
   'reg',
+  'msc',
+  'inf',
+  'application',
+  'appref-ms',
   // Windows shortcuts — can point at arbitrary targets, including remote scripts
   'lnk',
   'url',
+  // Auto-mount/container formats — default-open can expose launcher payloads inside
+  'iso',
+  'img',
+  'vhd',
+  'vhdx',
   // macOS
   'app',
   'command',
@@ -98,6 +107,8 @@ const DANGEROUS_EXTS = new Set([
   'scpt',
   // Linux launchers — `.desktop` can exec arbitrary commands via the `Exec=` key
   'desktop',
+  'appimage',
+  'run',
   // Java — executable archives / Web Start
   'jar',
   'jnlp',
