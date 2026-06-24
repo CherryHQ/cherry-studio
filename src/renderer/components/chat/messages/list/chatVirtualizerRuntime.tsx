@@ -27,6 +27,7 @@ import {
 } from 'react'
 import type { VListHandle } from 'virtua'
 
+import { getEffectiveScrollSize, getRealBottom, isMoreThanOneViewportFromBottom } from './scrollGeometry'
 import { useAtBottomTracker } from './useAtBottomTracker'
 import { useAutoStickToBottom } from './useAutoStickToBottom'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -104,12 +105,11 @@ export interface ChatVirtualizerRuntime<T> {
 }
 
 const SCROLL_WHEEL_DEBOUNCE_MS = 100
-
-function isMoreThanOneViewportFromBottom(element: HTMLElement): boolean {
-  const viewportSize = element.clientHeight
-  if (viewportSize <= 0) return false
-  return element.scrollHeight - element.scrollTop - viewportSize > viewportSize
-}
+// During a programmatic bottom-follow, scroll events fire as the viewport
+// catches up. A small negative delta is noise (trackpad inertia, subpixel
+// rounding, virtualization remeasure), not intent — only an upward move beyond
+// this many pixels counts as the user taking control back.
+const SCROLL_TAKEOVER_THRESHOLD_PX = 6
 
 export function useChatVirtualizerRuntime<T>({
   items,
@@ -144,16 +144,21 @@ export function useChatVirtualizerRuntime<T>({
   const canReleaseScrollAnchor = useCallback(() => !preserveScrollAnchorRef.current, [])
   const anchor = useScrollAnchor({
     scrollerRef,
+    contentRef,
     vlistHandleRef,
     smoothScroll,
     canRelease: canReleaseScrollAnchor
   })
+  const bottomFollowInsetRef = useRef(0)
+  bottomFollowInsetRef.current = anchor.spacerHeight
   const isBottomFollowSuppressed = useCallback(
     () => anchor.isPinned() || (preserveScrollAnchorRef.current && !userTookControlRef.current),
     [anchor]
   )
+  const getBottomFollowInset = useCallback(() => bottomFollowInsetRef.current, [])
   const autoStick = useAutoStickToBottom({
     scrollerRef,
+    getBottomInset: getBottomFollowInset,
     smoothScroll,
     isAtBottom: atBottom.isAtBottom,
     isLocked: isBottomFollowSuppressed,
@@ -162,7 +167,8 @@ export function useChatVirtualizerRuntime<T>({
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
-    const nextVisible = el && !smoothScroll.isAnimating() ? isMoreThanOneViewportFromBottom(el) : false
+    const nextVisible =
+      el && !smoothScroll.isAnimating() ? isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : false
     if (isScrollToBottomButtonVisibleRef.current === nextVisible) return
     isScrollToBottomButtonVisibleRef.current = nextVisible
     setIsScrollToBottomButtonVisible(nextVisible)
@@ -173,6 +179,14 @@ export function useChatVirtualizerRuntime<T>({
     isScrollToBottomButtonVisibleRef.current = false
     setIsScrollToBottomButtonVisible(false)
   }, [])
+  const stickToEffectiveBottom = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    smoothScroll.cancel()
+    el.scrollTop = getRealBottom(el, bottomFollowInsetRef.current)
+    atBottom.notifyProgrammaticStick()
+    hideScrollToBottomButton()
+  }, [atBottom, hideScrollToBottomButton, smoothScroll])
 
   // ---- wrap items so the anchor's spacer is included ------------------
 
@@ -274,12 +288,12 @@ export function useChatVirtualizerRuntime<T>({
       autoStick.onContentSizeChange()
       // Feed the at-bottom tracker so its state machine stays current.
       const el = scrollerRef.current
-      if (el && !wasBottomFollowSuppressed && !isBottomFollowSuppressed()) {
+      if (el && !wasBottomFollowSuppressed && !isBottomFollowSuppressed() && !smoothScroll.isAnimating()) {
+        const viewportSize = el.clientHeight
         atBottom.notifySizeChange({
           offset: el.scrollTop,
-          scrollSize: el.scrollHeight,
-          viewportSize: el.clientHeight,
-          prevScrollSize: 0
+          scrollSize: getEffectiveScrollSize(el, anchor.spacerHeight),
+          viewportSize
         })
       }
       updateScrollToBottomButtonVisibility()
@@ -291,7 +305,7 @@ export function useChatVirtualizerRuntime<T>({
     // room below the messages.
     if (scroller) observer.observe(scroller)
     return () => observer.disconnect()
-  }, [anchor, atBottom, autoStick, isBottomFollowSuppressed, updateScrollToBottomButtonVisibility])
+  }, [anchor, atBottom, autoStick, isBottomFollowSuppressed, smoothScroll, updateScrollToBottomButtonVisibility])
 
   // ---- react to the preserve-anchor lock edges -----------------------
 
@@ -315,6 +329,10 @@ export function useChatVirtualizerRuntime<T>({
   // "user took over" state.
   const anchorRef = useRef(anchor)
   anchorRef.current = anchor
+  const isBottomFollowSuppressedRef = useRef(isBottomFollowSuppressed)
+  isBottomFollowSuppressedRef.current = isBottomFollowSuppressed
+  const stickToEffectiveBottomRef = useRef(stickToEffectiveBottom)
+  stickToEffectiveBottomRef.current = stickToEffectiveBottom
   const wasPreservingScrollAnchorRef = useRef(preserveScrollAnchor)
   useEffect(() => {
     const wasPreserving = wasPreservingScrollAnchorRef.current
@@ -326,9 +344,16 @@ export function useChatVirtualizerRuntime<T>({
       return
     }
     if (!wasPreserving) return
-    const raf = requestAnimationFrame(() => anchorRef.current.onContentSizeChange())
+    const raf = requestAnimationFrame(() => {
+      const shouldKeepBottom = atBottom.isAtBottom() && !isBottomFollowSuppressedRef.current()
+      if (shouldKeepBottom) {
+        anchorRef.current.release()
+        stickToEffectiveBottomRef.current()
+      }
+      anchorRef.current.onContentSizeChange()
+    })
     return () => cancelAnimationFrame(raf)
-  }, [preserveScrollAnchor])
+  }, [atBottom, preserveScrollAnchor])
 
   // ---- scrollToTopKey trigger: pin the named item ---------------------
 
@@ -394,15 +419,23 @@ export function useChatVirtualizerRuntime<T>({
   )
 
   const onScroll = useCallback(() => {
-    // Programmatic scrolls (smooth-stick animation) fire scroll events; if
-    // we don't ignore them, the at-bottom tracker would flip atBottom→false
-    // mid-animation because scrollTop is still en route.
-    if (smoothScroll.isAnimating()) return
     const el = scrollerRef.current
     if (!el) return
     const offset = el.scrollTop
-    const scrollSize = el.scrollHeight
+    const delta = offset - lastScrollOffsetRef.current
+    // Programmatic bottom-follow emits scroll events while the viewport is still
+    // catching up. Ignore forward progress (and sub-threshold negative jitter
+    // from trackpad inertia / subpixel rounding / virtualization remeasure);
+    // only a clear upward move is user takeover (keyboard, scrollbar drag, touch).
+    if (smoothScroll.isAnimating()) {
+      if (delta > -SCROLL_TAKEOVER_THRESHOLD_PX) {
+        lastScrollOffsetRef.current = offset
+        return
+      }
+      smoothScroll.cancel()
+    }
     const viewportSize = el.clientHeight
+    const scrollSize = getEffectiveScrollSize(el, anchor.spacerHeight)
     anchor.onUserScroll(offset)
     // A user scroll during a streaming turn (which just released the top pin,
     // or there was none) means the user has taken over: stop letting
@@ -413,7 +446,6 @@ export function useChatVirtualizerRuntime<T>({
       userTookControlRef.current = true
     }
     const wheelDir = lastWheelDirRef.current
-    const delta = offset - lastScrollOffsetRef.current
     const direction: 'up' | 'down' | 'none' =
       wheelDir !== 'none' ? wheelDir : delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
     lastScrollOffsetRef.current = offset
@@ -482,12 +514,13 @@ export function useChatVirtualizerRuntime<T>({
       anchor.release()
       const el = scrollerRef.current
       if (!el) return
-      const target = Math.max(0, el.scrollHeight - el.clientHeight)
+      const target = getRealBottom(el, anchor.spacerHeight)
       if (behavior === 'smooth') {
         if (!smoothScroll.isAnimating()) {
-          smoothScroll.scrollTo(() =>
-            Math.max(0, (scrollerRef.current?.scrollHeight ?? 0) - (scrollerRef.current?.clientHeight ?? 0))
-          )
+          smoothScroll.scrollTo(() => {
+            const current = scrollerRef.current
+            return current ? getRealBottom(current, bottomFollowInsetRef.current) : 0
+          })
         }
       } else {
         smoothScroll.cancel()

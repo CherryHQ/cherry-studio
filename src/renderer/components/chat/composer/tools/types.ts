@@ -165,6 +165,10 @@ export const registerTool = (tool: ToolDefinition<any, any>): void => {
   toolRegistry.set(tool.key, tool)
 }
 
+export const getTool = (key: string): ToolDefinition<any, any> | undefined => {
+  return toolRegistry.get(key)
+}
+
 export const getAllTools = (): ToolDefinition<any, any>[] => {
   return Array.from(toolRegistry.values())
 }

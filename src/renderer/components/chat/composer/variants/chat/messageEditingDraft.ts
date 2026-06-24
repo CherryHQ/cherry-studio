@@ -1,11 +1,11 @@
 import { FILE_TYPE } from '@renderer/types'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   composerFileTokenIdFromSourceId,
   createComposerFileTokenSourceId,
   getComposerFileTokenSourceId,
   readComposerFileTokenIdSuffix
-} from '@renderer/utils/messageUtils/composerFileTokenSource'
+} from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'

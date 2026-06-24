@@ -202,7 +202,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
         style={{ color: 'var(--color-foreground-secondary)' }}>
-        {error?.message || <ErrorMessage error={error} />}
+        <ErrorMessage error={error} />
       </div>
 
       {/* Footer */}

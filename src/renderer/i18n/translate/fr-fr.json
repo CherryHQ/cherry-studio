@@ -2704,9 +2704,11 @@
           }
         },
         "generate": "Générer une invite",
+        "generate_failed_description": "Vérifiez ou modifiez le modèle par défaut, puis réessayez.",
+        "generate_failed_title": "Impossible de générer l'invite",
         "insert_variable": "Insérer une variable",
         "label": "Invite système",
-        "placeholder": "Entrez le prompt système. Des variables comme {{date}} et {{model_name}} sont prises en charge...",
+        "placeholder": "Saisissez les consignes pour l'assistant, comme le style de réponse, le rôle ou le contexte",
         "title": "Invite",
         "tokens_label": "Jetons :",
         "variables_title": "Variables disponibles",
@@ -5886,7 +5888,6 @@
         "label": "Bouton de navigation des conversations",
         "none": "Ne pas afficher"
       },
-      "prompt": "Mot-clé d'affichage",
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"

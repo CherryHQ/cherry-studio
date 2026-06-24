@@ -1,16 +1,7 @@
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import type { Message } from '@renderer/types/newMessage'
-import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
+import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
 
 import { useTopicStreamStatus } from './useTopicStreamStatus'
-
-/**
- * Identity shape consumed by {@link useIsActiveTurnTarget}. Accepts both the
- * legacy v1 `Message` and the v2 `MessageListItem` (whose `status` is the
- * narrower {@link MessageStatus} union) so v1 and v2 message renderers can
- * share the predicate during the chat-page migration.
- */
-type ActiveTurnTarget = Pick<Message, 'id' | 'topicId' | 'status'> | Pick<MessageListItem, 'id' | 'topicId' | 'status'>
 
 /**
  * Is THIS message the active target of the current turn?
@@ -39,9 +30,9 @@ type ActiveTurnTarget = Pick<Message, 'id' | 'topicId' | 'status'> | Pick<Messag
  * construction — none of the three signals match. Used wherever a consumer
  * gates "this message is busy / show beat-loader / hide menubar".
  */
-export function useIsActiveTurnTarget(message: ActiveTurnTarget): boolean {
+export function useIsActiveTurnTarget(message: Pick<MessageListItem, 'id' | 'topicId' | 'status'>): boolean {
   const { activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(message.topicId)
-  if (isMessageProcessing(message)) return true
+  if (isMessageListItemProcessing(message)) return true
   if (activeExecutions.some((e) => e.anchorMessageId === message.id)) return true
   if (awaitingApprovalAnchors.some((e) => e.anchorMessageId === message.id)) return true
   return false

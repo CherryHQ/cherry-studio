@@ -1,4 +1,4 @@
-import type { QuickPanelListItem } from '@renderer/components/chat/composer/panelEngine'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 

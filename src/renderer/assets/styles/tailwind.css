@@ -4,6 +4,11 @@
 @import './legacy-vars.css';
 
 @source '../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
+@source '../../../../node_modules/streamdown/dist/*.js';
+@source '../../../../node_modules/@streamdown/code/dist/*.js';
+@source '../../../../node_modules/@streamdown/cjk/dist/*.js';
+@source '../../../../node_modules/@streamdown/math/dist/*.js';
+@source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -25,7 +30,7 @@
 :root {
   --app-icon: #00000099;
 
-  --app-sidebar: oklch(0.985 0 0);
+  --app-sidebar: oklch(0.9672 0 0);
   --app-sidebar-accent: oklch(0.97 0 0);
   --app-sidebar-foreground: oklch(0.145 0 0);
   --app-sidebar-active-bg: rgba(16, 185, 129, 0.08);
@@ -53,7 +58,7 @@
 .dark {
   --app-icon: #ffffff99;
 
-  --app-sidebar: oklch(0.205 0 0);
+  --app-sidebar: oklch(0.2393 0 0);
   --app-sidebar-accent: oklch(0.269 0 0);
   --app-sidebar-foreground: oklch(0.985 0 0);
   --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);

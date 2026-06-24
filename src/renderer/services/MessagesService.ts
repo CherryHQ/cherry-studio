@@ -5,9 +5,8 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Message } from '@renderer/types/newMessage'
 import { getTitleFromString } from '@renderer/utils/export'
-import { getNamingTextContent } from '@renderer/utils/messageUtils/find'
+import { getNamingTextContent } from '@renderer/utils/message/find'
 import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
@@ -16,9 +15,13 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 
 const logger = loggerService.withContext('MessagesService')
 
-export { getGroupedMessages } from '@renderer/utils/messageUtils/filters'
+type MessageLocator = {
+  id: string
+  topicId: string
+  assistantId?: string
+}
 
-export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
+export async function locateToMessage(navigate: UseNavigateResult<string>, message: MessageLocator) {
   SearchPopup.hide()
   const assistantId = message.assistantId
     ? await dataApiService
@@ -30,7 +33,6 @@ export async function locateToMessage(navigate: UseNavigateResult<string>, messa
 
   void navigate({ to: '/app/chat', search: { assistantId, topicId: topic?.id } })
 
-  setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
 }
 

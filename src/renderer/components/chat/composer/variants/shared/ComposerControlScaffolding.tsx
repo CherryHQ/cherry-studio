@@ -1,5 +1,5 @@
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/chat/composer/ComposerToolRuntime'
-import type { QuickPanelInputAdapter } from '@renderer/components/chat/composer/panelEngine'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
 

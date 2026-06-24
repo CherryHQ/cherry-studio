@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
-import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 const logger = loggerService.withContext('pasteHandling')
 

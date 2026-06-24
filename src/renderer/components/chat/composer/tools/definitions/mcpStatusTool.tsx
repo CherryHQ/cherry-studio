@@ -1,8 +1,3 @@
-import {
-  type QuickPanelInputAdapter,
-  type QuickPanelListItem,
-  useQuickPanel
-} from '@renderer/components/chat/composer/panelEngine'
 import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import {
@@ -11,6 +6,7 @@ import {
   type ToolRenderContext,
   TopicType
 } from '@renderer/components/chat/composer/tools/types'
+import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'

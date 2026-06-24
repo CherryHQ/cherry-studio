@@ -34,7 +34,9 @@ export function SearchTool({
     ),
     children: (
       <div>
-        {input && <StringInputTool input={input} label={t('message.tools.sections.searchQuery')} />}
+        {typeof input === 'string' && input && (
+          <StringInputTool input={input} label={t('message.tools.sections.searchQuery')} />
+        )}
         {truncatedOutput && (
           <div>
             <StringOutputTool

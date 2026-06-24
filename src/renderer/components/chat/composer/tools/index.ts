@@ -12,4 +12,4 @@ import './definitions/permissionModeTool'
 import './definitions/mcpStatusTool'
 
 // Export registry functions
-export { getAllTools, getToolsForScope, registerTool } from './types'
+export { getAllTools, getTool, getToolsForScope, registerTool } from './types'

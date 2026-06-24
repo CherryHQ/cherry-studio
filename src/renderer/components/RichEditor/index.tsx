@@ -566,4 +566,5 @@ const RichEditor = ({
 
 RichEditor.displayName = 'RichEditor'
 
+export { useRichTextEditorKernel } from './useRichTextEditorKernel'
 export default RichEditor

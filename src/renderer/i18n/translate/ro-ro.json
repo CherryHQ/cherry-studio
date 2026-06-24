@@ -2704,9 +2704,11 @@
           }
         },
         "generate": "Generează prompt",
+        "generate_failed_description": "Verifică sau schimbă modelul implicit, apoi încearcă din nou.",
+        "generate_failed_title": "Nu s-a putut genera promptul",
         "insert_variable": "Inserează variabilă",
         "label": "Prompt de sistem",
-        "placeholder": "Introduceți promptul de sistem. Variabile precum {{date}} și {{model_name}} sunt acceptate...",
+        "placeholder": "Introduceți instrucțiuni pentru asistent, cum ar fi stilul răspunsului, rolul sau contextul",
         "title": "Prompt",
         "tokens_label": "Tokeni:",
         "variables_title": "Variabile disponibile",
@@ -5886,7 +5888,6 @@
         "label": "Bară navigare",
         "none": "Niciunul"
       },
-      "prompt": "Afișează prompt",
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"

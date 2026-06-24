@@ -2704,9 +2704,11 @@
           }
         },
         "generate": "プロンプトを生成",
+        "generate_failed_description": "デフォルトモデルを確認または変更してから、もう一度お試しください。",
+        "generate_failed_title": "プロンプトの生成に失敗しました",
         "insert_variable": "変数を挿入",
         "label": "システムプロンプト",
-        "placeholder": "システムプロンプトを入力してください。{{date}}や{{model_name}}のような変数がサポートされています...",
+        "placeholder": "回答スタイル、役割設定、背景情報など、アシスタントへの指示を入力してください",
         "title": "プロンプト",
         "tokens_label": "トークン:",
         "variables_title": "利用可能な変数",
@@ -5886,7 +5888,6 @@
         "label": "メッセージナビゲーション",
         "none": "表示しない"
       },
-      "prompt": "プロンプト表示",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
