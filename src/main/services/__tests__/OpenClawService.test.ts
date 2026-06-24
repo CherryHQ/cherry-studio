@@ -1,5 +1,6 @@
 import { ENDPOINT_TYPE, type Model as DataModel } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
+import type { OperationResult } from '@shared/types/codeTools'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
@@ -413,26 +414,22 @@ describe('OpenClawService gateway status state machine', () => {
 
   describe('install', () => {
     it('reuses the pending install operation for concurrent calls', async () => {
-      const { runInstallScript } = await import('@main/utils/process')
-      const runInstallScriptMock = vi.mocked(runInstallScript)
       let finishInstall: (() => void) | undefined
-      runInstallScriptMock.mockImplementation(
+      const installInternalSpy = vi.spyOn(service as any, 'installInternal').mockImplementation(
         () =>
-          new Promise<void>((resolve) => {
-            finishInstall = resolve
+          new Promise<OperationResult>((resolve) => {
+            finishInstall = () => resolve({ success: true })
           })
       )
-      const linkBinarySpy = vi.spyOn(service as any, 'linkBinary').mockResolvedValue(undefined)
 
       const firstInstall = service.install()
       const secondInstall = service.install()
       await Promise.resolve()
 
-      expect(runInstallScriptMock).toHaveBeenCalledTimes(1)
+      expect(installInternalSpy).toHaveBeenCalledTimes(1)
       finishInstall?.()
 
       await expect(Promise.all([firstInstall, secondInstall])).resolves.toEqual([{ success: true }, { success: true }])
-      expect(linkBinarySpy).toHaveBeenCalledTimes(1)
     })
   })
 
