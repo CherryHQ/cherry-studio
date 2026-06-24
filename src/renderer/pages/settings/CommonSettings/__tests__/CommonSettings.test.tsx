@@ -49,6 +49,7 @@ vi.mock('@cherrystudio/ui', async () => {
         )
       )
     },
+    CustomTag: passthrough('span'),
     Flex: passthrough('div'),
     InfoTooltip: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
     Input: (props: any) => React.createElement('input', props),
