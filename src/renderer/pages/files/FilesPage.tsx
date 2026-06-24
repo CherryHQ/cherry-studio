@@ -90,8 +90,6 @@ function compareFiles(a: FileItem, b: FileItem, sortKey: SortKey): number {
       return a.updatedAt.localeCompare(b.updatedAt)
     case 'type':
       return a.type.localeCompare(b.type)
-    default:
-      return 0
   }
 }
 
