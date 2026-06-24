@@ -6869,12 +6869,46 @@
     },
     "parameter_settings": "参数设置",
     "plugins": {
-      "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
+      "addTool": "添加工具",
+      "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
+      "coreDepsMissing": "核心依赖未安装",
+      "customTools": "自定义工具",
+      "customToolsEmpty": "暂无自定义工具，点击上方添加。",
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "duplicateName": "已存在相同名称的工具",
+      "fieldVersion": "版本（可选，默认为最新）",
+      "install": "安装",
+      "installError": "工具安装失败",
       "installing": "安装中...",
+      "invalidTool": "工具名称或标识无效",
       "notInstalled": "未安装",
+      "openBinariesDir": "打开二进制文件目录",
+      "remove": "移除工具",
+      "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜索失败，请查看日志",
+      "searchRegistry": "搜索 mise 工具仓库...",
+      "source": {
+        "bundled": "内置"
+      },
       "title": "环境依赖",
-      "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+      "tools": {
+        "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
+        "claude": "Anthropic 的终端智能编程工具。",
+        "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
+        "fd": "快速文件查找工具，find 的替代品。",
+        "gh": "GitHub CLI，用于仓库和工作流管理。",
+        "hermes": "Nous Research 开发的自我进化 AI 编程代理，能从经验中创建技能并跨会话持久化知识。",
+        "lark-cli": "飞书官方 CLI，覆盖消息、文档、多维表格、日历等 200+ 命令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支持身份验证、Workers 管理和完整的 Notion API 终端访问。",
+        "openclaw": "跨平台个人 AI 助手，提供聊天、语音、画布、摄像头和屏幕捕获等功能。",
+        "opencode": "开源 AI 编程代理，支持 75+ 模型并集成 GitHub Actions 自动化工作流。",
+        "pi": "AI 代理工具包，包含编程代理 CLI、统一 LLM API、TUI/Web UI 和 Slack 机器人。",
+        "rg": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
+        "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
+        "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+      },
+      "update": "更新到最新版本"
     },
     "power": {
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"

@@ -212,6 +212,13 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
+      "targetKey": "feature.binary.tools",
+      "type": "PreferenceTypes.ManagedBinary[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
+      "status": "classified",
+      "description": "List of tools to install via BinaryManager"
+    },
+    {
       "targetKey": "shortcut.app.fullscreen.exit",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
