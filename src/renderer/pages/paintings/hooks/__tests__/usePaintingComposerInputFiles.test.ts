@@ -1,6 +1,7 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
@@ -93,5 +94,30 @@ describe('usePaintingComposerInputFiles', () => {
     expect(reported).toHaveLength(1)
     expect(reported[0].id).toBe('fe-new')
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/new.png' })
+  })
+
+  // Stateful harness mirroring the provider: SEED's `setFiles` re-renders and re-fires
+  // WRITEBACK, the round-trip a no-op `setFiles` would mask.
+  const renderStatefulHarness = (paintingId: string, inputFiles: FileEntry[], onInputFilesChange: () => void) =>
+    renderHook(() => {
+      const [files, setFiles] = useState<ComposerAttachment[]>([])
+      usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange })
+      return files
+    })
+
+  it('does not wipe input files when every entry fails to resolve its physical path', async () => {
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('blob missing'))
+    const onInputFilesChange = vi.fn()
+
+    const { result } = renderStatefulHarness('p-fail', [makeEntry('fe-1'), makeEntry('fe-2')], onInputFilesChange)
+
+    // Seed resolves to no chips (both rejected), then the writeback settles.
+    await waitFor(() => expect(result.current).toHaveLength(0))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // The failed entries are carried through, so the persisted list is never rewritten.
+    expect(onInputFilesChange).not.toHaveBeenCalled()
   })
 })

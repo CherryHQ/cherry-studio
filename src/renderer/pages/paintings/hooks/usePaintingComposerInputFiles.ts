@@ -38,6 +38,10 @@ const withDot = (ext: string | null | undefined): string => {
  */
 export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
   const entryCacheRef = useRef(new Map<string, FileEntry>())
+  // Input files that failed to resolve to a physical path during SEED: they get no
+  // composer chip, but must survive the writeback so a transient read error never
+  // rewrites the persisted painting (see WRITEBACK).
+  const unseededEntriesRef = useRef<FileEntry[]>([])
   const seededPaintingIdRef = useRef<string | null>(null)
   const seedCompleteRef = useRef(false)
   const writebackEpochRef = useRef(0)
@@ -51,6 +55,7 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     if (seededPaintingIdRef.current === paintingId) return
     seededPaintingIdRef.current = paintingId
     seedCompleteRef.current = false
+    unseededEntriesRef.current = []
 
     const entries = inputFilesRef.current
     if (entries.length === 0) {
@@ -64,6 +69,7 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     void (async () => {
       const cache = new Map<string, FileEntry>()
       const attachments: ComposerAttachment[] = []
+      const unseeded: FileEntry[] = []
       for (const entry of entries) {
         try {
           const path = await window.api.file.getPhysicalPath({ id: entry.id })
@@ -80,10 +86,12 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
           })
         } catch (error) {
           logger.error('failed to seed composer attachment from input file', error as Error)
+          unseeded.push(entry)
         }
       }
       if (cancelled) return
       entryCacheRef.current = cache
+      unseededEntriesRef.current = unseeded
       setFiles(attachments)
       seedCompleteRef.current = true
     })()
@@ -118,10 +126,17 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
       }
       if (cancelled || epoch !== writebackEpochRef.current) return
 
-      const nextIds = entries.map((entry) => entry.id)
+      // Carry through entries that failed to seed so a transient read error can't
+      // shrink the persisted list. When the whole painting failed to resolve, this
+      // reproduces the original list and the unchanged guard suppresses the wipe.
+      // ponytail: failed entries land at the tail, so a *partial* failure persists a
+      // one-time reorder on open; widen to original-order merge only if that bites.
+      const preserved = unseededEntriesRef.current
+      const nextEntries = preserved.length ? [...entries, ...preserved] : entries
+      const nextIds = nextEntries.map((entry) => entry.id)
       const currentIds = inputFilesRef.current.map((entry) => entry.id)
       const unchanged = nextIds.length === currentIds.length && nextIds.every((id, index) => id === currentIds[index])
-      if (!unchanged) onInputFilesChangeRef.current(entries)
+      if (!unchanged) onInputFilesChangeRef.current(nextEntries)
     })()
 
     return () => {
