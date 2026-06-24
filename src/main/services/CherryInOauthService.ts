@@ -2,9 +2,9 @@ import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { createHash, randomBytes } from 'crypto'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -43,14 +43,6 @@ const ApiKeyItemSchema = z
 const ApiKeysResponseSchema = z
   .union([z.array(ApiKeyItemSchema), z.object({ data: z.array(ApiKeyItemSchema) })])
   .transform((data): string[] => (Array.isArray(data) ? data : data.data))
-
-// Token response schema
-const TokenResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string().optional(),
-  token_type: z.string().optional(),
-  expires_in: z.number().optional()
-})
 
 const UserSelfProfileSchema = z.object({
   display_name: z.string().optional().nullable(),
@@ -212,27 +204,19 @@ export class CherryInOauthService extends BaseService implements Activatable {
   }
 
   /**
-   * Generate a cryptographically random string for PKCE code_verifier
+   * Build a PKCE OAuth client for a CherryIN host. `tokenHost` drives the token
+   * endpoint (code exchange uses the oauth server, refresh uses the api host —
+   * they coincide unless a separate api host was supplied); `authorizeHost`
+   * defaults to it for the authorize URL.
    */
-  private generateRandomString(length: number): string {
-    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-    const bytes = randomBytes(length)
-    return Array.from(bytes, (byte) => charset[byte % charset.length]).join('')
-  }
-
-  /**
-   * Base64URL encode a buffer (no padding, URL-safe characters)
-   */
-  private base64UrlEncode(buffer: Buffer): string {
-    return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  }
-
-  /**
-   * Generate PKCE code_challenge from code_verifier using S256 method
-   */
-  private generateCodeChallenge(codeVerifier: string): string {
-    const hash = createHash('sha256').update(codeVerifier).digest()
-    return this.base64UrlEncode(hash)
+  private buildOAuthClient(tokenHost: string, authorizeHost?: string): PkceOAuthClient {
+    return new PkceOAuthClient({
+      clientId: CHERRYIN_CONFIG.CLIENT_ID,
+      authorizeUrl: `${authorizeHost ?? tokenHost}/oauth2/auth`,
+      tokenUrl: `${tokenHost}/oauth2/token`,
+      redirectUri: CHERRYIN_CONFIG.REDIRECT_URI,
+      scope: CHERRYIN_CONFIG.SCOPES
+    })
   }
 
   /**
@@ -259,10 +243,8 @@ export class CherryInOauthService extends BaseService implements Activatable {
       throw new CherryInOauthServiceError('OAuth flow initiator is not a managed window')
     }
 
-    // Generate PKCE parameters
-    const codeVerifier = this.generateRandomString(64) // 43-128 chars per RFC 7636
-    const codeChallenge = this.generateCodeChallenge(codeVerifier)
-    const state = this.generateRandomString(32)
+    // Generate PKCE parameters + authorization URL via the shared client.
+    const { authUrl, state, codeVerifier } = this.buildOAuthClient(oauthServer).createAuthorizationRequest()
 
     // Store verifier and config for later use (keyed by state for CSRF protection)
     this.pendingOAuthFlows.set(state, {
@@ -274,22 +256,9 @@ export class CherryInOauthService extends BaseService implements Activatable {
     })
     await this.activate()
 
-    // Build authorization URL
-    const authUrl = new URL(`${oauthServer}/oauth2/auth`)
-    authUrl.searchParams.set('client_id', CHERRYIN_CONFIG.CLIENT_ID)
-    authUrl.searchParams.set('redirect_uri', CHERRYIN_CONFIG.REDIRECT_URI)
-    authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('scope', CHERRYIN_CONFIG.SCOPES)
-    authUrl.searchParams.set('state', state)
-    authUrl.searchParams.set('code_challenge', codeChallenge)
-    authUrl.searchParams.set('code_challenge_method', 'S256')
-
     logger.debug('Started OAuth flow')
 
-    return {
-      authUrl: authUrl.toString(),
-      state
-    }
+    return { authUrl, state }
   }
 
   /**
@@ -372,33 +341,9 @@ export class CherryInOauthService extends BaseService implements Activatable {
     logger.debug('Exchanging code for token')
 
     try {
-      const tokenResponse = await net.fetch(`${oauthServer}/oauth2/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: CHERRYIN_CONFIG.CLIENT_ID,
-          code,
-          redirect_uri: CHERRYIN_CONFIG.REDIRECT_URI,
-          code_verifier: codeVerifier
-        }).toString()
-      })
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text()
-        logger.error('Token exchange failed', {
-          status: tokenResponse.status,
-          body: this.redactDiagnosticValue(errorText)
-        })
-        throw new CherryInOauthServiceError(`Failed to exchange code for token: ${tokenResponse.status}`)
-      }
-
-      const tokenJson = await tokenResponse.json()
-      const tokenData = TokenResponseSchema.parse(tokenJson)
-
-      const { access_token: accessToken, refresh_token: refreshToken } = tokenData
+      const { access_token: accessToken, refresh_token: refreshToken } = await this.buildOAuthClient(
+        oauthServer
+      ).exchangeCode(code, codeVerifier)
       logger.debug('Successfully obtained access token, fetching API keys')
 
       // Persist the token only after the api-keys fetch + validation succeeds.
@@ -522,30 +467,8 @@ export class CherryInOauthService extends BaseService implements Activatable {
 
       logger.info('Attempting to refresh access token')
 
-      const response = await net.fetch(`${apiHost}/oauth2/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-          client_id: CHERRYIN_CONFIG.CLIENT_ID
-        }).toString()
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        logger.error('Token refresh failed', {
-          status: response.status,
-          body: this.redactDiagnosticValue(errorText)
-        })
-        return { accessToken: null, attempted: true }
-      }
-
-      const tokenJson = await response.json()
-      const tokenData = TokenResponseSchema.parse(tokenJson)
-      const { access_token: newAccessToken, refresh_token: newRefreshToken } = tokenData
+      const { access_token: newAccessToken, refresh_token: newRefreshToken } =
+        await this.buildOAuthClient(apiHost).refresh(refreshToken)
 
       // Save new tokens using internal method
       await this.saveTokenInternal(newAccessToken, newRefreshToken)

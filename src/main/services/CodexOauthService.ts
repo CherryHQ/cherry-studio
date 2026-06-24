@@ -3,12 +3,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type OAuthTokenResponse, PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { createHash, randomBytes } from 'crypto'
-import { net, shell } from 'electron'
-import * as z from 'zod'
+import { shell } from 'electron'
 
 const logger = loggerService.withContext('CodexOauthService')
 
@@ -33,14 +32,6 @@ const SIGN_IN_TIMEOUT_MS = 10 * 60 * 1000
 // Refresh the access token slightly before it actually expires so an in-flight
 // request never races the expiry boundary.
 const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
-
-const TokenResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string().optional(),
-  id_token: z.string().optional(),
-  token_type: z.string().optional(),
-  expires_in: z.number().optional()
-})
 
 export interface CodexAccount {
   accountId: string | null
@@ -84,24 +75,19 @@ export class CodexOauthService extends BaseService {
     this.closeActiveServer()
   }
 
-  // ── PKCE helpers ──
-
-  private base64UrlEncode(buffer: Buffer): string {
-    return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  }
-
-  private generateCodeVerifier(): string {
-    // 32 random bytes → 43-char base64url string (within RFC 7636's 43-128 range).
-    return this.base64UrlEncode(randomBytes(32))
-  }
-
-  private generateCodeChallenge(codeVerifier: string): string {
-    return this.base64UrlEncode(createHash('sha256').update(codeVerifier).digest())
-  }
-
-  private generateState(): string {
-    return randomBytes(16).toString('hex')
-  }
+  // PKCE generation + token endpoint live in the shared client; this service
+  // owns the loopback transport, token persistence, and account extraction.
+  private readonly oauthClient = new PkceOAuthClient({
+    clientId: CODEX_CONFIG.CLIENT_ID,
+    authorizeUrl: CODEX_CONFIG.AUTHORIZE_URL,
+    tokenUrl: CODEX_CONFIG.TOKEN_URL,
+    redirectUri: CODEX_CONFIG.REDIRECT_URI,
+    scope: CODEX_CONFIG.SCOPE,
+    extraAuthParams: {
+      id_token_add_organizations: 'true',
+      codex_cli_simplified_flow: 'true'
+    }
+  })
 
   // ── Auth config access ──
 
@@ -216,30 +202,9 @@ export class CodexOauthService extends BaseService {
     })
   }
 
-  // ── Token exchange / persistence ──
+  // ── Token persistence ──
 
-  private async exchangeAuthorizationCode(code: string, codeVerifier: string): Promise<void> {
-    const response = await net.fetch(CODEX_CONFIG.TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: CODEX_CONFIG.CLIENT_ID,
-        code,
-        code_verifier: codeVerifier,
-        redirect_uri: CODEX_CONFIG.REDIRECT_URI
-      }).toString()
-    })
-
-    if (!response.ok) {
-      throw new CodexOauthServiceError(`Failed to exchange code for token: ${response.status}`)
-    }
-
-    const tokenData = TokenResponseSchema.parse(await response.json())
-    await this.persistTokens(tokenData)
-  }
-
-  private async persistTokens(tokenData: z.infer<typeof TokenResponseSchema>): Promise<void> {
+  private async persistTokens(tokenData: OAuthTokenResponse): Promise<void> {
     const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } = tokenData
     const current = await this.getOAuthAuthConfig()
     const accountId = this.extractAccountId(accessToken) ?? current?.accountId
@@ -259,22 +224,7 @@ export class CodexOauthService extends BaseService {
 
   private async doRefresh(refreshToken: string): Promise<string | null> {
     try {
-      const response = await net.fetch(CODEX_CONFIG.TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-          client_id: CODEX_CONFIG.CLIENT_ID
-        }).toString()
-      })
-
-      if (!response.ok) {
-        logger.error('Codex token refresh failed', { status: response.status })
-        return null
-      }
-
-      const tokenData = TokenResponseSchema.parse(await response.json())
+      const tokenData = await this.oauthClient.refresh(refreshToken)
       await this.persistTokens(tokenData)
       return tokenData.access_token
     } catch (error) {
@@ -324,28 +274,15 @@ export class CodexOauthService extends BaseService {
       throw new CodexOauthServiceError('A Codex sign-in is already in progress')
     }
 
-    const codeVerifier = this.generateCodeVerifier()
-    const codeChallenge = this.generateCodeChallenge(codeVerifier)
-    const state = this.generateState()
-
-    const authUrl = new URL(CODEX_CONFIG.AUTHORIZE_URL)
-    authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('client_id', CODEX_CONFIG.CLIENT_ID)
-    authUrl.searchParams.set('redirect_uri', CODEX_CONFIG.REDIRECT_URI)
-    authUrl.searchParams.set('scope', CODEX_CONFIG.SCOPE)
-    authUrl.searchParams.set('code_challenge', codeChallenge)
-    authUrl.searchParams.set('code_challenge_method', 'S256')
-    authUrl.searchParams.set('state', state)
-    authUrl.searchParams.set('id_token_add_organizations', 'true')
-    authUrl.searchParams.set('codex_cli_simplified_flow', 'true')
+    const { authUrl, state, codeVerifier } = this.oauthClient.createAuthorizationRequest()
 
     const timeout = AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)
     try {
       const codePromise = this.waitForAuthorizationCode(state, timeout)
-      await shell.openExternal(authUrl.toString())
+      await shell.openExternal(authUrl)
       const code = await codePromise
 
-      await this.exchangeAuthorizationCode(code, codeVerifier)
+      await this.persistTokens(await this.oauthClient.exchangeCode(code, codeVerifier))
       // Enable the provider on first successful sign-in (seeded disabled).
       await providerService.update(OPENAI_CODEX_PROVIDER_ID, { isEnabled: true })
 
