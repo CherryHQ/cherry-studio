@@ -30,11 +30,11 @@ const { default: PaintingComposer } = await import('../PaintingComposer')
 const makeEntry = (id: string): FileEntry =>
   ({ id, name: `${id}.png`, ext: 'png', size: 100, origin: 'internal' }) as unknown as FileEntry
 
-const makePainting = (id: string, inputFiles: FileEntry[]): PaintingData =>
+const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData =>
   ({
     id,
     providerId: 'openai',
-    model: 'gpt-image-1',
+    model,
     mode: 'generate',
     prompt: '',
     files: [],
@@ -81,6 +81,21 @@ describe('PaintingComposer painting switch', () => {
     await waitFor(() => expect(filesCount()).toBe('1'))
 
     rerender(<PaintingComposer {...handlers} painting={makePainting('C', [])} />)
+    await waitFor(() => expect(filesCount()).toBe('0'))
+  })
+
+  // switchModel clears inputFiles for a generate-only model on the SAME painting id.
+  // The model in the provider key remounts the bridge so the stale chip can't linger
+  // (and later be resurrected onto a model that can't accept it).
+  it('clears input files when the model switches on the same painting', async () => {
+    const filesCount = () => screen.getByTestId('files-count').textContent
+
+    const { rerender } = render(
+      <PaintingComposer {...handlers} painting={makePainting('A', [makeEntry('a1')], 'edit-model')} />
+    )
+    await waitFor(() => expect(filesCount()).toBe('1'))
+
+    rerender(<PaintingComposer {...handlers} painting={makePainting('A', [], 'generate-model')} />)
     await waitFor(() => expect(filesCount()).toBe('0'))
   })
 })

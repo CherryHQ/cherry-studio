@@ -131,10 +131,10 @@ const PaintingParamsButton: FC<{
           variant="ghost"
           size="sm"
           className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'text-muted-foreground')}
-          aria-label={t('common.settings')}>
+          aria-label={summary ? `${t('common.settings')}: ${summary}` : t('common.settings')}>
           <Settings2 className="size-4" />
           {summary && (
-            <span className="max-w-[220px] truncate" title={summary}>
+            <span className="max-w-55 truncate" title={summary}>
               {summary}
             </span>
           )}
@@ -275,11 +275,14 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (
-    // Key the provider (not just the inner) so the composer's `files` state — owned by
-    // the provider — truly resets to [] per painting, instead of leaking the previous
-    // painting's attachments into the new mount.
+    // Key the provider (which owns `files`) by painting AND model so a switch remounts
+    // it and re-seeds from the current `inputFiles`. Keying on the model too is what
+    // reconciles an external `inputFiles` clear: switchModel drops input images for a
+    // generate-only model on the same painting id, and without the model in the key the
+    // once-per-id seed would never re-run, leaving a stale chip that the writeback could
+    // resurrect and send to a model that can't accept it.
     <ComposerToolRuntimeProvider
-      key={painting.id}
+      key={`${painting.id}:${painting.model ?? ''}`}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
       <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />

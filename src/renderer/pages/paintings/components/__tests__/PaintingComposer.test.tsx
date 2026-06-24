@@ -155,30 +155,40 @@ describe('PaintingComposer', () => {
     expect(screen.getByLabelText('send')).toBeDisabled()
   })
 
+  // The summary is folded into the params button's accessible name, so match on the
+  // stable settings prefix rather than the full label.
+  const paramsButton = () => screen.getByRole('button', { name: /common\.settings/ })
+
   it('previews the selected size on the params button', () => {
     renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
-    expect(screen.getByLabelText('common.settings')).toHaveTextContent('1536×1024')
+    expect(paramsButton()).toHaveTextContent('1536×1024')
   })
 
   it('previews registry defaults when nothing is stored', () => {
     renderComposer({ painting: makePainting({ params: {} }) })
-    expect(screen.getByLabelText('common.settings')).toHaveTextContent('1024×1024')
+    expect(paramsButton()).toHaveTextContent('1024×1024')
   })
 
   it('previews custom dimensions when size is custom', () => {
     renderComposer({
       painting: makePainting({ params: { size: 'custom', customSize_width: 800, customSize_height: 600 } })
     })
-    expect(screen.getByLabelText('common.settings')).toHaveTextContent('800×600')
+    expect(paramsButton()).toHaveTextContent('800×600')
   })
 
   it('previews count, quality and background alongside size', () => {
     renderComposer({ painting: makePainting({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
-    const button = screen.getByLabelText('common.settings')
+    const button = paramsButton()
     expect(button).toHaveTextContent('6')
     expect(button).toHaveTextContent('1024×1024')
     // i18next has no instance in tests, so option labels fall back to their keys.
     expect(button).toHaveTextContent('paintings.quality_options.low')
     expect(button).toHaveTextContent('paintings.background_options.auto')
+  })
+
+  it('folds the summary into the params button accessible name', () => {
+    renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
+    // Summary (incl. registry defaults) is appended after the settings label.
+    expect(paramsButton()).toHaveAccessibleName(/^common\.settings: .*1536×1024/)
   })
 })
