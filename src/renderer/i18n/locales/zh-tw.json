@@ -218,11 +218,11 @@
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
         "error": {
-          "createFailed": "[to be translated]:Failed to create task",
-          "deleteFailed": "[to be translated]:Failed to delete task",
+          "createFailed": "建立任務失敗",
+          "deleteFailed": "無法刪除任務",
           "loadFailed": "",
-          "runFailed": "[to be translated]:Failed to run task",
-          "updateFailed": "[to be translated]:Failed to update task"
+          "runFailed": "無法執行任務",
+          "updateFailed": "更新任務失敗"
         },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
@@ -334,7 +334,7 @@
       "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "home": {
-      "welcome_title": "[to be translated]:What shall we talk about today?"
+      "welcome_title": "今天我們該談些什麼？"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
@@ -346,50 +346,50 @@
       }
     },
     "pin": {
-      "title": "[to be translated]:Pin Agent"
+      "title": "圖釘代理"
     },
     "preview_pane": {
-      "close": "[to be translated]:Close preview",
-      "code": "[to be translated]:Code",
-      "code_unavailable": "[to be translated]:Source view not available for binary files",
-      "default_app": "[to be translated]:Default app",
+      "close": "關閉預覽",
+      "code": "程式碼",
+      "code_unavailable": "無法為二進位檔案提供來源檢視",
+      "default_app": "預設應用程式",
       "empty": {
-        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
-        "title": "[to be translated]:Ready"
+        "description": "開始與代理對話；生成的程式碼與即時預覽將顯示於此。",
+        "title": "準備好了"
       },
       "excel": {
         "errors": {
-          "file_too_large": "[to be translated]:This Excel file exceeds the preview size limit.",
-          "invalid_request": "[to be translated]:The Excel preview request is invalid.",
-          "parse_failed": "[to be translated]:Unable to read this Excel file.",
-          "too_complex": "[to be translated]:This Excel file is too complex to preview.",
-          "unsupported_extension": "[to be translated]:Only .xlsx and .xlsm files can be previewed.",
-          "unsupported_xls": "[to be translated]:Legacy .xls files are not supported by Excel preview."
+          "file_too_large": "此 Excel 檔案超過預覽大小限制。",
+          "invalid_request": "Excel 預覽請求無效。",
+          "parse_failed": "無法讀取此 Excel 檔案。",
+          "too_complex": "這個 Excel 檔案過於複雜，無法預覽。",
+          "unsupported_extension": "僅支援預覽 .xlsx 與 .xlsm 檔案。",
+          "unsupported_xls": "舊版 .xls 檔案不受 Excel 預覽支援。"
         },
         "warnings": {
-          "generic": "[to be translated]:Some workbook content may not be fully shown.",
-          "title": "[to be translated]:Preview notice",
-          "unsupported_images": "[to be translated]:Images are not shown in Excel preview yet."
+          "generic": "部分活頁簿內容可能無法完整顯示。",
+          "title": "預覽通知",
+          "unsupported_images": "圖片尚未在 Excel 預覽中顯示。"
         }
       },
-      "file_tree": "[to be translated]:File tree",
-      "items_one": "[to be translated]:{{count}} item",
-      "items_other": "[to be translated]:{{count}} items",
-      "maximize": "[to be translated]:Maximize",
-      "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search",
+      "file_tree": "檔案樹",
+      "items_one": "{{count}} 個項目",
+      "items_other": "{{count}} 個項目",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "no_search_results": "沒有任何檔案符合您的搜尋",
       "office": {
-        "description": "[to be translated]:This file type needs to be opened with the system default app.",
-        "title": "[to be translated]:Opening {{extension}} files here is not supported yet"
+        "description": "此檔案類型需使用系統預設應用程式開啟。",
+        "title": "在此處開啟 {{extension}} 檔案尚不支援"
       },
-      "preview": "[to be translated]:Preview",
-      "refresh": "[to be translated]:Refresh",
-      "search_placeholder": "[to be translated]:Search files...",
-      "select_file": "[to be translated]:Select a file to preview",
-      "toggle": "[to be translated]:Show preview panel",
+      "preview": "預覽",
+      "refresh": "重新整理",
+      "search_placeholder": "搜尋檔案...",
+      "select_file": "選擇檔案以預覽",
+      "toggle": "顯示預覽面板",
       "too_large": {
-        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
-        "title": "[to be translated]:File too large to preview"
+        "description": "檔案超過 {{limit}} 預覽限制。",
+        "title": "檔案太大，無法預覽"
       },
       "unavailable": {
         "description": "無法開啟此檔案，它可能已被移動或刪除。",
@@ -397,8 +397,8 @@
       },
       "word": {
         "errors": {
-          "parse_failed": "[to be translated]:Unable to render this Word document.",
-          "read_failed": "[to be translated]:Unable to read this Word document."
+          "parse_failed": "無法呈現此 Word 文件。",
+          "read_failed": "無法讀取此 Word 文件。"
         }
       }
     },
@@ -408,15 +408,15 @@
       }
     },
     "right_pane": {
-      "close": "[to be translated]:Close",
+      "close": "關閉",
       "flow": {
         "empty": {
-          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
-          "title": "[to be translated]:No tool selected"
+          "description": "選擇一個代理工具呼叫以檢視其子訊息流程。",
+          "title": "未選擇任何工具"
         },
         "no_messages": {
-          "description": "[to be translated]:This tool call has no captured child message flow.",
-          "title": "[to be translated]:No messages"
+          "description": "此工具呼叫沒有擷取到的子訊息流程。",
+          "title": "沒有訊息"
         }
       },
       "info": {
@@ -441,23 +441,23 @@
         "subagents": "子智能體"
       },
       "status": {
-        "activity": "[to be translated]:Activity",
-        "agent": "[to be translated]:Agent",
-        "context": "[to be translated]:Context",
-        "no_tasks": "[to be translated]:No active tasks",
-        "selected_tool": "[to be translated]:Selected tool",
-        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
-        "tasks": "[to be translated]:Tasks",
-        "tools_active": "[to be translated]:Active",
-        "tools_done": "[to be translated]:Done",
-        "tools_failed": "[to be translated]:Failed",
-        "tools_total": "[to be translated]:Total",
-        "workspace": "[to be translated]:Workspace"
+        "activity": "活動",
+        "agent": "代理人",
+        "context": "情境",
+        "no_tasks": "沒有進行中的任務",
+        "selected_tool": "選取的工具",
+        "task_count": "{{completed}} / {{total}} 完成",
+        "tasks": "任務",
+        "tools_active": "活躍",
+        "tools_done": "完成",
+        "tools_failed": "失敗",
+        "tools_total": "總計",
+        "workspace": "工作區"
       },
       "tabs": {
-        "files": "[to be translated]:Files",
-        "flow": "[to be translated]:Flow",
-        "status": "[to be translated]:Status"
+        "files": "檔案",
+        "flow": "流",
+        "status": "狀態"
       }
     },
     "server": {
@@ -510,9 +510,9 @@
         "title": "刪除工作階段"
       },
       "display": {
-        "agent": "[to be translated]:Agent",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Display mode",
+        "agent": "代理人",
+        "time": "時間",
+        "title": "顯示模式",
         "workdir": "工作目錄"
       },
       "edit": {
@@ -523,9 +523,9 @@
         "title": "還沒有任務"
       },
       "file_manager": {
-        "file_explorer": "[to be translated]:File Explorer",
-        "files": "[to be translated]:Files",
-        "finder": "[to be translated]:Finder"
+        "file_explorer": "檔案總管",
+        "files": "檔案",
+        "finder": "Finder"
       },
       "get": {
         "error": {
@@ -535,18 +535,18 @@
         }
       },
       "group": {
-        "collapse": "[to be translated]:Collapse display",
-        "collapse_all": "[to be translated]:Collapse all",
+        "collapse": "摺疊顯示",
+        "collapse_all": "摺疊全部",
         "conversation": "對話",
         "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
-        "earlier": "[to be translated]:Earlier",
-        "expand_all": "[to be translated]:Expand all",
+        "earlier": "更早",
+        "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
-        "show_more": "[to be translated]:Expand display",
-        "this_week": "[to be translated]:This week",
-        "today": "[to be translated]:Today",
-        "unknown_agent": "[to be translated]:Unknown agent",
-        "yesterday": "[to be translated]:Yesterday"
+        "show_more": "展開顯示",
+        "this_week": "本週",
+        "today": "今天",
+        "unknown_agent": "未知代理",
+        "yesterday": "昨天"
       },
       "label_one": "工作階段",
       "label_other": "工作階段",
@@ -596,7 +596,7 @@
         "no_project": "不使用工作目錄",
         "placeholder": "選擇工作目錄",
         "search_placeholder": "搜尋工作目錄",
-        "select_failed": "[to be translated]:Failed to select folder."
+        "select_failed": "選擇資料夾失敗。"
       },
       "workspace_status": {
         "inaccessible": "工作區路徑無法存取：{{path}}",
@@ -1003,7 +1003,7 @@
       "unknown": "未知類型"
     },
     "unpin": {
-      "title": "[to be translated]:Unpin Agent"
+      "title": "取消固定代理"
     },
     "update": {
       "error": {
@@ -1138,7 +1138,7 @@
       "showByTags": "標籤顯示"
     },
     "pin": {
-      "title": "[to be translated]:Pin Assistant"
+      "title": "圖釘助理"
     },
     "presets": {
       "add": {
@@ -1236,7 +1236,7 @@
     },
     "reorder": {
       "error": {
-        "failed": "[to be translated]:Failed to reorder assistants"
+        "failed": "無法重新排序助理"
       }
     },
     "save": {
@@ -1334,7 +1334,7 @@
     },
     "title": "助手",
     "unpin": {
-      "title": "[to be translated]:Unpin Assistant"
+      "title": "取消釘選助理"
     }
   },
   "auth": {
@@ -1417,7 +1417,7 @@
       }
     },
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "新聊天"
     },
     "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
     "default": {
@@ -1438,7 +1438,7 @@
       "view_full_content": "檢視完整內容"
     },
     "home": {
-      "welcome_title": "[to be translated]:What shall we talk about today?"
+      "welcome_title": "今天我們要談些什麼？"
     },
     "input": {
       "auto_resize": "自動調整高度",
@@ -1590,18 +1590,18 @@
       }
     },
     "message": {
-      "editing_current": "[to be translated]:This message is being edited in the composer",
+      "editing_current": "此訊息正在編輯器中編輯",
       "flow": {
-        "branches": "[to be translated]:branches",
+        "branches": "分支",
         "copy_topic": {
           "created": "已複製到新對話",
           "label": "複製為新對話"
         },
-        "nodes": "[to be translated]:nodes",
+        "nodes": "節點",
         "status": {
-          "awaiting_input": "[to be translated]:Awaiting input"
+          "awaiting_input": "等待輸入"
         },
-        "title": "[to be translated]:Branch Management"
+        "title": "分支管理"
       },
       "more": "更多操作",
       "new": {
@@ -1713,7 +1713,7 @@
             "save_failed": "儲存話題失敗，請檢查知識庫設定"
           },
           "loading": "正在分析話題內容...",
-          "menu_title": "[to be translated]:Save to Knowledge Base",
+          "menu_title": "儲存至知識庫",
           "select": {
             "content": {
               "label": "選擇要儲存的內容類型",
@@ -1802,10 +1802,10 @@
         "shortcut": "按住 {{key}} 可直接刪除"
       },
       "display": {
-        "assistant": "[to be translated]:Assistant",
-        "tag": "[to be translated]:Tag",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Display mode"
+        "assistant": "助理",
+        "tag": "標籤",
+        "time": "時間",
+        "title": "顯示模式"
       },
       "edit": {
         "placeholder": "輸入新名稱",
@@ -1819,7 +1819,7 @@
       "export": {
         "failed": "匯出失敗",
         "image": "匯出為圖片",
-        "image_exporting_keep_page": "[to be translated]:Exporting image. Please stay on this page.",
+        "image_exporting_keep_page": "正在匯出圖片，請保持在此頁面。",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
         "md": {
@@ -1868,15 +1868,15 @@
         "yuque": "匯出到語雀"
       },
       "group": {
-        "collapse": "[to be translated]:Collapse display",
-        "collapse_all": "[to be translated]:Collapse all",
-        "earlier": "[to be translated]:Earlier",
-        "expand_all": "[to be translated]:Expand all",
-        "show_more": "[to be translated]:Expand display",
-        "this_week": "[to be translated]:This week",
-        "today": "[to be translated]:Today",
-        "unknown_assistant": "[to be translated]:Unlinked Assistant",
-        "yesterday": "[to be translated]:Yesterday"
+        "collapse": "摺疊顯示",
+        "collapse_all": "摺疊全部",
+        "earlier": "更早",
+        "expand_all": "展開全部",
+        "show_more": "展開顯示",
+        "this_week": "本週",
+        "today": "今天",
+        "unknown_assistant": "未連結的助理",
+        "yesterday": "昨天"
       },
       "list": "話題列表",
       "manage": {
@@ -2026,10 +2026,10 @@
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
-    "agent": "[to be translated]:Agent",
+    "agent": "代理人",
     "agent_one": "智能體",
     "agent_other": "智能體",
-    "all": "[to be translated]:All",
+    "all": "全部",
     "and": "與",
     "assistant": "智慧智能體",
     "assistant_one": "助手",
@@ -2043,14 +2043,14 @@
     "clear_all": "全部清除",
     "click_to_replace": "點擊以替換",
     "close": "關閉",
-    "close_sidebar": "[to be translated]:Close sidebar",
+    "close_sidebar": "關閉側邊欄",
     "collapse": "收合",
     "completed": "已完成",
     "confirm": "確認",
     "copied": "已複製",
     "copy": "複製",
     "copy_failed": "複製失敗",
-    "create_success": "[to be translated]:Created successfully",
+    "create_success": "已成功建立",
     "current": "目前",
     "cut": "剪下",
     "default": "預設",
@@ -2095,8 +2095,8 @@
     "knowledge_base": "知識庫",
     "language": "語言",
     "loading": "載入中...",
-    "maximize": "[to be translated]:Maximize",
-    "minimize": "[to be translated]:Minimize",
+    "maximize": "最大化",
+    "minimize": "最小化",
     "model": "模型",
     "models": "模型",
     "more": "更多",
@@ -2109,8 +2109,8 @@
     "on": "開啟",
     "open": "開啟",
     "open_in": "在 {{name}} 中開啟",
-    "open_in_new_tab": "[to be translated]:Open in new tab",
-    "open_sidebar": "[to be translated]:Open sidebar",
+    "open_in_new_tab": "在新分頁中開啟",
+    "open_sidebar": "開啟側邊欄",
     "paste": "貼上",
     "placeholders": {
       "select": {
@@ -2164,7 +2164,7 @@
     "upload_image": "上傳圖片檔案",
     "uploaded_image": "已上傳圖片",
     "warning": "警告",
-    "yesterday": "[to be translated]:Yesterday",
+    "yesterday": "昨天",
     "you": "您"
   },
   "dialog": {
@@ -2472,9 +2472,9 @@
     },
     "records": {
       "agentSubtitle": "{{count}} 個任務",
-      "agentTitle": "[to be translated]:Agent History",
+      "agentTitle": "代理歷史",
       "assistantSubtitle": "{{count}} 個對話",
-      "bulkDelete": "[to be translated]:Batch Delete",
+      "bulkDelete": "批次刪除",
       "bulkDeleteSessions": {
         "description": "要刪除選中的 {{count}} 個任務嗎？",
         "title": "刪除選中的任務"
@@ -2483,16 +2483,16 @@
         "description": "要刪除選中的 {{count}} 個對話嗎？",
         "title": "刪除選中的對話"
       },
-      "bulkMove": "[to be translated]:Batch Move",
+      "bulkMove": "批次移動",
       "bulkMoveTopics": {
-        "confirm": "[to be translated]:Move",
+        "confirm": "移動",
         "description": "將選中的 {{count}} 個對話移動到目標助手。",
-        "empty": "[to be translated]:No assistants available",
+        "empty": "目前沒有可用的助理",
         "error": "移動對話失敗",
         "partialSuccess": "已移動 {{total}} 個對話中的 {{moved}} 個，{{failed}} 個失敗",
-        "placeholder": "[to be translated]:Select assistant",
+        "placeholder": "選擇助理",
         "success": "已移動 {{count}} 個對話",
-        "target": "[to be translated]:Target assistant",
+        "target": "目標助理",
         "title": "移動選中的對話"
       },
       "empty": {
@@ -2507,27 +2507,27 @@
         "sessionsTitle": "正在載入任務",
         "title": "正在載入對話"
       },
-      "resultCount": "[to be translated]:{{count}} results",
+      "resultCount": "{{count}} 個結果",
       "searchSession": "搜尋任務...",
       "searchTopic": "搜尋對話...",
-      "shortTitle": "[to be translated]:History",
+      "shortTitle": "歷史",
       "sidebar": {
-        "searchAssistant": "[to be translated]:Search assistants...",
-        "status": "[to be translated]:Status",
-        "unknownAssistant": "[to be translated]:Unlinked assistant"
+        "searchAssistant": "搜尋助理...",
+        "status": "狀態",
+        "unknownAssistant": "未連結的助理"
       },
       "status": {
-        "completed": "[to be translated]:Completed",
-        "failed": "[to be translated]:Failed",
-        "running": "[to be translated]:Running"
+        "completed": "已完成",
+        "failed": "失敗",
+        "running": "奔跑"
       },
       "table": {
-        "actions": "[to be translated]:Actions",
-        "emptyValue": "[to be translated]:—",
-        "messages": "[to be translated]:Messages",
+        "actions": "動作",
+        "emptyValue": "—",
+        "messages": "訊息",
         "session": "任務",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Title"
+        "time": "時間",
+        "title": "標題"
       },
       "title": "對話歷史記錄"
     },
@@ -2943,7 +2943,7 @@
           "env_vars": {
             "help": "每行一個 KEY=VALUE",
             "label": "環境變數",
-            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
+            "placeholder": "KEY=值\nANOTHER_KEY=另一個值"
           },
           "heartbeat_enabled": {
             "label": "心跳檢查"
@@ -3099,7 +3099,7 @@
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
-        "mcp_mode": "[to be translated]:MCP Mode",
+        "mcp_mode": "MCP 模式",
         "model": "預設模型",
         "model_clear": "清除",
         "model_not_found": "找不到模型（可能已被移除）：{{id}}",
@@ -3120,30 +3120,30 @@
       "breadcrumb": "圖書館",
       "dialogs": {
         "create": {
-          "agent_title": "[to be translated]:New Agent",
-          "assistant_title": "[to be translated]:New Assistant",
-          "avatar_aria": "[to be translated]:Choose avatar",
-          "description_placeholder": "[to be translated]:Describe what it is for...",
-          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Enter a name",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Create failed"
+          "agent_title": "新特務",
+          "assistant_title": "新助理",
+          "avatar_aria": "選擇頭像",
+          "description_placeholder": "描述它的用途...",
+          "dialog_description": "建立一個輕量級的助理或代理程式。",
+          "model_placeholder": "選擇模型",
+          "model_required": "請選擇一個模型",
+          "name_placeholder": "輸入名稱",
+          "name_required": "請輸入名稱",
+          "submit": "建立",
+          "submit_failed": "建立失敗"
         },
         "edit": {
-          "advanced_tab": "[to be translated]:Advanced",
-          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
-          "agent_title": "[to be translated]:Edit Agent",
-          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
-          "assistant_title": "[to be translated]:Edit Assistant",
-          "basic_tab": "[to be translated]:Basic",
-          "knowledge_tab": "[to be translated]:Knowledge",
-          "permission_tab": "[to be translated]:Permission",
-          "prompt_tab": "[to be translated]:Prompt",
-          "save_failed": "[to be translated]:Save failed",
-          "tools_tab": "[to be translated]:Tools"
+          "advanced_tab": "進階",
+          "agent_description": "迅速調整此代理的基本配置。",
+          "agent_title": "編輯代理",
+          "assistant_description": "迅速調整此助理的基本設定。",
+          "assistant_title": "編輯助理",
+          "basic_tab": "基本",
+          "knowledge_tab": "知識",
+          "permission_tab": "權限",
+          "prompt_tab": "提示",
+          "save_failed": "儲存失敗",
+          "tools_tab": "工具"
         }
       },
       "knowledge": {
@@ -3465,7 +3465,7 @@
       "chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "copy": "複製失敗",
       "dimension_too_large": "內容尺寸過大",
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "dismiss_failed": "無法關閉錯誤訊息",
       "enter": {
         "api": {
           "host": "請先輸入您的 API 主機位址",
@@ -3577,8 +3577,8 @@
         "plain": "簡潔"
       },
       "user_content": {
-        "collapse": "[to be translated]:Collapse",
-        "expand": "[to be translated]:Expand"
+        "collapse": "摺疊",
+        "expand": "擴展"
       },
       "video": {
         "error": {
@@ -3647,75 +3647,75 @@
       "abort_failed": "工具呼叫中斷失敗",
       "aborted": "工具呼叫已中斷",
       "activity": {
-        "archive": "[to be translated]:archive",
-        "assistantTask": "[to be translated]:task",
-        "availableFeatures": "[to be translated]:available features",
-        "availableResources": "[to be translated]:available resources",
-        "branch": "[to be translated]:code branch",
-        "build": "[to be translated]:Build",
-        "building": "[to be translated]:Building",
-        "check": "[to be translated]:Check",
-        "checking": "[to be translated]:Checking",
-        "codeFiles": "[to be translated]:code files",
-        "codeHostInfo": "[to be translated]:code hosting information",
-        "commandName": "[to be translated]:{{name}} command",
-        "configFiles": "[to be translated]:project docs and config files",
-        "copy": "[to be translated]:Copy",
-        "copying": "[to be translated]:Copying",
-        "create": "[to be translated]:Create",
-        "creating": "[to be translated]:Creating",
-        "currentFolder": "[to be translated]:current folder",
-        "delete": "[to be translated]:Delete",
-        "deleting": "[to be translated]:Deleting",
-        "documentFiles": "[to be translated]:document files",
-        "download": "[to be translated]:Download",
+        "archive": "封存",
+        "assistantTask": "任務",
+        "availableFeatures": "可用功能",
+        "availableResources": "可用資源",
+        "branch": "程式碼分支",
+        "build": "建置",
+        "building": "建築",
+        "check": "檢查",
+        "checking": "檢查",
+        "codeFiles": "程式碼檔案",
+        "codeHostInfo": "程式碼託管資訊",
+        "commandName": "{{name}} 指令",
+        "configFiles": "專案文件與設定檔案",
+        "copy": "複製",
+        "copying": "複製",
+        "create": "建立",
+        "creating": "建立",
+        "currentFolder": "目前資料夾",
+        "delete": "刪除",
+        "deleting": "刪除",
+        "documentFiles": "文件",
+        "download": "下載",
         "downloading": "[to be translated]:Downloading",
         "executeCommand": "[to be translated]:Run command",
         "executingCommand": "[to be translated]:Running command",
-        "extract": "[to be translated]:Extract",
+        "extract": "擷取",
         "extracting": "[to be translated]:Extracting",
-        "file": "[to be translated]:file",
-        "fileList": "[to be translated]:file list",
-        "folder": "[to be translated]:folder",
-        "handle": "[to be translated]:Handle",
-        "handling": "[to be translated]:Handling",
-        "imageFiles": "[to be translated]:image files",
-        "install": "[to be translated]:Install",
-        "installing": "[to be translated]:Installing",
-        "matchingFiles": "[to be translated]:matching files",
-        "modify": "[to be translated]:Modify",
-        "modifying": "[to be translated]:Modifying",
-        "move": "[to be translated]:Move",
-        "moving": "[to be translated]:Moving",
-        "open": "[to be translated]:Open",
-        "opening": "[to be translated]:Opening",
-        "plan": "[to be translated]:execution plan",
-        "projectChanges": "[to be translated]:project changes",
-        "projectChecks": "[to be translated]:project checks",
-        "projectDependencies": "[to be translated]:project dependencies",
-        "projectFiles": "[to be translated]:project files",
-        "projectRootFiles": "[to be translated]:project root files",
-        "projectTask": "[to be translated]:project task",
-        "relatedContent": "[to be translated]:related content",
-        "repository": "[to be translated]:code repository",
-        "search": "[to be translated]:Find",
-        "searching": "[to be translated]:Finding",
-        "switch": "[to be translated]:Switch",
-        "switching": "[to be translated]:Switching",
-        "sync": "[to be translated]:Sync",
-        "syncing": "[to be translated]:Syncing",
+        "file": "檔案",
+        "fileList": "檔案清單",
+        "folder": "資料夾",
+        "handle": "處理",
+        "handling": "處理",
+        "imageFiles": "影像檔案",
+        "install": "安裝",
+        "installing": "安裝中",
+        "matchingFiles": "相符的檔案",
+        "modify": "修改",
+        "modifying": "修改",
+        "move": "移動",
+        "moving": "移動",
+        "open": "開啟",
+        "opening": "開場",
+        "plan": "執行計畫",
+        "projectChanges": "專案變更",
+        "projectChecks": "專案檢查",
+        "projectDependencies": "專案相依性",
+        "projectFiles": "專案檔案",
+        "projectRootFiles": "專案根目錄檔案",
+        "projectTask": "專案任務",
+        "relatedContent": "相關內容",
+        "repository": "程式碼儲存庫",
+        "search": "尋找",
+        "searching": "尋找",
+        "switch": "切換",
+        "switching": "切換",
+        "sync": "同步",
+        "syncing": "同步",
         "taskId": "任務 {{id}}",
-        "taskList": "[to be translated]:task list",
-        "translationFiles": "[to be translated]:translation files",
-        "upload": "[to be translated]:Upload",
-        "uploading": "[to be translated]:Uploading",
-        "view": "[to be translated]:View",
-        "viewing": "[to be translated]:Viewing",
-        "webPage": "[to be translated]:web page",
-        "webSearch": "[to be translated]:web content",
-        "workspace": "[to be translated]:workspace",
-        "write": "[to be translated]:Save",
-        "writing": "[to be translated]:Saving"
+        "taskList": "任務清單",
+        "translationFiles": "翻譯檔案",
+        "upload": "上傳",
+        "uploading": "上傳",
+        "view": "檢視",
+        "viewing": "檢視",
+        "webPage": "網頁",
+        "webSearch": "網頁內容",
+        "workspace": "工作空間",
+        "write": "儲存",
+        "writing": "儲存"
       },
       "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
@@ -3753,15 +3753,15 @@
       "pending": "等待中",
       "placeholder": {
         "elapsed": {
-          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
-          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
-          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
-          "seconds": "[to be translated]:{{seconds}}s"
+          "days": "{{days}}天 {{hours}}時 {{minutes}}分 {{seconds}}秒",
+          "hours": "{{hours}}時 {{minutes}}分 {{seconds}}秒",
+          "minutes": "{{minutes}}分 {{seconds}}秒",
+          "seconds": "{{seconds}}秒"
         },
-        "generating": "[to be translated]:Writing response",
-        "preparing": "[to be translated]:Preparing response",
-        "thinking": "[to be translated]:Thinking",
-        "usingTools": "[to be translated]:Working on the task"
+        "generating": "撰寫回應",
+        "preparing": "準備回應",
+        "thinking": "思考",
+        "usingTools": "正在處理任務"
       },
       "preview": "預覽",
       "raw": "原始碼",
@@ -3788,7 +3788,7 @@
         "success": "成功"
       },
       "streaming": "串流",
-      "thinkingHeader": "[to be translated]:Thinking",
+      "thinkingHeader": "思考",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
         "done_one": "{{count}} 完成",
@@ -3833,7 +3833,7 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
-      "fetch_empty": "[to be translated]:No search results found",
+      "fetch_empty": "找不到搜尋結果",
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
@@ -5305,10 +5305,10 @@
       "unpin": "取消固定"
     },
     "create_dialog": {
-      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
+      "refresh_failed": "已建立，但無法重新整理清單"
     },
     "edit_dialog": {
-      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
+      "refresh_failed": "已儲存，但無法重新整理清單"
     },
     "workspace": {
       "empty_text": "暫無工作區",
@@ -6353,11 +6353,11 @@
         "uri": "URI"
       },
       "runtimeStatus": {
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
-        "disabled": "[to be translated]:Disabled",
-        "error": "[to be translated]:Error",
-        "unavailable": "[to be translated]:Unavailable"
+        "connected": "已連線",
+        "connecting": "連接",
+        "disabled": "已停用",
+        "error": "錯誤",
+        "unavailable": "無法使用"
       },
       "search": {
         "placeholder": "搜尋 MCP 伺服器...",
@@ -6484,7 +6484,7 @@
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",
-      "wide_mode": "[to be translated]:Wide layout mode"
+      "wide_mode": "寬版面模式"
     },
     "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
@@ -6862,7 +6862,7 @@
         "title": "詳細程度"
       }
     },
-    "parameter_settings": "[to be translated]:Parameter Settings",
+    "parameter_settings": "參數設定",
     "plugins": {
       "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
@@ -6895,7 +6895,7 @@
       "title": "提示詞管理",
       "titleLabel": "標題",
       "titlePlaceholder": "請輸入提示詞標題",
-      "variablePlaceholder": "[to be translated]:${variable}"
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
