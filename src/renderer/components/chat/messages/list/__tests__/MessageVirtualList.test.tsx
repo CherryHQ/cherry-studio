@@ -6,6 +6,7 @@ import { MessageVirtualList } from '../MessageVirtualList'
 const runtimeMockState = vi.hoisted(() => ({
   isScrollToBottomButtonVisible: false,
   scrollToBottom: vi.fn(),
+  markUserInput: vi.fn(),
   shift: false
 }))
 
@@ -70,6 +71,7 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       vlistHandleRef: { current: null },
       isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
       scrollToBottom: runtimeMockState.scrollToBottom,
+      markUserInput: runtimeMockState.markUserInput,
       shift: runtimeMockState.shift,
       wrappedItems: items,
       wrappedRenderItem: (item: unknown, index: number) =>
@@ -82,6 +84,7 @@ describe('MessageVirtualList', () => {
   beforeEach(() => {
     runtimeMockState.isScrollToBottomButtonVisible = false
     runtimeMockState.scrollToBottom.mockClear()
+    runtimeMockState.markUserInput.mockClear()
     runtimeMockState.shift = false
   })
 
@@ -133,6 +136,30 @@ describe('MessageVirtualList', () => {
     } finally {
       addEventListenerSpy.mockRestore()
     }
+  })
+
+  it('reports pointer/touch/keydown on the scroller as user input and removes the listeners on unmount', () => {
+    const { unmount } = render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    expect(scroller).toBeTruthy()
+    const removeSpy = vi.spyOn(scroller, 'removeEventListener')
+
+    fireEvent.pointerDown(scroller)
+    fireEvent.touchStart(scroller)
+    fireEvent.keyDown(scroller, { key: 'PageDown' })
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(3)
+
+    unmount()
+    expect(removeSpy).toHaveBeenCalledWith('pointerdown', expect.any(Function))
+    expect(removeSpy).toHaveBeenCalledWith('touchstart', expect.any(Function))
+    expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
   })
 
   it('renders a scroll-to-bottom button when the runtime is far from bottom', () => {

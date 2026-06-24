@@ -15,7 +15,6 @@
  * 5. Track background update promise in lifecycle (registerDisposable / onStop)
  */
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -1176,7 +1175,7 @@ export class CodeCliService extends BaseService {
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
-        const tempDir = path.join(os.tmpdir(), 'cherrystudio')
+        const tempDir = application.getPath('feature.cli.temp')
         const timestamp = Date.now()
         const batFileName = `launch_${cliTool}_${timestamp}.bat`
         const batFilePath = path.join(tempDir, batFileName)

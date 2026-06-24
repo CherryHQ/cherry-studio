@@ -108,6 +108,8 @@ function createBase(id = 'kb-1'): KnowledgeBase {
     error: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
