@@ -9,6 +9,7 @@ import type {
 import type {
   CherryMessagePart,
   CherryUIMessage,
+  MessageSnapshot,
   MessageStats,
   MessageStatus,
   ModelSnapshot
@@ -181,7 +182,10 @@ export interface MessageListItem {
   updatedAt?: string
   status: MessageStatus
   modelId?: string
-  modelSnapshot?: ModelSnapshot
+  /** Resolved model identity (from the author snapshot or the topic fallback). */
+  model?: ModelSnapshot
+  /** Producing-author snapshot (assistant|agent, model nested) frozen at creation. */
+  messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats

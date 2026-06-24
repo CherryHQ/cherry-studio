@@ -19,12 +19,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { Topic } from '@renderer/types'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type {
-  BranchMessagesResponse,
-  CherryUIMessage,
-  Message as DbMessage,
-  ModelSnapshot
-} from '@shared/data/types/message'
+import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo } from 'react'
@@ -40,7 +35,9 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
     if (message.role !== 'assistant') continue
     if (message.metadata?.parentId !== userMessageId) continue
 
-    const modelId = resolveUniqueModelId(message.metadata?.modelId, message.metadata?.modelSnapshot)
+    const snapshot = message.metadata?.messageSnapshot
+    const model = snapshot?.assistant?.model ?? snapshot?.agent?.model
+    const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
     if (modelId) modelIds.add(modelId)
   }
 
@@ -183,7 +180,7 @@ export function useChatWriteActions(params: Params): Result {
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId; modelSnapshot?: ModelSnapshot }) => {
+    async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id

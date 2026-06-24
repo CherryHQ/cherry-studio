@@ -25,7 +25,7 @@ import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import {
   Activity,
   Bot,
@@ -107,7 +107,6 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
-  modelFallback?: ModelSnapshot
 }
 
 interface AgentRightPaneState {
@@ -169,8 +168,7 @@ function AgentRightPaneStateProvider({
   traceId,
   agentId,
   agentName,
-  agentAvatar,
-  modelFallback
+  agentAvatar
 }: AgentRightPaneProviderProps) {
   const { activeTab } = useShellState()
   const { openTab } = useShellActions()
@@ -266,7 +264,7 @@ function AgentRightPaneStateProvider({
         setFileTreeExpandedIds,
         setFileTreeSearchKeyword
       },
-      meta: { sessionId, sessionName, traceId, agentId, agentName, agentAvatar, modelFallback }
+      meta: { sessionId, sessionName, traceId, agentId, agentName, agentAvatar }
     }),
     [
       activeFlowTab,
@@ -281,7 +279,6 @@ function AgentRightPaneStateProvider({
       filePreview,
       flow,
       flowTabs,
-      modelFallback,
       openArtifactFile,
       openAgentToolFlow,
       selectedFile,
@@ -389,7 +386,6 @@ function AgentToolFlowMessageList({
         }
       : undefined,
     assistantId: meta.agentId,
-    modelFallback: meta.modelFallback,
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,

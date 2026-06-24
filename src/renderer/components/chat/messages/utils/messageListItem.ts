@@ -56,12 +56,13 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
 
 export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItemContext): MessageListItem {
   const metadata = message.metadata ?? {}
-  const modelSnapshot = metadata.modelSnapshot ?? (message.role === 'assistant' ? ctx.modelFallback : undefined)
+  const messageSnapshot = metadata.messageSnapshot
+  // The producing author owns the model it ran; for snapshot-less rows fall back to the topic model.
+  const author = messageSnapshot?.assistant ?? messageSnapshot?.agent
+  const model = author?.model ?? (message.role === 'assistant' ? ctx.modelFallback : undefined)
   const modelId =
     metadata.modelId ??
-    (message.role === 'assistant' && modelSnapshot
-      ? createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
-      : undefined)
+    (message.role === 'assistant' && model ? createUniqueModelId(model.provider, model.id) : undefined)
 
   return {
     id: message.id,
@@ -72,7 +73,8 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
-    modelSnapshot,
+    model,
+    messageSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
     stats: statsFromMetadata(message.metadata)
@@ -80,12 +82,12 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
 }
 
 export function getMessageListItemModel(message: MessageListItem): Model | undefined {
-  if (message.modelSnapshot) {
+  if (message.model) {
     return {
-      id: message.modelSnapshot.id,
-      name: message.modelSnapshot.name,
-      provider: message.modelSnapshot.provider,
-      group: message.modelSnapshot.group ?? ''
+      id: message.model.id,
+      name: message.model.name,
+      provider: message.model.provider,
+      group: message.model.group ?? ''
     }
   }
 

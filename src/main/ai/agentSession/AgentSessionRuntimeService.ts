@@ -16,7 +16,7 @@ import {
 } from '@shared/ai/agentSessionContextUsage'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { serializeError } from '@shared/utils/error'
 import type { UIMessageChunk } from 'ai'
@@ -54,6 +54,8 @@ export interface BeginAgentSessionTurnInput {
   userMessage?: AgentSessionMessageEntity
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
+  /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
+  messageSnapshot?: MessageSnapshot
 }
 
 export interface AgentSessionRuntimeHandle {
@@ -97,6 +99,8 @@ type AgentSessionRuntimeEntry = {
   agentId: string
   agentType: string
   modelId: UniqueModelId
+  /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
+  messageSnapshot?: MessageSnapshot
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
@@ -208,6 +212,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
+      existing.messageSnapshot = input.messageSnapshot
       existing.status = 'active'
       existing.currentTurn = turn
 
@@ -230,6 +235,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
+      messageSnapshot: input.messageSnapshot,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -770,7 +776,8 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: entry.modelId
+          modelId: entry.modelId,
+          messageSnapshot: entry.messageSnapshot
         }
       })
     } catch (error) {
@@ -871,7 +878,8 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: entry.modelId
+          modelId: entry.modelId,
+          messageSnapshot: entry.messageSnapshot
         }
       })
     } catch (error) {
@@ -1108,7 +1116,7 @@ function createSyntheticUserMessage(sessionId: string): AgentSessionMessageEntit
     status: 'success',
     searchableText: '',
     modelId: null,
-    modelSnapshot: null,
+    messageSnapshot: null,
     stats: null,
     runtimeResumeToken: null,
     createdAt: now,

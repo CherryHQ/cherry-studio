@@ -1,7 +1,7 @@
 /** Finalizes a pending assistant placeholder via `messageService.update`. */
 
 import { messageService } from '@main/data/services/MessageService'
-import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
 
@@ -10,7 +10,7 @@ export interface MessageServiceBackendOptions {
   /** Wins over `input.stats` — only set by callers replaying pre-computed stats. */
   stats?: MessageStats
   /** Parity with the listener signature; unused by the write. */
-  modelSnapshot?: ModelSnapshot
+  messageSnapshot?: MessageSnapshot
   /** Post-success hook (topic auto-rename, usage reporting, …). */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }

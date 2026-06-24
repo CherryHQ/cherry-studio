@@ -4,6 +4,7 @@
  * moves out of the in-memory map and the persistent provider takes over.
  */
 
+import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
@@ -70,19 +71,19 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const models = await resolveModels(resolveWith, defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
-    const modelSnapshot = {
-      id: model.apiModelId ?? rawModelId,
-      name: model.name,
-      provider: providerId
-    }
+    const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }
+    // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
+    const assistant = assistantId ? await assistantDataService.getById(assistantId) : undefined
+    const messageSnapshot = assistant
+      ? { assistant: { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap } }
+      : undefined
 
-    // Append user first so `history` (listMessages) includes it. Service generates the id.
+    // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
     await temporaryChatService.appendMessage(req.topicId, {
       role: 'user',
       data: { parts: req.userMessageParts },
       status: 'success',
-      modelId: model.id,
-      modelSnapshot
+      modelId: model.id
     })
 
     const prior = await temporaryChatService.listMessages(req.topicId)
@@ -97,7 +98,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, modelSnapshot }),
+        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, messageSnapshot }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })

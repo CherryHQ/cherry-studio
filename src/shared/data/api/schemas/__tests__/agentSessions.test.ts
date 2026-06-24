@@ -19,7 +19,7 @@ describe('AgentSessionMessage schemas', () => {
     searchableText: 'hello',
     status: 'success',
     modelId: null,
-    modelSnapshot: null,
+    messageSnapshot: null,
     stats: null,
     runtimeResumeToken: null,
     createdAt: '2026-01-01T00:00:00.000Z',

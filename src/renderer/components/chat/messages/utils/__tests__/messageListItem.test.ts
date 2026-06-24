@@ -62,7 +62,7 @@ describe('getDirectAssistantModelsByUserId', () => {
       createdAt: '2026-01-01T00:00:01.000Z',
       status: 'success',
       modelId: 'provider-a::model-a',
-      modelSnapshot: { id: 'model-a', name: 'Model A', provider: 'provider-a' }
+      model: { id: 'model-a', name: 'Model A', provider: 'provider-a' }
     } as MessageListItem
     const duplicateReply = {
       ...firstReply,
@@ -77,7 +77,7 @@ describe('getDirectAssistantModelsByUserId', () => {
       createdAt: '2026-01-01T00:00:03.000Z',
       status: 'success',
       modelId: 'legacy-model-b',
-      modelSnapshot: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
+      model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
     } as MessageListItem
     const followUpUser = {
       id: 'follow-up-user',
@@ -95,7 +95,7 @@ describe('getDirectAssistantModelsByUserId', () => {
       createdAt: '2026-01-01T00:00:05.000Z',
       status: 'success',
       modelId: 'provider-c::model-c',
-      modelSnapshot: { id: 'model-c', name: 'Model C', provider: 'provider-c' }
+      model: { id: 'model-c', name: 'Model C', provider: 'provider-c' }
     } as MessageListItem
 
     const modelsByUserId = getDirectAssistantModelsByUserId([

@@ -10,9 +10,9 @@ import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from 
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
+  MessageSnapshotSchema,
   MessageStatsSchema,
-  MessageStatusSchema,
-  ModelSnapshotSchema
+  MessageStatusSchema
 } from '@shared/data/types/message'
 import * as z from 'zod'
 
@@ -52,7 +52,7 @@ export const CreateMessageSchema = z.strictObject({
   /** Model identifier */
   modelId: z.string().optional(),
   /** Model snapshot captured at message creation time */
-  modelSnapshot: ModelSnapshotSchema.optional(),
+  messageSnapshot: MessageSnapshotSchema.optional(),
   /** Statistics */
   stats: MessageStatsSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */

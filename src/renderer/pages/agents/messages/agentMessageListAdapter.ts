@@ -26,7 +26,7 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/compon
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
@@ -55,7 +55,6 @@ interface AgentMessageListParams {
     avatar?: string
   }
   assistantId?: string
-  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -87,7 +86,6 @@ export function useAgentMessageListProviderValue({
   partsByMessageId,
   assistantProfile,
   assistantId,
-  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -114,11 +112,10 @@ export function useAgentMessageListProviderValue({
       visibleMessages.map((message) =>
         toMessageListItem(message, {
           assistantId: assistantId ?? topic.assistantId,
-          topicId: topic.id,
-          modelFallback
+          topicId: topic.id
         })
       ),
-    [assistantId, visibleMessages, modelFallback, topic.assistantId, topic.id]
+    [assistantId, visibleMessages, topic.assistantId, topic.id]
   )
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)

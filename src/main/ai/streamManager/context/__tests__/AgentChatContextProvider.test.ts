@@ -82,6 +82,7 @@ describe('AgentChatContextProvider', () => {
     mocks.ensureTraceId.mockResolvedValue('a'.repeat(32))
     mocks.getAgent.mockResolvedValue({
       id: 'agent-1',
+      name: 'My Agent',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
@@ -94,7 +95,7 @@ describe('AgentChatContextProvider', () => {
       searchableText: '',
       status: message.status ?? 'success',
       modelId: message.modelId ?? null,
-      modelSnapshot: message.modelSnapshot ?? null,
+      messageSnapshot: message.messageSnapshot ?? null,
       stats: message.stats ?? null,
       runtimeResumeToken: null,
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -109,7 +110,7 @@ describe('AgentChatContextProvider', () => {
         searchableText: '',
         status: message.status ?? 'success',
         modelId: message.modelId ?? null,
-        modelSnapshot: message.modelSnapshot ?? null,
+        messageSnapshot: message.messageSnapshot ?? null,
         stats: message.stats ?? null,
         runtimeResumeToken: null,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -169,7 +170,14 @@ describe('AgentChatContextProvider', () => {
         metadata: expect.objectContaining({
           status: 'pending',
           modelId: 'anthropic::claude-sonnet',
-          modelSnapshot: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          messageSnapshot: {
+            agent: {
+              id: 'agent-1',
+              name: 'My Agent',
+              type: 'claude-code',
+              model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+            }
+          }
         })
       })
     ])
@@ -181,7 +189,15 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
-      traceId: 'a'.repeat(32)
+      traceId: 'a'.repeat(32),
+      messageSnapshot: {
+        agent: {
+          id: 'agent-1',
+          name: 'My Agent',
+          type: 'claude-code',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        }
+      }
     })
     expect(prepared.listeners).toEqual([
       subscriber,
