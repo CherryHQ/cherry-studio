@@ -1,5 +1,6 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api'
+import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -105,6 +106,34 @@ describe('fileHandlers (DataApi)', () => {
         'name',
         'ZodError'
       )
+    })
+  })
+
+  describe('GET /files/entries/stats', () => {
+    it('returns pure SQL sidebar counts', async () => {
+      const now = Date.now()
+      await Promise.all([
+        seedEntry('019606a0-0000-7000-8000-000000000aa1', { ext: 'md' }),
+        seedEntry('019606a0-0000-7000-8000-000000000aa2', {
+          origin: 'external',
+          name: 'external',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/files/external.txt'
+        }),
+        seedEntry('019606a0-0000-7000-8000-000000000aa3', { deletedAt: now })
+      ])
+
+      const result = (await fileHandlers['/files/entries/stats'].GET({} as never)) as unknown as FileEntryStats
+      expect(result.activeTotal).toBe(2)
+      expect(result.trashTotal).toBe(1)
+      expect(result.extCounts).toEqual(
+        expect.arrayContaining([
+          { ext: 'md', count: 1 },
+          { ext: 'txt', count: 1 }
+        ])
+      )
+      expect(result.folderCounts).toEqual([{ folder: '/tmp/files', count: 1 }])
     })
   })
 

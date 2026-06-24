@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
-import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,7 +74,55 @@ const trashedEntry = {
   updatedAt: 1_719_216_000_000
 } as unknown as FileEntry
 
+function dirnameOf(path: string): string | undefined {
+  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  if (index <= 0) return undefined
+  return path.slice(0, index)
+}
+
+function statsForEntries(entries: FileEntry[]): FileEntryStats {
+  const extCounts = new Map<string | null, number>()
+  const folderCounts = new Map<string, number>()
+  let activeTotal = 0
+  let trashTotal = 0
+
+  for (const item of entries) {
+    const trashed = 'deletedAt' in item && item.deletedAt != null
+    if (trashed) {
+      trashTotal += 1
+      continue
+    }
+
+    activeTotal += 1
+    extCounts.set(item.ext, (extCounts.get(item.ext) ?? 0) + 1)
+    if (item.origin === 'external') {
+      const folder = dirnameOf(item.externalPath)
+      if (folder) folderCounts.set(folder, (folderCounts.get(folder) ?? 0) + 1)
+    }
+  }
+
+  return {
+    activeTotal,
+    trashTotal,
+    extCounts: [...extCounts.entries()].map(([ext, count]) => ({ ext, count })),
+    folderCounts: [...folderCounts.entries()].map(([folder, count]) => ({ folder, count }))
+  }
+}
+
+function mockFileStats(stats: FileEntryStats, refetch = vi.fn().mockResolvedValue(undefined)) {
+  mockUseQuery.mockImplementation(() => ({
+    data: stats,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    refetch,
+    mutate: vi.fn().mockResolvedValue(stats)
+  }))
+  return refetch
+}
+
 function mockFiles(entries: FileEntry[]) {
+  mockFileStats(statsForEntries(entries))
   mockUseInfiniteQuery.mockImplementation((_path, options) => ({
     pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [] : [{ items: entries }],
     isLoading: false,
@@ -171,6 +220,7 @@ describe('FilesPage keyboard rename', () => {
   })
 
   it('uses server totals for all/trash counts', () => {
+    mockFileStats({ activeTotal: 123, trashTotal: 4, extCounts: [], folderCounts: [] })
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
       const query = options?.query as { inTrash?: boolean } | undefined
       return {
@@ -190,6 +240,38 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getAllByText('123').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByText('files.trash'))
     expect(screen.getAllByText('4').length).toBeGreaterThan(0)
+  })
+
+  it('uses stats for type and folder counts before all active pages are loaded', () => {
+    mockFileStats({
+      activeTotal: 172,
+      trashTotal: 0,
+      extCounts: [
+        { ext: 'blobx', count: 95 },
+        { ext: 'md', count: 75 }
+      ],
+      folderCounts: [{ folder: '/tmp/cherry-target-folder', count: 75 }]
+    })
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = options?.query as { inTrash?: boolean } | undefined
+      return {
+        pages: query?.inTrash ? [] : [{ items: [entry], total: 172, nextCursor: 'next-page' }],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: !query?.inTrash,
+        loadNext: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    render(<FilesPage />)
+
+    expect(screen.getAllByText('172').length).toBeGreaterThan(0)
+    expect(screen.getByText('95')).toBeInTheDocument()
+    expect(screen.getAllByText('75').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('cherry-target-folder')).toBeInTheDocument()
   })
 
   it('keeps current rows visible while the sorted query is loading', () => {
@@ -261,8 +343,11 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('routes mixed active delete to trash internal files and remove external entries', () => {
-    renderFilesPage([entry, externalEntry])
+  it('routes mixed active delete to trash internal files and remove external entries', async () => {
+    const refetchStats = vi.fn().mockResolvedValue(undefined)
+    mockFiles([entry, externalEntry])
+    mockFileStats(statsForEntries([entry, externalEntry]), refetchStats)
+    render(<FilesPage />)
 
     fireEvent.click(screen.getByText('report.md'))
     fireEvent.click(screen.getByText('external.txt'), { ctrlKey: true })
@@ -270,6 +355,9 @@ describe('FilesPage file operations', () => {
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
+    await waitFor(() => {
+      expect(refetchStats).toHaveBeenCalled()
+    })
   })
 
   it('shows a toast when delete partially fails', async () => {
@@ -422,9 +510,12 @@ describe('FilesPage file operations', () => {
   })
 
   it('imports dropped files through file.import_paths', async () => {
+    const refetchStats = vi.fn().mockResolvedValue(undefined)
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
     fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
-    renderFilesPage()
+    mockFiles([entry])
+    mockFileStats(statsForEntries([entry]), refetchStats)
+    render(<FilesPage />)
 
     fireEvent.drop(screen.getByText('report.md'), {
       dataTransfer: { files: [new File(['content'], 'import.md', { type: 'text/markdown' })] }
@@ -432,6 +523,7 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.import_paths', { paths: ['/tmp/import.md'] })
+      expect(refetchStats).toHaveBeenCalled()
     })
   })
 

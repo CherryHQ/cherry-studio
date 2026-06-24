@@ -22,7 +22,7 @@ import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { FileEntryListResponse } from '@shared/data/api/schemas/files'
+import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import {
   AbsolutePathSchema,
@@ -160,6 +160,12 @@ export interface FileEntryService {
    * rows were skipped.
    */
   listCursor(query?: ListCursorQuery): Promise<FileEntryListResponse>
+
+  /**
+   * Pure-SQL aggregate counts backing the file sidebar. Counts active rows by
+   * extension and active external rows by dirname, plus active/trash totals.
+   */
+  getStats(): Promise<FileEntryStats>
 
   /**
    * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
@@ -484,6 +490,60 @@ class FileEntryServiceImpl implements FileEntryService {
         rows.length > pageSize && pageRows.length > 0
           ? encodeListCursor(pageRows[pageRows.length - 1], sortBy, sortOrder)
           : undefined
+    }
+  }
+
+  async getStats(): Promise<FileEntryStats> {
+    const db = this.getDb()
+    const [activeTotalRows, trashTotalRows, extRows, folderRows] = await Promise.all([
+      db.select({ count: count() }).from(fileEntryTable).where(isNull(fileEntryTable.deletedAt)),
+      db.select({ count: count() }).from(fileEntryTable).where(isNotNull(fileEntryTable.deletedAt)),
+      db
+        .select({ ext: fileEntryTable.ext, count: count() })
+        .from(fileEntryTable)
+        .where(isNull(fileEntryTable.deletedAt))
+        .groupBy(fileEntryTable.ext),
+      db.all<{ folder: string; count: number }>(sql`
+        WITH RECURSIVE
+          external_paths(external_path, len) AS (
+            SELECT external_path, length(external_path)
+            FROM file_entry
+            WHERE origin = 'external'
+              AND deleted_at IS NULL
+              AND external_path IS NOT NULL
+          ),
+          path_chars(external_path, len, pos, last_sep) AS (
+            SELECT external_path, len, 1, 0 FROM external_paths
+            UNION ALL
+            SELECT
+              external_path,
+              len,
+              pos + 1,
+              CASE
+                WHEN substr(external_path, pos, 1) = '/' OR substr(external_path, pos, 1) = char(92) THEN pos
+                ELSE last_sep
+              END
+            FROM path_chars
+            WHERE pos <= len
+          ),
+          folders AS (
+            SELECT substr(external_path, 1, last_sep - 1) AS folder
+            FROM path_chars
+            WHERE pos = len + 1
+              AND last_sep > 1
+          )
+        SELECT folder, count(*) AS count
+        FROM folders
+        GROUP BY folder
+        ORDER BY folder
+      `)
+    ])
+
+    return {
+      activeTotal: activeTotalRows[0]?.count ?? 0,
+      trashTotal: trashTotalRows[0]?.count ?? 0,
+      extCounts: extRows.map((row) => ({ ext: row.ext, count: row.count })),
+      folderCounts: folderRows.map((row) => ({ folder: row.folder, count: row.count }))
     }
   }
 

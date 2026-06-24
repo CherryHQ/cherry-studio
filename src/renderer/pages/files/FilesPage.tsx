@@ -8,7 +8,7 @@ import {
   EmptyState,
   Input
 } from '@cherrystudio/ui'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { ipcApi } from '@renderer/ipc'
@@ -268,6 +268,13 @@ function FilesPage() {
     limit: FILES_PAGE_LIMIT,
     swrOptions: { keepPreviousData: true }
   })
+  const {
+    data: fileStats,
+    error: fileStatsError,
+    refetch: refetchFileStats
+  } = useQuery('/files/entries/stats', {
+    swrOptions: { keepPreviousData: true }
+  })
 
   const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
   const isFilesRefreshing = isActiveFilesRefreshing || isTrashedFilesRefreshing
@@ -300,6 +307,10 @@ function FilesPage() {
   useEffect(() => {
     if (trashedFilesError) logger.error('Failed to load trashed files', trashedFilesError)
   }, [trashedFilesError])
+
+  useEffect(() => {
+    if (fileStatsError) logger.error('Failed to load file stats', fileStatsError)
+  }, [fileStatsError])
 
   useEffect(() => {
     if (displayEntries.length === 0) {
@@ -348,8 +359,8 @@ function FilesPage() {
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
     resetTrashedFiles()
-    await Promise.all([refreshActiveFiles(), refreshTrashedFiles()])
-  }, [refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
+    await Promise.all([refreshActiveFiles(), refreshTrashedFiles(), refetchFileStats()])
+  }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
@@ -460,13 +471,7 @@ function FilesPage() {
     [refetchFiles, t]
   )
 
-  const folderList = useMemo(() => {
-    const set = new Set<string>()
-    for (const f of files) {
-      if (!f.trashed && f.origin === 'external' && f.folder) set.add(f.folder)
-    }
-    return [...set].sort()
-  }, [files])
+  const folderList = useMemo(() => fileStats?.folderCounts.map((row) => row.folder).sort() ?? [], [fileStats])
 
   const filteredFiles = useMemo(() => {
     let result = files
@@ -488,29 +493,31 @@ function FilesPage() {
   }, [maybeFillClientFilteredViewport, filteredFiles.length, files.length])
 
   const fileCounts = useMemo(() => {
-    const active = files.filter((f) => !f.trashed)
     const counts: Record<string, number> = {
-      all: activeFilesTotal,
-      trash: trashedFilesTotal
+      all: fileStats?.activeTotal ?? activeFilesTotal,
+      trash: fileStats?.trashTotal ?? trashedFilesTotal
     }
-    // Per-type and per-folder counts are loaded-window approximations; the
-    // paginated list response only exposes exact totals for all/trash filters.
+
+    if (!fileStats) return counts
+
     for (const type of ['image', 'video', 'audio', 'text', 'document', 'other'] as FileType[]) {
-      counts[`type_${type}`] = active.filter((f) => f.type === type).length
+      counts[`type_${type}`] = 0
     }
-    for (const f of active) {
-      if (f.origin === 'external' && f.folder) {
-        const key = `folder:${f.folder}`
-        counts[key] = (counts[key] || 0) + 1
-      }
+    for (const { ext, count } of fileStats.extCounts) {
+      const type = getFileTypeByExt(ext ?? '')
+      counts[`type_${type}`] = (counts[`type_${type}`] ?? 0) + count
+    }
+    for (const { folder, count } of fileStats.folderCounts) {
+      counts[`folder:${folder}`] = count
     }
     return counts
-  }, [activeFilesTotal, files, trashedFilesTotal])
+  }, [activeFilesTotal, fileStats, trashedFilesTotal])
 
   const footerFileCount = useMemo(() => {
-    if (filter.kind === 'library') return filter.value === 'trash' ? trashedFilesTotal : activeFilesTotal
-    return filteredFiles.length
-  }, [activeFilesTotal, filter, filteredFiles.length, trashedFilesTotal])
+    if (filter.kind === 'library') return filter.value === 'trash' ? fileCounts.trash : fileCounts.all
+    if (filter.kind === 'type') return fileCounts[`type_${filter.value}`] ?? filteredFiles.length
+    return fileCounts[`folder:${filter.value}`] ?? filteredFiles.length
+  }, [fileCounts, filter, filteredFiles.length])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
   const batchDeleteLabel = useMemo(() => {

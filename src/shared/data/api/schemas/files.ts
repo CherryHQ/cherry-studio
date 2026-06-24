@@ -15,6 +15,7 @@
  * Endpoints:
  * - `GET /files/entries`            — FileEntry list (fixed shape)
  * - `GET /files/entries/:id`        — Single entry lookup (fixed shape)
+ * - `GET /files/entries/stats`      — Pure-SQL aggregate counts for sidebar filters
  * - `GET /files/entries/ref-counts` — Pure-SQL ref-count aggregation for a batch of ids
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
  * - `GET /files/refs`               — File references filtered by business source
@@ -97,6 +98,23 @@ export interface FileEntryListResponse extends CursorPaginationResponse<FileEntr
   total: number
 }
 
+export interface FileEntryExtCount {
+  ext: string | null
+  count: number
+}
+
+export interface FileEntryFolderCount {
+  folder: string
+  count: number
+}
+
+export interface FileEntryStats {
+  activeTotal: number
+  trashTotal: number
+  extCounts: FileEntryExtCount[]
+  folderCounts: FileEntryFolderCount[]
+}
+
 export const RefCountsQuerySchema = z.strictObject({
   entryIds: z.array(FileEntryIdSchema).max(REF_COUNTS_MAX_ENTRY_IDS)
 })
@@ -162,6 +180,22 @@ export type FileSchemas = {
     GET: {
       params: { id: FileEntryId }
       response: FileEntry
+    }
+  }
+
+  /**
+   * Aggregate counts for the file sidebar.
+   *
+   * Fixed shape and pure SQL: active/trash totals, active extension buckets,
+   * and active external folder buckets. Type buckets are intentionally NOT
+   * materialized here; renderers map `extCounts` to user-facing file types
+   * with the same shared extension classifier used by rows.
+   *
+   * @example GET /files/entries/stats
+   */
+  '/files/entries/stats': {
+    GET: {
+      response: FileEntryStats
     }
   }
 

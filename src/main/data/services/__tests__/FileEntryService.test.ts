@@ -699,6 +699,93 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('getStats', () => {
+    it('returns active extension counts, external folder counts, and trash total', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000901' as FileEntryId,
+          origin: 'internal',
+          name: 'internal-md',
+          ext: 'md',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000902' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000903' as FileEntryId,
+          origin: 'internal',
+          name: 'trashed',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: now,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000904' as FileEntryId,
+          origin: 'external',
+          name: 'a',
+          ext: 'txt',
+          size: null,
+          externalPath: '/Users/me/docs/a.txt',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000905' as FileEntryId,
+          origin: 'external',
+          name: 'b',
+          ext: 'md',
+          size: null,
+          externalPath: '/Users/me/docs/b.md',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000906' as FileEntryId,
+          origin: 'external',
+          name: 'song',
+          ext: 'mp3',
+          size: null,
+          externalPath: 'C:\\Users\\me\\Music\\song.mp3',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+
+      const stats = await fileEntryService.getStats()
+      const extCounts = new Map(stats.extCounts.map((row) => [row.ext, row.count]))
+      const folderCounts = new Map(stats.folderCounts.map((row) => [row.folder, row.count]))
+
+      expect(stats.activeTotal).toBe(5)
+      expect(stats.trashTotal).toBe(1)
+      expect(extCounts.get('md')).toBe(2)
+      expect(extCounts.get('txt')).toBe(1)
+      expect(extCounts.get('mp3')).toBe(1)
+      expect(extCounts.get(null)).toBe(1)
+      expect(folderCounts.get('/Users/me/docs')).toBe(2)
+      expect(folderCounts.get('C:\\Users\\me\\Music')).toBe(1)
+    })
+  })
+
   describe('create', () => {
     it('inserts an internal row and returns a parsed FileEntry', async () => {
       const id = '019606a0-0000-7000-8000-000000000a01' as FileEntryId

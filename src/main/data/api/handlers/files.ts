@@ -39,6 +39,10 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
     }
   },
 
+  '/files/entries/stats': {
+    GET: async () => fileEntryService.getStats()
+  },
+
   '/files/entries/ref-counts': {
     GET: async ({ query }) => {
       const { entryIds } = RefCountsQuerySchema.parse(query)
