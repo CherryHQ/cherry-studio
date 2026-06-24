@@ -64,8 +64,7 @@ pre:not(.shiki)::-webkit-scrollbar-thumb:hover {
   scrollbar-width: none !important;
 }
 
-/* FIXME: antd select 启用 popupMatchSelectWidth 时，会给虚拟列表叠加一个滚动条，
- * 前面的样式会被覆盖，因此在此强制统一样式。 */
+/* 虚拟列表滚动条会覆盖前面的全局样式，因此在此强制统一样式。 */
 .rc-virtual-list-scrollbar {
   width: var(--scrollbar-width) !important;
 }

@@ -22,7 +22,7 @@ const spin = keyframes`
 const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
   switch (status) {
     case 'completed':
-      return <CheckCircle2 size={20} color="#52c41a" /> // Antd success color
+      return <CheckCircle2 size={20} color="#52c41a" />
     case 'running':
       return (
         <SpinningIcon>
@@ -30,7 +30,7 @@ const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
         </SpinningIcon>
       )
     case 'failed':
-      return <XCircle size={20} color="#ff4d4f" /> // Antd error color
+      return <XCircle size={20} color="#ff4d4f" />
     default:
       return <Circle size={20} color="#d9d9d9" />
   }
