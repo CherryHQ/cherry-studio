@@ -135,6 +135,34 @@ describe('FilesPage keyboard rename', () => {
       expect(activeCalls.at(-1)?.[1]?.query).toMatchObject({ sortBy: 'ext', sortOrder: 'asc' })
     })
   })
+
+  it('keeps current rows visible while the sorted query is loading', () => {
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = options?.query as { inTrash?: boolean; sortBy?: string } | undefined
+      const isSortedRequest = query?.sortBy === 'ext'
+      return {
+        pages: query?.inTrash || isSortedRequest ? [] : [{ items: [entry] }],
+        isLoading: isSortedRequest,
+        isRefreshing: isSortedRequest,
+        error: undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    render(<FilesPage />)
+
+    expect(screen.getByText('report.md')).toBeInTheDocument()
+
+    const typeHeader = screen.getAllByRole('button').find((button) => button.textContent?.includes('files.type'))
+    expect(typeHeader).toBeDefined()
+    fireEvent.click(typeHeader as HTMLButtonElement)
+
+    expect(screen.getByText('report.md')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.no_match_title')).not.toBeInTheDocument()
+  })
 })
 
 describe('FilesPage image rename dialog', () => {

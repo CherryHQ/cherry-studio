@@ -18,7 +18,7 @@ import type { FilePath, FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
 import { Trash2, Upload, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { FileContextMenuActions } from './FileContextMenu'
@@ -227,7 +227,7 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: activeFilesQuery,
     limit: FILES_PAGE_LIMIT,
-    swrOptions: { keepPreviousData: false }
+    swrOptions: { keepPreviousData: true }
   })
   const {
     pages: trashedFilePages,
@@ -241,12 +241,25 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: trashedFilesQuery,
     limit: FILES_PAGE_LIMIT,
-    swrOptions: { keepPreviousData: false }
+    swrOptions: { keepPreviousData: true }
   })
 
+  const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
+  const isFilesRefreshing = isActiveFilesRefreshing || isTrashedFilesRefreshing
   const activeEntries = useInfiniteFlatItems(activeFilePages)
   const trashedEntries = useInfiniteFlatItems(trashedFilePages)
   const entries = useMemo(() => [...activeEntries, ...trashedEntries], [activeEntries, trashedEntries])
+  const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
+  const isFileQueryPending = isFilesLoading || isFilesRefreshing
+  const displayEntryCandidate =
+    entries.length === 0 && isFileQueryPending && previousNonEmptyEntriesRef.current.length > 0
+      ? previousNonEmptyEntriesRef.current
+      : entries
+  const displayEntries = useDeferredValue(displayEntryCandidate)
+
+  useEffect(() => {
+    if (entries.length > 0) previousNonEmptyEntriesRef.current = entries
+  }, [entries])
 
   useEffect(() => {
     resetActiveFiles()
@@ -262,16 +275,19 @@ function FilesPage() {
   }, [trashedFilesError])
 
   useEffect(() => {
-    if (entries.length === 0) {
-      setMetadataById({})
-      setPhysicalPathById({})
-      setDanglingStateById({})
+    if (displayEntries.length === 0) {
+      if (isFilesLoading || isFilesRefreshing) return
+      setMetadataById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+      setPhysicalPathById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+      setDanglingStateById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
       return
     }
 
     let cancelled = false
-    const ids = entries.map((entry) => entry.id)
-    const imageIds = entries.filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image').map((entry) => entry.id)
+    const ids = displayEntries.map((entry) => entry.id)
+    const imageIds = displayEntries
+      .filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image')
+      .map((entry) => entry.id)
     void Promise.all([
       requestBatchedFileRecords('file.batch_get_metadata', ids),
       requestBatchedFileRecords('file.batch_get_physical_paths', imageIds),
@@ -290,16 +306,16 @@ function FilesPage() {
     return () => {
       cancelled = true
     }
-  }, [entries])
+  }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
   const files = useMemo(
     () =>
-      entries.flatMap((entry) => {
+      displayEntries.flatMap((entry) => {
         if (entry.origin === 'external' && danglingStateById[entry.id] === 'missing') return []
         const file = toFileItem(entry, metadataById, physicalPathById)
         return file ? [file] : []
       }),
-    [entries, metadataById, physicalPathById, danglingStateById]
+    [displayEntries, metadataById, physicalPathById, danglingStateById]
   )
 
   const refetchFiles = useCallback(async () => {
@@ -587,8 +603,6 @@ function FilesPage() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [selectedIds, filter, handleDelete, renamingId, startGridRename, startInlineRename])
-
-  const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
