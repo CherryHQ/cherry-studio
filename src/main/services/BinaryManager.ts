@@ -81,6 +81,20 @@ const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.1
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
+// Single source of truth for tools shipped inside the app and extracted at
+// boot. `internal` marks infrastructure (mise) excluded from the UI probe.
+// Binary names are base names; .exe is appended on Windows at use sites.
+// NOTE: the build-time list in scripts/download-binaries.js is intentionally
+// separate — it additionally carries per-platform download URLs and checksums.
+const BUNDLED_TOOLS: Array<{ name: string; binaries: string[]; versionFile: string; internal?: boolean }> = [
+  { name: 'mise', binaries: ['mise'], versionFile: '.mise-version', internal: true },
+  { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
+  { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
+  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
+]
+
+const withExe = (name: string): string => (isWin ? `${name}.exe` : name)
+
 // Re-exported from the shared module so existing main-process call sites and
 // tests keep importing it from here.
 export { validateManagedBinary }
@@ -177,15 +191,10 @@ export class BinaryManager extends BaseService {
    */
   public probeBundled(): Record<string, string | null> {
     const binDir = application.getPath('cherry.bin')
-    // Mirror extractBundledBinaries() but skip mise (internal infrastructure).
-    const probeList: Array<{ name: string; firstBinary: string; versionFile: string }> = [
-      { name: 'bun', firstBinary: isWin ? 'bun.exe' : 'bun', versionFile: '.bun-version' },
-      { name: 'uv', firstBinary: isWin ? 'uv.exe' : 'uv', versionFile: '.uv-version' },
-      { name: 'rg', firstBinary: isWin ? 'rg.exe' : 'rg', versionFile: '.rg-version' }
-    ]
     const result: Record<string, string | null> = {}
-    for (const tool of probeList) {
-      if (!fs.existsSync(path.join(binDir, tool.firstBinary))) continue
+    // Skip mise (internal infrastructure); probe by the first expected binary.
+    for (const tool of BUNDLED_TOOLS.filter((t) => !t.internal)) {
+      if (!fs.existsSync(path.join(binDir, withExe(tool.binaries[0])))) continue
       result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
     }
     return result
@@ -197,15 +206,9 @@ export class BinaryManager extends BaseService {
     const binDir = application.getPath('cherry.bin')
     await fsp.mkdir(binDir, { recursive: true })
 
-    const tools: Array<{ name: string; binaries: string[]; versionFile: string }> = [
-      { name: 'mise', binaries: [isWin ? 'mise.exe' : 'mise'], versionFile: '.mise-version' },
-      { name: 'bun', binaries: [isWin ? 'bun.exe' : 'bun'], versionFile: '.bun-version' },
-      { name: 'uv', binaries: isWin ? ['uv.exe', 'uvx.exe'] : ['uv', 'uvx'], versionFile: '.uv-version' },
-      { name: 'rg', binaries: [isWin ? 'rg.exe' : 'rg'], versionFile: '.rg-version' }
-    ]
-
-    for (const tool of tools) {
+    for (const tool of BUNDLED_TOOLS) {
       try {
+        const binaries = tool.binaries.map(withExe)
         const versionPath = path.join(bundledDir, tool.versionFile)
         const bundledVersion = this.readVersionMarker(versionPath)
         if (!bundledVersion) {
@@ -213,7 +216,7 @@ export class BinaryManager extends BaseService {
           continue
         }
 
-        const missingBundled = tool.binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
+        const missingBundled = binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
         if (missingBundled.length > 0) {
           logger.error(
             `Expected bundled ${tool.name} binaries missing`,
@@ -227,12 +230,12 @@ export class BinaryManager extends BaseService {
         // against partial deletions / AV quarantine of secondary binaries
         // (e.g. uvx alongside uv).
         const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-        const allDestsPresent = tool.binaries.every((b) => fs.existsSync(path.join(binDir, b)))
+        const allDestsPresent = binaries.every((b) => fs.existsSync(path.join(binDir, b)))
         if (allDestsPresent && bundledVersion === installedVersion) continue
 
         // Copy each binary via dest.tmp + rename so an EBUSY on Windows
         // (binary in use) doesn't leave a half-written file at `dest`.
-        for (const bin of tool.binaries) {
+        for (const bin of binaries) {
           const src = path.join(bundledDir, bin)
           const dest = path.join(binDir, bin)
           const tmp = `${dest}.tmp-${process.pid}`
@@ -417,11 +420,23 @@ export class BinaryManager extends BaseService {
 
   private loadState(): BinaryState {
     const statePath = application.getPath('feature.binary.state_file')
+    let data: string
     try {
-      const data = fs.readFileSync(statePath, 'utf-8')
+      data = fs.readFileSync(statePath, 'utf-8')
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { tools: {} }
+      }
+      // A read error (EACCES, EIO, …) leaves nothing to recover. Throwing here
+      // would brick every boot; start empty instead and let reconcile() rebuild.
+      logger.error('Failed to read binary state, starting empty', err as Error)
+      return { tools: {} }
+    }
+
+    try {
       const parsed = JSON.parse(data)
       if (!parsed || typeof parsed !== 'object' || typeof parsed.tools !== 'object' || parsed.tools === null) {
-        return { tools: {} }
+        throw new Error('binary state has unexpected shape')
       }
       const validTools: Record<string, ToolInstallState> = {}
       for (const [key, entry] of Object.entries(parsed.tools)) {
@@ -440,11 +455,15 @@ export class BinaryManager extends BaseService {
       }
       return { tools: validTools }
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { tools: {} }
+      // Corrupt JSON or wrong shape: back up the bad file before the next
+      // saveState() overwrites it, so the failure stays diagnosable.
+      logger.error('Binary state file is corrupt, backing up and resetting', err as Error)
+      try {
+        fs.writeFileSync(statePath + '.corrupt', data)
+      } catch (backupErr) {
+        logger.warn('Failed to back up corrupt binary state', backupErr as Error)
       }
-      logger.error('Failed to load mise state', err as Error)
-      throw err
+      return { tools: {} }
     }
   }
 
