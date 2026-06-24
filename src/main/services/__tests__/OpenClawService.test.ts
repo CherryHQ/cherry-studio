@@ -51,8 +51,8 @@ vi.mock('@main/utils/shell-env', () => ({
   refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' }))
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  isUserInChina: vi.fn(() => Promise.resolve(false))
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { isInChina: vi.fn(() => Promise.resolve(false)) }
 }))
 
 vi.mock('@main/core/platform', () => ({

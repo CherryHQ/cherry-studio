@@ -3,6 +3,13 @@ import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
 
+// Pin the test timezone to UTC so date-dependent tests are deterministic on every
+// machine. CI runners default to UTC; without this, tests that bucket UTC timestamps
+// by local day (e.g. Topics "Today/Yesterday") pass in CI but fail on dev machines in
+// a non-UTC zone. Set here (main process, before workers spawn) so every thread worker
+// inherits TZ=UTC at creation and V8 parses Date in UTC from the start.
+process.env.TZ = 'UTC'
+
 const mainConfig = (electronViteConfig as any).main
 const rendererConfig = (electronViteConfig as any).renderer
 
