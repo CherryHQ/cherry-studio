@@ -22,6 +22,8 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
+  DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
+  DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
   KnowledgeBaseSchema
@@ -38,6 +40,8 @@ type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledg
 function validateKnowledgeBaseConfig(config: {
   chunkSize: number
   chunkOverlap: number
+  chunkStrategy?: string | null
+  chunkSeparator?: string | null
   searchMode?: string | null
   hybridAlpha?: number | null
 }): Record<string, string[]> {
@@ -45,6 +49,10 @@ function validateKnowledgeBaseConfig(config: {
 
   if (config.chunkOverlap >= config.chunkSize) {
     fieldErrors.chunkOverlap = ['Chunk overlap must be smaller than chunk size']
+  }
+
+  if (config.chunkStrategy === 'delimiter' && !config.chunkSeparator) {
+    fieldErrors.chunkSeparator = ['Separator is required when chunk strategy is delimiter']
   }
 
   if (config.hybridAlpha != null && config.searchMode !== 'hybrid') {
@@ -172,6 +180,8 @@ export class KnowledgeBaseService {
     const createConfig = {
       chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
+      chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
       searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
       hybridAlpha: dto.hybridAlpha
     }
@@ -191,6 +201,8 @@ export class KnowledgeBaseService {
       fileProcessorId: dto.fileProcessorId ?? null,
       chunkSize: createConfig.chunkSize,
       chunkOverlap: createConfig.chunkOverlap,
+      chunkStrategy: createConfig.chunkStrategy,
+      chunkSeparator: createConfig.chunkSeparator,
       threshold: dto.threshold ?? null,
       documentCount: dto.documentCount ?? null,
       searchMode: createConfig.searchMode,
@@ -213,11 +225,15 @@ export class KnowledgeBaseService {
     const nextConfig: {
       chunkSize: number
       chunkOverlap: number
+      chunkStrategy: KnowledgeBase['chunkStrategy']
+      chunkSeparator: KnowledgeBase['chunkSeparator']
       searchMode: KnowledgeBase['searchMode']
       hybridAlpha: number | null | undefined
     } = {
       chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
       chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
+      chunkStrategy: dto.chunkStrategy !== undefined ? dto.chunkStrategy : existing.chunkStrategy,
+      chunkSeparator: dto.chunkSeparator !== undefined ? dto.chunkSeparator : existing.chunkSeparator,
       searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
       hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
     }
@@ -250,6 +266,12 @@ export class KnowledgeBaseService {
     }
     if (nextConfig.chunkOverlap !== existing.chunkOverlap) {
       updates.chunkOverlap = nextConfig.chunkOverlap
+    }
+    if (nextConfig.chunkStrategy !== existing.chunkStrategy) {
+      updates.chunkStrategy = nextConfig.chunkStrategy
+    }
+    if (nextConfig.chunkSeparator !== existing.chunkSeparator) {
+      updates.chunkSeparator = nextConfig.chunkSeparator
     }
     if (dto.threshold !== undefined && dto.threshold !== existing.threshold) {
       updates.threshold = dto.threshold
