@@ -529,8 +529,6 @@ export type EditImageParams = {
   mask?: Buffer | Uint8Array | string
   /** 输出图像尺寸 */
   imageSize?: string
-  /** See {@link GenerateImageParams.allowAutoSize}. */
-  allowAutoSize?: boolean
   /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
   quality?: string
   /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
