@@ -376,7 +376,7 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('delays file token popover hover transitions so adjacent tokens do not steal the preview immediately', () => {
+  it('delays file token popover hover transitions so adjacent tokens do not steal the preview immediately', async () => {
     vi.useFakeTimers()
 
     try {
@@ -389,17 +389,17 @@ describe('ComposerToken', () => {
       fireEvent.mouseEnter(trigger)
       expect(popover).toHaveAttribute('data-open', 'false')
 
-      act(() => vi.advanceTimersByTime(119))
+      await act(() => vi.advanceTimersByTime(119))
       expect(popover).toHaveAttribute('data-open', 'false')
 
-      act(() => vi.advanceTimersByTime(1))
+      await act(() => vi.advanceTimersByTime(1))
       expect(popover).toHaveAttribute('data-open', 'true')
 
       fireEvent.mouseLeave(trigger)
-      act(() => vi.advanceTimersByTime(159))
+      await act(() => vi.advanceTimersByTime(159))
       expect(popover).toHaveAttribute('data-open', 'true')
 
-      act(() => vi.advanceTimersByTime(1))
+      await act(() => vi.advanceTimersByTime(1))
       expect(popover).toHaveAttribute('data-open', 'false')
     } finally {
       vi.useRealTimers()
