@@ -381,6 +381,36 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('fetches via Jina Reader without an Authorization header when no API key is configured', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: [],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    const [, init] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
+    const headers = new Headers(init?.headers)
+    expect(headers.has('authorization')).toBe(false)
+    expect(result.results[0]?.content).toBe('Reader Content')
+  })
+
   it('routes Jina fetch URL to the China mirror when the user is in mainland China', async () => {
     mocks.isUserInChina.mockResolvedValue(true)
     fetchMock.mockResolvedValue(

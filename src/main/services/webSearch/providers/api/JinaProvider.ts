@@ -129,7 +129,8 @@ export class JinaProvider extends BaseWebSearchProvider {
     const apiHost = await this.resolveRegionAwareApiHost('fetchUrls')
 
     return {
-      apiKey: this.resolveApiKey(),
+      // Jina Reader works without a key (rate-limited); a key is optional and only raises the limits.
+      apiKey: this.resolveApiKey(false),
       query: url,
       maxResults: config.maxResults,
       // Jina Reader expects the raw target URL after the host; encoding it changes the API path semantics.
@@ -160,14 +161,19 @@ export class JinaProvider extends BaseWebSearchProvider {
   }
 
   private async executeFetchUrls(context: JinaContext) {
+    const headers: Record<string, string> = {
+      ...defaultAppHeaders(),
+      Accept: 'application/json',
+      'X-Retain-Images': 'none'
+    }
+    // Only authenticate when a key is configured; Jina Reader accepts anonymous requests.
+    if (context.apiKey) {
+      headers.Authorization = `Bearer ${context.apiKey}`
+    }
+
     const response = await net.fetch(context.requestUrl, {
       method: 'GET',
-      headers: {
-        ...defaultAppHeaders(),
-        Accept: 'application/json',
-        Authorization: `Bearer ${context.apiKey}`,
-        'X-Retain-Images': 'none'
-      },
+      headers,
       signal: context.signal
     })
 
