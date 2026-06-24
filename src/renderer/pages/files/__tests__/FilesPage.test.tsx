@@ -146,6 +146,28 @@ describe('FilesPage keyboard rename', () => {
     })
   })
 
+  it('uses server totals for all/trash counts', () => {
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = options?.query as { inTrash?: boolean } | undefined
+      return {
+        pages: query?.inTrash ? [{ items: [], total: 4 }] : [{ items: [entry], total: 123 }],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    render(<FilesPage />)
+
+    expect(screen.getAllByText('123').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByText('files.trash'))
+    expect(screen.getAllByText('4').length).toBeGreaterThan(0)
+  })
+
   it('keeps current rows visible while the sorted query is loading', () => {
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
       const query = options?.query as { inTrash?: boolean; sortBy?: string } | undefined

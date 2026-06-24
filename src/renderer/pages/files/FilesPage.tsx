@@ -257,6 +257,8 @@ function FilesPage() {
   const isFilesRefreshing = isActiveFilesRefreshing || isTrashedFilesRefreshing
   const activeEntries = useInfiniteFlatItems(activeFilePages)
   const trashedEntries = useInfiniteFlatItems(trashedFilePages)
+  const activeFilesTotal = activeFilePages[0]?.total ?? activeEntries.length
+  const trashedFilesTotal = trashedFilePages[0]?.total ?? trashedEntries.length
   const entries = useMemo(() => [...activeEntries, ...trashedEntries], [activeEntries, trashedEntries])
   const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
   const isFileQueryPending = isFilesLoading || isFilesRefreshing
@@ -421,9 +423,11 @@ function FilesPage() {
   const fileCounts = useMemo(() => {
     const active = files.filter((f) => !f.trashed)
     const counts: Record<string, number> = {
-      all: active.length,
-      trash: files.filter((f) => f.trashed).length
+      all: activeFilesTotal,
+      trash: trashedFilesTotal
     }
+    // Per-type and per-folder counts are loaded-window approximations; the
+    // paginated list response only exposes exact totals for all/trash filters.
     for (const type of ['image', 'video', 'audio', 'text', 'document', 'other'] as FileType[]) {
       counts[`type_${type}`] = active.filter((f) => f.type === type).length
     }
@@ -434,7 +438,12 @@ function FilesPage() {
       }
     }
     return counts
-  }, [files])
+  }, [activeFilesTotal, files, trashedFilesTotal])
+
+  const footerFileCount = useMemo(() => {
+    if (filter.kind === 'library') return filter.value === 'trash' ? trashedFilesTotal : activeFilesTotal
+    return filteredFiles.length
+  }, [activeFilesTotal, filter, filteredFiles.length, trashedFilesTotal])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
   const batchDeleteLabel = useMemo(() => {
@@ -755,7 +764,7 @@ function FilesPage() {
 
         <div className="flex items-center gap-3 border-border/15 border-t px-4 py-1">
           <span className="text-muted-foreground/40 text-xs">
-            {t('files.footer_count', { count: filteredFiles.length })}
+            {t('files.footer_count', { count: footerFileCount })}
           </span>
           {selectedIds.size > 0 && (
             <span className="text-muted-foreground/40 text-xs">
