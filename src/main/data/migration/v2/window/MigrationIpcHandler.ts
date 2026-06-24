@@ -482,7 +482,9 @@ function rebroadcastCurrentProgress(): void {
 }
 
 /**
- * Derive completion-screen summary stats from the migration result + final progress.
+ * Seed completion-screen summary stats from the migration result + final progress.
+ * The renderer owns the user-visible migration-stage duration and may replace
+ * `durationMs` before rendering the completion screen.
  */
 function createMigrationSummary(result: MigrationResult, progress: MigrationProgress): MigrationSummary {
   return {
@@ -534,7 +536,8 @@ type BackupProgressData = { stage: string; progress: number; total: number }
  * Map a LegacyBackupManager progress tick onto the migration window's
  * `backup_progress` stage. Legacy backup already reports `progress` as a 0-100
  * percentage (`total` is 100), but normalize/clamp defensively in case that ever
- * changes. Only `overallProgress` is rendered on the backup_progress page.
+ * changes. Both `overallProgress` and `isCompressing` drive the backup_progress
+ * page (see the inline note below on the compressing hold).
  */
 function reportBackupProgress({ stage, progress, total }: BackupProgressData): void {
   const overallProgress =

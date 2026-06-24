@@ -35,10 +35,12 @@ export interface MigrationSummary {
   completedMigrators: number
   totalMigrators: number
   itemsProcessed: number
+  /** Migration-stage visible duration shown on the completion screen */
   durationMs: number
 }
 
-// Backup display metadata (set only when a new V1 backup was created)
+// Metadata for a newly created V1 backup. Beyond display, its *presence* is control state —
+// see the `backupInfo` field doc on MigrationProgress.
 export interface MigrationBackupInfo {
   createdBackupPath: string
 }
@@ -56,7 +58,12 @@ export interface MigrationProgress {
   warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
-  /** Backup display metadata; present only when a new V1 backup was created */
+  /**
+   * Set only when a *new* V1 backup was created. Beyond display, its presence is control
+   * state: main gates the forward-only back-nav guard on it (a created backup can't be
+   * un-chosen) and the renderer hides the Back button when present — so it must not be
+   * dropped or regenerated as if it were purely cosmetic.
+   */
   backupInfo?: MigrationBackupInfo
   /** True only while the V1 backup is in its compressing stage; held by the backup_progress UI */
   isCompressing?: boolean
