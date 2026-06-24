@@ -897,6 +897,16 @@ export class CodeCliService extends BaseService {
       }
     }
 
+    // Re-verify the binary is on disk before spawning. getBinaryPath() below
+    // silently falls back to the bare name when the file is missing, so without
+    // this guard we'd launch a phantom (or a same-named binary on PATH) and
+    // still report success.
+    if (!(await isBinaryExists(executableName))) {
+      const message = `${cliTool} is not available after install`
+      logger.error(message)
+      return { success: false, message, command: '' }
+    }
+
     // Get installed version (needed for qwen-code auth-type check and optional auto-update)
     let installedVersion: string | null = null
     try {

@@ -521,6 +521,11 @@ export class BinaryManager extends BaseService {
         try {
           logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
           const installedVersion = await this.installWithMise(tool)
+          // Symmetric with the skip path above: only record the install once the
+          // binary is actually runnable, otherwise it falls through to `failed`.
+          if (!(await this.isManagedBinaryReady(tool.name))) {
+            throw new Error('installed but not runnable')
+          }
           state.tools[tool.name] = {
             tool: tool.tool,
             version: installedVersion
@@ -554,6 +559,13 @@ export class BinaryManager extends BaseService {
 
     return this.withStateLock(async () => {
       const version = await this.installWithMise(tool)
+      // mise can report success while leaving the binary unrunnable (missing
+      // file, AV stripped the exec bit). Verify before persisting so we never
+      // record a phantom install — callers (CodeCliService, renderer toast)
+      // get the failure instead of a false success.
+      if (!(await this.isManagedBinaryReady(tool.name))) {
+        throw new Error(`Tool installed but not runnable: ${tool.name}`)
+      }
       const state = this.loadState()
       state.tools[tool.name] = {
         tool: tool.tool,

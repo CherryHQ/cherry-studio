@@ -188,7 +188,8 @@ describe('BinaryManager', () => {
         })
       )
 
-      // spec mismatch short-circuits before isManagedBinaryReady, so no `which` call
+      // spec mismatch short-circuits the skip-path readiness check, so the only
+      // `which` call is the post-install one verifying the tool is runnable.
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
@@ -196,6 +197,7 @@ describe('BinaryManager', () => {
           stdout: JSON.stringify({ 'github:other-org/fd': [{ version: '2.0.0' }] }),
           stderr: ''
         }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (post-install ready check)
 
       const result = await service.reconcile([{ name: 'fd', tool: 'github:other-org/fd', version: '2.0.0' }])
 
@@ -235,12 +237,14 @@ describe('BinaryManager', () => {
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use fd
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim fd
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use rg
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim rg
         .mockResolvedValueOnce({
           stdout: JSON.stringify({ 'github:BurntSushi/ripgrep': [{ version: '15.0.0' }] }),
           stderr: ''
         }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/rg\n', stderr: '' }) // which rg (ready check)
 
       const result = await service.reconcile([
         { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' },
@@ -255,6 +259,29 @@ describe('BinaryManager', () => {
       const savedState = JSON.parse(lastWriteCall[1])
       expect(savedState.tools.fd.version).toBe('10.0.0')
       expect(savedState.tools.rg.version).toBe('15.0.0')
+    })
+
+    it('marks a tool as failed (not installed) when it is not runnable after install', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // which fd -> empty -> not runnable
+
+      const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
+
+      expect(result.installed).toHaveLength(0)
+      expect(result.failed).toHaveLength(1)
+      expect(result.failed[0].name).toBe('fd')
+      expect(result.failed[0].error).toContain('not runnable')
     })
   })
 
@@ -339,12 +366,34 @@ describe('BinaryManager', () => {
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
 
       const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
 
       expect(result.version).toBe('10.0.0')
       expect(mockFs.copyFileSync).not.toHaveBeenCalled()
       expect(mockFs.chmodSync).not.toHaveBeenCalled()
+    })
+
+    it('throws and does not persist state when the binary is not runnable after install', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // which fd -> empty -> not runnable
+
+      await expect(service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).rejects.toThrow(
+        'not runnable'
+      )
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
     })
   })
 
@@ -517,6 +566,7 @@ describe('BinaryManager', () => {
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'npm:ntn': [{ version: '1.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/ntn\n', stderr: '' }) // which ntn (ready check)
 
       const result = await service.installTool({ name: 'ntn', tool: 'npm:ntn', version: '1.0.0' })
 
@@ -556,6 +606,9 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls') {
           const toolKey = args[2]
           return { stdout: JSON.stringify({ [toolKey]: [{ version: '1.0.0' }] }), stderr: '' }
+        }
+        if (args[0] === 'which') {
+          return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
         }
         return { stdout: '', stderr: '' }
       })
@@ -602,6 +655,7 @@ describe('BinaryManager', () => {
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
 
       const installHandler = (service as any).ipcHandle.mock.calls.find(
         (c: any[]) => c[0] === 'binary:install-tool'
@@ -756,6 +810,7 @@ describe('BinaryManager', () => {
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
 
       mockFs.writeFileSync.mockImplementation(() => {
         throw new Error('disk full')
