@@ -39,6 +39,7 @@ out
 mcp_server
 stats.html
 .eslintcache
+# Downloaded native binaries (mise, etc.)
 resources/binaries/
 
 # ENV

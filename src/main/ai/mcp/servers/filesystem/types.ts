@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/core/platform'
-import { toAsarUnpackedPath } from '@main/utils'
+import { isWin } from '@main/core/platform'
+import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'
@@ -621,21 +621,17 @@ export interface RipgrepResult {
   exitCode: number | null
 }
 
-export function getRipgrepBinaryPath(): string {
-  const pkgJsonPath = require.resolve('@cherrystudio/ripgrep/package.json')
-  const pkgRoot = path.dirname(pkgJsonPath)
-  const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-  const executable = isWin ? 'rg.exe' : 'rg'
-  return toAsarUnpackedPath(path.join(pkgRoot, 'vendor', 'ripgrep', `${arch}-${platform}`, executable))
+export async function getRipgrepBinaryPath(): Promise<string> {
+  return getBinaryPath('rg')
 }
 
 export async function runRipgrep(args: string[]): Promise<RipgrepResult> {
-  const ripgrepBinaryPath = getRipgrepBinaryPath()
+  const ripgrepBinaryPath = await getRipgrepBinaryPath()
 
   return new Promise((resolve) => {
     const child = spawn(ripgrepBinaryPath, args, {
       cwd: process.cwd(),
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       stdio: ['ignore', 'pipe', 'pipe']
     })
 
