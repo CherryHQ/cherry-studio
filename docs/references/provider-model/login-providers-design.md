@@ -33,11 +33,13 @@ The mistake in the first draft was a `usableInChat` boolean and a per-provider `
 
 ### 3.1 `modelListSource: 'api' | 'registry'` (default `'api'`)
 
-Whether the provider can enumerate its models over an API.
+Whether the provider's model list comes from its API or from the shipped registry.
 - `'registry'` → **codex, grok, claude-code** (catalog ships in the registry; cannot pull over API).
 - Everything else (CherryIN, Copilot, OpenAI, …) → default `'api'`, unchanged.
 
-Drives: the generic catalog seeder, hiding the "Pull" button, and reading registry models via `/providers/:providerId/models:resolve`.
+Drives **one** thing: the model-list chokepoint in main, `AiService.listModels` (`src/main/ai/AiService.ts:696`). For a `registry` provider it returns `providerRegistryService.listProviderRegistryModels({ providerId })` instead of calling the provider API; everything downstream (enrich via `:resolve`, reconcile, enable-on-models-available) is the **existing, unchanged** pull flow.
+
+The UI is untouched: the "Pull / list models" button works for every provider; a `registry` provider just receives a fixed list. **No seeder, no `:resolve` display special-case, no hidden button** — see §7. Consequence (intended): a `registry` provider starts with no models and disabled, exactly like any API provider, until the user pulls and enables — no boot-time auto-materialization.
 
 ### 3.2 `credentialSource: 'external-cli' | …` (absent = normal)
 
@@ -77,7 +79,9 @@ return rows.map((p) => ({
 }))
 ```
 
-Consumers (`useModelSelectorData`, `useMentionModelsPanel`, `ModelList`, `useProviderModelList`, and `settingsBuilder` in main) read these fields off the already-loaded provider — replacing the `isClaudeCodeProviderId` / `isAgentOnlyProviderId` calls with capability reads.
+Consumers read these fields off the already-loaded provider, replacing the `isClaudeCodeProviderId` / `isAgentOnlyProviderId` calls:
+- `modelListSource` — read in **main** by `AiService.listModels` (via `getByProviderId`, which carries the joined flag).
+- `credentialSource` — read in **renderer** (`useModelSelectorData`, `useMentionModelsPanel` for chat exclusion) and in **main** (`settingsBuilder` env strip).
 
 Rejected: (A) persist into `userProviderTable` — pollutes user data with shipped facts, needs migration/sync; (B) separate registry-metadata DataApi query — turns sync predicates into async joins at every consumer.
 
@@ -120,21 +124,23 @@ export const REQUEST_SHAPERS: Record<string, ProviderRequestShaper> = {
 
 `config.ts` gets ONE builder: `match: (p) => REQUEST_SHAPERS[p.id] != null`, builds the OpenAI-Responses config with a custom `fetch` that pulls the token from the generic OAuth service and applies the shaper. New provider = one map entry, no new builder. (This is an identity-keyed map at a single chokepoint — acceptable; it is not sold as "data-driven".)
 
-## 7. Generic catalog seeder — explicit semantics
+## 7. No seeder — the list chokepoint replaces it
 
-One `RegistryCatalogSeeder` replaces the three per-provider seeders. It iterates every registry provider with `modelListSource: 'registry'` and:
-- materializes missing registry models into `user_model` (idempotent insert, derive `group` from family, assign `orderKey`, `endpointTypes` fallback from the provider's **default endpoint** — not a hardcoded constant);
-- enables the provider **only on first materialization**;
-- on re-seed, adds only missing models and **preserves an existing user-disabled `isEnabled=false`** (the bug already fixed once for claude-code via `didFirstMaterialization`).
+The earlier draft proposed a generic catalog seeder. **Dropped.** Seeding is the wrong mechanism: it pre-materializes models into `user_model` at boot, auto-enables the provider, and needs side-effect-as-state detection (`didFirstMaterialization`) plus user-disable preservation — the exact fragility 0xfullex flagged (it already needed one follow-up fix).
+
+Instead, `registry` providers flow through the **normal pull path**, sourced from the registry at the §3.1 chokepoint:
+- **Delete** `ClaudeCodeProviderSeeder` (and never add codex/grok seeders); remove it from `seeding/index.ts`.
+- **Delete** the claude-code display special-case: `readsRegistryModels` + the `:resolve`-as-list query in `useProviderModelList.ts`, and the hidden-Pull branch in `ModelList.tsx`. (The `:resolve` endpoint stays — it is still used by `modelSync.ts` to *enrich* fetched models with registry metadata.)
+- Net: ~3 deleted files/branches, zero added. A `registry` provider gets its models the same way every provider does — the user pulls; main returns the fixed list; reconcile materializes the selected rows and enables the provider via the existing `enableProviderWhenModelsAvailable`.
 
 ## 8. Phasing (maps to the stack)
 
 **Phase 1 — #16283 (claude-code).** Lands what claude-code actually consumes; nothing OAuth-related (no consumer yet).
 - Add `modelListSource` + `credentialSource` to the registry provider schema; propagate via §4.
-- Replace `ClaudeCodeProviderSeeder` with the generic `RegistryCatalogSeeder`.
-- Replace `isClaudeCodeProviderId` / `isAgentOnlyProviderId` call sites with capability reads: env strip + chat/@-mention exclusion (`credentialSource === 'external-cli'`), model-list resolve + hide-Pull (`modelListSource === 'registry'`).
+- **Delete** `ClaudeCodeProviderSeeder` and route `AiService.listModels` to the registry for `modelListSource === 'registry'` (§3.1/§7); delete the claude-code `readsRegistryModels` / hidden-Pull display special-case.
+- Replace `isClaudeCodeProviderId` / `isAgentOnlyProviderId` call sites with capability reads: env strip + chat/@-mention exclusion (`credentialSource === 'external-cli'`).
 - Leave agent picker wire-format logic as-is (§3.4).
-- Verify: claude-code still agent-only, chat-hidden, models materialize, env stripped, user-disable preserved. Existing tests retargeted to capability paths. **This is the full response to 0xfullex.**
+- Verify: claude-code stays agent-only & chat-hidden; its model list resolves from the registry via the normal Pull (no seeder); env stripped. Existing seeder tests deleted; new test covers `listModels` returning the registry catalog for a `registry` provider. **This is the full response to 0xfullex.**
 
 **Phase 2 — #16325 (codex).** First OAuth consumer.
 - Generalize `CherryInOauthService` with the loopback transport (§5); codex consumes it. Delete `CodexOauthService`.
