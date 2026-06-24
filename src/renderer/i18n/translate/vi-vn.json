@@ -2767,6 +2767,8 @@
       "chunk_overlap_invalid": "Độ chồng lấn của đoạn phải lớn hơn hoặc bằng 0",
       "chunk_overlap_must_be_smaller": "Độ chồng lấn của chunk phải nhỏ hơn kích thước chunk",
       "chunk_overlap_requires_chunk_size": "Kích thước chunk là bắt buộc khi đặt chồng lấn chunk",
+      "chunk_separator": "[to be translated]:Separator",
+      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "Kích thước khối",
       "chunk_size_change_warning": "Kích thước chunk và chồng lấn chỉ áp dụng cho nội dung mới được thêm vào",
       "chunk_size_invalid": "Kích thước chunk phải lớn hơn 0",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "Xử lý tệp chạy tự động trong quá trình nhập tài liệu. Việc chọn nhà cung cấp phù hợp có thể cải thiện chất lượng phân tích tài liệu.",
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
+        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Số lượng token mục tiêu cho mỗi đoạn tài liệu. Điều này ảnh hưởng đến độ chi tiết khi truy xuất và độ dài ngữ cảnh.",
         "document_count": "Số lượng tối đa các đoạn tài liệu được trả về cho mỗi lần truy xuất. Giá trị cao hơn sẽ bao phủ nhiều nội dung hơn nhưng sử dụng nhiều ngữ cảnh hơn.",
         "embedding_model": "Dùng để chuyển nội dung cơ sở kiến thức thành các vector. Việc thay đổi mô hình thường đòi hỏi lập chỉ mục lại nội dung hiện có.",
@@ -2786,6 +2789,7 @@
         "processor": "Trình phân tích được sử dụng khi nhập tệp để trích xuất văn bản chính, bảng và nội dung liên quan.",
         "rerank_model": "Mô hình được sử dụng để xếp hạng lại kết quả truy xuất ban đầu và cải thiện độ liên quan của đoạn cuối cùng.",
         "search_mode": "Chọn một chế độ truy xuất: tìm kiếm vector để khớp ngữ nghĩa, tìm kiếm toàn văn cho từ khóa, hoặc tìm kiếm lai cho cả hai.",
+        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Ngưỡng độ tương đồng để lọc các đoạn có độ liên quan thấp. Giá trị cao hơn sẽ làm cho việc truy xuất trở nên nghiêm ngặt hơn.",
         "threshold_disabled": "Chế độ truy xuất này trả về kết quả có thứ tự và không sử dụng ngưỡng độ tương đồng."
       },
@@ -2805,6 +2809,7 @@
         "vector": "Tìm kiếm Vector"
       },
       "separator_rule": "Quy tắc phân cách",
+      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "Ngưỡng Độ Tương Đồng",
       "tokens_unit": "mã thông báo"
     },
@@ -4745,6 +4750,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -6734,6 +6740,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Hiển thị thêm {{count}} mô hình",
+        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
@@ -7073,6 +7080,17 @@
           "backup": "Miền dự phòng",
           "international": "Tên miền quốc tế"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",

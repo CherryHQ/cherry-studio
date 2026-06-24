@@ -7082,9 +7082,11 @@
         }
       },
       "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
         "description": "使用 Claude 訂閱登入",
         "description_detail": "此供應商複用 Claude Code CLI 的登入資訊（Claude Pro/Max），僅供 Agent 使用。請開啟終端機執行 `claude` 完成登入。",
         "launch_failed": "開啟終端機失敗，請手動執行 `claude` 登入。",
+        "legal_link": "[to be translated]:Legal & Compliance",
         "logged_in": "已登入 Claude Code",
         "logged_in_detail": "Agent 將使用你的 Claude Code CLI 訂閱憑證。",
         "open_terminal": "開啟終端機登入",

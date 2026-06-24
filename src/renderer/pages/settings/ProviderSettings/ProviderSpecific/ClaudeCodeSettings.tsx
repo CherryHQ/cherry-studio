@@ -6,9 +6,13 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
+
+const LEGAL_AND_COMPLIANCE_URL = 'https://code.claude.com/docs/en/legal-and-compliance'
+
 const logger = loggerService.withContext('ClaudeCodeSettings')
 
-const LOGIN_COMMAND = 'claude'
+const LOGIN_COMMAND = 'claude /login'
 
 interface ClaudeCodeSettingsProps {
   providerId: string
@@ -67,7 +71,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
   // than the sign-in panel, so an already-signed-in user doesn't see it flash.
   if (loggedIn === null) {
     return (
-      <div className="flex items-center gap-2 pt-3.75 text-foreground-muted text-xs">
+      <div className="flex items-center gap-2 text-foreground-muted text-xs">
         <RefreshCw className="size-4 animate-spin" aria-hidden />
         {t('common.loading')}
       </div>
@@ -75,7 +79,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
   }
 
   return (
-    <div className="flex flex-col gap-3 pt-3.75">
+    <div className="flex flex-col gap-3">
       {loggedIn ? (
         <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
@@ -119,6 +123,12 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
           </div>
         </div>
       )}
+      <div className="text-foreground-muted text-xs">
+        {t('settings.provider.claude_code.agent_only_note')}{' '}
+        <ProviderHelpLink className="mx-0" href={LEGAL_AND_COMPLIANCE_URL} target="_blank" rel="noreferrer">
+          {t('settings.provider.claude_code.legal_link')}
+        </ProviderHelpLink>
+      </div>
     </div>
   )
 }

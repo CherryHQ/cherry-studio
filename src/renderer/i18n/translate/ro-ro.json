@@ -2767,6 +2767,8 @@
       "chunk_overlap_invalid": "Suprapunerea fragmentelor trebuie să fie mai mare sau egală cu 0",
       "chunk_overlap_must_be_smaller": "Suprapunerea fragmentelor trebuie să fie mai mică decât dimensiunea fragmentului",
       "chunk_overlap_requires_chunk_size": "Dimensiunea chunk-ului este obligatorie când suprapunerea chunk-ului este setată",
+      "chunk_separator": "[to be translated]:Separator",
+      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "Dimensiunea blocului",
       "chunk_size_change_warning": "Modificările dimensiunii și suprapunerii blocurilor se aplică doar conținutului nou adăugat",
       "chunk_size_invalid": "Dimensiunea fragmentului trebuie să fie mai mare decât 0",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "Procesarea fișierelor se execută automat în timpul importului documentului. Alegerea furnizorului potrivit poate îmbunătăți calitatea analizei documentelor.",
       "hints": {
         "chunk_overlap": "Numărul de token-uri suprapuse păstrate între fragmentele adiacente pentru a reduce rupturile semantice.",
+        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Numărul țintă de tokeni pentru fiecare fragment de document. Acest lucru afectează granularitatea recuperării și lungimea contextului.",
         "document_count": "Numărul maxim de fragmente de document returnate pentru fiecare recuperare. Valori mai mari acoperă mai mult conținut, dar folosesc mai mult context.",
         "embedding_model": "Folosit pentru a converti conținutul bazei de cunoștințe în vectori. Schimbarea modelului necesită de obicei reindexarea conținutului existent.",
@@ -2786,6 +2789,7 @@
         "processor": "Parser utilizat la importul fișierelor pentru extragerea textului principal, tabelelor și conținutului aferent.",
         "rerank_model": "Model folosit pentru reordonarea rezultatelor inițiale de recuperare și îmbunătățirea relevanței fragmentelor finale.",
         "search_mode": "Alegeți un mod de recuperare: căutare vectorială pentru potrivire semantică, căutare text complet pentru cuvinte cheie sau căutare hibridă pentru ambele.",
+        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă.",
         "threshold_disabled": "Acest mod de recuperare returnează rezultate ordonate și nu utilizează un prag de similaritate."
       },
@@ -2805,6 +2809,7 @@
         "vector": "Căutare Vectorială"
       },
       "separator_rule": "Regula Separator",
+      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "Prag de similaritate",
       "tokens_unit": "tokeni"
     },
@@ -4745,6 +4750,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -6734,6 +6740,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Afișează încă {{count}} modele",
+        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Reîmprospătează lista modelelor",
         "reload_catalog": "Refresh list",
@@ -7073,6 +7080,17 @@
           "backup": "Domeniu de rezervă",
           "international": "Domeniu internațional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",

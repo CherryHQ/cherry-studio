@@ -7082,9 +7082,11 @@
         }
       },
       "claude_code": {
+        "agent_only_note": "Claude Code 提供商仅供 Agent 使用，无法在聊天或助手中使用。",
         "description": "使用 Claude 订阅登录",
-        "description_detail": "该提供商复用 Claude Code CLI 的登录信息（Claude Pro/Max），仅供 Agent 使用。请打开终端运行 `claude` 完成登录。",
-        "launch_failed": "打开终端失败，请手动运行 `claude` 登录。",
+        "description_detail": "该提供商复用 Claude Code CLI 的登录信息（Claude Pro/Max），仅供 Agent 使用。请打开终端运行 `claude /login` 完成登录。",
+        "launch_failed": "打开终端失败，请手动运行 `claude /login` 登录。",
+        "legal_link": "法律与合规",
         "logged_in": "已登录 Claude Code",
         "logged_in_detail": "Agent 将使用你的 Claude Code CLI 订阅凭据。",
         "open_terminal": "打开终端登录",

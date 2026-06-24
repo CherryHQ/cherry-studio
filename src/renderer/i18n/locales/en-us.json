@@ -7082,9 +7082,11 @@
         }
       },
       "claude_code": {
+        "agent_only_note": "The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
         "description": "Sign in with your Claude subscription",
-        "description_detail": "This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude` to sign in.",
-        "launch_failed": "Failed to open the terminal. Run `claude` manually to sign in.",
+        "description_detail": "This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "Legal & Compliance",
         "logged_in": "Signed in to Claude Code",
         "logged_in_detail": "Agents will use your Claude Code CLI subscription credentials.",
         "open_terminal": "Open terminal to sign in",

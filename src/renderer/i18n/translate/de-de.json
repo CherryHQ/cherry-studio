@@ -2767,6 +2767,8 @@
       "chunk_overlap_invalid": "Der Chunk-Überlapp muss größer oder gleich 0 sein",
       "chunk_overlap_must_be_smaller": "Der Chunk-Overlap muss kleiner als die Chunk-Größe sein.",
       "chunk_overlap_requires_chunk_size": "Chunk-Größe ist erforderlich, wenn Chunk-Überlappung festgelegt ist",
+      "chunk_separator": "[to be translated]:Separator",
+      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "Chunk-Größe",
       "chunk_size_change_warning": "Änderungen an Chunk-Größe und Überlappung gelten nur für neu hinzugefügte Inhalte.",
       "chunk_size_invalid": "Die Chunk-Größe muss größer als 0 sein",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
+        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
@@ -2786,6 +2789,7 @@
         "processor": "Parser, der beim Import von Dateien verwendet wird, um Fließtext, Tabellen und verwandte Inhalte zu extrahieren.",
         "rerank_model": "Modell zur Neusortierung der anfänglichen Abrufergebnisse und zur Verbesserung der Relevanz der endgültigen Blöcke.",
         "search_mode": "Wählen Sie einen Abrufmodus: Vektorsuche für semantisches Matching, Volltextsuche für Schlüsselwörter oder hybride Suche für beides.",
+        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger.",
         "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
       },
@@ -2805,6 +2809,7 @@
         "vector": "Vektorsuche"
       },
       "separator_rule": "Trennregel",
+      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "Ähnlichkeitsschwelle",
       "tokens_unit": "Token"
     },
@@ -4745,6 +4750,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
     "deepseek": "DeepSeek",
@@ -6734,6 +6740,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Zeige {{count}} weitere Modelle",
+        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Modellliste erneut abrufen",
         "reload_catalog": "Refresh list",
@@ -7073,6 +7080,17 @@
           "backup": "Sicherungsdomäne",
           "international": "Internationale Domäne"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
