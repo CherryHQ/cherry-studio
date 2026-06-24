@@ -47,8 +47,8 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  getIpCountry: vi.fn(() => 'US')
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { getCountry: vi.fn(() => 'US') }
 }))
 
 vi.mock('@main/utils/language', () => ({
