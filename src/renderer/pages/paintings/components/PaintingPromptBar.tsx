@@ -188,7 +188,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
           value={painting.prompt || ''}
           spellCheck={false}
           className={cn(
-            'min-h-19 flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none',
+            'min-h-19 max-h-40 flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none',
             'placeholder:text-muted-foreground/55 focus-visible:ring-0'
           )}
           placeholder={t('paintings.prompt_placeholder')}
