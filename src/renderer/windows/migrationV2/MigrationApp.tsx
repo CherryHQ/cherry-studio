@@ -15,7 +15,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { isMac } from '@renderer/config/constant'
@@ -31,10 +32,13 @@ import {
   Database,
   FolderOpen,
   Loader2,
+  Monitor,
+  Moon,
   Rocket,
   RotateCcw,
   Shield,
   Sparkles,
+  Sun,
   Wrench,
   X
 } from 'lucide-react'
@@ -281,6 +285,13 @@ const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenCha
   )
 }
 
+const THEME_STORAGE_KEY = 'migration:theme_mode'
+const themeLabelKey: Record<string, string> = {
+  dark: 'settings.theme.dark',
+  light: 'settings.theme.light',
+  system: 'settings.theme.system'
+}
+
 const MigrationApp: React.FC = () => {
   const { t, i18n } = useTranslation()
   const { progress, lastError, returnToIntroduction, returnToBackupChoice } = useMigrationProgress()
@@ -298,6 +309,25 @@ const MigrationApp: React.FC = () => {
   const [backupCompressionDelayed, setBackupCompressionDelayed] = useState(false)
   const startGuardRef = useRef(false)
   const isBackupCompressing = progress.stage === 'backup_progress' && progress.isCompressing === true
+
+  const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
+  const toggleTheme = () => {
+    const next = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'system' : 'light'
+    setThemeMode(next)
+    localStorage.setItem(THEME_STORAGE_KEY, next)
+  }
+  useEffect(() => {
+    const resolved =
+      themeMode === 'light' || themeMode === 'dark'
+        ? themeMode
+        : window.matchMedia?.('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+    const root = document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(resolved)
+  }, [themeMode])
+  const ThemeIcon = themeMode === 'dark' ? Moon : themeMode === 'light' ? Sun : Monitor
 
   // Main intercepts an in-flow-stage close (native traffic light / Cmd+Q / custom button) and
   // asks the renderer to show its in-app confirmation dialog here, so the prominent styling
@@ -796,7 +826,7 @@ const MigrationApp: React.FC = () => {
         <div
           data-migration-language-select=""
           className={cn(
-            '-translate-y-1/2 absolute top-1/2 z-10 w-fit [-webkit-app-region:no-drag]',
+            '-translate-y-1/2 absolute top-1/2 z-10 flex items-center gap-1 [-webkit-app-region:no-drag]',
             isMac ? 'right-3' : 'left-3'
           )}>
           <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
@@ -811,6 +841,15 @@ const MigrationApp: React.FC = () => {
               <SelectItem value="en-US">English</SelectItem>
             </SelectContent>
           </Select>
+          <Tooltip content={t(themeLabelKey[themeMode] ?? themeLabelKey.system)} delay={800}>
+            <button
+              type="button"
+              aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
+              onClick={toggleTheme}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-muted/40 hover:text-foreground">
+              <ThemeIcon size={14} strokeWidth={1.6} />
+            </button>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-2">
           <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />

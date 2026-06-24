@@ -104,7 +104,8 @@ vi.mock('@cherrystudio/ui', () => {
     SelectContent: passthrough('div', 'select-content'),
     SelectItem: passthrough('div', 'select-item'),
     SelectTrigger: passthrough('button', 'select-trigger'),
-    SelectValue: () => React.createElement('span', { 'data-testid': 'select-value' })
+    SelectValue: () => React.createElement('span', { 'data-testid': 'select-value' }),
+    Tooltip: ({ children }: MockChildrenProps) => children
   }
 })
 
@@ -246,7 +247,7 @@ describe('MigrationApp', () => {
     const languageTrigger = screen.getByRole('button', { name: 'migration.language.select' })
     const languageContainer = languageTrigger.closest('[data-migration-language-select]')
 
-    expect(languageContainer).toHaveClass('w-fit')
+    expect(languageContainer).toHaveClass('flex', 'items-center', 'gap-1')
     expect(languageTrigger).toHaveClass(
       'w-auto',
       'border-0',

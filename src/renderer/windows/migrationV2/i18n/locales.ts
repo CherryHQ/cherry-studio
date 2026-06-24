@@ -4,6 +4,13 @@
  */
 
 export const zhCN = {
+  settings: {
+    theme: {
+      dark: '深色模式',
+      light: '浅色模式',
+      system: '跟随系统'
+    }
+  },
   migration: {
     title: '数据迁移向导',
     stages: {
@@ -143,6 +150,13 @@ export const zhCN = {
 }
 
 export const enUS = {
+  settings: {
+    theme: {
+      dark: 'Dark mode',
+      light: 'Light mode',
+      system: 'System'
+    }
+  },
   migration: {
     title: 'Data Migration Wizard',
     stages: {
