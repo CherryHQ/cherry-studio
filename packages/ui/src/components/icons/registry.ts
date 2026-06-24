@@ -45,7 +45,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/(qwen|qwq|qvq|wan|z-image)/i, 'qwen'],
   [/glm/i, 'glm'],
   [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
-  [/hunyuan/i, 'hunyuan'],
+  [/hunyuan|hy\d/i, 'hunyuan'],
   [/kimi|moonshot/i, 'kimi'],
   // Other model-specific icons
   [/grok/i, 'grok'],
