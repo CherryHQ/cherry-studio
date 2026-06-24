@@ -3,7 +3,8 @@ import '@testing-library/jest-dom/vitest'
 
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
-import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
+import { IpcError } from '@shared/ipc/errors'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -496,7 +497,7 @@ describe('FilesPage file operations', () => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.open') return Promise.reject(new IpcError(IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE))
+      if (route === 'file.open') return Promise.reject(new IpcError(fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE))
       if (route === 'file.show_in_folder') return Promise.resolve(undefined)
       return Promise.resolve(input)
     })

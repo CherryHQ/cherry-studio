@@ -6,7 +6,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import type { FileEntryId } from '@shared/data/types/file'
-import { IpcErrorCode } from '@shared/ipc/errors'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -249,7 +249,7 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
-    await expect(fm.open(id)).rejects.toMatchObject({ code: IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE })
+    await expect(fm.open(id)).rejects.toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
     expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
   })
 
@@ -266,7 +266,7 @@ describe('FileManager (integration)', () => {
       expect(entry.name).toBe(expectedName)
       expect(entry.ext).toBe('exe')
 
-      await expect(fm.open(entry.id)).rejects.toMatchObject({ code: IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE })
+      await expect(fm.open(entry.id)).rejects.toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
       expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
     }
   )

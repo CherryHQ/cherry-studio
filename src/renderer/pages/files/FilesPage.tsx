@@ -13,7 +13,8 @@ import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
+import { IpcError } from '@shared/ipc/errors'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath, FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
@@ -435,7 +436,7 @@ function FilesPage() {
   const handleOpen = useCallback(
     (file: FileItem) => {
       void ipcApi.request('file.open', { id: file.id }).catch((error) => {
-        if (error instanceof IpcError && error.code === IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE) {
+        if (error instanceof IpcError && error.code === fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE) {
           logger.warn('Blocked unsafe default-open; falling back to show in folder', { id: file.id })
           void ipcApi
             .request('file.show_in_folder', { id: file.id })

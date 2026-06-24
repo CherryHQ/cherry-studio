@@ -56,13 +56,12 @@ describe('IpcError', () => {
 })
 
 describe('IpcErrorCode', () => {
-  it('is the single source of truth for known framework and domain-prefixed error codes', () => {
+  it('is the single source of truth for known framework error codes', () => {
     expect(IpcErrorCode).toEqual({
       ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
       VALIDATION_FAILED: 'VALIDATION_FAILED',
       FORBIDDEN_SENDER: 'FORBIDDEN_SENDER',
-      INTERNAL: 'INTERNAL',
-      FILE_OPEN_BLOCKED_UNSAFE_TYPE: 'FILE_OPEN_BLOCKED_UNSAFE_TYPE'
+      INTERNAL: 'INTERNAL'
     })
   })
 
