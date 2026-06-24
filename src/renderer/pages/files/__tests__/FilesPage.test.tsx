@@ -108,6 +108,16 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByDisplayValue('report.md')).not.toBeInTheDocument()
   })
 
+  it('does not call rename when inline rename value is unchanged', () => {
+    renderFilesPage()
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.keyDown(document, { key: 'Enter' })
+    fireEvent.blur(screen.getByDisplayValue('report.md'))
+
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.rename', expect.anything())
+  })
+
   it('ignores Enter shortcuts from interactive controls', () => {
     renderFilesPage()
 

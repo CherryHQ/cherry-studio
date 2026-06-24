@@ -509,8 +509,12 @@ function FilesPage() {
         return
       }
 
-      const entryName = stripCurrentExtension(newName, file.format).trim()
+      const entryName = stripCurrentExtension(newName.trim(), file.format).trim()
       if (!entryName) {
+        setRenamingId(null)
+        return
+      }
+      if (entryName === stripCurrentExtension(file.name, file.format).trim()) {
         setRenamingId(null)
         return
       }
