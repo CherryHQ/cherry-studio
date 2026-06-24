@@ -7498,6 +7498,14 @@
           "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
         },
         "fetch_urls_provider": "預設 URL 擷取供應商",
+        "firecrawl": {
+          "api_key": {
+            "label": "Firecrawl API 金鑰",
+            "placeholder": "請輸入 Firecrawl API 金鑰（每月免 key 額度內可留空）"
+          },
+          "description": "Firecrawl 是一個專為大語言模型設計的網頁抓取與搜尋工具，能夠將整站或特定網頁轉換為乾淨的 Markdown 格式。",
+          "title": "Firecrawl"
+        },
         "free": "免費",
         "is_default": "預設",
         "local_provider": {
@@ -7514,6 +7522,7 @@
           "exa": "為 AI 應用設計的神經搜尋 API，擅長語意檢索高品質網頁。",
           "exa_mcp": "透過 Exa MCP Server 將 Exa 搜尋能力暴露給智能體工具呼叫。",
           "fetch": "內建 URL 擷取供應商，用於從指定 URL 擷取網頁內容，適合補全搜尋結果正文。",
+          "firecrawl": "Firecrawl 網頁抓取與搜尋服務，支援將網頁轉換為 Markdown 格式。",
           "jina": "Jina Reader 搜尋與閱讀介面，用於檢索並提取網頁正文。",
           "querit": "面向 AI 應用的搜尋服務，提供可接入的網頁檢索結果。",
           "searxng": "可自架的免費網際網路元搜尋引擎，聚合多個搜尋來源。",
