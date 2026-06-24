@@ -352,8 +352,7 @@ describe('runDbSweep (umbrella + observability)', () => {
       origin: 'internal',
       name: 't',
       ext: 'txt',
-      size: 1,
-      externalPath: null
+      size: 1
     })
     await fileRefService.create({
       fileEntryId: tempEntryId,
@@ -790,8 +789,7 @@ describe('runFileSweep (FS-level)', () => {
       origin: 'internal',
       name: 'doomed-if-filter-creeps-in',
       ext: 'txt',
-      size: 1,
-      externalPath: null
+      size: 1
     })
     await writeFile(trashedPath, 'x')
     // 2) Move to trash via the service (sets deletedAt; row stays in DB).

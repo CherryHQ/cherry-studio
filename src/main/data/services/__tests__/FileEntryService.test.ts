@@ -599,8 +599,7 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 'note',
         ext: 'txt',
-        size: 11,
-        externalPath: null
+        size: 11
       })
       expect(entry.id).toBe(id)
       expect(entry.origin).toBe('internal')
@@ -612,13 +611,10 @@ describe('FileEntryService', () => {
     })
 
     it('inserts an external row with size=null in DB; size absent on BO projection', async () => {
-      const id = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
       const entry = await fileEntryService.create({
-        id,
         origin: 'external',
         name: 'doc',
         ext: 'pdf',
-        size: null,
         externalPath: '/Users/me/doc.pdf'
       })
       // BO shape: external variant has no `size` field at all (live values
@@ -630,21 +626,36 @@ describe('FileEntryService', () => {
       }
     })
 
-    it('throws when external row has non-null size (CHECK fe_size_internal_only)', async () => {
-      const id = '019606a0-0000-7000-8000-000000000a03' as FileEntryId
+    it('throws when external row has non-null size (schema mirrors fe_size_internal_only)', async () => {
       await expect(
         fileEntryService.create({
-          id,
           origin: 'external',
           name: 'doc',
           ext: 'pdf',
           size: 100,
           externalPath: '/Users/me/doc2.pdf'
-        })
+        } as never)
       ).rejects.toThrow()
     })
 
-    it('throws when internal row has externalPath (CHECK fe_origin_consistency)', async () => {
+    it('rejects unsafe ext BEFORE the SQL INSERT commits', async () => {
+      const id = '019606a0-0000-7000-8000-000000000a05' as FileEntryId
+
+      await expect(
+        fileEntryService.create({
+          id,
+          origin: 'internal',
+          name: 'payload',
+          ext: 'exe ',
+          size: 1
+        })
+      ).rejects.toThrow()
+
+      const raw = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw).toHaveLength(0)
+    })
+
+    it('throws when internal row has externalPath (schema mirrors fe_origin_consistency)', async () => {
       const id = '019606a0-0000-7000-8000-000000000a04' as FileEntryId
       await expect(
         fileEntryService.create({
@@ -653,8 +664,8 @@ describe('FileEntryService', () => {
           name: 'note',
           ext: 'txt',
           size: 1,
-          externalPath: '/some/path' as string
-        })
+          externalPath: '/some/path'
+        } as never)
       ).rejects.toThrow()
     })
   })
@@ -662,7 +673,7 @@ describe('FileEntryService', () => {
   describe('update', () => {
     it('updates name and refreshes updatedAt', async () => {
       const id = '019606a0-0000-7000-8000-000000000b01' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1 })
       const original = await fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
       const updated = await fileEntryService.update(id, { name: 'new' })
@@ -686,7 +697,7 @@ describe('FileEntryService', () => {
 
     it('updates deletedAt for soft delete', async () => {
       const id = '019606a0-0000-7000-8000-000000000b02' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1 })
       const deletedAt = Date.now()
       const updated = await fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
@@ -694,16 +705,13 @@ describe('FileEntryService', () => {
     })
 
     it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {
-      const id = '019606a0-0000-7000-8000-000000000b03' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'ext',
         ext: 'txt',
-        size: null,
         externalPath: '/x/y.txt'
       })
-      await expect(fileEntryService.update(id, { deletedAt: Date.now() })).rejects.toThrow()
+      await expect(fileEntryService.update(entry.id, { deletedAt: Date.now() })).rejects.toThrow()
     })
 
     it('rejects unsafe name BEFORE the SQL UPDATE commits', async () => {
@@ -714,12 +722,22 @@ describe('FileEntryService', () => {
       // row back with a raw SELECT after the rejection and asserting the
       // `name` column is unchanged.
       const id = '019606a0-0000-7000-8000-000000000b04' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
 
       await expect(fileEntryService.update(id, { name: 'has\0null' })).rejects.toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
       expect(raw?.name).toBe('safe')
+    })
+
+    it('rejects unsafe ext BEFORE the SQL UPDATE commits', async () => {
+      const id = '019606a0-0000-7000-8000-000000000b05' as FileEntryId
+      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
+
+      await expect(fileEntryService.update(id, { ext: 'txt.' })).rejects.toThrow()
+
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.ext).toBe('txt')
     })
   })
 
@@ -744,18 +762,16 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 'a',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
       await fileEntryService.create({
         id: trashed,
         origin: 'internal',
         name: 't',
         ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: Date.now()
+        size: 1
       })
+      await fileEntryService.update(trashed, { deletedAt: Date.now() })
 
       const ids = await fileEntryService.listAllIds()
       expect(ids).toBeInstanceOf(Set)
@@ -773,15 +789,13 @@ describe('FileEntryService', () => {
     // miles downstream in the rename orchestrator.
 
     it('returns the refreshed row with new path and name', async () => {
-      const id = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'old-doc',
         ext: 'pdf',
-        size: null,
         externalPath: '/Users/me/old-doc.pdf'
       })
+      const id = entry.id
       const original = await fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
 
@@ -822,21 +836,18 @@ describe('FileEntryService', () => {
       // Same regression class as the `update` typed-name guard: an unsafe
       // name must not reach SQLite, otherwise the row gets stuck past
       // `rowToFileEntry` parse. Raw SELECT proves the row stayed unchanged.
-      const id = '019606a0-0000-7000-8000-000000000d20' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'safe',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/safe.txt'
       })
 
       await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
       ).rejects.toThrow()
 
-      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
       expect(raw?.name).toBe('safe')
       expect(raw?.externalPath).toBe('/Users/me/safe.txt')
     })
@@ -846,21 +857,18 @@ describe('FileEntryService', () => {
       // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
       // catches null bytes / non-absolute paths regardless of whether the
       // caller went through `canonicalizeExternalPath` or `as`-cast.
-      const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'safe',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/safe.txt'
       })
 
       await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
       ).rejects.toThrow()
 
-      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
       expect(raw?.name).toBe('safe')
       expect(raw?.externalPath).toBe('/Users/me/safe.txt')
     })
@@ -870,22 +878,16 @@ describe('FileEntryService', () => {
       // unique index rejects the second UPDATE with a SQLite constraint
       // failure. Callers that catch only "not found"-shaped errors would
       // otherwise see this as an unhandled rejection.
-      const a = '019606a0-0000-7000-8000-000000000d10' as FileEntryId
-      const b = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
       await fileEntryService.create({
-        id: a,
         origin: 'external',
         name: 'a',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/a.txt'
       })
-      await fileEntryService.create({
-        id: b,
+      const b = await fileEntryService.create({
         origin: 'external',
         name: 'b',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/b.txt'
       })
 
@@ -895,7 +897,7 @@ describe('FileEntryService', () => {
       // catching only that branch will correctly surface this case as
       // unexpected and bubble it up.
       const err = await fileEntryService
-        .setExternalPathAndName(b, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
+        .setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
         .then(
           () => null,
           (e: Error) => e
@@ -903,7 +905,7 @@ describe('FileEntryService', () => {
       expect(err).toBeInstanceOf(Error)
       expect(err?.message).not.toMatch(/not found/i)
       // The conflicting entry is unchanged after the failed mutation
-      const refetched = await fileEntryService.getById(b)
+      const refetched = await fileEntryService.getById(b.id)
       if (refetched.origin !== 'external') throw new Error('expected external entry')
       expect(refetched.externalPath).toBe('/Users/me/b.txt')
     })
@@ -912,7 +914,7 @@ describe('FileEntryService', () => {
   describe('delete', () => {
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1 })
       await fileEntryService.delete(id)
       expect(await fileEntryService.findById(id)).toBeNull()
     })
@@ -946,16 +948,14 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 'r',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
       await fileEntryService.create({
         id: orphan,
         origin: 'internal',
         name: 'o',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
       await seedRef(referenced)
 
@@ -966,26 +966,22 @@ describe('FileEntryService', () => {
 
     it('honours the optional origin filter', async () => {
       const internalOrphan = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
-      const externalOrphan = '019606a0-0000-7000-8000-000000000d12' as FileEntryId
       await fileEntryService.create({
         id: internalOrphan,
         origin: 'internal',
         name: 'i',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
-      await fileEntryService.create({
-        id: externalOrphan,
+      const externalOrphan = await fileEntryService.create({
         origin: 'external',
         name: 'e',
         ext: 'txt',
-        size: null,
         externalPath: '/abs/orphan.txt' as CanonicalExternalPath
       })
 
       const externalsOnly = await fileEntryService.findUnreferenced({ origin: 'external' })
-      expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan])
+      expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan.id])
 
       const internalsOnly = await fileEntryService.findUnreferenced({ origin: 'internal' })
       expect(internalsOnly.map((e) => e.id)).toEqual([internalOrphan])
@@ -998,10 +994,9 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 't',
         ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: Date.now()
+        size: 1
       })
+      await fileEntryService.update(id, { deletedAt: Date.now() })
 
       const result = await fileEntryService.findUnreferenced()
       expect(result.find((e) => e.id === id)).toBeUndefined()

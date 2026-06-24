@@ -253,6 +253,24 @@ describe('FileManager (integration)', () => {
     expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['trailing space', 'report.exe ', 'report'],
+    ['trailing dot', 'payload.exe.', 'payload']
+  ])(
+    'INT-3f.%s: external entry creation normalizes the effective dangerous extension before open',
+    async (_label, fileName, expectedName) => {
+      const file = path.join(tmp, fileName)
+      await writeFile(file, 'payload')
+
+      const entry = await fm.ensureExternalEntry({ externalPath: file as never })
+      expect(entry.name).toBe(expectedName)
+      expect(entry.ext).toBe('exe')
+
+      await expect(fm.open(entry.id)).rejects.toMatchObject({ code: IpcErrorCode.FILE_OPEN_BLOCKED_UNSAFE_TYPE })
+      expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
+    }
+  )
+
   it('INT-3g: open allows non-dangerous file types through shell.openPath', async () => {
     const id = '019606a0-0000-7000-8000-00000000ff37' as FileEntryId
     const now = Date.now()
