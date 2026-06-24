@@ -6776,6 +6776,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已停用",
+      "painting_model": "繪圖模型",
+      "painting_model_description": "圖像生成使用的模型",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",
