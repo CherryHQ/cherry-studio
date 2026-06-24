@@ -3,6 +3,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { type FileContextMenuActions, FileItemContextMenu } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
 import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
@@ -46,8 +47,10 @@ export const FileList = memo(function FileList({
   files,
   selectedIds,
   onSelect,
-  onContextMenu,
+  onContextMenuOpen,
   onOpen,
+  isTrash,
+  menuActions,
   sortKey,
   sortDir,
   onSort,
@@ -58,8 +61,10 @@ export const FileList = memo(function FileList({
   files: FileItem[]
   selectedIds: Set<string>
   onSelect: (id: string, multi: boolean) => void
-  onContextMenu: (e: React.MouseEvent, id: string) => void
+  onContextMenuOpen: (id: string) => void
   onOpen: (file: FileItem) => void
+  isTrash: boolean
+  menuActions: FileContextMenuActions
   sortKey: SortKey
   sortDir: SortDir
   onSort: (key: SortKey) => void
@@ -96,35 +101,40 @@ export const FileList = memo(function FileList({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         return (
-          <div
+          <FileItemContextMenu
             key={file.id}
-            onClick={(e) => {
-              if (!isRenaming) onSelect(file.id, e.metaKey || e.ctrlKey)
-            }}
-            onContextMenu={(e) => onContextMenu(e, file.id)}
-            onDoubleClick={() => {
-              if (!isRenaming) onOpen(file)
-            }}
-            className={`flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
-              selected ? 'bg-accent/50' : 'hover:bg-accent/50'
-            }`}>
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Icon size={13} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
-              {isRenaming ? (
-                <InlineRename
-                  value={file.name}
-                  onConfirm={(v) => onRenameConfirm(file.id, v)}
-                  onCancel={onRenameCancel}
-                  className="flex-1 px-2"
-                />
-              ) : (
-                <span className="truncate text-foreground text-sm">{file.name}</span>
-              )}
+            file={file}
+            isTrash={isTrash}
+            onOpen={onContextMenuOpen}
+            actions={menuActions}>
+            <div
+              onClick={(e) => {
+                if (!isRenaming) onSelect(file.id, e.metaKey || e.ctrlKey)
+              }}
+              onDoubleClick={() => {
+                if (!isRenaming) onOpen(file)
+              }}
+              className={`flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
+                selected ? 'bg-accent/50' : 'hover:bg-accent/50'
+              }`}>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Icon size={13} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
+                {isRenaming ? (
+                  <InlineRename
+                    value={file.name}
+                    onConfirm={(v) => onRenameConfirm(file.id, v)}
+                    onCancel={onRenameCancel}
+                    className="flex-1 px-2"
+                  />
+                ) : (
+                  <span className="truncate text-foreground text-sm">{file.name}</span>
+                )}
+              </div>
+              <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
+              <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
+              <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
             </div>
-            <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
-            <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
-            <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
-          </div>
+          </FileItemContextMenu>
         )
       })}
     </div>

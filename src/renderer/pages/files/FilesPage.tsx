@@ -7,10 +7,11 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath, FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
-import { FolderClosed, Pencil, RotateCcw, Trash2, Upload, X } from 'lucide-react'
+import { Trash2, Upload, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
 import { formatFileSize } from './fileDisplay'
 import { FileGrid } from './FileGrid'
@@ -147,89 +148,6 @@ function logImportFailures(result: { failed: Array<{ sourceRef: string; error: s
   }
 }
 
-// ─── Popover (click-outside dismiss) ───
-
-function Popover({
-  x,
-  y,
-  children,
-  onClose,
-  width
-}: {
-  x: number
-  y: number
-  children: React.ReactNode
-  onClose: () => void
-  width?: number
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    const k = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', h)
-    document.addEventListener('keydown', k)
-    return () => {
-      document.removeEventListener('mousedown', h)
-      document.removeEventListener('keydown', k)
-    }
-  }, [onClose])
-
-  const [pos, setPos] = useState({ left: x, top: y })
-  useEffect(() => {
-    if (!ref.current) return
-    const rect = ref.current.getBoundingClientRect()
-    const nl = rect.right > window.innerWidth ? x - rect.width : x
-    const nt = rect.bottom > window.innerHeight ? y - rect.height : y
-    setPos({ left: Math.max(4, nl), top: Math.max(4, nt) })
-  }, [x, y])
-
-  return (
-    <div
-      ref={ref}
-      className="fade-in zoom-in-95 fixed z-50 animate-in rounded-lg border border-border bg-popover shadow-xl duration-100"
-      style={{ ...pos, width: width || undefined }}>
-      {children}
-    </div>
-  )
-}
-
-// ─── Context Menu Item ───
-
-function CMenuItem({
-  icon: Icon,
-  label,
-  danger,
-  onClick,
-  disabled
-}: {
-  icon: React.ElementType
-  label: string
-  danger?: boolean
-  onClick: () => void
-  disabled?: boolean
-}) {
-  const colorClasses = disabled
-    ? 'cursor-not-allowed text-muted-foreground/30'
-    : danger
-      ? 'text-destructive/70 hover:bg-destructive/[0.08]'
-      : 'text-popover-foreground/70 hover:bg-accent'
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-center justify-start gap-1.5 rounded-md px-2 py-[5px] text-left text-xs transition-colors ${colorClasses}`}>
-      <Icon size={11} className={disabled ? 'opacity-30' : ''} />
-      <span>{label}</span>
-    </Button>
-  )
-}
-
 // ─── Batch Action Bar ───
 
 const BatchBar = memo(function BatchBar({
@@ -277,7 +195,6 @@ function FilesPage() {
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const pendingLoadMoreRef = useRef(false)
@@ -510,11 +427,11 @@ function FilesPage() {
     })
   }, [])
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent, id: string) => {
-      e.preventDefault()
+  const handleContextMenuOpen = useCallback(
+    (id: string) => {
+      // Right-click selects the item if it isn't already selected; an already-
+      // selected item (including one in a multi-selection) is left untouched.
       if (!selectedIds.has(id)) setSelectedIds(new Set([id]))
-      setContextMenu({ x: e.clientX, y: e.clientY, fileId: id })
     },
     [selectedIds]
   )
@@ -590,6 +507,16 @@ function FilesPage() {
     [files, refetchFiles]
   )
 
+  const menuActions = useMemo<FileContextMenuActions>(
+    () => ({
+      onRename: (id) => setRenamingId(id),
+      onDelete: (id) => void handleDelete(new Set([id])),
+      onRestore: (id) => void handleRestore(new Set([id])),
+      onShowInFolder: handleShowInFolder
+    }),
+    [handleDelete, handleRestore, handleShowInFolder]
+  )
+
   const handleSort = useCallback(
     (key: SortKey) => {
       if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -616,7 +543,6 @@ function FilesPage() {
     return () => document.removeEventListener('keydown', handler)
   }, [selectedIds, handleDelete, renamingId])
 
-  const contextFile = contextMenu ? files.find((f) => f.id === contextMenu.fileId) : null
   const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
 
   return (
@@ -691,9 +617,11 @@ function FilesPage() {
               files={filteredFiles}
               selectedIds={selectedIds}
               onSelect={handleSelect}
-              onContextMenu={handleContextMenu}
+              onContextMenuOpen={handleContextMenuOpen}
               onOpen={handleOpen}
               onDelete={(id) => void handleDelete(new Set([id]))}
+              isTrash={isTrash}
+              menuActions={menuActions}
               renamingId={renamingId}
               onRenameConfirm={(id, name) => void handleRename(id, name)}
               onRenameCancel={() => setRenamingId(null)}
@@ -703,8 +631,10 @@ function FilesPage() {
               files={filteredFiles}
               selectedIds={selectedIds}
               onSelect={handleSelect}
-              onContextMenu={handleContextMenu}
+              onContextMenuOpen={handleContextMenuOpen}
               onOpen={handleOpen}
+              isTrash={isTrash}
+              menuActions={menuActions}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
@@ -727,67 +657,6 @@ function FilesPage() {
           <div className="flex-1" />
         </div>
       </div>
-
-      {/* Context Menu */}
-      {contextMenu && contextFile && (
-        <Popover x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
-          <div className="min-w-[130px] p-0.5">
-            {isTrash ? (
-              <div>
-                <CMenuItem
-                  icon={RotateCcw}
-                  label={t('files.restore')}
-                  onClick={() => {
-                    void handleRestore(new Set([contextMenu.fileId]))
-                    setContextMenu(null)
-                  }}
-                />
-                <div className="mx-1.5 my-0.5 border-border/30 border-t" />
-                <CMenuItem
-                  icon={Trash2}
-                  label={t('files.permanent_delete')}
-                  danger
-                  onClick={() => {
-                    void handleDelete(new Set([contextMenu.fileId]))
-                    setContextMenu(null)
-                  }}
-                />
-              </div>
-            ) : (
-              <div>
-                <CMenuItem
-                  icon={Pencil}
-                  label={t('files.rename')}
-                  onClick={() => {
-                    setRenamingId(contextMenu.fileId)
-                    setContextMenu(null)
-                  }}
-                />
-                {contextFile.origin === 'external' && contextFile.folder && (
-                  <CMenuItem
-                    icon={FolderClosed}
-                    label={t('files.show_in_folder')}
-                    onClick={() => {
-                      handleShowInFolder(contextMenu.fileId)
-                      setContextMenu(null)
-                    }}
-                  />
-                )}
-                <div className="mx-1.5 my-0.5 border-border/30 border-t" />
-                <CMenuItem
-                  icon={Trash2}
-                  label={contextFile.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                  danger
-                  onClick={() => {
-                    void handleDelete(new Set([contextMenu.fileId]))
-                    setContextMenu(null)
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        </Popover>
-      )}
     </div>
   )
 }
