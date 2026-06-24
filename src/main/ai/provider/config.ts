@@ -25,6 +25,7 @@ import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from 
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
+import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
@@ -227,27 +228,8 @@ function buildCodexFetch() {
       throw new Error('Not signed in to OpenAI Codex. Open the provider settings and sign in again.')
     }
 
-    const headers = new Headers(init?.headers)
-    headers.set('Authorization', `Bearer ${creds.accessToken}`)
-    if (creds.accountId) headers.set('chatgpt-account-id', creds.accountId)
-    headers.set('OpenAI-Beta', 'responses=experimental')
-    headers.set('originator', 'cherry-studio')
-
-    let body = init?.body
-    if (typeof body === 'string') {
-      try {
-        const json = JSON.parse(body)
-        // ChatGPT codex backend rejects server-side storage; without it the
-        // encrypted reasoning must round-trip on each request.
-        json.store = false
-        const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
-        include.add('reasoning.encrypted_content')
-        json.include = [...include]
-        body = JSON.stringify(json)
-      } catch {
-        // Non-JSON body (shouldn't happen for responses) — leave untouched.
-      }
-    }
+    const headers = buildCodexRequestHeaders(init?.headers, creds)
+    const body = coerceCodexRequestBody(init?.body)
 
     return customFetch(input, { ...init, headers, body })
   }
