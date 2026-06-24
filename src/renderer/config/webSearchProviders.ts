@@ -52,5 +52,11 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     name: 'Jina',
     apiHost: 'https://s.jina.ai',
     apiKey: ''
+  },
+  {
+    id: 'firecrawl',
+    name: 'Firecrawl',
+    apiHost: 'https://api.firecrawl.dev',
+    apiKey: ''
   }
 ] as const

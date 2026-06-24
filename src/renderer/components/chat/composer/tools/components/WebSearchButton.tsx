@@ -21,11 +21,13 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-// Mirrors WebSearchProviderSetting.tsx: api-type providers (except fetch /
-// searxng / exa-mcp) authenticate via API key. searxng uses basic auth and
-// fetch / exa-mcp need neither.
+// Mirrors WebSearchProviderSetting.tsx for UI-availability: fetch / searxng /
+// exa-mcp never require an API key, and firecrawl works keyless within a
+// monthly free quota (its input is still shown in settings so users can opt
+// in with a key for higher limits). searxng uses basic auth; fetch and exa-mcp
+// need none.
 const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean =>
-  id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp'
+  id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp' && id !== 'firecrawl'
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()

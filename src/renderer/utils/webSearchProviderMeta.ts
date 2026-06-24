@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Bocha, Cherryin, Exa, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
+import { Bocha, Cherryin, Exa, Firecrawl, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type {
   WebSearchCapability,
   WebSearchProvider,
@@ -79,6 +79,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     logo: Zhipu,
     officialWebsite: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
     apiKeyWebsite: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+  },
+  firecrawl: {
+    descriptionKey: 'settings.tool.websearch.provider_description.firecrawl',
+    logo: Firecrawl,
+    officialWebsite: 'https://firecrawl.dev',
+    apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
   }
 }
 

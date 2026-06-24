@@ -146,6 +146,11 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
       { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' },
       { feature: 'fetchUrls', apiHost: 'https://r.jina.ai' }
     ]
+  },
+  firecrawl: {
+    name: 'Firecrawl',
+    type: 'api',
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.firecrawl.dev' }]
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 

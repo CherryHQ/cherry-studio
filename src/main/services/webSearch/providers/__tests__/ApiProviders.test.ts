@@ -30,6 +30,7 @@ import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
+import { FirecrawlProvider } from '../api/FirecrawlProvider'
 import { JinaProvider } from '../api/JinaProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
@@ -1119,5 +1120,81 @@ describe('main web search API providers', () => {
     expect(tavilyResult.results[0]?.title).toBe('')
     expect(zhipuResult.results[0]?.title).toBe('')
     expect(exaMcpResult.results[0]?.title).toBe('')
+  })
+
+  describe('FirecrawlProvider', () => {
+    it('matches Firecrawl search requests and parsed content snapshots', async () => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-response.json')))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['firecrawl-key'],
+          apiHost: 'https://api.firecrawl.example'
+        })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect({
+        searchRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
+        result
+      }).toMatchInlineSnapshot(`
+        {
+          "result": {
+            "capability": "searchKeywords",
+            "inputs": [
+              "hello",
+            ],
+            "providerId": "firecrawl",
+            "query": "hello",
+            "results": [
+              {
+                "content": "Scraped Markdown Content",
+                "sourceInput": "hello",
+                "title": "Firecrawl Title",
+                "url": "https://firecrawl.example/result",
+              },
+            ],
+          },
+          "searchRequest": {
+            "body": {
+              "limit": 4,
+              "query": "hello",
+            },
+            "headers": {
+              "authorization": "Bearer firecrawl-key",
+              "content-type": "application/json",
+              "http-referer": "https://cherry-ai.com",
+              "x-title": "Cherry Studio",
+            },
+            "method": "POST",
+            "url": "https://api.firecrawl.example/v1/search",
+          },
+        }
+      `)
+    })
+
+    it('allows empty api key to use the free quota', async () => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-response.json')))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: [],
+          apiHost: 'http://localhost:3002'
+        })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].content).toBe('Scraped Markdown Content')
+      const request = toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined])
+      expect(request.headers.authorization).toBeUndefined()
+    })
   })
 })
