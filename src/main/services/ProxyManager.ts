@@ -67,6 +67,15 @@ export class ProxyManager extends BaseService {
   })
 
   /**
+   * Key of the currently applied proxy config (null before the first apply).
+   * Exposed so RegionService can invalidate its cached egress country the
+   * moment the proxy — and thus the egress IP — changes.
+   */
+  get appliedProxyKey(): string | null {
+    return this.appliedKey
+  }
+
+  /**
    * Apply the proxy from user preferences on startup, then re-apply whenever the proxy
    * preferences change. Without this the global proxy mechanism is never wired to settings —
    * changing the proxy in the UI would have no effect on the network stack.

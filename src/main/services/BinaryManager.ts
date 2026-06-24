@@ -9,7 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { isUserInChina } from '@main/utils/ipService'
+import { regionService } from '@main/services/RegionService'
 import { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryPath } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
@@ -280,7 +280,7 @@ export class BinaryManager extends BaseService {
       env['GITHUB_TOKEN'] = cherryGhToken
     }
 
-    const inChina = await isUserInChina().catch(() => false)
+    const inChina = await regionService.isInChina().catch(() => false)
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
         env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
