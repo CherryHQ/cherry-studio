@@ -93,7 +93,7 @@ export function usePaintingList({
         setCurrentPainting(nextPainting)
         return
       }
-      await add()
+      add()
     },
     [add, refresh, setCurrentPainting]
   )
