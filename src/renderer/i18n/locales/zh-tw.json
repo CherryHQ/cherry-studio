@@ -2369,7 +2369,14 @@
       "no_match_title": "找不到符合的檔案"
     },
     "error": {
-      "open_path": "無法開啟路徑：{{path}}"
+      "delete_failed": "刪除檔案失敗",
+      "delete_partial_failed": "部分檔案刪除失敗",
+      "import_failed": "匯入檔案失敗",
+      "import_partial_failed": "部分檔案匯入失敗",
+      "open_path": "無法開啟路徑：{{path}}",
+      "rename_failed": "重新命名檔案失敗",
+      "restore_failed": "還原檔案失敗",
+      "restore_partial_failed": "部分檔案還原失敗"
     },
     "file": "檔案",
     "footer_count": "{{count}} 個檔案",

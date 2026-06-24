@@ -2369,7 +2369,14 @@
       "no_match_title": "没有找到匹配的文件"
     },
     "error": {
-      "open_path": "无法打开路径: {{path}}"
+      "delete_failed": "删除文件失败",
+      "delete_partial_failed": "部分文件删除失败",
+      "import_failed": "导入文件失败",
+      "import_partial_failed": "部分文件导入失败",
+      "open_path": "无法打开路径: {{path}}",
+      "rename_failed": "重命名文件失败",
+      "restore_failed": "恢复文件失败",
+      "restore_partial_failed": "部分文件恢复失败"
     },
     "file": "文件",
     "footer_count": "{{count}} 个文件",

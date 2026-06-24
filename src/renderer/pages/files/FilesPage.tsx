@@ -137,15 +137,21 @@ function toFileItem(
   return { ...base, ...originFields, type }
 }
 
-function logMutationFailures(action: string, result: { failed: Array<{ id: string; error: string }> } | null): void {
+function reportMutationFailures(
+  action: string,
+  result: { failed: Array<{ id: string; error: string }> } | null,
+  message: string
+): void {
   if (result && result.failed.length > 0) {
     logger.warn(`${action} partially failed`, { failed: result.failed })
+    window.toast?.error(message)
   }
 }
 
-function logImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }): void {
+function reportImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }, message: string): void {
   if (result.failed.length > 0) {
     logger.warn('file import partially failed', { failed: result.failed })
+    window.toast?.error(message)
   }
 }
 
@@ -379,13 +385,14 @@ function FilesPage() {
 
       try {
         const result = await ipcApi.request('file.import_paths', { paths })
-        logImportFailures(result)
+        reportImportFailures(result, t('files.error.import_partial_failed'))
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to import files', error as Error)
+        window.toast?.error(t('files.error.import_failed'))
       }
     },
-    [refetchFiles]
+    [refetchFiles, t]
   )
 
   const folderList = useMemo(() => {
@@ -467,7 +474,7 @@ function FilesPage() {
       try {
         if (isTrash) {
           const result = await ipcApi.request('file.batch_permanent_delete', { ids: targets.map((file) => file.id) })
-          logMutationFailures('file permanent delete', result)
+          reportMutationFailures('file permanent delete', result, t('files.error.delete_partial_failed'))
         } else {
           const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
           const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
@@ -477,31 +484,33 @@ function FilesPage() {
               ? ipcApi.request('file.batch_permanent_delete', { ids: removeIds })
               : Promise.resolve(null)
           ])
-          logMutationFailures('file trash', trashResult)
-          logMutationFailures('file remove external entries', removeResult)
+          reportMutationFailures('file trash', trashResult, t('files.error.delete_partial_failed'))
+          reportMutationFailures('file remove external entries', removeResult, t('files.error.delete_partial_failed'))
         }
 
         setSelectedIds(new Set())
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to delete files', error as Error)
+        window.toast?.error(t('files.error.delete_failed'))
       }
     },
-    [files, isTrash, refetchFiles, selectedIds]
+    [files, isTrash, refetchFiles, selectedIds, t]
   )
 
   const handleRestore = useCallback(
     async (ids: Set<string>) => {
       try {
         const result = await ipcApi.request('file.batch_restore', { ids: [...ids] })
-        logMutationFailures('file restore', result)
+        reportMutationFailures('file restore', result, t('files.error.restore_partial_failed'))
         setSelectedIds(new Set())
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to restore files', error as Error)
+        window.toast?.error(t('files.error.restore_failed'))
       }
     },
-    [refetchFiles]
+    [refetchFiles, t]
   )
 
   const handleRename = useCallback(
@@ -528,10 +537,11 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to rename file', error as Error)
+        window.toast?.error(t('files.error.rename_failed'))
         setRenamingId(null)
       }
     },
-    [files, refetchFiles]
+    [files, refetchFiles, t]
   )
 
   const startInlineRename = useCallback((id: string) => {
