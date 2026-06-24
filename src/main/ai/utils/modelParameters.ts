@@ -139,12 +139,21 @@ export function getTimeout(model: Model): number {
   return DEFAULT_TIMEOUT
 }
 
-/** For Claude thinking-token models (pre-4.6) the AI SDK adds the budget on top, so subtract. */
+/**
+ * Resolve the effective `maxOutputTokens` for a request.
+ *
+ * - `enableMaxTokens` off → `undefined`; the provider applies its own default.
+ * - `enableMaxTokens` on  → the assistant's explicit output budget, falling
+ *   back to the model's declared output ceiling (`model.maxOutputTokens`) and
+ *   then the built-in default when neither is set.
+ *
+ * For Claude thinking-token models (pre-4.6) the AI SDK adds the budget on top, so subtract.
+ */
 export function getMaxTokens(assistant: Assistant, model: Model, provider: Provider): number | undefined {
   const enableMaxTokens = assistant.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
-  let maxTokens = assistant.settings?.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+  if (!enableMaxTokens) return undefined
 
-  if (!enableMaxTokens || maxTokens === undefined) return undefined
+  let maxTokens = assistant.settings?.maxTokens ?? model.maxOutputTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
 
   // Claude 4.6 adaptive thinking has no budgetTokens, so no subtraction.
   const isAnthropicLike =
