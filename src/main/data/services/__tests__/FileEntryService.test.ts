@@ -492,6 +492,114 @@ describe('FileEntryService', () => {
       expect(desc.items.map((e) => e.name)).toEqual(['ten', 'zero', 'external-null'])
     })
 
+    it('sortBy=ext treats null extensions as the lowest sentinel value', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d6' as FileEntryId,
+          origin: 'internal',
+          name: 'text',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d7' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d8' as FileEntryId,
+          origin: 'internal',
+          name: 'markdown',
+          ext: 'md',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const asc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc' })
+      expect(asc.items.map((e) => e.name)).toEqual(['no-ext', 'markdown', 'text'])
+
+      const desc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'desc' })
+      expect(desc.items.map((e) => e.name)).toEqual(['text', 'markdown', 'no-ext'])
+    })
+
+    it('sortBy=ext cursor pagination has no overlap or misses across pages', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d9' as FileEntryId,
+          origin: 'internal',
+          name: 'text',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000da' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000db' as FileEntryId,
+          origin: 'internal',
+          name: 'pdf',
+          ext: 'pdf',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000dc' as FileEntryId,
+          origin: 'internal',
+          name: 'markdown',
+          ext: 'md',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 3,
+          updatedAt: now + 3
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 2 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'ext',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 2
+      })
+
+      const seen = [...page1.items, ...page2.items].map((e) => e.name)
+      expect(seen).toEqual(['no-ext', 'markdown', 'pdf', 'text'])
+      expect(new Set(seen).size).toBe(4)
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
     it('returns { items: [], total: 0 } on an empty table', async () => {
       const result = await fileEntryService.listCursor()
       expect(result.items).toEqual([])
