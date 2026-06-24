@@ -75,26 +75,41 @@ export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
 export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
 export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
 export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
-export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model'] as const
+// `missing_embedding_model`: the v1 embedding model could not be resolved to a migrated
+// user_model, so the base needs a new embedding model on restore.
+// `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
+// was missing/empty/locked so its dimensions could not be determined. The base (name, model,
+// config, idle items) is kept as a restorable `failed` row instead of being dropped, so the
+// user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
+export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
 export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema>
 export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
+export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode = 'missing_vector_store'
 
 /**
- * Item-level error codes stored on `knowledge_item.error`. Currently only the v2
- * migration sets one: a v1-indexed `directory` whose container-level vectors could not
- * be re-attributed to per-file children (unreadable legacy sources, or no migratable
- * vectors) is marked `failed` with `directory_not_migrated`. Modeled as a zod enum (the
- * same shape as the base error codes above) so the renderer's code → i18n switch in
- * `error.ts` stays exhaustive-checkable and the code ↔ translator-key triple is tied together.
+ * Item-level error codes stored on `knowledge_item.error`. Two are set today:
+ * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
+ *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
+ * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
+ *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
+ * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
+ * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
  */
-export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated'] as const
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated', 'indexing_interrupted'] as const
 export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
 export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
+export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode = 'indexing_interrupted'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KNOWLEDGE_CHUNK_STRATEGIES = ['structured', 'delimiter'] as const
+export const KnowledgeChunkStrategySchema = z.enum(KNOWLEDGE_CHUNK_STRATEGIES)
+export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema>
+// Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
+export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
@@ -103,6 +118,8 @@ export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
+export const DEFAULT_KNOWLEDGE_CHUNK_STRATEGY: KnowledgeChunkStrategy = 'structured'
+export const DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR = '\\n\\n'
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
 
@@ -125,6 +142,8 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
   chunkOverlap: KnowledgeChunkOverlapSchema,
+  chunkStrategy: KnowledgeChunkStrategySchema,
+  chunkSeparator: KnowledgeChunkSeparatorSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema,
@@ -279,10 +298,22 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 /**
- * Directory item data.
+ * Directory item data. The original folder to (re)scan lives in `source` (shared with
+ * every item type); `relativePath` is the deduped `raw/` directory the expanded files
+ * are stored under, mirroring FileItemData's source/relativePath split.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
+  // Written lazily by main on first expansion (add omits it): the deduped, base-relative
+  // `raw/` directory prefix the container's files live under (e.g. `docs` or `docs_2`).
+  // Same POSIX-normalized, no-traversal invariant as FileItemData.relativePath.
+  relativePath: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
+    )
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
@@ -508,6 +539,8 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
   chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  chunkStrategy: KnowledgeChunkStrategySchema.optional(),
+  chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),
@@ -553,6 +586,15 @@ export const RestoreKnowledgeBaseSchema = z.strictObject({
   embeddingModelId: z.string().trim().min(1)
 })
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
+
+// Restore is a partial operation: root items whose source is genuinely gone are skipped rather
+// than aborting the whole restore, so the result reports how many were dropped for the UI to tell
+// the user (a silent count is a silent data loss).
+export const RestoreKnowledgeBaseResultSchema = z.strictObject({
+  base: KnowledgeBaseSchema,
+  skippedMissingSourceCount: z.number().int().nonnegative()
+})
+export type RestoreKnowledgeBaseResult = z.infer<typeof RestoreKnowledgeBaseResultSchema>
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: KnowledgeItemIdSchema.nullable().optional()
@@ -614,7 +656,7 @@ const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
 })
 
 // Runtime note add carries only the caller-supplied content; `relativePath` is
-// written lazily by main on first index (see ensureNoteSnapshot), never by raw
+// written lazily by main on first index (see ensureSnapshot), never by raw
 // caller input, so it is omitted from the add surface.
 const RuntimeNoteItemDataSchema = KnowledgeItemSharedSchema.extend({
   content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.')
@@ -635,3 +677,140 @@ export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
   DirectoryItemMemberSchema
 ])
 export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>
+
+// ============================================================================
+// Add-Item Conflict Resolution
+// ============================================================================
+
+/**
+ * How `addItems` resolves a same-name conflict between an incoming source and an
+ * existing root item (or an earlier item in the same batch). One decision applies
+ * to the whole batch (Finder semantics).
+ *
+ * - `rename` (default): keep all, auto-rename the new file on collision with a
+ *   numeric suffix (the long-standing `reserveImportedFileRelativePath` behavior).
+ *   Internal callers (restore, the v1->v2 migrator) rely on this default.
+ * - `detect`: proceed only when nothing collides; otherwise add nothing and report
+ *   the conflicts so the UI can ask the user. This is the first pass an interactive
+ *   add makes — one round-trip when there is no conflict.
+ * - `replace`: the incoming source wins. Conflicting existing items are purged
+ *   synchronously before the add, and an earlier same-name item in the same batch
+ *   is dropped (last wins).
+ */
+export const KNOWLEDGE_ADD_CONFLICT_STRATEGIES = ['rename', 'detect', 'replace'] as const
+export const KnowledgeAddConflictStrategySchema = z.enum(KNOWLEDGE_ADD_CONFLICT_STRATEGIES)
+export type KnowledgeAddConflictStrategy = z.infer<typeof KnowledgeAddConflictStrategySchema>
+export const DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY: KnowledgeAddConflictStrategy = 'rename'
+
+/**
+ * A single same-name conflict reported by a `detect` pass. `title` is the
+ * user-facing display name (so the user recognizes which source collides);
+ * `type` selects the icon. Detection itself keys off a per-type detection key
+ * that is intentionally separate from this display title (see
+ * `getKnowledgeItemConflictKey` vs `getKnowledgeItemDisplayTitle`).
+ */
+export const KnowledgeAddItemConflictSchema = z.object({
+  type: KnowledgeItemTypeSchema,
+  title: z.string()
+})
+export type KnowledgeAddItemConflict = z.infer<typeof KnowledgeAddItemConflictSchema>
+
+/**
+ * Result of `addItems`. `conflicts` is only returned by a `detect` pass that
+ * found collisions and added nothing; `added` means the batch was applied.
+ */
+export const KnowledgeAddItemsResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('added') }),
+  z.object({ status: z.literal('conflicts'), conflicts: z.array(KnowledgeAddItemConflictSchema) })
+])
+export type KnowledgeAddItemsResult = z.infer<typeof KnowledgeAddItemsResultSchema>
+
+// ============================================================================
+// Item Display Title / Conflict Key Helpers
+// ============================================================================
+
+/**
+ * Minimal structural shape shared by a persisted {@link KnowledgeItem} and a
+ * {@link KnowledgeAddItemInput}: enough to derive a display title and a conflict
+ * key without depending on which of the two it is. Uses string ops only (no
+ * `node:path`) so it is safe in the renderer.
+ */
+export interface KnowledgeItemTitleSource {
+  type: KnowledgeItemType
+  data: {
+    source?: string
+    content?: string
+    url?: string
+    relativePath?: string
+  }
+}
+
+/** Last path segment of a slash/backslash path, trimmed; falls back to the input. */
+export function getKnowledgePathBasename(value: string): string {
+  const normalized = value.replace(/[/\\]+$/, '')
+  const name = normalized.split(/[/\\]/).pop()?.trim()
+  return name || normalized || value
+}
+
+/** First non-empty, trimmed line of note content (the note's display title). */
+export function getKnowledgeNoteFirstLine(content: string): string {
+  return (
+    content
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || ''
+  )
+}
+
+/**
+ * User-facing display name for a knowledge item or add-input. Prefers the
+ * `relativePath` — the deduped name stored under `raw/` (e.g. `测试_2.pdf`) — so
+ * that same-name items kept side by side ("保留全部") stay distinguishable:
+ * - file: relativePath basename (always set at add-time) else source basename
+ * - note: captured snapshot name (set on first index) else first content line
+ * - url: captured snapshot name (set on first index) else the raw url
+ * - directory: deduped `raw/` directory prefix (set on first expansion, e.g. `docs_2`)
+ *   else the original folder's source basename
+ */
+export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): string {
+  const data = item.data
+  switch (item.type) {
+    case 'file':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'directory':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'note': {
+      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+      return snapshotName || getKnowledgeNoteFirstLine(data.content || '')
+    }
+    case 'url': {
+      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+      return snapshotName || data.url || data.source || ''
+    }
+  }
+}
+
+/**
+ * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
+ * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
+ * `test_2.md`) when present, else the source basename. An add-input has no
+ * relativePath yet, so it keys off the source basename and detection still fires;
+ * an existing item keys off its deduped relativePath, so `replace` targets only
+ * the one colliding copy (relativePath `test.md`) instead of every item sharing a
+ * source basename (`test.md`, `test_2.md`, `test_3.md`). url/note stay separate
+ * from the display title: url keys off the raw `data.url` (exact, no normalization)
+ * and note off its first line, because their deduped name is a post-index snapshot
+ * name absent at add-time — keying off it would miss real duplicate urls/notes.
+ */
+export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
+  const data = item.data
+  switch (item.type) {
+    case 'file':
+    case 'directory':
+      return getKnowledgePathBasename(data.relativePath || data.source || '')
+    case 'note':
+      return getKnowledgeNoteFirstLine(data.content || '')
+    case 'url':
+      return (data.url || '').trim()
+  }
+}

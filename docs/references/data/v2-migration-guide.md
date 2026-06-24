@@ -161,4 +161,4 @@ const stamped = assignOrderKeysByScope(userModels, (m) => m.providerId)
 
 **Import rule — never reach for `fractional-indexing` directly:** the migrator helpers delegate to `generateOrderKeySequence` exported from `src/main/data/services/utils/orderKey.ts`, which is the **single** sanctioned integration point for the library. Migrator code, migration scripts, and drizzle custom-migration callbacks all re-import from that service-layer wrapper. This keeps the library boundary auditable and leaves a single place to change the character set or swap implementations.
 
-For the runtime counterparts (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyMoves` / `resetOrder`) used outside the migration window, see [Reorder Guide — Server-Side Service Helpers](./data-ordering-guide.md#4-server-side-service-helpers).
+For the runtime counterparts (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyMoves` / `resetOrder`) used outside the migration window, see [Reorder Guide — Server-Side Service Helpers](./data-ordering-guide.md#3-server-side-service-helpers).

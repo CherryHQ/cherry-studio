@@ -9,7 +9,7 @@
  */
 
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FileHandle, FilePath } from '@shared/file/types'
+import type { FileHandle, FilePath } from '@shared/types/file'
 
 export async function dispatchHandle<T>(
   handle: FileHandle,

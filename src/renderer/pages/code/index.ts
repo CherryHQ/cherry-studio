@@ -3,22 +3,22 @@ import {
   ClaudeCode,
   GeminiCli,
   GithubCopilotCli,
-  IflowCli,
   KimiCli,
   OpenaiCodex,
   OpenCode,
+  QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/codeProviders'
 import { formatApiHost } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
-import { codeCLI } from '@shared/config/constant'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { codeCLI } from '@shared/types/codeCli'
 import {
-  isAIGatewayProvider,
   isAnthropicProvider,
   isGeminiProvider,
+  isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider
 } from '@shared/utils/provider'
@@ -64,7 +64,7 @@ export const CLI_TOOLS = [
   { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
   { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
   { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
+  { value: codeCLI.qoderCli, label: 'Qoder CLI', icon: QoderCli },
   { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
   { value: codeCLI.kimiCli, label: 'Kimi Code', icon: KimiCli },
   { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
@@ -79,6 +79,8 @@ const ANTHROPIC_MESSAGES_ENDPOINT = 'anthropic-messages'
 const hasAnthropicEndpoint = (p: Provider): boolean =>
   Boolean(p.endpointConfigs?.[ANTHROPIC_MESSAGES_ENDPOINT]?.baseUrl)
 const isOpenAILikeProvider = (p: Provider): boolean => isOpenAICompatibleProvider(p) || isOpenAIProvider(p)
+export const isOpenCodeProvider = (p: Provider): boolean =>
+  isOpenAILikeProvider(p) || isAnthropicProvider(p) || isNewApiProvider(p)
 
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeCLI.claudeCode]: (providers) =>
@@ -90,11 +92,10 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeCLI.qwenCode]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openaiCodex]: (providers) =>
     providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.iFlowCli]: (providers) => providers.filter(isOpenAILikeProvider),
+  [codeCLI.qoderCli]: () => [],
   [codeCLI.githubCopilotCli]: () => [],
   [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
-  [codeCLI.openCode]: (providers) =>
-    providers.filter((p) => isOpenAILikeProvider(p) || isAnthropicProvider(p) || isAIGatewayProvider(p))
+  [codeCLI.openCode]: (providers) => providers.filter(isOpenCodeProvider)
 }
 
 export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
@@ -228,10 +229,8 @@ export const generateToolEnvironment = ({
       env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(fancyProviderName)
       break
 
-    case codeCLI.iFlowCli:
-      env.IFLOW_API_KEY = apiKey
-      env.IFLOW_BASE_URL = formattedBaseUrl
-      env.IFLOW_MODEL_NAME = rawModelId
+    case codeCLI.qoderCli:
+      env.QODERCN_PERSONAL_ACCESS_TOKEN = apiKey || ''
       break
 
     case codeCLI.githubCopilotCli:

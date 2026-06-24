@@ -159,7 +159,7 @@ import type {
   WebSearchProviderOverride,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT, normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'

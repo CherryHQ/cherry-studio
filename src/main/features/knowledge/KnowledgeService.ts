@@ -8,26 +8,29 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
+  type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
+  type KnowledgeAddItemsResult,
   type KnowledgeBase,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
   type KnowledgeSearchResult,
-  type RestoreKnowledgeBaseDto
+  type RestoreKnowledgeBaseDto,
+  type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
-import { IpcChannel } from '@shared/IpcChannel'
 import { estimateTokenCount } from 'tokenx'
 
-import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
-import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
-import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
-import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
-import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
-import { narrowKnowledgeJobInput } from './jobs/utils/jobInput'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
+import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
+import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
+import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
+import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
+import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -38,15 +41,6 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
-import {
-  KnowledgeAddItemsPayloadSchema,
-  KnowledgeBasePayloadSchema,
-  KnowledgeCreateBasePayloadSchema,
-  KnowledgeItemChunksPayloadSchema,
-  KnowledgeItemsPayloadSchema,
-  KnowledgeRestoreBasePayloadSchema,
-  KnowledgeSearchPayloadSchema
-} from './types/ipc'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { classifyKnowledgeItemSource } from './utils/items'
@@ -93,11 +87,11 @@ export class KnowledgeService extends BaseService {
       'knowledge.reindex-subtree',
       createReindexSubtreeJobHandler(this.knowledgeLockManager, this.workflowService)
     )
-    this.registerIpcHandlers()
   }
 
   protected async onAllReady(): Promise<void> {
     await this.recoverDeletingItems()
+    await this.recoverInterruptedItems()
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -162,7 +156,7 @@ export class KnowledgeService extends BaseService {
     })
   }
 
-  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
+  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
@@ -181,7 +175,35 @@ export class KnowledgeService extends BaseService {
     }
 
     const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
-    const inputs = rootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
+
+    // Partial restore: probe each root's source and skip the ones whose source is genuinely gone, so
+    // a single missing source no longer aborts the entire restore. This is the common case for a
+    // failed base — a v1-migrated directory child has a virtual path with no raw/ file, and a file
+    // whose original was deleted has no material to copy; addItems would throw on the first such
+    // item and roll back the whole batch. An 'unverifiable' source (transient/permission error) is
+    // kept, not skipped — like reindex, we never drop a source we could not confirm is gone.
+    const restorableRootItems: KnowledgeItem[] = []
+    for (const item of rootItems) {
+      if ((await classifyKnowledgeItemSource(sourceBase.id, item)) === 'missing') {
+        logger.warn('Skipping knowledge item with a missing source during restore', {
+          sourceBaseId: sourceBase.id,
+          itemId: item.id,
+          type: item.type
+        })
+        continue
+      }
+      restorableRootItems.push(item)
+    }
+    const skippedMissingSourceCount = rootItems.length - restorableRootItems.length
+    if (skippedMissingSourceCount > 0) {
+      logger.info('Restore skipped knowledge items whose source no longer exists', {
+        sourceBaseId: sourceBase.id,
+        skippedMissingSourceCount,
+        restorableCount: restorableRootItems.length
+      })
+    }
+
+    const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
       await this.addItems(restoredBase.id, inputs)
@@ -211,12 +233,16 @@ export class KnowledgeService extends BaseService {
       )
     }
 
-    return restoredBase
+    return { base: restoredBase, skippedMissingSourceCount }
   }
 
-  async addItems(baseId: string, items: KnowledgeAddItemInput[]): Promise<void> {
+  async addItems(
+    baseId: string,
+    items: KnowledgeAddItemInput[],
+    conflictStrategy?: KnowledgeAddConflictStrategy
+  ): Promise<KnowledgeAddItemsResult> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
-    await this.workflowService.addItems(baseId, items)
+    return await this.workflowService.addItems(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -460,6 +486,30 @@ export class KnowledgeService extends BaseService {
     ])
   }
 
+  /**
+   * Park items stranded mid-indexing by an app quit / restart at `failed`.
+   *
+   * Indexing handlers declare `recovery: 'abandon'`, so an interrupted job is
+   * cancelled rather than silently resumed on the next launch — a deliberate
+   * quit must not auto-spend the (paid) embedding API. The job side is handled
+   * by JobManager's startup recovery; this closes the item side. The common case
+   * (handler settled the abort as cancelled) is already flipped to `failed` by
+   * the job's onSettled; this is the boot-time safety net for the stragglers
+   * onSettled lost the race to write (process exited first) or never ran (hard
+   * kill / crash). Marking them `failed` clears the perpetual spinner and makes
+   * them reindexable so the user can finish them on demand.
+   */
+  private async recoverInterruptedItems(): Promise<void> {
+    try {
+      const failedCount = await knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+      if (failedCount > 0) {
+        logger.info('Recovered interrupted knowledge items', { count: failedCount })
+      }
+    } catch (error) {
+      logger.error('Failed to recover interrupted knowledge items', error as Error)
+    }
+  }
+
   private async recoverDeletingItems(): Promise<void> {
     let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
     try {
@@ -567,7 +617,7 @@ export class KnowledgeService extends BaseService {
 
       // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
       // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-      // front. Only the root's own source matters: a directory is rescanned from data.path and its
+      // front. Only the root's own source matters: a directory is rescanned from data.source and its
       // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
       // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
       // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
@@ -682,40 +732,5 @@ export class KnowledgeService extends BaseService {
         }`
       )
     }
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Knowledge_CreateBase, async (_, payload: unknown) => {
-      const { base } = KnowledgeCreateBasePayloadSchema.parse(payload)
-      return await this.createBase(base)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_RestoreBase, async (_, payload: unknown) => {
-      const dto = KnowledgeRestoreBasePayloadSchema.parse(payload)
-      return await this.restoreBase(dto)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_DeleteBase, async (_, payload: unknown) => {
-      const { baseId } = KnowledgeBasePayloadSchema.parse(payload)
-      return await this.deleteBase(baseId)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_AddItems, async (_, payload: unknown) => {
-      const { baseId, items } = KnowledgeAddItemsPayloadSchema.parse(payload)
-      return await this.addItems(baseId, items)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_DeleteItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeItemsPayloadSchema.parse(payload)
-      return await this.deleteItems(baseId, itemIds)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_ReindexItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeItemsPayloadSchema.parse(payload)
-      return await this.reindexItems(baseId, itemIds)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_Search, async (_, payload: unknown) => {
-      const { baseId, query } = KnowledgeSearchPayloadSchema.parse(payload)
-      return await this.search(baseId, query)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_ListItemChunks, async (_, payload: unknown) => {
-      const { baseId, itemId } = KnowledgeItemChunksPayloadSchema.parse(payload)
-      return await this.listItemChunks(baseId, itemId)
-    })
   }
 }

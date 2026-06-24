@@ -86,6 +86,10 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // BinaryManager (tool manager)
+    'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
+    'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -128,6 +132,9 @@ export function buildPathRegistry() {
 
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
+
+    // CLI tools (code-cli) bun global install root ($BUN_INSTALL/install/global)
+    'feature.cli.install_global': path.join(CHERRY_HOME, 'install', 'global'),
 
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),

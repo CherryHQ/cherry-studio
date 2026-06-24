@@ -4,7 +4,7 @@
  */
 
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

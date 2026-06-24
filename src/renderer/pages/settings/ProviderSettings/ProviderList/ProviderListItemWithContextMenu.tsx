@@ -1,10 +1,10 @@
-import { MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderListItem from '../components/ProviderListItem'
@@ -40,63 +40,71 @@ export default function ProviderListItemWithContextMenu({
 }: ProviderListItemWithContextMenuProps) {
   const { t } = useTranslation()
 
-  const handleMenuAction = (action: () => void) => () => {
-    action()
-    onContextOpenChange(false)
-  }
+  const menuItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
+    const items: CommandContextMenuExtraItem[] = []
+    if (showManagementActions) {
+      items.push({
+        type: 'item',
+        id: 'edit',
+        label: t('common.edit'),
+        icon: <Edit size={14} />,
+        onSelect: onEdit
+      })
+    }
+    if (onDuplicate) {
+      items.push({
+        type: 'item',
+        id: 'duplicate',
+        label: t('settings.provider.duplicate.menu_label'),
+        icon: <CopyPlus size={14} />,
+        onSelect: onDuplicate
+      })
+    }
+    items.push({
+      type: 'item',
+      id: 'notes',
+      label: t('settings.provider.notes.title'),
+      icon: <UserPen size={14} />,
+      onSelect: () => ModelNotesPopup.show({ providerId: provider.id })
+    })
+    if (showManagementActions) {
+      items.push({
+        type: 'item',
+        id: 'delete',
+        label: t('common.delete'),
+        icon: <Trash2 size={14} />,
+        destructive: true,
+        onSelect: onDelete
+      })
+    }
+    return items
+  }, [onDelete, onDuplicate, onEdit, provider.id, showManagementActions, t])
 
+  // Right-click stays uncontrolled — Radix handles cross-popup mutex naturally.
+  // The more-button popup remains controlled so the parent's single-row-active-at-a-time
+  // tracking (`contextProviderId`) keeps working across clicks between rows.
   return (
-    <Popover open={contextOpen} onOpenChange={onContextOpenChange}>
-      <div
-        className="w-full"
-        ref={(element) => onSetListItemRef(provider.id, element)}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onContextOpenChange(true)
-        }}>
+    <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
+      <div className="w-full" ref={(element) => onSetListItemRef(provider.id, element)}>
         <ProviderListItem
           provider={{ ...provider, name: getFancyProviderName(provider) }}
           selected={selected}
           dragging={listState.dragging}
           onClick={onSelect}
           onOpenMenu={() => onContextOpenChange(true)}
-          renderMenuButton={(button) => <PopoverAnchor asChild>{button}</PopoverAnchor>}
+          renderMenuButton={(button) => (
+            <CommandPopupMenu
+              location="webcontents.context"
+              extraItems={menuItems}
+              open={contextOpen}
+              onOpenChange={onContextOpenChange}
+              align="end"
+              contentClassName={providerListClasses.itemMenuContent}>
+              {button}
+            </CommandPopupMenu>
+          )}
         />
       </div>
-      <PopoverContent align="end" className={providerListClasses.itemMenuContent}>
-        <MenuList className="gap-1">
-          {showManagementActions && (
-            <MenuItem
-              label={t('common.edit')}
-              className={providerListClasses.itemMenuEntry}
-              icon={<Edit size={14} />}
-              onClick={handleMenuAction(onEdit)}
-            />
-          )}
-          {onDuplicate && (
-            <MenuItem
-              label={t('settings.provider.duplicate.menu_label')}
-              className={providerListClasses.itemMenuEntry}
-              icon={<CopyPlus size={14} />}
-              onClick={handleMenuAction(onDuplicate)}
-            />
-          )}
-          <MenuItem
-            label={t('settings.provider.notes.title')}
-            className={providerListClasses.itemMenuEntry}
-            icon={<UserPen size={14} />}
-            onClick={handleMenuAction(() => ModelNotesPopup.show({ providerId: provider.id }))}
-          />
-          {showManagementActions && (
-            <MenuItem
-              label={t('common.delete')}
-              icon={<Trash2 size={14} />}
-              onClick={handleMenuAction(onDelete)}
-              className={cn(providerListClasses.itemMenuEntry, 'text-destructive')}
-            />
-          )}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+    </CommandContextMenu>
   )
 }

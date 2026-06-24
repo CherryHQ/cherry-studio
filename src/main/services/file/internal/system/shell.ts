@@ -6,7 +6,7 @@
  * message on failure, so we treat any non-empty return as a failure.
  */
 
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { shell } from 'electron'
 
 export async function open(target: FilePath): Promise<void> {

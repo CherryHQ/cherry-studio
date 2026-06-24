@@ -27,8 +27,6 @@ export enum IpcChannel {
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
-  App_InstallUvBinary = 'app:install-uv-binary',
-  App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_GetSystemFonts = 'app:get-system-fonts',
@@ -165,23 +163,10 @@ export enum IpcChannel {
   Tab_Attach = 'tab:attach',
   Tab_Detach = 'tab:detach',
   Tab_MoveWindow = 'tab:move-window',
-  Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
   // Sub-window (detached tab window)
   SubWindow_SetAlwaysOnTop = 'sub-window:set-always-on-top',
-
-  Knowledge_CreateBase = 'knowledge:create-base',
-  Knowledge_RestoreBase = 'knowledge:restore-base',
-  Knowledge_DeleteBase = 'knowledge:delete-base',
-  Knowledge_AddItems = 'knowledge:add-items',
-  Knowledge_DeleteItems = 'knowledge:delete-items',
-  Knowledge_ReindexItems = 'knowledge:reindex-items',
-  Knowledge_Search = 'knowledge:search',
-  Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
-
-  FileProcessing_StartJob = 'file-processing:start-job',
-  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
   File_Open = 'file:open',
@@ -320,11 +305,6 @@ export enum IpcChannel {
   // Provider
   Provider_AddKey = 'provider:add-key',
 
-  // Web Search
-  WebSearch_SearchKeywords = 'web-search:search-keywords',
-  WebSearch_FetchUrls = 'web-search:fetch-urls',
-  WebSearch_CheckProvider = 'web-search:check-provider',
-
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
@@ -372,10 +352,6 @@ export enum IpcChannel {
   CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
   CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
   CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
-
-  // OCR
-  OCR_ocr = 'ocr:ocr',
-  OCR_ListProviders = 'ocr:list-providers',
 
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',
@@ -461,6 +437,8 @@ export enum IpcChannel {
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
   // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
   SettingsWindow_Open = 'settings-window:open'
+
+  // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

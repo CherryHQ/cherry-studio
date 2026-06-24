@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'

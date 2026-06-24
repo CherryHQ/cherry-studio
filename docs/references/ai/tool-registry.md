@@ -60,14 +60,43 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 - `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
-- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — calls
-  `listTools` on each MCP server that owns at least one selected tool,
+- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — reads each
+  selected server's tools from the catalog via `McpCatalogService.listTools`
+  (cache-only; see [Tool catalog reads](#tool-catalog-reads-never-block-on-mcp)),
   registers each as a `ToolEntry` whose `tool.execute` proxies through
   the MCP transport. **Scope:** only servers owning a selected tool are
-  hit — avoids paying the per-server round-trip when only one MCP tool
-  is in use for this request.
+  synced. Because the read is last-known-good cache, a server is only evicted
+  from the registry when its cache is genuinely empty — a transient blip can no
+  longer drop a still-active server's tools.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
+
+### Tool catalog reads never block on MCP
+
+`McpCatalogService` splits the MCP tool catalog into a **read** facade and a
+**write/refresh** path:
+
+- **`listTools(serverId)`** is cache-only — it returns the shared
+  `mcp.tools.<serverId>` cache and **never connects** to the upstream MCP server.
+  Every hot path that builds an agent/chat's tool surface uses it: the Claude Code
+  SDK bridge (`createSdkMcpServerInstance`), `buildMcpToolMetadata`, the agent
+  tool-policy (`agentTools.listMcpDescriptors`), and the two AI-SDK adapters
+  above. A dead or slow server therefore cannot block agent/chat startup
+  (issue #16242).
+- **`refreshTools(serverId)`** (and the private `listToolsForServer`) is the live
+  path that connects, lists, and writes the cache. It is driven entirely by
+  background warmers: `prewarmActiveServerTools` (at `onReady`), the
+  `onToolListChanged` refresh, the renderer's on-demand `refreshTools` (via
+  `useAgentTools`), the server-enable toggle, and `restartServer`.
+
+`listTools` also fires a single non-blocking `refreshTools` the first time it sees
+a never-warmed server (cache `undefined`, distinct from a warmed-but-empty `[]`),
+so headless/cron starts self-warm without re-probing dead servers.
+
+Trade-off: tool availability is **eventually consistent**. A server whose cache
+is still cold when a session starts contributes no tools to that session and
+appears on the next one — the Claude Agent SDK snapshots the tool list per
+session, so this cannot be made live mid-session.
 
 ## Meta-tools
 

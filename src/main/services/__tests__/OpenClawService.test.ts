@@ -28,6 +28,12 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
+      if (name === 'BinaryManager') {
+        return {
+          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
+          removeTool: vi.fn(() => Promise.resolve())
+        }
+      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
   }
@@ -45,8 +51,8 @@ vi.mock('@main/utils/shell-env', () => ({
   refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' }))
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  isUserInChina: vi.fn(() => Promise.resolve(false))
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { isInChina: vi.fn(() => Promise.resolve(false)) }
 }))
 
 vi.mock('@main/core/platform', () => ({

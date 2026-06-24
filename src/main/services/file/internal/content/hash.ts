@@ -11,7 +11,7 @@
 
 import { hash as fsHash } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'

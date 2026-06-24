@@ -31,6 +31,8 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     error: null,
     chunkSize: 1000,
     chunkOverlap: 0,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     threshold: undefined,
     documentCount: 10,
     searchMode: 'hybrid',

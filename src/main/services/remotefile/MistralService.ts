@@ -2,9 +2,10 @@ import fs from 'node:fs/promises'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
+import type { FileListResponse, FileUploadResponse } from '@main/services/remotefile/types'
 import { Mistral } from '@mistralai/mistralai'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { formatApiHost } from '@shared/utils/api'
-import type { FileListResponse, FileMetadata, FileUploadResponse } from '@types'
 
 import { BaseFileService } from './BaseFileService'
 

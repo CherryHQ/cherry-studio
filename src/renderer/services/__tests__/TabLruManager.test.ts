@@ -85,7 +85,7 @@ describe('TabLruManager', () => {
         expect(result).not.toContain('tab-0')
       })
 
-      it('should not hibernate the home tab', () => {
+      it('should not hibernate the default chat tab', () => {
         const now = Date.now()
         const tabs = [
           createTab('home', { lastAccessTime: now - 10000 }), // Oldest
@@ -141,11 +141,11 @@ describe('TabLruManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.hardCap + 1}`)
 
-        // Hard cap triggered: pinned tabs are no longer exempt (except home and active)
+        // Hard cap triggered: pinned tabs are no longer exempt (except the default chat tab and active)
         expect(result).toContain('pinned-old')
       })
 
-      it('should still protect home and active tabs in hard cap mode', () => {
+      it('should still protect the default chat and active tabs in hard cap mode', () => {
         const now = Date.now()
         const tabs = [
           createTab('home', { lastAccessTime: now - 30000 }),

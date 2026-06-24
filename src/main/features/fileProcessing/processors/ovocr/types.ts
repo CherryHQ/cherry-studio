@@ -1,4 +1,4 @@
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 
 export type PreparedOvOcrContext = {
   file: FileInfo

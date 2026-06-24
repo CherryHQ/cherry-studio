@@ -101,7 +101,7 @@ renderer copied the unlocked bulk while running, and the main process
 copied the occupied dirs during the next startup's narrow "no renderer
 yet" window. v2 abandons that distinction entirely — the whole directory
 is copied at startup **after** the previous process has fully exited, so
-nothing is locked. See `src/shared/config/constant.ts:occupiedDirs`
+nothing is locked. See `src/renderer/config/constant.ts:occupiedDirs`
 for the deprecated v1 constant.
 
 ## Layout

@@ -3,7 +3,6 @@
 exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
 <div>
   <div
-    aria-hidden="false"
     class="dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background] [&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]"
     role="region"
     style="overflow: auto; scrollbar-color: var(--color-scrollbar-thumb) transparent; height: 100%;"

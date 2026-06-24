@@ -53,7 +53,6 @@ vi.mock('@main/services/file/toFileInfo', () => ({
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
   class MockBaseService {
-    ipcHandle = vi.fn()
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
       this._disposables.push(d)
@@ -204,18 +203,6 @@ describe('FileProcessingService.onInit', () => {
     const types = registerHandlerMock.mock.calls.map((c) => c[0])
     expect(types).toContain('file-processing.background')
     expect(types).toContain('file-processing.remote-poll')
-  })
-
-  it('registers IPC handlers for start + listAvailableProcessors only', () => {
-    const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
-
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    const channels = ipcHandle.mock.calls.map((c) => c[0])
-    expect(channels).toEqual([
-      expect.stringContaining('start-job'),
-      expect.stringContaining('list-available-processors')
-    ])
   })
 })
 

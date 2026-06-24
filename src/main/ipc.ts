@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
-import { getIpCountry } from '@main/utils/ipService'
+import { regionService } from '@main/services/RegionService'
 import {
   autoDiscoverGitBash,
   getBinaryPath,
@@ -18,8 +18,8 @@ import {
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { Notification } from '@shared/types/notification'
 import { extractPdfText } from '@shared/utils/pdf'
-import type { Notification } from '@types'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
@@ -53,8 +53,8 @@ export async function registerIpc() {
   const notificationService = new NotificationService()
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-  // const powerMonitorService = application.get('PowerMonitorService')
-  // powerMonitorService.registerShutdownHandler(() => {
+  // const powerService = application.get('PowerService')
+  // powerService.registerShutdownHandler(() => {
   //   const mw = application.get('MainWindowService').getMainWindow()
   //   if (mw && !mw.isDestroyed()) {
   //     mw.webContents.send(IpcChannel.App_SaveData)
@@ -138,7 +138,7 @@ export async function registerIpc() {
 
   // Get IP Country
   ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
-    return getIpCountry()
+    return regionService.getCountry()
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string) => {
@@ -475,8 +475,6 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
-  ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
-  ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
   ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
 
   //copilot

@@ -37,6 +37,7 @@ import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
+const SQLITE_INARRAY_CHUNK = 500
 
 function assertManagedCherryAiDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
   if (!isManagedCherryAiDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
@@ -100,6 +101,11 @@ function resolveCapabilities(
 type CreateModelRegistryData = ModelLookupResult & {
   reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   defaultChatEndpoint?: EndpointType
+}
+
+type ReconcileRemovalFilterResult = {
+  toRemove: string[]
+  presetBackedRemovalIds: Set<string>
 }
 
 /**
@@ -199,6 +205,13 @@ function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHan
     foreignKey: () =>
       DataApiErrorFactory.notFound('Provider', providerIds.length === 1 ? providerIds[0] : providerIds.join(', '))
   }
+}
+
+function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
+  return {
+    foreignKey: () =>
+      DataApiErrorFactory.invalidOperation(`delete model ${identifier}`, 'model is in use by a knowledge base')
+  } satisfies SqliteErrorHandlers
 }
 
 /**
@@ -338,42 +351,33 @@ class ModelService {
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
   }
 
-  private async filterReconcileRemovals(providerId: string, toRemove: string[], db: DbType): Promise<string[]> {
-    if (toRemove.length === 0) return toRemove
+  private async filterReconcileRemovals(
+    providerId: string,
+    toRemove: string[],
+    db: DbType
+  ): Promise<ReconcileRemovalFilterResult> {
+    if (toRemove.length === 0) {
+      return { toRemove, presetBackedRemovalIds: new Set() }
+    }
 
     const rows = await db
       .select({
         id: userModelTable.id,
-        modelId: userModelTable.modelId,
-        presetModelId: userModelTable.presetModelId,
-        isDeprecated: userModelTable.isDeprecated
+        presetModelId: userModelTable.presetModelId
       })
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
 
     const managedDefaultIds = new Set<string>()
-    const protectedIds = new Set<string>()
+    const presetBackedRemovalIds = new Set<string>()
     for (const row of rows) {
       if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
         managedDefaultIds.add(row.id)
-        continue
-      }
-
-      if (row.presetModelId == null || row.presetModelId === '' || row.isDeprecated) {
-        continue
-      }
-      if (await providerRegistryService.isActiveProviderRegistryModel(providerId, row.presetModelId)) {
-        protectedIds.add(row.id)
+      } else if (row.presetModelId != null && row.presetModelId !== '') {
+        presetBackedRemovalIds.add(row.id)
       }
     }
 
-    if (protectedIds.size > 0) {
-      logger.warn('Skipped active registry model removal during reconcile', {
-        providerId,
-        skippedCount: protectedIds.size,
-        skippedIds: [...protectedIds]
-      })
-    }
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
         providerId,
@@ -382,7 +386,10 @@ class ModelService {
       })
     }
 
-    return toRemove.filter((id) => !managedDefaultIds.has(id) && !protectedIds.has(id))
+    return {
+      toRemove: toRemove.filter((id) => !managedDefaultIds.has(id)),
+      presetBackedRemovalIds
+    }
   }
 
   /**
@@ -762,9 +769,11 @@ class ModelService {
 
     const db = application.get('DbService').getDb()
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
-    const toRemove = await this.filterReconcileRemovals(providerId, payload.toRemove, db)
+    const removalFilter = await this.filterReconcileRemovals(providerId, payload.toRemove, db)
+    const toRemove = removalFilter.toRemove
 
     let actuallyDeleted = 0
+    let deletedIds: string[] = []
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
@@ -774,6 +783,7 @@ class ModelService {
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
               .returning({ id: userModelTable.id })
             actuallyDeleted = deletedRows.length
+            deletedIds = deletedRows.map((row) => row.id)
 
             if (deletedRows.length > 0) {
               await pinService.purgeForEntitiesTx(
@@ -817,6 +827,15 @@ class ModelService {
       })
     }
 
+    const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+    if (deletedPresetBackedIds.length > 0) {
+      logger.info('Deleted preset-backed models during reconcile', {
+        providerId,
+        deletedCount: deletedPresetBackedIds.length,
+        deletedIds: deletedPresetBackedIds
+      })
+    }
+
     logger.info('Reconciled provider models', {
       providerId,
       added: values.length,
@@ -832,20 +851,86 @@ class ModelService {
   async delete(providerId: string, modelId: string): Promise<void> {
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
-    await application.get('DbService').withWriteTx(async (tx) => {
-      const rows = await tx
-        .delete(userModelTable)
-        .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-        .returning({ id: userModelTable.id })
+    await withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx(async (tx) => {
+          const rows = await tx
+            .delete(userModelTable)
+            .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+            .returning({ id: userModelTable.id })
 
-      if (rows.length === 0) {
-        throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
-      }
+          if (rows.length === 0) {
+            throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+          }
 
-      await pinService.purgeForEntityTx(tx, 'model', rows[0].id)
-    })
+          await pinService.purgeForEntityTx(tx, 'model', rows[0].id)
+        }),
+      deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
+    )
 
     logger.info('Deleted model', { providerId, modelId })
+  }
+
+  /**
+   * Delete multiple models atomically.
+   */
+  async bulkDelete(items: { providerId: string; modelId: string }[]): Promise<void> {
+    if (items.length === 0) return
+
+    const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
+
+    for (const item of items) {
+      assertManagedCherryAiDefaultModelMutationAllowed(
+        item.providerId,
+        item.modelId,
+        `delete model ${item.providerId}/${item.modelId}`
+      )
+      uniqueItems.set(createUniqueModelId(item.providerId, item.modelId), item)
+    }
+
+    const ids = [...uniqueItems.keys()]
+
+    await withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx(async (tx) => {
+          const existingIds = new Set<string>()
+          for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+            const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+            const existingRows = await tx
+              .select({ id: userModelTable.id })
+              .from(userModelTable)
+              .where(inArray(userModelTable.id, chunk))
+            for (const row of existingRows) existingIds.add(row.id)
+          }
+
+          const missingId = ids.find((id) => !existingIds.has(id))
+          if (missingId) {
+            throw DataApiErrorFactory.notFound('Model', missingId)
+          }
+
+          for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+            const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+            const deletedRows = await tx
+              .delete(userModelTable)
+              .where(inArray(userModelTable.id, chunk))
+              .returning({ id: userModelTable.id })
+
+            if (deletedRows.length > 0) {
+              await pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+        }),
+      deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
+    )
+
+    logger.info('Bulk deleted models', {
+      count: ids.length,
+      providers: [...new Set([...uniqueItems.values()].map((item) => item.providerId))]
+    })
   }
 
   /**

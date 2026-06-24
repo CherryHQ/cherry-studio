@@ -26,7 +26,7 @@ export type { ReasoningEffort }
 import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 import type { Provider } from '@shared/data/types/provider'
 import { isAnthropicProvider, isAwsBedrockProvider, isGeminiProvider, isOpenAIProvider } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 /**
  * Map Anthropic thinking configuration to AI SDK provider options

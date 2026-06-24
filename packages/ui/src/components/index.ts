@@ -98,6 +98,8 @@ export {
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/icon-tooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './composites/image-tool-button'
+// Markdown
+export * from './composites/markdown'
 // ImagePreview
 export {
   DEFAULT_IMAGE_PREVIEW_LABELS,
@@ -138,6 +140,7 @@ export { Sortable } from './composites/sortable'
 // TreeView
 export {
   type DragPosition,
+  flattenTree,
   type FlatTreeItem,
   type RenderRowArgs,
   type RenderRowFn,
@@ -145,7 +148,10 @@ export {
   type TreeListSlotArgs,
   type TreeNodeAdapter,
   TreeView,
-  type TreeViewProps
+  type TreeViewProps,
+  useExpandedState,
+  useSelectionState,
+  useTreeDragAndDrop
 } from './composites/tree-view'
 
 /* Shadcn Primitive Components */

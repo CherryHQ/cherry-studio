@@ -48,6 +48,13 @@ interface StubbornInput {
 let scheduler: SchedulerService
 let jobManager: JobManager
 
+// PowerService stub: JobManager acquires a sleep-prevention hold per attempt and
+// releases it in the finally. Shared spies let the end-to-end test assert acquire/release.
+const sleepHoldDispose = vi.fn()
+const mockPowerService = {
+  preventSleep: vi.fn(() => ({ dispose: sleepHoldDispose }))
+}
+
 function makeEchoHandler(): JobHandler<EchoInput> {
   return {
     recovery: 'abandon',
@@ -129,6 +136,8 @@ describe('JobManager smoke (dummy.echo)', () => {
           return scheduler
         case 'JobManager':
           return jobManager
+        case 'PowerService':
+          return mockPowerService
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
@@ -163,6 +172,9 @@ describe('JobManager smoke (dummy.echo)', () => {
   afterEach(async () => {
     await drainTrailingDispatch()
     MockMainCacheServiceUtils.resetMocks()
+    // Reset the sleep-prevention spies so each test asserts its own acquire/release counts.
+    mockPowerService.preventSleep.mockClear()
+    sleepHoldDispose.mockClear()
   })
 
   it('runs a job end-to-end (pending → running → completed)', async () => {
@@ -176,6 +188,16 @@ describe('JobManager smoke (dummy.echo)', () => {
     expect(settled.startedAt).not.toBeNull()
     expect(settled.finishedAt).not.toBeNull()
     expect(settled.error).toBeNull()
+
+    // The hold is released in the task's finally, which runs after finalizeJob resolves
+    // handle.finished — drain so that trailing continuation has executed before asserting.
+    await drainTrailingDispatch()
+
+    // JobManager acquired exactly one sleep-prevention hold for the single attempt and
+    // released it on completion. Reason is `job:<type>:<id>` — id is dynamic, match prefix.
+    expect(mockPowerService.preventSleep).toHaveBeenCalledTimes(1)
+    expect(mockPowerService.preventSleep).toHaveBeenCalledWith(expect.stringMatching(/^job:dummy\.echo:/))
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   })
 
   it('publishes state + progress through CacheService', async () => {
@@ -215,6 +237,10 @@ describe('JobManager smoke (dummy.echo)', () => {
       retryable: false,
       message: expect.stringContaining('user requested')
     })
+
+    await drainTrailingDispatch()
+    // A cancelled (non-completed) job must still release its hold via the task finally.
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   })
 
   it('reports timed-out when the handler ignores the abort past cancelTimeoutMs', async () => {
@@ -234,6 +260,8 @@ describe('JobManager smoke (dummy.echo)', () => {
 
     await executed
     await drainTrailingDispatch()
+    // Even on the force-timeout terminal the hold is released once the late handler settles.
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   }, 10_000)
 
   it('reports cancelled for a not-in-flight delayed job', async () => {
@@ -313,4 +341,54 @@ describe('JobManager smoke (dummy.echo)', () => {
     const settled = await Promise.all(handles.map((h) => h.finished))
     expect(settled.map((s) => s.status)).toEqual(Array(6).fill('completed'))
   }, 10_000)
+
+  // Regression for #16291 (defense-in-depth): spawnExecute must refuse to run a
+  // handler for a jobId already executing in THIS process, guarding any stray
+  // re-dispatch path (not just startup recovery) from double-running a job.
+  it('refuses to double-run a job already in-flight in this process', async () => {
+    let executeCount = 0
+    let releaseGate!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve
+    })
+    const gateHandler: JobHandler<EchoInput> = {
+      recovery: 'retry',
+      cancelTimeoutMs: 1000,
+      defaultConcurrency: 1,
+      async execute(ctx) {
+        executeCount++
+        await new Promise<void>((resolve, reject) => {
+          if (ctx.signal.aborted) return reject(new Error('AbortError'))
+          const onAbort = () => reject(new Error('AbortError'))
+          ctx.signal.addEventListener('abort', onAbort, { once: true })
+          void gate.then(() => {
+            ctx.signal.removeEventListener('abort', onAbort)
+            resolve()
+          })
+        })
+        return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
+      }
+    }
+    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler as JobHandler)
+
+    const handle = await jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
+    await drainTrailingDispatch()
+    expect(executeCount).toBe(1)
+
+    const row = await jobService.getById(handle.id)
+    const firstExecuted = inFlightExecutedOf(handle.id)
+
+    // Simulate a stray re-dispatch invoking spawnExecute for an id already
+    // executing in this process.
+    ;(jobManager as unknown as { spawnExecute: (r: unknown) => void }).spawnExecute(row)
+
+    // Guard prevented a second execution and did not clobber the in-flight marker.
+    expect(executeCount).toBe(1)
+    expect(inFlightExecutedOf(handle.id)).toBe(firstExecuted)
+
+    releaseGate()
+    const settled = await handle.finished
+    expect(settled.status).toBe('completed')
+    expect(executeCount).toBe(1)
+  })
 })

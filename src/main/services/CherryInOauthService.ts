@@ -2,7 +2,6 @@ import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { CHERRYIN_CONFIG } from '@shared/config/constant'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import { createHash, randomBytes } from 'crypto'
@@ -10,6 +9,14 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('CherryInOauthService')
+
+// CherryIN OAuth configuration
+const CHERRYIN_CONFIG = {
+  CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d',
+  ALLOWED_HOSTS: ['https://open.cherryin.ai', 'https://open.cherryin.dev'],
+  REDIRECT_URI: 'cherrystudio://oauth/callback',
+  SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
+}
 const CHERRYIN_PROVIDER_ID = 'cherryin'
 
 // Zod schemas for API response validation

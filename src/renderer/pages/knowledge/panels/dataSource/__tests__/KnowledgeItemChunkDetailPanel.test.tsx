@@ -6,8 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeItemChunkDetailPanel from '../KnowledgeItemChunkDetailPanel'
 import { createFileItem } from './testUtils'
 
-const listItemChunksMock = vi.fn()
+const mockIpcRequest = vi.fn()
 const mockUseQuery = vi.fn()
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => mockIpcRequest(...args)
+  }
+}))
 const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
 }))
@@ -66,8 +72,11 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@renderer/utils/time', () => ({
+  formatRelativeTime: () => '刚刚'
+}))
+
 vi.mock('@renderer/pages/knowledge/utils', () => ({
-  formatRelativeTime: () => '刚刚',
   normalizeKnowledgeError: (error: unknown) => (error instanceof Error ? error : new Error(String(error)))
 }))
 
@@ -104,7 +113,7 @@ vi.mock('react-i18next', () => ({
 describe('KnowledgeItemChunkDetailPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    listItemChunksMock.mockResolvedValue(chunks)
+    mockIpcRequest.mockResolvedValue(chunks)
     mockUseQuery.mockImplementation((path: string) => {
       if (path === '/knowledge-items/:id') {
         return {
@@ -118,14 +127,6 @@ describe('KnowledgeItemChunkDetailPanel', () => {
         data: undefined,
         isLoading: false,
         error: undefined
-      }
-    })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        knowledge: {
-          listItemChunks: listItemChunksMock
-        }
       }
     })
   })
@@ -164,7 +165,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
       enabled: true
     })
     expect(mockUseQuery).not.toHaveBeenCalledWith('/files/entries/:id', expect.anything())
-    expect(listItemChunksMock).toHaveBeenCalledWith('base-1', 'file-1')
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.list_item_chunks', { baseId: 'base-1', itemId: 'file-1' })
     expect(screen.getByText('145 tokens')).toBeInTheDocument()
     expect(screen.getByText('88 tokens')).toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容一')).toBeInTheDocument()
@@ -187,7 +188,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
 
   it('logs chunk list failures and shows the original error message', async () => {
     const listError = new Error('list failed')
-    listItemChunksMock.mockRejectedValueOnce(listError)
+    mockIpcRequest.mockRejectedValueOnce(listError)
 
     renderPanel()
 
@@ -201,7 +202,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
   })
 
   it('renders an empty state when the item has no chunks', async () => {
-    listItemChunksMock.mockResolvedValueOnce([])
+    mockIpcRequest.mockResolvedValueOnce([])
 
     renderPanel()
 

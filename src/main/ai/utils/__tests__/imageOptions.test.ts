@@ -1,4 +1,4 @@
-import type { GenerateImageParams } from '@types'
+import type { GenerateImageParams } from '@shared/types/image'
 import { describe, expect, it } from 'vitest'
 
 import { buildImageProviderOptions } from '../imageOptions'
@@ -165,5 +165,32 @@ describe('buildImageProviderOptions', () => {
   it('dmxapi omits the google bag when no aspectRatio / imageResolution is set', () => {
     const result = buildImageProviderOptions('dmxapi', params({ negativePrompt: 'x' }))
     expect(result).toEqual({ dmxapi: { negative_prompt: 'x' } })
+  })
+
+  it('dashscope forwards the vendor bag (modelDescriptor / langs) the submit transport needs, mapped fields winning', () => {
+    // Regression: without bag-forwarding, modelDescriptor is dropped and
+    // dashscopeTransport.submit throws "Missing modelDescriptor".
+    const result = buildImageProviderOptions(
+      'dashscope',
+      params({
+        negativePrompt: 'no blur',
+        seed: '42',
+        providerOptions: {
+          dashscope: {
+            modelDescriptor: { id: 'qwen-mt-image', endpoint: '/api/v1/services/aigc/image', isSync: false },
+            sourceLang: 'auto',
+            negative_prompt: 'bag-loses'
+          }
+        }
+      })
+    )
+    expect(result).toEqual({
+      dashscope: {
+        modelDescriptor: { id: 'qwen-mt-image', endpoint: '/api/v1/services/aigc/image', isSync: false },
+        sourceLang: 'auto',
+        negative_prompt: 'no blur',
+        seed: 42
+      }
+    })
   })
 })
