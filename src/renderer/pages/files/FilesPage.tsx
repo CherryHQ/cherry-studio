@@ -492,14 +492,14 @@ function FilesPage() {
   }, [files])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
-  const batchDeleteLabel = (() => {
+  const batchDeleteLabel = useMemo(() => {
     if (isTrash) return t('files.permanent_delete')
     if (selectedFiles.length > 0 && selectedFiles.every((file) => file.origin === 'external')) {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
     return t('files.delete.label')
-  })()
+  }, [isTrash, selectedFiles, t])
 
   const handleSelect = useCallback((id: string, multi: boolean) => {
     setSelectedIds((prev) => {
