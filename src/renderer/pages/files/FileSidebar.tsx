@@ -55,6 +55,14 @@ export function FileSidebar({
   const { t } = useTranslation()
   const isActive = (kind: string, value: string) => filter.kind === kind && filter.value === value
 
+  const folderEntries: SidebarEntry[] = folders.map((folder) => ({
+    kind: 'folder',
+    value: folder,
+    label: () => folder.split('/').pop() || folder,
+    icon: FolderClosed,
+    countKey: `folder:${folder}`
+  }))
+
   const renderEntry = (entry: SidebarEntry) => {
     const active = isActive(entry.kind, entry.value)
     const Icon = entry.icon
@@ -78,34 +86,10 @@ export function FileSidebar({
   return (
     <div className="flex w-[180px] shrink-0 select-none flex-col overflow-y-auto border-border/30 border-r">
       <div className="space-y-[1px] px-1.5 pt-2 pb-1">{TYPE_ENTRIES.map(renderEntry)}</div>
-      {folders.length > 0 && (
+      {folderEntries.length > 0 && (
         <>
           <div className="mx-2.5 border-border/20 border-t" />
-          <div className="space-y-[1px] px-1.5 pt-1 pb-1">
-            {folders.map((folder) => {
-              const active = isActive('folder', folder)
-              const count = fileCounts[`folder:${folder}`]
-              const displayName = folder.split('/').pop() || folder
-              return (
-                <Button
-                  key={folder}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onFilterChange({ kind: 'folder', value: folder })}
-                  className={`w-full justify-start gap-2 px-2.5 py-[5px] ${
-                    active
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                  }`}>
-                  <FolderClosed size={13} strokeWidth={1.5} className="shrink-0 text-muted-foreground/60" />
-                  <span className="flex-1 truncate text-left">{displayName}</span>
-                  {count !== undefined && count > 0 && (
-                    <span className="text-muted-foreground/40 text-xs">{count}</span>
-                  )}
-                </Button>
-              )
-            })}
-          </div>
+          <div className="space-y-[1px] px-1.5 pt-1 pb-1">{folderEntries.map(renderEntry)}</div>
         </>
       )}
       <div className="mx-2.5 border-border/20 border-t" />
