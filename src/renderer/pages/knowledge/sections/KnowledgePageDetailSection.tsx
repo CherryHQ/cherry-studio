@@ -51,6 +51,7 @@ const KnowledgePageDetailSection = () => {
         onOpenRecallTest={openRecallTestDrawer}
         onRenameBase={openRenameBaseDialog}
         onDeleteBase={deleteBase}
+        onRebuild={() => openRestoreBaseDialog(selectedBase)}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-background">

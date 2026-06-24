@@ -2767,8 +2767,10 @@
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
       "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
       "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_separator": "分隔符",
+      "chunk_separator_required": "关闭智能分段时必须填写分隔符",
       "chunk_size": "分段大小",
-      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_change_warning": "分块设置的修改只针对新添加的内容有效",
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_separator": "切分文本所用的分隔符（转义形式）。开启智能分段时作为额外切分点；关闭后仅按此分隔符切分。",
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
@@ -2786,6 +2789,7 @@
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
         "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "smart_chunking": "自动沿 Markdown 结构（标题、代码块、段落）分段，且不从代码块内部切开。关闭后仅按分隔符切分。",
         "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
         "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
       },
@@ -2805,6 +2809,7 @@
         "vector": "向量检索"
       },
       "separator_rule": "分隔符规则",
+      "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
       "tokens_unit": "tokens"
     },
