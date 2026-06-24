@@ -1,5 +1,6 @@
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { isCodexProviderId } from '@shared/data/presets/codex'
+import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 
 import { useProviderConnectionCheck } from '../hooks/providerSetting/useProviderConnectionCheck'
 import ApiHost from './ApiHost'
@@ -17,10 +18,10 @@ export function AuthenticationSectionContent({
 }: AuthenticationSectionContentProps) {
   const connectionCheck = useProviderConnectionCheck(providerId)
 
-  // claude-code (CLI login) and openai-codex (ChatGPT OAuth) authenticate via a
-  // login, not an API key — their sign-in panels render through the
-  // provider-specific registry instead.
-  if (isClaudeCodeProviderId(providerId) || isCodexProviderId(providerId)) {
+  // claude-code (CLI login), openai-codex (ChatGPT OAuth) and grok-cli (xAI
+  // OAuth) authenticate via a login, not an API key — their sign-in panels
+  // render through the provider-specific registry instead.
+  if (isClaudeCodeProviderId(providerId) || isCodexProviderId(providerId) || isGrokCliProviderId(providerId)) {
     return null
   }
 

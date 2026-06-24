@@ -4763,6 +4763,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -7177,6 +7178,15 @@
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
+      "grok_cli": {
+        "description": "Sign in with your SuperGrok subscription",
+        "description_detail": "This provider uses your xAI SuperGrok login (OAuth) to access Grok CLI models (Grok Build, Composer). Your browser will open to complete sign-in.",
+        "logged_in": "Signed in to Grok CLI",
+        "sign_in_button": "Sign in with xAI",
+        "sign_in_failed": "Sign-in failed. Please try again.",
+        "sign_in_success": "Signed in to Grok CLI",
+        "signing_in": "Waiting for browser…"
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {

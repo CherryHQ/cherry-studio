@@ -1,5 +1,6 @@
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { isCodexProviderId } from '@shared/data/presets/codex'
+import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
 import type { ReactNode } from 'react'
@@ -13,6 +14,7 @@ import CodexOauth from './CodexOauth'
 import DmxapiSettings from './DmxapiSettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GpuStackSettings from './GpuStackSettings'
+import GrokCliOauth from './GrokCliOauth'
 import LmStudioSettings from './LmStudioSettings'
 import OvmsSettings from './OvmsSettings'
 import ProviderOauth from './ProviderOauth'
@@ -67,6 +69,11 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'codex-oauth',
       when: ({ provider }) => isCodexProviderId(provider.id),
       render: (providerId) => <CodexOauth providerId={providerId} />
+    },
+    {
+      key: 'grok-cli-oauth',
+      when: ({ provider }) => isGrokCliProviderId(provider.id),
+      render: (providerId) => <GrokCliOauth providerId={providerId} />
     }
   ],
   afterAuth: [

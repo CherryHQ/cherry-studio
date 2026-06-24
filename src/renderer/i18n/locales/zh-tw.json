@@ -4763,6 +4763,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "騰訊混元",
@@ -7177,6 +7178,15 @@
       },
       "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",
+      "grok_cli": {
+        "description": "使用你的 SuperGrok 訂閱登入",
+        "description_detail": "此 provider 使用你的 xAI SuperGrok 登入（OAuth）來存取 Grok CLI 模型（Grok Build、Composer）。將開啟瀏覽器完成登入。",
+        "logged_in": "已登入 Grok CLI",
+        "sign_in_button": "使用 xAI 登入",
+        "sign_in_failed": "登入失敗，請重試。",
+        "sign_in_success": "已登入 Grok CLI",
+        "signing_in": "等待瀏覽器…"
+      },
       "logo_upload_failed": "無法處理所選圖片",
       "misc": "其他",
       "more_endpoints": {
