@@ -69,13 +69,13 @@ type MetadataBase = { size: number; createdAt: number; modifiedAt: number }
 type DirectoryMetadata = MetadataBase & { kind: 'directory' }
 
 type FileMetadataCommon = MetadataBase & { kind: 'file'; mime: string }
-type ImageFileMetadata = FileMetadataCommon & { type: 'image'; width: number; height: number }
-type PdfFileMetadata = FileMetadataCommon & { type: 'pdf'; pageCount: number }
-type TextFileMetadata = FileMetadataCommon & { type: 'text'; encoding: string }
-type GenericFileMetadata = FileMetadataCommon & { type: 'other' }
+type ImageFileMetadata = FileMetadataCommon & { type: 'image'; width?: number; height?: number }
+type DocumentFileMetadata = FileMetadataCommon & { type: 'document'; pageCount?: number }
+type TextFileMetadata = FileMetadataCommon & { type: 'text'; encoding?: string }
+type GenericFileMetadata = FileMetadataCommon & { type: 'audio' | 'video' | 'other' }
 
-type FileKindMetadata = ImageFileMetadata | PdfFileMetadata | TextFileMetadata | GenericFileMetadata
-/** Physical file metadata (size, timestamps, and type-specific info like dimensions/pageCount). Discriminate on `kind`, then `type`. */
+type FileKindMetadata = ImageFileMetadata | DocumentFileMetadata | TextFileMetadata | GenericFileMetadata
+/** Physical file metadata (size, timestamps, and optional type-specific enrichment like dimensions/pageCount). */
 export type PhysicalFileMetadata = DirectoryMetadata | FileKindMetadata
 
 // ─── Directory Listing Options ───

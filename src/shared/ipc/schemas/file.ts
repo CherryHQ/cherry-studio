@@ -32,7 +32,7 @@ const physicalFileMetadataSchema = z.union([
   }),
   z.strictObject({
     kind: z.literal('file'),
-    type: FileTypeSchema.or(z.literal('pdf')),
+    type: FileTypeSchema,
     size: z.int().nonnegative(),
     createdAt: z.number().nonnegative(),
     modifiedAt: z.number().nonnegative(),
