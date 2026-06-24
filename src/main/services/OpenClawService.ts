@@ -2,7 +2,6 @@ import { execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -56,10 +55,10 @@ export function parseUpdateStatus(statusOutput: string): string | null {
   return null
 }
 
-const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
-const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
-const OPENCLAW_CONFIG_BAK_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json.bak')
-const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
+const openclawConfigDir = () => application.getPath('external.openclaw.config')
+const openclawConfigPath = () => path.join(openclawConfigDir(), 'openclaw.json')
+const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
+const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
 
@@ -763,8 +762,8 @@ export class OpenClawService extends BaseService {
    */
   private loadAuthTokenFromConfig(): void {
     try {
-      if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
-        const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
+      if (fs.existsSync(openclawConfigPath())) {
+        const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
         const config = JSON.parse(content) as OpenClawConfig
         const token = config.gateway?.auth?.token
         if (token) {
@@ -790,25 +789,25 @@ export class OpenClawService extends BaseService {
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       // Ensure config directory exists
-      if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
-        fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
+      if (!fs.existsSync(openclawConfigDir())) {
+        fs.mkdirSync(openclawConfigDir(), { recursive: true })
       }
 
       // Migrate legacy openclaw.cherry.json → openclaw.json
-      if (fs.existsSync(OPENCLAW_LEGACY_CONFIG_PATH)) {
-        if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
-          fs.renameSync(OPENCLAW_CONFIG_PATH, OPENCLAW_CONFIG_BAK_PATH)
+      if (fs.existsSync(openclawLegacyConfigPath())) {
+        if (fs.existsSync(openclawConfigPath())) {
+          fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
           logger.info('Migrated openclaw.json → openclaw.json.bak')
         }
-        fs.renameSync(OPENCLAW_LEGACY_CONFIG_PATH, OPENCLAW_CONFIG_PATH)
+        fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
         logger.info('Migrated openclaw.cherry.json → openclaw.json')
       }
 
       // Read existing config
       let config: OpenClawConfig = {}
-      if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+      if (fs.existsSync(openclawConfigPath())) {
         try {
-          const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
+          const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
           config = JSON.parse(content)
         } catch {
           logger.warn('Failed to parse existing OpenClaw config, creating new one')
@@ -892,7 +891,7 @@ export class OpenClawService extends BaseService {
       }
 
       // Write config file
-      fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+      fs.writeFileSync(openclawConfigPath(), JSON.stringify(config, null, 2), 'utf-8')
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }

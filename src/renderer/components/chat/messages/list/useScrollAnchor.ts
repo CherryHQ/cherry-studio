@@ -35,9 +35,17 @@ import type { VListHandle } from 'virtua'
 import type { SmoothScrollController } from './useSmoothScrollAnimation'
 
 const RELEASE_TOLERANCE_PX = 16
-// Anchor offsets at or below this count as "already at the top" — typically
-// the virtualizer's top padding. When the anchored item is here, scrollTop=0
-// already places it at the viewport top, so the spacer is redundant.
+// While pinned, snap scrollTop back to the anchor when a programmatic scroll has
+// drifted it by more than this. Kept above subpixel/rounding noise so an
+// already-aligned pin never churns.
+const REASSERT_TOLERANCE_PX = 2
+// How far into the virtualizer's own items (i.e. excluding `startMargin`) the
+// anchored item can sit and still count as "already at the top". When the item
+// is this close to the virtualizer's start, scrollTop ≈ startMargin already
+// places it at the viewport top, so the spacer is redundant. The threshold is
+// applied as `startMargin + ANCHOR_NEAR_TOP_PX` (see `onContentSizeChange`)
+// because the anchor offset includes `startMargin`; a bare constant would never
+// fire under a tall top inset (e.g. a floating immersive navbar).
 const ANCHOR_NEAR_TOP_PX = 24
 
 export interface ScrollAnchorInputs {
@@ -45,7 +53,8 @@ export interface ScrollAnchorInputs {
   contentRef?: RefObject<HTMLElement | null>
   vlistHandleRef: RefObject<VListHandle | null>
   smoothScroll: SmoothScrollController
-  canRelease(): boolean
+  /** Real content rendered before the virtualizer (matches virtua's `startMargin`). */
+  startMargin?: number
 }
 
 export interface ScrollAnchor {
@@ -67,8 +76,15 @@ export interface ScrollAnchor {
   release(): void
   /** Caller invokes on every observed content size change (ResizeObserver). */
   onContentSizeChange(): void
-  /** Caller invokes on every scroll event with current scrollTop. */
-  onUserScroll(offset: number): void
+  /**
+   * Caller invokes on every scroll event with current scrollTop. `isUserInitiated`
+   * is REQUIRED (no default) so every call site must declare provenance: pass
+   * `false` for programmatic scrolls (virtua remeasure jumps, content
+   * `scrollIntoView`) so they can't release the pin — only a real wheel / drag /
+   * touch should. A forgotten flag would silently re-introduce the mid-stream
+   * pin-drop bug, so it must be explicit rather than fail-open.
+   */
+  onUserScroll(offset: number, isUserInitiated: boolean): void
 }
 
 export function useScrollAnchor({
@@ -76,7 +92,7 @@ export function useScrollAnchor({
   contentRef,
   vlistHandleRef,
   smoothScroll,
-  canRelease
+  startMargin = 0
 }: ScrollAnchorInputs): ScrollAnchor {
   // dataIndex of the pinned item, or null if not pinned.
   const anchorIndexRef = useRef<number | null>(null)
@@ -91,6 +107,21 @@ export function useScrollAnchor({
   // The spacer is appended after data items, so wrappedIdx for a data
   // item is identical to its data index. The orchestrator passes us the
   // wrapped scrollToIndex via vlistHandleRef.
+
+  // virtua's `scrollToIndex(i, 'start')` scrolls to `startMargin + getItemOffset(i)`
+  // (startMargin = the real content rendered before the virtualizer, e.g. the top
+  // padding spacer). The pinned scrollTop — and therefore the spacer math and the
+  // scroll-away test — must include it; `getItemOffset` alone omits it, which would
+  // leave the spacer `startMargin` px short and let the browser clamp scrollTop
+  // (the message drifts down by the top padding once the spacer tightens).
+  const getAnchorScrollOffset = useCallback(
+    (dataIndex: number): number | null => {
+      const handle = vlistHandleRef.current
+      if (!handle) return null
+      return Math.max(0, startMargin) + handle.getItemOffset(dataIndex)
+    },
+    [startMargin, vlistHandleRef]
+  )
 
   const getNaturalScrollableSize = useCallback((): number => {
     const el = scrollerRef.current
@@ -107,14 +138,14 @@ export function useScrollAnchor({
 
   const computeNeededSpacer = useCallback((): number => {
     const el = scrollerRef.current
-    const handle = vlistHandleRef.current
     const dataIdx = anchorIndexRef.current
-    if (!el || !handle || dataIdx == null) return 0
-    const anchorOffset = handle.getItemOffset(dataIdx)
+    if (!el || dataIdx == null) return 0
+    const anchorOffset = getAnchorScrollOffset(dataIdx)
+    if (anchorOffset == null) return 0
     const viewport = el.clientHeight
     const natural = getNaturalScrollableSize()
     return Math.max(0, anchorOffset + viewport - natural)
-  }, [getNaturalScrollableSize, scrollerRef, vlistHandleRef])
+  }, [getAnchorScrollOffset, getNaturalScrollableSize, scrollerRef])
 
   const pinTo = useCallback(
     (dataIndex: number) => {
@@ -122,7 +153,7 @@ export function useScrollAnchor({
       const handle = vlistHandleRef.current
       if (!el || !handle) return
       anchorIndexRef.current = dataIndex
-      anchorOffsetRef.current = handle.getItemOffset(dataIndex)
+      anchorOffsetRef.current = getAnchorScrollOffset(dataIndex) ?? 0
       // The freshly inserted message may not be measured by virtua yet, so
       // `getItemOffset` (hence `needed`) can read low and leave too little
       // scroll range to lift it to the top — stranding it near the bottom.
@@ -144,10 +175,10 @@ export function useScrollAnchor({
         const h = vlistHandleRef.current
         if (!h) return
         h.scrollToIndex(dataIndex, { align: 'start' })
-        anchorOffsetRef.current = h.getItemOffset(dataIndex)
+        anchorOffsetRef.current = getAnchorScrollOffset(dataIndex) ?? anchorOffsetRef.current
       })
     },
-    [computeNeededSpacer, getNaturalScrollableSize, scrollerRef, vlistHandleRef]
+    [computeNeededSpacer, getAnchorScrollOffset, getNaturalScrollableSize, scrollerRef, vlistHandleRef]
   )
 
   const release = useCallback(() => {
@@ -164,13 +195,15 @@ export function useScrollAnchor({
 
     if (anchorIndexRef.current != null) {
       // Refresh known anchor offset from virtua's measured table.
-      anchorOffsetRef.current = handle.getItemOffset(anchorIndexRef.current)
+      anchorOffsetRef.current = getAnchorScrollOffset(anchorIndexRef.current) ?? anchorOffsetRef.current
       // If the anchored item is already at (or essentially at) the top of
-      // the natural scroll range, no spacer is needed — scrollTop=0 already
-      // places it at the viewport top. Without this, a short assistant reply
-      // leaves a viewport-minus-natural spacer in place forever, creating
-      // a scrollable phantom area below the (already-fully-visible) content.
-      if (anchorOffsetRef.current <= ANCHOR_NEAR_TOP_PX) {
+      // the natural scroll range, no spacer is needed — scrollTop ≈ startMargin
+      // already places it at the viewport top. Without this, a short assistant
+      // reply leaves a viewport-minus-natural spacer in place forever, creating
+      // a scrollable phantom area below the (already-fully-visible) content. The
+      // threshold scales with `startMargin` so it still fires under a tall top
+      // inset (the anchor offset includes `startMargin`).
+      if (anchorOffsetRef.current <= Math.max(0, startMargin) + ANCHOR_NEAR_TOP_PX) {
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
         shouldTightenInitialSpacerRef.current = false
@@ -180,7 +213,11 @@ export function useScrollAnchor({
       const contentGrew = naturalNow > lastPinnedNaturalRef.current
       lastPinnedNaturalRef.current = naturalNow
       const needed = computeNeededSpacer()
-      if (needed === 0 && canRelease()) {
+      if (needed === 0) {
+        // The reply outgrew the space below the pinned message (content fills at
+        // least a viewport). Release the pin so the caller can hand the turn over
+        // to bottom-follow — this happens DURING streaming, not only after, so a
+        // long reply sticks to the bottom instead of staying frozen at the top.
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
         shouldTightenInitialSpacerRef.current = false
@@ -198,6 +235,18 @@ export function useScrollAnchor({
       } else {
         shouldTightenInitialSpacerRef.current = false
       }
+      // Re-assert the pinned position. virtua / content can nudge scrollTop
+      // forward during streaming (a remeasure jump, a child `scrollIntoView`),
+      // which neither the spacer math nor the input-gated release corrects — left
+      // alone it drifts the user message (and the history above it) off the top.
+      // Snap it back to the anchor each resize; a no-op when already aligned, and
+      // the resulting scroll event is flagged non-user so it can't release.
+      if (anchorIndexRef.current != null && !smoothScroll.isAnimating()) {
+        const target = anchorOffsetRef.current
+        if (Math.abs(el.scrollTop - target) > REASSERT_TOLERANCE_PX) {
+          el.scrollTop = target
+        }
+      }
       return
     }
 
@@ -214,18 +263,46 @@ export function useScrollAnchor({
         setSpacerHeight(wouldBeNeeded)
       }
     }
-  }, [canRelease, computeNeededSpacer, getNaturalScrollableSize, scrollerRef, spacerHeight, vlistHandleRef])
+  }, [
+    computeNeededSpacer,
+    getAnchorScrollOffset,
+    getNaturalScrollableSize,
+    scrollerRef,
+    smoothScroll,
+    spacerHeight,
+    startMargin,
+    vlistHandleRef
+  ])
 
   const onUserScroll = useCallback(
-    (offset: number) => {
-      if (anchorIndexRef.current == null) return
+    (offset: number, isUserInitiated: boolean) => {
+      const dataIdx = anchorIndexRef.current
+      if (dataIdx == null) return
       // smoothScroll's own writes also fire scroll events; ignore them.
       if (smoothScroll.isAnimating()) return
-      if (Math.abs(offset - anchorOffsetRef.current) > RELEASE_TOLERANCE_PX) {
+      // virtua emits scroll events not only on user input but also when it
+      // jump-compensates for items measured above the viewport — e.g. a buffered
+      // history message resolving from its size estimate to its real (usually
+      // shorter) height. That compensation lowers scrollTop AND the anchored
+      // item's offset by the same delta, so the message stays visually put on a
+      // tall viewport whose large overscan keeps many such items mounted. Refresh
+      // the anchor offset from virtua's measured table before the scroll-away
+      // test so that delta cancels; only a genuine user scroll moves scrollTop
+      // away from the item's current offset and releases the pin.
+      const liveAnchorOffset = getAnchorScrollOffset(dataIdx)
+      if (liveAnchorOffset != null) anchorOffsetRef.current = liveAnchorOffset
+      const deviated = Math.abs(offset - anchorOffsetRef.current) > RELEASE_TOLERANCE_PX
+      // Only a genuine user scroll (wheel / drag / touch, flagged by the
+      // orchestrator) releases the pin. Programmatic scrolls — a virtua remeasure
+      // jump, a content `scrollIntoView`, our own re-assert below — also fire
+      // scroll events; treating those as "user scrolled away" is exactly what let
+      // the pin drop mid-stream and the view run off to follow the bottom.
+      const willRelease = deviated && isUserInitiated
+      if (willRelease) {
         anchorIndexRef.current = null
       }
     },
-    [smoothScroll]
+    [getAnchorScrollOffset, smoothScroll]
   )
 
   const isPinned = useCallback(() => anchorIndexRef.current != null, [])

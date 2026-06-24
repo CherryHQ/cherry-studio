@@ -2767,8 +2767,10 @@
       "chunk_overlap_invalid": "Chunk overlap must be greater than or equal to 0",
       "chunk_overlap_must_be_smaller": "Chunk overlap must be smaller than chunk size",
       "chunk_overlap_requires_chunk_size": "Chunk size is required when chunk overlap is set",
+      "chunk_separator": "Separator",
+      "chunk_separator_required": "Separator is required when smart chunking is off",
       "chunk_size": "Chunk Size",
-      "chunk_size_change_warning": "Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_change_warning": "Chunking changes only apply to newly added content",
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
+        "chunk_separator": "Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
         "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
@@ -2786,6 +2789,7 @@
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
         "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
+        "smart_chunking": "Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
         "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
       },
@@ -2805,6 +2809,7 @@
         "vector": "Vector Search"
       },
       "separator_rule": "Separator Rule",
+      "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
       "tokens_unit": "tokens"
     },

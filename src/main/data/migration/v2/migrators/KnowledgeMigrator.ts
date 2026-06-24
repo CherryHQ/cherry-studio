@@ -6,7 +6,9 @@ import { pathToFileURL } from 'node:url'
 
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { userModelTable } from '@data/db/schemas/userModel'
+import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import {
@@ -21,8 +23,9 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
 } from '@shared/data/types/knowledge'
+import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
@@ -162,6 +165,11 @@ export class KnowledgeMigrator extends BaseMigrator {
   // Synthesized directory-child item ids: `file` items whose source stays at data.source on
   // external disk (never copied into the base), so copyKnowledgeFilesForBase must skip them.
   private migratedDirectoryChildItemIds = new Set<string>()
+  // Orphan embedding models (UniqueModelId → minimal user_model row, sans orderKey) whose
+  // provider survived the migration: re-created in `execute` before the bases that reference
+  // them, so those bases keep their vectors instead of failing into a re-index. See the
+  // resurrection branch in `prepare` for the rationale.
+  private resurrectedEmbeddingModels = new Map<UniqueModelId, Omit<InsertUserModelRow, 'orderKey'>>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -178,6 +186,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.fileStorageNameByItemId = new Map<string, string>()
     this.directoryChildLoaderRemap = new Map<string, Map<string, string>>()
     this.migratedDirectoryChildItemIds = new Set<string>()
+    this.resurrectedEmbeddingModels = new Map<UniqueModelId, Omit<InsertUserModelRow, 'orderKey'>>()
   }
 
   private recordWarning(message: string): void {
@@ -539,6 +548,13 @@ export class KnowledgeMigrator extends BaseMigrator {
       const validModelIds = ctx.db?.select
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
+      const validProviderIds = ctx.db?.select
+        ? new Set(
+            (await ctx.db.select({ providerId: userProviderTable.providerId }).from(userProviderTable)).map(
+              (row) => row.providerId
+            )
+          )
+        : null
 
       for (const base of bases) {
         this.sourceCount += 1
@@ -563,7 +579,27 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const embeddingModelId = legacyModelToUniqueId(validBase.model ?? null)
-        const embeddingResolution = resolveModelReference(embeddingModelId, validModelIds)
+        let embeddingResolution = resolveModelReference(embeddingModelId, validModelIds)
+
+        // Targeted resurrection of an orphan embedding model: a `dangling` reference whose provider
+        // still survived the migration means the user removed the model from that provider's list
+        // but kept the provider (and its credentials). Re-create a minimal user_model row and treat
+        // the reference as resolved, so the base keeps its already-embedded vectors instead of
+        // failing into a re-index. A `missing` reference (no model at all) or a vanished provider
+        // stays on the `failed` + restore path below — re-adding a model under a provider that no
+        // longer exists would only turn a clear migration-time failure into a silent runtime one.
+        if (embeddingResolution.kind === 'dangling' && validProviderIds && validModelIds) {
+          const resurrected = this.resurrectOrphanEmbeddingModel(
+            validBase.model,
+            embeddingResolution.modelId,
+            validProviderIds,
+            validModelIds
+          )
+          if (resurrected) {
+            embeddingResolution = { kind: 'resolved', modelId: embeddingResolution.modelId }
+          }
+        }
+
         const resolvedDimensions =
           embeddingResolution.kind === 'resolved'
             ? await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
@@ -747,6 +783,84 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
   }
 
+  /**
+   * Queue a minimal `user_model` row for a base's orphan embedding model, but only when its
+   * provider survived the migration (FK to `user_provider` is satisfiable and the credentials
+   * still exist). Returns whether the reference can now be treated as resolved.
+   *
+   * `providerId`/`modelId` are split from the UniqueModelId (`providerId::modelId`) rather than
+   * the legacy `{ provider, id }` fields so a pre-composed legacy id resolves to the same
+   * provider prefix the rest of the migration validated against. The row is intentionally minimal
+   * (capabilities default to `[]`, timestamps/orderKey are filled at insert time); the runtime
+   * embedding call only needs the provider + modelId, and the base's vector dimensions live on
+   * the base row, not here. Dedup is by UniqueModelId so several bases sharing one orphan model
+   * resurrect it once; the id is also added to `validModelIds` so later bases see it as resolved.
+   */
+  private resurrectOrphanEmbeddingModel(
+    legacyModel: LegacyKnowledgeBase['model'],
+    uniqueModelId: UniqueModelId,
+    validProviderIds: ReadonlySet<string>,
+    validModelIds: Set<string>
+  ): boolean {
+    const separatorIndex = uniqueModelId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+    if (separatorIndex <= 0) {
+      return false
+    }
+    const providerId = uniqueModelId.slice(0, separatorIndex)
+    const modelId = uniqueModelId.slice(separatorIndex + UNIQUE_MODEL_ID_SEPARATOR.length)
+    if (!modelId || !validProviderIds.has(providerId)) {
+      return false
+    }
+
+    if (!this.resurrectedEmbeddingModels.has(uniqueModelId)) {
+      const name =
+        typeof legacyModel?.name === 'string' && legacyModel.name.trim() !== '' ? legacyModel.name.trim() : modelId
+      const group =
+        typeof legacyModel?.group === 'string' && legacyModel.group.trim() !== '' ? legacyModel.group.trim() : null
+      this.resurrectedEmbeddingModels.set(uniqueModelId, { id: uniqueModelId, providerId, modelId, name, group })
+      this.recordWarning(
+        `Knowledge base embedding model ${uniqueModelId} was missing from user_model but its provider survived; re-created it so the base keeps its vectors instead of requiring a re-index`
+      )
+    }
+    validModelIds.add(uniqueModelId)
+    return true
+  }
+
+  /**
+   * Insert the orphan embedding models queued during `prepare`, before any base that references
+   * them is written (the base → user_model FK requires the model row to exist first). Grouped by
+   * provider so `insertManyWithOrderKey` does one boundary lookup per provider and appends after
+   * that provider's existing models.
+   */
+  private async insertResurrectedEmbeddingModels(ctx: MigrationContext): Promise<void> {
+    if (this.resurrectedEmbeddingModels.size === 0) {
+      return
+    }
+
+    const rowsByProvider = new Map<string, Array<Omit<InsertUserModelRow, 'orderKey'>>>()
+    for (const row of this.resurrectedEmbeddingModels.values()) {
+      const group = rowsByProvider.get(row.providerId)
+      if (group) {
+        group.push(row)
+      } else {
+        rowsByProvider.set(row.providerId, [row])
+      }
+    }
+
+    await ctx.db.transaction(async (tx) => {
+      for (const [providerId, rows] of rowsByProvider) {
+        await insertManyWithOrderKey(tx, userModelTable, rows, {
+          pkColumn: userModelTable.id,
+          scope: eq(userModelTable.providerId, providerId)
+        })
+      }
+    })
+
+    logger.info('KnowledgeMigrator resurrected orphan embedding models', {
+      count: this.resurrectedEmbeddingModels.size
+    })
+  }
+
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     this.skippedPreparedItemIds = new Set<string>()
 
@@ -766,6 +880,10 @@ export class KnowledgeMigrator extends BaseMigrator {
     let processed = 0
 
     try {
+      // Re-create orphan embedding models first: each is the target of a base → user_model FK,
+      // so it must exist before any base row that references it is inserted below.
+      await this.insertResurrectedEmbeddingModels(ctx)
+
       const baseIdSet = new Set<string>()
       for (const base of this.preparedBases) {
         if (!base.id) {

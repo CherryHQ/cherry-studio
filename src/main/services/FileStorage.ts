@@ -774,7 +774,7 @@ class FileStorage {
       }
 
       // Get app paths to prevent selection of restricted directories
-      const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
+      const appDataPath = path.resolve(application.getPath('sys.appdata'))
       const filesDir = path.resolve(application.getPath('feature.files.data'))
       const currentNotesDir = path.resolve(application.getPath('feature.notes.data'))
 
