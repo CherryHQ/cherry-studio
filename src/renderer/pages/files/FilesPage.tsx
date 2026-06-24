@@ -220,6 +220,9 @@ function FilesPage() {
   const [renameDialogText, setRenameDialogText] = useState('')
   const pendingLoadMoreRef = useRef(false)
 
+  // Product copy keeps this as a user-facing "Type" column, but the cell
+  // renders a friendly format label derived from `ext` (e.g. `md` → Markdown).
+  // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
   const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
   const trashedFilesQuery = useMemo(
