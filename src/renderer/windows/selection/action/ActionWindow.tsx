@@ -1,18 +1,17 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Slider, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
+import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import type { FC } from 'react'
+import type { ComponentProps, FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
@@ -177,8 +176,11 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
     setIsWindowFocus(false)
   }
 
-  const handleOpacityChange = (value: number) => {
-    setOpacity(value)
+  const handleOpacityChange = (value: number[]) => {
+    const nextOpacity = value[0]
+    if (typeof nextOpacity === 'number') {
+      setOpacity(nextOpacity)
+    }
   }
 
   //must useCallback to avoid re-rendering the component
@@ -216,247 +218,95 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   }
 
   return (
-    <WindowFrame $opacity={opacity / 100}>
-      <TitleBar $isWindowFocus={isWindowFocus} style={isMac ? { paddingLeft: '70px' } : {}}>
-        {action.icon && (
-          <TitleBarIcon>
-            <DynamicIcon
-              name={action.icon as any}
-              size={16}
-              style={{ color: 'var(--color-text-1)' }}
-              fallback={() => {}}
-            />
-          </TitleBarIcon>
+    <div
+      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-[0_0_2px_var(--color-border)]"
+      style={{ opacity: opacity / 100 }}>
+      <div
+        className={cn(
+          'flex h-8 flex-row items-center px-2 transition-colors duration-300 [-webkit-app-region:drag]',
+          isWindowFocus ? 'bg-muted' : 'bg-secondary'
         )}
-        <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
-        <TitleBarButtons>
+        style={isMac ? { paddingLeft: '70px' } : {}}>
+        {action.icon && (
+          <div className="ml-1 flex items-center justify-center">
+            <DynamicIcon name={action.icon as any} size={16} className="text-foreground" fallback={() => {}} />
+          </div>
+        )}
+        <div className="ml-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
+          {action.isBuiltIn ? t(action.name) : action.name}
+        </div>
+        <div className="relative flex gap-2 [-webkit-app-region:no-drag]">
           <Tooltip
             content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
-            <WinButton variant="ghost" onClick={togglePin} className={isPinned ? 'pinned' : ''}>
-              <Pin size={14} className={isPinned ? 'pinned' : ''} />
-            </WinButton>
+            <WindowButton
+              onClick={togglePin}
+              className={isPinned ? 'bg-primary/10 text-primary hover:bg-primary/10' : ''}>
+              <Pin
+                size={14}
+                className={isPinned ? 'rotate-45 text-primary transition-transform' : 'transition-transform'}
+              />
+            </WindowButton>
           </Tooltip>
           <Tooltip
             content={t('selection.action.window.opacity')}
             placement="bottom"
             isOpen={showOpacitySlider ? false : undefined}>
-            <WinButton
-              variant="ghost"
+            <WindowButton
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
-              className={showOpacitySlider ? 'active' : ''}
-              style={{ paddingBottom: '2px' }}>
+              className={showOpacitySlider ? 'bg-primary/10 text-primary hover:bg-primary/10' : 'pb-0.5'}>
               <Droplet size={14} />
-            </WinButton>
+            </WindowButton>
           </Tooltip>
           {showOpacitySlider && (
-            <OpacitySlider>
+            <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
-                vertical
+                orientation="vertical"
                 min={20}
                 max={100}
-                value={opacity}
-                onChange={handleOpacityChange}
-                onChangeComplete={() => setShowOpacitySlider(false)}
-                tooltip={{ formatter: (value) => `${value}%` }}
+                value={[opacity]}
+                onValueChange={handleOpacityChange}
+                onValueCommit={() => setShowOpacitySlider(false)}
+                showValueLabel
+                formatValueLabel={(value) => `${value}%`}
               />
-            </OpacitySlider>
+            </div>
           )}
           {!isMac && (
             <>
-              <WinButton variant="ghost" onClick={handleMinimize}>
+              <WindowButton onClick={handleMinimize}>
                 <Minus size={16} />
-              </WinButton>
-              <WinButton variant="ghost" onClick={handleClose} className="close">
+              </WindowButton>
+              <WindowButton onClick={handleClose} className="hover:bg-error-base hover:text-white">
                 <X size={16} />
-              </WinButton>
+              </WindowButton>
             </>
           )}
-        </TitleBarButtons>
-      </TitleBar>
-      <MainContainer>
-        <Content ref={contentElementRef}>
+        </div>
+      </div>
+      <div className="flex h-full w-full justify-center overflow-auto">
+        <div
+          ref={contentElementRef}
+          className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
           {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
           {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
-        </Content>
-      </MainContainer>
-    </WindowFrame>
+        </div>
+      </div>
+    </div>
   )
 }
 
-const WindowFrame = styled.div<{ $opacity: number }>`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
-  margin: 2px;
-  background-color: var(--color-background);
-  border: 1px solid var(--color-border);
-  box-shadow: 0px 0px 2px var(--color-text-3);
-  border-radius: 8px;
-  overflow: hidden;
-  box-sizing: border-box;
-  opacity: ${(props) => props.$opacity};
-`
-
-const TitleBar = styled.div<{ $isWindowFocus: boolean }>`
-  display: flex;
-  align-items: center;
-  flex-direction: row;
-  height: 32px;
-  padding: 0 8px;
-  background-color: ${(props) =>
-    props.$isWindowFocus ? 'var(--color-background-mute)' : 'var(--color-background-soft)'};
-  transition: background-color 0.3s ease;
-  -webkit-app-region: drag;
-`
-
-const TitleBarIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 4px;
-`
-
-const TitleBarCaption = styled.div`
-  margin-left: 8px;
-  font-size: 14px;
-  font-weight: 400;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--color-text-1);
-`
-
-const TitleBarButtons = styled.div`
-  display: flex;
-  gap: 8px;
-  -webkit-app-region: no-drag;
-  position: relative;
-
-  .lucide {
-    &.pinned {
-      color: var(--color-primary);
-    }
-  }
-`
-
-const WinButton = styled(Button)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  transition: all 0.2s;
-  color: var(--color-icon);
-
-  .anticon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  svg {
-    stroke-width: 2;
-    transition: transform 0.2s ease;
-  }
-
-  &.pinned {
-    svg {
-      transform: rotate(45deg);
-    }
-
-    &:hover {
-      background-color: var(--color-primary-mute) !important;
-    }
-  }
-
-  &.close {
-    &:hover {
-      background-color: var(--color-error) !important;
-      color: var(--color-white) !important;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-primary-mute) !important;
-    color: var(--color-primary) !important;
-  }
-
-  &:hover {
-    background-color: var(--color-hover) !important;
-    color: var(--color-icon-white) !important;
-  }
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-`
-
-const Content = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  padding: 16px;
-  overflow: auto;
-  font-size: 14px;
-  -webkit-app-region: none;
-  user-select: text;
-  /* width: 100%; */
-  max-width: 1280px;
-`
-
-const OpacitySlider = styled.div`
-  position: absolute;
-  left: 42px;
-  top: 100%;
-  margin-top: 8px;
-  background-color: var(--color-background-mute);
-  padding: 16px 8px 12px 8px;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
-  height: 120px;
-  /* display: flex; */
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  opacity: 1 !important;
-
-  .ant-slider {
-    height: 100%;
-    margin: 0;
-  }
-
-  .ant-slider-rail {
-    background-color: var(--color-border);
-  }
-
-  .ant-slider-track {
-    background-color: var(--color-primary);
-  }
-
-  .ant-slider-handle {
-    border-color: var(--color-primary);
-
-    &:hover {
-      border-color: var(--color-primary);
-    }
-
-    &.ant-slider-handle-active {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 2px var(--color-primary-mute);
-    }
-  }
-`
+const WindowButton: FC<ComponentProps<typeof Button>> = ({ className, ...props }) => (
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon-sm"
+    className={cn(
+      'size-6 rounded border-0 bg-transparent p-0 text-icon shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default ActionWindow

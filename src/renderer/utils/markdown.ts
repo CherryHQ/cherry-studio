@@ -1,9 +1,8 @@
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
-import type { PluggableList } from 'unified'
 import { unified } from 'unified'
-import type { Point, Position } from 'unist'
+import type { Point } from 'unist'
 import { visit } from 'unist-util-visit'
 
 /**
@@ -14,13 +13,11 @@ import { visit } from 'unist-util-visit'
 export const findCitationInChildren = (children: any): string => {
   if (!children) return ''
 
-  // 直接搜索子元素
   for (const child of Array.isArray(children) ? children : [children]) {
     if (typeof child === 'object' && child?.props?.['data-citation']) {
       return child.props['data-citation']
     }
 
-    // 递归查找更深层次
     if (typeof child === 'object' && child?.props?.children) {
       const found = findCitationInChildren(child.props.children)
       if (found) return found
@@ -30,7 +27,6 @@ export const findCitationInChildren = (children: any): string => {
   return ''
 }
 
-// 检查是否包含潜在的 LaTeX 模式
 const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
 
 /**
@@ -44,34 +40,25 @@ const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
  * - 转义括号 `\\(\\)` 或 `\\[\\]` 不会被处理
  *
  * @see https://github.com/remarkjs/remark-math/issues/39
- * @param text 输入的 Markdown 文本
- * @returns 处理后的字符串
  */
 export const processLatexBrackets = (text: string) => {
-  // 没有 LaTeX 模式直接返回
-  if (!containsLatexRegex.test(text)) {
-    return text
-  }
+  if (!containsLatexRegex.test(text)) return text
 
-  // 保护代码块和链接
   const protectedItems: string[] = []
   let processedContent = text
 
   processedContent = processedContent
-    // 保护代码块（包括多行代码块和行内代码）
     .replace(/(```[\s\S]*?```|`[^`]*`)/g, (match) => {
       const index = protectedItems.length
       protectedItems.push(match)
       return `__CHERRY_STUDIO_PROTECTED_${index}__`
     })
-    // 保护链接 [text](url)
     .replace(/\[([^[\]]*(?:\[[^\]]*\][^[\]]*)*)\]\([^)]*?\)/g, (match) => {
       const index = protectedItems.length
       protectedItems.push(match)
       return `__CHERRY_STUDIO_PROTECTED_${index}__`
     })
 
-  // LaTeX 括号转换函数
   const processMath = (content: string, openDelim: string, closeDelim: string, wrapper: string): string => {
     let result = ''
     let remaining = content
@@ -82,7 +69,6 @@ export const processLatexBrackets = (text: string) => {
         result += remaining
         break
       }
-
       result += match.pre
       result += `${wrapper}${match.body}${wrapper}`
       remaining = match.post
@@ -91,18 +77,14 @@ export const processLatexBrackets = (text: string) => {
     return result
   }
 
-  // 先处理块级公式，再处理内联公式
   let result = processMath(processedContent, '\\[', '\\]', '$$')
   result = processMath(result, '\\(', '\\)', '$')
 
-  // 还原被保护的内容
   result = result.replace(/__CHERRY_STUDIO_PROTECTED_(\d+)__/g, (match, indexStr) => {
     const index = parseInt(indexStr, 10)
-    // 添加边界检查，防止数组越界
     if (index >= 0 && index < protectedItems.length) {
       return protectedItems[index]
     }
-    // 如果索引无效，保持原始匹配
     return match
   })
 
@@ -110,38 +92,25 @@ export const processLatexBrackets = (text: string) => {
 }
 
 /**
- * 查找 LaTeX 数学公式的匹配括号对
- *
- * 使用平衡括号算法处理嵌套结构，正确识别转义字符
- *
- * @param text 要搜索的文本
- * @param openDelim 开始分隔符 (如 '\[' 或 '\(')
- * @param closeDelim 结束分隔符 (如 '\]' 或 '\)')
- * @returns 匹配结果对象或 null
+ * 查找 LaTeX 数学公式的匹配括号对。使用平衡括号算法处理嵌套结构，正确识别转义字符。
  */
 const findLatexMatch = (text: string, openDelim: string, closeDelim: string) => {
-  // 统计连续反斜杠：奇数个表示转义，偶数个表示未转义
   const escaped = (i: number) => {
     let count = 0
     while (--i >= 0 && text[i] === '\\') count++
     return count & 1
   }
 
-  // 查找第一个有效的开始标记
   for (let i = 0, n = text.length; i <= n - openDelim.length; i++) {
-    // 没有找到开始分隔符或被转义，跳过
     if (!text.startsWith(openDelim, i) || escaped(i)) continue
 
-    // 处理嵌套结构
     for (let j = i + openDelim.length, depth = 1; j <= n - closeDelim.length && depth; j++) {
-      // 计算当前位置对深度的影响：+1(开始), -1(结束), 0(无关)
       const delta =
         text.startsWith(openDelim, j) && !escaped(j) ? 1 : text.startsWith(closeDelim, j) && !escaped(j) ? -1 : 0
 
       if (delta) {
         depth += delta
 
-        // 找到了匹配的结束位置
         if (!depth)
           return {
             start: i,
@@ -151,7 +120,6 @@ const findLatexMatch = (text: string, openDelim: string, closeDelim: string) => 
             post: text.slice(j + closeDelim.length)
           }
 
-        // 跳过已处理的分隔符字符，避免重复检查
         j += (delta > 0 ? openDelim : closeDelim).length - 1
       }
     }
@@ -218,88 +186,6 @@ export function updateCodeBlock(raw: string, id: string, newContent: string): st
   })
 
   return unified().use(remarkStringify).stringify(tree)
-}
-
-/**
- * 检查代码块是否包含 open fence。
- * 限制：
- * - 语言名不能包含空格，因为 remark-math 无法处理，会导致 end.offset 过长。
- *
- * 这个算法基于 remark/micromark 解析代码块的原理，所有参数实际上都可以从 node 中获取。
- * 一个代码块的 node.position 包含 fences，而 children 不包含 fences，通过它们之间的
- * 差值就可以判断有没有 closed fence。
- *
- * @param codeLength 代码长度（不包含语言信息）
- * @param metaLength 元数据长度（```之后的语言信息）
- * @param position 位置（unist 节点位置）
- * @returns 是否为 open fence 代码块
- */
-export function isOpenFenceBlock(codeLength?: number, metaLength?: number, position?: Position): boolean {
-  const contentLength = (codeLength ?? 0) + (metaLength ?? 0)
-  const start = position?.start?.offset ?? 0
-  const end = position?.end?.offset ?? 0
-  // 余量至少是 fence (3) + newlines (2)
-  return end - start <= contentLength + 5
-}
-
-/**
- * 把 Markdown 字符串按顶层块边界切分，使流式渲染可以对已完成的块做
- * memo 跳过，只重解析仍在增长的最后一块（消掉 O(n²) 的渲染/reconcile）。
- *
- * 关键：必须传入**与渲染器同一条 `remarkPlugins`**。`remarkGfm` /
- * `remarkMath` 注册的 micromark 扩展在 `.parse()` 阶段即生效，所以传入
- * 后表格 = 单个 `table` 节点、`$$…$$` = 单个 `math` 节点、围栏代码块 /
- * mermaid = 单个 `code` 节点、alert = 单个 blockquote 节点——块边界严格
- * 等于渲染单元，不会从表格/公式/代码块中间切开。不传插件会退化成核心
- * CommonMark 解析（表格/公式不被识别），仅用于无插件的简单场景。
- *
- * 仅在「顶层节点起始 offset」处切分，不依赖结束 offset，因此
- * `splitMarkdownBlocks(c, p).join('') === c` 恒成立——零字符丢失，且对
- * 流式期间未闭合的尾部围栏 / `$$`（会成为最后一块，本就每帧重渲，正确）
- * 都安全。任一顶层节点缺 offset 时跳过该切点（仅合并相邻块，仍正确）。
- *
- * @param content 原始（已预处理）Markdown 字符串
- * @param remarkPlugins 渲染器使用的 remark 插件链（强烈建议传入）
- * @returns 顶层块字符串数组，拼接等于入参
- */
-export function splitMarkdownBlocks(content: string, remarkPlugins?: PluggableList): string[] {
-  if (!content || !content.trim()) return [content]
-
-  const processor = unified().use(remarkParse)
-  if (remarkPlugins && remarkPlugins.length > 0) {
-    // Skip non-usable entries (undefined/null/false). Real plugin lists never
-    // contain these; guarding keeps a malformed list from throwing and just
-    // degrades parsing to core CommonMark (still splits at block boundaries —
-    // only table/$$ recognition is lost) instead of breaking the render.
-    for (const plugin of remarkPlugins) {
-      const usable = Array.isArray(plugin) ? plugin[0] : plugin
-      if (usable) {
-        try {
-          processor.use([plugin] as PluggableList)
-        } catch {
-          // ignore an unusable plugin rather than fail the whole split
-        }
-      }
-    }
-  }
-  const tree = processor.parse(content)
-
-  const starts: number[] = []
-  for (const child of tree.children) {
-    const offset = child.position?.start?.offset
-    if (typeof offset === 'number' && offset > 0) starts.push(offset)
-  }
-  if (starts.length === 0) return [content]
-
-  // child 按文档顺序排列；在每个块起始处连续切片，保证 join 等于原文。
-  const boundaries = [0, ...starts]
-  const blocks: string[] = []
-  for (let i = 0; i < boundaries.length; i++) {
-    const from = boundaries[i]
-    const to = i + 1 < boundaries.length ? boundaries[i + 1] : content.length
-    if (to > from) blocks.push(content.slice(from, to))
-  }
-  return blocks.length > 0 ? blocks : [content]
 }
 
 /**

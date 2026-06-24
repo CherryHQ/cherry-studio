@@ -1,11 +1,11 @@
 import {
   type ImagePreviewAction,
-  ImagePreviewContextMenu,
   ImagePreviewDialog,
   type ImagePreviewItem,
   type ImagePreviewLabels
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
 import { parseDataUrl } from '@shared/utils/dataUrl'
@@ -224,6 +224,24 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
     })
   }, [])
 
+  const imageMenuItems = contextActions.map(
+    (action): CommandContextMenuExtraItem => ({
+      type: 'item',
+      id: action.id,
+      label: action.label,
+      icon: action.icon,
+      enabled: !action.disabled,
+      onSelect: () => {
+        try {
+          const result = action.onSelect(displayItem, contextMenuActionContext)
+          void Promise.resolve(result).catch((error) => onActionError(error, action, displayItem))
+        } catch (error) {
+          onActionError(error, action, displayItem)
+        }
+      }
+    })
+  )
+
   const image = (
     <img
       alt={alt}
@@ -234,10 +252,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
           setOpen(true)
         }
       }}
-      onContextMenu={(event) => {
-        event.stopPropagation()
-        onContextMenu?.(event)
-      }}
+      onContextMenu={onContextMenu}
       src={src}
       {...props}
     />
@@ -245,13 +260,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
 
   return (
     <>
-      <ImagePreviewContextMenu
-        actions={contextActions}
-        context={contextMenuActionContext}
-        item={displayItem}
-        onActionError={onActionError}>
+      <CommandContextMenu location="webcontents.context" extraItems={imageMenuItems}>
         {image}
-      </ImagePreviewContextMenu>
+      </CommandContextMenu>
       {previewEnabled && (
         <ImagePreviewDialog
           actions={contextActions}

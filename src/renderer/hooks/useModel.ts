@@ -37,7 +37,11 @@ export function useDefaultModel() {
     quickModel,
     translateModel,
     // v2 Model.id is already the UniqueModelId — store it directly.
-    setDefaultModel: (next: { id: UniqueModelId }) => setDefaultModelId(next.id),
+    setDefaultModel: async (next: { id: UniqueModelId }) => {
+      await setDefaultModelId(next.id)
+      if (!quickModelId) await setQuickModelId(next.id)
+      if (!translateModelId) await setTranslateModelId(next.id)
+    },
     setQuickModel: (next: { id: UniqueModelId }) => setQuickModelId(next.id),
     setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id)
   }

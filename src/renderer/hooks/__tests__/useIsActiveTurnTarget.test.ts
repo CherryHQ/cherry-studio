@@ -2,13 +2,8 @@ import type { ActiveExecution } from '@shared/ai/transport'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Message } from '../../types/newMessage'
+import type { MessageListItem } from '../../components/chat/messages/types'
 import { useIsActiveTurnTarget } from '../useIsActiveTurnTarget'
-
-const isMessageProcessingMock = vi.fn<(m: Message) => boolean>()
-vi.mock('@renderer/utils/messageUtils/is', () => ({
-  isMessageProcessing: (m: Message) => isMessageProcessingMock(m)
-}))
 
 const activeExecutionsMock = vi.fn<() => ActiveExecution[]>(() => [])
 const awaitingApprovalAnchorsMock = vi.fn<() => ActiveExecution[]>(() => [])
@@ -23,26 +18,25 @@ vi.mock('../useTopicStreamStatus', () => ({
   })
 }))
 
-function msg(overrides: Partial<Message> = {}): Message {
+function msg(overrides: Partial<MessageListItem> = {}): MessageListItem {
   return {
     id: 'm1',
     topicId: 't',
     role: 'assistant',
-    status: 'success' as never,
+    status: 'success',
+    createdAt: '2026-01-01T00:00:00Z',
     ...overrides
-  } as Message
+  } as MessageListItem
 }
 
 describe('useIsActiveTurnTarget', () => {
   beforeEach(() => {
-    isMessageProcessingMock.mockReset().mockReturnValue(false)
     activeExecutionsMock.mockReset().mockReturnValue([])
     awaitingApprovalAnchorsMock.mockReset().mockReturnValue([])
   })
 
-  it('true when `isMessageProcessing` is true (per-message DB status PENDING/PROCESSING/SEARCHING)', () => {
-    isMessageProcessingMock.mockReturnValue(true)
-    expect(renderHook(() => useIsActiveTurnTarget(msg())).result.current).toBe(true)
+  it('true when message DB status is pending', () => {
+    expect(renderHook(() => useIsActiveTurnTarget(msg({ status: 'pending' }))).result.current).toBe(true)
   })
 
   it('true when this message id is in `activeExecutions` (live streaming target)', () => {
@@ -57,9 +51,7 @@ describe('useIsActiveTurnTarget', () => {
     // (`status === 'paused' && isAwaitingApproval`) failed exactly this case
     // and let the menubar leak through. The Main-broadcast anchor id makes
     // it work by construction.
-    expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1', status: 'success' as never }))).result.current).toBe(
-      true
-    )
+    expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1', status: 'success' }))).result.current).toBe(true)
   })
 
   it('false for a user message even when the topic has awaiting anchors', () => {

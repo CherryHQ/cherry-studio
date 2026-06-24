@@ -1,10 +1,8 @@
 import type { SerializedError } from '@renderer/types/error'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock fetchGenerate and fetchModels
 vi.mock('../ApiService', () => ({
-  fetchGenerate: vi.fn(),
-  fetchModels: vi.fn().mockResolvedValue([])
+  fetchGenerate: vi.fn()
 }))
 
 // `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
@@ -43,12 +41,11 @@ vi.mock('@renderer/services/LoggerService', () => ({
 
 import store from '@renderer/store'
 
-import { fetchGenerate, fetchModels } from '../ApiService'
+import { fetchGenerate } from '../ApiService'
 import { diagnoseError } from '../ErrorDiagnosisService'
 import { readDefaultModel } from '../ModelService'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
-const mockFetchModels = vi.mocked(fetchModels)
 const mockGetState = vi.mocked(store.getState)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)
 
@@ -73,8 +70,6 @@ describe('ErrorDiagnosisService', () => {
     mockGetState.mockReturnValue({
       llm: { defaultModel: null }
     } as any)
-    // Default: CherryAI returns a free model as fallback
-    mockFetchModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }] as any)
     mockListModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }])
   })
 
@@ -142,7 +137,6 @@ describe('ErrorDiagnosisService', () => {
     })
 
     it('falls back to defaultModel when CherryAI is unavailable', async () => {
-      mockFetchModels.mockResolvedValue([])
       mockListModels.mockResolvedValue([])
       const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
       mockReadDefaultModel.mockResolvedValueOnce(customModel as any)

@@ -1,8 +1,8 @@
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   composerFileTokenIdFromSourceId,
   getComposerFileTokenSourceId
-} from '@renderer/utils/messageUtils/composerFileTokenSource'
+} from '@renderer/utils/message/composerFileTokenSource'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 

@@ -30,7 +30,7 @@ vi.mock('@renderer/components/resource/dialogs/PromptEditDialog', () => ({
   default: ({ open }: { open: boolean }) => (open ? <div data-testid="prompt-edit-dialog" /> : null)
 }))
 
-vi.mock('@renderer/components/chat/composer/panelEngine', () => ({
+vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     isVisible: false,

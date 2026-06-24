@@ -258,7 +258,7 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
   default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
@@ -1003,15 +1003,17 @@ describe('ChatComposer', () => {
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'queued', tokens: [] })
     })
-    const itemId = (mocks.surfaceProps!.queueContent as any).props.items[0].id
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent).toBeTruthy()
+    const itemId = queueContent.props.items[0].id
 
     onSend.mockRejectedValueOnce(new Error('send failed'))
     await act(async () => {
-      await (mocks.surfaceProps!.queueContent as any).props.onSteer(itemId)
+      await queueContent.props.onSteer(itemId)
     })
 
     // A failed manual steer must not silently drop the queued item.
-    expect((mocks.surfaceProps!.queueContent as any).props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
@@ -1068,7 +1070,7 @@ describe('ChatComposer', () => {
       textOffset: 0
     } as ComposerSerializedToken
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'v2-chat-composer-draft'
+      key === 'inputbar-draft'
         ? { text: 'quoted text follow up', tokens: [cachedFileToken, cachedQuoteToken], files: [cachedFile] }
         : ''
     )
@@ -1111,7 +1113,7 @@ describe('ChatComposer', () => {
 
   it('does not restore knowledge tokens from the draft cache', () => {
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'v2-chat-composer-draft'
+      key === 'inputbar-draft'
         ? {
             text: 'hello',
             tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
@@ -1142,7 +1144,7 @@ describe('ChatComposer', () => {
       textOffset: 0
     } as ComposerSerializedToken
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'v2-chat-composer-draft' ? { text: '', tokens: [cachedFileToken], files: [cachedFile] } : ''
+      key === 'inputbar-draft' ? { text: '', tokens: [cachedFileToken], files: [cachedFile] } : ''
     )
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
@@ -1182,7 +1184,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => {
       expect(cacheService.setCasual).toHaveBeenCalledWith(
-        'v2-chat-composer-draft',
+        'inputbar-draft',
         { text: 'quoted text', tokens: [quoteToken], files: [] },
         expect.any(Number)
       )
@@ -1206,7 +1208,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).toHaveBeenCalled()
     expect(vi.mocked(cacheService.setCasual).mock.lastCall).toEqual([
-      'v2-chat-composer-draft',
+      'inputbar-draft',
       { text: '', tokens: [], files: [] },
       expect.any(Number)
     ])
@@ -1236,11 +1238,7 @@ describe('ChatComposer', () => {
       mocks.surfaceProps?.onTextChange('edited text')
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited text'))
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'v2-chat-composer-draft',
-      expect.anything(),
-      expect.anything()
-    )
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith('inputbar-draft', expect.anything(), expect.anything())
 
     act(() => {
       mocks.surfaceProps?.editingState?.onCancel()
@@ -1248,7 +1246,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(vi.mocked(cacheService.setCasual).mock.lastCall).toEqual([
-      'v2-chat-composer-draft',
+      'inputbar-draft',
       { text: 'original draft', tokens: [], files: [] },
       expect.any(Number)
     ])

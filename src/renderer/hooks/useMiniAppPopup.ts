@@ -5,6 +5,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
+import { fileUrlToPath } from '@shared/utils/file/urlUtil'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
@@ -83,13 +84,6 @@ function miniAppIdFromTabUrl(url: string): string | null {
   if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
   const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
   return id ? id : null
-}
-
-function fileUrlToPath(url: URL): string {
-  const pathname = decodeURIComponent(url.pathname)
-  if (url.hostname) return `//${url.hostname}${pathname}`
-  if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
-  return pathname
 }
 
 function openExternalMiniAppUrl(url: string) {

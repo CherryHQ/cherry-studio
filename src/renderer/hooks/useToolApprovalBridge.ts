@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
+import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { useCallback } from 'react'
 
-import type { ToolApprovalRespondFn } from './ToolApprovalContext'
-
 const logger = loggerService.withContext('useToolApprovalBridge')
+
+type ToolApprovalRespondFn = (args: MessageToolApprovalInput) => Promise<void> | void
 
 /**
  * Tool-approval flow.
@@ -19,7 +20,6 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
   return useCallback(
     async ({ match, approved, reason, updatedInput }) => {
       const approvalId = match.approvalId
-      if (!approvalId) return
 
       try {
         const result = await window.api.ai.toolApproval.respond({
@@ -39,7 +39,6 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
         logger.error('Failed to deliver tool-approval decision to main', {
           approvalId,
           approved,
-          transport: match.transport,
           error: error instanceof Error ? error.message : String(error)
         })
         throw error instanceof Error ? error : new Error(String(error))

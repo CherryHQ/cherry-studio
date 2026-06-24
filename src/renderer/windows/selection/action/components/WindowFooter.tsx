@@ -1,13 +1,12 @@
-import { LoadingOutlined } from '@ant-design/icons'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
-import { CircleX, Copy, Pause } from 'lucide-react'
+import { cn } from '@renderer/utils/style'
+import { CircleX, Copy, Loader2, Pause } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 interface FooterProps {
   content?: string
   loading?: boolean
@@ -157,24 +156,30 @@ const WindowFooter: FC<FooterProps> = ({
     setIsWindowFocus(false)
   }
 
+  const footerButtonClassName = (enabled: boolean, hovered: boolean) =>
+    cn(
+      'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-foreground-secondary text-xs transition-colors',
+      enabled ? 'opacity-100' : 'opacity-20',
+      hovered && 'text-primary [&_.btn-icon]:text-primary',
+      'hover:text-primary hover:[&_.btn-icon]:text-primary'
+    )
+
   return (
-    <Container
+    <div
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
-      $isHovered={isContainerHovered}
-      $showInitially={isShowMe}>
-      <OpButtonWrapper>
-        <OpButton onClick={handleEsc} $isWindowFocus={isWindowFocus} data-hovered={isEscHovered}>
+      className={cn(
+        '-translate-x-1/2 absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] min-w-min max-w-[480px] flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300',
+        isShowMe || isContainerHovered ? 'opacity-100' : 'opacity-0'
+      )}>
+      <div className="flex flex-row items-center justify-center gap-1.5 text-foreground-secondary text-xs">
+        <button type="button" onClick={handleEsc} className={footerButtonClassName(isWindowFocus, isEscHovered)}>
           {loading ? (
             <>
-              <LoadingIconWrapper>
-                <Pause size={14} className="btn-icon loading-icon" style={{ position: 'absolute', left: 1, top: 1 }} />
-                <LoadingOutlined
-                  style={{ fontSize: 16, position: 'absolute', left: 0, top: 0 }}
-                  className="btn-icon loading-icon"
-                  spin
-                />
-              </LoadingIconWrapper>
+              <span className="relative size-4">
+                <Pause size={14} className="btn-icon absolute top-px left-px text-error-base" />
+                <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error-base" />
+              </span>
               {t('selection.action.window.esc_stop')}
             </>
           ) : (
@@ -183,101 +188,26 @@ const WindowFooter: FC<FooterProps> = ({
               {t('selection.action.window.esc_close')}
             </>
           )}
-        </OpButton>
+        </button>
         {onRegenerate && (
-          <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
+          <button
+            type="button"
+            onClick={handleRegenerate}
+            className={footerButtonClassName(isWindowFocus, isRegenerateHovered)}>
             <RefreshIcon size={14} className="btn-icon" />
             {t('selection.action.window.r_regenerate')}
-          </OpButton>
+          </button>
         )}
-        <OpButton onClick={handleCopy} $isWindowFocus={isWindowFocus && !!content} data-hovered={isCopyHovered}>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={footerButtonClassName(isWindowFocus && !!content, isCopyHovered)}>
           <Copy size={14} className="btn-icon" />
           {t('selection.action.window.c_copy')}
-        </OpButton>
-      </OpButtonWrapper>
-    </Container>
+        </button>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div<{ $isHovered: boolean; $showInitially: boolean }>`
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 480px;
-  min-width: min-content;
-  width: calc(100% - 16px);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 8px;
-  height: 32px;
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  opacity: ${(props) => (props.$showInitially ? 1 : 0)};
-  transition: all 0.3s ease;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const OpButtonWrapper = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  gap: 6px;
-`
-
-const OpButton = styled.div<{ $isWindowFocus: boolean; $isHovered?: boolean }>`
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 5px;
-  padding: 0 8px;
-  border-radius: 4px;
-  background-color: var(--color-background-mute);
-  color: var(--color-text-secondary);
-  height: 22px;
-  opacity: ${(props) => (props.$isWindowFocus ? 1 : 0.2)};
-  transition: opacity 0.3s ease;
-  transition: color 0.2s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  user-select: none;
-
-  .btn-icon {
-    color: var(--color-text-secondary);
-  }
-
-  .loading-icon {
-    color: var(--color-error);
-  }
-
-  &:hover,
-  &[data-hovered='true'] {
-    color: var(--color-primary) !important;
-
-    .btn-icon {
-      color: var(--color-primary) !important;
-      transition: color 0.2s ease;
-    }
-  }
-`
-
-const LoadingIconWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 16px;
-  height: 16px;
-`
 
 export default WindowFooter

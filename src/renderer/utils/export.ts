@@ -11,13 +11,13 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
-import { getComposerTextFromMessage } from '@renderer/utils/messageUtils/composerTokens'
+import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
   getCitationContent,
   getMainTextContent,
   getNamingTextContent,
   getThinkingContent
-} from '@renderer/utils/messageUtils/find'
+} from '@renderer/utils/message/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'

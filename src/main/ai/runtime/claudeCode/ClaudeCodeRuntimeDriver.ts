@@ -309,7 +309,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // we project the SDK BetaUsage onto a UIMessageChunk here — keeping
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
-          await this.emitContextUsage()
+          void this.emitContextUsage()
           this.adapter = undefined
           // NOTE: do NOT dispose the approval emitter here. It is session-scoped — it lives across
           // turns on the warm connection and is torn down only on close/error (below). Disposing it
