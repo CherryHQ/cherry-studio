@@ -1068,22 +1068,6 @@
           "targetKey": "assistant.icon_type"
         },
         {
-          "originalKey": "pasteLongTextAsFile",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_as_file"
-        },
-        {
-          "originalKey": "pasteLongTextThreshold",
-          "type": "number",
-          "defaultValue": 1500,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_threshold"
-        },
-        {
           "originalKey": "clickAssistantToShowTopic",
           "type": "boolean",
           "defaultValue": true,
