@@ -9,6 +9,8 @@ export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): Knowled
   fileProcessorId: base.fileProcessorId ?? null,
   chunkSize: String(base.chunkSize),
   chunkOverlap: String(base.chunkOverlap),
+  chunkStrategy: base.chunkStrategy,
+  chunkSeparator: base.chunkSeparator,
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
   documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
@@ -33,6 +35,14 @@ export const buildKnowledgeRagConfigPatch = (
 
   if (currentValues.chunkOverlap !== initialValues.chunkOverlap) {
     patch.chunkOverlap = parseRequiredInteger(currentValues.chunkOverlap)
+  }
+
+  if (currentValues.chunkStrategy !== initialValues.chunkStrategy) {
+    patch.chunkStrategy = currentValues.chunkStrategy
+  }
+
+  if (currentValues.chunkSeparator !== initialValues.chunkSeparator) {
+    patch.chunkSeparator = currentValues.chunkSeparator
   }
 
   if (currentValues.rerankModelId !== initialValues.rerankModelId) {

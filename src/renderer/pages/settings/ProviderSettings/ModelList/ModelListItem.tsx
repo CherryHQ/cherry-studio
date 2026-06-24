@@ -2,28 +2,41 @@ import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherr
 import { getModelLogo } from '@renderer/config/models'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
-import { Settings } from 'lucide-react'
+import { Settings, Trash2 } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FreeTrialModelTag } from '../components/FreeTrialModelTag'
 import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { getModelOperationErrorMessage } from './errorMessage'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
   disabled?: boolean
   onEdit: (model: Model) => void
+  onDelete: (model: Model) => Promise<void>
   onToggleEnabled: (model: Model, enabled: boolean) => Promise<void>
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onEdit, onToggleEnabled }) => {
+const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onEdit, onDelete, onToggleEnabled }) => {
   const { t } = useTranslation()
 
   const handleEdit = useCallback(() => {
     onEdit(model)
   }, [model, onEdit])
+
+  const handleDelete = useCallback(() => {
+    void onDelete(model).catch((error) => {
+      window.toast.error(
+        getModelOperationErrorMessage(error, {
+          fallback: t('settings.models.manage.operation_failed'),
+          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base')
+        })
+      )
+    })
+  }, [model, onDelete, t])
 
   const handleToggleEnabled = useCallback(
     (enabled: boolean) => {
@@ -67,6 +80,18 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
                 aria-label={t('common.settings')}
                 onClick={handleEdit}>
                 <Settings className="size-3" />
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('settings.models.manage.remove_model')} placement="top">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                aria-label={t('settings.models.manage.remove_model')}
+                disabled={disabled}
+                onClick={handleDelete}>
+                <Trash2 className="size-3" />
               </Button>
             </Tooltip>
           </div>

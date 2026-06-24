@@ -469,9 +469,8 @@ const api = {
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
-  installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
-  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
+  // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {

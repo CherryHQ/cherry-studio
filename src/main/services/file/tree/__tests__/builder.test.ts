@@ -3,9 +3,24 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { TreeMutationEvent } from '@shared/utils/file'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
+import { tryTestRipgrepPath } from './ripgrepTestUtils'
+
+// Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
+// reads cherry.bin / mise shims — neither is populated under vitest. Point it
+// at the test ripgrep binary so the underlying directory scan spawns a real ripgrep.
+vi.mock('@main/utils/process', async () => {
+  const { tryTestRipgrepPath: tryPath } = await import('./ripgrepTestUtils')
+  const resolvedRgPath = tryPath() ?? '/nonexistent/rg'
+  return {
+    getBinaryExecutionEnv: () => ({}),
+    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
+  }
+})
+
+const ripgrepAvailable = tryTestRipgrepPath() !== null
 
 const waitForEvent = (
   builder: DirectoryTreeBuilder,
@@ -27,7 +42,7 @@ const waitForEvent = (
   })
 }
 
-describe('createDirectoryTree — initial scan', () => {
+describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-scan-'))
@@ -159,7 +174,7 @@ describe('createDirectoryTree — initial scan', () => {
   })
 })
 
-describe('createDirectoryTree — watcher mutations', () => {
+describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-watch-'))
@@ -426,7 +441,7 @@ describe('createDirectoryTree — watcher mutations', () => {
   })
 })
 
-describe('createDirectoryTree — DB isolation', () => {
+describe.skipIf(!ripgrepAvailable)('createDirectoryTree — DB isolation', () => {
   it('the tree primitive does not import @main/data', async () => {
     // Import-graph proxy: a regex over the source files. The classes live
     // in `src/shared/utils/file/tree.ts` and the main-side primitive

@@ -26,6 +26,7 @@ import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -114,6 +115,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  BinaryManager,
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,
