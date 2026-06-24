@@ -7092,6 +7092,16 @@
         "open_terminal": "打开终端登录",
         "recheck": "重新检测"
       },
+      "codex": {
+        "account": "账号:{{accountId}}",
+        "description": "使用你的 ChatGPT 订阅登录",
+        "description_detail": "该提供商通过你的 ChatGPT Plus/Pro 登录(OAuth)访问 OpenAI Codex 模型。将打开浏览器完成登录。",
+        "logged_in": "已登录 OpenAI Codex",
+        "sign_in_button": "使用 ChatGPT 登录",
+        "sign_in_failed": "登录失败,请重试。",
+        "sign_in_success": "已登录 OpenAI Codex",
+        "signing_in": "等待浏览器授权…"
+      },
       "copilot": {
         "add_request_header": "添加请求头",
         "auth_failed": "Github Copilot 认证失败",

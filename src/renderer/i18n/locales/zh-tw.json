@@ -7092,6 +7092,16 @@
         "open_terminal": "開啟終端機登入",
         "recheck": "重新檢測"
       },
+      "codex": {
+        "account": "帳號:{{accountId}}",
+        "description": "使用你的 ChatGPT 訂閱登入",
+        "description_detail": "此供應商透過你的 ChatGPT Plus/Pro 登入(OAuth)存取 OpenAI Codex 模型。將開啟瀏覽器完成登入。",
+        "logged_in": "已登入 OpenAI Codex",
+        "sign_in_button": "使用 ChatGPT 登入",
+        "sign_in_failed": "登入失敗,請重試。",
+        "sign_in_success": "已登入 OpenAI Codex",
+        "signing_in": "等待瀏覽器授權…"
+      },
       "copilot": {
         "add_request_header": "新增請求標頭",
         "auth_failed": "GitHub Copilot 認證失敗",
