@@ -393,6 +393,73 @@ describe('MigrationIpcHandler', () => {
     expect(progress.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
   })
 
+  describe('migration failure', () => {
+    it('broadcasts the error stage with carried migrators/progress and preserved backupInfo when the run reports failure', async () => {
+      await createBackup('/real/backups/v1.zip')
+
+      let engineTick: ((progress: MigrationProgress) => void) | undefined
+      engineMock.onProgress.mockImplementation((cb: (progress: MigrationProgress) => void) => {
+        engineTick = cb
+      })
+      engineMock.run.mockImplementation(async () => {
+        // Error broadcast must preserve the last live progress tick.
+        engineTick?.({
+          stage: 'migration',
+          overallProgress: 65,
+          currentMessage: 'Migrating…',
+          migrators: [{ id: 'a', name: 'A', status: 'failed', error: 'boom' }]
+        })
+        return { success: false, error: 'Validation failed', totalDuration: 1200, migratorResults: [] }
+      })
+
+      const result = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      expect(result).toMatchObject({ success: false, error: 'Validation failed' })
+      const progress = lastProgress()
+      expect(progress.stage).toBe('error')
+      expect(progress.error).toBe('Validation failed')
+      expect(progress.currentMessage).toBe('Validation failed')
+      expect(progress.overallProgress).toBe(65)
+      expect(progress.migrators).toEqual([{ id: 'a', name: 'A', status: 'failed', error: 'boom' }])
+      expect(progress.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
+      expect(windowSetStageMock).toHaveBeenCalledWith('error')
+    })
+
+    it('broadcasts the error stage when the run rejects, then frees the in-flight guard so a retry is not blocked', async () => {
+      engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
+
+      await expect(
+        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      ).rejects.toThrow('Engine exploded')
+
+      const failure = lastProgress()
+      expect(failure.stage).toBe('error')
+      expect(failure.error).toBe('Engine exploded')
+      expect(windowSetStageMock).toHaveBeenCalledWith('error')
+
+      engineMock.run.mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
+      const retry = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      expect(retry).toMatchObject({ success: true })
+      expect(lastProgress().stage).toBe('completed')
+    })
+
+    it('transitions main to the terminal error stage when the renderer reports a pre-handoff failure', async () => {
+      await createBackup('/real/backups/v1.zip')
+      windowSetStageMock.mockClear()
+
+      const result = await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+
+      expect(result).toBe(true)
+      const progress = lastProgress()
+      expect(progress.stage).toBe('error')
+      expect(progress.error).toBe('Dexie export failed')
+      expect(progress.currentMessage).toBe('Dexie export failed')
+      expect(progress.backupInfo).toEqual({ createdBackupPath: '/real/backups/v1.zip' })
+      expect(windowSetStageMock).toHaveBeenCalledWith('error')
+    })
+  })
+
   it('forwards real backup progress to the migration window as backup_progress', async () => {
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/tmp/b.zip' } as never)
     // Emit a tick through the exact seam LegacyBackupManager uses, while the

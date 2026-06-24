@@ -10,17 +10,21 @@ import { join } from 'path'
 
 const logger = loggerService.withContext('MigrationWindowManager')
 
-// Stages where a user-initiated close is intercepted to confirm before quitting. These are
-// the in-flow stages: the user has committed to migrating but it isn't finished, so an
-// accidental close (which quits the whole app) should ask first. The entry page
-// (`introduction`) and terminal pages (`completed` / `error` / `version_incompatible`) are
-// excluded — closing there is the expected action and quits immediately.
-const CLOSE_CONFIRM_STAGES: ReadonlySet<MigrationStage> = new Set([
-  'backup_required',
-  'backup_progress',
-  'backup_confirmed',
-  'migration'
-])
+// Exhaustive by stage so adding a MigrationStage requires an explicit close-confirm decision.
+const CLOSE_CONFIRM_BY_STAGE: Record<MigrationStage, boolean> = {
+  version_incompatible: false,
+  introduction: false,
+  backup_required: true,
+  backup_progress: true,
+  backup_confirmed: true,
+  migration: true,
+  completed: false,
+  error: false
+}
+
+function isCloseConfirmStage(stage: MigrationStage): boolean {
+  return CLOSE_CONFIRM_BY_STAGE[stage]
+}
 
 export class MigrationWindowManager {
   private window: BrowserWindow | null = null
@@ -91,13 +95,13 @@ export class MigrationWindowManager {
     })
 
     // User-initiated window close uses cancel semantics: quit the app. During an in-flow
-    // stage (see CLOSE_CONFIRM_STAGES) we intercept and let the renderer show its in-app
+    // stage we intercept and let the renderer show its in-app
     // confirmation dialog instead (it reports back via ConfirmQuit). Programmatic close()
     // calls set the guard to opt out. This seam covers the native macOS traffic light,
     // Cmd+Q, and the custom Windows/Linux close button (which routes through requestClose()).
     this.window.on('close', (event) => {
       if (this.programmaticClose) return
-      if (CLOSE_CONFIRM_STAGES.has(this.currentStage)) {
+      if (isCloseConfirmStage(this.currentStage)) {
         event.preventDefault()
         // Escape hatch: if a confirmation is already pending and the user closes again, the
         // renderer's dialog never reached them (crash / frozen tree / lost listener) — force the
@@ -201,7 +205,7 @@ export class MigrationWindowManager {
     this.currentStage = stage
     // Leaving the in-flow set (e.g. to completed/error) means a close now quits immediately, so a
     // stale pending flag must not carry over and force-quit a re-entered in-flow stage later.
-    if (!CLOSE_CONFIRM_STAGES.has(stage)) {
+    if (!isCloseConfirmStage(stage)) {
       this.closeConfirmPending = false
     }
   }

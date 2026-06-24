@@ -166,6 +166,8 @@ export const MigrationIpcChannels = {
   ShowBackupDialog: 'migration:show-backup-dialog',
   BackupCompleted: 'migration:backup-completed',
   StartMigration: 'migration:start-migration',
+  // Renderer-local failure mirrored to main's terminal error stage.
+  ReportError: 'migration:report-error',
   Retry: 'migration:retry',
   Cancel: 'migration:cancel',
   Restart: 'migration:restart',

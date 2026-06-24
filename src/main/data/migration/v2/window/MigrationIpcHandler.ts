@@ -353,6 +353,21 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
+  // Mirror renderer-local failures into main so close handling sees the terminal error stage.
+  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+    updateProgress(
+      {
+        stage: 'error',
+        overallProgress: currentProgress.overallProgress,
+        currentMessage: message,
+        migrators: currentProgress.migrators,
+        error: message
+      },
+      { preserveBackupInfo: true }
+    )
+    return true
+  })
+
   // Retry migration
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {

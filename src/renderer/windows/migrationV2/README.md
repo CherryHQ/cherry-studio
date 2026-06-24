@@ -7,17 +7,17 @@ Standalone renderer window that drives the migration workflow: drafts data expor
 ```
 src/renderer/windows/migrationV2/
 ├── MigrationApp.tsx        # UI shell and stage logic
-├── entryPoint.tsx          # Window bootstrap, logger + i18n wiring
+├── entryPoint.tsx          # Window bootstrap: styles + i18n init, then mounts MigrationApp
 ├── components/             # UI widgets (progress list, dialogs, window controls, confetti)
 ├── hooks/                  # Progress subscription + action helpers
 ├── exporters/              # Data exporters for Redux Persist and Dexie
 ├── i18n/                   # Migration-specific translations
-└── index.html              # HTML entry
+└── index.html              # HTML entry; declares the logger window source (MigrationV2) via <meta>
 ```
 
 ## Flow Overview
 
-1. `entryPoint.tsx` initializes styles, logger source (`MigrationV2`), and i18n, then mounts `MigrationApp`.
+1. `index.html` declares the logger window source (`MigrationV2`) via a `<meta name="logger-window-source">` tag; `entryPoint.tsx` then initializes styles and i18n before mounting `MigrationApp`.
 2. `MigrationApp.tsx` renders the staged wizard: introduction → backup choice/progress/confirmation → migration → completion/error. It calls action hooks to trigger IPC and exporter routines, and listens for progress updates to drive the steps/progress bars.
 3. Hooks:
    - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress`, queries last error/initial progress on load, and provides IPC-backed back-navigation helpers.

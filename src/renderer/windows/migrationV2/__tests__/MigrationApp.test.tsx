@@ -460,6 +460,7 @@ describe('MigrationApp', () => {
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -494,6 +495,39 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'StartMigration failed')
+  })
+
+  it('clears the local error latch when main later drives a non-error stage', async () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Backup confirmed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'backup_confirmed'
+    }
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+    )
+    invoke.mockResolvedValue('/tmp/userData')
+
+    const { rerender } = render(<MigrationApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+
+    migrationHookMock.progress = {
+      currentMessage: 'Migrating…',
+      migrators: [],
+      overallProgress: 10,
+      stage: 'migration'
+    }
+    rerender(<MigrationApp />)
+
+    expect(await screen.findByText('migration.migration.title')).toBeInTheDocument()
+    expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
   })
 
   describe('theme toggle', () => {

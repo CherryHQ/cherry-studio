@@ -114,7 +114,7 @@ function stageStepNumber(stage: MigrationStage): number | null {
     case 'version_incompatible':
       return null
     default:
-      return 1
+      return assertNever(stage)
   }
 }
 
@@ -127,6 +127,11 @@ function formatDuration(ms: number): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+// Makes MigrationStage switches exhaustive.
+function assertNever(value: never): never {
+  throw new Error(`Unhandled migration stage: ${String(value)}`)
 }
 
 const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
@@ -336,6 +341,13 @@ const MigrationApp: React.FC = () => {
     }
   }, [])
 
+  // Main-driven non-error progress clears the renderer-local error latch.
+  useEffect(() => {
+    if (progress.stage !== 'error') {
+      setLocalMigrationError(null)
+    }
+  }, [progress.stage])
+
   useEffect(() => {
     if (!isBackupCompressing) {
       setBackupCompressionDelayed(false)
@@ -420,7 +432,9 @@ const MigrationApp: React.FC = () => {
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
-      setLocalMigrationError(errorMessage(error))
+      const message = errorMessage(error)
+      setLocalMigrationError(message)
+      void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
@@ -817,7 +831,7 @@ const MigrationApp: React.FC = () => {
         )
 
       default:
-        return null
+        return assertNever(stage)
     }
   }
 
