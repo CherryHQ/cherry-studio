@@ -351,9 +351,47 @@ function main() {
   console.log(`All binaries downloaded to ${outputDir}`)
 }
 
-try {
-  main()
-} catch (error) {
-  console.error('Failed to download binaries:', error.message)
-  process.exit(1)
+/**
+ * Assert every bundled binary exists for the target platform. Dev keeps the
+ * lenient main() (non-required tools downgrade to a warning), but a release must
+ * never ship a half-empty resources/binaries/<platform> — a transient GitHub
+ * outage during download would otherwise produce a working build with no rg
+ * (search breaks) and no error. Call this from before-pack.js after main().
+ */
+function verifyBundledBinaries(platform, arch) {
+  const platformKey = `${platform}-${arch}`
+  const outputDir = path.join(__dirname, '..', 'resources', 'binaries', platformKey)
+  const missing = []
+
+  for (const tool of TOOLS) {
+    const pkg = tool.packages[platformKey]
+    if (!pkg) {
+      missing.push(`${tool.name} (no package for ${platformKey})`)
+      continue
+    }
+    for (const binary of pkg.binaries) {
+      if (!fs.existsSync(path.join(outputDir, binary))) {
+        missing.push(path.join(platformKey, binary))
+      }
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`Bundled binaries missing after download for ${platformKey}:\n  ${missing.join('\n  ')}`)
+  }
+  console.log(`Verified all bundled binaries exist for ${platformKey}`)
+}
+
+module.exports = { verifyBundledBinaries }
+
+// Only auto-download when run directly (node scripts/download-binaries.js ...).
+// before-pack.js requires this module for verifyBundledBinaries without
+// triggering a download for the build host's platform.
+if (require.main === module) {
+  try {
+    main()
+  } catch (error) {
+    console.error('Failed to download binaries:', error.message)
+    process.exit(1)
+  }
 }
