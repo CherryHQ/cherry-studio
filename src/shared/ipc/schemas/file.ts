@@ -13,7 +13,7 @@ import { defineRoute } from '../define'
 
 /** Maximum entry ids accepted by one file batch IPC call. */
 export const FILE_IPC_MAX_BATCH_IDS = 500
-/** Maximum items accepted by one file batch-create IPC call. */
+/** Maximum items accepted by one internal-entry batch-create IPC call. */
 export const FILE_IPC_MAX_BATCH_CREATE_ITEMS = 100
 
 const fileEntryIdsInputSchema = z.strictObject({
@@ -53,7 +53,7 @@ const createInternalEntryInputSchema = z.discriminatedUnion('source', [
   })
 ])
 
-const batchCreateInputSchema = z.strictObject({
+const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
 })
 
@@ -76,7 +76,10 @@ export const fileRequestSchemas = {
     input: fileEntryIdsInputSchema,
     output: z.record(z.string(), DanglingStateSchema)
   }),
-  'file.batch_create': defineRoute({ input: batchCreateInputSchema, output: batchCreateResultSchema }),
+  'file.batch_create_internal_entries': defineRoute({
+    input: batchCreateInternalEntriesInputSchema,
+    output: batchCreateResultSchema
+  }),
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_permanent_delete': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),

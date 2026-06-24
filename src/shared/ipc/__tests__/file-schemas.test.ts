@@ -32,8 +32,8 @@ describe('file IpcApi schemas', () => {
     }
   })
 
-  it('caps batch create items and validates create sources', () => {
-    const input = fileRequestSchemas['file.batch_create'].input
+  it('caps internal-entry batch create items and validates create sources', () => {
+    const input = fileRequestSchemas['file.batch_create_internal_entries'].input
     const ok = Array.from({ length: FILE_IPC_MAX_BATCH_CREATE_ITEMS }, () => ({
       source: 'path' as const,
       path: '/tmp/import.md'

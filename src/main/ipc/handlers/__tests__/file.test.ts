@@ -96,7 +96,7 @@ describe('fileHandlers', () => {
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
   })
 
-  it('delegates batch create items to FileManager', async () => {
+  it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
       { source: 'path' as const, path: '/tmp/a.txt' },
@@ -104,7 +104,7 @@ describe('fileHandlers', () => {
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 
-    await expect(fileHandlers['file.batch_create']({ items }, ctx)).resolves.toBe(result)
+    await expect(fileHandlers['file.batch_create_internal_entries']({ items }, ctx)).resolves.toBe(result)
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 })

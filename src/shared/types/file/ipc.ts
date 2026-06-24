@@ -312,7 +312,7 @@ export interface FileIpcApi {
 
   /**
    * Batch version of `createInternalEntry`. Each item produces an independent new entry.
-   * @phase 2 — wired as IpcApi route `file.batch_create`.
+   * @phase 2 — wired as IpcApi route `file.batch_create_internal_entries`.
    */
   batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchCreateResult>
 
