@@ -1,4 +1,5 @@
 import { useCache } from '@data/hooks/useCache'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Artboard from './components/Artboard'
@@ -65,6 +66,15 @@ const PaintingPage: FC = () => {
     ensureProviderCatalog: modelCatalog.ensureProviderCatalog
   })
 
+  useEffect(() => {
+    if (!currentPainting.model && modelCatalog.currentModelOptions.length > 0 && !modelCatalog.isLoading) {
+      const firstOption = modelCatalog.currentModelOptions[0]
+      if (firstOption?.value) {
+        patchPainting({ model: String(firstOption.value) })
+      }
+    }
+  }, [currentPainting.model, modelCatalog.currentModelOptions, modelCatalog.isLoading, patchPainting])
+
   const list = usePaintingList({
     painting: currentPainting,
     setCurrentPainting,
@@ -95,24 +105,26 @@ const PaintingPage: FC = () => {
                   <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
                 </div>
                 <div className={paintingClasses.promptDock}>
-                  <PaintingComposer
-                    painting={currentPainting}
-                    generating={generating}
-                    onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                    onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
-                    onGenerate={submit}
-                    onCancel={onCancel}
-                    onModelSelect={switchModel}
-                    onConfigChange={patchPainting}
-                    onGenerateRandomSeed={(key) =>
-                      patchPainting({
-                        params: {
-                          ...currentPainting.params,
-                          [key]: String(Math.floor(Math.random() * 1_000_000))
-                        }
-                      })
-                    }
-                  />
+                  <QuickPanelProvider>
+                    <PaintingComposer
+                      painting={currentPainting}
+                      generating={generating}
+                      onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                      onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
+                      onGenerate={submit}
+                      onCancel={onCancel}
+                      onModelSelect={switchModel}
+                      onConfigChange={patchPainting}
+                      onGenerateRandomSeed={(key) =>
+                        patchPainting({
+                          params: {
+                            ...currentPainting.params,
+                            [key]: String(Math.floor(Math.random() * 1_000_000))
+                          }
+                        })
+                      }
+                    />
+                  </QuickPanelProvider>
                 </div>
               </div>
 
