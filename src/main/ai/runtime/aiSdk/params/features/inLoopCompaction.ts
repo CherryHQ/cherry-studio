@@ -30,7 +30,7 @@ import type { RequestFeature } from '../feature'
 /** Compact the in-flight prompt when it crosses this fraction of the context window. */
 const COMPACT_TRIGGER_RATIO = 0.8
 /** Target fraction of the window to retain as recent verbatim turns. */
-const KEEP_BUDGET_RATIO = 0.5
+const KEEP_BUDGET_RATIO = 0.3
 
 /** tokenx estimate of one ModelMessage (text/reasoning dominate; other parts stringified). */
 function estimateMessageTokens(message: ModelMessage): number {

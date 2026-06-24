@@ -238,8 +238,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {
     // Use massive text so total tokens exceed 4000 * 0.8 = 3200 token trigger.
     // Each 'token '.repeat(700) block ≈ 700 tokens × 5 messages = 3500 > 3200.
-    // keepBudget = floor(4000 * 0.5) = 2000.
-    // Walking from tail: u3(700)≤2000 → keepStart=4; a2(700)→1400; u2(700)→2100>2000 → stop.
+    // keepBudget = floor(4000 * 0.3) = 1200.
+    // Walking from tail: u3(700)≤1200 → keepStart=4; a2(700)→1400>1200 → stop.
     // keepIdx=4, boundary = recent[3] = a2.
     const BIG = 'token '.repeat(700)
 
@@ -404,8 +404,10 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     // u1=tiny. u2='word '.repeat(2000)=2000tok. a2='word '.repeat(2000). u3='word '.repeat(1000).
     // estimateContext: base=7900, tail=u2(2000)+a2(2000)+u3(1000)=5000 → 12900>8000. Triggers.
     // Full-tokenx: u1(~1)+a1(~1)+u2(2000)+a2(2000)+u3(1000)=~5002 < 8000. Would NOT. ✓
-    // keepBudget=5000. walk from tail: u3(1000)→1000,ks=4; a2(2000)→3000; u2(2000)→5000,ks=2; a1(1)→5001>5000 → stop.
-    // keepStart=2, keepIdx=2 (not null, not 0). boundary=recent[1]=a1. ✓
+    // keepBudget=floor(10000*0.3)=3000. walk from tail: u3(1000)→1000,ks=4; a2(2000)→3000; u2(2000)→5000>3000 → stop.
+    // keepStart=4, keepIdx=4 (not null, not 0). boundary=recent[3]=a2. ✓ (test asserts only that it triggered)
+    // NOTE: the derivation lines above predate KEEP_BUDGET_RATIO=0.3 (they show the old 0.5 math); the fixture still
+    // triggers under 0.3 — only the boundary moved a1→a2, which this test does not assert.
 
     const MED = 'word '.repeat(2000)
     const TRAIL = 'word '.repeat(1000)

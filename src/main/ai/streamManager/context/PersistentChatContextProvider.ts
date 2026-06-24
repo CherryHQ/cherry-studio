@@ -43,7 +43,7 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 /** Recompact when the served history exceeds this fraction of the context window. */
 const COMPACT_TRIGGER_RATIO = 0.8
 /** Keep this fraction of the window as recent verbatim exchanges. */
-const KEEP_BUDGET_RATIO = 0.5
+const KEEP_BUDGET_RATIO = 0.3
 /** Last-resort window when a model row reports none. */
 const FALLBACK_CONTEXT_WINDOW = 128_000
 
