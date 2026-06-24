@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import type React from 'react'
+import { type FC, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -26,12 +26,20 @@ interface Props {
   onConfirm: () => void
 }
 
-export const CloseMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onConfirm }) => {
+export const CloseMigrationDialog: FC<Props> = ({ open, onOpenChange, onConfirm }) => {
   const { t } = useTranslation()
+  const continueRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm" showCloseButton={false}>
+      <DialogContent
+        size="sm"
+        showCloseButton={false}
+        onOpenAutoFocus={(event) => {
+          // Radix would otherwise focus the first button: destructive Quit.
+          event.preventDefault()
+          continueRef.current?.focus()
+        }}>
         <DialogHeader>
           <DialogTitle>{t('migration.window.confirm_close.title')}</DialogTitle>
           <DialogDescription>{t('migration.window.confirm_close.message')}</DialogDescription>
@@ -40,9 +48,7 @@ export const CloseMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCo
           <Button variant="destructive" onClick={onConfirm}>
             {t('migration.window.confirm_close.quit')}
           </Button>
-          {/* Continue is the safe default: autoFocus it so Enter/Space on the freshly opened
-              dialog keeps the window instead of quitting (Quit is first in DOM order). */}
-          <Button variant="emphasis" autoFocus onClick={() => onOpenChange(false)}>
+          <Button ref={continueRef} variant="emphasis" onClick={() => onOpenChange(false)}>
             {t('migration.window.confirm_close.continue')}
           </Button>
         </DialogFooter>

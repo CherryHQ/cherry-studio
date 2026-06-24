@@ -1,14 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-type MockButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  isDisabled?: boolean
-  onPress?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
-  variant?: string
-}
+type MockButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }
 type MockChildrenProps = { children?: ReactNode }
 type MockDialogProps = MockChildrenProps & { open?: boolean }
+type MockDialogContentProps = MockChildrenProps & {
+  onOpenAutoFocus?: (event: { defaultPrevented: boolean; preventDefault: () => void }) => void
+  showCloseButton?: boolean
+  size?: string
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -22,22 +23,33 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+// Override the global passthrough Dialog mock with the Radix autofocus behavior under test.
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
-    // Mirror the real Button's public contract: it emits the intent as `data-variant`
-    // (not a raw `variant` attribute) and forwards `autoFocus` to the native element.
-    Button: ({ children, disabled, isDisabled, onPress, variant, ...props }: MockButtonProps) =>
-      React.createElement(
-        'button',
-        { ...props, 'data-variant': variant, disabled: disabled || isDisabled, onClick: onPress ?? props.onClick },
-        children
-      ),
+    Button: ({ children, disabled, variant, onClick, ...props }: MockButtonProps) =>
+      React.createElement('button', { ...props, 'data-variant': variant, disabled, onClick }, children),
     Dialog: ({ children, open }: MockDialogProps) =>
       open ? React.createElement('div', { 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children }: MockChildrenProps) =>
-      React.createElement('div', { 'data-testid': 'dialog-content' }, children),
+    DialogContent: ({ children, onOpenAutoFocus }: MockDialogContentProps) => {
+      const ref = React.useRef(null)
+      React.useEffect(() => {
+        const node = ref.current
+        if (!node) return
+        const event = {
+          defaultPrevented: false,
+          preventDefault() {
+            this.defaultPrevented = true
+          }
+        }
+        onOpenAutoFocus?.(event)
+        if (!event.defaultPrevented) {
+          node.querySelector('button')?.focus()
+        }
+      }, [onOpenAutoFocus])
+      return React.createElement('div', { ref, 'data-testid': 'dialog-content' }, children)
+    },
     DialogDescription: ({ children }: MockChildrenProps) =>
       React.createElement('p', { 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children }: MockChildrenProps) =>
@@ -52,17 +64,18 @@ vi.mock('@cherrystudio/ui', () => {
 import { CloseMigrationDialog } from '../CloseMigrationDialog'
 
 describe('CloseMigrationDialog', () => {
-  it('marks quitting as the destructive action', () => {
+  it('marks Quit as the destructive action and Continue as the safe primary', () => {
     render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: 'Quit anyway' })).toHaveAttribute('data-variant', 'destructive')
     expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveAttribute('data-variant', 'emphasis')
   })
 
-  it('focuses Continue as the safe default so an Enter/Space dismissal never quits', () => {
+  it('focuses Continue (not the destructive Quit) on open so an Enter/Space dismissal never quits', async () => {
     render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveFocus()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Quit anyway' })).not.toHaveFocus()
   })
 
   it('keeps migration running when the primary action is clicked', () => {
@@ -72,5 +85,14 @@ describe('CloseMigrationDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue migration' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('quits the app when the destructive action is clicked', () => {
+    const onConfirm = vi.fn()
+    render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={onConfirm} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quit anyway' }))
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 })
