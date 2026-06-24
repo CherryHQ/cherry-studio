@@ -1,6 +1,7 @@
 import { Button, EmptyState } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { isMac } from '@renderer/config/constant'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
@@ -534,7 +535,7 @@ function FilesPage() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         void handleDelete()
       }
-      if (e.key === 'F2' && selectedIds.size === 1) {
+      if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
         setRenamingId([...selectedIds][0])
       }
