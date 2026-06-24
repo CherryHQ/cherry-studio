@@ -117,7 +117,14 @@ export const zhCN = {
       migrated_chats: '已迁移 {{processed}}/{{total}} 个对话，{{messages}} 条消息',
       migrated_preferences: '已迁移 {{processed}}/{{total}} 条配置',
       migrated_knowledge: '已迁移 {{processed}}/{{total}} 条知识库记录',
-      migrated_knowledge_vectors: '已迁移 {{processed}}/{{total}} 个知识库向量工作单元'
+      migrated_knowledge_vectors: '已迁移 {{processed}}/{{total}} 个知识库向量工作单元',
+      migrated_assistants: '已迁移 {{processed}}/{{total}} 个助手',
+      migrated_files: '已迁移 {{processed}}/{{total}} 个文件',
+      migrated_mcp_servers: '已迁移 {{processed}}/{{total}} 个 MCP 服务器',
+      migrated_miniapps: '已迁移 {{processed}}/{{total}} 个小程序',
+      migrated_translate_languages: '已迁移 {{processed}}/{{total}} 种翻译语言',
+      migrated_translate_history: '已迁移 {{processed}}/{{total}} 条翻译记录',
+      prepared_chats: '已准备 {{processed}}/{{total}} 个对话'
     },
     completed: {
       title: '欢迎来到 Cherry Studio V2',
@@ -265,7 +272,14 @@ export const enUS = {
       migrated_chats: 'Migrated {{processed}}/{{total}} conversations, {{messages}} messages',
       migrated_preferences: 'Migrated {{processed}}/{{total}} preferences',
       migrated_knowledge: 'Migrated {{processed}}/{{total}} knowledge records',
-      migrated_knowledge_vectors: 'Migrated {{processed}}/{{total}} knowledge vector work units'
+      migrated_knowledge_vectors: 'Migrated {{processed}}/{{total}} knowledge vector work units',
+      migrated_assistants: 'Migrated {{processed}}/{{total}} assistants',
+      migrated_files: 'Migrated {{processed}}/{{total}} files',
+      migrated_mcp_servers: 'Migrated {{processed}}/{{total}} MCP servers',
+      migrated_miniapps: 'Migrated {{processed}}/{{total}} mini apps',
+      migrated_translate_languages: 'Migrated {{processed}}/{{total}} translate languages',
+      migrated_translate_history: 'Migrated {{processed}}/{{total}} translate history records',
+      prepared_chats: 'Prepared {{processed}}/{{total}} conversations'
     },
     completed: {
       title: 'Welcome to Cherry Studio V2',
