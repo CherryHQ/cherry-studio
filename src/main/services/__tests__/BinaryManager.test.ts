@@ -687,6 +687,25 @@ describe('BinaryManager', () => {
       expect(state.tools.broken).toBeUndefined()
       expect(state.tools.injected).toBeUndefined()
     })
+
+    it('backs up a corrupt state file and resets instead of failing', () => {
+      const service = new BinaryManager()
+      mockFs.readFileSync.mockReturnValue('{ not valid json')
+
+      const state = (service as any).loadState()
+
+      expect(state).toEqual({ tools: {} })
+      expect(mockFs.writeFileSync).toHaveBeenCalledWith(expect.stringMatching(/\.corrupt$/), '{ not valid json')
+    })
+
+    it('starts empty (no throw) on a non-ENOENT read error', () => {
+      const service = new BinaryManager()
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      })
+
+      expect((service as any).loadState()).toEqual({ tools: {} })
+    })
   })
 
   describe('reconcile stateSaveError', () => {
