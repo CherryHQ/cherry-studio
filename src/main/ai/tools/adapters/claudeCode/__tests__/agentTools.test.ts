@@ -116,3 +116,32 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('Bash')).toBe(false)
   })
 })
+
+describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval exceptions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.listMcpTools.mockResolvedValue([])
+  })
+
+  it('auto-approves an injected tool matching an auto-allow prefix', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__']
+    })
+    expect(snapshot.resolve('mcp__cherry-tools__kb_search')).toMatchObject({ approval: 'auto' })
+  })
+
+  it('requires approval for an excepted tool even though it matches the auto-allow prefix', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+    })
+    // kb_manage mutates the knowledge base — it must prompt, not auto-approve, despite the prefix.
+    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+    // A sibling read tool under the same prefix is still auto-approved.
+    expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
+  })
+})

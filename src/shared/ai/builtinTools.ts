@@ -344,3 +344,34 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
   'if the task produced no files.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
+
+// ── cherry-tools agent-session approval policy ───────────────────
+// Shared by the Claude Code runtime (settingsBuilder allowlist + tool-policy snapshot) to decide
+// which cherry-tools an agent may call without a per-call approval prompt.
+
+/** The in-process MCP server id that hosts the cherry builtin tools. */
+export const CHERRY_BUILTIN_MCP_SERVER = 'cherry-tools'
+
+/** Fully-qualified runtime name the agent SDK uses to invoke a cherry builtin tool. */
+export const cherryBuiltinRuntimeName = (toolName: string): string => `mcp__${CHERRY_BUILTIN_MCP_SERVER}__${toolName}`
+
+/**
+ * cherry-tools that mutate the user's knowledge bases (add / delete / refresh sources) and therefore
+ * MUST go through per-call user approval — never auto-approved, even for soul/assistant sessions.
+ */
+export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [KB_MANAGE_TOOL_NAME]
+
+/**
+ * cherry-tools that only read (web/kb lookups) or record a declaration (report_artifacts), so they
+ * are safe to auto-approve for agent sessions. Excludes the mutating tools above.
+ */
+export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
+  WEB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_GREP_TOOL_NAME,
+  KB_TREE_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME
+]
