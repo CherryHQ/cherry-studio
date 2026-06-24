@@ -2489,6 +2489,7 @@
         "description": "Move {{count}} selected conversation(s) to the target assistant.",
         "empty": "No assistants available",
         "error": "Failed to move conversations",
+        "partialSuccess": "Moved {{moved}} of {{total}} conversation(s); {{failed}} failed",
         "placeholder": "Select assistant",
         "success": "Moved {{count}} conversation(s)",
         "target": "Target assistant",
