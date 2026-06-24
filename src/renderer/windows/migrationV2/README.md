@@ -17,7 +17,7 @@ src/renderer/windows/migrationV2/
 
 ## Flow Overview
 
-1. `entryPoint.tsx` initializes styles, patches (antd React 19), logger source (`MigrationV2`), and i18n, then mounts `MigrationApp`.
+1. `entryPoint.tsx` initializes styles, logger source (`MigrationV2`), and i18n, then mounts `MigrationApp`.
 2. `MigrationApp.tsx` renders the staged wizard: introduction → backup → migration → completion/error. It calls action hooks to trigger IPC and exporter routines, and listens for progress updates to drive the steps/progress bars.
 3. Hooks:
    - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress`, queries last error/initial progress on load, and provides helpers to locally mark completion.

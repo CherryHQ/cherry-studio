@@ -1,4 +1,3 @@
-import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -10,6 +9,7 @@ import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
 import type { AppInfo } from '@renderer/types'
 import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -151,7 +151,7 @@ const LocalBackupSettings: React.FC = () => {
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {localBackupSync.syncing && <SyncOutlined spin />}
+        {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
@@ -193,11 +193,11 @@ const LocalBackupSettings: React.FC = () => {
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
           <Button onClick={handleBrowseDirectory} variant="outline">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('common.browse')}
           </Button>
           <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
-            <DeleteOutlined />
+            <Trash2 size={14} />
             {t('common.clear')}
           </Button>
         </RowFlex>
@@ -207,11 +207,11 @@ const LocalBackupSettings: React.FC = () => {
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
           <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
-            <SaveOutlined />
+            <Save size={14} />
             {t('settings.data.local.backup.button')}
           </Button>
           <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.local.restore.button')}
           </Button>
         </RowFlex>

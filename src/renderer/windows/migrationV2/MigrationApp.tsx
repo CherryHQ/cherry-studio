@@ -2,7 +2,6 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
-import { Progress, Space, Steps } from 'antd'
 import { AlertTriangle, CheckCircle, CheckCircle2, Database, Loader2, Rocket } from 'lucide-react'
 import React, { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,12 +98,15 @@ const MigrationApp: React.FC = () => {
     }
   }, [progress.stage])
 
-  const stepStatus = useMemo(() => {
-    if (progress.stage === 'error') {
-      return 'error'
-    }
-    return 'process'
-  }, [progress.stage])
+  const stepItems = useMemo(
+    () => [
+      t('migration.stages.introduction'),
+      t('migration.stages.backup'),
+      t('migration.stages.migration'),
+      t('migration.stages.completed')
+    ],
+    [t]
+  )
 
   const getProgressColor = () => {
     switch (progress.stage) {
@@ -156,7 +158,7 @@ const MigrationApp: React.FC = () => {
       case 'introduction':
         return (
           <>
-            <Space>
+            <ButtonGroup>
               <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
               <Button
                 variant="outline"
@@ -167,7 +169,7 @@ const MigrationApp: React.FC = () => {
                 }}>
                 {t('migration.buttons.skip_migration')}
               </Button>
-            </Space>
+            </ButtonGroup>
             <Spacer />
             <Button onClick={actions.proceedToBackup}>{t('migration.buttons.next')}</Button>
           </>
@@ -177,10 +179,10 @@ const MigrationApp: React.FC = () => {
           <>
             <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
             <Spacer />
-            <Space>
+            <ButtonGroup>
               <Button onClick={actions.showBackupDialog}>{t('migration.buttons.create_backup')}</Button>
               <Button onClick={actions.confirmBackup}>{t('migration.buttons.confirm_backup')}</Button>
-            </Space>
+            </ButtonGroup>
           </>
         )
       case 'backup_progress':
@@ -196,11 +198,11 @@ const MigrationApp: React.FC = () => {
         return (
           <ButtonRow>
             <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
-            <Space>
+            <ButtonGroup>
               <Button onClick={handleStartMigration} loading={isLoading}>
                 {t('migration.buttons.start_migration')}
               </Button>
-            </Space>
+            </ButtonGroup>
           </ButtonRow>
         )
       case 'migration':
@@ -228,9 +230,9 @@ const MigrationApp: React.FC = () => {
         return (
           <ButtonRow>
             <Button onClick={actions.cancel}>{t('migration.buttons.close')}</Button>
-            <Space>
+            <ButtonGroup>
               <Button onClick={actions.retry}>{t('migration.buttons.retry')}</Button>
-            </Space>
+            </ButtonGroup>
           </ButtonRow>
         )
       case 'version_incompatible':
@@ -245,7 +247,7 @@ const MigrationApp: React.FC = () => {
                 <SelectItem value="en-US">English</SelectItem>
               </SelectContent>
             </Select>
-            <Space>
+            <ButtonGroup>
               <Button onClick={actions.cancel}>{t('migration.buttons.close')}</Button>
               <Button
                 variant="destructive"
@@ -256,7 +258,7 @@ const MigrationApp: React.FC = () => {
                 }}>
                 {t('migration.buttons.ignore_migration')}
               </Button>
-            </Space>
+            </ButtonGroup>
           </ButtonRow>
         )
       default:
@@ -275,18 +277,18 @@ const MigrationApp: React.FC = () => {
         {progress.stage !== 'version_incompatible' && (
           <LeftSidebar>
             <StepsContainer>
-              <Steps
-                direction="vertical"
-                current={currentStep}
-                status={stepStatus}
-                size="small"
-                items={[
-                  { title: t('migration.stages.introduction') },
-                  { title: t('migration.stages.backup') },
-                  { title: t('migration.stages.migration') },
-                  { title: t('migration.stages.completed') }
-                ]}
-              />
+              <StepList>
+                {stepItems.map((title, index) => {
+                  const done = currentStep >= 0 && index < currentStep
+                  const active = currentStep === index
+                  return (
+                    <StepItem key={title} $active={active} $done={done}>
+                      <StepMarker>{done ? <CheckCircle2 size={12} /> : index + 1}</StepMarker>
+                      <StepTitle>{title}</StepTitle>
+                    </StepItem>
+                  )
+                })}
+              </StepList>
             </StepsContainer>
             <LanguageSelectorContainer>
               <Select value={i18n.language} onValueChange={handleLanguageChange}>
@@ -366,11 +368,14 @@ const MigrationApp: React.FC = () => {
                   <InfoDescription>{getProgressMessage()}</InfoDescription>
                 </InfoCard>
                 <ProgressContainer>
-                  <Progress
-                    percent={Math.round(progress.overallProgress)}
-                    strokeColor={getProgressColor()}
-                    trailColor="#f0f0f0"
-                  />
+                  <ProgressTrack>
+                    <ProgressFill
+                      style={{
+                        backgroundColor: getProgressColor(),
+                        width: `${Math.round(progress.overallProgress)}%`
+                      }}
+                    />
+                  </ProgressTrack>
                 </ProgressContainer>
                 <div style={{ marginTop: '20px', height: '200px', overflowY: 'auto' }}>
                   <MigratorProgressList migrators={progress.migrators} overallProgress={progress.overallProgress} />
@@ -385,7 +390,9 @@ const MigrationApp: React.FC = () => {
                   <InfoDescription>{t('migration.migration_completed.description')}</InfoDescription>
                 </InfoCard>
                 <ProgressContainer>
-                  <Progress percent={100} strokeColor={getProgressColor()} trailColor="#f0f0f0" />
+                  <ProgressTrack>
+                    <ProgressFill style={{ backgroundColor: getProgressColor(), width: '100%' }} />
+                  </ProgressTrack>
                 </ProgressContainer>
                 <div style={{ marginTop: '20px', height: '200px', overflowY: 'auto' }}>
                   <MigratorProgressList migrators={progress.migrators} overallProgress={progress.overallProgress} />
@@ -482,28 +489,39 @@ const LeftSidebar = styled.div`
 const StepsContainer = styled.div`
   padding: 32px 24px;
   flex: 1;
+`
 
-  .ant-steps-item-process .ant-steps-item-icon {
-    background-color: var(--color-primary);
-    border-color: var(--color-primary-soft);
-  }
+const StepList = styled.ol`
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`
 
-  .ant-steps-item-finish .ant-steps-item-icon {
-    background-color: var(--color-primary-mute);
-    border-color: var(--color-primary-mute);
-  }
+const StepItem = styled.li<{ $active: boolean; $done: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: ${(props) => (props.$active || props.$done ? 'var(--color-primary)' : 'var(--color-foreground-secondary)')};
+  font-size: 13px;
+`
 
-  .ant-steps-item-finish .ant-steps-item-icon > .ant-steps-icon {
-    color: var(--color-primary);
-  }
+const StepMarker = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+`
 
-  .ant-steps-item-process .ant-steps-item-icon > .ant-steps-icon {
-    color: #fff;
-  }
-
-  .ant-steps-item-wait .ant-steps-item-icon {
-    border-color: #d9d9d9;
-  }
+const StepTitle = styled.span`
+  min-width: 0;
 `
 
 const LanguageSelectorContainer = styled.div`
@@ -545,12 +563,32 @@ const ProgressContainer = styled.div`
   width: 100%;
 `
 
+const ProgressTrack = styled.div`
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f0f0f0;
+`
+
+const ProgressFill = styled.div`
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+`
+
 const ButtonRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
   min-width: 300px;
+`
+
+const ButtonGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 const InfoIcon = styled.div`

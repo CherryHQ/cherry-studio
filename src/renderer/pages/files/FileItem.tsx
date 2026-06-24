@@ -1,20 +1,18 @@
-import {
-  FileExcelFilled,
-  FileImageFilled,
-  FileMarkdownFilled,
-  FilePdfFilled,
-  FilePptFilled,
-  FileTextFilled,
-  FileUnknownFilled,
-  FileWordFilled,
-  FileZipFilled,
-  FolderOpenFilled,
-  GlobalOutlined,
-  LinkOutlined,
-  VideoCameraFilled
-} from '@ant-design/icons'
 import { ColFlex } from '@cherrystudio/ui'
 import { videoExts } from '@shared/utils/file'
+import {
+  FileArchive,
+  FileImage,
+  FileQuestion,
+  FileSpreadsheet,
+  FileText,
+  FileType2,
+  FileVideo,
+  FolderOpen,
+  Globe,
+  Link,
+  Presentation
+} from 'lucide-react'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
@@ -30,55 +28,55 @@ interface FileItemProps {
 }
 
 const getFileIcon = (type?: string) => {
-  if (!type) return <FileUnknownFilled />
+  if (!type) return <FileQuestion />
 
   const ext = type.toLowerCase()
 
   if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
-    return <FileImageFilled />
+    return <FileImage />
   }
 
   if (['.doc', '.docx'].includes(ext)) {
-    return <FileWordFilled />
+    return <FileType2 />
   }
   if (['.xls', '.xlsx'].includes(ext)) {
-    return <FileExcelFilled />
+    return <FileSpreadsheet />
   }
   if (['.ppt', '.pptx'].includes(ext)) {
-    return <FilePptFilled />
+    return <Presentation />
   }
   if (ext === '.pdf') {
-    return <FilePdfFilled />
+    return <FileText />
   }
   if (['.md', '.markdown'].includes(ext)) {
-    return <FileMarkdownFilled />
+    return <FileText />
   }
 
   if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
-    return <FileZipFilled />
+    return <FileArchive />
   }
 
   if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
-    return <FileTextFilled />
+    return <FileText />
   }
 
   if (['.url'].includes(ext)) {
-    return <LinkOutlined />
+    return <Link />
   }
 
   if (['.sitemap'].includes(ext)) {
-    return <GlobalOutlined />
+    return <Globe />
   }
 
   if (['.folder'].includes(ext)) {
-    return <FolderOpenFilled />
+    return <FolderOpen />
   }
 
   if (videoExts.includes(ext)) {
-    return <VideoCameraFilled />
+    return <FileVideo />
   }
 
-  return <FileUnknownFilled />
+  return <FileQuestion />
 }
 
 const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {

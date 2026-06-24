@@ -1,6 +1,4 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Checkbox, EmptyState, Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -13,7 +11,6 @@ import store from '@renderer/store'
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -97,6 +94,34 @@ const FilesPage: FC = () => {
     }
   }
 
+  const confirmDeleteFile = (fileId: string) => {
+    void window.modal.confirm({
+      title: t('files.delete.title'),
+      content: t('files.delete.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: { danger: true },
+      onOk: () => handleDelete(fileId, t)
+    })
+  }
+
+  const confirmBatchDelete = () => {
+    if (selectedFileIds.length === 0) {
+      return
+    }
+
+    void window.modal.confirm({
+      title: t('files.delete.title'),
+      content: t('files.delete.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: { danger: true },
+      onOk: handleBatchDelete
+    })
+  }
+
   const dataSource = sortedFiles?.map((file) => {
     logger.debug('FileItem', file)
     return {
@@ -118,23 +143,14 @@ const FilesPage: FC = () => {
           <Button variant="ghost" onClick={() => handleRename(file.id)}>
             <EditIcon size={14} />
           </Button>
-          <Popconfirm
-            title={t('files.delete.title')}
-            description={t('files.delete.content')}
-            okText={t('common.confirm')}
-            cancelText={t('common.cancel')}
-            onConfirm={() => handleDelete(file.id, t)}
-            placement="left"
-            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-            <Button variant="ghost">
-              <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-            </Button>
-          </Popconfirm>
+          <Button variant="ghost" onClick={() => confirmDeleteFile(file.id)}>
+            <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
+          </Button>
           {fileType !== 'image' && (
             <Checkbox
+              className="mx-2"
               checked={selectedFileIds.includes(file.id)}
-              onChange={(e) => handleSelectFile(file.id, e.target.checked)}
-              style={{ margin: '0 8px' }}
+              onCheckedChange={(checked) => handleSelectFile(file.id, checked === true)}
             />
           )}
         </Flex>
@@ -188,43 +204,30 @@ const FilesPage: FC = () => {
               ))}
             </Flex>
             {fileType !== 'image' && (
-              <Dropdown.Button
-                style={{ width: 'auto' }}
-                menu={{
-                  items: [
-                    {
-                      key: 'delete',
-                      disabled: selectedFileIds.length === 0,
-                      danger: true,
-                      label: (
-                        <Popconfirm
-                          disabled={selectedFileIds.length === 0}
-                          title={t('files.delete.title')}
-                          description={t('files.delete.content')}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={handleBatchDelete}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          {t('files.batch_delete')} ({selectedFileIds.length})
-                        </Popconfirm>
-                      )
-                    }
-                  ]
-                }}
-                trigger={['click']}>
+              <Flex className="items-center gap-2">
                 <Checkbox
-                  indeterminate={selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length}
-                  checked={selectedFileIds.length === sortedFiles.length && sortedFiles.length > 0}
-                  onChange={(e) => handleSelectAll(e.target.checked)}>
-                  {t('files.batch_operation')}
-                </Checkbox>
-              </Dropdown.Button>
+                  checked={
+                    selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length
+                      ? 'indeterminate'
+                      : selectedFileIds.length === sortedFiles.length && sortedFiles.length > 0
+                  }
+                  onCheckedChange={(checked) => handleSelectAll(checked === true)}
+                />
+                <span className="text-foreground-secondary text-sm">{t('files.batch_operation')}</span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={selectedFileIds.length === 0}
+                  onClick={confirmBatchDelete}>
+                  {t('files.batch_delete')} ({selectedFileIds.length})
+                </Button>
+              </Flex>
             )}
           </SortContainer>
           {dataSource && dataSource?.length > 0 ? (
             <FileList id={fileType} list={dataSource} files={sortedFiles} />
           ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <EmptyState preset="no-file" compact className="flex-1" />
           )}
         </MainContent>
       </ContentContainer>
@@ -270,29 +273,6 @@ const SideNav = styled.div`
   user-select: none;
   gap: 6px;
 
-  .ant-menu {
-    border-inline-end: none !important;
-    background: transparent;
-  }
-
-  .ant-menu-item {
-    height: 36px;
-    line-height: 36px;
-    margin: 4px 0;
-    width: 100%;
-    border-radius: var(--list-item-border-radius);
-    border: 0.5px solid transparent;
-
-    &:hover {
-      background-color: var(--color-background-soft) !important;
-    }
-
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-soft);
-      color: var(--color-primary);
-      border: 0.5px solid var(--color-border);
-    }
-  }
 `
 
 const SortButton = styled(Button)<{ active?: boolean }>`
@@ -309,10 +289,6 @@ const SortButton = styled(Button)<{ active?: boolean }>`
   &:hover {
     background-color: var(--color-background-soft);
     color: var(--color-text);
-  }
-
-  .anticon {
-    font-size: 12px;
   }
 `
 

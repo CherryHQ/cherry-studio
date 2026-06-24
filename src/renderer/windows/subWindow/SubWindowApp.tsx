@@ -3,9 +3,7 @@ import '@renderer/databases'
 import { preferenceService } from '@data/PreferenceService'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
@@ -32,21 +30,17 @@ function SubWindowApp(): React.ReactElement {
       <QueryClientProvider client={queryClient}>
         <StyleSheetManager>
           <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                        <TopViewContainer>
-                          <SubWindowAppShell />
-                        </TopViewContainer>
-                      </TabsProvider>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
+            <CodeStyleProvider>
+              <CommandContextKeyProvider>
+                <CommandProvider>
+                  <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                    <TopViewContainer>
+                      <SubWindowAppShell />
+                    </TopViewContainer>
+                  </TabsProvider>
+                </CommandProvider>
+              </CommandContextKeyProvider>
+            </CodeStyleProvider>
           </ThemeProvider>
         </StyleSheetManager>
       </QueryClientProvider>

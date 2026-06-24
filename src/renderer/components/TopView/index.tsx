@@ -6,6 +6,9 @@ import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agents/useSession
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
+import { notificationQueue } from '@renderer/queue/NotificationQueue'
+import type { Notification } from '@renderer/types/notification'
+import { isFocused } from '@renderer/utils/window'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +34,15 @@ type ElementItem = {
   element: React.FC | React.ReactNode
 }
 
+const notificationTypeMap: Record<Notification['type'], 'info' | 'success' | 'warning' | 'error'> = {
+  action: 'info',
+  error: 'error',
+  info: 'info',
+  progress: 'info',
+  success: 'success',
+  warning: 'warning'
+}
+
 // const logger = loggerService.withContext('TopView')
 
 const TopViewContent: React.FC<Props> = ({ children }) => {
@@ -49,6 +61,27 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
 
   useEffect(() => {
     window.toast = toast
+  }, [toast])
+
+  useEffect(() => {
+    const listener = (notification: Notification) => {
+      if (notification.channel === 'system' || !isFocused()) {
+        void window.api.notification.send(notification)
+        return
+      }
+
+      const type = notificationTypeMap[notification.type] || 'info'
+      toast[type]({
+        description:
+          notification.message.length > 50 ? `${notification.message.slice(0, 47)}...` : notification.message,
+        key: notification.id,
+        timeout: 3000,
+        title: notification.title
+      })
+    }
+
+    notificationQueue.subscribe(listener)
+    return () => notificationQueue.unsubscribe(listener)
   }, [toast])
 
   onPop = () => {

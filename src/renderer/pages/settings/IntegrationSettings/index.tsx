@@ -1,8 +1,8 @@
-import { YuqueOutlined } from '@ant-design/icons'
 import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { BookOpen } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +35,7 @@ const IntegrationSettings: FC = () => {
 
   const menuItems: IntegrationMenuItem[] = [
     { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
-    { key: 'yuque', title: t('settings.data.yuque.title'), icon: <YuqueOutlined style={{ fontSize: 16 }} /> },
+    { key: 'yuque', title: t('settings.data.yuque.title'), icon: <BookOpen size={16} /> },
     { key: 'joplin', title: t('settings.data.joplin.title'), icon: <JoplinIcon /> },
     { key: 'obsidian', title: t('settings.data.obsidian.title'), icon: <i className="iconfont icon-obsidian" /> },
     { key: 'siyuan', title: t('settings.data.siyuan.title'), icon: <SiyuanIcon /> }

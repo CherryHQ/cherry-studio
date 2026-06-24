@@ -281,7 +281,7 @@ export default defineConfig([
   },
   // ui migration
   {
-    // Component Rules - prevent importing antd components when migration completed
+    // Component Rules - prevent importing deprecated UI libraries
     files: ['**/*.{ts,tsx,js,jsx}'],
     ignores: [],
     rules: {
@@ -289,23 +289,30 @@ export default defineConfig([
         'error',
         {
           paths: [
-            // {
-            //   name: 'antd',
-            //   importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
-            //   message:
-            //     '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
-            // },
             {
               name: 'antd',
-              importNames: ['Switch'],
               message:
-                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+                '❌ Do not import antd. Use @cherrystudio/ui, lucide-react, window.toast, or window.modal instead.'
+            },
+            {
+              name: '@ant-design/icons',
+              message: '❌ Do not import Ant Design icons. Use lucide-react or project icons instead.'
+            },
+            {
+              name: '@ant-design/v5-patch-for-react-19',
+              message: '❌ Do not import the Ant Design React 19 patch. Ant Design has been removed.'
             },
             {
               name: '@heroui/react',
               importNames: ['Switch'],
               message:
                 '❌ Do not import the component from heroui directly. It\'s deprecated.'
+            }
+          ],
+          patterns: [
+            {
+              group: ['antd/*', '@ant-design/*'],
+              message: '❌ Do not import Ant Design packages. Use @cherrystudio/ui or lucide-react instead.'
             }
           ]
         }

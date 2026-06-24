@@ -1,5 +1,11 @@
-import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { useCallback, useRef, useState } from 'react'
+
+type TextAreaHandle = {
+  focus: () => void
+  resizableTextArea?: {
+    textArea?: HTMLTextAreaElement
+  }
+}
 
 export interface UseTextareaResizeOptions {
   maxHeight?: number
@@ -8,7 +14,7 @@ export interface UseTextareaResizeOptions {
 }
 
 export interface UseTextareaResizeReturn {
-  textareaRef: React.RefObject<TextAreaRef | null>
+  textareaRef: React.RefObject<TextAreaHandle | null>
   resize: (force?: boolean) => void
   focus: () => void
   customHeight: number | undefined
@@ -50,7 +56,7 @@ export interface UseTextareaResizeReturn {
 export function useTextareaResize(options: UseTextareaResizeOptions = {}): UseTextareaResizeReturn {
   const { maxHeight = 400, minHeight = 30, autoResize = true } = options
 
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<TextAreaHandle>(null)
   const [customHeight, setCustomHeight] = useState<number | undefined>(undefined)
   const [isExpanded, setIsExpanded] = useState(false)
 

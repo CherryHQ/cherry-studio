@@ -1,4 +1,3 @@
-import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
@@ -20,6 +19,7 @@ import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
+import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -173,7 +173,7 @@ const NutstoreSettings: FC = () => {
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {nutstoreSyncState.syncing && <SyncOutlined spin />}
+        {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
@@ -214,9 +214,9 @@ const NutstoreSettings: FC = () => {
               onClick={handleCheckConnection}
               disabled={checkConnectionLoading}>
               {checkConnectionLoading ? (
-                <LoadingOutlined spin />
+                <Loader2 className="animate-spin" size={14} />
               ) : nsConnected ? (
-                <CheckOutlined />
+                <Check size={14} />
               ) : (
                 t('settings.data.nutstore.checkConnection.name')
               )}
@@ -252,7 +252,7 @@ const NutstoreSettings: FC = () => {
                 }}
               />
               <Button variant="outline" onClick={handleClickPathChange} size="icon">
-                <FolderOutlined />
+                <FolderOpen size={14} />
               </Button>
             </RowFlex>
           </SettingRow>
