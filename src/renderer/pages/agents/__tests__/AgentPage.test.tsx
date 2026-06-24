@@ -321,6 +321,7 @@ vi.mock('../AgentChat', () => ({
 vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
+    onOpenHistoryRecords,
     onStartDraftSession,
     onStartMissingAgentDraft,
     revealRequest,
@@ -348,6 +349,9 @@ vi.mock('../AgentSidePanel', () => ({
           }>
           Select session next
         </button>
+        <button type="button" onClick={() => onOpenHistoryRecords?.()}>
+          Open history records
+        </button>
         <button type="button" onClick={() => onStartMissingAgentDraft?.()}>
           Start missing agent draft
         </button>
@@ -361,6 +365,15 @@ vi.mock('../AgentSidePanel', () => ({
       </div>
     )
   }
+}))
+
+vi.mock('../../history/HistoryRecordsPage', () => ({
+  default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
+    open ? (
+      <button type="button" onClick={() => onRecordSelect?.(null)}>
+        Clear history session
+      </button>
+    ) : null
 }))
 
 import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
@@ -459,6 +472,16 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
+  })
+
+  it('starts a default draft session when history clears the active session', async () => {
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear history session' }))
+
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
   })
 
   it('does not mutate the current tab before focusing an already-open global-search session', () => {

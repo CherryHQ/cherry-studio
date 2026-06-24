@@ -252,6 +252,31 @@ describe('AiService', () => {
 
     expect(mockDownloadImageAsBase64).toHaveBeenCalledWith('https://example.com/missing.png')
   })
+
+  it("omits SDK size when size is the 'auto' sentinel", async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      size: 'auto'
+    })
+
+    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
+    expect(callOptions).not.toHaveProperty('size')
+  })
 })
 
 describe('AiService tool approval', () => {

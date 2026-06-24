@@ -247,15 +247,16 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       passive?: boolean
     }) => {
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(options.initialTopic)
+      const commitActiveTopicId = options.setActiveTopicId
       const setActiveTopicId = React.useCallback(
         (id: string | null) => {
           if (id === null) {
             homeMocks.activeTopicOverride = undefined
             setActiveTopic(undefined)
           }
-          options.setActiveTopicId(id)
+          commitActiveTopicId(id)
         },
-        [options.setActiveTopicId]
+        [commitActiveTopicId]
       )
       const setActiveTopicValue = React.useCallback((topic: Topic) => {
         homeMocks.activeTopicOverride = topic
@@ -370,9 +371,22 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ revealRequest }: any) => (
-    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs" />
+  default: ({ onOpenHistoryRecords, revealRequest }: any) => (
+    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+      <button type="button" onClick={() => onOpenHistoryRecords?.()}>
+        Open history records
+      </button>
+    </div>
   )
+}))
+
+vi.mock('../../history/HistoryRecordsPage', () => ({
+  default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
+    open ? (
+      <button type="button" onClick={() => onRecordSelect?.(null)}>
+        Clear history selection
+      </button>
+    ) : null
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -473,6 +487,18 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('starts a draft assistant selection when history clears the selected topic', async () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear history selection' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-default')
+    })
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {
