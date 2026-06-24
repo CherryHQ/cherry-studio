@@ -286,22 +286,25 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-  C[各域 Contributor 静态导出] --> CM[ContributorManager 收集]
+  C[各域 Contributor 声明 co-locate owning domain] --> CM[ContributorManager 收集 barrel]
   CM --> FN[finalize 启动期校验 25 不变量 不连 DB]
   FN --> BR[BackupRegistry 规则视图]
   FN --> X[失败则启动中断 报 domain table owner 不变量]
   BR --> EX[ExportOrchestrator 查询]
   BR --> IM[ImportOrchestrator 查询]
-  BS[BackupService WhenReady] -->|DependsOn| CM
+  BS[BackupService WhenReady] -->|onInit getRegistry 惰性 finalize| CM
   CT[coverage test CI] -.DB 表覆盖兜底.-> FN
 ```
 
-注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 25 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
+注册到消费链路：各域 contributor 声明 **co-locate 在 owning domain module** → ContributorManager（non-lifecycle named singleton）经统一 barrel 收集 → finalize 启动期校验 25 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。`BackupService`（WhenReady）于 `onInit()` 调 `contributorManager.getRegistry()` **惰性触发** finalize（首次同步 finalize + 深度冻结 + 缓存，幂等），等价于原 `@DependsOn` 排序但无需把纯静态 finalizer 提升为 lifecycle service；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
 
 各 hook 调用时机与缺省：collectFileResources（导出前收集文件/缺省空集）、beforeArchive（剥离后仅改备份副本/no-op）、transformRow（导入前/原行，返回 null 跳过该行）、afterImport（域导入后 FTS 重建/no-op）、restoreResources（DB 导入前事务外/无）、cloneAggregate（仅 renamable 聚合 RENAME/缺则 finalize 拒）。**聚合根被 SKIP 时其成员 transformRow 不调用**。
 
+> [!IMPORTANT]
+> **Contributor placement / ownership**：各 contributor declaration **co-locate 在 owning domain module**（如 `topicsContributor` 由 topics 域 owner 维护、`agentsContributor` 由 agents 域 owner 维护），由业务域 owner 声明该域 entity facts（表归属/引用/聚合/file-ref/JSON 软引用）。backup 模块**只**持统一 barrel（聚合 14 域导出）+ registry + finalize，**不承载 domain-specific facts**——否则 domain facts 退回集中到 backup 模块，与"下放 domain facts 给业务域"的核心目标矛盾。业务域反向依赖 backup 的**纯类型**（`BackupContributor` 接口 + codegen 产物）+ **通用 runtime helper**（`deepFreeze`，acyclic、非 domain-specific），**不依赖 backup 的 domain-specific facts**。
+
 > [!TIP]
-> **lifecycle**：ContributorManager 与 BackupService 均 WhenReady，BackupService 须 `@DependsOn(ContributorManager)`；finalize 只校验静态一致性、**不连 DB**（DB 覆盖由 coverage test 保证，避免 WhenReady 服务违规依赖 DbService）。
+> **lifecycle 边界**：`ContributorManager` 定位为 **non-lifecycle named singleton**（`export const contributorManager = new ContributorManager()`），**不**进 `serviceRegistry.ts`、不加 `@ServicePhase`——它不持有长生命周期资源、不连 DB、无 IPC/定时器/事件订阅，只有"启动期一次性 finalize 产出冻结 BackupRegistry"的纯函数式行为（对齐 CLAUDE.md Non-Lifecycle Services 决策指南）。finalize 由 `BackupService.onInit()` 调 `getRegistry()` **惰性触发**：失败抛 `ContributorFinalizeError` → BackupService.onInit 失败 → lifecycle 容器拒绝启动（启动期校验语义保留）。`BackupService` 仍是 WhenReady（持 orchestrator/RESTORE BARRIER/journal 等长生命周期资源）；finalize 只校验静态一致性、**不连 DB**（DB 覆盖由 coverage test 保证，避免 WhenReady 服务违规依赖 DbService）。
 
 ### 8. 架构检查清单
 
