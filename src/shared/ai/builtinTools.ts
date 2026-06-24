@@ -29,7 +29,6 @@ export const kbListOutputItemSchema = z.object({
   name: z.string(),
   groupId: z.string().nullable(),
   status: z.enum(['completed', 'failed']),
-  documentCount: z.number().int().nonnegative(),
   itemCount: z.number().int().nonnegative(),
   sampleSources: z.array(z.string())
 })

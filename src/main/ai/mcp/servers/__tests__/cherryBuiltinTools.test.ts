@@ -373,6 +373,22 @@ describe('cherryBuiltinTools', () => {
     expect(listRootItems).not.toHaveBeenCalledWith('b1')
   })
 
+  it('omits the misleading documentCount from kb_list output, exposing only itemCount', async () => {
+    // base.documentCount is the configured retrieval top-K (search results to return), not a count of
+    // stored documents — it is usually null. Exposing it made the agent report "0 documents" for a
+    // populated base. itemCount (root items) is the real count the agent should see.
+    listBases.mockResolvedValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }])
+    listRootItems.mockResolvedValue([
+      { type: 'note', status: 'completed', data: { content: 'Soup' } },
+      { type: 'note', status: 'completed', data: { content: 'Stew' } }
+    ])
+
+    const json = JSON.parse(textOf(await callCherryBuiltinTool('kb_list', {}, signal)))
+
+    expect(json[0]).not.toHaveProperty('documentCount')
+    expect(json[0].itemCount).toBe(2)
+  })
+
   it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
     listBases.mockRejectedValue(new Error('sqlite gone'))
 
