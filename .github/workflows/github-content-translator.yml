@@ -41,18 +41,6 @@ jobs:
         with:
           github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           script: |
-            const LEGACY_TRANSLATED_MARKER = 'This issue/comment/review was translated by Claude.'
-            const translatedMarkers = new Set([
-              LEGACY_TRANSLATED_MARKER,
-              'This issue was translated by Claude.',
-              'This comment was translated by Claude.',
-              'This review was translated by Claude.',
-              'This review comment was translated by Claude.',
-              'This issue was translated automatically.',
-              'This comment was translated automatically.',
-              'This review was translated automatically.',
-              'This review comment was translated automatically.'
-            ])
             const ORIGINAL_SUMMARY = '<summary>Original Content</summary>'
 
             const stripCodeFence = (value) =>
@@ -90,26 +78,6 @@ jobs:
                 originalBody.trim(),
                 '</details>'
               ].join('\n')
-
-            const parseTranslatedBody = (body) => {
-              if (!body || !body.includes(ORIGINAL_SUMMARY)) {
-                return null
-              }
-
-              const hasTranslatedMarker = [...translatedMarkers].some((marker) => body.includes(marker))
-              if (!hasTranslatedMarker) {
-                return null
-              }
-
-              const detailsMatch = body.match(/<details>\s*<summary>Original Content<\/summary>\s*([\s\S]*?)\s*<\/details>/i)
-              if (!detailsMatch) {
-                return null
-              }
-
-              return {
-                originalBody: detailsMatch[1].trim()
-              }
-            }
 
             const getTarget = () => {
               const payload = context.payload
@@ -263,11 +231,6 @@ jobs:
             }
 
             const target = getTarget()
-            const parsedTranslatedBody = parseTranslatedBody(target.body)
-            if (parsedTranslatedBody && parsedTranslatedBody.originalBody && context.payload.action !== 'edited') {
-              core.info('Content already has automatic translation format; skipping.')
-              return
-            }
 
             const result = await callTranslator(target)
             if (!result.should_update) {
