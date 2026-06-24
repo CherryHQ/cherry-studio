@@ -5,7 +5,6 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getSearchMatchScore } from '@renderer/utils/modelSearch'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { isAgentOnlyProviderId } from '@shared/data/presets/claudeCode'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
@@ -113,6 +112,14 @@ export function useModelSelectorData({
   // from general selectors; only agent pickers (whose filter is marked) surface them.
   const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
 
+  // A provider whose credentials come from an external CLI login carries no API
+  // key and cannot serve a normal chat request — it is agent-only.
+  const agentOnlyProviderIds = useMemo(
+    () =>
+      new Set(availableProviders.filter((provider) => provider.credentialSource === 'external-cli').map((p) => p.id)),
+    [availableProviders]
+  )
+
   const sortedProviders = useMemo(
     () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
     [availableProviders, prioritizedProviderIds]
@@ -129,7 +136,7 @@ export function useModelSelectorData({
         continue
       }
 
-      if (!includeAgentOnlyProviders && isAgentOnlyProviderId(model.providerId)) {
+      if (!includeAgentOnlyProviders && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
 
@@ -142,7 +149,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [availableModels, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
+  }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
 
   const availableTags = useMemo(() => {
     const selectableModels = [...modelsByProvider.values()].flat()

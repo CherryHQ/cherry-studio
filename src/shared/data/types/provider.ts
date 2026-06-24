@@ -264,6 +264,18 @@ export const ProviderSchema = z.object({
   >,
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
+  /**
+   * Where the model list comes from. `'registry'` providers cannot enumerate
+   * models over an API; the shipped catalog is returned instead. Carried from
+   * the registry; absent/`'api'` for normal providers.
+   */
+  modelListSource: z.enum(['api', 'registry']).optional(),
+  /**
+   * Set when the credential lives in an external CLI store (e.g. `claude-code`)
+   * rather than being an app-held token. Drives env stripping and chat-picker
+   * hiding. Carried from the registry; absent for normal providers.
+   */
+  credentialSource: z.enum(['external-cli']).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */

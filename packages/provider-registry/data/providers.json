@@ -538,6 +538,8 @@
       "name": "Claude Code",
       "description": "Claude Code - agent-only provider that reuses your Claude Code CLI subscription login",
       "defaultChatEndpoint": "anthropic-messages",
+      "modelListSource": "registry",
+      "credentialSource": "external-cli",
       "endpointConfigs": {
         "anthropic-messages": {
           "baseUrl": "https://api.anthropic.com",

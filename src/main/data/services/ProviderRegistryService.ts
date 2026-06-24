@@ -36,6 +36,10 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+  /** Registry capability: where the model list comes from (default `'api'`). */
+  modelListSource?: 'api' | 'registry'
+  /** Registry capability: external-CLI credential providers (e.g. claude-code). */
+  credentialSource?: 'external-cli'
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -437,7 +441,9 @@ class ProviderRegistryService {
 
       return {
         description: provider?.description,
-        websites: provider?.metadata?.website
+        websites: provider?.metadata?.website,
+        modelListSource: provider?.modelListSource,
+        credentialSource: provider?.credentialSource
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

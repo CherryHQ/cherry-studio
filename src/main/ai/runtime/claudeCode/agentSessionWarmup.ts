@@ -3,7 +3,6 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost } from '@shared/utils/api'
@@ -39,7 +38,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // the Agent SDK uses the user's CLI subscription login + Anthropic defaults.
   // Injecting either here would override that (ANTHROPIC_BASE_URL would also
   // re-add what `buildEnvironment` deliberately stripped).
-  const isLoginProvider = isClaudeCodeProviderId(provider.id)
+  const isLoginProvider = provider.credentialSource === 'external-cli'
   const apiKey = isLoginProvider ? undefined : await providerService.getRotatedApiKey(provider.id)
   const anthropicBaseUrl = isLoginProvider ? undefined : resolveAnthropicBaseUrl(provider, baseUrl)
   const resumeSessionId =

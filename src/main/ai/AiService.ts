@@ -11,6 +11,7 @@ import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
+import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
@@ -705,6 +706,12 @@ export class AiService extends BaseService {
       throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     }
     const provider = await providerService.getByProviderId(providerId)
+    // Registry-sourced providers (login-based, no API model list) return their
+    // shipped catalog instead of calling the upstream API. The rest of the pull
+    // flow (enrich → reconcile → enable) is unchanged.
+    if (provider.modelListSource === 'registry') {
+      return providerRegistryService.listProviderRegistryModels({ providerId })
+    }
     return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
   }
 

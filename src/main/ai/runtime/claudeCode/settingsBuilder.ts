@@ -57,7 +57,6 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -549,7 +548,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   // CLI login. Elsewhere credentials live in <CLAUDE_CONFIG_DIR>/.credentials.json,
   // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
   // ~/.claude) rather than Cherry's relocated agent config.
-  if (isClaudeCodeProviderId(provider.id)) {
+  if (provider.credentialSource === 'external-cli') {
     delete env.ANTHROPIC_API_KEY
     delete env.ANTHROPIC_AUTH_TOKEN
     delete env.ANTHROPIC_BASE_URL

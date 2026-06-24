@@ -224,6 +224,20 @@ export const ProviderConfigSchema = z
       .optional(),
     /** Default endpoint type for chat requests — null for providers not bound by this (e.g. AWS, Vertex) */
     defaultChatEndpoint: EndpointTypeSchema.nullable().default(null),
+    /**
+     * Where this provider's model list comes from. `'registry'` means it cannot
+     * be enumerated over an API (login-based subscription providers); the shipped
+     * registry catalog is returned by the model-list chokepoint instead. Defaults
+     * to `'api'` (the provider exposes a `/models` endpoint).
+     */
+    modelListSource: z.enum(['api', 'registry']).default('api'),
+    /**
+     * Marks a provider whose credential is not an app-held token but lives in an
+     * external CLI's store and only works through that CLI's runtime (e.g.
+     * `claude-code`). Drives runtime env stripping and hiding from chat pickers.
+     * Absent for normal API-key / app-managed-OAuth providers.
+     */
+    credentialSource: z.enum(['external-cli']).optional(),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */

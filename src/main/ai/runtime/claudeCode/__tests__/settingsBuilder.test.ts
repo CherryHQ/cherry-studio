@@ -600,7 +600,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         CLAUDE_CONFIG_DIR: '/home/me/.claude'
       })
 
-      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', credentialSource: 'external-cli' } as never
+      )
 
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
       expect(settings.env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN')
@@ -616,7 +619,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
       mocks.getLoginShellEnvironment.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
 
-      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', credentialSource: 'external-cli' } as never
+      )
 
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
       // application.getPath('sys.home') is mocked to '/app/sys.home'.
@@ -628,7 +634,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       // the fallback uses || so it matches CodeCliService's login probe rather than diverging from it.
       mocks.getLoginShellEnvironment.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
 
-      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', credentialSource: 'external-cli' } as never
+      )
 
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
     })
@@ -637,7 +646,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       mocks.platform.isMac = true
       mocks.getLoginShellEnvironment.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
 
-      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'claude-code' } as never)
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', credentialSource: 'external-cli' } as never
+      )
 
       expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
     })
