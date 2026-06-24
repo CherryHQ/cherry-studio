@@ -5,7 +5,7 @@ import {
   FileEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileTypeSchema } from '@shared/types/file'
+import { PhysicalFileMetadataSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -22,27 +22,6 @@ const fileEntryIdsInputSchema = z.strictObject({
 const fileEntryIdInputSchema = z.strictObject({
   id: FileEntryIdSchema
 })
-
-const physicalFileMetadataSchema = z.union([
-  z.strictObject({
-    kind: z.literal('directory'),
-    size: z.int().nonnegative(),
-    createdAt: z.number().nonnegative(),
-    modifiedAt: z.number().nonnegative()
-  }),
-  z.strictObject({
-    kind: z.literal('file'),
-    type: FileTypeSchema,
-    size: z.int().nonnegative(),
-    createdAt: z.number().nonnegative(),
-    modifiedAt: z.number().nonnegative(),
-    mime: z.string(),
-    width: z.number().nonnegative().optional(),
-    height: z.number().nonnegative().optional(),
-    pageCount: z.int().nonnegative().optional(),
-    encoding: z.string().optional()
-  })
-])
 
 const batchMutationResultSchema = z.strictObject({
   succeeded: z.array(FileEntryIdSchema),
@@ -63,7 +42,7 @@ const batchCreateResultSchema = z.strictObject({
 export const fileRequestSchemas = {
   'file.batch_get_metadata': defineRoute({
     input: fileEntryIdsInputSchema,
-    output: z.record(z.string(), physicalFileMetadataSchema.nullable())
+    output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())
   }),
   'file.batch_get_physical_paths': defineRoute({
     input: fileEntryIdsInputSchema,

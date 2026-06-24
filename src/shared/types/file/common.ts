@@ -64,19 +64,61 @@ export type FileContent = FilePath | Base64String | URLString | Uint8Array
 
 // ─── Physical File Metadata ───
 
-type MetadataBase = { size: number; createdAt: number; modifiedAt: number }
+const physicalMetadataBaseSchema = {
+  size: z.int().nonnegative(),
+  createdAt: z.number().nonnegative(),
+  modifiedAt: z.number().nonnegative()
+}
 
-type DirectoryMetadata = MetadataBase & { kind: 'directory' }
+const physicalFileMetadataBaseSchema = {
+  ...physicalMetadataBaseSchema,
+  kind: z.literal('file'),
+  mime: z.string()
+}
 
-type FileMetadataCommon = MetadataBase & { kind: 'file'; mime: string }
-type ImageFileMetadata = FileMetadataCommon & { type: 'image'; width?: number; height?: number }
-type DocumentFileMetadata = FileMetadataCommon & { type: 'document'; pageCount?: number }
-type TextFileMetadata = FileMetadataCommon & { type: 'text'; encoding?: string }
-type GenericFileMetadata = FileMetadataCommon & { type: 'audio' | 'video' | 'other' }
+const PhysicalDirectoryMetadataSchema = z.strictObject({
+  ...physicalMetadataBaseSchema,
+  kind: z.literal('directory')
+})
 
-type FileKindMetadata = ImageFileMetadata | DocumentFileMetadata | TextFileMetadata | GenericFileMetadata
+const PhysicalFileKindMetadataSchema = z.discriminatedUnion('type', [
+  z.strictObject({
+    ...physicalFileMetadataBaseSchema,
+    type: z.literal(FILE_TYPE.IMAGE),
+    width: z.number().nonnegative().optional(),
+    height: z.number().nonnegative().optional()
+  }),
+  z.strictObject({
+    ...physicalFileMetadataBaseSchema,
+    type: z.literal(FILE_TYPE.DOCUMENT),
+    pageCount: z.int().nonnegative().optional()
+  }),
+  z.strictObject({
+    ...physicalFileMetadataBaseSchema,
+    type: z.literal(FILE_TYPE.TEXT),
+    encoding: z.string().optional()
+  }),
+  z.strictObject({
+    ...physicalFileMetadataBaseSchema,
+    type: z.literal(FILE_TYPE.AUDIO)
+  }),
+  z.strictObject({
+    ...physicalFileMetadataBaseSchema,
+    type: z.literal(FILE_TYPE.VIDEO)
+  }),
+  z.strictObject({
+    ...physicalFileMetadataBaseSchema,
+    type: z.literal(FILE_TYPE.OTHER)
+  })
+])
+
 /** Physical file metadata (size, timestamps, and optional type-specific enrichment like dimensions/pageCount). */
-export type PhysicalFileMetadata = DirectoryMetadata | FileKindMetadata
+export const PhysicalFileMetadataSchema = z.discriminatedUnion('kind', [
+  PhysicalDirectoryMetadataSchema,
+  PhysicalFileKindMetadataSchema
+])
+
+export type PhysicalFileMetadata = z.infer<typeof PhysicalFileMetadataSchema>
 
 // ─── Directory Listing Options ───
 
