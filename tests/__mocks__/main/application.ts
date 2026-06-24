@@ -88,13 +88,29 @@ export type ServiceOverrides = Partial<Record<keyof typeof defaultServiceInstanc
 export function createMockApplication(overrides: ServiceOverrides = {}) {
   const serviceInstances = { ...defaultServiceInstances, ...overrides }
 
-  return {
-    get: vi.fn((name: string) => {
+  // Mirror production: `application.get(name)` delegates to `container.get(name)`
+  // (Application.get → this.container.get) and `getContainer()` returns the SAME
+  // instance. `get` lives on the prototype (class method), so code that
+  // temporarily overrides `container.get` and restores it by deleting the own
+  // property behaves exactly as it does against the real ServiceContainer.
+  class MockServiceContainer {
+    get(name: string) {
       if (name in serviceInstances) {
         return serviceInstances[name as keyof typeof serviceInstances]
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    }),
+    }
+    has(name: string) {
+      return name in serviceInstances
+    }
+    register() {}
+    setInstance() {}
+  }
+  const container = new MockServiceContainer()
+
+  return {
+    get: vi.fn((name: string) => container.get(name)),
+    getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with
     // class field initializers like `application.getPath('feature.xxx')`

@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { getIpCountry } from '@main/utils/ipService'
+import { regionService } from '@main/services/RegionService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -298,7 +298,7 @@ export class AppUpdaterService extends BaseService {
     const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
 
     // Determine mirror based on IP country
-    const ipCountry = await getIpCountry()
+    const ipCountry = await regionService.getCountry()
     const mirror = ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
 
     logger.info(

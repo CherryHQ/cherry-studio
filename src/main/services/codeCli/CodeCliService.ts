@@ -2,13 +2,13 @@
  * TODO(v2): Performance — run() blocks up to ~100s before opening terminal
  *
  * Problem:
- * - isUserInChina() makes HTTP request (5s timeout) with no caching, called 2-3x per run()
+ * - regionService.isInChina() makes an HTTP request (5s timeout) on cache miss, called 2-3x per run()
  * - getVersionInfo() blocks on npm registry fetch (15s) + local --version (10s)
  * - updatePackage() blocks on bun install (60s) when autoUpdateToLatest is enabled
  * - All above run serially BEFORE spawn(terminal)
  *
  * Fix:
- * 1. Cache isUserInChina() promise at module level in ipService.ts (process-lifetime)
+ * 1. (done) Egress detection is cached in RegionService (TTL + proxy-key invalidation)
  * 2. Extract local-only getInstalledVersion() for qwen-code --auth-type check
  * 3. Move getVersionInfo() + updatePackage() to fire-and-forget background task
  * 4. Cache getNpmRegistryUrl() at instance level
@@ -21,8 +21,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { regionService } from '@main/services/RegionService'
 import { removeEnvProxy } from '@main/utils'
-import { isUserInChina } from '@main/utils/ipService'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -802,7 +802,7 @@ export class CodeCliService extends BaseService {
    */
   private async getNpmRegistryUrl(): Promise<string> {
     try {
-      const inChina = await isUserInChina()
+      const inChina = await regionService.isInChina()
       if (inChina) {
         logger.info('User in China, using Taobao npm mirror')
         return 'https://registry.npmmirror.com'
