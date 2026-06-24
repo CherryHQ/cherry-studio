@@ -326,10 +326,17 @@ export const useMiniApps = () => {
    */
   const reorderMiniAppsByStatus = useCallback(
     async (status: MiniAppStatus, orderedPartition: MiniApp[]) => {
-      let cursor = 0
+      const partitionIds = new Set(orderedPartition.map((a) => a.appId))
+      const hiddenTargets = allApps.filter((a) => a.status === status && !partitionIds.has(a.appId))
+      let hiddenCursor = 0
+      let partitionCursor = 0
+
       const merged = allApps.map((a) => {
         if (a.status !== status) return a
-        return orderedPartition[cursor++] ?? a
+        if (partitionCursor < orderedPartition.length) {
+          return orderedPartition[partitionCursor++]
+        }
+        return hiddenTargets[hiddenCursor++]
       })
       try {
         await applyMiniAppOrder(merged)
