@@ -2,7 +2,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1107,6 +1107,30 @@ describe('FileEntryService', () => {
   })
 
   describe('delete', () => {
+    it('routes public write wrappers through DbService.withWriteTx', async () => {
+      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+      withWriteTx.mockClear()
+
+      const internalId = '019606a0-0000-7000-8000-000000000c10' as FileEntryId
+      await fileEntryService.create({ id: internalId, origin: 'internal', name: 'tx', ext: 'txt', size: 1 })
+      await fileEntryService.update(internalId, { name: 'tx-renamed' })
+      await fileEntryService.delete(internalId)
+
+      const external = await fileEntryService.create({
+        origin: 'external',
+        name: 'ext-tx',
+        ext: 'txt',
+        externalPath: '/Users/me/ext-tx.txt'
+      })
+      await fileEntryService.setExternalPathAndName(
+        external.id,
+        '/Users/me/ext-tx-renamed.txt' as CanonicalExternalPath,
+        'ext-tx-renamed'
+      )
+
+      expect(withWriteTx).toHaveBeenCalledTimes(5)
+    })
+
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
       await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1 })

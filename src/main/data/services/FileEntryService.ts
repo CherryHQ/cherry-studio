@@ -20,6 +20,7 @@
 
 import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
@@ -93,11 +94,20 @@ export interface ListCursorQuery {
 }
 
 export interface FileEntryService {
+  /** Run serialized DB writes through DbService.withWriteTx. */
+  withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T>
+
   /** Return the entry, or `null` if not found. Trashed entries are included. */
   findById(id: FileEntryId): Promise<FileEntry | null>
 
+  /** Tx-scoped variant of `findById` for composing write flows. */
+  findByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry | null>
+
   /** Return the entry, or throw. Trashed entries are included. */
   getById(id: FileEntryId): Promise<FileEntry>
+
+  /** Tx-scoped variant of `getById` for composing write flows. */
+  getByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry>
 
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
@@ -186,8 +196,14 @@ export interface FileEntryService {
   /** Insert a new row. Violates `fe_origin_consistency` / `fe_size_internal_only` → throws. */
   create(values: CreateFileEntryRow): Promise<FileEntry>
 
+  /** Tx-scoped variant of `create` for composing write flows. */
+  createTx(tx: DbOrTx, values: CreateFileEntryRow): Promise<FileEntry>
+
   /** Update mutable columns. Returns the refreshed row. Throws if not found. */
   update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry>
+
+  /** Tx-scoped variant of `update` for composing write flows. */
+  updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry>
 
   /**
    * Atomically rewrite both `externalPath` and `name` for an external entry.
@@ -197,8 +213,19 @@ export interface FileEntryService {
    */
   setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry>
 
+  /** Tx-scoped variant of `setExternalPathAndName` for composing write flows. */
+  setExternalPathAndNameTx(
+    tx: DbOrTx,
+    id: FileEntryId,
+    externalPath: CanonicalExternalPath,
+    name: string
+  ): Promise<FileEntry>
+
   /** Remove the row (CASCADE drops dependent `file_ref`s). No-op if already gone. */
   delete(id: FileEntryId): Promise<void>
+
+  /** Tx-scoped variant of `delete` for composing write flows. */
+  deleteTx(tx: DbOrTx, id: FileEntryId): Promise<void>
 }
 
 type FileEntryRow = typeof fileEntryTable.$inferSelect
@@ -365,17 +392,33 @@ function decodeListCursor(
 }
 
 class FileEntryServiceImpl implements FileEntryService {
+  private getDbService() {
+    return application.get('DbService')
+  }
+
   private getDb() {
-    return application.get('DbService').getDb()
+    return this.getDbService().getDb()
+  }
+
+  withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T> {
+    return this.getDbService().withWriteTx(fn)
   }
 
   async findById(id: FileEntryId): Promise<FileEntry | null> {
-    const rows = await this.getDb().select().from(fileEntryTable).where(eq(fileEntryTable.id, id)).limit(1)
+    return this.findByIdTx(this.getDb(), id)
+  }
+
+  async findByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry | null> {
+    const rows = await tx.select().from(fileEntryTable).where(eq(fileEntryTable.id, id)).limit(1)
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
   async getById(id: FileEntryId): Promise<FileEntry> {
-    const entry = await this.findById(id)
+    return this.getByIdTx(this.getDb(), id)
+  }
+
+  async getByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry> {
+    const entry = await this.findByIdTx(tx, id)
     if (!entry) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
@@ -565,10 +608,14 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async create(values: CreateFileEntryRow): Promise<FileEntry> {
+    return this.withWriteTx((tx) => this.createTx(tx, values))
+  }
+
+  async createTx(tx: DbOrTx, values: CreateFileEntryRow): Promise<FileEntry> {
     const parsed = CreateFileEntryRowSchema.parse(values)
     const now = Date.now()
     const id = parsed.origin === 'internal' ? parsed.id : uuidv7()
-    const rows = await this.getDb()
+    const rows = await tx
       .insert(fileEntryTable)
       .values({
         id,
@@ -586,6 +633,10 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
+    return this.withWriteTx((tx) => this.updateTx(tx, id, values))
+  }
+
+  async updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
     // Validate user-controlled string columns BEFORE the SQL UPDATE so a
     // rejected value never persists. Without this, a name / ext failing
     // the FileEntry field schemas commits to SQLite first and only fails at
@@ -600,7 +651,7 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.ext !== undefined) updates.ext = values.ext
     if (values.size !== undefined) updates.size = values.size
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
-    const rows = await this.getDb().update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
+    const rows = await tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
     if (rows.length === 0) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
@@ -613,6 +664,15 @@ class FileEntryServiceImpl implements FileEntryService {
    * flow so the (path, name) pair stays consistent under failure.
    */
   async setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry> {
+    return this.withWriteTx((tx) => this.setExternalPathAndNameTx(tx, id, externalPath, name))
+  }
+
+  async setExternalPathAndNameTx(
+    tx: DbOrTx,
+    id: FileEntryId,
+    externalPath: CanonicalExternalPath,
+    name: string
+  ): Promise<FileEntry> {
     // Same pre-SQL validation rationale as `update` above; an unsafe value
     // for either column would corrupt the row past `rowToFileEntry` parse.
     // The `CanonicalExternalPath` brand is TS-only — defense-in-depth at the
@@ -621,7 +681,7 @@ class FileEntryServiceImpl implements FileEntryService {
     // `canonicalizeExternalPath`).
     SafeNameSchema.parse(name)
     AbsolutePathSchema.parse(externalPath)
-    const rows = await this.getDb()
+    const rows = await tx
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })
       .where(eq(fileEntryTable.id, id))
@@ -633,7 +693,11 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async delete(id: FileEntryId): Promise<void> {
-    await this.getDb().delete(fileEntryTable).where(eq(fileEntryTable.id, id))
+    await this.withWriteTx((tx) => this.deleteTx(tx, id))
+  }
+
+  async deleteTx(tx: DbOrTx, id: FileEntryId): Promise<void> {
+    await tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id))
   }
 }
 
