@@ -206,6 +206,12 @@ For detailed code examples, see [Usage Guide](docs/references/lifecycle/lifecycl
 
 Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
+### BinaryManager (CLI binary acquisition)
+
+**MUST READ**: [docs/references/binary-manager/README.md](docs/references/binary-manager/README.md) — scope criterion (in/out), persisted surface, bundled-vs-mise state contract, adding a new tool, China mirror behavior.
+
+All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installTool(...)` and keep runtime orchestration (config, spawn, health) on their side.
+
 ## v2 Refactoring (In Progress)
 
 > **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the default branch for active development, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. v1 maintenance fixes (hotfixes and subsequent v1 releases) go to the `v1` branch, not `main`; forward-port to `main` with a separate PR if the bug also exists there.

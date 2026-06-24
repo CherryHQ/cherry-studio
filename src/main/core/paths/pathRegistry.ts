@@ -86,6 +86,10 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // BinaryManager (tool manager)
+    'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
+    'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),

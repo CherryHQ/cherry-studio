@@ -10,8 +10,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
-import { isUserInChina } from '@main/utils/ipService'
-import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
+import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
@@ -303,28 +302,15 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Install OpenClaw by downloading the binary from releases.
-   * Uses gitcode.com mirror for China users, GitHub releases for others.
+   * Install OpenClaw via BinaryManager (mise npm:openclaw backend).
    */
   public async install(): Promise<OperationResult> {
     try {
-      this.sendInstallProgress('Checking download source...')
-      const useMirror = await isUserInChina()
-      const extraEnv: Record<string, string> = {}
-      if (useMirror) {
-        extraEnv.OPENCLAW_USE_MIRROR = '1'
-        logger.info('Using gitcode mirror for OpenClaw download')
-        this.sendInstallProgress('Using mirror source for download...')
-      }
-
-      this.sendInstallProgress('Downloading and installing OpenClaw...')
-      await runInstallScript('install-openclaw.js', extraEnv)
-
+      this.sendInstallProgress('Installing OpenClaw...')
+      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
       await this.linkBinary()
-
       this.sendInstallProgress('OpenClaw installed successfully!')
-      logger.info('OpenClaw binary installed via install script')
-
+      logger.info('OpenClaw installed via BinaryManager')
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -335,7 +321,7 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Uninstall OpenClaw by removing the binary from ~/.cherrystudio/bin/.
+   * Uninstall OpenClaw via BinaryManager.
    */
   public async uninstall(): Promise<OperationResult> {
     // Stop the gateway before removing binary
@@ -344,33 +330,9 @@ export class OpenClawService extends BaseService {
     }
 
     try {
-      const binaryName = isWin ? 'openclaw.exe' : 'openclaw'
-      const binDir = await getBinaryPath()
-      const binaryPath = path.join(binDir, binaryName)
-
-      this.sendInstallProgress('Removing OpenClaw binary...')
-
+      this.sendInstallProgress('Removing OpenClaw...')
       await this.unlinkBinary()
-
-      if (fs.existsSync(binaryPath)) {
-        fs.unlinkSync(binaryPath)
-        logger.info(`Removed OpenClaw binary: ${binaryPath}`)
-      }
-
-      // Remove package.json (shipped with OpenClaw binary package)
-      const packageJsonPath = path.join(binDir, 'package.json')
-      if (fs.existsSync(packageJsonPath)) {
-        fs.unlinkSync(packageJsonPath)
-        logger.info(`Removed OpenClaw package.json: ${packageJsonPath}`)
-      }
-
-      // Also remove sidecar lib directory if present
-      const libDir = path.join(binDir, 'lib')
-      if (fs.existsSync(libDir)) {
-        fs.rmSync(libDir, { recursive: true, force: true })
-        logger.info('Removed sidecar lib directory')
-      }
-
+      await application.get('BinaryManager').removeTool('openclaw')
       this.sendInstallProgress('OpenClaw uninstalled successfully!')
       return { success: true }
     } catch (error) {
@@ -951,7 +913,7 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Perform OpenClaw update by running `openclaw update`.
+   * Perform OpenClaw update through BinaryManager so mise remains the owner.
    */
   public async performUpdate(): Promise<OperationResult> {
     try {
@@ -965,23 +927,11 @@ export class OpenClawService extends BaseService {
         await this.stopGateway()
       }
 
-      this.sendInstallProgress('Running openclaw update...')
-      const shellEnv = await getShellEnv()
-      const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
-        openclawPath,
-        ['update'],
-        shellEnv,
-        60000
-      )
+      this.sendInstallProgress('Updating OpenClaw via BinaryManager...')
+      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
+      void refreshShellEnv()
 
-      if (code !== 0) {
-        const errMsg = stderr.trim() || `Update failed with code ${code}`
-        logger.error('OpenClaw update failed:', { error: errMsg })
-        this.sendInstallProgress(errMsg, 'error')
-        return { success: false, message: errMsg }
-      }
-
-      logger.info('OpenClaw updated successfully', { output: stdout.trim() })
+      logger.info('OpenClaw updated successfully')
       this.sendInstallProgress('OpenClaw updated successfully!')
       return { success: true }
     } catch (error) {
