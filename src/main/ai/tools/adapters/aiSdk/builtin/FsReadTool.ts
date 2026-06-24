@@ -37,7 +37,6 @@ const PAGED_SIZE_CAP_BYTES = 50 * MB
  */
 const READ_OUTPUT_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
 const DEFAULT_READ_LIMIT = 2_000
-const MAX_LINE_LENGTH = 2_000
 
 const inputSchema = z.object({
   path: z.string().min(1).describe('Absolute file path. Relative paths are rejected.'),
@@ -118,8 +117,11 @@ interface TextReadResult {
   totalLines: number
 }
 
-/** cat -n shape: 6-pad line numbers + tab; long lines truncated. Ported
- *  from #14916's readers/text.ts — the model pattern-matches this format. */
+/** cat -n shape: 6-pad line numbers + tab. Lines are returned in full — there
+ *  is no per-line truncation; the per-call output is bounded by
+ *  READ_OUTPUT_CHAR_CAP as a whole (see executeFsRead), matching Claude Code's
+ *  Read (whole lines, output gated in aggregate, never chopped mid-line).
+ *  Format ported from #14916's readers/text.ts — the model pattern-matches it. */
 function formatLines(content: string, offset: number | undefined, limit: number | undefined): TextReadResult {
   const lines = content.split('\n')
   const totalLines = lines.length
@@ -127,11 +129,7 @@ function formatLines(content: string, offset: number | undefined, limit: number 
   const endIndex = Math.min(startIndex + (limit ?? DEFAULT_READ_LIMIT), totalLines)
   const text = lines
     .slice(startIndex, endIndex)
-    .map((line, i) => {
-      const lineNo = String(startIndex + i + 1).padStart(6, ' ')
-      const body = line.length > MAX_LINE_LENGTH ? `${line.slice(0, MAX_LINE_LENGTH)}...` : line
-      return `${lineNo}\t${body}`
-    })
+    .map((line, i) => `${String(startIndex + i + 1).padStart(6, ' ')}\t${line}`)
     .join('\n')
   return { text, startLine: startIndex + 1, endLine: endIndex, totalLines }
 }
@@ -209,6 +207,21 @@ export async function executeFsRead(input: { path: string; offset?: number; limi
 
     if (result.text.length > READ_OUTPUT_CHAR_CAP) {
       const returnedLines = Math.max(1, result.endLine - result.startLine + 1)
+      if (returnedLines === 1) {
+        // A single physical line exceeds the per-call cap. Paging is line-based,
+        // so lowering `limit` can't subdivide it and fs_read has no byte-range
+        // read — return an honest error (never silently truncate) so the model
+        // works from the inline head/tail excerpt instead of assuming a full read.
+        return {
+          kind: 'error',
+          code: 'output-too-large',
+          message:
+            `Line ${result.startLine} alone is ${result.text.length} chars — above the per-call cap (${READ_OUTPUT_CHAR_CAP}). ` +
+            `It is a single physical line (e.g. heavily minified JSON), so \`offset\`/\`limit\` paging cannot subdivide it ` +
+            `and fs_read has no byte-range read. This line can't be retrieved in full here — reason from the inline ` +
+            `head/tail excerpt, or narrow the upstream tool's output.`
+        }
+      }
       const avgPerLine = Math.max(1, Math.round(result.text.length / returnedLines))
       const safeLimit = Math.max(1, Math.floor((READ_OUTPUT_CHAR_CAP - 200) / avgPerLine))
       return {
@@ -233,7 +246,7 @@ const fsReadTool = tool({
 
 Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Paths are restricted to allowed roots (the persisted-output directory); reads elsewhere return access-denied.
 
-Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. Each line is truncated to ${MAX_LINE_LENGTH} chars (trailing "..."), and there is no column or byte addressing — so a file that is a single very long physical line (e.g. minified JSON or one long log line) only ever exposes its first ${MAX_LINE_LENGTH} chars. Treat such a result as a head excerpt, not the full content.`,
+Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Lines are returned in full (never truncated mid-line); the per-call output is bounded as a whole, and oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. The one input it can't subdivide is a single physical line larger than that cap (e.g. heavily minified JSON) — line paging can't split one line and there is no byte-range read, so that case is reported as \`output-too-large\`; reason from the inline head/tail excerpt for such inputs.`,
   inputSchema,
   outputSchema,
   toModelOutput: ({ output }) => {

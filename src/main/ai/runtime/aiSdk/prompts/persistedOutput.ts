@@ -17,7 +17,7 @@ URI (alternative): context://vfs/...
 
 To inspect the full content, call \`${FS_READ_TOOL_NAME}\` with the absolute path shown after "Full output saved to:". Page through large files with \`offset\` and \`limit\` — a single call returns at most ~${CONTEXT_PERSIST_THRESHOLD_CHARS} chars; oversized pages come back as an \`output-too-large\` error with a recommended \`limit\` for that file.
 
-Paging is line-based and each line is capped at ~2000 chars: if a persisted output is a single very long physical line (e.g. minified JSON or one long log line), \`${FS_READ_TOOL_NAME}\` can only return that line's first ~2000 chars. Treat such a result as a head excerpt, not the full content — don't assume you've read the rest.
+Paging is line-based and lines come back in full (never chopped mid-line). The one case it can't subdivide is a single physical line larger than the per-call cap (e.g. heavily minified JSON): line paging can't split one line, so \`${FS_READ_TOOL_NAME}\` reports \`output-too-large\` for it. For that input, reason from the inline head/tail excerpt rather than assuming you can page to the rest.
 
 The persistence layer applies to non-read tools only (e.g. MCP tools). \`${FS_READ_TOOL_NAME}\` never persists its own output — narrow the read instead.
 </context-persistence>`

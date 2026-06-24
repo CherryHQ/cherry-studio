@@ -109,6 +109,29 @@ describe('executeFsRead — content handling', () => {
     const out = await executeFsRead({ path: p, offset: 1, limit: 50 })
     expect(out).toMatchObject({ kind: 'text', startLine: 1, endLine: 50 })
   })
+
+  it('returns a long single line in full — no per-line truncation', async () => {
+    const longLine = 'x'.repeat(5000) // > the old 2000 cap, < the per-call char cap
+    const p = writeVfsFile('vfs_longline.txt', longLine)
+    const out = await executeFsRead({ path: p })
+    expect(out.kind).toBe('text')
+    if (out.kind === 'text') {
+      expect(out.text).toContain(longLine) // whole line present
+      expect(out.text).not.toContain('...') // not truncated
+      expect(out.totalLines).toBe(1)
+    }
+  })
+
+  it('reports a single physical line above the per-call cap as output-too-large (unpageable)', async () => {
+    // One line, no newlines, larger than the per-call char cap — paging can't subdivide it.
+    const p = writeVfsFile('vfs_hugeline.txt', 'y'.repeat(120_000))
+    const out = await executeFsRead({ path: p })
+    expect(out).toMatchObject({ kind: 'error', code: 'output-too-large' })
+    if (out.kind === 'error') {
+      expect(out.message).toMatch(/single physical line/)
+      expect(out.message).not.toMatch(/limit: \d+/) // no useless "lower your limit" advice
+    }
+  })
 })
 
 describe('createFsReadToolEntry', () => {
@@ -130,8 +153,10 @@ describe('executeFsRead — size caps', () => {
 
   it('rejects whole-file reads above the 5MB cap but allows paging them', async () => {
     const p = path.join(vfsRoot, 'vfs_5mb.txt')
-    // Write real content (not sparse) so NUL sniff doesn't fire on paged read
-    fs.writeFileSync(p, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61))
+    // Real, multi-line content (>5MB) so paging returns small slices and the NUL
+    // sniff doesn't fire. (A single >5MB physical line would be correctly
+    // unpageable now — covered by the single-line output-too-large test above.)
+    fs.writeFileSync(p, `${Array.from({ length: 60_000 }, () => 'a'.repeat(100)).join('\n')}\n`)
     const whole = await executeFsRead({ path: p })
     expect(whole).toMatchObject({ kind: 'error', code: 'too-large' })
     const paged = await executeFsRead({ path: p, offset: 1, limit: 5 })
