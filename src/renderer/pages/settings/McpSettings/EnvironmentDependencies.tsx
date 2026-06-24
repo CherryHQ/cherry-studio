@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binary-tools'
+import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Download,
@@ -43,7 +43,7 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
-type ToolSource = 'mise' | 'bundled' | 'none'
+type ToolSource = 'managed' | 'bundled' | 'none'
 
 interface EnvironmentDependenciesProps {
   mini?: boolean
@@ -188,7 +188,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
-          const source: ToolSource = installed ? 'mise' : tool.name in bundled ? 'bundled' : 'none'
+          const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
           return (
             <BinaryToolPresetCard
               key={tool.name}
@@ -306,7 +306,7 @@ const BinaryToolPresetCard: FC<{
           </div>
         </div>
 
-        {source === 'mise' && (
+        {source === 'managed' && (
           <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
@@ -358,7 +358,7 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {source !== 'mise' && (
+      {source !== 'managed' && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -371,7 +371,7 @@ const BinaryToolPresetCard: FC<{
             {installing
               ? t('settings.plugins.installing')
               : isBundled
-                ? t('settings.plugins.installViaMise')
+                ? t('settings.plugins.install')
                 : t('settings.mcp.install')}
           </Button>
         </div>

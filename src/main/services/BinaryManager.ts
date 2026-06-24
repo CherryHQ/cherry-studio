@@ -17,7 +17,7 @@ import {
   TOOL_KEY_RE,
   TOOL_NAME_RE,
   validateManagedBinary
-} from '@shared/data/presets/binary-tools'
+} from '@shared/data/presets/binaryTools'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
@@ -113,7 +113,7 @@ export class BinaryManager extends BaseService {
     await this.extractBundledBinaries()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
-      logger.warn('mise binary not found, tool management disabled')
+      logger.warn('mise binary not found, binary management disabled')
       return
     }
     logger.info('mise binary found', { path: this.miseBin })
@@ -182,7 +182,7 @@ export class BinaryManager extends BaseService {
    * Probe which user-facing predefined tools have a bundled copy in cherry.bin.
    *
    * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
-   * The UI uses this to distinguish "available (bundled)" from "managed (mise)"
+   * The UI uses this to distinguish "available (bundled)" from "managed"
    * vs "not installed" — see docs/references/binary-manager/README.md.
    *
    * Returns a map of tool name → version string (from .{name}-version marker)
@@ -549,7 +549,7 @@ export class BinaryManager extends BaseService {
   async installTool(tool: ManagedBinary): Promise<{ version: string }> {
     validateManagedBinary(tool)
     if (!this.miseBin) {
-      throw new Error('mise binary not available')
+      throw new Error('Binary backend not available')
     }
 
     return this.withStateLock(async () => {

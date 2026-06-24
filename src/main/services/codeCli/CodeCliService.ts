@@ -148,7 +148,7 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  private getMiseToolSpec(cliTool: string): { name: string; tool: string } {
+  private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
     switch (cliTool) {
       case codeCLI.claudeCode:
         return { name: 'claude', tool: 'claude' }
@@ -725,7 +725,7 @@ export class CodeCliService extends BaseService {
       logger.info(`${cliTool} is not installed`)
     }
 
-    const miseSpec = this.getMiseToolSpec(cliTool)
+    const spec = this.getToolInstallSpec(cliTool)
 
     // Get latest version from the backend registry (with cache)
     const cacheKey = `${packageName}-latest`
@@ -738,7 +738,7 @@ export class CodeCliService extends BaseService {
     } else {
       logger.info(`Fetching latest version for ${packageName}`)
       try {
-        latestVersion = await this.fetchLatestVersion(packageName, miseSpec.tool)
+        latestVersion = await this.fetchLatestVersion(packageName, spec.tool)
         logger.info(`${packageName} latest version: ${latestVersion}`)
 
         // Cache the result
@@ -829,12 +829,12 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Update a CLI tool to the latest version via BinaryManager (mise)
+   * Update a CLI tool to the latest version via BinaryManager
    */
   public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
     logger.info(`Starting update process for ${cliTool}`)
     try {
-      const spec = this.getMiseToolSpec(cliTool)
+      const spec = this.getToolInstallSpec(cliTool)
       await application.get('BinaryManager').installTool(spec)
       // Clear version cache so next check fetches fresh data
       const packageName = await this.getPackageName(cliTool)
@@ -875,19 +875,19 @@ export class CodeCliService extends BaseService {
     }
 
     const executableName = await this.getCliExecutableName(cliTool)
-    const miseSpec = this.getMiseToolSpec(cliTool)
+    const spec = this.getToolInstallSpec(cliTool)
 
     logger.debug(`Executable name: ${executableName}`)
-    logger.debug(`Mise tool spec: ${miseSpec.tool}`)
+    logger.debug(`Tool install spec: ${spec.tool}`)
 
     // Check if package is already installed
     let isInstalled = await isBinaryExists(executableName)
 
-    // Install via BinaryManager (mise) if not present
+    // Install via BinaryManager if not present
     if (!isInstalled) {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        await application.get('BinaryManager').installTool(miseSpec)
+        await application.get('BinaryManager').installTool(spec)
         isInstalled = true
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {

@@ -322,7 +322,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
 
       await expect(service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).rejects.toThrow(
-        'mise binary not available'
+        'Binary backend not available'
       )
     })
 
