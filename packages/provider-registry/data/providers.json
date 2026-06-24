@@ -558,6 +558,7 @@
       "name": "OpenAI Codex",
       "description": "OpenAI Codex - login-based provider that uses your ChatGPT Plus/Pro subscription via OAuth",
       "defaultChatEndpoint": "openai-responses",
+      "modelListSource": "registry",
       "apiFeatures": {
         "serviceTier": true
       },

@@ -9,10 +9,11 @@
  * token + `chatgpt-account-id` header per request (refreshing on expiry).
  *
  * The provider row and its default models live in the shipped registry
- * (`packages/provider-registry/data/{providers,provider-models}.json`); the
- * `CodexProviderSeeder` materializes those models into `user_model` (this
- * provider cannot pull a model list over the API). The row stays disabled until
- * the user completes OAuth sign-in.
+ * (`packages/provider-registry/data/{providers,provider-models}.json`). Because
+ * Codex cannot list models over an API, its registry entry sets
+ * `modelListSource: 'registry'`, so `AiService.listModels` serves the shipped
+ * catalog at runtime (no DB seeding needed — same as `claude-code`). The row
+ * stays disabled until the user completes OAuth sign-in.
  */
 export const OPENAI_CODEX_PROVIDER_ID = 'openai-codex' as const
 
