@@ -2360,7 +2360,6 @@
       "title": "删除文件"
     },
     "delete_or_remove": "删除/移除",
-    "details": "详细信息",
     "document": "文档",
     "drag_upload": "拖拽文件到此处上传",
     "edit": "编辑",
@@ -2381,7 +2380,6 @@
     "file": "文件",
     "footer_count": "{{count}} 个文件",
     "footer_selected_count": "{{count}} 个已选",
-    "format": "格式",
     "image": "图片",
     "modified_at": "修改时间",
     "name": "文件名",

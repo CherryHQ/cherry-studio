@@ -2360,7 +2360,6 @@
       "title": "Delete File"
     },
     "delete_or_remove": "Delete / remove",
-    "details": "Details",
     "document": "Document",
     "drag_upload": "Drag files here to upload",
     "edit": "Edit",
@@ -2381,7 +2380,6 @@
     "file": "File",
     "footer_count": "{{count}} files",
     "footer_selected_count": "{{count}} selected",
-    "format": "Format",
     "image": "Image",
     "modified_at": "Modified At",
     "name": "Name",
