@@ -153,6 +153,13 @@
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "feature.paintings.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Paintings default image-generation model UniqueModelId (provider::modelId)"
+    },
+    {
       "targetKey": "feature.openclaw.gateway_port",
       "type": "number",
       "defaultValue": 18790,

@@ -12,8 +12,8 @@ import { cn } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { ChevronDown, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -134,8 +134,16 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   showDescription = true,
   compact = false
 }) => {
-  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    quickModel,
+    translateModel,
+    paintingModel,
+    setDefaultModel,
+    setQuickModel,
+    setTranslateModel,
+    setPaintingModel
+  } = useDefaultModel()
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
@@ -170,6 +178,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       void setTranslateModel(selected)
     },
     [setTranslateModel]
+  )
+
+  const onSelectPainting = useCallback(
+    (selected: Model | undefined) => {
+      if (!selected) return
+      void setPaintingModel(selected)
+    },
+    [setPaintingModel]
   )
 
   const onResetTranslatePrompt = () => {
@@ -272,6 +288,21 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 )}
               </>
             )}
+          </ModelSettingRow>
+          <SettingDivider />
+          <ModelSettingRow
+            compact={compact}
+            icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={t('settings.models.painting_model')}
+            description={showDescription ? t('settings.models.painting_model_description') : undefined}>
+            <DefaultModelSelector
+              model={paintingModel}
+              providers={providers}
+              filter={isGenerateImageModel}
+              compact={compact}
+              onSelect={onSelectPainting}
+              placeholder={t('settings.models.empty')}
+            />
           </ModelSettingRow>
         </SettingGroup>
       </ContainerComponent>

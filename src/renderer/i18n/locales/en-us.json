@@ -6776,6 +6776,8 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "painting_model": "Painting Model",
+      "painting_model_description": "Model used for image generation",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
