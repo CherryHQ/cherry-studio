@@ -6869,12 +6869,46 @@
     },
     "parameter_settings": "參數設定",
     "plugins": {
-      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "addTool": "新增工具",
+      "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
+      "coreDepsMissing": "核心依賴未安裝",
+      "customTools": "自訂工具",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "duplicateName": "已存在相同名稱的工具",
+      "fieldVersion": "版本（選填，預設為最新）",
+      "install": "[to be translated]:Install",
+      "installError": "工具安裝失敗",
       "installing": "安裝中...",
+      "invalidTool": "工具名稱或識別碼無效",
       "notInstalled": "未安裝",
+      "openBinariesDir": "開啟二進位檔案目錄",
+      "remove": "移除工具",
+      "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜尋失敗，請查看日誌",
+      "searchRegistry": "搜尋 mise 工具倉庫...",
+      "source": {
+        "bundled": "內建"
+      },
       "title": "環境依賴",
-      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      "tools": {
+        "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
+        "claude": "Anthropic 的終端智慧編程工具。",
+        "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
+        "fd": "快速檔案搜尋工具，find 的替代方案。",
+        "gh": "GitHub CLI，用於倉庫和工作流程管理。",
+        "hermes": "Nous Research 開發的自我進化 AI 編程代理，能從經驗中建立技能並跨對話持久化知識。",
+        "lark-cli": "飛書官方 CLI，涵蓋即時通訊、文件、多維表格、日曆等 200+ 指令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支援身份驗證、Workers 管理和完整的 Notion API 終端存取。",
+        "openclaw": "跨平台個人 AI 助手，提供聊天、語音、畫布、攝影機和螢幕擷取等功能。",
+        "opencode": "開源 AI 編程代理，支援 75+ 模型並整合 GitHub Actions 自動化工作流程。",
+        "pi": "AI 代理工具包，包含編程代理 CLI、統一 LLM API、TUI/Web UI 和 Slack 機器人。",
+        "rg": "快速文字搜尋工具（ripgrep），grep 的替代方案。",
+        "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
+        "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      },
+      "update": "更新到最新版本"
     },
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"

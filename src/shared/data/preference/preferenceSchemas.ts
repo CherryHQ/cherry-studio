@@ -323,6 +323,8 @@ export interface PreferenceSchemas {
     // redux/settings/apiServer.port
     'feature.api_gateway.port': number
     // target-key-definitions/complex/complex
+    'feature.binary.tools': PreferenceTypes.ManagedBinary[]
+    // target-key-definitions/complex/complex
     'feature.code_cli.overrides': PreferenceTypes.CodeCliOverrides
     // redux/preprocess/defaultProvider
     'feature.file_processing.default_document_to_markdown': PreferenceTypes.FileProcessorId | null
@@ -633,6 +635,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.api_gateway.enabled': false,
     'feature.api_gateway.host': '127.0.0.1',
     'feature.api_gateway.port': 23333,
+    'feature.binary.tools': [] as PreferenceTypes.ManagedBinary[],
     'feature.code_cli.overrides': {} as PreferenceTypes.CodeCliOverrides,
     'feature.file_processing.default_document_to_markdown': null,
     'feature.file_processing.default_image_to_text': null,
@@ -748,7 +751,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 224
+ * - 总配置项: 225
  * - electronStore项: 1
  * - redux项: 175
  * - localStorage项: 0
