@@ -1,12 +1,13 @@
+import { randomBytes } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type OAuthTokenResponse, PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { createHash, randomBytes, randomUUID } from 'crypto'
 import { net, shell } from 'electron'
 import * as z from 'zod'
 
@@ -32,14 +33,6 @@ const TOKEN_EXPIRY_BUFFER_MS = 2 * 60 * 1000
 const DiscoverySchema = z.object({
   authorization_endpoint: z.string(),
   token_endpoint: z.string()
-})
-
-const TokenResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string().optional(),
-  id_token: z.string().optional(),
-  token_type: z.string().optional(),
-  expires_in: z.number().optional()
 })
 
 type Discovery = z.infer<typeof DiscoverySchema>
@@ -77,18 +70,20 @@ export class GrokCliOauthService extends BaseService {
     this.closeActiveServer()
   }
 
-  // ── PKCE helpers ──
-
-  private base64UrlEncode(buffer: Buffer): string {
-    return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  }
-
-  private generateCodeVerifier(): string {
-    return this.base64UrlEncode(randomBytes(32))
-  }
-
-  private generateCodeChallenge(codeVerifier: string): string {
-    return this.base64UrlEncode(createHash('sha256').update(codeVerifier).digest())
+  /**
+   * Build a PKCE client bound to the discovered endpoints. A fresh `nonce`
+   * (OIDC) is passed through to the authorize URL on sign-in; refresh/exchange
+   * ignore it.
+   */
+  private buildOAuthClient(discovery: Discovery, nonce?: string): PkceOAuthClient {
+    return new PkceOAuthClient({
+      clientId: GROK_CONFIG.CLIENT_ID,
+      authorizeUrl: discovery.authorization_endpoint,
+      tokenUrl: discovery.token_endpoint,
+      redirectUri: GROK_CONFIG.REDIRECT_URI,
+      scope: GROK_CONFIG.SCOPE,
+      ...(nonce ? { extraAuthParams: { nonce } } : {})
+    })
   }
 
   // ── OIDC discovery ──
@@ -199,30 +194,9 @@ export class GrokCliOauthService extends BaseService {
     })
   }
 
-  // ── Token exchange / persistence ──
+  // ── Token persistence ──
 
-  private async exchangeAuthorizationCode(code: string, codeVerifier: string, tokenEndpoint: string): Promise<void> {
-    const response = await net.fetch(tokenEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: GROK_CONFIG.CLIENT_ID,
-        code,
-        code_verifier: codeVerifier,
-        redirect_uri: GROK_CONFIG.REDIRECT_URI
-      }).toString()
-    })
-
-    if (!response.ok) {
-      throw new GrokCliOauthServiceError(`Failed to exchange code for token: ${response.status}`)
-    }
-
-    const tokenData = TokenResponseSchema.parse(await response.json())
-    await this.persistTokens(tokenData)
-  }
-
-  private async persistTokens(tokenData: z.infer<typeof TokenResponseSchema>): Promise<void> {
+  private async persistTokens(tokenData: OAuthTokenResponse): Promise<void> {
     const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } = tokenData
     const current = await this.getOAuthAuthConfig()
     const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined
@@ -240,23 +214,7 @@ export class GrokCliOauthService extends BaseService {
 
   private async doRefresh(refreshToken: string): Promise<string | null> {
     try {
-      const { token_endpoint: tokenEndpoint } = await this.discover()
-      const response = await net.fetch(tokenEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-          client_id: GROK_CONFIG.CLIENT_ID
-        }).toString()
-      })
-
-      if (!response.ok) {
-        logger.error('Grok CLI token refresh failed', { status: response.status })
-        return null
-      }
-
-      const tokenData = TokenResponseSchema.parse(await response.json())
+      const tokenData = await this.buildOAuthClient(await this.discover()).refresh(refreshToken)
       await this.persistTokens(tokenData)
       return tokenData.access_token
     } catch (error) {
@@ -295,31 +253,18 @@ export class GrokCliOauthService extends BaseService {
       throw new GrokCliOauthServiceError('A Grok CLI sign-in is already in progress')
     }
 
-    const codeVerifier = this.generateCodeVerifier()
-    const codeChallenge = this.generateCodeChallenge(codeVerifier)
-    const state = randomUUID().replace(/-/g, '')
-    const nonce = randomUUID().replace(/-/g, '')
-
     const timeout = AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)
     try {
-      const discovery = await this.discover()
-
-      const authUrl = new URL(discovery.authorization_endpoint)
-      authUrl.searchParams.set('response_type', 'code')
-      authUrl.searchParams.set('client_id', GROK_CONFIG.CLIENT_ID)
-      authUrl.searchParams.set('redirect_uri', GROK_CONFIG.REDIRECT_URI)
-      authUrl.searchParams.set('scope', GROK_CONFIG.SCOPE)
-      authUrl.searchParams.set('code_challenge', codeChallenge)
-      authUrl.searchParams.set('code_challenge_method', 'S256')
-      authUrl.searchParams.set('state', state)
-      authUrl.searchParams.set('nonce', nonce)
+      const nonce = randomBytes(16).toString('hex')
+      const oauthClient = this.buildOAuthClient(await this.discover(), nonce)
+      const { authUrl, state, codeVerifier } = oauthClient.createAuthorizationRequest()
 
       const codePromise = this.waitForAuthorizationCode(state, timeout)
-      await shell.openExternal(authUrl.toString())
+      await shell.openExternal(authUrl)
       const code = await codePromise
 
-      await this.exchangeAuthorizationCode(code, codeVerifier, discovery.token_endpoint)
-      // Enable the provider on first successful sign-in (seeded disabled).
+      await this.persistTokens(await oauthClient.exchangeCode(code, codeVerifier))
+      // Enable the provider on first successful sign-in (disabled by default).
       await providerService.update(GROK_CLI_PROVIDER_ID, { isEnabled: true })
       logger.info('Grok CLI sign-in succeeded')
     } catch (error) {

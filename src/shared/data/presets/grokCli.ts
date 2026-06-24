@@ -9,10 +9,11 @@
  * Responses body into the shape xAI's proxy accepts (refreshing on expiry).
  *
  * The provider row and its default models (grok-build, grok-composer-2.5-fast)
- * live in the shipped registry (`packages/provider-registry/data/*`); the
- * `GrokCliProviderSeeder` materializes those models into `user_model` (this
- * provider cannot pull a model list over the API). The row stays disabled until
- * the user completes OAuth sign-in.
+ * live in the shipped registry (`packages/provider-registry/data/*`). Because
+ * Grok CLI cannot list models over an API, its registry entry sets
+ * `modelListSource: 'registry'`, so `AiService.listModels` serves the shipped
+ * catalog at runtime (no DB seeding needed — same as `openai-codex` and
+ * `claude-code`). The row stays disabled until the user completes OAuth sign-in.
  *
  * This is distinct from the existing api-key `grok` provider, which talks to
  * `api.x.ai` with a platform key.
