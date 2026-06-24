@@ -174,8 +174,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
                   isError && 'bg-destructive text-destructive-foreground',
-                  !isError && active && 'bg-primary text-white',
-                  !isError && done && 'bg-primary text-white',
+                  !isError && (active || done) && 'bg-primary text-white',
                   !isError && !active && !done && 'border border-border bg-background text-foreground-muted'
                 )}>
                 {isError ? (
@@ -374,6 +373,8 @@ const MigrationApp: React.FC = () => {
     }
   }
 
+  // Runs the renderer-side exporters then hands off to main's StartMigration. Only ever
+  // invoked from the backup_confirmed Start button, so it carries no stage guard.
   const runMigration = async () => {
     if (startGuardRef.current) {
       return
@@ -425,14 +426,6 @@ const MigrationApp: React.FC = () => {
       startGuardRef.current = false
       setIsLoading(false)
     }
-  }
-
-  const handleStartMigration = async () => {
-    if (progress.stage !== 'backup_confirmed') {
-      return
-    }
-
-    await runMigration()
   }
 
   const progressMessage = useMemo(() => {
@@ -565,7 +558,7 @@ const MigrationApp: React.FC = () => {
                 size="lg"
                 className="flex-1 gap-2"
                 disabled={backupLoading}
-                loading={backupChoice === 'create' && backupLoading ? true : undefined}
+                loading={backupChoice === 'create' && backupLoading}
                 onClick={() => {
                   if (backupChoice === 'create') {
                     void handleCreateBackup()
@@ -648,8 +641,8 @@ const MigrationApp: React.FC = () => {
                 variant="default"
                 size="lg"
                 className="flex-1 gap-2"
-                loading={isLoading ? true : undefined}
-                onClick={handleStartMigration}>
+                loading={isLoading}
+                onClick={() => void runMigration()}>
                 <ArrowRight size={14} />
                 {t('migration.buttons.start_migration')}
               </Button>
