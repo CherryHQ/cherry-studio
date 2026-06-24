@@ -111,7 +111,7 @@ const HeaderNavbar = ({
       content: <NotesSettings />,
       footer: null,
       width: 600,
-      styles: { body: { padding: 0 } }
+      styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', overflow: 'auto' } }
     })
   }, [])
 
