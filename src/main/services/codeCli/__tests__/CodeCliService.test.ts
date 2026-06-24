@@ -34,8 +34,8 @@ vi.mock('@main/utils', () => ({
   removeEnvProxy: vi.fn()
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  isUserInChina: vi.fn().mockResolvedValue(false)
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
 vi.mock('@main/utils/process', () => ({
