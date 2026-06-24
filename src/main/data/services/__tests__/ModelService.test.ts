@@ -763,6 +763,35 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
   })
+
+  it('does NOT re-apply a registry capability override when the user has overridden capabilities', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('perplexity', 'Perplexity'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('perplexity', 'sonar', {
+        presetModelId: 'sonar',
+        name: 'Sonar',
+        // User explicitly removed web-search and kept only function-call.
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        userOverrides: ['capabilities']
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'perplexity' && modelId === 'sonar') {
+        return {
+          presetModel: { id: 'sonar', capabilities: [MODEL_CAPABILITY.WEB_SEARCH] },
+          // Registry forces web-search on; must NOT win over the user override.
+          registryOverride: { capabilities: { add: [MODEL_CAPABILITY.WEB_SEARCH] } }
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'perplexity' })
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(model.capabilities).not.toContain(MODEL_CAPABILITY.WEB_SEARCH)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

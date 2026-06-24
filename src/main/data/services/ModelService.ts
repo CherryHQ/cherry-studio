@@ -424,7 +424,7 @@ class ModelService {
       { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
     >()
     models = await Promise.all(
-      models.map(async (model) => {
+      models.map(async (model, index) => {
         const presetId = model.presetModelId ?? model.apiModelId
         if (!presetId) return model
         try {
@@ -434,17 +434,22 @@ class ModelService {
             reasoningConfigCache
           )
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
-          const capabilities = resolveCapabilities(
-            presetModel?.capabilities,
-            registryOverride?.capabilities,
-            model.capabilities
-          )
           const updates: Partial<Model> = {}
           if (imageGeneration) updates.imageGeneration = imageGeneration
-          const changed =
-            capabilities.length !== model.capabilities.length ||
-            capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
-          if (changed) updates.capabilities = capabilities
+          // `models` is index-aligned with `rows` (built via `rows.map`), so the
+          // row's `userOverrides` is read positionally here.
+          const capabilitiesOverridden = rows[index].userOverrides?.includes('capabilities') ?? false
+          if (!capabilitiesOverridden) {
+            const capabilities = resolveCapabilities(
+              presetModel?.capabilities,
+              registryOverride?.capabilities,
+              model.capabilities
+            )
+            const changed =
+              capabilities.length !== model.capabilities.length ||
+              capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
+            if (changed) updates.capabilities = capabilities
+          }
           return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
         } catch (error) {
           // A registry-lookup failure must not silently strip a model's
