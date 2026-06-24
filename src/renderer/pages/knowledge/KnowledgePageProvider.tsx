@@ -5,6 +5,8 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
@@ -129,19 +131,12 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
-  const isResizingRef = useRef(false)
-  const resizeCleanupRef = useRef<(() => void) | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const contentLeftRef = useRef(0)
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
   }, [bases, selectedBaseId])
-
-  useEffect(() => {
-    return () => {
-      resizeCleanupRef.current?.()
-    }
-  }, [])
 
   useEffect(() => {
     if (pendingSelectedBaseId) {
@@ -151,7 +146,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
         return
       }
 
-      if (bases === pendingSelectedBaseListRef.current) {
+      if (bases.length === 0 || bases === pendingSelectedBaseListRef.current) {
         return
       }
 
@@ -172,14 +167,34 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
     }
-  }, [bases, selectedBaseId])
+  }, [bases, pendingSelectedBaseId, selectedBaseId])
 
-  const selectBase = useCallback((baseId: string) => {
-    setPendingSelectedBaseId(null)
-    pendingSelectedBaseListRef.current = null
-    setSelectedBaseId(baseId)
-    setSelectedItemId(null)
-  }, [])
+  const selectBase = useCallback(
+    (baseId: string) => {
+      if (bases.some((base) => base.id === baseId)) {
+        setPendingSelectedBaseId(null)
+        pendingSelectedBaseListRef.current = null
+      } else {
+        setPendingSelectedBaseId(baseId)
+        pendingSelectedBaseListRef.current = bases
+      }
+
+      setSelectedBaseId(baseId)
+      setSelectedItemId(null)
+    },
+    [bases]
+  )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
+      if (typeof baseId !== 'string') return
+      selectBase(baseId)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [selectBase])
 
   const handleSetActiveTab = useCallback((tab: KnowledgeTabKey) => {
     setActiveTab(tab)
@@ -377,38 +392,20 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     [deleteGroup, t]
   )
 
-  const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    isResizingRef.current = true
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    const containerLeft = contentRef.current?.getBoundingClientRect().left ?? 0
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!isResizingRef.current) {
-        return
-      }
-
-      const nextWidth = moveEvent.clientX - containerLeft
-      setNavigatorWidth(Math.min(NAVIGATOR_MAX_WIDTH, Math.max(NAVIGATOR_MIN_WIDTH, nextWidth)))
-    }
-
-    const cleanup = () => {
-      isResizingRef.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      resizeCleanupRef.current = null
-    }
-
-    const onMouseUp = () => cleanup()
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    resizeCleanupRef.current = cleanup
+  const handleNavigatorResizeMove = useCallback((moveEvent: MouseEvent) => {
+    const nextWidth = moveEvent.clientX - contentLeftRef.current
+    setNavigatorWidth(Math.min(NAVIGATOR_MAX_WIDTH, Math.max(NAVIGATOR_MIN_WIDTH, nextWidth)))
   }, [])
+
+  const { startResizing: startNavigatorResizeDrag } = useResizeDrag({ onMove: handleNavigatorResizeMove })
+
+  const startNavigatorResize = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      contentLeftRef.current = contentRef.current?.getBoundingClientRect().left ?? 0
+      startNavigatorResizeDrag(event)
+    },
+    [startNavigatorResizeDrag]
+  )
 
   const value = useMemo<KnowledgePageContextValue>(
     () => ({

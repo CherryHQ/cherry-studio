@@ -5,14 +5,14 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import type { Assistant } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
-import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getNamingTextContent } from '@renderer/utils/message/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import { isFileUIPart } from 'ai'
 import { takeRight } from 'lodash'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
@@ -22,7 +22,7 @@ const logger = loggerService.withContext('ApiService')
 export async function fetchMessagesSummary({
   messages
 }: {
-  messages: Message[]
+  messages: ExportableMessage[]
 }): Promise<{ text: string | null; error?: string }> {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = await readQuickModel()
@@ -37,11 +37,14 @@ export async function fetchMessagesSummary({
   // 取最后5条消息，结构化为 JSON
   const contextMessages = takeRight(messages, 5)
   const structuredMessages = contextMessages.map((message) => {
-    const fileBlocks = findFileBlocks(message)
-    const fileList = fileBlocks.map((b) => b.file.origin_name).filter(Boolean)
+    const fileList = (message.parts ?? [])
+      .filter(isFileUIPart)
+      .filter((p) => !p.mediaType?.startsWith('image/'))
+      .map((p) => p.filename)
+      .filter((name): name is string => Boolean(name))
     return {
       role: message.role,
-      mainText: purifyMarkdownImages(getMainTextContent(message)),
+      mainText: purifyMarkdownImages(getNamingTextContent(message)),
       files: fileList.length > 0 ? fileList : undefined
     }
   })
@@ -120,19 +123,13 @@ export async function fetchGenerate({
   }
 }
 
-export async function fetchModels(provider: Provider): Promise<Partial<Model>[]> {
-  try {
-    return await window.api.ai.listModels({ providerId: provider.id })
-  } catch (error) {
-    logger.error('Failed to fetch models from provider', {
-      providerId: provider.id,
-      providerName: provider.name,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return []
-  }
-}
-
+/**
+ * Validates that a provider/model pair is working by sending a minimal probe.
+ *
+ * Renderer responsibilities are limited to UI-side preflight (toast on missing
+ * api key / host / models) and IPC forwarding. Probe dispatch (embedding vs
+ * chat), timeout handling, and latency measurement all happen in Main.
+ */
 export async function checkApi(
   uniqueModelId: UniqueModelId,
   options?: { timeout?: number; signal?: AbortSignal }

@@ -1,23 +1,19 @@
 import { usePreference } from '@data/hooks/usePreference'
-// import MessageContent from './MessageContent'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
+import { MessageContent, MessageErrorBoundary, type MessageListItem } from '@renderer/components/chat/messages'
 // import { LegacyMessage } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { classNames } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { FC } from 'react'
 import { memo, useRef } from 'react'
-import styled from 'styled-components'
 
 interface Props {
-  message: Message
+  message: MessageListItem
   index?: number
   total: number
   route: string
 }
 
 const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolean) =>
-  isBubbleStyle ? (isAssistantMessage ? 'transparent' : 'var(--chat-background-user)') : undefined
+  isBubbleStyle ? (isAssistantMessage ? 'transparent' : 'var(--color-muted)') : undefined
 
 const MessageItem: FC<Props> = ({ message, index, total, route }) => {
   // const [message, setMessage] = useState(_message)
@@ -38,17 +34,16 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
   }
 
   return (
-    <MessageContainer
+    <div
       key={message.id}
       ref={messageContainerRef}
-      className={classNames({
-        message: true,
-        'message-assistant': isAssistantMessage,
-        'message-user': !isAssistantMessage
-      })}
+      className={cn(
+        'message flex w-full flex-col transition-colors duration-300 [&.message-highlight]:bg-primary/10 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity hover:[&_.menubar]:opacity-100',
+        isAssistantMessage ? 'message-assistant' : 'message-user'
+      )}
       style={{ maxWidth }}>
-      <MessageContentContainer
-        className="message-content-container"
+      <div
+        className="message-content-container mt-5 flex max-w-full flex-1 flex-col justify-between"
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,
@@ -57,41 +52,9 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
         <MessageErrorBoundary>
           <MessageContent message={message} />
         </MessageErrorBoundary>
-      </MessageContentContainer>
-    </MessageContainer>
+      </div>
+    </div>
   )
 }
-
-const MessageContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  position: relative;
-  transition: background-color 0.3s ease;
-  &.message-highlight {
-    background-color: var(--color-primary-mute);
-  }
-  .menubar {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    &.show {
-      opacity: 1;
-    }
-  }
-  &:hover {
-    .menubar {
-      opacity: 1;
-    }
-  }
-`
-
-const MessageContentContainer = styled.div`
-  max-width: 100%;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: space-between;
-  margin-top: 20px;
-`
 
 export default memo(MessageItem)

@@ -49,7 +49,7 @@ describe('knowledgeHandlers', () => {
       dimensions: 1536,
       embeddingModelId: 'm'
     } as In<'knowledge.restore_base'>
-    const restored = { id: 'restored' }
+    const restored = { base: { id: 'restored' }, skippedMissingSourceCount: 0 }
     knowledgeService.restoreBase.mockResolvedValue(restored)
 
     const result = await knowledgeHandlers['knowledge.restore_base'](dto, ctx)

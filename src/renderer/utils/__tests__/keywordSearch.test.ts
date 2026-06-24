@@ -1,12 +1,10 @@
+import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildKeywordRegex,
-  buildKeywordRegexes,
-  buildKeywordUnionRegex,
-  type KeywordMatchMode,
-  splitKeywordsToTerms
-} from '../keywordSearch'
+function buildSingleKeywordRegex(term: string, matchMode: KeywordMatchMode) {
+  const [regex] = buildKeywordRegexes([term], { matchMode })
+  return regex
+}
 
 describe('keywordSearch', () => {
   describe('splitKeywordsToTerms', () => {
@@ -72,7 +70,7 @@ describe('keywordSearch', () => {
     const matchMode: KeywordMatchMode = 'whole-word'
 
     it('matches standalone tokens but not substrings inside words', () => {
-      const regex = buildKeywordRegex('sms', { matchMode })
+      const regex = buildSingleKeywordRegex('sms', matchMode)
       expect(regex.test('sms')).toBe(true)
       expect(regex.test('sms,')).toBe(true)
       expect(regex.test('use sms now')).toBe(true)
@@ -80,31 +78,31 @@ describe('keywordSearch', () => {
     })
 
     it('does not match inside longer alphanumeric strings (e.g. API keys)', () => {
-      const regex = buildKeywordRegex('sms', { matchMode })
+      const regex = buildSingleKeywordRegex('sms', matchMode)
       expect(regex.test('IMr4WSMS5dwa52')).toBe(false)
     })
 
     it('treats underscores and punctuation as token boundaries', () => {
-      const regex = buildKeywordRegex('sms', { matchMode })
+      const regex = buildSingleKeywordRegex('sms', matchMode)
       expect(regex.test('sms_service')).toBe(true)
       expect(regex.test('sms-service')).toBe(true)
       expect(regex.test('smss')).toBe(false)
     })
 
     it('does not match inside non-ASCII words', () => {
-      const regex = buildKeywordRegex('ana', { matchMode })
+      const regex = buildSingleKeywordRegex('ana', matchMode)
       expect(regex.test('mañana')).toBe(false)
       expect(regex.test('ana')).toBe(true)
     })
 
     it('CJK terms degrade to substring in whole-word mode', () => {
-      const regex = buildKeywordRegex('组合优于', { matchMode })
+      const regex = buildSingleKeywordRegex('组合优于', matchMode)
       expect(regex.test('投资组合优于其他策略')).toBe(true)
       expect(regex.test('组合优于')).toBe(true)
     })
 
     it('CJK whole-word still does not match partial substring across non-CJK boundary', () => {
-      const regex = buildKeywordRegex('组合优于', { matchMode })
+      const regex = buildSingleKeywordRegex('组合优于', matchMode)
       expect(regex.test('abc组合优于def')).toBe(true)
     })
   })
@@ -113,19 +111,19 @@ describe('keywordSearch', () => {
     const matchMode: KeywordMatchMode = 'substring'
 
     it('matches substrings inside other words', () => {
-      const regex = buildKeywordRegex('sms', { matchMode })
+      const regex = buildSingleKeywordRegex('sms', matchMode)
       expect(regex.test('mechanisms')).toBe(true)
       expect(regex.test('IMr4WSMS5dwa52')).toBe(true)
     })
   })
 
-  describe('buildKeywordUnionRegex', () => {
-    it('builds a case-insensitive union regex', () => {
-      const regex = buildKeywordUnionRegex(['sms', 'mms'], { matchMode: 'whole-word', flags: 'i' })
-      expect(regex).not.toBeNull()
-      expect(regex?.test('SMS')).toBe(true)
-      expect(regex?.test('MMS')).toBe(true)
-      expect(regex?.test('mechanisms')).toBe(false)
+  describe('buildKeywordRegexes', () => {
+    it('builds one regex per term', () => {
+      const regexes = buildKeywordRegexes(['sms', 'mms'], { matchMode: 'whole-word', flags: 'i' })
+      expect(regexes).toHaveLength(2)
+      expect(regexes.some((regex) => regex.test('SMS'))).toBe(true)
+      expect(regexes.some((regex) => regex.test('MMS'))).toBe(true)
+      expect(regexes.some((regex) => regex.test('mechanisms'))).toBe(false)
     })
   })
 })

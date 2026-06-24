@@ -1,19 +1,9 @@
-import type * as KnowledgeV2Utils from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import DetailHeader from '../DetailHeader'
-
-vi.mock('@renderer/pages/knowledge/utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof KnowledgeV2Utils>()
-
-  return {
-    ...actual,
-    formatRelativeTime: () => '2小时前'
-  }
-})
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')

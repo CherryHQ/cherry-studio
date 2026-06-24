@@ -53,11 +53,7 @@
 }
 
 /* miniapp-drawer styles now handled by vaul + Tailwind in MiniAppPopupContainer */
-[navbar-position='left'] .miniapp-drawer {
-  max-width: calc(100vw - var(--sidebar-width));
-}
-
-[navbar-position='top'] .miniapp-drawer {
+.miniapp-drawer {
   max-width: 100vw;
 }
 
