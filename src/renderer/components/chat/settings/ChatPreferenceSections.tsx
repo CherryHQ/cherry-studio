@@ -30,7 +30,6 @@ const ChatPreferenceSections: FC = () => {
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
-  const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
@@ -38,6 +37,8 @@ const ChatPreferenceSections: FC = () => {
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
   )
@@ -166,6 +167,31 @@ const ChatPreferenceSections: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingSwitch
+              checked={pasteLongTextAsFile}
+              onCheckedChange={setPasteLongTextAsFile}
+              label={t('settings.messages.input.paste_long_text_as_file')}
+            />
+          </SettingRow>
+          {pasteLongTextAsFile && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
+                <EditableNumber
+                  size="small"
+                  className="w-20 text-sm"
+                  min={500}
+                  max={10000}
+                  step={100}
+                  value={pasteLongTextThreshold}
+                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
+                />
+              </SettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
               checked={confirmDeleteMessage}
               onCheckedChange={setConfirmDeleteMessage}
               label={t('settings.messages.input.confirm_delete_message')}
@@ -192,10 +218,6 @@ const ChatPreferenceSections: FC = () => {
       {renderSection(
         t('settings.messages.title'),
         <>
-          <SettingRow>
-            <SettingSwitch checked={showPrompt} onCheckedChange={setShowPrompt} label={t('settings.messages.prompt')} />
-          </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
           </SettingRow>

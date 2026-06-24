@@ -747,7 +747,6 @@ describe('AgentToolRenderer', () => {
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
         toolName: 'Agent',
-        sourceMessageId: undefined,
         title: 'Inspect renderer'
       })
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()

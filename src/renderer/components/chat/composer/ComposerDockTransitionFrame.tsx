@@ -1,4 +1,4 @@
-import { useOptionalQuickPanel } from '@renderer/components/chat/composer/panelEngine'
+import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'

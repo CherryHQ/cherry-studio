@@ -1,38 +1,30 @@
-import Scrollbar from '@renderer/components/Scrollbar'
+import { Scrollbar } from '@cherrystudio/ui'
+import type { MessageListItem } from '@renderer/components/chat/messages'
 import type { Assistant } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 import Messages from './components/Messages'
 interface Props {
   route: string
   assistant: Assistant | null
   isOutputted: boolean
-  messages: Message[]
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: MessageListItem[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
-const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsMap }) => {
-  if (!assistant) return null
-
+const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsByMessageId }) => {
   return (
-    <Main className="bubble">
-      <Messages assistant={assistant} route={route} isOutputted={isOutputted} messages={messages} partsMap={partsMap} />
-    </Main>
+    <Scrollbar className="bubble mb-auto flex max-h-full w-full flex-row justify-start bg-transparent! [-webkit-app-region:no-drag]">
+      <Messages
+        assistant={assistant}
+        route={route}
+        isOutputted={isOutputted}
+        messages={messages}
+        partsByMessageId={partsByMessageId}
+      />
+    </Scrollbar>
   )
 }
-
-const Main = styled(Scrollbar)`
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  margin-bottom: auto;
-  -webkit-app-region: none;
-  background-color: transparent !important;
-  max-height: 100%;
-`
 
 export default ChatWindow

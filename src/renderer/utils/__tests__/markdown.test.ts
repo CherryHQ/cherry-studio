@@ -1,6 +1,3 @@
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import type { PluggableList } from 'unified'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,7 +8,6 @@ import {
   processLatexBrackets,
   purifyMarkdownImages,
   removeTrailingDoubleSpaces,
-  splitMarkdownBlocks,
   updateCodeBlock
 } from '../markdown'
 
@@ -700,73 +696,6 @@ $$
       Inline: ![icon](image_url)
     `
       expect(purifyMarkdownImages(input)).toBe(expected)
-    })
-  })
-
-  describe('splitMarkdownBlocks', () => {
-    const gfm = [remarkGfm] as PluggableList
-    const math = [remarkGfm, remarkMath] as PluggableList
-
-    it('returns [content] for empty / whitespace-only input', () => {
-      expect(splitMarkdownBlocks('')).toEqual([''])
-      expect(splitMarkdownBlocks('   \n  ')).toEqual(['   \n  '])
-    })
-
-    it('join-invariant: blocks always concatenate back to the original', () => {
-      const inputs = [
-        'para one\n\npara two\n\npara three',
-        '# Heading\n\nText\n\n```js\ncode\n```\n\nmore',
-        '> [!NOTE]\n> alert body\n\nafter',
-        'leading\n\n- a\n- b\n\n1. x\n2. y\n\nend'
-      ]
-      for (const input of inputs) {
-        expect(splitMarkdownBlocks(input, math).join('')).toBe(input)
-      }
-    })
-
-    it('does not split inside a fenced code block containing blank lines', () => {
-      const input = 'before\n\n```js\nline1\n\nline2\n\nline3\n```\n\nafter'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.join('')).toBe(input)
-      // exactly one block contains the whole fence
-      const fenceBlocks = blocks.filter((b) => b.includes('```'))
-      expect(fenceBlocks).toHaveLength(1)
-      expect(fenceBlocks[0]).toContain('line1')
-      expect(fenceBlocks[0]).toContain('line3')
-    })
-
-    it('keeps a GFM table as a single block (needs remark-gfm plugin)', () => {
-      const input = 'intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\noutro'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.join('')).toBe(input)
-      const tableBlocks = blocks.filter((b) => b.includes('| a | b |'))
-      expect(tableBlocks).toHaveLength(1)
-      expect(tableBlocks[0]).toContain('| 1 | 2 |')
-    })
-
-    it('keeps a $$ math block with internal blank lines as one block (needs remark-math)', () => {
-      const input = 'text\n\n$$\n\\begin{aligned}\nx &= 1\n\ny &= 2\n\\end{aligned}\n$$\n\nend'
-      const blocks = splitMarkdownBlocks(input, math)
-      expect(blocks.join('')).toBe(input)
-      const mathBlocks = blocks.filter((b) => b.includes('$$'))
-      expect(mathBlocks).toHaveLength(1)
-      expect(mathBlocks[0]).toContain('x &= 1')
-      expect(mathBlocks[0]).toContain('y &= 2')
-    })
-
-    it('treats an unclosed trailing fence (mid-stream) as the last block', () => {
-      const input = 'done para\n\n```python\nprint(1)\nprint(2'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.join('')).toBe(input)
-      expect(blocks[blocks.length - 1]).toContain('```python')
-      expect(blocks[blocks.length - 1]).toContain('print(2')
-    })
-
-    it('splits multiple top-level paragraphs into separate blocks', () => {
-      const input = 'a\n\nb\n\nc'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.length).toBeGreaterThan(1)
-      expect(blocks.join('')).toBe(input)
     })
   })
 })

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { filterSupportedFiles } from '@renderer/utils'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/messageUtils/composerAttachment'
+import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 

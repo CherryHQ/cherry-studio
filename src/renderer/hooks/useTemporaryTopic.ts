@@ -21,7 +21,6 @@
  * Main-side leaks.
  */
 
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -38,9 +37,9 @@ export interface UseTemporaryTopicOptions {
    */
   enabled?: boolean
   /**
-   * Optional assistant id to bind the temp topic to. `undefined` means the
-   * topic has no associated assistant — main composes capabilities from the
-   * default model preference. Not a sentinel: do NOT pass DEFAULT_ASSISTANT_ID.
+   * Optional persisted assistant id to bind the temp topic to. `undefined`
+   * means the topic has no associated assistant — main composes capabilities
+   * from the default model preference.
    */
   assistantId?: string
 }
@@ -103,10 +102,6 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
         void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
-
-        if ((cacheService.get('topic.active') as { id: string } | null)?.id === idToCleanup) {
-          cacheService.set('topic.active', null)
-        }
       }
     }
   }, [enabled, assistantId, epoch])

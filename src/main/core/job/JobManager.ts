@@ -1092,6 +1092,12 @@ export class JobManager extends BaseService {
     }
 
     const task = (async () => {
+      // Keep the machine awake for this attempt — best-effort, gated by the user's
+      // `app.power.prevent_sleep_when_busy` preference. preventSleep never throws and always
+      // returns a Disposable (the provider degrades internally), so no guard is needed here.
+      // Declared in the IIFE scope so the finally can dispose it. Per-attempt: between retries
+      // the job sits in `delayed` (not working) and must not hold the machine awake.
+      const sleepHold = application.get('PowerService').preventSleep(`job:${row.type}:${row.id}`)
       try {
         const output = await handler.execute(ctx)
         if (timeoutHandle) clearTimeout(timeoutHandle)
@@ -1133,6 +1139,7 @@ export class JobManager extends BaseService {
           await this.finalizeJob(row.id, userCancel ? 'cancelled' : 'failed', undefined, error)
         }
       } finally {
+        sleepHold.dispose()
         this.abortControllers.delete(row.id)
         this.inFlightExecuted.delete(row.id)
         resolveExecuted()

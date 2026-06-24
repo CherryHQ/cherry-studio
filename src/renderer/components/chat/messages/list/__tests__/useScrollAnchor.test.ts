@@ -51,6 +51,7 @@ describe('useScrollAnchor', () => {
     } as unknown as VListHandle
     const smoothScroll: SmoothScrollController = {
       cancel: vi.fn(),
+      followTo: vi.fn(),
       isAnimating: vi.fn(() => false),
       scrollTo: vi.fn()
     }
@@ -84,6 +85,55 @@ describe('useScrollAnchor', () => {
     expect(result.current.spacerHeight).toBe(280)
 
     // Streaming finished and the lock opened: needed is now 0, reclaim the spacer.
+    canRelease = true
+    act(() => result.current.onContentSizeChange())
+    expect(result.current.spacerHeight).toBe(0)
+  })
+
+  it('tightens the full-viewport bootstrap spacer after the first tall-viewport measurement', () => {
+    const scroller = document.createElement('div')
+    const content = document.createElement('div')
+    let contentHeight = 420
+    let canRelease = false
+    setElementMetric(scroller, 'clientHeight', () => 900)
+    setElementMetric(scroller, 'scrollHeight', () => contentHeight + result.current.spacerHeight)
+    setElementMetric(content, 'scrollHeight', () => contentHeight + result.current.spacerHeight)
+
+    const handle = {
+      getItemOffset: vi.fn(() => 300),
+      scrollSize: 700,
+      scrollToIndex: vi.fn()
+    } as unknown as VListHandle
+    const smoothScroll: SmoothScrollController = {
+      cancel: vi.fn(),
+      followTo: vi.fn(),
+      isAnimating: vi.fn(() => false),
+      scrollTo: vi.fn()
+    }
+
+    const { result } = renderHook(() =>
+      useScrollAnchor({
+        scrollerRef: { current: scroller } as RefObject<HTMLElement | null>,
+        contentRef: { current: content } as RefObject<HTMLElement | null>,
+        vlistHandleRef: { current: handle } as RefObject<VListHandle | null>,
+        smoothScroll,
+        canRelease: () => canRelease
+      })
+    )
+
+    act(() => result.current.pinTo(2))
+    expect(result.current.spacerHeight).toBe(900)
+
+    flushRaf()
+
+    contentHeight = 900
+    act(() => result.current.onContentSizeChange())
+    expect(result.current.spacerHeight).toBe(300)
+
+    contentHeight = 1200
+    act(() => result.current.onContentSizeChange())
+    expect(result.current.spacerHeight).toBe(300)
+
     canRelease = true
     act(() => result.current.onContentSizeChange())
     expect(result.current.spacerHeight).toBe(0)

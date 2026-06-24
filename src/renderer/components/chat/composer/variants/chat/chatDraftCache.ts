@@ -1,15 +1,11 @@
 import { cacheService } from '@data/CacheService'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import type { ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-// v2 writes a structured draft, so it must NOT reuse v1's `'inputbar-draft'` key
-// (the live v1 Inputbar reads that as a bare string and would render `[object
-// Object]`). v2 owns this key; the legacy v1 string is migrated on read below.
-export const CHAT_COMPOSER_DRAFT_CACHE_KEY = 'v2-chat-composer-draft'
-export const LEGACY_INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
+export const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 
 export interface ChatComposerDraftCache {
   text: string
@@ -31,20 +27,17 @@ export function getCacheableDraftTokens(tokens: readonly ComposerSerializedToken
 }
 
 export function readChatDraftCache(): ChatComposerDraftCache {
-  const cached = cacheService.getCasual<ChatComposerDraftCache>(CHAT_COMPOSER_DRAFT_CACHE_KEY)
-  if (isRecord(cached) && typeof cached.text === 'string' && Array.isArray(cached.tokens)) {
-    return {
-      text: cached.text,
-      tokens: getCacheableDraftTokens(cached.tokens),
-      files: Array.isArray(cached.files) ? cached.files : []
-    }
+  const cached = cacheService.getCasual<string | ChatComposerDraftCache>(INPUTBAR_DRAFT_CACHE_KEY)
+  if (typeof cached === 'string') return { text: cached, tokens: [], files: [] }
+  if (!isRecord(cached) || typeof cached.text !== 'string' || !Array.isArray(cached.tokens)) {
+    return EMPTY_DRAFT_CACHE
   }
 
-  // Migrate the legacy v1 string draft (one-time, on first v2 read).
-  const legacy = cacheService.getCasual<string>(LEGACY_INPUTBAR_DRAFT_CACHE_KEY)
-  if (typeof legacy === 'string' && legacy.length > 0) return { text: legacy, tokens: [], files: [] }
-
-  return EMPTY_DRAFT_CACHE
+  return {
+    text: cached.text,
+    tokens: getCacheableDraftTokens(cached.tokens),
+    files: Array.isArray(cached.files) ? cached.files : []
+  }
 }
 
 export function writeChatDraftCache(
@@ -53,7 +46,7 @@ export function writeChatDraftCache(
   files: readonly ComposerAttachment[]
 ) {
   cacheService.setCasual<ChatComposerDraftCache>(
-    CHAT_COMPOSER_DRAFT_CACHE_KEY,
+    INPUTBAR_DRAFT_CACHE_KEY,
     {
       text,
       tokens: getCacheableDraftTokens(tokens),

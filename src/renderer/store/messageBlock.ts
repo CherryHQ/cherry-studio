@@ -18,7 +18,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { TodoItem, TodoWriteToolInput } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/types'
+import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/tools/agent/types'
 import type {
   AISDKWebSearchResult,
   BaseTool,
