@@ -335,9 +335,12 @@ export function useTopicMutations() {
   )
 
   const batchUpdateTopics = useCallback(
-    async (topics: Array<{ id: string; dto: UpdateTopicDto }>): Promise<void> => {
-      await Promise.allSettled(topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto })))
+    async (topics: Array<{ id: string; dto: UpdateTopicDto }>) => {
+      const results = await Promise.allSettled(
+        topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto }))
+      )
       await refreshTopics()
+      return results
     },
     [refreshTopics]
   )
