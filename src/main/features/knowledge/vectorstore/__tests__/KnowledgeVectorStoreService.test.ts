@@ -14,7 +14,6 @@ const {
   openDriverMock,
   createSchemaMock,
   ensureIndexMetaMock,
-  hasLegacyTableMock,
   hasAnyMaterialMock,
   getItemsByBaseIdMock,
   indexStoreCtorMock,
@@ -30,7 +29,6 @@ const {
   openDriverMock: vi.fn(),
   createSchemaMock: vi.fn(),
   ensureIndexMetaMock: vi.fn(),
-  hasLegacyTableMock: vi.fn(),
   hasAnyMaterialMock: vi.fn(),
   getItemsByBaseIdMock: vi.fn(),
   indexStoreCtorMock: vi.fn(),
@@ -84,7 +82,6 @@ vi.mock('../indexStore/schema', () => ({
 
 vi.mock('../indexStore/indexMeta', () => ({
   ensureIndexMeta: ensureIndexMetaMock,
-  hasLegacyVectorStoreTable: hasLegacyTableMock,
   hasAnyMaterial: hasAnyMaterialMock
 }))
 
@@ -135,7 +132,6 @@ describe('KnowledgeVectorStoreService', () => {
     }))
     createSchemaMock.mockResolvedValue(undefined)
     ensureIndexMetaMock.mockResolvedValue(undefined)
-    hasLegacyTableMock.mockResolvedValue(false)
     // A non-empty material probe keeps the invisible-contents diagnostic quiet
     // unless a test opts in.
     hasAnyMaterialMock.mockResolvedValue(true)
@@ -385,22 +381,6 @@ describe('KnowledgeVectorStoreService', () => {
     await expect(service.getIndexStoreIfExists(base)).rejects.toThrow('not ready for vector store operations')
 
     expect(indexStoreCtorMock).not.toHaveBeenCalled()
-  })
-
-  it('logs an error when the mounted index still holds the legacy single-table layout', async () => {
-    const service = new KnowledgeVectorStoreService()
-    const base = createBase()
-    hasLegacyTableMock.mockResolvedValueOnce(true)
-
-    const store = await service.getIndexStore(base)
-
-    // The base must still mount (a pre-PR-B remnant is tolerated) — but loudly.
-    expect(store).toBe(lastStore())
-    expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.stringContaining('legacy single-table vector layout'),
-      expect.objectContaining({ baseId: base.id })
-    )
-    expect(getItemsByBaseIdMock).not.toHaveBeenCalled()
   })
 
   it('logs an error when an empty index mounts under a base with completed items', async () => {

@@ -121,7 +121,6 @@ const KnowledgeBaseRow = ({
                   <span
                     className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
                     aria-label={statusLabel}
-                    title={statusLabel}
                   />
                 </div>
               </div>

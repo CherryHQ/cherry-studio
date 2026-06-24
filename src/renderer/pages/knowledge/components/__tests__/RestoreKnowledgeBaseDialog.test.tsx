@@ -52,6 +52,9 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </div>
     ),
+    DialogDescription: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <p {...props}>{children}</p>
+    ),
     DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
     ),
@@ -104,6 +107,8 @@ vi.mock('react-i18next', () => ({
           'common.name': '名称',
           'common.cancel': '取消',
           'knowledge.embedding_model': '嵌入模型',
+          'knowledge.error.missing_embedding_model':
+            '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.dimensions': '嵌入维度',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
@@ -395,5 +400,37 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(restoreBase).not.toHaveBeenCalled()
+  })
+
+  it('explains why the base failed so the user knows what they are rebuilding', () => {
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
+        isRestoring={false}
+        restoreBase={vi.fn()}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
+  })
+
+  it('omits the failure reason for a healthy base', () => {
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'completed', error: null })}
+        isRestoring={false}
+        restoreBase={vi.fn()}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
+    ).not.toBeInTheDocument()
   })
 })

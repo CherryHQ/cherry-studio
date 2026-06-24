@@ -121,7 +121,9 @@ describe('KnowledgeBaseRow', () => {
     expect(screen.getByText('Base 1')).toBeInTheDocument()
     expect(screen.queryByText('2小时前')).not.toBeInTheDocument()
     expect(screen.getByText('0 文档')).toBeInTheDocument()
-    expect(container.querySelector('[aria-label="就绪"]')).toBeInTheDocument()
+    const statusDot = container.querySelector('[aria-label="就绪"]')
+    expect(statusDot).toBeInTheDocument()
+    expect(statusDot).not.toHaveAttribute('title')
   })
 
   it('renders the failed status dot from the base status', () => {

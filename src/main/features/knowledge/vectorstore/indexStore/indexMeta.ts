@@ -37,26 +37,6 @@ export async function ensureIndexMeta(executor: SqliteExecutor, input: IndexMeta
   }
 }
 
-/**
- * Table name of the legacy single-table vector layout — no current code path
- * writes it. It was emitted by the removed vendored `@vectorstores/libsql`
- * package and by the pre-PR-B `KnowledgeVectorMigrator`; the migrator now writes
- * the 7-table model instead, so this table only survives in `index.sqlite` files
- * produced by those older code paths (e.g. an install that ran a pre-PR-B
- * experiment build, whose one-shot migration never re-runs to fix it). The
- * runtime store never reads it, so its presence means the file holds vectors
- * that are invisible to search.
- */
-const LEGACY_VECTOR_TABLE_NAME = 'libsql_vectorstores_embedding'
-
-/** Whether the opened index database still contains the legacy single-table layout. */
-export async function hasLegacyVectorStoreTable(executor: SqliteExecutor): Promise<boolean> {
-  const result = await executor.execute(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`, [
-    LEGACY_VECTOR_TABLE_NAME
-  ])
-  return result.rows.length > 0
-}
-
 /** Whether the index database holds at least one material row (store-open diagnostics probe). */
 export async function hasAnyMaterial(executor: SqliteExecutor): Promise<boolean> {
   const result = await executor.execute(`SELECT 1 FROM material LIMIT 1`)
