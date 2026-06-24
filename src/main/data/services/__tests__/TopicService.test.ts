@@ -715,6 +715,18 @@ describe('TopicService', () => {
       expect(row?.orderKey).not.toBe('')
     })
 
+    it('inserts new topics before existing topics in orderKey order', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'existing-1', name: 'Existing 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'existing-2', name: 'Existing 2', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
+      ])
+
+      const result = await topicService.create({ name: 'fresh' })
+
+      const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
+      expect(rows.map((row) => row.id)).toEqual([result.id, 'existing-1', 'existing-2'])
+    })
+
     it('inserts exactly one content-less virtual root and leaves activeNodeId null', async () => {
       const result = await topicService.create({ name: 'fresh' })
 

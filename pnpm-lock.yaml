@@ -68,9 +68,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.168
         version: 0.3.168(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
-      '@cherrystudio/ripgrep':
-        specifier: ^1.0.0
-        version: 1.0.0
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
@@ -2377,9 +2374,6 @@ packages:
         optional: true
       zod:
         optional: true
-
-  '@cherrystudio/ripgrep@1.0.0':
-    resolution: {integrity: sha512-Pzw3LjG4F8EqM6dwwH1xmXzHEFUV/EzPwJSxaun9WkYnGa0Q+BPyRY+9CEuuzAEXw1+wGALmFC0UMNdgwsdTzA==}
 
   '@chevrotain/cst-dts-gen@11.1.2':
     resolution: {integrity: sha512-XTsjvDVB5nDZBQB8o0o/0ozNelQtn2KrUVteIHSlPd2VAV2utEb6JzyCJaJ8tGxACR4RiBNWy5uYUHX2eji88Q==}
@@ -16471,8 +16465,6 @@ snapshots:
     optionalDependencies:
       ws: 8.20.0
       zod: 4.3.6
-
-  '@cherrystudio/ripgrep@1.0.0': {}
 
   '@chevrotain/cst-dts-gen@11.1.2':
     dependencies:

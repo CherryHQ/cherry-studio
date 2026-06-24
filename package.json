@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "dotenv electron-vite dev",
+    "download:binaries": "node scripts/download-binaries.js",
+    "dev": "pnpm download:binaries && dotenv electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",
     "debug": "dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
@@ -92,7 +93,6 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.168",
-    "@cherrystudio/ripgrep": "^1.0.0",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "^0.15.15",
