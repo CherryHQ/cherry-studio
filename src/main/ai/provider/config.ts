@@ -11,6 +11,7 @@ import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -29,6 +30,7 @@ import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
+import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 
 interface BaseConfig {
   baseURL: string
@@ -106,6 +108,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: buildCodexConfig },
+    { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: buildGrokCliConfig },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
@@ -231,6 +234,60 @@ function buildCodexFetch() {
     const headers = buildCodexRequestHeaders(init?.headers, creds)
     const body = coerceCodexRequestBody(init?.body)
 
+    return customFetch(input, { ...init, headers, body })
+  }
+}
+
+/**
+ * Grok CLI routes through the OpenAI Responses adapter against xAI's Grok CLI
+ * proxy (`cli-chat-proxy.grok.com/v1/responses`) with OAuth bearer auth. The
+ * per-request `fetch` injects a freshly-refreshed token + the Grok-CLI proxy
+ * headers, and rewrites the body into the shape the proxy accepts (hoisting
+ * system turns into `instructions`, dropping reasoning knobs) — none of which
+ * the generic Responses adapter does on its own.
+ */
+function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  // Use the raw configured baseURL (already `…/v1`; the adapter appends
+  // `/responses`); the formatted one in baseConfig would double the `/v1`.
+  const rawBaseUrl =
+    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://cli-chat-proxy.grok.com/v1'
+  const baseURL = rawBaseUrl.replace(/\/+$/, '')
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      // The SDK rejects an empty key; the real bearer token is injected per
+      // request in the custom fetch below, overriding this placeholder.
+      apiKey: 'grok-cli-oauth',
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      fetch: buildGrokCliFetch()
+    }
+  }
+}
+
+function buildGrokCliFetch() {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const accessToken = await application.get('GrokCliOauthService').getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('Not signed in to Grok CLI. Open the provider settings and sign in again.')
+    }
+
+    let modelId = ''
+    let body = init?.body
+    if (typeof body === 'string') {
+      try {
+        const json = JSON.parse(body)
+        modelId = typeof json.model === 'string' ? json.model : ''
+        body = JSON.stringify(rewriteGrokCliResponsesBody(json))
+      } catch {
+        // Non-JSON body (shouldn't happen for responses) — leave untouched.
+      }
+    }
+
+    const headers = buildGrokCliRequestHeaders(init?.headers, { accessToken, modelId })
     return customFetch(input, { ...init, headers, body })
   }
 }
