@@ -3,8 +3,9 @@ import { AllSelection, NodeSelection } from '@tiptap/pm/state'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { ComposerToken } from '../tokens'
+import { ComposerToken, FileComposerToken } from '../tokens'
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
 import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
@@ -75,6 +76,7 @@ declare module '@tiptap/core' {
 }
 
 function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTokenRenderer }) {
+  const { t } = useTranslation()
   const token = normalizeComposerTokenAttrs(props.node.attrs)
   const getNodePosition = props.getPos
   const [isPromptVariableEditing, setPromptVariableEditing] = useState(false)
@@ -149,6 +151,16 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.editor.chain().focus().setNodeSelection(position).run()
   }
 
+  const removeCurrentFileToken = useCallback(() => {
+    if (token.kind !== 'file') return
+
+    const position = typeof props.getPos === 'function' ? props.getPos() : undefined
+    if (typeof position !== 'number') return
+
+    deleteComposerTokenRange(props.editor, position, position + props.node.nodeSize)
+    props.editor.commands.focus()
+  }, [props.editor, props.getPos, props.node.nodeSize, token.kind])
+
   const finishPromptVariableEdit = (
     value: string,
     reason: PromptVariableCommitReason,
@@ -205,6 +217,13 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
           selectCurrentToken()
           setPromptVariableEditing(true)
         }}
+      />
+    ) : token.kind === 'file' ? (
+      <FileComposerToken
+        token={token as ActiveComposerInputToken}
+        selected={props.selected}
+        onRemove={removeCurrentFileToken}
+        removeLabel={t('appMenu.delete')}
       />
     ) : (
       <ComposerToken token={token as ActiveComposerInputToken} selected={props.selected} />

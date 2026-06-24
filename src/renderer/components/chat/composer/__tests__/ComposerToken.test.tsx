@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { type ReactNode, useEffect } from 'react'
+import { type ButtonHTMLAttributes, type ReactNode, useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } from '../../tokens'
@@ -22,6 +22,21 @@ vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
 
   return {
+    Button: ({
+      children,
+      size: _size,
+      variant: _variant,
+      ...props
+    }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
+      void _size
+      void _variant
+
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
     NormalTooltip: ({
       children,
       content,
@@ -48,8 +63,10 @@ vi.mock('@cherrystudio/ui', async () => {
       )
     },
     Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
-    PopoverContent: ({ children }: { children: ReactNode }) => (
-      <span data-testid="composer-token-popover-content">{children}</span>
+    PopoverContent: ({ children, className }: { children: ReactNode; className?: string }) => (
+      <span className={className} data-testid="composer-token-popover-content">
+        {children}
+      </span>
     ),
     PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
   }
@@ -113,16 +130,17 @@ describe('ComposerToken', () => {
   })
 
   it('renders file tokens as compact inline chips with fallback styling', () => {
-    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'unknown.bin' }} />)
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveTextContent('notes.md')
+    expect(token).toHaveTextContent('unknown.bin')
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.getByTestId('composer-token-tooltip')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('composer-token-popover-content')).toBeInTheDocument()
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('unknown.bin')
 
     expect(token).toHaveClass(
       'h-6',
+      'my-0.5',
       'items-center',
       'rounded-md',
       'border',
@@ -149,7 +167,7 @@ describe('ComposerToken', () => {
 
     expect(token).toHaveClass('max-w-52', 'overflow-hidden')
     expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent(longLabel)
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent(longLabel)
   })
 
   it('renders image file tokens with image variant metadata and preview', () => {
@@ -178,18 +196,17 @@ describe('ComposerToken', () => {
     expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
     expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass(
       'border-0',
-      'bg-[var(--color-success-bg)]',
-      'text-success'
+      'bg-[var(--color-cyan-100)]',
+      'text-[var(--color-cyan-700)]'
     )
     expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('avatar-preview.png')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('IMAGE')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
-    expect(screen.getByText('2 KB').closest('div')).toHaveClass('justify-between')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('avatar-preview.png')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('PNG')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('2 KB')
     expect(screen.getByAltText('avatar-preview.png')).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
   })
 
-  it('renders document file tokens with document variant metadata', () => {
+  it('renders pdf file tokens with pdf variant metadata', () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -209,23 +226,70 @@ describe('ComposerToken', () => {
     )
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'document')
+    expect(token).toHaveAttribute('data-file-token-variant', 'pdf')
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass(
+    expect(token?.querySelector('[data-file-token-icon="pdf"]')).toHaveClass(
       'border-0',
-      'bg-[var(--color-error-bg)]',
-      'text-destructive'
+      'bg-[var(--color-red-100)]',
+      'text-[var(--color-red-700)]'
     )
-    expect(token?.querySelector('[data-file-token-icon="document"]')).not.toHaveClass(
-      'border-destructive',
-      'bg-background'
-    )
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('PDF')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
+    expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('PDF')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('2 KB')
   })
 
-  it('renders text and code file tokens with text variant metadata', () => {
+  it('renders office file tokens with dedicated variants and colors', () => {
+    const cases = [
+      {
+        label: 'report.docx',
+        ext: '.docx',
+        variant: 'word',
+        colorClasses: ['bg-[var(--color-blue-100)]', 'text-[var(--color-blue-700)]']
+      },
+      {
+        label: 'budget.xlsx',
+        ext: '.xlsx',
+        variant: 'excel',
+        colorClasses: ['bg-[var(--color-green-100)]', 'text-[var(--color-green-700)]']
+      },
+      {
+        label: 'deck.pptx',
+        ext: '.pptx',
+        variant: 'powerpoint',
+        colorClasses: ['bg-[var(--color-orange-100)]', 'text-[var(--color-orange-700)]']
+      }
+    ]
+
+    for (const item of cases) {
+      const { container, unmount } = render(
+        <ComposerToken
+          token={{
+            id: `file:${item.variant}`,
+            kind: 'file',
+            label: item.label,
+            payload: createFileMetadata({
+              name: item.label,
+              origin_name: item.label,
+              path: `/tmp/${item.label}`,
+              ext: item.ext,
+              type: FILE_TYPE.DOCUMENT
+            })
+          }}
+        />
+      )
+
+      const token = container.querySelector('[data-composer-token-kind="file"]')
+      expect(token).toHaveAttribute('data-file-token-variant', item.variant)
+      expect(token?.querySelector(`[data-file-token-icon="${item.variant}"]`)).toHaveClass(
+        'border-0',
+        ...item.colorClasses
+      )
+      unmount()
+    }
+  })
+
+  it('renders text and code file tokens with code variant metadata', () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -245,20 +309,21 @@ describe('ComposerToken', () => {
     )
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'text')
+    expect(token).toHaveAttribute('data-file-token-variant', 'code')
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass(
+    expect(token?.querySelector('[data-file-token-icon="code"]')).toHaveClass(
       'border-0',
-      'bg-[var(--color-info-bg)]',
-      'text-info'
+      'bg-[var(--color-indigo-100)]',
+      'text-[var(--color-indigo-700)]'
     )
-    expect(token?.querySelector('[data-file-token-icon="text"]')).not.toHaveClass('border-info', 'bg-background')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('TS')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('3 KB')
+    expect(token?.querySelector('[data-file-token-icon="code"]')).not.toHaveClass('border-info', 'bg-background')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('TS')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('3 KB')
   })
 
   it('extends file tokens with interactive actions without changing the shared chip scale', () => {
+    const onRemove = vi.fn()
     const { container } = render(
       <FileComposerToken
         token={{
@@ -274,7 +339,8 @@ describe('ComposerToken', () => {
             type: FILE_TYPE.TEXT
           })
         }}
-        tooltipMetadataLayout="split"
+        onRemove={onRemove}
+        removeLabel="删除"
         tooltipActions={<button type="button">在文本框中显示</button>}
       />
     )
@@ -286,7 +352,17 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('TXT')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('23 KB')
     expect(screen.getByRole('button', { name: '在文本框中显示' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '移除' })).toBeNull()
+    const actionContainer = document.querySelector('[data-file-token-actions]')!
+    expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
+    const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
+    expect(actionButtons[0]).toHaveAttribute('aria-label', '删除')
+    expect(actionButtons[0]).toHaveClass('size-6', 'rounded-md')
+    expect(actionButtons[0]).not.toHaveClass('size-7')
+    expect(actionButtons[0]).not.toHaveClass('rounded-full')
+    expect(actionButtons[1]).toHaveTextContent('在文本框中显示')
+
+    fireEvent.click(actionButtons[0])
+    expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
   it('keeps selected file tokens highlighted with primary border and ring', () => {
@@ -318,10 +394,11 @@ describe('ComposerToken', () => {
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
   })
 
-  it('disables tooltip arrows for file tokens', () => {
+  it('renders file token details in a popover', () => {
     render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
 
-    expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('notes.md')
+    expect(screen.queryByTestId('composer-token-tooltip')).toBeNull()
   })
 
   it('disables tooltip arrows for quote tokens', () => {
@@ -649,6 +726,28 @@ describe('ComposerToken', () => {
     })
 
     expect(serializeComposerDocument(editor!).text).toBe(' Reply')
+  })
+
+  it('removes a file token from the default node view action', async () => {
+    const fileToken: ComposerDraftToken = {
+      id: 'file:1',
+      kind: 'file',
+      label: 'notes.md',
+      promptText: 'notes.md'
+    }
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness text="" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().insertComposerToken(fileToken).run()
+    })
+
+    await waitFor(() => expect(screen.getByRole('button')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button'))
+
+    await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe(''))
   })
 
   it('does not expose a trailing quote newline after Backspace removes the inserted separator', async () => {

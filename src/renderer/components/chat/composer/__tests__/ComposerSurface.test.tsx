@@ -1128,6 +1128,47 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledTimes(2)
   })
 
+  it('renders regular file tokens with a remove action', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: {
+        id: 'file-1',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/tmp/notes.md'
+      }
+    }
+
+    mocks.docDescendants.mockImplementation((visit: (node: any, position: number) => void) => {
+      visit({ type: { name: 'composerToken' }, attrs: fileToken, nodeSize: 1 }, 3)
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[fileToken]} managedTokenKinds={['file']} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(fileToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toHaveClass('size-6', 'rounded-md')
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('size-7')
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('rounded-full')
+    expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+
+    expect(mocks.transaction.delete).toHaveBeenCalledWith(3, 4)
+    expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
+  })
+
   it('renders pasted text file tokens with a show-in-input action that replaces the token', async () => {
     const pastedFile = {
       id: 'file-1',
@@ -1163,8 +1204,15 @@ describe('ComposerSurface', () => {
     )
 
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
-    expect(showInInputButton).toHaveClass('min-h-0', 'w-fit', 'p-0', 'text-primary', 'hover:text-primary-hover')
-    expect(showInInputButton).not.toHaveClass('w-full', 'text-muted-foreground')
+    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
+    expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
+    const deleteButton = screen.getByRole('button', { name: 'appMenu.delete' })
+    expect(deleteButton).toBeInTheDocument()
+    const actionContainer = document.querySelector('[data-file-token-actions]')!
+    expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
+    const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
+    expect(actionButtons[0]).toBe(deleteButton)
+    expect(actionButtons[1]).toBe(showInInputButton)
 
     fireEvent.click(showInInputButton)
 
