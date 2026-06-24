@@ -60,6 +60,26 @@ vi.mock('@renderer/hooks/useTabs', () => ({
   })
 }))
 
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({
+    children,
+    extraItems
+  }: React.PropsWithChildren<{
+    extraItems?: Array<{ type: string; id: string; label: string; onSelect?: () => void }>
+  }>) => (
+    <div>
+      {children}
+      {extraItems?.map((item) =>
+        item.type === 'item' ? (
+          <button key={item.id} type="button" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ) : null
+      )}
+    </div>
+  )
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   const actual = await vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
 
