@@ -70,8 +70,8 @@ vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: vi.fn(() => []) }
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  isUserInChina: vi.fn().mockResolvedValue(false)
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
 vi.mock('node:util', async (importOriginal) => {
