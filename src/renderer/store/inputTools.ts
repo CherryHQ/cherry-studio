@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { ComposerToolScope } from '@renderer/components/chat/composer/tools/types'
+import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import { TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 
@@ -68,6 +68,11 @@ export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-windo
   },
   'quick-assistant': {
     visible: ['attachment', 'mention_models', 'quick_phrases'],
+    hidden: []
+  },
+  // Image-generation prompt bar only surfaces the attachment tool (input images).
+  painting: {
+    visible: ['attachment'],
     hidden: []
   }
 }

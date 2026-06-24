@@ -1,5 +1,5 @@
-import type { ConversationComposerPlacement } from '@renderer/components/chat/composer/ConversationComposerStage'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import type { ComponentProps } from 'react'

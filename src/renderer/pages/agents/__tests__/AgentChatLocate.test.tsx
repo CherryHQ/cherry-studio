@@ -120,19 +120,19 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   default: () => <div />
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerContext', () => ({
+vi.mock('@renderer/components/composer/ComposerContext', () => ({
   ComposerContextProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerCore', () => ({
+vi.mock('@renderer/components/composer/ComposerCore', () => ({
   default: ({ fallback }: { fallback: ReactNode }) => <>{fallback}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', () => ({
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => ({})
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+vi.mock('@renderer/components/composer/ComposerDockTransitionFrame', () => ({
   default: ({ main, composer }: { main: ReactNode; composer: ReactNode }) => (
     <div>
       {main}
@@ -141,7 +141,7 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
   )
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
+vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: () => <div />,
   AgentHomeComposer: () => <div />
 }))

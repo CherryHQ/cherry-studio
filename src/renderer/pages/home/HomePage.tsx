@@ -8,10 +8,10 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
-import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry

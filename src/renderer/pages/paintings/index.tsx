@@ -1,11 +1,8 @@
 import { useCache } from '@data/hooks/useCache'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Artboard from './components/Artboard'
-import PaintingModelSelector from './components/PaintingModelSelector'
-import PaintingPromptBar from './components/PaintingPromptBar'
-import PaintingSettings from './components/PaintingSettings'
+import PaintingComposer from './components/PaintingComposer'
 import PaintingStrip from './components/PaintingStrip'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
@@ -93,43 +90,28 @@ const PaintingPage: FC = () => {
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
-              <div className={paintingClasses.panel}>
-                <div className={paintingClasses.panelModelSelector}>
-                  <PaintingModelSelector
-                    className={paintingClasses.panelModelSelectorTrigger}
-                    painting={currentPainting}
-                    onSelect={switchModel}
-                  />
-                </div>
-                <div className={paintingClasses.panelBody}>
-                  <Scrollbar className={paintingClasses.panelScroll}>
-                    <PaintingSettings
-                      painting={currentPainting}
-                      onConfigChange={patchPainting}
-                      onGenerateRandomSeed={(key) =>
-                        patchPainting({
-                          params: {
-                            ...currentPainting.params,
-                            [key]: String(Math.floor(Math.random() * 1_000_000))
-                          }
-                        })
-                      }
-                    />
-                  </Scrollbar>
-                </div>
-              </div>
-
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
                   <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
                 </div>
                 <div className={paintingClasses.promptDock}>
-                  <PaintingPromptBar
+                  <PaintingComposer
                     painting={currentPainting}
                     generating={generating}
                     onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
                     onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
                     onGenerate={submit}
+                    onCancel={onCancel}
+                    onModelSelect={switchModel}
+                    onConfigChange={patchPainting}
+                    onGenerateRandomSeed={(key) =>
+                      patchPainting({
+                        params: {
+                          ...currentPainting.params,
+                          [key]: String(Math.floor(Math.random() * 1_000_000))
+                        }
+                      })
+                    }
                   />
                 </div>
               </div>

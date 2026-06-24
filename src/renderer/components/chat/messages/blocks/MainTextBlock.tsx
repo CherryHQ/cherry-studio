@@ -1,6 +1,6 @@
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
-import type { ChatInputTokenKind } from '@renderer/components/chat/tokens'
-import { ComposerToken } from '@renderer/components/chat/tokens'
+import type { ChatInputTokenKind } from '@renderer/components/composer/tokenView'
+import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'

@@ -1,12 +1,12 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
 import {
   buildTopicMessageFlowLiveState,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,

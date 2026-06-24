@@ -5,8 +5,8 @@ import {
   EmptyState
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agents/useSession'
