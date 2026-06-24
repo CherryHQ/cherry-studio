@@ -1,11 +1,10 @@
-import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { Combobox, EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
 import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
-import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import type { EditorView } from '@renderer/types'
 import { SpellCheck } from 'lucide-react'
@@ -144,11 +143,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   />
                 </Tooltip>
               )}
-              <Selector
+              <Combobox
+                searchable={false}
                 value={tmpViewMode as EditorView}
-                onChange={(value: EditorView) => {
+                onChange={(value) => {
                   userViewModeOverrideRef.current = true
-                  setTmpViewMode(value)
+                  setTmpViewMode(value as EditorView)
                 }}
                 options={[
                   { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },

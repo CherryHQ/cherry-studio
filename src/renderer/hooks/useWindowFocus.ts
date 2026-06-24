@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { useState } from 'react'
 
 /**
  * True window key state, relayed from the main process — unlike DOM
@@ -7,7 +8,7 @@ import { useEffect, useState } from 'react'
 function useWindowFocus() {
   const [isFocused, setIsFocused] = useState(() => document.hasFocus())
 
-  useEffect(() => window.api.window.onFocusChange(setIsFocused), [])
+  useIpcOn('window.focus_changed', setIsFocused)
 
   return isFocused
 }

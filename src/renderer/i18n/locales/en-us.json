@@ -5107,6 +5107,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
+    "description": "A quick-action toolbar that pops up when you select text",
     "name": "Selection Assistant",
     "settings": {
       "actions": {
@@ -5344,6 +5345,7 @@
         "title": "Feedback"
       },
       "label": "About & Feedback",
+      "page_description": "Version info, release notes, and feedback",
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
@@ -6643,6 +6645,10 @@
           "placeholder": "Optional e.g. GPT-4",
           "tooltip": "Optional e.g. GPT-4"
         },
+        "section": {
+          "capabilities": "Capabilities",
+          "pricing": "Pricing"
+        },
         "supported_text_delta": {
           "label": "Support incremental text output",
           "tooltip": "The model returns text incrementally, rather than all at once. Enabled by default, if the model does not support it, please disable this option"
@@ -6776,6 +6782,7 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "page_description": "Set the default models used for assistants, quick actions, and translation",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -7040,6 +7047,7 @@
           "international": "International domain"
         }
       },
+      "connection_title": "Service connection",
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
@@ -7225,6 +7233,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
+      "description": "A floating assistant window you can summon anytime with a shortcut",
       "enable_quick_assistant": "Enable Quick Assistant",
       "read_clipboard_at_startup": "Read clipboard at startup",
       "title": "Quick Assistant",
@@ -7389,12 +7398,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Document Processing",
-            "tooltip": "Used to parse documents for knowledge bases"
+            "scenario_tip": "Parses documents into Markdown — commonly used for knowledge base and similar scenarios",
+            "title": "Document Processing"
           },
           "image_to_text": {
-            "title": "OCR",
-            "tooltip": "Used to recognize text in images"
+            "scenario_tip": "Extracts text from images — commonly used for translation and similar scenarios",
+            "title": "OCR"
           }
         },
         "fields": {

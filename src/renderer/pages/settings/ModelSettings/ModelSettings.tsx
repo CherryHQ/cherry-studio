@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -13,20 +13,18 @@ import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { ChevronDown, Languages, MessageSquareMore, Package, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   SettingContainer,
-  SettingDescription,
-  SettingDivider,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '..'
 import { TopicNamingSettings } from './QuickModelPopup'
 
@@ -41,20 +39,19 @@ interface ModelSettingsProps {
 interface ModelSettingRowProps {
   icon: ReactNode
   title: ReactNode
-  description?: ReactNode
+  tip?: ReactNode
   compact?: boolean
   children: ReactNode
 }
 
-const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
-  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
-    <div className="min-w-0 flex-1">
-      <SettingRowTitle className="gap-2 font-semibold">
-        {icon}
-        {title}
-      </SettingRowTitle>
-      {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
-    </div>
+const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, tip, compact, children }) => (
+  <SettingRow className={cn('rounded-xl border border-border/60 px-4 py-3', compact && 'flex-col items-stretch gap-3')}>
+    <SettingRowTitle
+      tip={tip}
+      className="text-(length:--font-size-body-sm) min-w-0 flex-1 gap-2 leading-(--line-height-body-sm)">
+      {icon}
+      {title}
+    </SettingRowTitle>
     <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
       {children}
     </div>
@@ -93,9 +90,12 @@ const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: 
   return (
     <Button
       type="button"
-      variant="outline"
+      variant="ghost"
       size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
+      className={cn(
+        'min-w-0 flex-1 justify-between rounded-lg bg-muted/50 px-2.5 text-left font-normal hover:bg-muted data-[state=open]:bg-muted',
+        compact ? 'h-8' : 'h-7'
+      )}>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {model && icon ? (
           <icon.Avatar size={20} />
@@ -107,7 +107,7 @@ const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: 
         <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
         {providerName && <span className="max-w-[32%] truncate text-muted-foreground text-xs">{providerName}</span>}
       </span>
-      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+      <ChevronDown size={14} className="lucide-custom shrink-0 text-muted-foreground/40" />
     </Button>
   )
 }
@@ -190,89 +190,110 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       <ContainerComponent theme={theme} {...containerProps}>
         <SettingGroup theme={theme} style={groupStyle}>
           {!compact && (
-            <>
-              <SettingTitle>{t('settings.model')}</SettingTitle>
-              <SettingDivider />
-            </>
+            <SettingsPageHeader
+              icon={<Package />}
+              title={t('settings.model')}
+              description={t('settings.models.page_description')}
+            />
           )}
-          <ModelSettingRow
-            compact={compact}
-            icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={t('settings.models.default_assistant_model')}
-            description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
-            <DefaultModelSelector
-              model={defaultModel}
-              providers={providers}
-              filter={modelFilter}
+          <div className="mt-4 space-y-4">
+            <ModelSettingRow
               compact={compact}
-              onSelect={onSelectDefault}
-              placeholder={t('settings.models.empty')}
-            />
-          </ModelSettingRow>
-          <SettingDivider />
-          <ModelSettingRow
-            compact={compact}
-            icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={
-              <>
-                {t('settings.models.quick_model.label')}
-                <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
-              </>
-            }
-            description={showDescription ? t('settings.models.quick_model.description') : undefined}>
-            <DefaultModelSelector
-              model={quickModel}
-              providers={providers}
-              filter={modelFilter}
+              icon={
+                <MessageSquareMore
+                  size={16}
+                  className="lucide-custom shrink-0 text-foreground [stroke-width:var(--icon-stroke)]"
+                />
+              }
+              title={t('settings.models.default_assistant_model')}
+              tip={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
+              <DefaultModelSelector
+                model={defaultModel}
+                providers={providers}
+                filter={modelFilter}
+                compact={compact}
+                onSelect={onSelectDefault}
+                placeholder={t('settings.models.empty')}
+              />
+            </ModelSettingRow>
+            <ModelSettingRow
               compact={compact}
-              onSelect={onSelectQuick}
-              placeholder={t('settings.models.empty')}
-            />
-            {showSettingsButton && (
-              <Button
-                aria-label={t('settings.models.quick_model.setting_title')}
-                className="shrink-0"
-                onClick={() => setActivePanel('quick-model')}
-                size="icon-sm"
-                variant="outline">
-                <Settings2 size={16} />
-              </Button>
-            )}
-          </ModelSettingRow>
-          <SettingDivider />
-          <ModelSettingRow
-            compact={compact}
-            icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={t('settings.models.translate_model')}
-            description={showDescription ? t('settings.models.translate_model_description') : undefined}>
-            <DefaultModelSelector
-              model={translateModel}
-              providers={providers}
-              filter={modelFilter}
-              compact={compact}
-              onSelect={onSelectTranslate}
-              placeholder={t('settings.models.empty')}
-            />
-            {showSettingsButton && (
-              <>
+              icon={
+                <Rocket
+                  size={16}
+                  className="lucide-custom shrink-0 text-foreground [stroke-width:var(--icon-stroke)]"
+                />
+              }
+              title={t('settings.models.quick_model.label')}
+              tip={
+                showDescription ? (
+                  <>
+                    {t('settings.models.quick_model.description')}
+                    <br />
+                    {t('settings.models.quick_model.tooltip')}
+                  </>
+                ) : (
+                  t('settings.models.quick_model.tooltip')
+                )
+              }>
+              <DefaultModelSelector
+                model={quickModel}
+                providers={providers}
+                filter={modelFilter}
+                compact={compact}
+                onSelect={onSelectQuick}
+                placeholder={t('settings.models.empty')}
+              />
+              {showSettingsButton && (
                 <Button
-                  aria-label={t('settings.translate.title')}
-                  className="shrink-0"
-                  onClick={() => setActivePanel('translate')}
+                  aria-label={t('settings.models.quick_model.setting_title')}
+                  className="shrink-0 rounded-lg border-[color:var(--color-border-fg-muted)] hover:bg-(--color-surface-fg-subtle-solid) [&_svg]:size-3.5! [&_svg]:[stroke-width:var(--icon-stroke)]"
+                  onClick={() => setActivePanel('quick-model')}
                   size="icon-sm"
                   variant="outline">
-                  <Settings2 size={16} />
+                  <Settings2 />
                 </Button>
-                {translateModelPrompt !== TRANSLATE_PROMPT && (
-                  <Tooltip content={t('common.reset')}>
-                    <Button className="shrink-0" onClick={onResetTranslatePrompt} size="icon-sm" variant="outline">
-                      <RotateCcw size={16} />
-                    </Button>
-                  </Tooltip>
-                )}
-              </>
-            )}
-          </ModelSettingRow>
+              )}
+            </ModelSettingRow>
+            <ModelSettingRow
+              compact={compact}
+              icon={
+                <Languages
+                  size={16}
+                  className="lucide-custom shrink-0 text-foreground [stroke-width:var(--icon-stroke)]"
+                />
+              }
+              title={t('settings.models.translate_model')}
+              tip={showDescription ? t('settings.models.translate_model_description') : undefined}>
+              <DefaultModelSelector
+                model={translateModel}
+                providers={providers}
+                filter={modelFilter}
+                compact={compact}
+                onSelect={onSelectTranslate}
+                placeholder={t('settings.models.empty')}
+              />
+              {showSettingsButton && (
+                <>
+                  <Button
+                    aria-label={t('settings.translate.title')}
+                    className="shrink-0 rounded-lg border-[color:var(--color-border-fg-muted)] hover:bg-(--color-surface-fg-subtle-solid) [&_svg]:size-3.5! [&_svg]:[stroke-width:var(--icon-stroke)]"
+                    onClick={() => setActivePanel('translate')}
+                    size="icon-sm"
+                    variant="outline">
+                    <Settings2 />
+                  </Button>
+                  {translateModelPrompt !== TRANSLATE_PROMPT && (
+                    <Tooltip content={t('common.reset')}>
+                      <Button className="shrink-0" onClick={onResetTranslatePrompt} size="icon-sm" variant="outline">
+                        <RotateCcw size={16} />
+                      </Button>
+                    </Tooltip>
+                  )}
+                </>
+              )}
+            </ModelSettingRow>
+          </div>
         </SettingGroup>
       </ContainerComponent>
       {showSettingsButton && (

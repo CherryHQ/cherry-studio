@@ -102,7 +102,7 @@ const KnowledgeEntityNameDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" variant="emphasis" loading={isSubmitting}>
+            <Button type="submit" variant="default" loading={isSubmitting}>
               {submitLabel}
             </Button>
           </KnowledgeDialogFooter>

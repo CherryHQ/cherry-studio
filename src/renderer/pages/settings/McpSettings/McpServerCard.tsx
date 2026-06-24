@@ -227,19 +227,17 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           </ServerNameText>
         </ServerNameCell>
 
-        <MutedCell>{version || '—'}</MutedCell>
+        <MutedCell>{version}</MutedCell>
 
         <div className="min-w-0 shrink-0">
           <MetaBadge className={getTypeBadgeClass()}>{typeLabel}</MetaBadge>
         </div>
 
         <SourceCell>
-          {sourceLabel ? (
+          {sourceLabel && (
             <MetaBadge className={server.provider ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
               {sourceLabel}
             </MetaBadge>
-          ) : (
-            <span className="text-muted-foreground/70">—</span>
           )}
           {server.providerUrl && (
             <Button
@@ -267,8 +265,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
             checked={server.isActive}
             key={server.id}
             disabled={isLoading}
-            size="xs"
-            className="shadow-none data-[state=checked]:bg-success/85"
+            size="sm"
             onCheckedChange={handleToggleActive}
             data-no-dnd
           />
@@ -281,7 +278,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-0 py-1.5 text-sm transition-colors',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}
@@ -293,7 +290,10 @@ const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-bold text-[14px] leading-5', className)} {...props} />
+  <span
+    className={cn('text-(length:--font-size-body-xs) min-w-0 truncate font-medium leading-5', className)}
+    {...props}
+  />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
@@ -302,7 +302,7 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-sm min-[1180px]:block', className)}
+    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-xs min-[1180px]:block', className)}
     {...props}
   />
 )
@@ -336,7 +336,10 @@ const ActiveDot = ({
 const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
   <Badge
     variant="secondary"
-    className={cn('h-5 max-w-full rounded-md border-transparent px-2 font-medium text-[11px] leading-none', className)}
+    className={cn(
+      'text-(length:--font-size-body-xs) h-5 max-w-full rounded-md border-transparent px-2 font-normal leading-none',
+      className
+    )}
     {...props}
   />
 )

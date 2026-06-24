@@ -207,7 +207,7 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
+        className="text-(length:--font-size-body-xs) min-w-0 flex-1 truncate text-left font-medium leading-none"
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>
@@ -380,13 +380,13 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+              'border border-black/8 bg-white/60 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/6 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]',
             hoverClass:
               'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
           }
         : {
             activeClass:
-              'bg-selected text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--color-selected-border)] dark:text-sidebar-foreground',
+              'bg-selected text-sidebar-foreground shadow-(--shadow-selected-outline) dark:text-sidebar-foreground',
             hoverClass:
               'text-muted-foreground hover:bg-accent hover:text-sidebar-foreground dark:hover:text-sidebar-foreground'
           },

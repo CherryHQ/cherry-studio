@@ -1,4 +1,4 @@
-import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
@@ -96,20 +96,22 @@ export default function ApiKey({
             </InputGroup>
             <Tooltip content={t('settings.provider.api.key.list.title')}>
               <span className="inline-flex shrink-0">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   disabled={provider.id === 'copilot'}
                   className={fieldClasses.inputActionButton}
                   aria-label={t('settings.provider.api.key.list.title')}
                   onClick={() => setKeyListOpen(true)}>
                   <KeyRound size={14} />
-                </button>
+                </Button>
               </span>
             </Tooltip>
             <Tooltip content={t('settings.provider.check')}>
               <span className="inline-flex shrink-0">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
                   className={fieldClasses.inputActionButton}
                   aria-label={t('settings.provider.check')}
@@ -119,7 +121,7 @@ export default function ApiKey({
                   ) : (
                     <Activity size={14} />
                   )}
-                </button>
+                </Button>
               </span>
             </Tooltip>
           </div>

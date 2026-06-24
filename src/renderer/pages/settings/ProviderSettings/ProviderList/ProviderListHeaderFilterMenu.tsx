@@ -17,17 +17,15 @@ const FILTER_MENU_OPTIONS: { mode: ProviderFilterMode; labelKey: string }[] = [
 interface ProviderListHeaderFilterMenuProps {
   filterMode: ProviderFilterMode
   disabled: boolean
-  triggerClassName?: string
-  triggerIconSize?: number
   onFilterChange: (mode: ProviderFilterMode) => void
+  className?: string
 }
 
 export default function ProviderListHeaderFilterMenu({
   filterMode,
   disabled,
-  triggerClassName = providerListClasses.headerIconButton,
-  triggerIconSize = 14,
-  onFilterChange
+  onFilterChange,
+  className
 }: ProviderListHeaderFilterMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -40,14 +38,8 @@ export default function ProviderListHeaderFilterMenu({
           type="button"
           aria-label={t('settings.provider.filter.label')}
           disabled={disabled}
-          className={cn('group', triggerClassName)}>
-          <Filter
-            size={triggerIconSize}
-            className={cn(
-              'shrink-0',
-              hasActiveFilter ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
-            )}
-          />
+          className={cn(className ?? providerListClasses.headerIconButton, hasActiveFilter && 'bg-accent')}>
+          <Filter size={14} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">

@@ -1113,6 +1113,7 @@ const McpSettings: React.FC = () => {
                     checked={server.isActive}
                     key={server.id}
                     loading={loadingServer === server.id}
+                    size="sm"
                     onCheckedChange={onToggleActive}
                   />
                   <Button
@@ -1248,7 +1249,7 @@ const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
+  <span className={cn('wrap-break-word text-(length:--font-size-body-xs) leading-normal', className)} {...props} />
 )
 
 const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
@@ -1277,14 +1278,14 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
 }
 
 const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
-  <span
+  <Badge
     className={cn(
-      'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-[9px] bg-primary px-1.5 font-medium text-[11px] text-white leading-4.5 shadow-sm',
+      'text-(length:--font-size-body-xs) h-4.5 min-w-4.5 bg-primary px-1.5 py-0 text-primary-foreground leading-4.5 shadow-sm',
       className
     )}
     {...props}>
     {count}
-  </span>
+  </Badge>
 )
 
 const McpRuntimeStatusBadge = ({
@@ -1292,9 +1293,9 @@ const McpRuntimeStatusBadge = ({
   className,
   ...props
 }: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
-  <span
+  <Badge
     className={cn(
-      'inline-flex h-4.5 items-center rounded-[9px] px-1.5 font-medium text-[11px] leading-4.5',
+      'text-(length:--font-size-body-xs) h-4.5 px-1.5 py-0 leading-4.5',
       state === 'connected' && 'bg-success/10 text-success',
       state === 'connecting' && 'bg-warning/10 text-warning',
       state === 'error' && 'bg-destructive/10 text-destructive',
@@ -1332,9 +1333,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
   return (
     <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
       {value.map((tag, index) => (
-        <span
-          key={`${tag}-${index}`}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
+        <Badge key={`${tag}-${index}`} className="gap-1 bg-muted font-normal text-foreground">
           {tag}
           <button
             type="button"
@@ -1342,7 +1341,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
             onClick={() => removeAt(index)}>
             <X size={12} className="lucide-custom" />
           </button>
-        </span>
+        </Badge>
       ))}
       <input
         className="min-w-30 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"

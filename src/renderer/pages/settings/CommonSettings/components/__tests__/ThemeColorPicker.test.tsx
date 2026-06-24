@@ -33,7 +33,7 @@ describe('ThemeColorPicker', () => {
     expect(input).toHaveValue('#112233')
   })
 
-  it('normalizes draft colors only after blur', () => {
+  it('commits normalized colors live on change (live preview)', () => {
     const onChange = vi.fn()
 
     const ControlledThemeColorPicker = () => {
@@ -57,14 +57,13 @@ describe('ThemeColorPicker', () => {
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'BDE' } })
 
-    expect(input).toHaveValue('BDE')
-    expect(onChange).not.toHaveBeenCalled()
+    expect(input).toHaveValue('#BBDDEE')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('#BBDDEE')
 
     fireEvent.blur(input)
 
     expect(input).toHaveValue('#BBDDEE')
-    expect(onChange).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenCalledWith('#BBDDEE')
   })
 
   it('does not commit when the normalized draft matches the current value', () => {

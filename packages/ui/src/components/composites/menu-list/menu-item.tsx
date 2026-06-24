@@ -89,7 +89,7 @@ function MenuItem({
       disabled={disabled || undefined}
       className={cn(menuItemVariants({ variant, size }), className)}
       {...props}>
-      {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
+      {icon && <span className="flex shrink-0 items-center justify-center [&_svg]:[stroke-width:1.6]">{icon}</span>}
       <span className={cn('min-w-0 text-left', suffix && 'flex-1')}>
         <span className={cn('block truncate', labelClassName)}>{label}</span>
         {description && (

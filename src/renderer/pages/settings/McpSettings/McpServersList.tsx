@@ -160,7 +160,7 @@ const McpServersList: FC = () => {
               size="sm"
               className="rounded-lg text-xs shadow-none"
               onClick={() => setIsEditing((value) => !value)}>
-              <EditIcon size={14} />
+              <EditIcon size={14} strokeWidth={1.6} />
               {isEditing ? t('common.completed') : t('common.edit')}
             </Button>
             <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
@@ -184,22 +184,22 @@ const McpServersList: FC = () => {
         <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
           <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="hidden xl:block">
             <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
-              <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
+              <TabsTrigger value="all" className="h-7 rounded-xl px-2.5 text-xs">
                 {t('models.all')}
               </TabsTrigger>
-              <TabsTrigger value="enabled" className="h-7 rounded-[14px] px-2.5 text-xs">
+              <TabsTrigger value="enabled" className="h-7 rounded-xl px-2.5 text-xs">
                 {t('common.enabled')}
               </TabsTrigger>
-              <TabsTrigger value="disabled" className="h-7 rounded-[14px] px-2.5 text-xs">
+              <TabsTrigger value="disabled" className="h-7 rounded-xl px-2.5 text-xs">
                 {t('common.disabled')}
               </TabsTrigger>
-              <TabsTrigger value="stdio" className="h-7 rounded-[14px] px-2.5 text-xs">
+              <TabsTrigger value="stdio" className="h-7 rounded-xl px-2.5 text-xs">
                 STDIO
               </TabsTrigger>
-              <TabsTrigger value="sse" className="h-7 rounded-[14px] px-2.5 text-xs">
+              <TabsTrigger value="sse" className="h-7 rounded-xl px-2.5 text-xs">
                 SSE
               </TabsTrigger>
-              <TabsTrigger value="builtin" className="h-7 rounded-[14px] px-2.5 text-xs">
+              <TabsTrigger value="builtin" className="h-7 rounded-xl px-2.5 text-xs">
                 {t('settings.mcp.builtinServers')}
               </TabsTrigger>
             </TabsList>

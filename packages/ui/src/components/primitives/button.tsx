@@ -16,7 +16,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+        // Brainwave 2.0 "metallic" CTA: vertical gradient + rim lighting + 1px hairline frame.
+        // Light mode (default): top #323232 → bottom #222222 with white text.
+        // Dark mode: inverted to a light gradient with dark text for the same contrast role.
+        // Pressed / focus-visible flip the gradient (concave / inset look).
+        default: cn(
+          'rounded-(--radius-lg) font-semibold leading-(--line-height-body-xs) tracking-(--letter-spacing-tight)',
+          'bg-gradient-to-b from-[var(--color-button-elevated-from)] to-[var(--color-button-elevated-to)] text-[color:var(--color-button-elevated-foreground)]',
+          'shadow-[0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'hover:brightness-105 hover:shadow-[0_3px_6px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_1px_2px_var(--color-button-elevated-highlight-hover),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'active:from-[var(--color-button-elevated-to)] active:to-[var(--color-button-elevated-from)] active:brightness-100 active:shadow-[0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'focus-visible:shadow-[inset_0_0_0_1px_var(--color-button-elevated-foreground),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow),0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim)]',
+          'focus-visible:ring-0 focus-visible:border-transparent',
+          'disabled:opacity-30'
+        ),
         destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',
         outline: 'border border-border bg-transparent text-foreground shadow-none hover:bg-accent',
         secondary: 'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-secondary-hover',

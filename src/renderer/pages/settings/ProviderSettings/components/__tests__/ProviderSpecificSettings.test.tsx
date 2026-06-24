@@ -95,7 +95,7 @@ describe('ProviderSpecificSettings', () => {
     },
     {
       providerId: 'dmxapi',
-      placement: 'beforeAuth' as const,
+      placement: 'afterAuth' as const,
       meta: { isCherryIN: false, isDmxapi: true },
       expectedText: 'dmxapi-settings-dmxapi'
     },

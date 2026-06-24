@@ -5107,6 +5107,7 @@
         "r_regenerate": "R 重新產生"
       }
     },
+    "description": "選取文字後彈出的快速操作工具列",
     "name": "劃詞助手",
     "settings": {
       "actions": {
@@ -5344,6 +5345,7 @@
         "title": "回饋"
       },
       "label": "關於與回饋",
+      "page_description": "版本資訊、更新日誌與意見回饋",
       "releases": {
         "button": "檢視",
         "title": "更新日誌"
@@ -6643,6 +6645,10 @@
           "placeholder": "選填，例如 GPT-4",
           "tooltip": "例如 GPT-4"
         },
+        "section": {
+          "capabilities": "模型特性",
+          "pricing": "模型定價"
+        },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
           "tooltip": "模型每次回傳文字增量，而不是一次性回傳所有文字，預設開啟，如果模型不支援，請關閉"
@@ -6776,6 +6782,7 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已停用",
+      "page_description": "為助手對話、快速操作和翻譯設定預設使用的模型",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",
@@ -7040,6 +7047,7 @@
           "international": "國際網域"
         }
       },
+      "connection_title": "服務接入",
       "copilot": {
         "add_request_header": "新增請求標頭",
         "auth_failed": "GitHub Copilot 認證失敗",
@@ -7225,6 +7233,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",
+      "description": "透過快速鍵隨時喚起的懸浮助手視窗",
       "enable_quick_assistant": "啟用快捷助手",
       "read_clipboard_at_startup": "啟動時讀取剪貼簿",
       "title": "快捷助手",
@@ -7389,12 +7398,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文件處理",
-            "tooltip": "用於知識庫解析文件"
+            "scenario_tip": "將文件解析為 Markdown，常用於知識庫等場景",
+            "title": "文件處理"
           },
           "image_to_text": {
-            "title": "OCR",
-            "tooltip": "用於識別圖片內文字內容"
+            "scenario_tip": "擷取圖片中的文字，常用於翻譯等場景",
+            "title": "OCR"
           }
         },
         "fields": {

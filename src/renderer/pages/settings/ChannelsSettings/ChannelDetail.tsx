@@ -155,7 +155,7 @@ const ChannelLogModal: FC<{
             {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
           </DialogTitle>
         </DialogHeader>
-        <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
+        <div className="text-(length:--font-size-body-xs) max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono leading-[1.6]">
           {logs.length === 0 && (
             <div className="py-8 text-center text-muted-foreground text-xs">
               {t('agent.cherryClaw.channels.noLogs')}
@@ -310,7 +310,7 @@ const ChannelInstanceRow: FC<{
     if (isConnected) {
       statusColor = 'bg-success'
       statusTag = (
-        <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
+        <Badge className="text-(length:--font-size-body-2xs) border-success/30 bg-success/10 px-1.5 py-0 text-success leading-3.5">
           {t('agent.cherryClaw.channels.connected')}
         </Badge>
       )
@@ -318,7 +318,7 @@ const ChannelInstanceRow: FC<{
       statusColor = 'bg-destructive'
       statusTag = (
         <Tooltip title={hasError}>
-          <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
+          <Badge className="text-(length:--font-size-body-2xs) border-destructive/30 bg-destructive/10 px-1.5 py-0 text-destructive leading-3.5">
             {t('agent.cherryClaw.channels.error')}
           </Badge>
         </Tooltip>

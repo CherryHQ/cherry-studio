@@ -507,12 +507,14 @@ const OpenClawPage: FC = () => {
               filter={modelFilter}
               onSelect={handleModelSelect}
               trigger={
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="secondary"
+                  className="h-8 w-full justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm hover:bg-muted">
                   {selectedModel ? <ModelAvatar model={selectedModel} size={18} /> : null}
                   <span className="flex-1 truncate text-left">
                     {selectedModel ? selectedModel.name : t('openclaw.model_config.select_model')}
                   </span>
-                  <ChevronDown size={14} className="text-muted-foreground" />
+                  <ChevronDown size={16} className="text-muted-foreground/40" />
                 </Button>
               }
             />

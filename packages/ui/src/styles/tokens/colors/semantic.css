@@ -9,8 +9,9 @@
    * (switch/slider/checkbox fills derive from it). */
   --cs-primary: var(--cs-neutral-900);
   --cs-primary-hover: var(--cs-neutral-800);
-  --cs-control-accent: var(--cs-brand-500);
-  --cs-control-accent-hover: var(--cs-brand-600);
+  /* control-accent base + hover derive from the runtime --cs-theme-control-accent in theme.css.
+   * Only the foreground is kept as a token because it doesn't derive from the
+   * theme color — it's a mode-aware contrast pair (white on light, neutral-900 on dark). */
   --cs-control-accent-foreground: var(--cs-white);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
@@ -21,9 +22,11 @@
   /* Background & Foreground */
   --cs-background: #ffffff;
   --cs-background-subtle: oklch(0 0 0 / 0.02);
-  --cs-foreground: oklch(0 0 0 / 0.9);
-  --cs-foreground-secondary: oklch(0 0 0 / 0.6);
-  --cs-foreground-muted: oklch(0 0 0 / 0.4);
+  /* Foreground ladder — base hue aligned to the Codex settings reference (#1A1C1F),
+   * a cool near-black; secondary/muted derive via alpha so the hue stays consistent. */
+  --cs-foreground: #1a1c1f;
+  --cs-foreground-secondary: color-mix(in srgb, var(--cs-foreground) 60%, transparent);
+  --cs-foreground-muted: color-mix(in srgb, var(--cs-foreground) 40%, transparent);
 
   /* Menu item hover/focus background — distinct from --cs-background-subtle
    * because menu rows need a bit more contrast than generic subtle surfaces. */
@@ -40,11 +43,22 @@
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
   --cs-frame-border: #eaebe8;
+  /* Frame border on translucent (macOS vibrancy) windows — when the window is
+   * key, the edge must stay clearly legible against the blurred wallpaper, so
+   * this is a solid step darker than the opaque --cs-frame-border (which would
+   * read too faint over glass). */
+  --cs-frame-border-translucent: #dadcd6;
 
   /* Foreground-derived soft border for form controls (input/select etc.).
    * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
    * while still reading as quiet against neutral surfaces. */
   --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Solid muted icon color — for line icons whose strokes can cross themselves
+   * (RotateCcw, RefreshCw, Search, etc.). Foreground-muted uses alpha which
+   * compounds at stroke overlaps and renders darker than intended; a solid
+   * neutral keeps the silhouette uniform. */
+  --cs-icon-muted: var(--cs-neutral-400);
 
   /* Ring (Focus) — neutral, derived from primary so focus matches selection/expanded states */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
@@ -62,17 +76,20 @@
   --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
-  /* Sidebar glass tint — the opaque sidebar color at partial alpha. The gaussian
-   * blur underneath comes from native vibrancy (transparent windows, while
-   * focused) or CSS backdrop-blur (floating hover sidebar). Alpha balances two
-   * failure modes: too high hides the blur entirely (~60%+ reads opaque), too
-   * low lets the tone drift fully to the raw material. */
-  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 35%, transparent);
+  /* Sidebar glass tint — the opaque sidebar color at partial alpha over native
+   * vibrancy. Kept fairly opaque (70%, matching dark): at a lower alpha the
+   * wallpaper gradient bled through and the sidebar read uneven/disjointed
+   * against the flat content surface. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
   /* Selected state — tab bar active tab, sidebar active menu item.
    * Paired 0.5px inside-border (--cs-selected-border) for a quiet outline. */
   --cs-selected: #f0f0ef;
   --cs-selected-border: #eaebe8;
+
+  /* Subtle hover surface, SOLID (no alpha) — for buttons/links that need a faint
+   * "you're over me" tint without the cross-bg flicker that an alpha hover causes. */
+  --cs-surface-fg-subtle-solid: #f0f0ef;
 
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
@@ -100,6 +117,25 @@
   --cs-sidebar-accent-foreground: var(--cs-foreground);
   --cs-sidebar-border: var(--cs-border);
   --cs-sidebar-ring: var(--cs-ring);
+
+  /* Feature-highlight pill (Badge "highlight" variant — New / PRO / Beta tags).
+   * A bright mint accent, deliberately distinct from the success status family. */
+  --cs-highlight: #8fd944;
+  --cs-highlight-surface: #c2ec80;
+  --cs-highlight-foreground: #2e4d18;
+
+  /* Elevated "metallic" CTA (Button default variant) — vertical gradient that
+   * flips light-on-dark per mode. The shadow expression itself stays inline in
+   * button.tsx (a box-shadow can't be a --color-* token under Tailwind @theme),
+   * but every color slot inside it is a token below so palette tweaks live here. */
+  --cs-button-elevated-from: #323232;
+  --cs-button-elevated-to: #222222;
+  --cs-button-elevated-foreground: #fcfcfc;
+  --cs-button-elevated-shadow: rgba(13, 13, 13, 0.5);
+  --cs-button-elevated-rim: #333333;
+  --cs-button-elevated-highlight: rgba(255, 255, 255, 0.15);
+  --cs-button-elevated-highlight-hover: rgba(255, 255, 255, 0.28);
+  --cs-button-elevated-inner-shadow: #121212;
 }
 
 /* Dark Mode */
@@ -107,8 +143,7 @@
   --cs-primary: var(--cs-neutral-100);
   --cs-primary-hover: var(--cs-neutral-200);
   --cs-primary-foreground: var(--cs-neutral-900);
-  --cs-control-accent: var(--cs-brand-400);
-  --cs-control-accent-hover: var(--cs-brand-300);
+  /* control-accent (dark) — see :root note; only foreground stays as a token. */
   --cs-control-accent-foreground: var(--cs-neutral-900);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);
@@ -117,9 +152,10 @@
   /* Background & Foreground */
   --cs-background: #1515148c; /* #151514 @ 0.55 alpha — alpha lets macOS transparent windows blur the wallpaper through */
   --cs-background-subtle: oklch(1 0 0 / 0.02);
-  --cs-foreground: oklch(1 0 0 / 0.9);
-  --cs-foreground-secondary: oklch(1 0 0 / 0.6);
-  --cs-foreground-muted: oklch(1 0 0 / 0.4);
+  /* Foreground ladder (dark) — cool near-white mirroring the light-mode #1A1C1F hue. */
+  --cs-foreground: #e8e9eb;
+  --cs-foreground-secondary: color-mix(in srgb, var(--cs-foreground) 60%, transparent);
+  --cs-foreground-muted: color-mix(in srgb, var(--cs-foreground) 40%, transparent);
 
   /* Menu item hover/focus background (dark) — see comment in :root. */
   --cs-menu-item-hover: oklch(1 0 0 / 0.06);
@@ -134,10 +170,17 @@
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
-  --cs-frame-border: #1f201d;
+  --cs-frame-border: #32332c;
+  /* Translucent-window frame border (dark) — key windows need a clearly legible
+   * edge over the blurred wallpaper, so this sits a step lighter than the opaque
+   * --cs-frame-border. */
+  --cs-frame-border-translucent: #3c3d35;
 
   /* Foreground-derived soft border (dark) — see :root note. */
   --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Solid muted icon color (dark) — see :root note. */
+  --cs-icon-muted: var(--cs-neutral-500);
 
   /* Ring (Focus) — neutral, derived from primary (was hardcoded lime) */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
@@ -151,14 +194,36 @@
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
-  /* Sidebar */
-  --cs-sidebar: #090a05;
+  /* Sidebar — a neutral dark gray sitting one step lighter than the content
+   * surface (--cs-background #151514) so the menu rail reads as a distinct,
+   * elevated panel rather than a near-black void. */
+  --cs-sidebar: #1c1d1a;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 
-  /* Sidebar glass tint (dark) — see :root note. */
-  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 50%, transparent);
+  /* Sidebar glass tint (dark) — intentionally more opaque than light (70 vs 35%):
+   * over a dark wallpaper the blurred bleed-through crushes sidebar legibility,
+   * so we keep only a hint of glass. See :root note for the alpha tradeoffs. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
   /* Selected state (dark) — see :root note. */
   --cs-selected: #1f201d;
   --cs-selected-border: #343531;
+
+  /* Subtle hover surface, SOLID (dark) — see :root note. */
+  --cs-surface-fg-subtle-solid: #25262b;
+
+  /* Feature-highlight pill (dark) — deep forest invert of the light mint. */
+  --cs-highlight: #a0d958;
+  --cs-highlight-surface: #2a4514;
+  --cs-highlight-foreground: #c0ec7c;
+
+  /* Elevated CTA (dark) — inverted light gradient with dark text. */
+  --cs-button-elevated-from: #f5f5f5;
+  --cs-button-elevated-to: #e8e8e8;
+  --cs-button-elevated-foreground: #1a1c1f;
+  --cs-button-elevated-shadow: rgba(0, 0, 0, 0.25);
+  --cs-button-elevated-rim: #d0d0d0;
+  --cs-button-elevated-highlight: rgba(255, 255, 255, 0.7);
+  --cs-button-elevated-highlight-hover: rgba(255, 255, 255, 0.95);
+  --cs-button-elevated-inner-shadow: rgba(0, 0, 0, 0.08);
 }

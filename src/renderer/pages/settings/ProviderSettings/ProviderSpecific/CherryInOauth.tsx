@@ -192,7 +192,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
               </div>
             </div>
-            <Button variant="emphasis" onClick={handleOAuthLogin}>
+            <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={handleOAuthLogin}>
               {t('settings.provider.oauth.cherryIn.login_button')}
             </Button>
           </div>

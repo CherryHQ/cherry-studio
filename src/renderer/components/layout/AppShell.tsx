@@ -5,7 +5,6 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTabs } from '@renderer/hooks/useTabs'
-import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -19,7 +18,6 @@ import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const isWindowFocused = useWindowFocus()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
     useTabs()
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
@@ -79,10 +77,8 @@ export const AppShell = () => {
   return (
     <div
       className={cn(
-        'flex h-screen w-screen flex-col overflow-hidden text-foreground transition-colors duration-200',
-        // Transparent windows show the sidebar tint over native vibrancy only
-        // while the window is key; blurred windows match the opaque style.
-        isMacTransparentWindow && isWindowFocused ? 'bg-sidebar-translucent' : 'bg-sidebar'
+        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Zone 1: Tab Bar (spans full width) */}
       <AppShellTabBar
@@ -104,8 +100,7 @@ export const AppShell = () => {
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[16px] border border-frame-border bg-background">
-
+          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             {tabs
               .filter((t) => t.type === 'route' && !t.isDormant)

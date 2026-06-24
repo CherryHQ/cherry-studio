@@ -1470,10 +1470,10 @@ export class WindowManager extends BaseService {
     // "a <webview> took page focus" from "the window deactivated". Transparent-
     // window shells repaint between glass and opaque on this signal.
     window.on('focus', () => {
-      window.webContents.send(IpcChannel.WindowManager_FocusChanged, true)
+      application.get('IpcApiService').send(windowId, 'window.focus_changed', true)
     })
     window.on('blur', () => {
-      window.webContents.send(IpcChannel.WindowManager_FocusChanged, false)
+      application.get('IpcApiService').send(windowId, 'window.focus_changed', false)
     })
 
     // Intercept native close for warmup-tracked windows — hide and return to

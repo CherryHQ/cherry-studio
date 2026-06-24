@@ -9,6 +9,8 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SettingsPageHeader } from '..'
+
 interface EnvironmentDependenciesProps {
   mini?: boolean
 }
@@ -61,7 +63,7 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
           aria-label={t('settings.skills.directory')}
           className={cn(
             'inline-flex size-4.5 shrink-0 items-center justify-center rounded-md transition-colors',
-            path ? 'text-muted-foreground/55 hover:bg-background hover:text-foreground' : 'hidden'
+            path ? 'text-muted-foreground/55 hover:bg-accent hover:text-foreground' : 'hidden'
           )}>
           <FolderOpen className="size-3" />
         </button>
@@ -70,12 +72,12 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
 
     <div className="flex min-w-23 shrink-0 items-center justify-end gap-2">
       {installed ? (
-        <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
+        <Badge className="text-(length:--font-size-body-xs) border-transparent bg-success/10 px-1.5 py-0 font-medium text-success leading-4">
           {t('settings.skills.installed')}
         </Badge>
       ) : (
         <>
-          <Badge className="border-transparent bg-muted px-1.5 py-0 font-medium text-[11px] text-muted-foreground leading-4">
+          <Badge className="text-(length:--font-size-body-xs) border-transparent bg-muted px-1.5 py-0 font-medium text-muted-foreground leading-4">
             {t('settings.plugins.notInstalled')}
           </Badge>
           <Button
@@ -195,13 +197,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{dependenciesCount}</span>
-        </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
-      </div>
+      <SettingsPageHeader
+        icon={<PackageCheck />}
+        title={
+          <>
+            {t('settings.plugins.title')} <span className="text-muted-foreground/50 text-xs">{dependenciesCount}</span>
+          </>
+        }
+        description={t('settings.plugins.description')}
+      />
 
       <div className="flex flex-col gap-2">
         <EnvironmentDependencyItem

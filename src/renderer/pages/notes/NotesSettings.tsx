@@ -1,6 +1,5 @@
-import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
+import { Button, Combobox, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import {
@@ -128,26 +127,28 @@ const NotesSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.editor.view_mode.title')}</SettingRowTitle>
-          <Selector
+          <Combobox
+            searchable={false}
             options={[
               { label: t('notes.settings.editor.view_mode.edit_mode'), value: 'edit' },
               { label: t('notes.settings.editor.view_mode.read_mode'), value: 'read' }
             ]}
             value={settings.defaultViewMode}
-            onChange={(value: 'edit' | 'read') => updateSettings({ defaultViewMode: value })}
+            onChange={(value) => updateSettings({ defaultViewMode: value as 'edit' | 'read' })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.editor.view_mode.description')}</SettingHelpText>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.editor.edit_mode.title')}</SettingRowTitle>
-          <Selector
+          <Combobox
+            searchable={false}
             options={[
               { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
               { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' }
             ]}
             value={settings.defaultEditMode}
-            onChange={(value: Exclude<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
+            onChange={(value) => updateSettings({ defaultEditMode: value as Exclude<EditorView, 'read'> })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.editor.edit_mode.description')}</SettingHelpText>

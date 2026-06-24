@@ -439,8 +439,9 @@ export enum IpcChannel {
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
   // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
   SettingsWindow_Open = 'settings-window:open',
-  // Standalone focus relay kept alongside the new IpcApi (`window.*`), which has no focus event.
-  // True window key state — unlike DOM focus/blur, unaffected by <webview> stealing page focus.
+
+  // Standalone window focus relay — the single surviving WindowManager_* channel
+  // (the IpcApi `window.*` migration has no focus event). See preload `onFocusChange`.
   WindowManager_FocusChanged = 'window-manager:focus-changed'
 
   // ──────────────────────────────────────────────────────────────
