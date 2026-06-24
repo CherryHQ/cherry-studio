@@ -24,11 +24,10 @@ export interface FileContextMenuActions {
  *
  * Built on the @cherrystudio/ui ContextMenu primitive (Radix), which provides
  * cursor positioning, click-outside/Escape dismiss, viewport collision, keyboard
- * navigation, and focus management — replacing the former hand-rolled Popover.
+ * navigation, and focus management.
  *
- * `onOpen` mirrors the legacy "right-click selects the item if it isn't already
- * selected" behavior (multi-selection is left untouched when the right-clicked
- * item is already part of it).
+ * `onOpen` lets the owner select the right-clicked item when needed; callers can
+ * leave existing multi-selection untouched when the item is already selected.
  */
 export function FileItemContextMenu({
   file,
