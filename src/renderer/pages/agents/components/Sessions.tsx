@@ -47,6 +47,7 @@ import {
   Clock,
   Folder,
   FolderOpen,
+  History,
   ListFilter,
   MoreHorizontal,
   PanelLeft,
@@ -91,6 +92,7 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  onOpenHistoryRecords?: () => void
   onSelectItem?: () => void
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
@@ -127,11 +129,13 @@ type CreateSessionSeed = {
 function SessionListOptionsMenu({
   mode,
   onChange,
+  onOpenHistoryRecords,
   onToggleSidebar,
   sectionId
 }: {
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
+  onOpenHistoryRecords?: () => void
   onToggleSidebar: () => void
   sectionId?: string
 }) {
@@ -180,6 +184,18 @@ function SessionListOptionsMenu({
             </>
           )}
           <MenuDivider />
+          {onOpenHistoryRecords && (
+            <MenuItem
+              size="sm"
+              icon={<History size={16} />}
+              label={t('history.records.shortTitle')}
+              onClick={() => {
+                onOpenHistoryRecords()
+                setOpen(false)
+              }}
+            />
+          )}
+          {onOpenHistoryRecords && <MenuDivider />}
           <MenuItem
             size="sm"
             icon={<PanelLeft size={16} />}
@@ -337,6 +353,7 @@ export function findLatestCreateSessionSeed(
 
 const Sessions = ({
   activeSessionId,
+  onOpenHistoryRecords,
   onSelectItem,
   onStartDraftSession,
   onStartMissingAgentDraft,
@@ -1408,6 +1425,7 @@ const Sessions = ({
             <SessionListOptionsMenu
               mode={displayMode}
               onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+              onOpenHistoryRecords={onOpenHistoryRecords}
               onToggleSidebar={handleToggleSidebar}
               sectionId={
                 displayMode === 'agent'
@@ -1472,7 +1490,7 @@ interface SessionListBodyProps {
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
-  onTogglePin: (id: string) => Promise<void>
+  onTogglePin: (id: string) => void | Promise<unknown>
   setActiveSessionId: (id: string | null) => void
 }
 

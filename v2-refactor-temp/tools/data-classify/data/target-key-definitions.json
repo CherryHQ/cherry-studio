@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "app.power.prevent_sleep_when_busy",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,

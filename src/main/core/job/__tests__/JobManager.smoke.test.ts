@@ -48,6 +48,13 @@ interface StubbornInput {
 let scheduler: SchedulerService
 let jobManager: JobManager
 
+// PowerService stub: JobManager acquires a sleep-prevention hold per attempt and
+// releases it in the finally. Shared spies let the end-to-end test assert acquire/release.
+const sleepHoldDispose = vi.fn()
+const mockPowerService = {
+  preventSleep: vi.fn(() => ({ dispose: sleepHoldDispose }))
+}
+
 function makeEchoHandler(): JobHandler<EchoInput> {
   return {
     recovery: 'abandon',
@@ -129,6 +136,8 @@ describe('JobManager smoke (dummy.echo)', () => {
           return scheduler
         case 'JobManager':
           return jobManager
+        case 'PowerService':
+          return mockPowerService
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
@@ -163,6 +172,9 @@ describe('JobManager smoke (dummy.echo)', () => {
   afterEach(async () => {
     await drainTrailingDispatch()
     MockMainCacheServiceUtils.resetMocks()
+    // Reset the sleep-prevention spies so each test asserts its own acquire/release counts.
+    mockPowerService.preventSleep.mockClear()
+    sleepHoldDispose.mockClear()
   })
 
   it('runs a job end-to-end (pending → running → completed)', async () => {
@@ -176,6 +188,16 @@ describe('JobManager smoke (dummy.echo)', () => {
     expect(settled.startedAt).not.toBeNull()
     expect(settled.finishedAt).not.toBeNull()
     expect(settled.error).toBeNull()
+
+    // The hold is released in the task's finally, which runs after finalizeJob resolves
+    // handle.finished — drain so that trailing continuation has executed before asserting.
+    await drainTrailingDispatch()
+
+    // JobManager acquired exactly one sleep-prevention hold for the single attempt and
+    // released it on completion. Reason is `job:<type>:<id>` — id is dynamic, match prefix.
+    expect(mockPowerService.preventSleep).toHaveBeenCalledTimes(1)
+    expect(mockPowerService.preventSleep).toHaveBeenCalledWith(expect.stringMatching(/^job:dummy\.echo:/))
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   })
 
   it('publishes state + progress through CacheService', async () => {
@@ -215,6 +237,10 @@ describe('JobManager smoke (dummy.echo)', () => {
       retryable: false,
       message: expect.stringContaining('user requested')
     })
+
+    await drainTrailingDispatch()
+    // A cancelled (non-completed) job must still release its hold via the task finally.
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   })
 
   it('reports timed-out when the handler ignores the abort past cancelTimeoutMs', async () => {
@@ -234,6 +260,8 @@ describe('JobManager smoke (dummy.echo)', () => {
 
     await executed
     await drainTrailingDispatch()
+    // Even on the force-timeout terminal the hold is released once the late handler settles.
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   }, 10_000)
 
   it('reports cancelled for a not-in-flight delayed job', async () => {

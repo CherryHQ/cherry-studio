@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { GlobalSearchPanel } from '@renderer/components/GlobalSearch/GlobalSearchPanel'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,16 +41,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        closeOnOverlayClick
         onOpenAutoFocus={(event) => event.preventDefault()}
         overlayClassName="bg-black/50 backdrop-blur-[8px]"
         className="flex h-[80vh] max-h-[80vh] w-[60vw] max-w-[60vw] flex-col gap-0 overflow-hidden rounded-[32px] border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[60vw]">
         <DialogHeader className="sr-only">
           <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>
-        {/* Global search panel is deferred out of feat/chat-page; the re-add PR restores it here. */}
-        <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-          {t('globalSearch.open')}
-        </div>
+        <GlobalSearchPanel onClose={closePopup} />
       </DialogContent>
     </Dialog>
   )
