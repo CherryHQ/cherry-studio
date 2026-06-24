@@ -62,7 +62,7 @@ describe('pasteHandling', () => {
     } as unknown as ClipboardEvent
 
     const handled = await pasteHandling.handlePaste(event, [], setFiles, undefined, '', undefined, (key) =>
-      key === 'chat.input.pasted_text_file_name' ? '已粘贴的文本.txt' : key
+      key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key
     )
 
     expect(handled).toBe(true)
@@ -74,7 +74,7 @@ describe('pasteHandling', () => {
         fileTokenSourceId: expect.any(String),
         path: selectedFile.path,
         name: selectedFile.name,
-        origin_name: '已粘贴的文本.txt',
+        origin_name: 'pasted text.txt',
         ext: selectedFile.ext,
         size: selectedFile.size,
         type: selectedFile.type,
