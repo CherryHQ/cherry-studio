@@ -19,11 +19,20 @@ description: Create or update GitHub pull requests using the repository-required
    - `main` is the active v2 development line. v1 maintenance fixes (head branch `hotfix/*`, critical user-facing bug fixes only) must target `v1`, not `main` — set the base to `v1` for these.
    - For fork repo as `origin`: check available remotes with `git remote -v`, default base may be `upstream/main` or another remote. Always assume that user wants to merge head to CherryHQ/cherry-studio/main, unless the user explicitly indicates a base branch.
    - Ask the user to confirm the base branch if it's not the default.
-5. Create a temp file and write the PR body:
-   - Use `pr_body_file="$(mktemp /tmp/gh-pr-body-XXXXXX).md"`
-   - Fill content using the template structure exactly (keep section order, headings, checkbox formatting).
-   - If not applicable, write `N/A` or `None`.
-6. Preview the temp file content. **Show the file path** (e.g., `/tmp/gh-pr-body-XXXXXX.md`) and ask for explicit confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
+5. Create a temp file and write the PR body using a single Bash heredoc
+   (avoids `mktemp` + `Write` tool path-mismatch on Windows):
+   ```bash
+   pr_body_file="/tmp/gh-pr-body-$(date +%s).md"
+   cat > "$pr_body_file" <<'EOF'
+   ...filled template body...
+   EOF
+   ```
+   Fill content using the template structure exactly (keep section order,
+   headings, checkbox formatting). If not applicable, write `N/A` or `None`.
+6. Preview the temp file content via Bash `cat "$pr_body_file"` (the `Read`
+   tool can fail on `/tmp/...` paths on Windows). Show the file path and ask
+   for explicit confirmation before creating. Skip if the user explicitly
+   waives preview (automation workflows).
 7. After confirmation, create the PR:
    ```bash
    gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
