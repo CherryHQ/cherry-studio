@@ -35,9 +35,9 @@ jobs:
       - name: Translate and update event content
         uses: actions/github-script@v8
         env:
-          TRANSLATOR_API_KEY: ${{ secrets.TRANSLATOR_API_KEY }}
-          TRANSLATOR_BASE_URL: ${{ vars.TRANSLATOR_BASE_URL }}
-          TRANSLATOR_MODEL: ${{ vars.TRANSLATOR_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
         with:
           github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           script: |
@@ -194,15 +194,15 @@ jobs:
             }
 
             const callTranslator = async (target) => {
-              const apiKey = process.env.TRANSLATOR_API_KEY
+              const apiKey = process.env.ANTHROPIC_API_KEY
               if (!apiKey) {
-                throw new Error('Missing TRANSLATOR_API_KEY')
+                throw new Error('Missing ANTHROPIC_API_KEY')
               }
 
-              const baseUrl = (process.env.TRANSLATOR_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '')
-              const model = process.env.TRANSLATOR_MODEL
+              const baseUrl = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '')
+              const model = process.env.ANTHROPIC_MODEL
               if (!model) {
-                throw new Error('Missing TRANSLATOR_MODEL')
+                throw new Error('Missing ANTHROPIC_MODEL')
               }
 
               const response = await fetch(`${baseUrl}/v1/messages`, {
