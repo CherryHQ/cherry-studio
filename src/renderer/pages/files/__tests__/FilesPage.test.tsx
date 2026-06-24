@@ -424,7 +424,7 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('uses permanent delete in the trash view', () => {
+  it('confirms before permanent delete in the trash view', async () => {
     mockUseInfiniteQuery.mockImplementation((_path, options) => ({
       pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
       isLoading: false,
@@ -442,7 +442,14 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('trashed.txt'))
     fireEvent.keyDown(document, { key: 'Delete' })
 
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
+    expect(screen.getByText('files.permanent_delete_confirm.title')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('files.permanent_delete'))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
+    })
   })
 
   it('restores a trashed file from the context menu', () => {

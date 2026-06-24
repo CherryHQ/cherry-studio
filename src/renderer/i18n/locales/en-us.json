@@ -2387,6 +2387,10 @@
     "open": "Open",
     "other": "Other",
     "permanent_delete": "Permanently delete",
+    "permanent_delete_confirm": {
+      "description": "This will permanently remove {{count}} file(s). This action cannot be undone.",
+      "title": "Permanently delete files?"
+    },
     "preview": {
       "error": "Failed to open file"
     },

@@ -2387,6 +2387,10 @@
     "open": "開啟",
     "other": "其他",
     "permanent_delete": "永久刪除",
+    "permanent_delete_confirm": {
+      "description": "將永久刪除 {{count}} 個檔案，此操作無法復原。",
+      "title": "永久刪除檔案？"
+    },
     "preview": {
       "error": "開啟檔案失敗"
     },

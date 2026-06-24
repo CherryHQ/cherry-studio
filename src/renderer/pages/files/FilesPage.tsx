@@ -233,6 +233,7 @@ function FilesPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDialogFile, setRenameDialogFile] = useState<FileItem | null>(null)
   const [renameDialogText, setRenameDialogText] = useState('')
+  const [pendingPermanentDeleteIds, setPendingPermanentDeleteIds] = useState<Set<string> | null>(null)
   const contentScrollRef = useRef<HTMLDivElement | null>(null)
   const pendingLoadMoreRef = useRef(false)
 
@@ -554,9 +555,9 @@ function FilesPage() {
     [selectedIds]
   )
 
-  const handleDelete = useCallback(
-    async (ids?: Set<string>) => {
-      const targets = files.filter((file) => (ids ?? selectedIds).has(file.id))
+  const performDelete = useCallback(
+    async (targetIds: Set<string>) => {
+      const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
       try {
@@ -586,8 +587,32 @@ function FilesPage() {
         window.toast?.error(t('files.error.delete_failed'))
       }
     },
-    [files, isTrash, refetchFiles, selectedIds, t]
+    [files, isTrash, refetchFiles, t]
   )
+
+  const handleDelete = useCallback(
+    (ids?: Set<string>) => {
+      const targetIds = ids ?? selectedIds
+      const targets = files.filter((file) => targetIds.has(file.id))
+      if (targets.length === 0) return
+
+      if (isTrash) {
+        setPendingPermanentDeleteIds(new Set(targets.map((file) => file.id)))
+        return
+      }
+
+      void performDelete(new Set(targets.map((file) => file.id)))
+    },
+    [files, isTrash, performDelete, selectedIds]
+  )
+
+  const handlePermanentDeleteConfirm = useCallback(() => {
+    const ids = pendingPermanentDeleteIds
+    if (!ids) return
+
+    setPendingPermanentDeleteIds(null)
+    void performDelete(ids)
+  }, [pendingPermanentDeleteIds, performDelete])
 
   const handleRestore = useCallback(
     async (ids: Set<string>) => {
@@ -668,7 +693,7 @@ function FilesPage() {
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
       onRename: startInlineRename,
-      onDelete: (id) => void handleDelete(new Set([id])),
+      onDelete: (id) => handleDelete(new Set([id])),
       onRestore: (id) => void handleRestore(new Set([id])),
       onShowInFolder: handleShowInFolder
     }),
@@ -678,7 +703,7 @@ function FilesPage() {
   const gridMenuActions = useMemo<FileContextMenuActions>(
     () => ({
       onRename: startGridRename,
-      onDelete: (id) => void handleDelete(new Set([id])),
+      onDelete: (id) => handleDelete(new Set([id])),
       onRestore: (id) => void handleRestore(new Set([id])),
       onShowInFolder: handleShowInFolder
     }),
@@ -700,7 +725,8 @@ function FilesPage() {
     const handler = (e: KeyboardEvent) => {
       if (renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
-        void handleDelete()
+        e.preventDefault()
+        handleDelete()
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
@@ -721,6 +747,7 @@ function FilesPage() {
           setSelectedIds(new Set())
           setRenamingId(null)
           setRenameDialogFile(null)
+          setPendingPermanentDeleteIds(null)
         }}
         fileCounts={fileCounts}
         folders={folderList}
@@ -757,6 +784,29 @@ function FilesPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={pendingPermanentDeleteIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPermanentDeleteIds(null)
+        }}>
+        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
+          <DialogHeader>
+            <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            {t('files.permanent_delete_confirm.description', { count: pendingPermanentDeleteIds?.size ?? 0 })}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
+              {t('files.permanent_delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div
         className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
         onDragOver={(e) => {
@@ -776,7 +826,7 @@ function FilesPage() {
           <BatchBar
             selectedLabel={t('files.selected_count', { count: selectedIds.size })}
             deleteLabel={batchDeleteLabel}
-            onDelete={() => void handleDelete()}
+            onDelete={() => handleDelete()}
             onClear={() => setSelectedIds(new Set())}
           />
         )}
@@ -819,7 +869,7 @@ function FilesPage() {
               onSelect={handleSelect}
               onContextMenuOpen={handleContextMenuOpen}
               onOpen={handleOpen}
-              onDelete={(id) => void handleDelete(new Set([id]))}
+              onDelete={(id) => handleDelete(new Set([id]))}
               isTrash={isTrash}
               menuActions={gridMenuActions}
               renamingId={renamingId}
