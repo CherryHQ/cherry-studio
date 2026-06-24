@@ -17,10 +17,11 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
     enableQuickPanel: true,
     enableDragDrop: false
   },
-  // Image-generation prompt bar: no slash/mention quick panel, but drag-drop of
-  // input images stays on for edit-image models.
+  // Image-generation prompt bar: the slash quick panel surfaces only the saved
+  // prompts library (the sole root-panel launcher in this scope), plus drag-drop
+  // of input images for edit-image models.
   painting: {
-    enableQuickPanel: false,
+    enableQuickPanel: true,
     enableDragDrop: true
   }
 }
