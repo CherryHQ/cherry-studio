@@ -8,7 +8,7 @@ const tabs = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 
 async function renderSubWindowAppShell(isMac: boolean) {
   vi.resetModules()
-  vi.doMock('@renderer/config/constant', () => ({ isMac }))
+  vi.doMock('@renderer/config/constant', () => ({ isMac, isWin: false, isLinux: false }))
   vi.doMock('@renderer/databases', () => ({}))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => null
