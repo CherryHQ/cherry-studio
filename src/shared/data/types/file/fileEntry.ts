@@ -177,8 +177,15 @@ export const AbsolutePathSchema = z
  *   `CanonicalExternalPath` at the service boundary is acceptable because
  *   writes on that column already go through the canonicalization path.
  */
-declare const canonicalExternalPathBrand: unique symbol
-export type CanonicalExternalPath = string & { readonly [canonicalExternalPathBrand]: 'CanonicalExternalPath' }
+// String-literal brand rather than a `unique symbol`: a `unique symbol` brand
+// (named or inline) is inaccessible when TS emits a large inferred aggregate
+// type that transitively embeds it (e.g. preload's
+// `export type WindowApiType = typeof api`, via `FileEntry.externalPath`),
+// triggering TS2527/TS4023. A literal-keyed brand is fully nameable across
+// modules, so it dodges that while keeping the nominal identity — a plain
+// `string` still lacks the property, so the value can only be produced by the
+// canonicalization path or an explicit `as` cast, exactly as documented above.
+export type CanonicalExternalPath = string & { readonly __brand: 'CanonicalExternalPath' }
 
 /**
  * Intersection brand carried by the `externalPath` field on the FileEntry
