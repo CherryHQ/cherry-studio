@@ -2381,6 +2381,7 @@
     "footer_count": "{{count}} files",
     "footer_selected_count": "{{count}} selected",
     "image": "Image",
+    "missing": "Missing",
     "modified_at": "Modified At",
     "name": "Name",
     "open": "Open",

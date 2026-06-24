@@ -551,18 +551,25 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('hides files reported as missing', async () => {
+  it('keeps missing external files visible so they can be removed from the library', async () => {
     ipcMocks.request.mockImplementation((route: string) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({ [externalEntry.id]: 'missing' })
+      if (route === 'file.batch_permanent_delete') return Promise.resolve({ succeeded: [externalEntry.id], failed: [] })
       return Promise.resolve({})
     })
 
     renderFilesPage([externalEntry])
 
+    expect(await screen.findByText('external.txt')).toBeInTheDocument()
+    expect(screen.getByText('files.missing')).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByText('external.txt'))
+    fireEvent.click(screen.getByText('files.remove_from_library'))
+
     await waitFor(() => {
-      expect(screen.queryByText('external.txt')).not.toBeInTheDocument()
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
     })
   })
 

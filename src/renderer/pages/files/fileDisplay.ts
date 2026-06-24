@@ -1,4 +1,4 @@
-import type { FileEntryOrigin } from '@shared/data/types/file'
+import type { DanglingState, FileEntryOrigin } from '@shared/data/types/file'
 import type { FileType } from '@shared/types/file'
 import { File, FileCode, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
 import type { FC } from 'react'
@@ -12,6 +12,8 @@ type FileItemCore = {
   createdAt: string
   updatedAt: string
   trashed: boolean
+  danglingState?: DanglingState
+  isMissing?: boolean
 }
 
 type InternalFileItemFields = {
@@ -28,7 +30,7 @@ type FileItemOriginFields = InternalFileItemFields | ExternalFileItemFields
 export type ImageFileItem = FileItemCore &
   FileItemOriginFields & {
     type: Extract<FileType, 'image'>
-    previewUrl: string
+    previewUrl?: string
   }
 
 export type NonImageFileItem = FileItemCore &

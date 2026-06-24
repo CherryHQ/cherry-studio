@@ -2381,6 +2381,7 @@
     "footer_count": "{{count}} 個檔案",
     "footer_selected_count": "{{count}} 個已選",
     "image": "圖片",
+    "missing": "缺失",
     "modified_at": "修改時間",
     "name": "名稱",
     "open": "開啟",

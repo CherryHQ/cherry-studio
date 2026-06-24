@@ -102,7 +102,8 @@ function stripCurrentExtension(name: string, format: string): string {
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
-  physicalPathById: PhysicalPathById
+  physicalPathById: PhysicalPathById,
+  danglingStateById: DanglingStateById
 ): FileItem | null {
   const metadata = metadataById[entry.id]
   const format = entry.ext ?? ''
@@ -111,6 +112,8 @@ function toFileItem(
   const createdAt = metadata?.createdAt ?? entry.createdAt
   const updatedAt = metadata?.modifiedAt ?? entry.updatedAt
   const physicalPath = physicalPathById[entry.id]
+  const danglingState = entry.origin === 'external' ? danglingStateById[entry.id] : undefined
+  const isMissing = danglingState === 'missing'
 
   const base = {
     id: entry.id,
@@ -120,7 +123,9 @@ function toFileItem(
     sizeBytes,
     createdAt: formatDateTime(createdAt),
     updatedAt: formatDateTime(updatedAt),
-    trashed: entry.origin === 'internal' && entry.deletedAt !== undefined
+    trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
+    danglingState,
+    isMissing
   }
   const originFields =
     entry.origin === 'external'
@@ -128,13 +133,13 @@ function toFileItem(
       : { origin: entry.origin }
 
   if (type === 'image') {
-    if (!physicalPath) return null
+    if (!physicalPath && !isMissing) return null
 
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: toSafeFileUrl(physicalPath as FilePath, entry.ext)
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
     }
   }
 
@@ -350,8 +355,7 @@ function FilesPage() {
   const files = useMemo(
     () =>
       displayEntries.flatMap((entry) => {
-        if (entry.origin === 'external' && danglingStateById[entry.id] === 'missing') return []
-        const file = toFileItem(entry, metadataById, physicalPathById)
+        const file = toFileItem(entry, metadataById, physicalPathById, danglingStateById)
         return file ? [file] : []
       }),
     [displayEntries, metadataById, physicalPathById, danglingStateById]

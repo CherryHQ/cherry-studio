@@ -58,7 +58,9 @@ export const FileGrid = memo(function FileGrid({
   const imagePreviewItems = useMemo(
     () =>
       files.flatMap((file) =>
-        file.type === 'image' ? [{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }] : []
+        file.type === 'image' && file.previewUrl
+          ? [{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }]
+          : []
       ),
     [files]
   )
@@ -86,6 +88,7 @@ export const FileGrid = memo(function FileGrid({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const isImage = file.type === 'image'
+        const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
         const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
         const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
@@ -98,11 +101,11 @@ export const FileGrid = memo(function FileGrid({
             <div
               onClick={(e) => {
                 if (isRenaming) return
-                if (isImage) return
+                if (previewUrl) return
                 onSelect(file.id, e.metaKey || e.ctrlKey)
               }}
               onDoubleClick={() => {
-                if (!isRenaming && !isImage) onOpen(file)
+                if (!isRenaming && !previewUrl && !file.isMissing) onOpen(file)
               }}
               className={`group relative cursor-pointer rounded-lg border transition-all ${
                 selected
@@ -112,9 +115,9 @@ export const FileGrid = memo(function FileGrid({
               <div
                 className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}
                 style={isImage ? { backgroundImage: gradientFor(file.name) } : undefined}>
-                {file.type === 'image' ? (
+                {previewUrl ? (
                   <ImagePreviewTrigger
-                    item={{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }}
+                    item={{ id: file.id, src: previewUrl, alt: file.name, title: file.name }}
                     items={imagePreviewItems}
                     alt={file.name}
                     dialogProps={{ labels: previewLabels }}
@@ -128,6 +131,11 @@ export const FileGrid = memo(function FileGrid({
                 {!isImage && (
                   <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">
                     {getFormatLabel(file.format)}
+                  </span>
+                )}
+                {file.isMissing && (
+                  <span className="absolute bottom-1.5 left-1.5 rounded bg-destructive/10 px-1.5 py-[1px] text-[10px] text-destructive/70">
+                    {t('files.missing')}
                   </span>
                 )}
                 <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">

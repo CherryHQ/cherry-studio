@@ -2381,6 +2381,7 @@
     "footer_count": "{{count}} 个文件",
     "footer_selected_count": "{{count}} 个已选",
     "image": "图片",
+    "missing": "缺失",
     "modified_at": "修改时间",
     "name": "文件名",
     "open": "打开",

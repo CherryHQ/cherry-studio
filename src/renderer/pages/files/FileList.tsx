@@ -112,7 +112,7 @@ export const FileList = memo(function FileList({
                 if (!isRenaming) onSelect(file.id, e.metaKey || e.ctrlKey)
               }}
               onDoubleClick={() => {
-                if (!isRenaming) onOpen(file)
+                if (!isRenaming && !file.isMissing) onOpen(file)
               }}
               className={`flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
                 selected ? 'bg-accent/50' : 'hover:bg-accent/50'
@@ -127,7 +127,14 @@ export const FileList = memo(function FileList({
                     className="flex-1 px-2"
                   />
                 ) : (
-                  <span className="truncate text-foreground text-sm">{file.name}</span>
+                  <>
+                    <span className="truncate text-foreground text-sm">{file.name}</span>
+                    {file.isMissing && (
+                      <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive/70">
+                        {t('files.missing')}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
               <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
