@@ -29,7 +29,7 @@ export interface FileContextMenuActions {
  * `onOpen` lets the owner select the right-clicked item when needed; callers can
  * leave existing multi-selection untouched when the item is already selected.
  */
-export function FileItemContextMenu({
+export function FileContextMenu({
   file,
   isTrash,
   onOpen,

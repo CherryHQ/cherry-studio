@@ -3,7 +3,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type FileContextMenuActions, FileItemContextMenu } from './FileContextMenu'
+import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
 import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
@@ -101,12 +101,7 @@ export const FileList = memo(function FileList({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         return (
-          <FileItemContextMenu
-            key={file.id}
-            file={file}
-            isTrash={isTrash}
-            onOpen={onContextMenuOpen}
-            actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} isTrash={isTrash} onOpen={onContextMenuOpen} actions={menuActions}>
             <div
               onClick={(e) => {
                 if (!isRenaming) onSelect(file.id, e.metaKey || e.ctrlKey)
@@ -141,7 +136,7 @@ export const FileList = memo(function FileList({
               <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
               <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
             </div>
-          </FileItemContextMenu>
+          </FileContextMenu>
         )
       })}
     </div>

@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type FileContextMenuActions, FileItemContextMenu } from './FileContextMenu'
+import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
 import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
@@ -92,12 +92,7 @@ export const FileGrid = memo(function FileGrid({
         const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
         const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
-          <FileItemContextMenu
-            key={file.id}
-            file={file}
-            isTrash={isTrash}
-            onOpen={onContextMenuOpen}
-            actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} isTrash={isTrash} onOpen={onContextMenuOpen} actions={menuActions}>
             <div
               onClick={(e) => {
                 if (isRenaming) return
@@ -171,7 +166,7 @@ export const FileGrid = memo(function FileGrid({
                 </div>
               )}
             </div>
-          </FileItemContextMenu>
+          </FileContextMenu>
         )
       })}
     </div>
