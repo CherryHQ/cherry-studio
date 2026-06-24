@@ -97,10 +97,19 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           />
 
           <ChunkingSection
+            chunkStrategy={values.chunkStrategy}
+            chunkSeparator={values.chunkSeparator}
             chunkSize={values.chunkSize}
             chunkOverlap={values.chunkOverlap}
             chunkSizeErrorCode={validationErrorCodes.chunkSize}
             chunkOverlapErrorCode={validationErrorCodes.chunkOverlap}
+            chunkSeparatorErrorCode={validationErrorCodes.chunkSeparator}
+            onChunkStrategyChange={(chunkStrategy) =>
+              setValues((currentValues) => ({ ...currentValues, chunkStrategy }))
+            }
+            onChunkSeparatorChange={(chunkSeparator) =>
+              setValues((currentValues) => ({ ...currentValues, chunkSeparator }))
+            }
             onChunkSizeChange={(chunkSize) =>
               setValues((currentValues) => ({ ...currentValues, chunkSize: chunkSize.replace(/\D/g, '') }))
             }

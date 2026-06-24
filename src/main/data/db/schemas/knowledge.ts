@@ -1,6 +1,7 @@
 import {
   type KnowledgeBaseErrorCode,
   type KnowledgeBaseStatus,
+  type KnowledgeChunkStrategy,
   type KnowledgeItemData,
   type KnowledgeItemStatus,
   type KnowledgeItemType,
@@ -34,6 +35,8 @@ export const knowledgeBaseTable = sqliteTable(
 
     chunkSize: integer().notNull(),
     chunkOverlap: integer().notNull(),
+    chunkStrategy: text().$type<KnowledgeChunkStrategy>().notNull().default('structured'),
+    chunkSeparator: text().notNull().default('\\n\\n'),
     threshold: real(),
     documentCount: integer(),
     searchMode: text().$type<KnowledgeSearchMode>().notNull(),
@@ -43,6 +46,7 @@ export const knowledgeBaseTable = sqliteTable(
   },
   (t) => [
     check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('vector', 'bm25', 'hybrid')`),
+    check('knowledge_base_chunk_strategy_check', sql`${t.chunkStrategy} IN ('structured', 'delimiter')`),
     check('knowledge_base_status_check', sql`${t.status} IN ('completed', 'failed')`),
     check(
       'knowledge_base_status_error_check',
