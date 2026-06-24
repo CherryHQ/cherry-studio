@@ -80,6 +80,28 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
+const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/process')
+
+describe('binary execution env split', () => {
+  // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)
+  // and the OpenClaw gateway — it MUST keep the user's real HOME so they find
+  // their config/creds. HOME/XDG relocation belongs only to the install subprocess.
+  it('getBinaryExecutionEnv does not relocate HOME/XDG', () => {
+    const env = getBinaryExecutionEnv()
+    expect(env['HOME']).toBeUndefined()
+    expect(env['XDG_CONFIG_HOME']).toBeUndefined()
+    expect(env['XDG_CACHE_HOME']).toBeUndefined()
+    expect(env['XDG_STATE_HOME']).toBeUndefined()
+    // Shims still resolve against Cherry's isolated mise data dir.
+    expect(env['MISE_DATA_DIR']).toBe('/mock/feature.binary.data')
+  })
+
+  it('getBinaryIsolatedHomeEnv relocates HOME/XDG into the data dir', () => {
+    const env = getBinaryIsolatedHomeEnv()
+    expect(env['HOME']).toBe('/mock/feature.binary.data/home')
+    expect(env['XDG_CONFIG_HOME']).toBe('/mock/feature.binary.data/xdg/config')
+  })
+})
 
 describe('BinaryManager', () => {
   beforeEach(() => {
@@ -466,6 +488,18 @@ describe('BinaryManager', () => {
       } finally {
         process.env = original
       }
+    })
+
+    it('relocates HOME/XDG into the isolated data dir so mise cannot read user-level config/creds', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      const env = await (service as any).buildIsolatedEnv()
+
+      // Install subprocess MUST be isolated from the user's real home.
+      expect(env['HOME']).toBe('/mock/feature.binary.data/home')
+      expect(env['XDG_CONFIG_HOME']).toBe('/mock/feature.binary.data/xdg/config')
+      expect(env['XDG_CACHE_HOME']).toBe('/mock/feature.binary.data/xdg/cache')
+      expect(env['XDG_STATE_HOME']).toBe('/mock/feature.binary.data/xdg/state')
     })
   })
 

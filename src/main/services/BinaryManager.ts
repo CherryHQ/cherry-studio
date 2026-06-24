@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
+import { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryPath } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import {
   PRESETS_BINARY_TOOLS,
@@ -318,7 +318,9 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    Object.assign(env, getBinaryExecutionEnv())
+    // HOME/XDG relocation is scoped to this install subprocess only — the shared
+    // execution env must keep the user's real HOME (see getBinaryExecutionEnv).
+    Object.assign(env, getBinaryExecutionEnv(), getBinaryIsolatedHomeEnv())
 
     const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
     const pathSegments = [
