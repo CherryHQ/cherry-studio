@@ -95,7 +95,7 @@
 **聚合边界（核心）**：
 - #13 aggregate.root 在 owner，identityKey 是其 PK 或业务 UNIQUE 键（防跨设备同值不同 UUID 撞 UNIQUE）。
 - #14 aggregate.members 派生自 owning include references——junction 表、跨域 ref、及域内指向**其它聚合根**的 owning ref 均不计入（仅指向本 root 的 owning ref 入 members）；optional 自引用不计入；多 owning reference 指向 member/root 须显式 parent 否则拒绝歧义；parent 链有环拒绝。
-- #15 members 中每成员表属于本 contributor、viaColumn 是真实 FK 列指向 root.identityKey、junction 表不计入。
+- #15 members 中每成员表属于本 contributor、viaColumn 是真实 FK 列指向 root.identityKey 或父 member 的 PK（多层 cascade A→B→C，C.viaColumn→B，§4.1 parent 派生）、junction 表不计入。
 - #16 renamable:true 聚合须有 `operations.cloneAggregate`。
 
 **FK 自洽（须 codegen 生成 `DB_FOREIGN_KEYS`）**：

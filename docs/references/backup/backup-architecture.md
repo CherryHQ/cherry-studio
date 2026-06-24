@@ -340,7 +340,7 @@ flowchart TB
 | 12 | 每个已知 JSON soft-ref 字段已分类或排除 | `{ table, column }` |
 | 13 | 每个 aggregate.root 在 owner，identityKey 是其 PK 或业务 UNIQUE 键（§6.2：有 UNIQUE 约束时含 UNIQUE 键） | `{ domain, aggregate }` |
 | 14 | aggregate.members 派生自 owning include references（junction 表、跨域 ref、及域内指向其它聚合根的 owning ref 均不计入——仅指向本 root 的 owning ref 入 members）+ parent 链无环唯一 | `{ domain, aggregate, member }` |
-| 15 | members 中每成员表属于本 contributor；viaColumn 是真实 FK 列指向 root.identityKey | `{ domain, aggregate, member }` |
+| 15 | members 中每成员表属于本 contributor；viaColumn 是真实 FK 列指向 root.identityKey 或父 member 的 PK（多层 cascade A→B→C，C.viaColumn→B，§6.2 parent 派生） | `{ domain, aggregate, member }` |
 | 16 | renamable:true 聚合的 operations.cloneAggregate 存在 | `{ domain, aggregate }` |
 | 17 | schema 深度冻结 | N/A（内部） |
 | 18 | 失败信息含 domain/table/sourceType/owner/违反不变量 | N/A（内部） |
