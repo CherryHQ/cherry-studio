@@ -99,4 +99,21 @@ describe('MigrationWindowManager', () => {
     expect(fakeWindow.close).toHaveBeenCalledTimes(1)
     expect(quitMock).toHaveBeenCalledTimes(1)
   })
+
+  // A confirmed in-flow quit leaves `programmaticClose` set and the stage stale. Recreating
+  // the window must reset both guards, otherwise the in-flow close-confirmation seam would
+  // stay suppressed on the new window.
+  it('resets the close guards when the window is recreated', () => {
+    manager.setStage('migration')
+    manager.confirmQuit()
+    fakeWindow.webContents.send.mockClear()
+
+    manager.create()
+    manager.setStage('migration')
+    const event = { preventDefault: vi.fn() }
+    fakeWindow.emit('close', event)
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    expect(fakeWindow.webContents.send).toHaveBeenCalledWith(MigrationIpcChannels.ConfirmClose)
+  })
 })
