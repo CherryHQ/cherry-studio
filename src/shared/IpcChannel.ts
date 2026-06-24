@@ -436,17 +436,9 @@ export enum IpcChannel {
 
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
   // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
-  SettingsWindow_Open = 'settings-window:open',
+  SettingsWindow_Open = 'settings-window:open'
 
-  // BinaryManager (tool manager)
-  Binary_InstallTool = 'binary:install-tool',
-  Binary_RemoveTool = 'binary:remove-tool',
-  Binary_GetState = 'binary:get-state',
-  Binary_SearchRegistry = 'binary:search-registry',
-  Binary_GetToolDir = 'binary:get-tool-dir',
-  Binary_ProbeBundled = 'binary:probe-bundled',
-  Binary_StateChanged = 'binary:state-changed',
-  Binary_ReconcileFailed = 'binary:reconcile-failed'
+  // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

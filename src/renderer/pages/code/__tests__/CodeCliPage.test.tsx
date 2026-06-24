@@ -103,6 +103,12 @@ vi.mock('@renderer/config/constant', () => ({
   isWin: false
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn().mockResolvedValue({ version: '1.0.0' })
+  }
+}))
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
   usePersistCache: () => [testState.isBunInstalled, vi.fn()]
 }))
@@ -194,16 +200,6 @@ beforeEach(() => {
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
-      binaryManager: {
-        getState: vi
-          .fn()
-          .mockImplementation(() =>
-            Promise.resolve(
-              testState.isBunInstalled ? { tools: { bun: { name: 'bun', version: '1.0.0' } } } : { tools: {} }
-            )
-          ),
-        installTool: vi.fn().mockResolvedValue({ version: '1.0.0' })
-      },
       codeCli: {
         getAvailableTerminals: vi.fn().mockResolvedValue([]),
         run: testState.codeCliRun

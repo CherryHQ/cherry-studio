@@ -12,14 +12,7 @@ import { isWin } from '@main/core/platform'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryPath } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
-import {
-  PRESETS_BINARY_TOOLS,
-  TOOL_KEY_RE,
-  TOOL_NAME_RE,
-  validateManagedBinary
-} from '@shared/data/presets/binaryTools'
-import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow } from 'electron'
+import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -109,7 +102,6 @@ export class BinaryManager extends BaseService {
   private stateLock: Promise<unknown> = Promise.resolve()
 
   protected async onInit() {
-    this.registerIpcHandlers()
     await this.extractBundledBinaries()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
@@ -136,46 +128,26 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Binary_InstallTool, async (_event, tool: ManagedBinary) => {
-      validateManagedBinary(tool)
-      return this.installTool(tool)
-    })
+  /** Current persisted install state. Consumed by the `binary.get_state` route. */
+  public getState(): BinaryState {
+    return this.loadState()
+  }
 
-    this.ipcHandle(IpcChannel.Binary_RemoveTool, async (_event, toolName: string) => {
-      if (!toolName || !TOOL_NAME_RE.test(toolName)) {
-        throw new Error(`Invalid tool name: ${toolName}`)
-      }
-      return this.removeTool(toolName)
-    })
-
-    this.ipcHandle(IpcChannel.Binary_GetState, async () => {
-      return this.loadState()
-    })
-
-    this.ipcHandle(IpcChannel.Binary_SearchRegistry, async (_event, query: string) => {
-      if (typeof query !== 'string') return []
-      return this.searchRegistry(query)
-    })
-
-    this.ipcHandle(IpcChannel.Binary_GetToolDir, async (_event, toolName: string) => {
-      if (!toolName || !TOOL_NAME_RE.test(toolName)) {
-        throw new Error(`Invalid tool name: ${toolName}`)
-      }
-      // getBinaryPath() falls back to returning the bare binary name when the
-      // tool isn't installed anywhere on disk. `path.dirname('claude')` is
-      // `'.'`, which the renderer would then pass to openPath() and end up
-      // opening the main-process CWD (root on packaged macOS, dev cwd in
-      // dev). Resolve to cherry.bin in that case so the user lands on the
-      // managed-binary root instead of somewhere arbitrary.
-      const binPath = await getBinaryPath(toolName)
-      if (!path.isAbsolute(binPath) || !fs.existsSync(binPath)) {
-        return application.getPath('cherry.bin')
-      }
-      return path.dirname(binPath)
-    })
-
-    this.ipcHandle(IpcChannel.Binary_ProbeBundled, async () => this.probeBundled())
+  /**
+   * Directory holding the given tool's binary, for "open in file manager".
+   *
+   * getBinaryPath() falls back to returning the bare binary name when the tool
+   * isn't installed anywhere on disk. `path.dirname('claude')` is `'.'`, which the
+   * renderer would then pass to openPath() and end up opening the main-process CWD
+   * (root on packaged macOS, dev cwd in dev). Resolve to cherry.bin in that case so
+   * the user lands on the managed-binary root instead of somewhere arbitrary.
+   */
+  public async getToolDir(toolName: string): Promise<string> {
+    const binPath = await getBinaryPath(toolName)
+    if (!path.isAbsolute(binPath) || !fs.existsSync(binPath)) {
+      return application.getPath('cherry.bin')
+    }
+    return path.dirname(binPath)
   }
 
   /**
@@ -480,11 +452,7 @@ export class BinaryManager extends BaseService {
   }
 
   private broadcastState(state: BinaryState) {
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed()) {
-        win.webContents.send(IpcChannel.Binary_StateChanged, state)
-      }
-    }
+    application.get('IpcApiService').broadcast('binary.state_changed', state)
   }
 
   async reconcile(tools: ManagedBinary[]): Promise<ReconcileResult> {
@@ -612,11 +580,7 @@ export class BinaryManager extends BaseService {
   private broadcastReconcileFailures(failed: ReconcileResult['failed']) {
     if (failed.length === 0 || (failed.length === 1 && failed[0].name === '*')) return
     const names = failed.map((f) => f.name).join(', ')
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed()) {
-        win.webContents.send(IpcChannel.Binary_ReconcileFailed, names)
-      }
-    }
+    application.get('IpcApiService').broadcast('binary.reconcile_failed', names)
   }
 
   async removeTool(toolName: string): Promise<void> {

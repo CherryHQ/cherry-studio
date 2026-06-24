@@ -7,6 +7,41 @@ import EnvironmentDependencies from '../EnvironmentDependencies'
 const customToolsRef = vi.hoisted(() => ({ value: [] as Array<{ name: string; tool: string; version?: string }> }))
 const setCustomToolsMock = vi.hoisted(() => vi.fn())
 
+const ipcMocks = vi.hoisted(() => ({
+  getState: vi.fn(),
+  probeBundled: vi.fn(),
+  installTool: vi.fn(),
+  removeTool: vi.fn(),
+  getToolDir: vi.fn()
+}))
+
+// Route ipcApi.request by binary.* route to the per-method mocks above.
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input?: unknown) => {
+      switch (route) {
+        case 'binary.get_state':
+          return ipcMocks.getState()
+        case 'binary.probe_bundled':
+          return ipcMocks.probeBundled()
+        case 'binary.install_tool':
+          return ipcMocks.installTool(input)
+        case 'binary.remove_tool':
+          return ipcMocks.removeTool(input)
+        case 'binary.get_tool_dir':
+          return ipcMocks.getToolDir(input)
+        default:
+          throw new Error(`unexpected route: ${route}`)
+      }
+    }
+  }
+}))
+
+// Event subscriptions are inert in these tests — refreshState drives all UI state.
+vi.mock('@renderer/ipc/useIpcOn', () => ({
+  useIpcOn: vi.fn()
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
@@ -49,22 +84,18 @@ describe('EnvironmentDependencies', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     customToolsRef.value = []
-    window.api.binaryManager = {
-      getState: vi.fn().mockResolvedValue({ tools: {} }),
-      probeBundled: vi.fn().mockResolvedValue({}),
-      onStateChanged: vi.fn(() => () => {}),
-      onReconcileFailed: vi.fn(() => () => {}),
-      installTool: vi.fn().mockResolvedValue(undefined),
-      removeTool: vi.fn().mockResolvedValue(undefined),
-      getToolDir: vi.fn().mockResolvedValue('/dir')
-    } as unknown as typeof window.api.binaryManager
+    ipcMocks.getState.mockResolvedValue({ tools: {} })
+    ipcMocks.probeBundled.mockResolvedValue({})
+    ipcMocks.installTool.mockResolvedValue(undefined)
+    ipcMocks.removeTool.mockResolvedValue(undefined)
+    ipcMocks.getToolDir.mockResolvedValue('/dir')
     window.toast = { error: vi.fn(), success: vi.fn() } as unknown as typeof window.toast
   })
 
   it('renders preset tools and the empty custom-tools state', async () => {
     render(<EnvironmentDependencies />)
 
-    await waitFor(() => expect(window.api.binaryManager.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     // Preset displayNames render regardless of install state.
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
@@ -81,10 +112,10 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {
-    window.api.binaryManager.probeBundled = vi.fn().mockResolvedValue({ uv: '1.0.0', bun: '1.0.0' })
+    ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0', bun: '1.0.0' })
     const { container } = render(<EnvironmentDependencies mini />)
 
-    await waitFor(() => expect(window.api.binaryManager.probeBundled).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
   })
 })

@@ -18,8 +18,6 @@ import type {
 } from '@shared/ai/transport'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  BinaryState,
-  ManagedBinary,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
@@ -472,31 +470,7 @@ const api = {
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
-  // BinaryManager tool manager
-  binaryManager: {
-    installTool: (tool: ManagedBinary): Promise<{ version: string }> =>
-      ipcRenderer.invoke(IpcChannel.Binary_InstallTool, tool),
-    removeTool: (toolName: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Binary_RemoveTool, toolName),
-    getState: (): Promise<BinaryState> => ipcRenderer.invoke(IpcChannel.Binary_GetState),
-    searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
-      ipcRenderer.invoke(IpcChannel.Binary_SearchRegistry, query),
-    getToolDir: (toolName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Binary_GetToolDir, toolName),
-    probeBundled: (): Promise<Record<string, string | null>> => ipcRenderer.invoke(IpcChannel.Binary_ProbeBundled),
-    onStateChanged: (callback: (state: BinaryState) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, state: BinaryState) => callback(state)
-      ipcRenderer.on(IpcChannel.Binary_StateChanged, listener)
-      return () => {
-        ipcRenderer.off(IpcChannel.Binary_StateChanged, listener)
-      }
-    },
-    onReconcileFailed: (callback: (failedNames: string) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, names: string) => callback(names)
-      ipcRenderer.on(IpcChannel.Binary_ReconcileFailed, listener)
-      return () => {
-        ipcRenderer.off(IpcChannel.Binary_ReconcileFailed, listener)
-      }
-    }
-  },
+  // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {

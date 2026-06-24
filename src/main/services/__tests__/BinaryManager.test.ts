@@ -421,31 +421,6 @@ describe('BinaryManager', () => {
     })
   })
 
-  describe('IPC input validation', () => {
-    it('registers IPC handlers on init', async () => {
-      const service = new BinaryManager()
-      await (service as any).onInit()
-
-      const channels = (service as any).ipcHandle.mock.calls.map((c: any[]) => c[0])
-      expect(channels).toContain('binary:install-tool')
-      expect(channels).toContain('binary:remove-tool')
-      expect(channels).toContain('binary:get-state')
-      expect(channels).not.toContain('binary:reconcile')
-      expect(channels).toContain('binary:search-registry')
-      expect(channels).toContain('binary:get-tool-dir')
-    })
-
-    it('get-tool-dir handler rejects invalid tool names', async () => {
-      const service = new BinaryManager()
-      await (service as any).onInit()
-
-      const handler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'binary:get-tool-dir')?.[1]
-
-      await expect(handler({}, '../../etc/passwd')).rejects.toThrow('Invalid tool name')
-      await expect(handler({}, '')).rejects.toThrow('Invalid tool name')
-    })
-  })
-
   describe('validateManagedBinary', () => {
     it.each([
       ['../etc', 'fd', undefined],
@@ -626,24 +601,18 @@ describe('BinaryManager', () => {
     })
   })
 
-  describe('IPC handler validateManagedBinary integration', () => {
-    it('install handler rejects invalid tool names before calling installWithMise', async () => {
+  describe('installTool validation', () => {
+    it('rejects invalid tool names before calling installWithMise', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      await (service as any).onInit()
 
-      const installHandler = (service as any).ipcHandle.mock.calls.find(
-        (c: any[]) => c[0] === 'binary:install-tool'
-      )?.[1]
-
-      await expect(installHandler({}, { name: '../etc', tool: 'fd' })).rejects.toThrow('Invalid tool name')
+      await expect(service.installTool({ name: '../etc', tool: 'fd' })).rejects.toThrow('Invalid tool name')
       expect(mockExecFileAsync).not.toHaveBeenCalled()
     })
 
-    it('install handler accepts valid tools and calls installWithMise', async () => {
+    it('accepts valid tools and calls installWithMise', async () => {
       const service = new BinaryManager()
-      await (service as any).onInit()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -657,11 +626,7 @@ describe('BinaryManager', () => {
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
         .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
 
-      const installHandler = (service as any).ipcHandle.mock.calls.find(
-        (c: any[]) => c[0] === 'binary:install-tool'
-      )?.[1]
-
-      const result = await installHandler({}, { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
+      const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
       expect(result.version).toBe('10.0.0')
     })
   })

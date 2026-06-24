@@ -13,6 +13,8 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
@@ -73,8 +75,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const refreshState = useCallback(async () => {
     try {
       const [state, bundledMap] = await Promise.all([
-        window.api.binaryManager.getState(),
-        window.api.binaryManager.probeBundled()
+        ipcApi.request('binary.get_state'),
+        ipcApi.request('binary.probe_bundled')
       ])
       if (!mountedRef.current) return
       setBinaryState(state)
@@ -86,26 +88,23 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   useEffect(() => {
     void refreshState()
-    const unsub1 = window.api.binaryManager.onStateChanged((state) => {
-      setBinaryState(state)
-      // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
-      void window.api.binaryManager.probeBundled().then((b) => {
-        if (mountedRef.current) setBundled(b)
-      })
+  }, [refreshState])
+
+  useIpcOn('binary.state_changed', (state) => {
+    setBinaryState(state)
+    // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
+    void ipcApi.request('binary.probe_bundled').then((b) => {
+      if (mountedRef.current) setBundled(b)
     })
-    const unsub2 = window.api.binaryManager.onReconcileFailed((names) => {
-      window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
-    })
-    return () => {
-      unsub1()
-      unsub2()
-    }
-  }, [refreshState, t])
+  })
+  useIpcOn('binary.reconcile_failed', (names) => {
+    window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
+  })
 
   const installTool = async (tool: ManagedBinary) => {
     setInstallingTools((prev) => new Set(prev).add(tool.name))
     try {
-      await window.api.binaryManager.installTool(tool)
+      await ipcApi.request('binary.install_tool', tool)
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
       window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
@@ -140,7 +139,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const handleRemoveCustomTool = async (toolName: string) => {
     try {
-      await window.api.binaryManager.removeTool(toolName)
+      await ipcApi.request('binary.remove_tool', toolName)
       const updated = customTools.filter((t) => t.name !== toolName)
       await setCustomTools(updated)
       await refreshState()
@@ -152,7 +151,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   const openToolDir = (toolName: string) => {
-    void window.api.binaryManager.getToolDir(toolName).then((dir) => window.api.openPath(dir))
+    void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => window.api.openPath(dir))
   }
 
   const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
@@ -515,7 +514,7 @@ function AddToolDialog({
       setSearching(true)
       setSearchError(false)
       try {
-        const res = await window.api.binaryManager.searchRegistry(query.trim())
+        const res = await ipcApi.request('binary.search_registry', query.trim())
         if (id === searchIdRef.current) setResults(res)
       } catch {
         if (id === searchIdRef.current) {
