@@ -28,6 +28,7 @@
       "!**/.claude/**",
       "!**/.vscode/**",
       "!**/.conductor/**",
+      "!**/.devtools/**",
       "!v2-refactor-temp/**",
       "!resources/**",
       "!**/dist/**"
