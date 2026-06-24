@@ -41,6 +41,8 @@ import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const fileTokenIconClassName = 'size-3 shrink-0 text-current'
 const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
+const FILE_TOKEN_POPOVER_OPEN_DELAY_MS = 120
+const FILE_TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
@@ -324,12 +326,19 @@ function FileTokenPreviewCard({
 export function FileComposerToken(props: FileComposerTokenProps) {
   const { onRemove, removeLabel: removeLabelProp, tooltipActions } = props
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
   const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
   const label = file?.origin_name || file?.name || props.token.label
   const presentation = getFileTokenPresentation(file, label)
   const title = props.token.description ?? props.token.promptText ?? label
   const removeLabel = removeLabelProp ?? 'Remove'
+
+  const clearOpenTimer = useCallback(() => {
+    if (openTimerRef.current === null) return
+    window.clearTimeout(openTimerRef.current)
+    openTimerRef.current = null
+  }, [])
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return
@@ -338,19 +347,37 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   }, [])
 
   const openPopover = useCallback(() => {
+    clearOpenTimer()
     clearCloseTimer()
     setPopoverOpen(true)
-  }, [clearCloseTimer])
+  }, [clearCloseTimer, clearOpenTimer])
+
+  const scheduleOpenPopover = useCallback(() => {
+    clearCloseTimer()
+    if (popoverOpen || openTimerRef.current !== null) return
+
+    openTimerRef.current = window.setTimeout(() => {
+      openTimerRef.current = null
+      setPopoverOpen(true)
+    }, FILE_TOKEN_POPOVER_OPEN_DELAY_MS)
+  }, [clearCloseTimer, popoverOpen])
 
   const scheduleClosePopover = useCallback(() => {
+    clearOpenTimer()
     clearCloseTimer()
     closeTimerRef.current = window.setTimeout(() => {
       setPopoverOpen(false)
       closeTimerRef.current = null
-    }, 120)
-  }, [clearCloseTimer])
+    }, FILE_TOKEN_POPOVER_CLOSE_DELAY_MS)
+  }, [clearCloseTimer, clearOpenTimer])
 
-  useEffect(() => clearCloseTimer, [clearCloseTimer])
+  useEffect(
+    () => () => {
+      clearOpenTimer()
+      clearCloseTimer()
+    },
+    [clearCloseTimer, clearOpenTimer]
+  )
 
   const handleRemove = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -416,8 +443,9 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const tokenElement = (
     <span
       className="inline-flex align-baseline"
-      onMouseEnter={openPopover}
+      onMouseEnter={scheduleOpenPopover}
       onMouseLeave={scheduleClosePopover}
+      onMouseMove={scheduleOpenPopover}
       onFocus={openPopover}
       onBlur={scheduleClosePopover}>
       {chipElement}

@@ -62,7 +62,11 @@ vi.mock('@cherrystudio/ui', async () => {
         </span>
       )
     },
-    Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
+      <span data-open={String(Boolean(open))} data-testid="composer-token-popover">
+        {children}
+      </span>
+    ),
     PopoverContent: ({ children, className }: { children: ReactNode; className?: string }) => (
       <span className={className} data-testid="composer-token-popover-content">
         {children}
@@ -370,6 +374,36 @@ describe('ComposerToken', () => {
 
     fireEvent.click(actionButtons[0])
     expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('delays file token popover hover transitions so adjacent tokens do not steal the preview immediately', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { container } = render(<FileComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+      const trigger = getRenderedFileToken(container).parentElement as HTMLElement
+      const popover = screen.getByTestId('composer-token-popover')
+
+      expect(popover).toHaveAttribute('data-open', 'false')
+
+      fireEvent.mouseEnter(trigger)
+      expect(popover).toHaveAttribute('data-open', 'false')
+
+      act(() => vi.advanceTimersByTime(119))
+      expect(popover).toHaveAttribute('data-open', 'false')
+
+      act(() => vi.advanceTimersByTime(1))
+      expect(popover).toHaveAttribute('data-open', 'true')
+
+      fireEvent.mouseLeave(trigger)
+      act(() => vi.advanceTimersByTime(159))
+      expect(popover).toHaveAttribute('data-open', 'true')
+
+      act(() => vi.advanceTimersByTime(1))
+      expect(popover).toHaveAttribute('data-open', 'false')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps selected file tokens highlighted with primary border and ring', () => {
