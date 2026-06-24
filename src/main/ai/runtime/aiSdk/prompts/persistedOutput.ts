@@ -19,5 +19,7 @@ To inspect the full content, call \`${FS_READ_TOOL_NAME}\` with the absolute pat
 
 Paging is line-based and lines come back in full (never chopped mid-line). The one case it can't subdivide is a single physical line larger than the per-call cap (e.g. heavily minified JSON): line paging can't split one line, so \`${FS_READ_TOOL_NAME}\` reports \`output-too-large\` for it. For that input, reason from the inline head/tail excerpt rather than assuming you can page to the rest.
 
+When you retrieve a persisted output to summarize, analyze, or act on it, read it in sequential pages (advance \`offset\` to the returned \`endLine\` + 1) until you have covered 100% of the content. Before summarizing or drawing conclusions, state what fraction you actually read — and if you did not read all of it (including the single-oversized-line case above), say so explicitly rather than implying full coverage.
+
 The persistence layer applies to non-read tools only (e.g. MCP tools). \`${FS_READ_TOOL_NAME}\` never persists its own output — narrow the read instead.
 </context-persistence>`
