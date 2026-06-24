@@ -32,10 +32,12 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 import { ZodError } from 'zod'
+
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
 const logger = loggerService.withContext('FileEntryService')
 
@@ -312,16 +314,11 @@ function rowToFileEntrySafe(row: FileEntryRow): FileEntry | null {
 
 type ListSortBy = NonNullable<ListCursorQuery['sortBy']>
 type ListSortOrder = NonNullable<ListCursorQuery['sortOrder']>
-type FileEntryCursorPayload = {
-  sortBy: ListSortBy
-  sortOrder: ListSortOrder
-  value: string | number
-  id: FileEntryId
-}
-
 const DEFAULT_LIST_SORT_BY: ListSortBy = 'createdAt'
 const DEFAULT_LIST_SORT_ORDER: ListSortOrder = 'asc'
 const FILE_ENTRY_SIZE_NULL_SORT_VALUE = -1
+// SafeExtSchema rejects whitespace, so this non-empty cursor key is reserved for NULL ext and sorts before real ext values.
+const FILE_ENTRY_EXT_NULL_SORT_VALUE = ' '
 
 function getListSortValue(row: FileEntryRow, sortBy: ListSortBy): string | number {
   switch (sortBy) {
@@ -332,13 +329,13 @@ function getListSortValue(row: FileEntryRow, sortBy: ListSortBy): string | numbe
     case 'size':
       return row.size ?? FILE_ENTRY_SIZE_NULL_SORT_VALUE
     case 'ext':
-      return row.ext ?? ''
+      return row.ext ?? FILE_ENTRY_EXT_NULL_SORT_VALUE
     case 'createdAt':
       return row.createdAt
   }
 }
 
-function getListSortExpression(sortBy: ListSortBy): SQL<string | number> {
+function getListSortExpression(sortBy: ListSortBy): SQLWrapper {
   switch (sortBy) {
     case 'name':
       return sql<string>`${fileEntryTable.name}`
@@ -347,48 +344,14 @@ function getListSortExpression(sortBy: ListSortBy): SQL<string | number> {
     case 'size':
       return sql<number>`coalesce(${fileEntryTable.size}, ${FILE_ENTRY_SIZE_NULL_SORT_VALUE})`
     case 'ext':
-      return sql<string>`coalesce(${fileEntryTable.ext}, '')`
+      return sql<string>`coalesce(${fileEntryTable.ext}, ${FILE_ENTRY_EXT_NULL_SORT_VALUE})`
     case 'createdAt':
       return sql<number>`${fileEntryTable.createdAt}`
   }
 }
 
-function encodeListCursor(row: FileEntryRow, sortBy: ListSortBy, sortOrder: ListSortOrder): string {
-  return Buffer.from(JSON.stringify({ sortBy, sortOrder, value: getListSortValue(row, sortBy), id: row.id })).toString(
-    'base64url'
-  )
-}
-
-function warnAndIgnoreListCursor(raw: string, reason: string): null {
-  logger.warn('listCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
-  return null
-}
-
-function decodeListCursor(
-  raw: string | undefined,
-  sortBy: ListSortBy,
-  sortOrder: ListSortOrder
-): FileEntryCursorPayload | null {
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<FileEntryCursorPayload>
-    if (parsed.sortBy !== sortBy || parsed.sortOrder !== sortOrder) {
-      return warnAndIgnoreListCursor(raw, 'cursor sort does not match current query')
-    }
-    if (!parsed.id || typeof parsed.id !== 'string') {
-      return warnAndIgnoreListCursor(raw, 'missing id')
-    }
-    const value = parsed.value
-    if (sortBy === 'name' || sortBy === 'ext') {
-      if (typeof value !== 'string') return warnAndIgnoreListCursor(raw, 'sort value has wrong type')
-      return { sortBy, sortOrder, value, id: parsed.id }
-    }
-    if (typeof value !== 'number') return warnAndIgnoreListCursor(raw, 'sort value has wrong type')
-    return { sortBy, sortOrder, value, id: parsed.id }
-  } catch (error) {
-    return warnAndIgnoreListCursor(raw, error instanceof Error ? error.message : String(error))
-  }
+function getListCursorParser(sortBy: ListSortBy): (raw: string) => string | number | null {
+  return sortBy === 'name' || sortBy === 'ext' ? asStringKey : asNumericKey
 }
 
 class FileEntryServiceImpl implements FileEntryService {
@@ -495,21 +458,12 @@ class FileEntryServiceImpl implements FileEntryService {
     const sortBy = query.sortBy ?? DEFAULT_LIST_SORT_BY
     const sortOrder = query.sortOrder ?? DEFAULT_LIST_SORT_ORDER
     const sortExpression = getListSortExpression(sortBy)
-    const cursor = decodeListCursor(query.cursor, sortBy, sortOrder)
+    const ordering = keysetOrdering(sortExpression, fileEntryTable.id, { major: sortOrder, tie: sortOrder })
+    const cursor = decodeListCursor(query.cursor, getListCursorParser(sortBy), 'file-entry')
     const conditions = [...filterConditions]
     if (cursor) {
-      conditions.push(
-        sortOrder === 'desc'
-          ? sql`(${sortExpression} < ${cursor.value} OR (${sortExpression} = ${cursor.value} AND ${fileEntryTable.id} < ${cursor.id}))`
-          : sql`(${sortExpression} > ${cursor.value} OR (${sortExpression} = ${cursor.value} AND ${fileEntryTable.id} > ${cursor.id}))`
-      )
+      conditions.push(ordering.where(cursor))
     }
-
-    // Stable ORDER BY: append `id` as a tie-breaker so rows that share the
-    // user-selected sort value (same createdAt, same name, etc.) have a
-    // deterministic relative order across cursor pages.
-    const tieBreaker = sortOrder === 'desc' ? desc(fileEntryTable.id) : asc(fileEntryTable.id)
-    const order = sortOrder === 'desc' ? desc(sortExpression) : asc(sortExpression)
 
     const pageSize = query.limit ?? 50
     const where = and(...conditions)
@@ -520,7 +474,7 @@ class FileEntryServiceImpl implements FileEntryService {
         .select()
         .from(fileEntryTable)
         .where(where)
-        .orderBy(order, tieBreaker)
+        .orderBy(...ordering.orderBy)
         .limit(pageSize + 1),
       this.getDb().select({ value: count() }).from(fileEntryTable).where(filterWhere)
     ])
@@ -531,7 +485,7 @@ class FileEntryServiceImpl implements FileEntryService {
       total: totalRow[0]?.value ?? 0,
       nextCursor:
         rows.length > pageSize && pageRows.length > 0
-          ? encodeListCursor(pageRows[pageRows.length - 1], sortBy, sortOrder)
+          ? encodeCursor(getListSortValue(pageRows[pageRows.length - 1], sortBy), pageRows[pageRows.length - 1].id)
           : undefined
     }
   }

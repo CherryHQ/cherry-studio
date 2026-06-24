@@ -24,7 +24,7 @@
  */
 
 import { loggerService } from '@logger'
-import { and, type AnyColumn, asc, desc, eq, gt, lt, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, lt, or, type SQL, type SQLWrapper } from 'drizzle-orm'
 
 const logger = loggerService.withContext('keysetCursor')
 
@@ -103,14 +103,14 @@ export function decodeListCursor<K extends string | number>(
  * predicate with one direction and the ORDER BY with another.
  */
 export function keysetOrdering(
-  keyCol: AnyColumn,
-  idCol: AnyColumn,
+  keyCol: SQLWrapper,
+  idCol: SQLWrapper,
   dir: { major: 'asc' | 'desc'; tie: 'asc' | 'desc' }
 ): {
   where: (cursor: { key: string | number; id: string }) => SQL
   orderBy: SQL[]
 } {
-  const after = (col: AnyColumn, d: 'asc' | 'desc', value: string | number) =>
+  const after = (col: SQLWrapper, d: 'asc' | 'desc', value: string | number) =>
     d === 'asc' ? gt(col, value) : lt(col, value)
   const direction = (d: 'asc' | 'desc') => (d === 'asc' ? asc : desc)
   return {
