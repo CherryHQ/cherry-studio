@@ -98,7 +98,13 @@ const AuthConfigOAuth = z.object({
   clientId: z.string(),
   refreshToken: z.string().optional(),
   accessToken: z.string().optional(),
-  expiresAt: z.number().optional()
+  expiresAt: z.number().optional(),
+  /**
+   * Provider account identifier extracted from the OAuth access token, when the
+   * provider needs it as a request header (e.g. OpenAI Codex's
+   * `chatgpt-account-id`). Not every OAuth provider populates this.
+   */
+  accountId: z.string().optional()
 })
 
 const AuthConfigIamAws = z.object({
