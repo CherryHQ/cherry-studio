@@ -76,7 +76,7 @@ export const zhCN = {
         skip_strong: '放弃本次自动迁移',
         skip_after: '时继续。'
       },
-      cancel: '返回继续迁移',
+      cancel: '取消',
       confirm: '已知晓风险，跳过并重启',
       confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)'
     },
@@ -216,7 +216,7 @@ export const enUS = {
         skip_strong: 'skip this automatic migration',
         skip_after: '.'
       },
-      cancel: 'Return to migration',
+      cancel: 'Cancel',
       confirm: 'I understand the risk, skip and restart',
       confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)'
     },
