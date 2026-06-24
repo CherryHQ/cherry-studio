@@ -275,11 +275,14 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (
+    // Key the provider (not just the inner) so the composer's `files` state — owned by
+    // the provider — truly resets to [] per painting, instead of leaking the previous
+    // painting's attachments into the new mount.
     <ComposerToolRuntimeProvider
+      key={painting.id}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
-      {/* Remount per painting so the editor text + attachment bridge re-seed cleanly. */}
-      <PaintingComposerInner key={painting.id} {...props} model={model} couldAddImageFile={couldAddImageFile} />
+      <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />
     </ComposerToolRuntimeProvider>
   )
 }
