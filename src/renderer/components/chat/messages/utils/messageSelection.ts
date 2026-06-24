@@ -1,7 +1,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
-import type { ComposerRichClipboardContent } from '@renderer/utils/messageUtils/composerClipboard'
-import { createComposerRichClipboardContentFromPartGroups } from '@renderer/utils/messageUtils/composerClipboard'
-import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
+import type { ComposerRichClipboardContent } from '@renderer/utils/message/composerClipboard'
+import { createComposerRichClipboardContentFromPartGroups } from '@renderer/utils/message/composerClipboard'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../types'

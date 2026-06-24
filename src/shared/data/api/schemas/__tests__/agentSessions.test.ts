@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AGENT_SESSION_DELETE_MAX_IDS,
   AgentSessionMessageEntitySchema,
+  AgentSessionMessagesListQuerySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
   DeleteAgentSessionsQuerySchema,
@@ -47,6 +48,14 @@ describe('AgentSessionMessage schemas', () => {
     })
 
     expect(parsed.runtimeResumeToken).toBeUndefined()
+  })
+
+  it('accepts messageId as a list pagination anchor', () => {
+    expect(AgentSessionMessagesListQuerySchema.parse({ messageId: 'message-1', limit: '25' })).toEqual({
+      messageId: 'message-1',
+      limit: 25
+    })
+    expect(AgentSessionMessagesListQuerySchema.safeParse({ messageId: '' }).success).toBe(false)
   })
 })
 

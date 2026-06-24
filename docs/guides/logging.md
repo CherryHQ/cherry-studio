@@ -83,20 +83,29 @@ Changing the log level:
 Usage in the `renderer` process for _importing_, _setting module information_, and _setting context information_ is **exactly the same** as in the `main` process.
 The following section focuses on the differences.
 
-### `initWindowSource`
+### Window source
 
-In the `renderer` process, there are different `window`s. Before starting to use the `logger`, we must set the `window` information:
+In the `renderer` process there are different `window`s, so each log records which window it came from. Every window declares its source declaratively in its `index.html`:
 
-```typescript
-loggerService.initWindowSource('windowName')
+```html
+<meta name="logger-window-source" content="mainWindow" />
 ```
 
-As a rule, we will set this in the `window`'s `entryPoint.tsx`. This ensures that `windowName` is set before it's used.
+`LoggerService` reads this meta tag when it is constructed. Because the `<meta>` is parsed before any module script runs, the source is available before any import-time log — there are no ordering rules to follow in `entryPoint.tsx`.
 
-- An error will be thrown if `windowName` is not set, and the `logger` will not work.
-- `windowName` can only be set once; subsequent attempts to set it will have no effect.
-- `windowName` will not be printed in the `devTool`'s `console`, but it will be recorded in the `main` process terminal and the file log.
-- `initWindowSource` returns the LoggerService instance, allowing for method chaining.
+- The `content` value is recorded in the `main` process terminal and the file log; it is not printed in the `devTool`'s `console`.
+- If a window has no meta tag (and no explicit override), early logs fall back to `UNKNOWN` and a `console.error` is printed.
+
+#### `initWindowSource` (explicit override)
+
+Documentless contexts such as workers — and any special case — set the source explicitly. An explicit source overrides the meta-derived one:
+
+```typescript
+loggerService.initWindowSource('Worker')
+```
+
+- It can only be set once; subsequent attempts have no effect.
+- It returns the LoggerService instance, allowing for method chaining.
 
 ### Log Levels
 

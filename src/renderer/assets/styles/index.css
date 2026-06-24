@@ -121,57 +121,81 @@ ul {
   word-wrap: break-word;
 }
 
-.bubble:not(.multi-select-mode) .block-wrapper {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .block-wrapper {
   display: flow-root;
 }
 
-.bubble:not(.multi-select-mode) .block-wrapper:last-child > *:last-child {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .block-wrapper:last-child
+  > *:last-child {
   margin-bottom: 0;
 }
 
-.bubble:not(.multi-select-mode) .message-content-container > *:last-child {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .message-content-container
+  > *:last-child {
   margin-bottom: 0;
 }
 
-.bubble:not(.multi-select-mode) .message-thought-container {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .message-thought-container {
   margin-top: 8px;
 }
 
-.bubble:not(.multi-select-mode) .message-user .message-header {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .message-thought-wrapper
+  + .message-thought-wrapper {
+  margin-top: 0.5rem;
+}
+
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .message-thought-wrapper
+  + .message-thought-wrapper
+  .message-thought-container {
+  margin-top: 0;
+}
+
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .message-user .message-header {
   flex-direction: row-reverse;
   text-align: right;
 }
 
-.bubble:not(.multi-select-mode) .message-user .message-header .message-header-info-wrap {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .message-user
+  .message-header
+  .message-header-info-wrap {
   flex-direction: row-reverse;
   text-align: right;
 }
 
-.bubble:not(.multi-select-mode) .message-user .message-content-container {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .message-user
+  .message-content-container {
   border-radius: 10px;
   padding: 10px 16px 10px 16px;
   background-color: var(--chat-background-user);
   align-self: self-end;
 }
 
-.bubble:not(.multi-select-mode) .message-user .MessageFooter {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .message-user .MessageFooter {
   margin-top: 2px;
   align-self: self-end;
 }
 
-.bubble:not(.multi-select-mode) .message-assistant .message-content-container {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode)
+  .message-assistant
+  .message-content-container {
   padding-left: 0;
 }
 
-.bubble:not(.multi-select-mode) .message-assistant .MessageFooter {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .message-assistant .MessageFooter {
   margin-left: 0;
 }
 
-.bubble:not(.multi-select-mode) code {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) code {
   color: var(--color-text);
 }
 
-.bubble:not(.multi-select-mode) .markdown {
+:is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .markdown {
   display: flow-root;
 }
 

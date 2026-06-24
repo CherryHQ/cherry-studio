@@ -15,38 +15,12 @@ import type {
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, lt, or, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TranslateHistoryService')
-
-type TranslateHistoryRow = typeof translateHistoryTable.$inferSelect
-type TranslateHistoryCursor = { createdAt: number; id: string } | null
-
-function decodeCursor(raw: string | undefined): TranslateHistoryCursor {
-  if (!raw) return null
-
-  const separator = raw.indexOf(':')
-  if (separator < 0) return warnAndFallback(raw, 'missing separator')
-
-  const createdAt = Number(raw.slice(0, separator))
-  const id = raw.slice(separator + 1)
-  if (!Number.isFinite(createdAt) || !id) {
-    return warnAndFallback(raw, 'malformed createdAt or id')
-  }
-
-  return { createdAt, id }
-}
-
-function warnAndFallback(raw: string, reason: string): TranslateHistoryCursor {
-  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
-  return null
-}
-
-function encodeCursor(row: TranslateHistoryRow): string {
-  return `${row.createdAt}:${row.id}`
-}
 
 function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): TranslateHistory {
   return {
@@ -84,15 +58,14 @@ export class TranslateHistoryService {
       }
     }
 
+    const ordering = keysetOrdering(translateHistoryTable.createdAt, translateHistoryTable.id, {
+      major: 'desc',
+      tie: 'asc'
+    })
     const conditions = [...filterConditions]
-    const cursor = decodeCursor(query.cursor)
+    const cursor = decodeListCursor(query.cursor, asNumericKey, 'translate-history')
     if (cursor) {
-      conditions.push(
-        or(
-          lt(translateHistoryTable.createdAt, cursor.createdAt),
-          and(eq(translateHistoryTable.createdAt, cursor.createdAt), gt(translateHistoryTable.id, cursor.id))
-        )!
-      )
+      conditions.push(ordering.where(cursor))
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined
@@ -102,7 +75,7 @@ export class TranslateHistoryService {
         .select()
         .from(translateHistoryTable)
         .where(where)
-        .orderBy(desc(translateHistoryTable.createdAt), asc(translateHistoryTable.id))
+        .orderBy(...ordering.orderBy)
         .limit(limit + 1),
       db
         .select({ count: sql<number>`count(*)` })
@@ -114,7 +87,10 @@ export class TranslateHistoryService {
     return {
       items: pageRows.map(rowToTranslateHistory),
       total: count,
-      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
+      nextCursor:
+        rows.length > limit
+          ? encodeCursor(pageRows[pageRows.length - 1].createdAt, pageRows[pageRows.length - 1].id)
+          : undefined
     }
   }
 
