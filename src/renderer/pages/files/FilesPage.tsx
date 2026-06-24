@@ -39,6 +39,9 @@ type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
 
+// Keep this in sync with shared file IPC schema caps. Renderer intentionally
+// avoids importing the schema registry here because schemas are main/preload IPC
+// runtime contracts, not renderer dependencies.
 const FILE_IPC_BATCH_SIZE = 500
 
 async function requestBatchedFileRecords<Route extends FileBatchRoute>(
