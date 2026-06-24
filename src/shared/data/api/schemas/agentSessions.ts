@@ -18,15 +18,19 @@ import { AgentNameAtomSchema } from './agents'
 import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from './agentWorkspaces'
 
 /** Cursor-paginated query for `/agent-sessions/:sessionId/messages`. Walks history
- *  newest-first; an absent `cursor` returns the most recent page, then each
+ *  newest-first; an absent `cursor` returns the most recent page unless
+ *  `messageId` anchors the first page at a known message, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
- *  pages in on demand, so per-page size never has to cover a whole session. */
+ *  pages in on demand, so per-page size never has to cover a whole session.
+ *  If `messageId` cannot be resolved inside the session, the endpoint falls
+ *  back to the newest page. */
 export const AGENT_SESSION_MESSAGES_MAX_LIMIT = 200
 export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
 
 export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
+  messageId: z.string().min(1).optional(),
   limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>

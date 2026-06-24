@@ -2489,6 +2489,7 @@
         "description": "将选中的 {{count}} 个对话移动到目标助手下。",
         "empty": "暂无可移动到的助手",
         "error": "移动对话失败",
+        "partialSuccess": "已移动 {{total}} 个对话中的 {{moved}} 个，{{failed}} 个失败",
         "placeholder": "选择助手",
         "success": "已移动 {{count}} 个对话",
         "target": "目标助手",
