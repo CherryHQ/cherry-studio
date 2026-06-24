@@ -140,13 +140,22 @@ function toFileItem(
   return { ...base, ...originFields, type }
 }
 
+function warnMutationFailures(
+  action: string,
+  result: { failed: Array<{ id: string; error: string }> } | null
+): boolean {
+  if (!result || result.failed.length === 0) return false
+
+  logger.warn(`${action} partially failed`, { failed: result.failed })
+  return true
+}
+
 function reportMutationFailures(
   action: string,
   result: { failed: Array<{ id: string; error: string }> } | null,
   message: string
 ): void {
-  if (result && result.failed.length > 0) {
-    logger.warn(`${action} partially failed`, { failed: result.failed })
+  if (warnMutationFailures(action, result)) {
     window.toast?.error(message)
   }
 }
@@ -510,8 +519,11 @@ function FilesPage() {
               ? ipcApi.request('file.batch_permanent_delete', { ids: removeIds })
               : Promise.resolve(null)
           ])
-          reportMutationFailures('file trash', trashResult, t('files.error.delete_partial_failed'))
-          reportMutationFailures('file remove external entries', removeResult, t('files.error.delete_partial_failed'))
+          const trashFailed = warnMutationFailures('file trash', trashResult)
+          const removeFailed = warnMutationFailures('file remove external entries', removeResult)
+          if (trashFailed || removeFailed) {
+            window.toast?.error(t('files.error.delete_partial_failed'))
+          }
         }
 
         setSelectedIds(new Set())

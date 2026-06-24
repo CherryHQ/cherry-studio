@@ -267,6 +267,31 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('shows one partial-failure toast for mixed-origin delete failures', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        return Promise.resolve({ succeeded: [], failed: [{ id: entry.id, error: 'trash denied' }] })
+      }
+      if (route === 'file.batch_permanent_delete') {
+        return Promise.resolve({ succeeded: [], failed: [{ id: externalEntry.id, error: 'remove denied' }] })
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage([entry, externalEntry])
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.click(screen.getByText('external.txt'), { ctrlKey: true })
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledTimes(1)
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+    })
+  })
+
   it('shows a toast when delete rejects', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
