@@ -455,6 +455,36 @@ describe('main web search API providers', () => {
     expect(url).toBe(`https://s.jinaai.cn/${encodeURIComponent('hello world')}`)
   })
 
+  it('falls back to the global Jina host when region detection rejects', async () => {
+    mocks.isInChina.mockRejectedValue(new Error('region lookup failed'))
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
+    expect(url).toBe('https://r.jina.ai/https://example.com/article')
+    expect(result.results[0]?.content).toBe('Reader Content')
+  })
+
   it('keeps a custom Jina apiHost even when the user is in mainland China', async () => {
     mocks.isInChina.mockResolvedValue(true)
     fetchMock.mockResolvedValue(
