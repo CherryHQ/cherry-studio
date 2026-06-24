@@ -2201,6 +2201,7 @@
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
+    "embedding": "Nhúng",
     "gemini": "Gemini",
     "image-generation": "Tạo ảnh (OpenAI)",
     "jina-rerank": "Jina Rerank",

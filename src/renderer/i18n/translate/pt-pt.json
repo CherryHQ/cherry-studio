@@ -2201,6 +2201,7 @@
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
+    "embedding": "Incorporação",
     "gemini": "Gemini",
     "image-generation": "Geração de Imagens (OpenAI)",
     "jina-rerank": "Jina Reordenar",
