@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   loggerWarn: vi.fn(),
-  isUserInChina: vi.fn()
+  isInChina: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -27,8 +27,8 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  isUserInChina: mocks.isUserInChina
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { isInChina: mocks.isInChina }
 }))
 
 import { ApiKeyRotationState } from '../../utils/provider'
@@ -157,8 +157,8 @@ describe('main web search API providers', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     mocks.loggerWarn.mockReset()
-    mocks.isUserInChina.mockReset()
-    mocks.isUserInChina.mockResolvedValue(false)
+    mocks.isInChina.mockReset()
+    mocks.isInChina.mockResolvedValue(false)
   })
 
   it('matches Exa request and normalized response snapshots from fixtures', async () => {
@@ -412,7 +412,7 @@ describe('main web search API providers', () => {
   })
 
   it('routes Jina fetch URL to the China mirror when the user is in mainland China', async () => {
-    mocks.isUserInChina.mockResolvedValue(true)
+    mocks.isInChina.mockResolvedValue(true)
     fetchMock.mockResolvedValue(
       createJsonResponse({
         code: 200,
@@ -441,7 +441,7 @@ describe('main web search API providers', () => {
   })
 
   it('routes Jina search URL to the China mirror when the user is in mainland China', async () => {
-    mocks.isUserInChina.mockResolvedValue(true)
+    mocks.isInChina.mockResolvedValue(true)
     fetchMock.mockResolvedValue(createJsonResponse({ code: 200, data: [] }))
 
     const provider = createProviderDriver(
@@ -456,7 +456,7 @@ describe('main web search API providers', () => {
   })
 
   it('keeps a custom Jina apiHost even when the user is in mainland China', async () => {
-    mocks.isUserInChina.mockResolvedValue(true)
+    mocks.isInChina.mockResolvedValue(true)
     fetchMock.mockResolvedValue(
       createJsonResponse({
         code: 200,

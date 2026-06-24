@@ -1,5 +1,5 @@
+import { regionService } from '@main/services/RegionService'
 import { defaultAppHeaders } from '@main/utils/http'
-import { isUserInChina } from '@main/utils/ipService'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { withoutTrailingSlash } from '@shared/utils/api'
@@ -96,7 +96,7 @@ export class JinaProvider extends BaseWebSearchProvider {
     const apiHost = resolveProviderApiHost(this.provider, capability)
     const chinaHost = JINA_CHINA_HOST_BY_DEFAULT[apiHost]
 
-    if (chinaHost && (await isUserInChina())) {
+    if (chinaHost && (await regionService.isInChina())) {
       return chinaHost
     }
 
