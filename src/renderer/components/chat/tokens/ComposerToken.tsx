@@ -14,15 +14,12 @@ import {
   Boxes,
   Braces,
   File,
-  FileArchive,
-  FileAudio,
   FileCode2,
   FileImage,
   FileJson,
   FileSpreadsheet,
   FileText,
   FileType2,
-  FileVideo,
   Presentation,
   TextQuote,
   Trash2,
@@ -85,9 +82,6 @@ type FileTokenVariant =
   | 'powerpoint'
   | 'pdf'
   | 'markdown'
-  | 'archive'
-  | 'audio'
-  | 'video'
   | 'json'
   | 'code'
   | 'document'
@@ -117,9 +111,6 @@ const fileExtensionGroups = {
   powerpoint: new Set(['ppt', 'pptx']),
   pdf: new Set(['pdf']),
   markdown: new Set(['markdown', 'md', 'mdx']),
-  archive: new Set(['7z', 'gz', 'rar', 'tar', 'zip']),
-  audio: new Set(['aac', 'flac', 'm4a', 'mp3', 'ogg', 'wav']),
-  video: new Set(['avi', 'm4v', 'mov', 'mp4', 'mpeg', 'webm']),
   json: new Set(['json', 'jsonl']),
   code: new Set(['css', 'go', 'html', 'java', 'js', 'jsx', 'py', 'rs', 'ts', 'tsx', 'xml', 'yaml', 'yml']),
   text: new Set(['log', 'text', 'txt'])
@@ -155,21 +146,6 @@ const fileTokenVisualPresetByVariant: Record<FileTokenVariant, FileTokenVisualPr
     icon: FileText,
     iconClassName: 'bg-[var(--color-gray-100)] text-[var(--color-gray-700)]',
     defaultTypeLabel: 'MD'
-  },
-  archive: {
-    icon: FileArchive,
-    iconClassName: 'bg-[var(--color-amber-100)] text-[var(--color-amber-700)]',
-    defaultTypeLabel: 'ARCHIVE'
-  },
-  audio: {
-    icon: FileAudio,
-    iconClassName: 'bg-[var(--color-purple-100)] text-[var(--color-purple-700)]',
-    defaultTypeLabel: 'AUDIO'
-  },
-  video: {
-    icon: FileVideo,
-    iconClassName: 'bg-[var(--color-pink-100)] text-[var(--color-pink-700)]',
-    defaultTypeLabel: 'VIDEO'
   },
   json: {
     icon: FileJson,
@@ -265,9 +241,6 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
   if (fileExtensionGroups.powerpoint.has(extension)) return 'powerpoint'
   if (fileExtensionGroups.pdf.has(extension)) return 'pdf'
   if (fileExtensionGroups.markdown.has(extension)) return 'markdown'
-  if (fileExtensionGroups.archive.has(extension)) return 'archive'
-  if (fileExtensionGroups.audio.has(extension)) return 'audio'
-  if (fileExtensionGroups.video.has(extension)) return 'video'
   if (fileExtensionGroups.json.has(extension)) return 'json'
   if (fileExtensionGroups.code.has(extension)) return 'code'
   if (fileExtensionGroups.text.has(extension)) return 'text'

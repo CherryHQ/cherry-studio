@@ -289,6 +289,22 @@ describe('ComposerToken', () => {
     }
   })
 
+  it('keeps unsupported archive, audio, and video extensions on fallback styling', () => {
+    const cases = ['archive.zip', 'voice.mp3', 'clip.mp4']
+
+    for (const label of cases) {
+      const { container, unmount } = render(<ComposerToken token={{ id: `file:${label}`, kind: 'file', label }} />)
+
+      const token = container.querySelector('[data-composer-token-kind="file"]')
+      expect(token).toHaveAttribute('data-file-token-variant', 'fallback')
+      expect(token?.querySelector('[data-file-token-icon="fallback"]')).toHaveClass(
+        'bg-accent',
+        'text-muted-foreground'
+      )
+      unmount()
+    }
+  })
+
   it('renders text and code file tokens with code variant metadata', () => {
     const { container } = render(
       <ComposerToken
