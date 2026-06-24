@@ -96,6 +96,7 @@ beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
   mockFiles([entry])
+  window.toast = { error: vi.fn() } as unknown as typeof window.toast
 })
 
 afterEach(() => {
@@ -246,6 +247,44 @@ describe('FilesPage file operations', () => {
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
   })
 
+  it('shows a toast when delete partially fails', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        return Promise.resolve({ succeeded: [], failed: [{ id: entry.id, error: 'denied' }] })
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+    })
+  })
+
+  it('shows a toast when delete rejects', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') return Promise.reject(new Error('delete failed'))
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_failed')
+    })
+  })
+
   it('uses permanent delete in the trash view', () => {
     mockUseInfiniteQuery.mockImplementation((_path, options) => ({
       pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
@@ -343,6 +382,29 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.import_paths', { paths: ['/tmp/import.md'] })
+    })
+  })
+
+  it('shows a toast when import partially fails', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.import_paths') {
+        return Promise.resolve({ succeeded: [], failed: [{ sourceRef: '/tmp/import.md', error: 'denied' }] })
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.drop(screen.getByText('report.md'), {
+      dataTransfer: { files: [new File(['content'], 'import.md', { type: 'text/markdown' })] }
+    })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
     })
   })
 
