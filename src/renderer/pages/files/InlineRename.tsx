@@ -1,4 +1,5 @@
 import { Input } from '@cherrystudio/ui'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useEffect, useRef, useState } from 'react'
 
 export function InlineRename({
@@ -14,13 +15,22 @@ export function InlineRename({
 }) {
   const [text, setText] = useState(value)
   const ref = useRef<HTMLInputElement>(null)
+  const { setTimeoutTimer } = useTimer()
+
   useEffect(() => {
-    if (ref.current) {
-      ref.current.focus()
-      const dotIdx = value.lastIndexOf('.')
-      ref.current.setSelectionRange(0, dotIdx > 0 ? dotIdx : value.length)
-    }
-  }, [value])
+    return setTimeoutTimer(
+      'inlineRenameFocus',
+      () => {
+        const input = ref.current
+        if (!input) return
+
+        input.focus()
+        const dotIdx = value.lastIndexOf('.')
+        input.setSelectionRange(0, dotIdx > 0 ? dotIdx : value.length)
+      },
+      0
+    )
+  }, [setTimeoutTimer, value])
   return (
     <Input
       ref={ref}
