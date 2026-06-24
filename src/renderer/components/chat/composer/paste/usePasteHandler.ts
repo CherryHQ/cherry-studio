@@ -1,5 +1,5 @@
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 

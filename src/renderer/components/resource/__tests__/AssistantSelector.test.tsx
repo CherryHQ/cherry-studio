@@ -68,45 +68,6 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
-// PromptEditorField renders the @cherrystudio/ui markdown composite, which the
-// renderer test resolver can't load on this base; mock it like EditDialogs.test does.
-vi.mock('@renderer/components/PromptEditorField', () => ({
-  default: ({
-    actions,
-    label,
-    labelAddon,
-    value,
-    onChange,
-    placeholder,
-    minHeight,
-    maxHeight
-  }: {
-    actions?: ReactNode
-    label?: ReactNode
-    labelAddon?: ReactNode
-    value: string
-    onChange: (value: string) => void
-    placeholder?: string
-    minHeight?: string
-    maxHeight?: string
-  }) => (
-    <div>
-      <div>
-        {label}
-        {labelAddon}
-        {actions}
-      </div>
-      <textarea
-        aria-label="Prompt editor"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        style={{ minHeight, maxHeight }}
-      />
-    </div>
-  )
-}))
-
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
   return {

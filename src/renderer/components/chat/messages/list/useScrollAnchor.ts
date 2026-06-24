@@ -18,9 +18,9 @@
  * briefly an estimate, which would otherwise leave too little scroll range
  * and strand the message near the bottom). Once the content settles it is
  * tightened to exactly the room needed, so the scrollbar comes to rest at
- * the bottom. It is never shrunk while content is actively growing (a
- * streaming chunk), because changing scrollHeight under the viewport can
- * visibly jitter — it only tightens on a stable measurement pass.
+ * the bottom. After the first post-pin measurement tightens the bootstrap
+ * spacer, it is not shrunk while content is actively growing (a streaming
+ * chunk), because changing scrollHeight under the viewport can visibly jitter.
  *
  * Release triggers:
  *   - User scrolls more than `RELEASE_TOLERANCE_PX` away from the anchor
@@ -42,6 +42,7 @@ const ANCHOR_NEAR_TOP_PX = 24
 
 export interface ScrollAnchorInputs {
   scrollerRef: RefObject<HTMLElement | null>
+  contentRef?: RefObject<HTMLElement | null>
   vlistHandleRef: RefObject<VListHandle | null>
   smoothScroll: SmoothScrollController
   canRelease(): boolean
@@ -72,6 +73,7 @@ export interface ScrollAnchor {
 
 export function useScrollAnchor({
   scrollerRef,
+  contentRef,
   vlistHandleRef,
   smoothScroll,
   canRelease
@@ -84,6 +86,7 @@ export function useScrollAnchor({
   // tell a measurement settle (safe to tighten the spacer) from a streaming
   // chunk (hold it, to avoid jitter).
   const lastPinnedNaturalRef = useRef(0)
+  const shouldTightenInitialSpacerRef = useRef(false)
   const [spacerHeight, setSpacerHeight] = useState(0)
   // The spacer is appended after data items, so wrappedIdx for a data
   // item is identical to its data index. The orchestrator passes us the
@@ -94,10 +97,13 @@ export function useScrollAnchor({
     const handle = vlistHandleRef.current
     if (!el || !handle) return 0
     // `virtua`'s handle.scrollSize only covers its measured item table.
-    // The real scroller also includes CSS padding from the composer inset,
-    // so use DOM scrollHeight when deciding how much spacer is still needed.
-    return Math.max(0, el.scrollHeight - spacerHeight)
-  }, [scrollerRef, spacerHeight, vlistHandleRef])
+    // The content wrapper includes top/bottom padding and the rendered spacer,
+    // without the scroller's `scrollHeight >= clientHeight` floor that makes
+    // tall viewports look like tall content.
+    const contentScrollHeight = contentRef?.current?.scrollHeight ?? 0
+    const scrollHeight = contentScrollHeight > 0 ? contentScrollHeight : el.scrollHeight
+    return Math.max(0, scrollHeight - spacerHeight)
+  }, [contentRef, scrollerRef, spacerHeight, vlistHandleRef])
 
   const computeNeededSpacer = useCallback((): number => {
     const el = scrollerRef.current
@@ -127,6 +133,7 @@ export function useScrollAnchor({
       const needed = computeNeededSpacer()
       setSpacerHeight(Math.max(el.clientHeight, needed))
       lastPinnedNaturalRef.current = getNaturalScrollableSize()
+      shouldTightenInitialSpacerRef.current = true
       // Scroll the message to the top after the spacer-applying render commits.
       // The spacer is appended last, so the message's wrapped index is still
       // `dataIndex`; virtua resolves the real offset once measured and
@@ -145,6 +152,7 @@ export function useScrollAnchor({
 
   const release = useCallback(() => {
     anchorIndexRef.current = null
+    shouldTightenInitialSpacerRef.current = false
     // Don't reset spacerHeight here — content will grow into it (size-change
     // handler decays it). Snapping to 0 would jump scrollTop downward.
   }, [])
@@ -165,6 +173,7 @@ export function useScrollAnchor({
       if (anchorOffsetRef.current <= ANCHOR_NEAR_TOP_PX) {
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
+        shouldTightenInitialSpacerRef.current = false
         return
       }
       const naturalNow = getNaturalScrollableSize()
@@ -174,14 +183,20 @@ export function useScrollAnchor({
       if (needed === 0 && canRelease()) {
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
+        shouldTightenInitialSpacerRef.current = false
       } else if (needed > spacerHeight) {
         setSpacerHeight(needed)
-      } else if (needed < spacerHeight && !contentGrew) {
+        shouldTightenInitialSpacerRef.current = false
+      } else if (needed < spacerHeight && (!contentGrew || shouldTightenInitialSpacerRef.current)) {
         // Content is stable (a measurement settle, not a streaming chunk): the
         // pin's viewport over-allocation can be tightened to exactly the room
-        // needed so the scrollbar rests at the bottom. While content is actively
-        // growing we hold the spacer (monotonic) to avoid jittering scrollHeight.
+        // needed so the scrollbar rests at the bottom. The first observed pass
+        // after pinning may include virtua measurement growth, so tighten that
+        // initial full-viewport bootstrap once even if the natural size grew.
         setSpacerHeight(needed)
+        shouldTightenInitialSpacerRef.current = false
+      } else {
+        shouldTightenInitialSpacerRef.current = false
       }
       return
     }

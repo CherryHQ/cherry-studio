@@ -251,6 +251,8 @@ export type Topic = {
   name: string
   createdAt: string
   updatedAt: string
+  orderKey?: string
+  traceId?: string
   messages: Message[]
   pinned?: boolean
   prompt?: string
@@ -481,6 +483,7 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  homePath: string
   configPath: string
   appDataPath: string
   resourcesPath: string
@@ -526,8 +529,6 @@ export type EditImageParams = {
   mask?: Buffer | Uint8Array | string
   /** 输出图像尺寸 */
   imageSize?: string
-  /** See {@link GenerateImageParams.allowAutoSize}. */
-  allowAutoSize?: boolean
   /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
   quality?: string
   /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
@@ -745,7 +746,7 @@ export interface Citation {
   metadata?: Record<string, any>
 }
 
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+export type MathEngine = 'KaTeX' | 'none'
 
 export type { Message } from './newMessage'
 export * from './tool'

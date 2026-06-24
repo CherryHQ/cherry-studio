@@ -4,7 +4,7 @@ import {
   createComposerClipboardFragment,
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
-} from '@renderer/utils/messageUtils/composerClipboard'
+} from '@renderer/utils/message/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
@@ -84,7 +84,7 @@ vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
   default: ({ children }: { children: ReactNode }) => <div data-testid="narrow-layout">{children}</div>
 }))
 
-vi.mock('@renderer/components/chat/composer/panelEngine', () => ({
+vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelView: () => null,
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
@@ -178,7 +178,7 @@ vi.mock('@tiptap/react', () => ({
   )
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/SendMessageButton', () => ({
+vi.mock('@renderer/components/SendMessageButton', () => ({
   default: () => <button type="button">send</button>
 }))
 
@@ -607,7 +607,7 @@ describe('ComposerSurface', () => {
   })
 
   it('keeps token structure when an external text update matches the current content', async () => {
-    // Reproduces the long-text paste flow: the editor holds a quote token, pasteHandling converts
+    // Reproduces the long-text paste flow: the editor holds a quote token, PasteService converts
     // the pasted text into a file and re-applies the unchanged serialized text. The rebuild only
     // re-tokenizes prompt variables, so it must be skipped or the quote token degrades to text.
     mocks.getJSON.mockReturnValue({

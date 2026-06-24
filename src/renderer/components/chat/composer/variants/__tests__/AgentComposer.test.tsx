@@ -18,11 +18,15 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  toastError: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
   getMetadata: vi.fn(),
+  timeoutCallbacks: new Map<string, () => void>(),
+  setTimeoutTimer: vi.fn(),
+  clearTimeoutTimer: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -310,7 +314,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
     <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}
@@ -369,8 +373,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
-    setTimeoutTimer: vi.fn(),
-    clearTimeoutTimer: vi.fn()
+    setTimeoutTimer: mocks.setTimeoutTimer,
+    clearTimeoutTimer: mocks.clearTimeoutTimer
   })
 }))
 
@@ -411,6 +415,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.toastError.mockReset()
+    window.toast = { ...window.toast, error: mocks.toastError }
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -424,6 +430,16 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.getMetadata.mockReset()
     mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
+    mocks.timeoutCallbacks.clear()
+    mocks.setTimeoutTimer.mockReset()
+    mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
+      mocks.timeoutCallbacks.set(key, callback)
+      return () => mocks.clearTimeoutTimer(key)
+    })
+    mocks.clearTimeoutTimer.mockReset()
+    mocks.clearTimeoutTimer.mockImplementation((key: string) => {
+      mocks.timeoutCallbacks.delete(key)
+    })
     window.api = {
       ...window.api,
       file: {
@@ -482,62 +498,6 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
-  })
-
-  it('restores the draft instead of silently dropping it when a direct send fails', async () => {
-    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    act(() => {
-      mocks.surfaceProps?.onTextChange('draft message')
-    })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft message'))
-
-    await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'draft message', tokens: [] })
-    })
-
-    expect(mocks.sendMessage).toHaveBeenCalled()
-    // Without the restore the optimistic clear would leave this '' — the user's text is kept.
-    expect(mocks.surfaceProps?.text).toBe('draft message')
-  })
-
-  it('re-persists skill draft tokens to the cache when a direct send fails', async () => {
-    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
-    const cachedTokens = [{ ...pdfSkillToken, index: 0, textOffset: 0 }]
-    vi.mocked(cacheService.getCasual).mockReturnValue({ text: 'analyze this. continue', tokens: cachedTokens })
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-    await waitFor(() => expect(mocks.surfaceProps?.draftTokens).toEqual(cachedTokens))
-
-    // Isolate the post-send write from the mount-time cache writes.
-    vi.mocked(cacheService.setCasual).mockClear()
-    await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'analyze this. continue', tokens: cachedTokens })
-    })
-
-    expect(mocks.sendMessage).toHaveBeenCalled()
-    // The optimistic clear wrote tokens: []; the failed-send restore must rewrite the skill
-    // tokens, otherwise a remount would silently drop the restored skill.
-    const lastWrite = vi.mocked(cacheService.setCasual).mock.calls.at(-1)
-    expect(lastWrite?.[1]).toEqual(expect.objectContaining({ text: 'analyze this. continue', tokens: cachedTokens }))
   })
 
   it('passes the chat model shortcut to the model selector', () => {
@@ -1219,15 +1179,84 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
-    const itemId = (mocks.surfaceProps!.queueContent as any).props.items[0].id
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent).toBeTruthy()
+    const itemId = queueContent.props.items[0].id
 
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     await act(async () => {
-      await (mocks.surfaceProps!.queueContent as any).props.onSteer(itemId)
+      await queueContent.props.onSteer(itemId)
     })
 
     // A failed manual steer must not silently drop the queued item.
-    expect((mocks.surfaceProps!.queueContent as any).props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+  })
+
+  it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.draftText = 'draft message'
+    mocks.draftTokens = [
+      {
+        ...pdfSkillToken,
+        index: 0,
+        textOffset: 0
+      }
+    ]
+    mocks.files = [file]
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTokensChange(mocks.draftTokens ?? [])
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.draftTokens).toEqual(mocks.draftTokens)
+    })
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('draft message')
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalled()
+    expect(mocks.setFiles).toHaveBeenCalledWith([])
+    expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
+    expect(mocks.surfaceProps?.text).toBe('draft message')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      {
+        ...pdfSkillToken,
+        index: 0,
+        textOffset: 0
+      }
+    ])
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-session-draft-agent-1',
+      {
+        text: 'draft message',
+        tokens: [
+          {
+            ...pdfSkillToken,
+            index: 0,
+            textOffset: 0
+          }
+        ]
+      },
+      86400000
+    )
+    expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
+    expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
+    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

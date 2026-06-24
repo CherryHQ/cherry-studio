@@ -27,7 +27,6 @@ export type AtBottomInput =
       readonly offset: number
       readonly scrollSize: number
       readonly viewportSize: number
-      readonly prevScrollSize: number
     }
   | { readonly type: 'programmatic-stick' }
   | { readonly type: 'reset' }

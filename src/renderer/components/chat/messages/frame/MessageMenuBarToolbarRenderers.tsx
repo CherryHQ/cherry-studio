@@ -37,7 +37,9 @@ const ConfirmActionButton = ({
   const [open, setOpen] = useState(false)
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (disabled) return
+    // Only block opening when disabled — never block closing, or a disable that
+    // lands while the dialog is open (e.g. streaming starts) would trap it open.
+    if (nextOpen && disabled) return
     setOpen(nextOpen)
     onOpenChange?.(nextOpen)
   }

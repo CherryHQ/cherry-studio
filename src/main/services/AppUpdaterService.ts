@@ -102,7 +102,7 @@ export class AppUpdaterService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
-    application.get('PowerMonitorService').registerShutdownHandler(() => {
+    application.get('PowerService').registerShutdownHandler(() => {
       this.setAutoUpdate(false)
     })
   }

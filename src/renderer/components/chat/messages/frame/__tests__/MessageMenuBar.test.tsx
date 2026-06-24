@@ -34,7 +34,7 @@ vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsDataURL: vi.fn()
 }))
 
-vi.mock('@renderer/utils/messageUtils/partsHelpers', () => ({
+vi.mock('@renderer/utils/message/partsHelpers', () => ({
   getTranslationFromParts: () => undefined,
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
@@ -80,7 +80,7 @@ const assistantMessage = {
   }
 } as MessageListItem
 
-function renderWithProvider(children: ReactNode) {
+function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof defaultMessageRenderConfig> = {}) {
   const value: MessageListProviderValue = {
     state: {
       topic,
@@ -96,7 +96,8 @@ function renderWithProvider(children: ReactNode) {
       loadingResetDelayMs: 0,
       renderConfig: {
         ...defaultMessageRenderConfig,
-        messageStyle: 'bubble'
+        messageStyle: 'bubble',
+        ...renderConfig
       },
       selection: {
         enabled: false,
@@ -125,7 +126,7 @@ function renderWithProvider(children: ReactNode) {
 }
 
 describe('MessageMenuBar', () => {
-  it('shows assistant token usage in the bubble footer toolbar', () => {
+  it('hides token usage when estimated tokens are disabled', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
@@ -135,6 +136,22 @@ describe('MessageMenuBar', () => {
         isProcessing={false}
         messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
       />
+    )
+
+    expect(container.querySelector('.message-tokens')).toBeNull()
+  })
+
+  it('shows assistant token usage in the bubble footer toolbar', () => {
+    const { container } = renderWithProvider(
+      <MessageMenuBar
+        message={assistantMessage}
+        topic={topic}
+        isLastMessage
+        isAssistantMessage
+        isProcessing={false}
+        messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
+      />,
+      { showEstimatedTokens: true }
     )
 
     expect(container.querySelector('.message-tokens')?.textContent).toContain('Tokens:0.0K')

@@ -121,6 +121,17 @@ export function imageInputEntryParams(
     : { source: 'url', url: value as URLString }
 }
 
+/**
+ * Resolve the wire `size`. `'auto'` is the painting UI sentinel for "let the
+ * server pick the size" — like `compact()` drops it from `providerOptions`, it
+ * must never reach the request body as a literal, so it's omitted. An absent
+ * size keeps the legacy client-side `1024x1024` default.
+ */
+function resolveImageRequestSize(size: string | undefined): string | undefined {
+  if (size === 'auto') return undefined
+  return size ?? '1024x1024'
+}
+
 /** Embedding request. */
 export interface AiEmbedRequest extends AiBaseRequest {
   values: string[]
@@ -480,15 +491,13 @@ export class AiService extends BaseService {
     }
 
     const aspectRatio = normalizeAspectRatio(request.aspectRatio)
+    const requestSize = resolveImageRequestSize(request.size)
 
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: request.n ?? 1,
-      // Client-side default: when the caller omits `size`, fall back to 1024x1024
-      // rather than letting the server pick its own default. Dropping this fallback
-      // (to truly let the server choose) is a behavior decision, not done here.
-      size: (request.size ?? '1024x1024') as `${number}x${number}`,
+      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
       ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
       ...(request.seed !== undefined ? { seed: request.seed } : {}),
       ...(request.quality ? { quality: request.quality } : {}),
@@ -582,12 +591,13 @@ export class AiService extends BaseService {
       if (rejected) throw rejected.reason
       const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
+      const requestSize = resolveImageRequestSize(request.size)
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
         prompt: request.prompt,
         n: request.n ?? 1,
-        size: request.size ?? '1024x1024',
+        ...(requestSize !== undefined && { size: requestSize }),
         seed: request.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),

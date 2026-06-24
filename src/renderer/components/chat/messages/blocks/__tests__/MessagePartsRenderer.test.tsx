@@ -283,7 +283,7 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-created-at', '2026-01-01T00:00:00Z')
   })
 
-  it('shows the thinking placeholder while reasoning is the latest activity', () => {
+  it('shows the thinking placeholder below the message while reasoning is the latest activity', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
     const { container } = renderParts([
@@ -295,10 +295,10 @@ describe('MessagePartsRenderer', () => {
       Array.from(
         container.querySelectorAll('[data-testid="mock-placeholder"], [data-testid="mock-thinking-block"]')
       ).map((node) => node.getAttribute('data-testid'))
-    ).toEqual(['mock-placeholder', 'mock-thinking-block'])
+    ).toEqual(['mock-thinking-block', 'mock-placeholder'])
   })
 
-  it('shows the tool placeholder before existing content while a tool call is the latest activity', () => {
+  it('shows the tool placeholder while a tool call is the latest activity', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
     renderParts([
@@ -319,7 +319,7 @@ describe('MessagePartsRenderer', () => {
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
   })
 
-  it('shows the generating placeholder before answer text starts streaming', () => {
+  it('shows the generating placeholder below answer text while streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
     const { container } = renderParts([{ type: 'text', text: 'partial answer' } as unknown as CherryMessagePart])
@@ -329,7 +329,7 @@ describe('MessagePartsRenderer', () => {
       Array.from(container.querySelectorAll('[data-testid="mock-markdown"], [data-testid="mock-placeholder"]')).map(
         (node) => node.getAttribute('data-testid')
       )
-    ).toEqual(['mock-placeholder', 'mock-markdown'])
+    ).toEqual(['mock-markdown', 'mock-placeholder'])
   })
 
   // -- text --
