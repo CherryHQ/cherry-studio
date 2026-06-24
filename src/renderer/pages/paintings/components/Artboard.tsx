@@ -1,11 +1,12 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
+import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import { type FC, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
+import { paintingClasses } from '../paintingPrimitives'
 
 const DEFAULT_IMAGE_SCALE = 1
 const MIN_IMAGE_SCALE = 0.25
@@ -63,7 +64,7 @@ const ArtboardToolButton: FC<{
   onClick: () => void
 }> = ({ children, disabled, label, onClick }) => {
   return (
-    <Tooltip content={label} delay={800}>
+    <Tooltip content={label} placement="right" delay={800}>
       <Button
         type="button"
         variant="ghost"
@@ -194,18 +195,18 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               }}
             />
             <div
-              className="absolute right-2.5 bottom-2.5 z-20 flex items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl"
+              className={`${paintingClasses.toolbarWrap} ${paintingClasses.toolbarRail}`}
               role="toolbar"
               aria-label={t('preview.label')}>
               {painting.files.length > 1 && (
                 <>
                   <ArtboardToolButton label={t('preview.previous')} onClick={onPrevImage}>
-                    <ChevronLeft className="size-4" />
+                    <ImageUp className="size-[18px]" />
                   </ArtboardToolButton>
                   <ArtboardToolButton label={t('preview.next')} onClick={onNextImage}>
-                    <ChevronRight className="size-4" />
+                    <ImageDown className="size-[18px]" />
                   </ArtboardToolButton>
-                  <span className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden />
+                  <span className="my-0.5 h-px w-4 bg-border-subtle" aria-hidden />
                 </>
               )}
               <ArtboardToolButton
