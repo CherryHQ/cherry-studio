@@ -50,6 +50,28 @@ const imageEntry = {
   updatedAt: 1_719_216_000_000
 } as unknown as FileEntry
 
+const externalEntry = {
+  id: 'file-external',
+  origin: 'external',
+  name: 'external',
+  ext: 'txt',
+  size: null,
+  externalPath: '/tmp/external.txt',
+  createdAt: 1_719_216_000_000,
+  updatedAt: 1_719_216_000_000
+} as unknown as FileEntry
+
+const trashedEntry = {
+  id: 'file-trash',
+  origin: 'internal',
+  name: 'trashed',
+  ext: 'txt',
+  size: 256,
+  deletedAt: 1_719_216_000_000,
+  createdAt: 1_719_216_000_000,
+  updatedAt: 1_719_216_000_000
+} as unknown as FileEntry
+
 function mockFiles(entries: FileEntry[]) {
   mockUseInfiniteQuery.mockImplementation((_path, options) => ({
     pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [] : [{ items: entries }],
@@ -197,7 +219,137 @@ describe('FilesPage keyboard rename', () => {
   })
 })
 
-describe('FilesPage image rename dialog', () => {
+describe('FilesPage file operations', () => {
+  beforeEach(() => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') return Promise.resolve({ succeeded: [], failed: [] })
+      if (route === 'file.batch_permanent_delete') return Promise.resolve({ succeeded: [], failed: [] })
+      if (route === 'file.batch_restore') return Promise.resolve({ succeeded: [], failed: [] })
+      if (route === 'file.import_paths') return Promise.resolve({ succeeded: [], failed: [] })
+      if (route === 'file.rename') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+  })
+
+  it('routes mixed active delete to trash internal files and remove external entries', () => {
+    renderFilesPage([entry, externalEntry])
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.click(screen.getByText('external.txt'), { ctrlKey: true })
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
+  })
+
+  it('uses permanent delete in the trash view', () => {
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+    fireEvent.click(screen.getByText('trashed.txt'))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
+  })
+
+  it('restores a trashed file from the context menu', () => {
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+    fireEvent.contextMenu(screen.getByText('trashed.txt'))
+    fireEvent.click(screen.getByText('files.restore'))
+
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [trashedEntry.id] })
+  })
+
+  it('strips the current extension when renaming inline', async () => {
+    renderFilesPage()
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.keyDown(document, { key: 'Enter' })
+    const input = screen.getByDisplayValue('report.md')
+    fireEvent.change(input, { target: { value: 'summary.md' } })
+    fireEvent.blur(input)
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.rename', { id: entry.id, newName: 'summary' })
+    })
+  })
+
+  it('does not rename when stripping the current extension leaves an empty name', () => {
+    renderFilesPage()
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.keyDown(document, { key: 'Enter' })
+    const input = screen.getByDisplayValue('report.md')
+    fireEvent.change(input, { target: { value: '   .md' } })
+    fireEvent.blur(input)
+
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.rename', expect.anything())
+  })
+
+  it('imports dropped files through file.import_paths', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
+    renderFilesPage()
+
+    fireEvent.drop(screen.getByText('report.md'), {
+      dataTransfer: { files: [new File(['content'], 'import.md', { type: 'text/markdown' })] }
+    })
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.import_paths', { paths: ['/tmp/import.md'] })
+    })
+  })
+
+  it('hides files reported as missing', async () => {
+    ipcMocks.request.mockImplementation((route: string) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({ [externalEntry.id]: 'missing' })
+      return Promise.resolve({})
+    })
+
+    renderFilesPage([externalEntry])
+
+    await waitFor(() => {
+      expect(screen.queryByText('external.txt')).not.toBeInTheDocument()
+    })
+  })
+
+  it('requires physical paths before showing image grid previews', () => {
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(screen.queryByAltText('photo.png')).not.toBeInTheDocument()
+  })
+
   it('keeps image rename inline in the file list', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
