@@ -227,6 +227,7 @@ function FilesPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDialogFile, setRenameDialogFile] = useState<FileItem | null>(null)
   const [renameDialogText, setRenameDialogText] = useState('')
+  const contentScrollRef = useRef<HTMLDivElement | null>(null)
   const pendingLoadMoreRef = useRef(false)
 
   // Product copy keeps this as a user-facing "Type" column, but the cell
@@ -352,13 +353,25 @@ function FilesPage() {
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
-  const isLoadingMoreCurrentFiles = isTrash
-    ? isTrashedFilesRefreshing && trashedFilePages.length > 0
-    : isActiveFilesRefreshing && activeFilePages.length > 0
+  const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
+  const isLoadingMoreTrashedFiles = isTrashedFilesRefreshing && trashedFilePages.length > 0
+  const isLoadingMoreCurrentFiles = isTrash ? isLoadingMoreTrashedFiles : isLoadingMoreActiveFiles
 
   useEffect(() => {
     pendingLoadMoreRef.current = false
   }, [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, entries.length])
+
+  const requestLoadMore = useCallback((loadMoreFiles: () => void) => {
+    pendingLoadMoreRef.current = true
+    queueMicrotask(() => {
+      try {
+        loadMoreFiles()
+      } catch (error) {
+        pendingLoadMoreRef.current = false
+        logger.error('Failed to load more files', error as Error)
+      }
+    })
+  }, [])
 
   const handleContentScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
@@ -369,20 +382,44 @@ function FilesPage() {
         !pendingLoadMoreRef.current &&
         el.scrollHeight - el.scrollTop - el.clientHeight < 160
       ) {
-        pendingLoadMoreRef.current = true
         const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
-        queueMicrotask(() => {
-          try {
-            loadMoreFiles()
-          } catch (error) {
-            pendingLoadMoreRef.current = false
-            logger.error('Failed to load more files', error as Error)
-          }
-        })
+        requestLoadMore(loadMoreFiles)
       }
     },
-    [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, isTrash, loadMoreActiveFiles, loadMoreTrashedFiles]
+    [
+      hasMoreCurrentFiles,
+      isLoadingMoreCurrentFiles,
+      isTrash,
+      loadMoreActiveFiles,
+      loadMoreTrashedFiles,
+      requestLoadMore
+    ]
   )
+
+  const maybeFillClientFilteredViewport = useCallback(() => {
+    // Type/folder filters are applied client-side over the loaded active pages.
+    // If the filtered rows do not make the container scrollable, scroll-load
+    // cannot fire, so proactively fetch another active page until scrolling can engage.
+    if (filter.kind === 'library') return
+    const el = contentScrollRef.current
+    if (!el || !hasMoreActiveFiles || isLoadingMoreActiveFiles || pendingLoadMoreRef.current) return
+    if (el.scrollHeight > el.clientHeight) return
+
+    requestLoadMore(loadMoreActiveFiles)
+  }, [filter.kind, hasMoreActiveFiles, isLoadingMoreActiveFiles, loadMoreActiveFiles, requestLoadMore])
+
+  useEffect(() => {
+    if (filter.kind === 'library') return
+    const el = contentScrollRef.current
+    if (!el) return
+
+    maybeFillClientFilteredViewport()
+    if (typeof ResizeObserver === 'undefined') return
+
+    const resizeObserver = new ResizeObserver(() => maybeFillClientFilteredViewport())
+    resizeObserver.observe(el)
+    return () => resizeObserver.disconnect()
+  }, [filter.kind, maybeFillClientFilteredViewport])
 
   const handleOpen = useCallback(
     (file: FileItem) => {
@@ -445,6 +482,10 @@ function FilesPage() {
 
     return result
   }, [files, filter])
+
+  useEffect(() => {
+    maybeFillClientFilteredViewport()
+  }, [maybeFillClientFilteredViewport, filteredFiles.length, files.length])
 
   const fileCounts = useMemo(() => {
     const active = files.filter((f) => !f.trashed)
@@ -738,6 +779,7 @@ function FilesPage() {
         )}
 
         <div
+          ref={contentScrollRef}
           className="relative flex-1 overflow-y-auto"
           onScroll={handleContentScroll}
           onClick={(e) => {
