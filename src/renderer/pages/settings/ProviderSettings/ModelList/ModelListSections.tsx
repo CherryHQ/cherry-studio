@@ -19,6 +19,8 @@ interface ModelListSectionsProps {
   disabled: boolean
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
+  onDeleteModel: (model: Model) => Promise<void>
+  onDeleteModels: (models: Model[]) => Promise<void>
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
   onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
   bulkActionDisabled?: boolean
@@ -38,6 +40,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   disabled,
   pendingModelIds,
   onEditModel,
+  onDeleteModel,
+  onDeleteModels,
   onToggleModel,
   onToggleModels,
   bulkActionDisabled,
@@ -90,6 +94,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   bulkToggleLabel={t('settings.models.group_disable')}
                   pendingModelIds={pendingModelIds}
                   onEditModel={onEditModel}
+                  onDeleteModel={onDeleteModel}
+                  onDeleteModels={onDeleteModels}
                   onToggleModel={onToggleModel}
                   onToggleModels={onToggleModels}
                   expansionCommand={expansionCommand}
@@ -122,6 +128,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   bulkToggleLabel={t('settings.models.group_enable')}
                   pendingModelIds={pendingModelIds}
                   onEditModel={onEditModel}
+                  onDeleteModel={onDeleteModel}
+                  onDeleteModels={onDeleteModels}
                   onToggleModel={onToggleModel}
                   onToggleModels={onToggleModels}
                   expansionCommand={expansionCommand}
