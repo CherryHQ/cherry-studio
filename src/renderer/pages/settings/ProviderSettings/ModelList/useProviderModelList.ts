@@ -52,6 +52,8 @@ export interface ProviderModelListSectionsSurface {
   disabled: boolean
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
+  onDeleteModel: (model: Model) => Promise<void>
+  onDeleteModels: (models: Model[]) => Promise<void>
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
   onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
 }
@@ -105,13 +107,14 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS
     }
   )
-  const { createModel, createModels, updateModel, updateModels } = useModelMutations()
+  const { createModel, createModels, deleteModel, deleteModels, updateModel, updateModels } = useModelMutations()
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
   const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [optimisticEnabledByModelId, setOptimisticEnabledByModelId] = useState<Record<string, boolean>>({})
+  const [optimisticDeletedByModelId, setOptimisticDeletedByModelId] = useState<Record<string, true>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
 
   const setSelectedCapabilityFilter = useCallback((filter: ModelListCapabilityFilter) => {
@@ -130,12 +133,14 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   }, [models, persistedModelById, registryModels])
   const optimisticModels = useMemo(
     () =>
-      displayModels.map((model) =>
-        optimisticEnabledByModelId[model.id] === undefined
-          ? model
-          : { ...model, isEnabled: optimisticEnabledByModelId[model.id] }
-      ),
-    [displayModels, optimisticEnabledByModelId]
+      displayModels
+        .filter((model) => !optimisticDeletedByModelId[model.id])
+        .map((model) =>
+          optimisticEnabledByModelId[model.id] === undefined
+            ? model
+            : { ...model, isEnabled: optimisticEnabledByModelId[model.id] }
+        ),
+    [displayModels, optimisticDeletedByModelId, optimisticEnabledByModelId]
   )
 
   const derivedState = useMemo(
@@ -163,6 +168,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     const validModelIds = new Set(displayModels.map((model) => model.id))
 
     setPendingModelIdMap((current) => withPrunedModelIds(current, validModelIds))
+    setOptimisticDeletedByModelId((current) => withPrunedModelIds(current, validModelIds))
     setOptimisticEnabledByModelId((current) => {
       const pruned = withPrunedModelIds(current, validModelIds)
       let changed = pruned !== current
@@ -215,6 +221,88 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const closeEditModelDrawer = useCallback(() => {
     setEditingModel(null)
   }, [])
+
+  const onDeleteModel = useCallback(
+    async (model: Model) => {
+      const { modelId } = parseUniqueModelId(model.id)
+
+      setOptimisticDeletedByModelId((current) => ({ ...current, [model.id]: true }))
+      setPendingModelIdMap((current) => ({ ...current, [model.id]: true }))
+
+      try {
+        await deleteModel(model.providerId, modelId)
+      } catch (error) {
+        setOptimisticDeletedByModelId((current) => {
+          const next = { ...current }
+          delete next[model.id]
+          return next
+        })
+
+        throw error
+      } finally {
+        setPendingModelIdMap((current) => {
+          const next = { ...current }
+          delete next[model.id]
+          return next
+        })
+      }
+    },
+    [deleteModel]
+  )
+
+  const onDeleteModels = useCallback(
+    async (modelsToDelete: Model[]) => {
+      if (modelsToDelete.length === 0) {
+        return
+      }
+
+      setOptimisticDeletedByModelId((current) => {
+        const next = { ...current }
+
+        for (const model of modelsToDelete) {
+          next[model.id] = true
+        }
+
+        return next
+      })
+      setPendingModelIdMap((current) => {
+        const next = { ...current }
+
+        for (const model of modelsToDelete) {
+          next[model.id] = true
+        }
+
+        return next
+      })
+
+      try {
+        await deleteModels(modelsToDelete.map((model) => model.id))
+      } catch (error) {
+        setOptimisticDeletedByModelId((current) => {
+          const next = { ...current }
+
+          for (const model of modelsToDelete) {
+            delete next[model.id]
+          }
+
+          return next
+        })
+
+        throw error
+      } finally {
+        setPendingModelIdMap((current) => {
+          const next = { ...current }
+
+          for (const model of modelsToDelete) {
+            delete next[model.id]
+          }
+
+          return next
+        })
+      }
+    },
+    [deleteModels]
+  )
 
   const onToggleModel = useCallback(
     async (model: Model, enabled: boolean) => {
@@ -383,6 +471,8 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     disabled,
     pendingModelIds,
     onEditModel: openEditModelDrawer,
+    onDeleteModel,
+    onDeleteModels,
     onToggleModel,
     onToggleModels
   }
