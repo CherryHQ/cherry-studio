@@ -128,7 +128,10 @@ export const MessageReportArtifacts = ({
 }: {
   toolResponses: readonly ReportArtifactsToolResponse[]
 }) => {
-  const viewModel = getReportArtifactsViewModel(toolResponses)
+  // Memoised: `getReportArtifactsViewModel` zod-parses each response, and this
+  // card re-renders on every streaming tick. `toolResponses` is already a stable
+  // memoised ref from `MessagePartsRenderer`, so this skips re-parsing per tick.
+  const viewModel = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
   if (!viewModel) return null
 
   return (

@@ -23,7 +23,7 @@ import {
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
 import { buildSearchSnippet } from '@shared/utils/searchSnippet'
-import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -52,6 +52,12 @@ type SessionMessageContentSearchInput = {
   limit?: number
   createdAtFrom?: string
   sessionId?: string
+}
+
+type ListSessionMessagesOptions = {
+  cursor?: string
+  limit?: number
+  messageId?: string
 }
 
 export class AgentSessionMessageService {
@@ -125,7 +131,7 @@ export class AgentSessionMessageService {
    */
   async listSessionMessages(
     sessionId: string,
-    options: { cursor?: string; limit?: number } = {}
+    options: ListSessionMessagesOptions = {}
   ): Promise<CursorPaginationResponse<AgentSessionMessageEntity>> {
     const database = application.get('DbService').getDb()
 
@@ -142,10 +148,32 @@ export class AgentSessionMessageService {
       tie: 'desc'
     })
     const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
+    const [anchor] =
+      !options.cursor && options.messageId
+        ? await database
+            .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+            .from(sessionMessagesTable)
+            .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
+            .limit(1)
+        : []
+    if (!options.cursor && options.messageId && !anchor) {
+      logger.warn('Session message anchor not found, falling back to newest page', {
+        sessionId,
+        messageId: options.messageId
+      })
+    }
 
     const filters = [eq(sessionMessagesTable.sessionId, sessionId)]
     if (cursor) {
       filters.push(ordering.where(cursor))
+    } else if (anchor) {
+      // Anchor the first page so previews include the matched message and older context.
+      filters.push(
+        or(
+          lt(sessionMessagesTable.createdAt, anchor.createdAt),
+          and(eq(sessionMessagesTable.createdAt, anchor.createdAt), lte(sessionMessagesTable.id, anchor.id))
+        )!
+      )
     }
 
     const rows = await database

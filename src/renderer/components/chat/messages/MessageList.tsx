@@ -6,7 +6,7 @@ import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPo
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
-  captureScrollableAsBlob,
+  captureScrollable,
   captureScrollableAsDataURL,
   classNames,
   removeSpecialCharactersForFileName
@@ -276,11 +276,12 @@ const MessageList = () => {
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
       if (action === 'copy') {
-        await captureScrollableAsBlob(captureRef, async (blob) => {
-          if (blob) {
-            await copyImage?.(blob)
-          }
-        })
+        const canvas = await captureScrollable(captureRef)
+        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        if (!blob) {
+          throw new Error('Failed to capture topic image')
+        }
+        await copyImage?.(blob)
         return
       }
 

@@ -1,7 +1,7 @@
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
-import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
-import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
+import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import type { JSONContent } from '@tiptap/core'
 
 import {

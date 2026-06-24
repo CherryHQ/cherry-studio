@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
+  emitResourceListReveal: vi.fn(),
   showSearchPopup: vi.fn()
 }))
 
@@ -16,6 +17,10 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }
+}))
+
+vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+  emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -231,6 +236,36 @@ describe('AppShellTabBar', () => {
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')
+  })
+
+  it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
+    const setActiveTab = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'files', type: 'route', url: '/app/files', title: 'Files' },
+      { id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' },
+      { id: 'agents', type: 'route', url: '/app/agents?sessionId=session-1', title: 'Agent' }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="files"
+        setActiveTab={setActiveTab}
+        closeTab={vi.fn()}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }))
+
+    expect(setActiveTab).toHaveBeenCalledWith('chat')
+    expect(setActiveTab).toHaveBeenCalledWith('agents')
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'assistants', tabId: 'chat' })
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents' })
   })
 
   it('disables the tab context menu when only a single tab is open', () => {

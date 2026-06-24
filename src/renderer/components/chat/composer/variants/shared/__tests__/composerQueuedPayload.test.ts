@@ -1,4 +1,4 @@
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedDraft } from '../../../tokens'

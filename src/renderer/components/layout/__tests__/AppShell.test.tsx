@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   isMac: false,
-  setRecentItems: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   showSearchPopup: vi.fn()
 }))
@@ -21,10 +20,6 @@ vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: (command: string, handler: () => void) => {
     mocks.commandHandlers.set(command, handler)
   }
-}))
-
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [[], mocks.setRecentItems]
 }))
 
 vi.mock('@renderer/components/Popups/SearchPopup', () => ({
@@ -57,6 +52,11 @@ vi.mock('../../../hooks/useTabs', () => ({
 
 vi.mock('../../app/Sidebar', () => ({
   default: () => <aside data-testid="sidebar" />
+}))
+
+vi.mock('../../GlobalSearch/globalSearchGroups', () => ({
+  createRecentRouteEntryFromTab: () => null,
+  upsertGlobalSearchRecentEntry: (items: unknown[]) => items
 }))
 
 vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
