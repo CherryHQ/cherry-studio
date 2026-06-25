@@ -65,14 +65,3 @@ export { createDirectoryWatcher } from './watcher'
 
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
 export { toFileInfo } from './toFileInfo'
-
-// Orphan-sweep types — surfaced for the cleanup-UI consumer.
-// (`FileManager.runSweep` is the call site for `OrphanReport`; the registry
-// singleton stays inside `@main/services/file/orphanCheckerRegistry`.)
-export type {
-  DbSweepReport,
-  FileSweepReport,
-  OrphanEntryReport,
-  OrphanRefScanResult,
-  OrphanReport
-} from './internal/orphanSweep'

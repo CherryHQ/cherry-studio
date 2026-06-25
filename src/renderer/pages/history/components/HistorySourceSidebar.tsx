@@ -1,6 +1,6 @@
 import { Input } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Circle, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'

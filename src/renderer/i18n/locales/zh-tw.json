@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "audio": "音訊",
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
     "count": "個檔案",
@@ -2358,22 +2359,52 @@
       },
       "title": "刪除檔案"
     },
+    "delete_or_remove": "刪除/移除",
     "document": "文件",
+    "drag_upload": "拖曳檔案到此處上傳",
     "edit": "編輯",
+    "empty": {
+      "no_match_description": "目前篩選條件下沒有檔案",
+      "no_match_title": "找不到符合的檔案"
+    },
     "error": {
-      "open_path": "無法開啟路徑：{{path}}"
+      "delete_failed": "刪除檔案失敗",
+      "delete_partial_failed": "部分檔案刪除失敗",
+      "import_failed": "匯入檔案失敗",
+      "import_partial_failed": "部分檔案匯入失敗",
+      "open_path": "無法開啟路徑：{{path}}",
+      "rename_failed": "重新命名檔案失敗",
+      "restore_failed": "還原檔案失敗",
+      "restore_partial_failed": "部分檔案還原失敗"
     },
     "file": "檔案",
+    "footer_count": "{{count}} 個檔案",
+    "footer_selected_count": "{{count}} 個已選",
     "image": "圖片",
+    "missing": "缺失",
+    "modified_at": "修改時間",
     "name": "名稱",
     "open": "開啟",
+    "other": "其他",
+    "permanent_delete": "永久刪除",
+    "permanent_delete_confirm": {
+      "description": "將永久刪除 {{count}} 個檔案，此操作無法復原。",
+      "title": "永久刪除檔案？"
+    },
     "preview": {
       "error": "開啟檔案失敗"
     },
+    "remove_from_library": "從庫中移除",
+    "rename": "重新命名",
+    "restore": "還原",
+    "selected_count": "已選取 {{count}} 個檔案",
+    "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
-    "type": "類型"
+    "trash": "回收站",
+    "type": "類型",
+    "video": "影片"
   },
   "globalSearch": {
     "clear": "清除搜尋",
@@ -6469,8 +6500,6 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
-        "paste_long_text_as_file": "將長文字貼上為檔案",
-        "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"

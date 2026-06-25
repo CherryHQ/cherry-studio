@@ -67,8 +67,15 @@ vi.mock('@cherrystudio/ui', () => {
   const childrenOnly = ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children)
   return {
     Badge: passthrough('span'),
-    Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) =>
-      React.createElement('button', { onClick }, children),
+    Button: ({
+      children,
+      onClick,
+      'aria-label': ariaLabel
+    }: {
+      children?: React.ReactNode
+      onClick?: () => void
+      'aria-label'?: string
+    }) => React.createElement('button', { onClick, 'aria-label': ariaLabel }, children),
     ConfirmDialog: childrenOnly,
     Dialog: childrenOnly,
     DialogContent: passthrough('div'),
@@ -109,6 +116,24 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
     expect(screen.queryByText('settings.plugins.customToolsEmpty')).not.toBeInTheDocument()
+  })
+
+  it('shows an uninstall action for a mise-managed preset tool', async () => {
+    // uv is mise-managed (source 'managed') → preset card exposes the uninstall button.
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getAllByLabelText('settings.plugins.remove').length).toBeGreaterThan(0))
+  })
+
+  it('hides the uninstall action for a bundled-only preset tool', async () => {
+    // uv present only as bundled (source 'bundled') → not uninstallable, no remove button.
+    ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    expect(screen.queryByLabelText('settings.plugins.remove')).not.toBeInTheDocument()
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {

@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useRef } from 'react'
 

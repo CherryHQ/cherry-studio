@@ -1,4 +1,5 @@
-import type { BaseTool, McpTool, McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
