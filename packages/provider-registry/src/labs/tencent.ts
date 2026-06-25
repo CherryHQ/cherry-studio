@@ -72,8 +72,7 @@ export default defineLab({
               negativePrompt: { type: 'text', multiline: true },
               addWatermark: { type: 'switch' },
               seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/api/image/submit' }
+            }
           }
         }
       }
@@ -96,8 +95,7 @@ export default defineLab({
               },
               addWatermark: { type: 'switch' },
               seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/api/image/lite' }
+            }
           }
         }
       }

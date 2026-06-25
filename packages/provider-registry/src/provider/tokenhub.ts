@@ -32,6 +32,51 @@ export default defineProvider({
     { modelId: 'hy-mt2-pro', apiModelId: 'hy-mt2-pro' },
     { modelId: 'hy-mt2-plus', apiModelId: 'hy-mt2-plus' },
     { modelId: 'hy-mt2-lite', apiModelId: 'hy-mt2-lite' },
+    // Tencent-own image (混元生图; doc 1823/130080). The endpoint selects the model: lite is sync
+    // text→image, v3.0 is async submit/query. Param enums approximate the image sub-API.
+    {
+      modelId: 'hy-image-v3-0',
+      apiModelId: 'hy-image-v3.0',
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              aspectRatio: {
+                type: 'enum',
+                options: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+                default: '1:1',
+                render: 'chips'
+              },
+              negativePrompt: { type: 'text', multiline: true },
+              addWatermark: { type: 'switch' },
+              seed: { type: 'text' }
+            },
+            vendorTransport: { endpoint: '/v1/api/image/submit' }
+          }
+        }
+      }
+    },
+    {
+      modelId: 'hy-image-lite',
+      apiModelId: 'hy-image-lite',
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              aspectRatio: {
+                type: 'enum',
+                options: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+                default: '1:1',
+                render: 'chips'
+              },
+              addWatermark: { type: 'switch' },
+              seed: { type: 'text' }
+            },
+            vendorTransport: { endpoint: '/v1/api/image/lite', isSync: true }
+          }
+        }
+      }
+    },
     // re-hosted third-party
     { modelId: 'deepseek-v4-flash', apiModelId: 'deepseek-v4-flash' },
     { modelId: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash 原厂直供', apiModelId: 'deepseek-v4-flash-202605' },

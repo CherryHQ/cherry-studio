@@ -81,7 +81,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Mistral (incl. voxtral, devstral, mixtral, magistral)
   [/mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i, 'mistral'],
   // Cohere (incl. embed-*, rerank-*)
-  [/command-r|command-a|c4ai-|cohere|embed-|rerank-/i, 'cohere'],
+  [/command-r|command-a|c4ai-|cohere|embed-|rerank-|north-/i, 'cohere'],
   // Nvidia
   [/nemotron|nvidia/i, 'nvidia'],
   // Microsoft / Phi

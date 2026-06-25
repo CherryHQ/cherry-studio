@@ -1375,6 +1375,9 @@ importers:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.7)
     devDependencies:
+      '@ai-sdk/provider-utils':
+        specifier: 4.0.23
+        version: 4.0.23(zod@4.3.6)
       '@types/json-schema':
         specifier: ^7.0.15
         version: 7.0.15
@@ -15378,6 +15381,13 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.8
       zod: 4.3.4
+
+  '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.8
+      zod: 4.3.6
 
   '@ai-sdk/provider-utils@4.0.23(zod@4.4.3)':
     dependencies:

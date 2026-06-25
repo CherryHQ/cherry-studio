@@ -9,6 +9,47 @@ export default defineLab({
   families: ['glm'],
   idPrefixes: ['glm', 'cogview', 'cogvideo', 'codegeex', 'chatglm'],
   models: [
+    { id: 'glm-4', name: 'GLM-4', capabilities: ['function-call'], contextWindow: 131072 },
+    { id: 'glm-4-plus', name: 'GLM-4-Plus', capabilities: ['function-call'], contextWindow: 131072 },
+    { id: 'glm-4-air', name: 'GLM-4-Air', capabilities: ['function-call'], contextWindow: 131072 },
+    { id: 'glm-4-airx', name: 'GLM-4-AirX', capabilities: ['function-call'], contextWindow: 8192 },
+    { id: 'glm-4-flash', name: 'GLM-4-Flash', capabilities: ['function-call'], contextWindow: 131072 },
+    { id: 'glm-4-flashx', name: 'GLM-4-FlashX', capabilities: ['function-call'], contextWindow: 131072 },
+    { id: 'glm-4-long', name: 'GLM-4-Long', capabilities: ['function-call'], contextWindow: 1024000 },
+    { id: 'glm-3-turbo', name: 'GLM-3-Turbo', capabilities: ['function-call'], contextWindow: 131072 },
+    {
+      id: 'glm-4v',
+      name: 'GLM-4V',
+      capabilities: ['image-recognition'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 8192
+    },
+    {
+      id: 'glm-4v-plus',
+      name: 'GLM-4V-Plus',
+      capabilities: ['image-recognition'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 8192
+    },
+    {
+      id: 'glm-4v-flash',
+      name: 'GLM-4V-Flash',
+      capabilities: ['image-recognition'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 8192
+    },
+    {
+      id: 'glm-4-1v',
+      name: 'GLM-4.1V-Thinking',
+      capabilities: ['reasoning', 'image-recognition'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 65536
+    },
+    { id: 'glm-z1', name: 'GLM-Z1', capabilities: ['reasoning'], contextWindow: 131072 },
+    { id: 'glm-z1-air', name: 'GLM-Z1-Air', capabilities: ['reasoning'], contextWindow: 131072 },
+    { id: 'glm-z1-airx', name: 'GLM-Z1-AirX', capabilities: ['reasoning'], contextWindow: 131072 },
+    { id: 'glm-z1-flash', name: 'GLM-Z1-Flash', capabilities: ['reasoning'], contextWindow: 131072 },
+    { id: 'embedding-3', name: 'Embedding-3', outputModalities: ['vector'], contextWindow: 8192 },
     {
       id: 'cogview-4',
       name: 'cogview-4',
@@ -70,9 +111,6 @@ export default defineLab({
                 render: 'chips',
                 type: 'enum'
               }
-            },
-            vendorTransport: {
-              endpoint: '/v3/async/glm-image'
             }
           }
         }

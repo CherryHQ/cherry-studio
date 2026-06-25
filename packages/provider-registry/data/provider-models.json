@@ -905,7 +905,6 @@
     {
       "apiModelId": "grok-4.1",
       "modelId": "grok-4-1",
-      "name": "grok-4.1",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -998,7 +997,6 @@
     {
       "apiModelId": "grok-4-fast-reasoning",
       "modelId": "grok-4-fast",
-      "name": "grok-4-fast-reasoning",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -1298,6 +1296,365 @@
         }
       },
       "providerId": "302ai"
+    },
+    {
+      "apiModelId": "doubao-seedream-4-0",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "sequentialImageGeneration": {
+                "type": "switch"
+              },
+              "size": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/doubao/doubao-seedream-4-0/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "doubao-seedream-4-0",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "doubao-seedream-4-5",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "sequentialImageGeneration": {
+                "type": "switch"
+              },
+              "size": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/doubao/doubao-seedream-4-5/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "doubao-seedream-4-5",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "ernie-irag-edit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/qianfan/ernie-irag-edit/predictions"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "ernie-irag-edit",
+      "name": "ERNIE iRAG Edit",
+      "outputModalities": ["image"],
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "flux-2-flex",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "16:9",
+                "options": ["16:9", "1:1", "4:3"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "safetyTolerance": {
+                "default": 2,
+                "max": 5,
+                "min": 0,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/bfl/flux-2-flex/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "flux-2-flex",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "flux-2-pro",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "16:9",
+                "options": ["16:9", "1:1", "4:3"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "safetyTolerance": {
+                "default": 2,
+                "max": 5,
+                "min": 0,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/bfl/flux-2-pro/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "flux-2-pro",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "ideogram/V3",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "3:2", "2:3", "4:3", "3:4"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "renderingSpeed": {
+                "default": "DEFAULT",
+                "options": ["DEFAULT", "TURBO", "QUALITY"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/ideogram/V3/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "ideogram-v3",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "imagen-3.0-generate-002",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/google/imagen-3.0-generate-002/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "imagen-3-0-generate-002",
+      "name": "Imagen 3.0",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "imagen-4.0-fast-generate-001",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/google/imagen-4.0-fast-generate-001/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "imagen-4-0-fast-generate-001",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "imagen-4.0-generate-001",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/google/imagen-4.0-generate-001/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "imagen-4-0-generate-001",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "imagen-4.0-ultra-generate-001",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/google/imagen-4.0-ultra-generate-001/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "imagen-4-0-ultra-generate-001",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "irag-1.0",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/qianfan/irag-1.0/predictions"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "irag-1-0",
+      "name": "Baidu iRAG 1.0",
+      "outputModalities": ["image"],
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "qwen-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "768x1024", "1024x768", "512x1024", "1024x576", "576x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/qianfan/qwen-image/predictions"
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image",
+      "providerId": "aihubmix"
+    },
+    {
+      "apiModelId": "qwen-image-edit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "768x1024", "1024x768", "512x1024", "1024x576", "576x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/models/qianfan/qwen-image-edit/predictions"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-edit",
+      "providerId": "aihubmix"
     },
     {
       "apiModelId": "global.anthropic.claude-fable-5",
@@ -3605,6 +3962,63 @@
       "providerId": "dmxapi"
     },
     {
+      "apiModelId": "gemini-2.5-flash-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1x1",
+                "options": ["1x1"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1x1",
+                "options": ["1x1"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "merge": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1x1",
+                "options": ["1x1"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "modelId": "gemini-2-5-flash-image",
+      "providerId": "dmxapi"
+    },
+    {
       "apiModelId": "gemini-3.1-flash-image-preview",
       "imageGeneration": {
         "modes": {
@@ -3672,6 +4086,138 @@
         }
       },
       "modelId": "gpt-image-1-5",
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "musesteamer-air-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "1152x864", "864x1152", "1664x928", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "musesteamer-air-image",
+      "name": "MuseSteamer Air Image",
+      "outputModalities": ["image"],
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "nano-banana",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "1x1"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "1x1"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          },
+          "merge": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "1x1"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "nano-banana",
+      "name": "Nano Banana",
+      "outputModalities": ["image"],
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "nano-banana-2",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          },
+          "merge": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "nano-banana-2",
+      "name": "Nano Banana 2",
+      "outputModalities": ["image"],
       "providerId": "dmxapi"
     },
     {
@@ -7644,7 +8190,6 @@
     {
       "apiModelId": "cohere/cohere-command-r",
       "modelId": "command-r",
-      "name": "Cohere Command R",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -7675,7 +8220,6 @@
     {
       "apiModelId": "cohere/cohere-command-r-plus",
       "modelId": "command-r-plus",
-      "name": "Cohere Command R+",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -7811,7 +8355,6 @@
     {
       "apiModelId": "xai/grok-3",
       "modelId": "grok-3",
-      "name": "Grok 3",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -7827,7 +8370,6 @@
     {
       "apiModelId": "xai/grok-3-mini",
       "modelId": "grok-3-mini",
-      "name": "Grok 3 Mini",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -14528,7 +15070,6 @@
     {
       "apiModelId": "cohere/north-mini-code:free",
       "modelId": "north-mini-code",
-      "name": "North Mini Code (free)",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -16371,7 +16912,125 @@
       "providerId": "ppio"
     },
     {
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "size": {
+                "default": "1280x1280",
+                "options": ["1280x1280", "1568x1056", "1056x1568", "1472x1088", "1088x1472", "1728x960", "960x1728"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/glm-image"
+            }
+          }
+        }
+      },
       "modelId": "glm-image",
+      "providerId": "ppio"
+    },
+    {
+      "apiModelId": "hunyuan-image-3",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "options": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/hunyuan-image-3"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "hunyuan-image-3",
+      "name": "Hunyuan Image 3",
+      "outputModalities": ["image"],
+      "providerId": "ppio"
+    },
+    {
+      "apiModelId": "jimeng-txt2img-v3.0",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "promptEnhancement": {
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1328x1328", "1472x1104", "1584x1056", "1664x936", "2016x864", "2048x2048"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/jimeng-txt2img-v3.0"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "jimeng-txt2img-v3-0",
+      "name": "Jimeng Text-to-Image v3.0",
+      "outputModalities": ["image"],
+      "providerId": "ppio"
+    },
+    {
+      "apiModelId": "jimeng-txt2img-v3.1",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "promptEnhancement": {
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1328x1328", "1472x1104", "1584x1056", "1664x936", "2016x864", "2048x2048"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/jimeng-txt2img-v3.1"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "jimeng-txt2img-v3-1",
+      "name": "Jimeng Text-to-Image v3.1",
+      "outputModalities": ["image"],
       "providerId": "ppio"
     },
     {
@@ -16532,6 +17191,30 @@
           "perMillionTokens": 12
         }
       },
+      "providerId": "ppio"
+    },
+    {
+      "apiModelId": "qwen-image-txt2img",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "size": {
+                "options": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/qwen-image-txt2img"
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image",
       "providerId": "ppio"
     },
     {
@@ -17040,6 +17723,60 @@
         }
       },
       "modelId": "seedream-5-0-lite",
+      "providerId": "ppio"
+    },
+    {
+      "apiModelId": "z-image-turbo",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "options": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/z-image-turbo"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "providerId": "ppio"
+    },
+    {
+      "apiModelId": "z-image-turbo-lora",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "options": ["1024x1024", "1024x1536", "1536x1024", "1536x1536", "768x1024", "1024x768"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v3/async/z-image-turbo-lora"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-image-turbo-lora",
+      "name": "Z-Image Turbo LoRA",
+      "outputModalities": ["image"],
       "providerId": "ppio"
     },
     {
@@ -18192,6 +18929,67 @@
     {
       "apiModelId": "hunyuan-2.0-instruct-20251111",
       "modelId": "hunyuan-2-0-instruct",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hy-image-lite",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/api/image/lite",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "hy-image-lite",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hy-image-v3.0",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/api/image/submit"
+            }
+          }
+        }
+      },
+      "modelId": "hy-image-v3-0",
       "providerId": "tokenhub"
     },
     {

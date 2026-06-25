@@ -96,9 +96,6 @@
               "seed": {
                 "type": "text"
               }
-            },
-            "vendorTransport": {
-              "endpoint": "/v3/async/qwen-image-edit"
             }
           }
         }
@@ -286,8 +283,6 @@
         "function-call",
         "reasoning",
         "image-recognition",
-        "file-input",
-        "web-search",
         "audio-recognition",
         "audio-generation",
         "video-recognition"
@@ -3006,9 +3001,6 @@
           "currency": "USD",
           "perMillionTokens": 1.25
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3805,6 +3797,148 @@
       "ownedBy": "baai"
     },
     {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
+      "id": "ernie-5-0",
+      "metadata": {},
+      "name": "ERNIE 5.0",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 32768,
+      "id": "ernie-x1-turbo",
+      "metadata": {},
+      "name": "ERNIE X1 Turbo",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 32768,
+      "id": "ernie-x1-1-preview",
+      "metadata": {},
+      "name": "ERNIE X1.1 Preview",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 123904,
+      "id": "ernie-4-5",
+      "metadata": {},
+      "name": "ERNIE 4.5",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "ernie-4-5-turbo",
+      "metadata": {},
+      "name": "ERNIE 4.5 Turbo",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 32768,
+      "id": "ernie-4-5-turbo-vl",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "ERNIE 4.5 Turbo VL",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition"],
+      "contextWindow": 32768,
+      "id": "ernie-4-5-vl-a3b",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "ERNIE 4.5 VL A3B",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "ernie-4-5-a3b",
+      "metadata": {},
+      "name": "ERNIE 4.5 A3B",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "ernie-4-5-a47b",
+      "metadata": {},
+      "name": "ERNIE 4.5 A47B",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "ernie-4-0-8k",
+      "metadata": {},
+      "name": "ERNIE 4.0 8K",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "ernie-4-0-turbo-8k",
+      "metadata": {},
+      "name": "ERNIE 4.0 Turbo 8K",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "ernie-4-0-turbo-128k",
+      "metadata": {},
+      "name": "ERNIE 4.0 Turbo 128K",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "ernie-3-5-8k",
+      "metadata": {},
+      "name": "ERNIE 3.5 8K",
+      "ownedBy": "baidu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "ernie-3-5-128k",
+      "metadata": {},
+      "name": "ERNIE 3.5 128K",
+      "ownedBy": "baidu"
+    },
+    {
+      "contextWindow": 8192,
+      "id": "ernie-lite-8k",
+      "metadata": {},
+      "name": "ERNIE Lite 8K",
+      "ownedBy": "baidu"
+    },
+    {
+      "contextWindow": 131072,
+      "id": "ernie-speed-128k",
+      "metadata": {},
+      "name": "ERNIE Speed 128K",
+      "ownedBy": "baidu"
+    },
+    {
+      "contextWindow": 8192,
+      "id": "ernie-character-8k",
+      "metadata": {},
+      "name": "ERNIE Character 8K",
+      "ownedBy": "baidu"
+    },
+    {
+      "contextWindow": 8192,
+      "id": "ernie-tiny-8k",
+      "metadata": {},
+      "name": "ERNIE Tiny 8K",
+      "ownedBy": "baidu"
+    },
+    {
       "capabilities": ["reasoning", "image-recognition"],
       "contextWindow": 131072,
       "id": "ernie-4-5-vl-424b-a47b",
@@ -3822,9 +3956,6 @@
           "currency": "USD",
           "perMillionTokens": 1.25
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3871,9 +4002,6 @@
           "currency": "USD",
           "perMillionTokens": 2.29
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
     },
     {
@@ -3894,9 +4022,6 @@
           "currency": "USD",
           "perMillionTokens": 0.625
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3917,9 +4042,6 @@
           "currency": "USD",
           "perMillionTokens": 0.625
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
     },
     {
@@ -3940,10 +4062,61 @@
           "currency": "USD",
           "perMillionTokens": 0.03
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "flux-pro",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "FLUX.1 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "flux-1-1-pro-ultra",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "FLUX1.1 Pro Ultra",
+      "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "flux-dev",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "FLUX.1 Dev",
+      "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "flux-schnell",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "FLUX.1 Schnell",
+      "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "flux-fill-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "FLUX.1 Fill Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "flux-kontext-dev",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "FLUX.1 Kontext Dev",
+      "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
     },
     {
       "capabilities": ["image-generation"],
@@ -4190,10 +4363,6 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      },
-      "maxOutputTokens": 0,
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
     },
     {
@@ -4248,6 +4417,69 @@
           "perMillionTokens": 0
         }
       }
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "image-3-2",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Bria Image 3.2",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "fibo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Bria FIBO",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "fibo-edit",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Bria FIBO Edit",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "eraser",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Bria Eraser",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "genfill",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Bria GenFill",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "expand-image",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Bria Expand Image",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "generate-background",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Bria Generate Background",
+      "outputModalities": ["image"],
+      "ownedBy": "bria"
     },
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
@@ -4505,12 +4737,38 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 256000,
+      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "contextWindow": 131072,
+      "family": "command-a",
+      "id": "command-a-plus-05-2026",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Command A+",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 262144,
       "family": "command",
       "id": "command-a",
       "inputModalities": ["text"],
-      "maxOutputTokens": 8000,
+      "maxOutputTokens": 8192,
       "metadata": {},
       "name": "Command A",
       "outputModalities": ["text"],
@@ -4527,10 +4785,317 @@
       }
     },
     {
-      "contextWindow": 128000,
+      "capabilities": ["function-call"],
+      "contextWindow": 262144,
+      "family": "command-a",
+      "id": "command-a-03-2025",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Command A",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "command-a",
+      "id": "command-a-reasoning-08-2025",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Command A Reasoning",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 131072,
+      "family": "command-a",
+      "id": "command-a-vision-07-2025",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Command A Vision",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "family": "command-a",
+      "id": "command-a-translate-08-2025",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Command A Translate",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "family": "command-r",
+      "id": "command-r7b-12-2024",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command R7B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.0375
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "family": "command-r",
+      "id": "command-r-08-2024",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command R (08-2024)",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "family": "command-r",
+      "id": "command-r-plus-08-2024",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command R+ (08-2024)",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "command-r",
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command R",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "command-r-plus",
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command R+",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 4096,
+      "id": "command",
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 4096,
+      "id": "command-light",
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Command Light",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 131072,
+      "family": "cohere-embed",
+      "id": "embed-v4-0",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 1536,
+      "metadata": {},
+      "name": "Embed v4.0",
+      "outputModalities": ["vector"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 512,
+      "id": "embed-english-v3-0",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Embed English v3.0",
+      "outputModalities": ["vector"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 512,
+      "id": "embed-english-light-v3-0",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embed English Light v3.0",
+      "outputModalities": ["vector"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 512,
+      "id": "embed-multilingual-v3-0",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Embed Multilingual v3.0",
+      "outputModalities": ["vector"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 512,
+      "id": "embed-multilingual-light-v3-0",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embed Multilingual Light v3.0",
+      "outputModalities": ["vector"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 32768,
+      "family": "o",
+      "id": "rerank-v4-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Rerank v4 Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 32768,
+      "family": "o",
+      "id": "rerank-v4-fast",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Rerank v4 Fast",
+      "outputModalities": ["text"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 4096,
+      "family": "o",
+      "id": "rerank-v3-5",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Rerank v3.5",
+      "outputModalities": ["text"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 4096,
+      "id": "rerank-english-v3-0",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Rerank English v3.0",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 4096,
+      "id": "rerank-multilingual-v3-0",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Rerank Multilingual v3.0",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
       "id": "c4ai-aya-expanse-32b",
       "inputModalities": ["text"],
-      "maxOutputTokens": 4000,
+      "maxOutputTokens": 4096,
       "metadata": {},
       "name": "Aya Expanse 32B",
       "openWeights": true,
@@ -4538,39 +5103,122 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
-      "contextWindow": 256000,
-      "family": "command-a",
-      "id": "command-a-03-2025",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 8000,
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 16384,
+      "id": "c4ai-aya-vision-32b",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 4096,
       "metadata": {},
-      "name": "Command A",
+      "name": "Aya Vision 32B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "c4ai-aya-expanse-8b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Aya Expanse 8B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 16384,
+      "id": "c4ai-aya-vision-8b",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Aya Vision 8B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "tiny-aya-global",
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Tiny Aya Global",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "tiny-aya-earth",
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Tiny Aya Earth",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "tiny-aya-fire",
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Tiny Aya Fire",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "tiny-aya-water",
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Tiny Aya Water",
+      "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "family": "north",
+      "id": "north-mini-code-1-0",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 64000,
+      "metadata": {},
+      "name": "North Mini Code 1.0",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "cohere",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10
+          "perMillionTokens": 0
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "high"]
       }
     },
     {
-      "capabilities": ["image-recognition", "file-input"],
-      "contextWindow": 16000,
-      "id": "c4ai-aya-vision-32b",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 4000,
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "north-mini-code",
+      "inputModalities": ["text"],
       "metadata": {},
-      "name": "Aya Vision 32B",
-      "openWeights": true,
+      "name": "North Mini Code",
       "outputModalities": ["text"],
-      "ownedBy": "cohere"
+      "ownedBy": "cohere",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
     },
     {
       "capabilities": ["function-call"],
@@ -4593,200 +5241,7 @@
           "currency": "USD",
           "perMillionTokens": 0.15
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
-    },
-    {
-      "capabilities": ["image-recognition", "file-input"],
-      "contextWindow": 16000,
-      "id": "c4ai-aya-vision-8b",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 4000,
-      "metadata": {},
-      "name": "Aya Vision 8B",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere"
-    },
-    {
-      "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 128000,
-      "family": "command-r",
-      "id": "command-r-08-2024",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 4000,
-      "metadata": {},
-      "name": "Command R",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.6
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 128000,
-      "family": "command-r",
-      "id": "command-r7b-12-2024",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 4000,
-      "metadata": {},
-      "name": "Command R7B",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.0375
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        }
-      }
-    },
-    {
-      "capabilities": ["image-recognition"],
-      "contextWindow": 128000,
-      "family": "command-a",
-      "id": "command-a-vision-07-2025",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8000,
-      "metadata": {},
-      "name": "Command A Vision",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 128000,
-      "family": "command-a",
-      "id": "command-a-plus-05-2026",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 64000,
-      "metadata": {},
-      "name": "Command A Plus",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
-      }
-    },
-    {
-      "capabilities": ["function-call"],
-      "contextWindow": 8000,
-      "family": "command-a",
-      "id": "command-a-translate-08-2025",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 8000,
-      "metadata": {},
-      "name": "Command A Translate",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 128000,
-      "family": "command-r",
-      "id": "command-r-plus-08-2024",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 4000,
-      "metadata": {},
-      "name": "Command R+",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 256000,
-      "family": "command-a",
-      "id": "command-a-reasoning-08-2025",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32000,
-      "metadata": {},
-      "name": "Command A Reasoning",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
-      }
-    },
-    {
-      "contextWindow": 8000,
-      "id": "c4ai-aya-expanse-8b",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 4000,
-      "metadata": {},
-      "name": "Aya Expanse 8B",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere"
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
@@ -5101,9 +5556,6 @@
           "currency": "USD",
           "perMillionTokens": 1
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
     },
     {
@@ -5280,6 +5732,33 @@
       }
     },
     {
+      "capabilities": ["audio-generation"],
+      "id": "elevenlabs-v3",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "ElevenLabs v3",
+      "outputModalities": ["audio"],
+      "ownedBy": "elevenlabs"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "elevenlabs-v2-5-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "ElevenLabs v2.5 Turbo",
+      "outputModalities": ["audio"],
+      "ownedBy": "elevenlabs"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "elevenlabs-music",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "ElevenLabs Music",
+      "outputModalities": ["audio"],
+      "ownedBy": "elevenlabs"
+    },
+    {
       "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input", "web-search"],
       "contextWindow": 32768,
       "family": "gemini-flash",
@@ -5360,9 +5839,6 @@
           "currency": "USD",
           "perMillionTokens": 120
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none"]
       }
     },
     {
@@ -5530,11 +6006,7 @@
       "metadata": {},
       "name": "Imagen-4",
       "outputModalities": ["image"],
-      "ownedBy": "google",
-      "maxOutputTokens": 0,
-      "reasoning": {
-        "supportedEfforts": ["none"]
-      }
+      "ownedBy": "google"
     },
     {
       "capabilities": ["function-call", "image-generation", "file-input"],
@@ -5572,11 +6044,7 @@
       "metadata": {},
       "name": "Imagen-3",
       "outputModalities": ["image"],
-      "ownedBy": "google",
-      "maxOutputTokens": 0,
-      "reasoning": {
-        "supportedEfforts": ["none"]
-      }
+      "ownedBy": "google"
     },
     {
       "capabilities": ["function-call", "file-input", "image-generation"],
@@ -5610,11 +6078,7 @@
       "metadata": {},
       "name": "Imagen-4-Ultra",
       "outputModalities": ["image"],
-      "ownedBy": "google",
-      "maxOutputTokens": 0,
-      "reasoning": {
-        "supportedEfforts": ["none"]
-      }
+      "ownedBy": "google"
     },
     {
       "capabilities": ["function-call", "image-generation", "file-input"],
@@ -5652,11 +6116,7 @@
       "metadata": {},
       "name": "Imagen-3-Fast",
       "outputModalities": ["image"],
-      "ownedBy": "google",
-      "maxOutputTokens": 0,
-      "reasoning": {
-        "supportedEfforts": ["none"]
-      }
+      "ownedBy": "google"
     },
     {
       "capabilities": ["function-call", "file-input", "image-generation"],
@@ -5690,11 +6150,7 @@
       "metadata": {},
       "name": "Imagen-4-Fast",
       "outputModalities": ["image"],
-      "ownedBy": "google",
-      "maxOutputTokens": 0,
-      "reasoning": {
-        "supportedEfforts": ["none"]
-      }
+      "ownedBy": "google"
     },
     {
       "capabilities": ["image-generation"],
@@ -6024,15 +6480,7 @@
           "currency": "USD",
           "perMillionTokens": 3
         }
-      },
-      "openWeights": false,
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["text", "image"],
-      "family": "gemini-flash",
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
-      },
-      "capabilities": ["reasoning", "image-recognition", "file-input", "image-generation"]
+      }
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
@@ -6058,14 +6506,7 @@
           "currency": "USD",
           "perMillionTokens": 3
         }
-      },
-      "openWeights": false,
-      "inputModalities": ["text"],
-      "outputModalities": ["text"],
-      "reasoning": {
-        "supportedEfforts": ["none", "auto"]
-      },
-      "capabilities": ["reasoning"]
+      }
     },
     {
       "capabilities": [
@@ -7012,6 +7453,270 @@
       }
     },
     {
+      "capabilities": ["image-generation"],
+      "id": "ideogram-v4",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "renderingSpeed": {
+                "default": "DEFAULT",
+                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": [
+                  "2048x2048",
+                  "1440x2880",
+                  "2880x1440",
+                  "1664x2496",
+                  "2496x1664",
+                  "1792x2240",
+                  "2240x1792",
+                  "1440x2560",
+                  "2560x1440",
+                  "1600x2560",
+                  "2560x1600",
+                  "1728x2304",
+                  "2304x1728",
+                  "1296x3168",
+                  "3168x1296",
+                  "1152x2944",
+                  "2944x1152",
+                  "1248x3328",
+                  "3328x1248",
+                  "1280x3072",
+                  "3072x1280",
+                  "1024x3072",
+                  "3072x1024"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "remix": {
+            "supports": {
+              "imageWeight": {
+                "max": 100,
+                "min": 1,
+                "type": "range"
+              },
+              "renderingSpeed": {
+                "default": "DEFAULT",
+                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": [
+                  "2048x2048",
+                  "1440x2880",
+                  "2880x1440",
+                  "1664x2496",
+                  "2496x1664",
+                  "1792x2240",
+                  "2240x1792",
+                  "1440x2560",
+                  "2560x1440",
+                  "1600x2560",
+                  "2560x1600",
+                  "1728x2304",
+                  "2304x1728",
+                  "1296x3168",
+                  "3168x1296",
+                  "1152x2944",
+                  "2944x1152",
+                  "1248x3328",
+                  "3328x1248",
+                  "1280x3072",
+                  "3072x1280",
+                  "1024x3072",
+                  "3072x1024"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Ideogram v4",
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "ideogram-v3",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:3",
+                  "2:3",
+                  "3:4",
+                  "4:5",
+                  "9:16",
+                  "10:16",
+                  "2:1",
+                  "3:1",
+                  "3:2",
+                  "4:3",
+                  "5:4",
+                  "16:9",
+                  "16:10"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "magicPromptOption": {
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "max": 8,
+                "min": 1,
+                "type": "range"
+              },
+              "renderingSpeed": {
+                "default": "DEFAULT",
+                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "styleType": {
+                "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "FICTION"],
+                "type": "enum"
+              }
+            }
+          },
+          "remix": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:3",
+                  "2:3",
+                  "3:4",
+                  "4:5",
+                  "9:16",
+                  "10:16",
+                  "2:1",
+                  "3:1",
+                  "3:2",
+                  "4:3",
+                  "5:4",
+                  "16:9",
+                  "16:10"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageWeight": {
+                "max": 100,
+                "min": 1,
+                "type": "range"
+              },
+              "magicPromptOption": {
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "max": 8,
+                "min": 1,
+                "type": "range"
+              },
+              "renderingSpeed": {
+                "default": "DEFAULT",
+                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "styleType": {
+                "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "FICTION"],
+                "type": "enum"
+              }
+            }
+          },
+          "upscale": {
+            "supports": {
+              "detail": {
+                "max": 100,
+                "min": 1,
+                "type": "range"
+              },
+              "magicPromptOption": {
+                "type": "switch"
+              },
+              "numImages": {
+                "max": 8,
+                "min": 1,
+                "type": "range"
+              },
+              "resemblance": {
+                "max": 100,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Ideogram v3",
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "ideogram-v2",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Ideogram v2",
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "ideogram-v2a",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Ideogram v2a",
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "ideogram-v2a-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Ideogram v2a Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram"
+    },
+    {
       "capabilities": ["function-call"],
       "contextWindow": 32000,
       "family": "mercury",
@@ -7085,13 +7790,7 @@
           "currency": "USD",
           "perMillionTokens": 0.75
         }
-      },
-      "contextWindow": 1000000,
-      "maxOutputTokens": 64000,
-      "openWeights": false,
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["text"],
-      "family": "qwen"
+      }
     },
     {
       "capabilities": ["embedding"],
@@ -7328,6 +8027,78 @@
       "ownedBy": "jina"
     },
     {
+      "capabilities": ["video-generation"],
+      "id": "kling-v2-6",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v2.6",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v2-5-turbo",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v2.5 Turbo",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v2-master",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v2 Master",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v2-1",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v2.1",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v2-1-master",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v2.1 Master",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v1-6",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v1.6",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v1-5",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v1.5",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "kling-v1",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Kling v1",
+      "outputModalities": ["video"],
+      "ownedBy": "kling"
+    },
+    {
       "capabilities": ["image-generation"],
       "family": "Kolors",
       "id": "kolors",
@@ -7518,6 +8289,24 @@
           "perMillionTokens": 0
         }
       }
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "photon",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Luma Photon",
+      "outputModalities": ["image"],
+      "ownedBy": "luma"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "photon-flash",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Luma Photon Flash",
+      "outputModalities": ["image"],
+      "ownedBy": "luma"
     },
     {
       "capabilities": ["reasoning"],
@@ -10698,30 +11487,6 @@
       "id": "gpt-image-2",
       "imageGeneration": {
         "modes": {
-          "edit": {
-            "supports": {
-              "background": {
-                "options": ["auto", "opaque"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
-          },
           "generate": {
             "supports": {
               "background": {
@@ -13230,6 +13995,87 @@
       }
     },
     {
+      "capabilities": ["video-generation"],
+      "id": "runway-gen-4-turbo",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Runway Gen-4 Turbo",
+      "outputModalities": ["video"],
+      "ownedBy": "runway"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "runway-gen-3a-turbo",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Runway Gen-3 Alpha Turbo",
+      "outputModalities": ["video"],
+      "ownedBy": "runway"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "runway-aleph",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Runway Aleph",
+      "outputModalities": ["video"],
+      "ownedBy": "runway"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "stable-diffusion-3-5-large",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Stable Diffusion 3.5 Large",
+      "outputModalities": ["image"],
+      "ownedBy": "stability"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "stable-diffusion-3-5-large-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Stable Diffusion 3.5 Large Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "stability"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "stable-diffusion-3",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Stable Diffusion 3",
+      "outputModalities": ["image"],
+      "ownedBy": "stability"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "stable-diffusion-xl-base-1-0",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Stable Diffusion XL Base 1.0",
+      "outputModalities": ["image"],
+      "ownedBy": "stability"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "stable-diffusion-v1-5",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Stable Diffusion v1.5",
+      "outputModalities": ["image"],
+      "ownedBy": "stability"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "stable-diffusion-v1-4",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Stable Diffusion v1.4",
+      "outputModalities": ["image"],
+      "ownedBy": "stability"
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -13399,6 +14245,42 @@
       }
     },
     {
+      "capabilities": ["audio-generation"],
+      "id": "suno-v4-5",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Suno v4.5",
+      "outputModalities": ["audio"],
+      "ownedBy": "suno"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "suno-v4",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Suno v4",
+      "outputModalities": ["audio"],
+      "ownedBy": "suno"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "suno-v3-5",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Suno v3.5",
+      "outputModalities": ["audio"],
+      "ownedBy": "suno"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "suno-v3",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Suno v3",
+      "outputModalities": ["audio"],
+      "ownedBy": "suno"
+    },
+    {
       "capabilities": ["function-call", "web-search"],
       "id": "hunyuan-turbos",
       "metadata": {},
@@ -13538,9 +14420,6 @@
               "seed": {
                 "type": "text"
               }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/submit"
             }
           }
         }
@@ -13570,9 +14449,6 @@
               "seed": {
                 "type": "text"
               }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/lite"
             }
           }
         }
@@ -13698,142 +14574,30 @@
       }
     },
     {
-      "capabilities": ["image-generation"],
-      "id": "v-3",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": [
-                  "1:1",
-                  "1:2",
-                  "1:3",
-                  "2:3",
-                  "3:4",
-                  "4:5",
-                  "9:16",
-                  "10:16",
-                  "2:1",
-                  "3:1",
-                  "3:2",
-                  "4:3",
-                  "5:4",
-                  "16:9",
-                  "16:10"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "magicPromptOption": {
-                "type": "switch"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "max": 8,
-                "min": 1,
-                "type": "range"
-              },
-              "renderingSpeed": {
-                "options": ["DEFAULT", "TURBO", "QUALITY"],
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "styleType": {
-                "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN"],
-                "type": "enum"
-              }
-            }
-          },
-          "remix": {
-            "supports": {
-              "aspectRatio": {
-                "options": [
-                  "1:1",
-                  "1:2",
-                  "1:3",
-                  "2:3",
-                  "3:4",
-                  "4:5",
-                  "9:16",
-                  "10:16",
-                  "2:1",
-                  "3:1",
-                  "3:2",
-                  "4:3",
-                  "5:4",
-                  "16:9",
-                  "16:10"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageWeight": {
-                "max": 100,
-                "min": 1,
-                "type": "range"
-              },
-              "magicPromptOption": {
-                "type": "switch"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "max": 8,
-                "min": 1,
-                "type": "range"
-              },
-              "renderingSpeed": {
-                "options": ["DEFAULT", "TURBO", "QUALITY"],
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "styleType": {
-                "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN"],
-                "type": "enum"
-              }
-            }
-          },
-          "upscale": {
-            "supports": {
-              "detail": {
-                "max": 100,
-                "min": 1,
-                "type": "range"
-              },
-              "magicPromptOption": {
-                "type": "switch"
-              },
-              "numImages": {
-                "max": 8,
-                "min": 1,
-                "type": "range"
-              },
-              "resemblance": {
-                "max": 100,
-                "min": 1,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
-          }
-        }
-      },
-      "inputModalities": ["text"],
+      "capabilities": ["video-generation"],
+      "id": "viduq2",
+      "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "Ideogram V_3",
-      "outputModalities": ["image"],
+      "name": "Vidu Q2",
+      "outputModalities": ["video"],
+      "ownedBy": "vidu"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "viduq2-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Vidu Q2 Pro",
+      "outputModalities": ["video"],
+      "ownedBy": "vidu"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "viduq2-ctv",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Vidu Q2 CTV",
+      "outputModalities": ["video"],
       "ownedBy": "vidu"
     },
     {
@@ -14020,6 +14784,104 @@
           "perMillionTokens": 6
         }
       }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition"],
+      "contextWindow": 256000,
+      "id": "grok-4",
+      "metadata": {},
+      "name": "Grok 4",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 2000000,
+      "id": "grok-4-fast",
+      "metadata": {},
+      "name": "Grok 4 Fast",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 256000,
+      "id": "grok-4-1",
+      "metadata": {},
+      "name": "Grok 4.1",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 256000,
+      "id": "grok-code-fast-1",
+      "metadata": {},
+      "name": "Grok Code Fast 1",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "grok-3",
+      "metadata": {},
+      "name": "Grok 3",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "grok-3-fast",
+      "metadata": {},
+      "name": "Grok 3 Fast",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
+      "id": "grok-3-mini",
+      "metadata": {},
+      "name": "Grok 3 Mini",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
+      "id": "grok-3-mini-fast",
+      "metadata": {},
+      "name": "Grok 3 Mini Fast",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "grok-2",
+      "metadata": {},
+      "name": "Grok 2",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 32768,
+      "id": "grok-2-vision",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Grok 2 Vision",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "grok-beta",
+      "metadata": {},
+      "name": "Grok Beta",
+      "ownedBy": "xai"
+    },
+    {
+      "capabilities": ["image-recognition"],
+      "contextWindow": 8192,
+      "id": "grok-vision-beta",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Grok Vision Beta",
+      "ownedBy": "xai"
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition"],
@@ -14583,6 +15445,148 @@
       }
     },
     {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "glm-4",
+      "metadata": {},
+      "name": "GLM-4",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "glm-4-plus",
+      "metadata": {},
+      "name": "GLM-4-Plus",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "glm-4-air",
+      "metadata": {},
+      "name": "GLM-4-Air",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 8192,
+      "id": "glm-4-airx",
+      "metadata": {},
+      "name": "GLM-4-AirX",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "glm-4-flash",
+      "metadata": {},
+      "name": "GLM-4-Flash",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "glm-4-flashx",
+      "metadata": {},
+      "name": "GLM-4-FlashX",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 1024000,
+      "id": "glm-4-long",
+      "metadata": {},
+      "name": "GLM-4-Long",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 131072,
+      "id": "glm-3-turbo",
+      "metadata": {},
+      "name": "GLM-3-Turbo",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["image-recognition"],
+      "contextWindow": 8192,
+      "id": "glm-4v",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GLM-4V",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["image-recognition"],
+      "contextWindow": 8192,
+      "id": "glm-4v-plus",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GLM-4V-Plus",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["image-recognition"],
+      "contextWindow": 8192,
+      "id": "glm-4v-flash",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GLM-4V-Flash",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition"],
+      "contextWindow": 65536,
+      "id": "glm-4-1v",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GLM-4.1V-Thinking",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["reasoning"],
+      "contextWindow": 131072,
+      "id": "glm-z1",
+      "metadata": {},
+      "name": "GLM-Z1",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["reasoning"],
+      "contextWindow": 131072,
+      "id": "glm-z1-air",
+      "metadata": {},
+      "name": "GLM-Z1-Air",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["reasoning"],
+      "contextWindow": 131072,
+      "id": "glm-z1-airx",
+      "metadata": {},
+      "name": "GLM-Z1-AirX",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["reasoning"],
+      "contextWindow": 131072,
+      "id": "glm-z1-flash",
+      "metadata": {},
+      "name": "GLM-Z1-Flash",
+      "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 8192,
+      "id": "embedding-3",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embedding-3",
+      "outputModalities": ["vector"],
+      "ownedBy": "zhipu"
+    },
+    {
       "capabilities": ["image-generation"],
       "id": "cogview-4",
       "imageGeneration": {
@@ -14642,9 +15646,6 @@
                 "render": "chips",
                 "type": "enum"
               }
-            },
-            "vendorTransport": {
-              "endpoint": "/v3/async/glm-image"
             }
           }
         }
@@ -15406,32 +16407,6 @@
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 256000,
-      "family": "north",
-      "id": "north-mini-code-1-0",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 64000,
-      "metadata": {},
-      "name": "North Mini Code",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "cohere",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "high"]
-      }
-    },
-    {
       "id": "open-mistral-nemo",
       "metadata": {},
       "name": "open-mistral-nemo",
@@ -16112,54 +17087,6 @@
           "perMillionTokens": 30
         }
       }
-    },
-    {
-      "capabilities": ["rerank"],
-      "contextWindow": 4096,
-      "family": "o",
-      "id": "rerank-v3-5",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 4096,
-      "metadata": {},
-      "name": "Cohere Rerank 3.5",
-      "outputModalities": ["text"],
-      "ownedBy": "vercel"
-    },
-    {
-      "capabilities": ["rerank"],
-      "contextWindow": 32000,
-      "family": "o",
-      "id": "rerank-v4-fast",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32000,
-      "metadata": {},
-      "name": "Cohere Rerank 4 Fast",
-      "outputModalities": ["text"],
-      "ownedBy": "vercel"
-    },
-    {
-      "capabilities": ["embedding"],
-      "contextWindow": 128000,
-      "family": "cohere-embed",
-      "id": "embed-v4-0",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 1536,
-      "metadata": {},
-      "name": "Embed v4.0",
-      "outputModalities": ["vector"],
-      "ownedBy": "vercel"
-    },
-    {
-      "capabilities": ["rerank"],
-      "contextWindow": 32000,
-      "family": "o",
-      "id": "rerank-v4-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32000,
-      "metadata": {},
-      "name": "Cohere Rerank 4 Pro",
-      "outputModalities": ["text"],
-      "ownedBy": "vercel"
     },
     {
       "capabilities": ["reasoning"],

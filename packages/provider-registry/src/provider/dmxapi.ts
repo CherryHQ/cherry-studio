@@ -277,6 +277,131 @@ export default openaiCompatible({
         }
       },
       modelId: 'wan2-6-t2i'
+    },
+    {
+      modelId: 'gemini-2-5-flash-image',
+      apiModelId: 'gemini-2.5-flash-image',
+      imageGeneration: {
+        modes: {
+          edit: {
+            supports: {
+              numImages: { default: 1, max: 1, min: 1, type: 'range' },
+              size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
+            }
+          },
+          generate: {
+            supports: {
+              numImages: { default: 1, max: 1, min: 1, type: 'range' },
+              size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
+            }
+          },
+          merge: {
+            supports: {
+              numImages: { default: 1, max: 1, min: 1, type: 'range' },
+              size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
+            }
+          }
+        }
+      }
+    },
+    {
+      modelId: 'musesteamer-air-image',
+      apiModelId: 'musesteamer-air-image',
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              numImages: { default: 1, max: 1, min: 1, type: 'range' },
+              size: {
+                default: '1024x1024',
+                options: ['1024x1024', '1152x864', '864x1152', '1664x928', '928x1664'],
+                render: 'chips',
+                type: 'enum'
+              }
+            }
+          }
+        }
+      },
+      name: 'MuseSteamer Air Image',
+      inputModalities: ['text'],
+      outputModalities: ['image']
+    },
+    {
+      modelId: 'nano-banana',
+      apiModelId: 'nano-banana',
+      imageGeneration: {
+        modes: {
+          edit: {
+            supports: {
+              aspectRatio: {
+                default: '1:1',
+                options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
+                render: 'chips',
+                type: 'enum'
+              },
+              numImages: { default: 1, max: 1, min: 1, type: 'range' }
+            }
+          },
+          generate: {
+            supports: {
+              aspectRatio: {
+                default: '1:1',
+                options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
+                render: 'chips',
+                type: 'enum'
+              },
+              numImages: { default: 1, max: 1, min: 1, type: 'range' }
+            }
+          },
+          merge: {
+            supports: {
+              aspectRatio: {
+                default: '1:1',
+                options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
+                render: 'chips',
+                type: 'enum'
+              },
+              numImages: { default: 1, max: 1, min: 1, type: 'range' }
+            }
+          }
+        }
+      },
+      name: 'Nano Banana',
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image']
+    },
+    {
+      modelId: 'nano-banana-2',
+      apiModelId: 'nano-banana-2',
+      imageGeneration: {
+        modes: {
+          edit: {
+            supports: {
+              aspectRatio: {
+                default: '1:1',
+                options: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+                render: 'chips',
+                type: 'enum'
+              },
+              numImages: { default: 1, max: 1, min: 1, type: 'range' }
+            }
+          },
+          merge: {
+            supports: {
+              aspectRatio: {
+                default: '1:1',
+                options: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+                render: 'chips',
+                type: 'enum'
+              },
+              numImages: { default: 1, max: 1, min: 1, type: 'range' }
+            }
+          }
+        }
+      },
+      name: 'Nano Banana 2',
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image']
     }
   ]
 })

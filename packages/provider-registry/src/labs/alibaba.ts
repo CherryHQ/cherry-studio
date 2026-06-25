@@ -56,9 +56,6 @@ export default defineLab({
               seed: {
                 type: 'text'
               }
-            },
-            vendorTransport: {
-              endpoint: '/v3/async/qwen-image-edit'
             }
           }
         }
