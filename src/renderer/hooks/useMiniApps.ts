@@ -199,7 +199,7 @@ export const useMiniApps = () => {
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
-  // Sort by sortOrder to maintain consistent positions regardless of status
+  // Sort by orderKey to maintain consistent visible positions regardless of status
   const miniApps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
@@ -380,7 +380,11 @@ export const useMiniApps = () => {
     async (appId: string, dto: UpdateMiniAppDto) => {
       try {
         const updated = await patchAppTrigger({ params: { appId }, body: dto })
-        syncOpenedCustomMiniApp(updated)
+        try {
+          syncOpenedCustomMiniApp(updated)
+        } catch (syncError) {
+          logger.error('Failed to sync opened custom mini app after update', { appId, error: syncError })
+        }
         return updated
       } catch (error) {
         logger.error('Failed to update custom mini app', { appId, error: toDataApiError(error) })
@@ -394,7 +398,11 @@ export const useMiniApps = () => {
     async (appId: string) => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
-        cleanupOpenedCustomMiniApp(appId)
+        try {
+          cleanupOpenedCustomMiniApp(appId)
+        } catch (syncError) {
+          logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
+        }
         return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })

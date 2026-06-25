@@ -154,9 +154,10 @@ export class MiniAppService {
    *
    * On status transitions the row receives an `orderKey` in the target list.
    * `enabled` and `pinned` share the visible MiniApp list, so transitions
-   * between them preserve the existing key unless another visible row already
-   * owns it. Moving into visible status lands at the visible tail; moving into
-   * `disabled` lands at the disabled tail.
+   * between them keep the same relative position among visible rows, generating
+   * a fresh key between the same neighbors when needed. Moving into visible
+   * status lands at the visible tail; moving into `disabled` lands at the
+   * disabled tail.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
     const hasStatusUpdate = dto.status !== undefined
@@ -285,7 +286,7 @@ export class MiniAppService {
    * Reorder miniApps via fractional-indexing. Visible rows (`enabled` +
    * `pinned`) share one list; hidden rows (`disabled`) remain separate.
    * Cross visible/hidden batches are rejected — moving a row between visible
-   * and hidden still goes through PATCH, not POST /order:batch.
+   * and hidden still goes through single-row PATCH, not PATCH /order:batch.
    */
   async reorder(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return

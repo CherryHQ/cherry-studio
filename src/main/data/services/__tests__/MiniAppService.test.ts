@@ -268,6 +268,16 @@ describe('MiniAppService', () => {
       expect(result.orderKey < 'a0').toBe(true)
     })
 
+    it('should avoid same-key collisions when removing a pinned app from launchpad', async () => {
+      await seedCustom({ appId: 'mover', status: 'pinned', orderKey: 'a0' })
+      await seedCustom({ appId: 'already-enabled', status: 'enabled', orderKey: 'a0' })
+
+      const result = await miniAppService.update('mover', { status: 'enabled' })
+
+      expect(result.status).toBe('enabled')
+      expect(result.orderKey > 'a0').toBe(true)
+    })
+
     it('should place a disabled app at the visible tail when re-enabled', async () => {
       await seedCustom({ appId: 'enabled-tail', status: 'enabled', orderKey: 'a1' })
       await seedCustom({ appId: 'pinned-tail', status: 'pinned', orderKey: 'a5' })
@@ -284,6 +294,15 @@ describe('MiniAppService', () => {
 
       const result = await miniAppService.update('stay', { status: 'enabled' })
 
+      expect(result.orderKey).toBe('a5')
+    })
+
+    it('should keep the existing orderKey when a solo visible row changes status', async () => {
+      await seedCustom({ appId: 'solo', status: 'enabled', orderKey: 'a5' })
+
+      const result = await miniAppService.update('solo', { status: 'pinned' })
+
+      expect(result.status).toBe('pinned')
       expect(result.orderKey).toBe('a5')
     })
   })
