@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 

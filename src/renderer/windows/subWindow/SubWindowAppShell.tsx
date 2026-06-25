@@ -4,13 +4,16 @@ import { type WindowFrame, WindowFrameProvider } from '@renderer/components/chat
 import { SubWindowControls } from '@renderer/components/layout/SubWindowControls'
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
+import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
+import WindowControls, { useHasWindowControls } from '@renderer/components/WindowControls'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, useEffect, useRef } from 'react'
+import { Activity, type CSSProperties, useEffect, useRef } from 'react'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
 
@@ -83,12 +86,20 @@ export const SubWindowAppShell = () => {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
   const showFallbackTitleBar = !!activeTab && !isPageTitledRoute(activeTab.url)
 
+  // Windows/Linux sub-windows are frameless, so the OS draws no min/max/close. Draw them
+  // ourselves in the top-right corner and publish their width as --window-controls-width so
+  // every title bar below can reserve that corner. macOS keeps its native traffic lights, so
+  // there are no controls and the var stays 0 (the title bars then render exactly as before).
+  const hasWindowControls = useHasWindowControls()
+
   return (
     // The window frame tells the hosted page (HomePage / AgentPage) it owns the whole
     // window: hide the in-page list + sidebar toggle (lock to one conversation) and turn
     // the page navbar into the window title bar via the injected chrome. See ConversationShell.
     <WindowFrameProvider value={WINDOW_FRAME}>
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+      <div
+        className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
+        style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
         {showFallbackTitleBar && <SubWindowTitleBar />}
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
@@ -117,6 +128,16 @@ export const SubWindowAppShell = () => {
               list independently of the main window. */}
           <MiniAppTabsPool />
         </main>
+
+        {/* OS window controls overlay — flush in the corner, above every title bar (z-[9999]),
+            sitting in the space each bar reserves via --window-controls-width. Self-gated to
+            Win/Linux, so this branch never renders on macOS. */}
+        {hasWindowControls && (
+          <div
+            className={cn('absolute top-0 right-0 z-[9999] flex [-webkit-app-region:no-drag]', TITLE_BAR_HEIGHT_CLASS)}>
+            <WindowControls />
+          </div>
+        )}
       </div>
     </WindowFrameProvider>
   )

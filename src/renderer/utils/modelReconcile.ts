@@ -24,7 +24,8 @@ import {
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
-import type { AssistantSettings, ThinkingOption } from '@renderer/types'
+import type { AssistantSettings } from '@renderer/types/assistant'
+import type { ThinkingOption } from '@renderer/types/reasoning'
 import type { Model } from '@shared/data/types/model'
 
 export type ReasoningEffortPatch = {

@@ -1,6 +1,6 @@
 import { Button, Combobox, type ComboboxOption, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type {
   TranslateBidirectionalPair,

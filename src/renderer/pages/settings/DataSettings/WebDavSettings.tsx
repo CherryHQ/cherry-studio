@@ -5,8 +5,7 @@ import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
+import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -31,7 +30,7 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const { webdavSync } = useAppSelector((state) => state.backup)
+  const { webdavSync } = getBackupSyncState()
 
   // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
 

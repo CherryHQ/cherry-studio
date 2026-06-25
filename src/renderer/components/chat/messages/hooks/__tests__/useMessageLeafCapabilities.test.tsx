@@ -1,4 +1,4 @@
-import { FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

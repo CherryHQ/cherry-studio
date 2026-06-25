@@ -259,3 +259,58 @@
     animation: none;
   }
 }
+
+@keyframes animation-migration-backup-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+.animation-migration-backup-progress-indeterminate {
+  animation: animation-migration-backup-progress-indeterminate 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-migration-backup-progress-indeterminate {
+    transform: translateX(100%);
+    animation: none;
+  }
+}
+
+@keyframes animation-migration-confetti-burst {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  24% {
+    transform: translate3d(var(--confetti-mid-x, 0), var(--confetti-rise, -80px), 0)
+      rotate(var(--confetti-rotate, 180deg));
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--confetti-x, 0), var(--confetti-fall, 260px), 0)
+      rotate(var(--confetti-rotate-end, 360deg));
+    opacity: 0;
+  }
+}
+
+.animation-migration-confetti-piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  animation-name: animation-migration-confetti-burst;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-migration-confetti-piece {
+    opacity: 0;
+    animation: none;
+  }
+}

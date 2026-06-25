@@ -16,9 +16,9 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { ComposerToolScope } from '@renderer/components/chat/composer/tools/types'
-import { TopicType } from '@renderer/types'
+import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import type { InputBarToolType } from '@renderer/types/chat'
+import { TopicType } from '@renderer/types/topic'
 
 type ToolOrder = {
   visible: LegacyInputBarToolType[]
@@ -68,6 +68,13 @@ export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-windo
   },
   'quick-assistant': {
     visible: ['attachment', 'mention_models', 'quick_phrases'],
+    hidden: []
+  },
+  // Required for type exhaustiveness; painting tool visibility is driven by the
+  // registry's visibleInScopes (both attachment and quick_phrases), not this map —
+  // selectToolOrderForScope returns the chat order for any non-Session scope.
+  painting: {
+    visible: ['attachment'],
     hidden: []
   }
 }

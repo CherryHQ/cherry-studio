@@ -29,9 +29,9 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n'
 import type { NotificationSource } from '@renderer/types/notification'
-import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import { isValidProxyUrl } from '@renderer/utils/url'
 import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -85,6 +85,20 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
 
+const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
+  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
+  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
+  { value: 'en-US', label: 'English', flag: '🇺🇸' },
+  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
+  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
+  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
+  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
+  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
+  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
+  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
+]
 export function confirmMenuPresentationModeChange({
   currentMode,
   mode,
@@ -190,20 +204,18 @@ const CommonSettings: FC = () => {
     [t]
   )
 
-  const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
-    { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-    { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-    { value: 'en-US', label: 'English', flag: '🇺🇸' },
-    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-    { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-    { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-    { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-    { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-    { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-  ]
+  const displayLanguage = useMemo(() => {
+    if (language && languagesOptions.some((opt) => opt.value === language)) {
+      return language
+    }
+
+    const resolved = i18n.resolvedLanguage ?? i18n.language
+    if (resolved && languagesOptions.some((opt) => opt.value === resolved)) {
+      return resolved as LanguageVarious
+    }
+
+    return defaultLanguage
+  }, [language, i18n.resolvedLanguage, i18n.language])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -497,7 +509,7 @@ const CommonSettings: FC = () => {
             <Selector
               size={14}
               style={{ width: '100%' }}
-              value={language || defaultLanguage}
+              value={displayLanguage}
               onChange={onSelectLanguage}
               options={languagesOptions.map((lang) => ({
                 label: (

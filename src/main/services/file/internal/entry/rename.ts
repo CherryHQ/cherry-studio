@@ -29,6 +29,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // the service would reject anyway.
   SafeNameSchema.parse(newName)
   const entry = await deps.fileEntryService.getById(id)
+  if (entry.name === newName) return entry
   if (entry.origin === 'internal') {
     return deps.fileEntryService.update(id, { name: newName })
   }

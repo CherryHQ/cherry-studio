@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "audio": "音訊",
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
     "count": "個檔案",
@@ -2358,22 +2359,52 @@
       },
       "title": "刪除檔案"
     },
+    "delete_or_remove": "刪除/移除",
     "document": "文件",
+    "drag_upload": "拖曳檔案到此處上傳",
     "edit": "編輯",
+    "empty": {
+      "no_match_description": "目前篩選條件下沒有檔案",
+      "no_match_title": "找不到符合的檔案"
+    },
     "error": {
-      "open_path": "無法開啟路徑：{{path}}"
+      "delete_failed": "刪除檔案失敗",
+      "delete_partial_failed": "部分檔案刪除失敗",
+      "import_failed": "匯入檔案失敗",
+      "import_partial_failed": "部分檔案匯入失敗",
+      "open_path": "無法開啟路徑：{{path}}",
+      "rename_failed": "重新命名檔案失敗",
+      "restore_failed": "還原檔案失敗",
+      "restore_partial_failed": "部分檔案還原失敗"
     },
     "file": "檔案",
+    "footer_count": "{{count}} 個檔案",
+    "footer_selected_count": "{{count}} 個已選",
     "image": "圖片",
+    "missing": "缺失",
+    "modified_at": "修改時間",
     "name": "名稱",
     "open": "開啟",
+    "other": "其他",
+    "permanent_delete": "永久刪除",
+    "permanent_delete_confirm": {
+      "description": "將永久刪除 {{count}} 個檔案，此操作無法復原。",
+      "title": "永久刪除檔案？"
+    },
     "preview": {
       "error": "開啟檔案失敗"
     },
+    "remove_from_library": "從庫中移除",
+    "rename": "重新命名",
+    "restore": "還原",
+    "selected_count": "已選取 {{count}} 個檔案",
+    "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
-    "type": "類型"
+    "trash": "回收站",
+    "type": "類型",
+    "video": "影片"
   },
   "globalSearch": {
     "clear": "清除搜尋",
@@ -2767,8 +2798,10 @@
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
       "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
       "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_separator": "分隔符",
+      "chunk_separator_required": "關閉智慧分段時必須填寫分隔符",
       "chunk_size": "分段大小",
-      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_change_warning": "分塊設定的修改只針對新添加的內容有效",
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
@@ -2779,6 +2812,7 @@
       "file_processing_hint": "文件預處理將在文件導入時自動執行，選擇合適的處理服務商可提升文件解析品質",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_separator": "切分文字所用的分隔符（跳脫形式）。開啟智慧分段時作為額外切分點；關閉後僅按此分隔符切分。",
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
@@ -2786,6 +2820,7 @@
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
         "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "smart_chunking": "自動沿 Markdown 結構（標題、程式碼區塊、段落）分段，且不從程式碼區塊內部切開。關閉後僅按分隔符切分。",
         "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
         "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
       },
@@ -2805,6 +2840,7 @@
         "vector": "向量檢索"
       },
       "separator_rule": "分隔符规则",
+      "smart_chunking": "智慧分段",
       "threshold": "相似度阈值",
       "tokens_unit": "tokens"
     },
@@ -6464,8 +6500,6 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
-        "paste_long_text_as_file": "將長文字貼上為檔案",
-        "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
@@ -6734,12 +6768,13 @@
         "filter_remove_all": "全部移除",
         "footer_done": "完成",
         "large_group_hidden": "顯示剩餘 {{count}} 個模型",
+        "model_in_use_by_knowledge_base": "該模型正在被知識庫使用，無法刪除。",
         "operation_failed": "模型操作失敗。",
         "refetch_list": "重新取得模型列表",
         "reload_catalog": "重新整理列表",
         "remove_listed": "移除列表中的模型",
-        "remove_model": "移除模型",
-        "remove_whole_group": "移除整個分組",
+        "remove_model": "刪除模型",
+        "remove_whole_group": "刪除分組",
         "search_models_placeholder": "搜尋模型…",
         "select_none": "取消全選",
         "status_all": "全部",
@@ -6864,12 +6899,46 @@
     },
     "parameter_settings": "參數設定",
     "plugins": {
-      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "addTool": "新增工具",
+      "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
+      "coreDepsMissing": "核心依賴未安裝",
+      "customTools": "自訂工具",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "duplicateName": "已存在相同名稱的工具",
+      "fieldVersion": "版本（選填，預設為最新）",
+      "install": "[to be translated]:Install",
+      "installError": "工具安裝失敗",
       "installing": "安裝中...",
+      "invalidTool": "工具名稱或識別碼無效",
       "notInstalled": "未安裝",
+      "openBinariesDir": "開啟二進位檔案目錄",
+      "remove": "移除工具",
+      "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜尋失敗，請查看日誌",
+      "searchRegistry": "搜尋 mise 工具倉庫...",
+      "source": {
+        "bundled": "內建"
+      },
       "title": "環境依賴",
-      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      "tools": {
+        "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
+        "claude": "Anthropic 的終端智慧編程工具。",
+        "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
+        "fd": "快速檔案搜尋工具，find 的替代方案。",
+        "gh": "GitHub CLI，用於倉庫和工作流程管理。",
+        "hermes": "Nous Research 開發的自我進化 AI 編程代理，能從經驗中建立技能並跨對話持久化知識。",
+        "lark-cli": "飛書官方 CLI，涵蓋即時通訊、文件、多維表格、日曆等 200+ 指令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支援身份驗證、Workers 管理和完整的 Notion API 終端存取。",
+        "openclaw": "跨平台個人 AI 助手，提供聊天、語音、畫布、攝影機和螢幕擷取等功能。",
+        "opencode": "開源 AI 編程代理，支援 75+ 模型並整合 GitHub Actions 自動化工作流程。",
+        "pi": "AI 代理工具包，包含編程代理 CLI、統一 LLM API、TUI/Web UI 和 Slack 機器人。",
+        "rg": "快速文字搜尋工具（ripgrep），grep 的替代方案。",
+        "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
+        "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      },
+      "update": "更新到最新版本"
     },
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"

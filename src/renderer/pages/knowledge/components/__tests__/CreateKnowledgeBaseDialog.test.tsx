@@ -8,7 +8,11 @@ import CreateKnowledgeBaseDialog from '../CreateKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
-const mockEmbedMany = vi.fn()
+// embedMany (via useEmbeddingDimensions) goes through ipcApi.request('ai.embed_many', …) now.
+const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -125,16 +129,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-Object.assign(window, {
-  api: {
-    ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api,
-    ai: {
-      ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api?.ai,
-      embedMany: mockEmbedMany
-    }
-  }
-})
-
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: 'base-1',
   name: 'Base 1',
@@ -145,6 +139,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: undefined,
   documentCount: undefined,
   status: 'completed',
