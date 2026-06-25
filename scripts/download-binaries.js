@@ -1,5 +1,6 @@
 /**
- * Downloads mise, bun, and uv binaries for the target platform during build.
+ * Downloads bundled binaries (mise, bun, uv, ripgrep, and Windows MinGit) for the
+ * target platform during build.
  * Called from before-pack.js (and the dev script) to bundle binaries into resources/binaries/.
  *
  * Usage:
@@ -17,15 +18,22 @@ const { execFileSync } = require('child_process')
 //
 // Package fields:
 //   url       — full download URL
-//   archive   — 'none' (bare binary) | 'zip' | 'tar.gz'
-//   binaries  — list of binary filenames to extract
+//   archive   — 'none' (bare binary) | 'zip' | 'zip-tree' | 'tar.gz'
+//   binaries  — list of binary filenames to verify/chmod, relative to outputDir
+//                (for 'zip-tree' these live under `dir`, e.g. 'git/cmd/git.exe')
+//   dir       — for 'zip-tree': subdir under outputDir to extract the full tree into
 //   strip     — for zip: glob prefix per binary; for tar.gz: --strip-components depth
 //   sha256    — checksum of the downloaded file (binary itself or archive)
+//
+// Tool fields:
+//   windowsOnly — tool has packages only for win32; non-Windows builds skip it
+//                 (MinGit — other platforms fall back to the user's system git)
 
 const MISE_VERSION = '2026.5.11'
 const BUN_VERSION = '1.3.14'
 const UV_VERSION = '0.11.16'
 const RG_VERSION = '14.1.1'
+const MINGIT_VERSION = '2.54.0'
 
 function miseUrl(file) {
   return `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${file}`
@@ -38,6 +46,9 @@ function uvUrl(asset, ext) {
 }
 function rgUrl(asset, ext) {
   return `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-${asset}.${ext}`
+}
+function mingitUrl(asset) {
+  return `https://github.com/git-for-windows/git/releases/download/v${MINGIT_VERSION}.windows.1/${asset}`
 }
 
 const TOOLS = [
@@ -221,6 +232,33 @@ const TOOLS = [
         sha256: 'd0f534024c42afd6cb4d38907c25cd2b249b79bbe6cc1dbee8e3e37c2b6e25a1'
       }
     }
+  },
+  {
+    // Git for Windows MinGit — non-interactive, multi-file Git distribution.
+    // Bundled as a fallback when the user has no system git (see process.ts
+    // getBundledGitPath). Windows-only: macOS/Linux use the system git. Unlike
+    // the single-binary tools above it ships its whole tree under <key>/git/,
+    // so it is run in place from resources rather than copied into cherry.bin.
+    name: 'mingit',
+    version: MINGIT_VERSION,
+    versionFile: '.mingit-version',
+    windowsOnly: true,
+    packages: {
+      'win32-x64': {
+        url: mingitUrl(`MinGit-${MINGIT_VERSION}-64-bit.zip`),
+        archive: 'zip-tree',
+        dir: 'git',
+        binaries: ['git/cmd/git.exe'],
+        sha256: '04f937e1f0918b17b9be6f2294cb2bb66e96e1d9832d1c298e2de088a1d0e668'
+      },
+      'win32-arm64': {
+        url: mingitUrl(`MinGit-${MINGIT_VERSION}-arm64.zip`),
+        archive: 'zip-tree',
+        dir: 'git',
+        binaries: ['git/cmd/git.exe'],
+        sha256: '68f6bdda5b58f4e40f431c0da48b05ba5596445314d5e491e7b4aebb1ec2e985'
+      }
+    }
   }
 ]
 
@@ -270,6 +308,22 @@ function extract(archivePath, archive, outputDir, pkg) {
     } else {
       const globs = pkg.binaries.map((b) => (pkg.strip ? `${pkg.strip}/${b}` : b))
       execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
+    }
+  } else if (archive === 'zip-tree') {
+    // Full-tree extraction (MinGit): preserve the whole directory layout under
+    // pkg.dir instead of copying out individual binaries. Wipe first so a stale
+    // tree from an older version can't leave orphaned files behind.
+    const destDir = path.join(outputDir, pkg.dir)
+    fs.rmSync(destDir, { recursive: true, force: true })
+    fs.mkdirSync(destDir, { recursive: true })
+    if (process.platform === 'win32') {
+      execFileSync(
+        'powershell',
+        ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force`],
+        { stdio: 'inherit' }
+      )
+    } else {
+      execFileSync('unzip', ['-o', '-q', archivePath, '-d', destDir], { stdio: 'inherit' })
     }
   } else if (archive === 'tar.gz') {
     // Extract to a tmp dir and copy only the listed binaries — tarballs often
@@ -366,7 +420,8 @@ function verifyBundledBinaries(platform, arch) {
   for (const tool of TOOLS) {
     const pkg = tool.packages[platformKey]
     if (!pkg) {
-      missing.push(`${tool.name} (no package for ${platformKey})`)
+      // windowsOnly tools (MinGit) legitimately have no package on macOS/Linux.
+      if (!tool.windowsOnly) missing.push(`${tool.name} (no package for ${platformKey})`)
       continue
     }
     for (const binary of pkg.binaries) {

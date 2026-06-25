@@ -10,6 +10,7 @@ import {
   findExecutable,
   findGitBash,
   findViaMise,
+  getBundledGitPath,
   validateGitBashPath
 } from '../commandResolver'
 
@@ -17,6 +18,14 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
+
+// getBundledGitPath resolves application.getPath() + toAsarUnpackedPath; mock both
+// so the test controls the candidate path and asserts only the existence check.
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+vi.mock('../asar', () => ({ toAsarUnpackedPath: (p: string) => p }))
 
 // These tests only run on Windows since the functions have platform guards
 describe.skipIf(process.platform !== 'win32')('process utilities', () => {
@@ -811,6 +820,24 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
 
       expect(autoDiscoverGitBash()).toBeNull()
+    })
+  })
+
+  describe('getBundledGitPath', () => {
+    const expectedExe = ['/mock/app.root.resources.binaries', `win32-${process.arch}`, 'git', 'cmd', 'git.exe'].join(
+      '\\'
+    )
+
+    it('returns the bundled MinGit path when git.exe exists', () => {
+      vi.mocked(fs.existsSync).mockImplementation((p) => p === expectedExe)
+
+      expect(getBundledGitPath()).toBe(expectedExe)
+    })
+
+    it('returns null when the bundled git.exe is absent', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+
+      expect(getBundledGitPath()).toBeNull()
     })
   })
 })
