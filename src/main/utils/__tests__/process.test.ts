@@ -14,8 +14,17 @@ import {
   getBinaryName,
   getBinaryPath,
   getBinarySearchDirs,
+  getBundledGitPath,
   validateGitBashPath
 } from '../process'
+
+// getBundledGitPath resolves application.getPath() + toAsarUnpackedPath; mock both
+// so the test controls the candidate path and asserts only the existence check.
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+vi.mock('../index', () => ({ toAsarUnpackedPath: (p: string) => p }))
 
 // Mock configManager
 vi.mock('@main/services/ConfigManager', () => ({
@@ -1051,6 +1060,24 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         // Verify findGitBash was not called for discovery
         expect(execFileSync).not.toHaveBeenCalled()
       })
+    })
+  })
+
+  describe('getBundledGitPath', () => {
+    const expectedExe = ['/mock/app.root.resources.binaries', `win32-${process.arch}`, 'git', 'cmd', 'git.exe'].join(
+      '\\'
+    )
+
+    it('returns the bundled MinGit path when git.exe exists', () => {
+      vi.mocked(fs.existsSync).mockImplementation((p) => p === expectedExe)
+
+      expect(getBundledGitPath()).toBe(expectedExe)
+    })
+
+    it('returns null when the bundled git.exe is absent', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+
+      expect(getBundledGitPath()).toBeNull()
     })
   })
 })

@@ -9,6 +9,7 @@ import iconv from 'iconv-lite'
 import path from 'path'
 
 import { ConfigKeys, configManager } from '../services/ConfigManager'
+import { toAsarUnpackedPath } from './index'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -470,8 +471,17 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
       return winFound
     }
 
-    // Last resort on Windows: ask mise for the real binary path
-    return findViaMise(name, env)
+    // Ask mise for the real binary path
+    const viaMise = findViaMise(name, env)
+    if (viaMise) {
+      return viaMise
+    }
+
+    // Last resort: the bundled MinGit shipped with the app, so git works even
+    // when the user has no system git installed. System git always wins above.
+    if (name === 'git') {
+      return getBundledGitPath()
+    }
   }
 
   return null
@@ -588,6 +598,25 @@ function getCommonGitRoots(): string[] {
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
     ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
   ]
+}
+
+/**
+ * Resolve the bundled MinGit shipped under resources/binaries/<platform>/git.
+ * Windows-only — other platforms have no bundled git package. Returns the path
+ * to git.exe when present, or null (dev on non-Windows, or missing bundle).
+ *
+ * MinGit is a multi-file tree run in place from resources (not copied into
+ * cherry.bin), so this resolves through the asar.unpacked layout in production.
+ */
+export function getBundledGitPath(): string | null {
+  if (!isWin) {
+    return null
+  }
+  const platformKey = `${process.platform}-${process.arch}`
+  const gitExe = toAsarUnpackedPath(
+    path.join(application.getPath('app.root.resources.binaries'), platformKey, 'git', 'cmd', 'git.exe')
+  )
+  return fs.existsSync(gitExe) ? gitExe : null
 }
 
 /**
