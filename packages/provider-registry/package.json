@@ -12,14 +12,8 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "import:modelsdev": "tsx scripts/import-modelsdev.ts",
-    "import:aihubmix": "tsx scripts/import-aihubmix.ts",
-    "import:openrouter": "tsx scripts/import-openrouter.ts",
-    "import:all": "pnpm import:modelsdev && pnpm import:aihubmix && pnpm import:openrouter",
-    "sync:all": "tsx scripts/generate-providers.ts",
-    "generate:provider-models": "tsx scripts/generate-provider-models.ts",
-    "populate:reasoning": "tsx scripts/populate-reasoning-data.ts",
-    "pipeline": "pnpm import:all && pnpm sync:all && pnpm generate:provider-models && pnpm populate:reasoning"
+    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json",
+    "generate:check": "tsx scripts/generate-catalog.ts --report"
   },
   "author": "Cherry Studio",
   "license": "MIT",
@@ -50,6 +44,7 @@
     }
   },
   "devDependencies": {
+    "@ai-sdk/provider-utils": "^4.0.23",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",

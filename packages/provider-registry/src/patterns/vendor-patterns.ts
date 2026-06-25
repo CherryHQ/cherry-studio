@@ -34,7 +34,7 @@ export const VENDOR_PATTERNS = {
   anthropic: /^(?:anthropic\.)?claude/i,
 
   /** Google Gemini family. */
-  gemini: /gemini|palm|veo|imagen|learnlm/i,
+  gemini: /gemini|palm|veo|imagen|learnlm|lyria/i,
 
   /** Google Gemma family (gemma-*, gemma4:* — matches the Ollama-style tag too). */
   gemma: /gemma-|gemma4/i,
