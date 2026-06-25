@@ -8,8 +8,27 @@ import {
   oauthWithSiliconFlow,
   oauthWithTokenFlux
 } from '@renderer/utils/oauth'
+import type { API_KEY_OAUTH_PROVIDER_IDS } from '@shared/utils/provider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+/**
+ * Per-provider "get API key" launchers, keyed by runtime id. Typed against
+ * `API_KEY_OAUTH_PROVIDER_IDS` (the shared source of truth used by
+ * `isProviderSupportAuth`) so adding an id there without a launcher here is a
+ * compile error — the button can never render for a provider it cannot handle.
+ */
+const API_KEY_OAUTH_LAUNCHERS: Record<
+  (typeof API_KEY_OAUTH_PROVIDER_IDS)[number],
+  (onSuccess: (key: string) => void) => void
+> = {
+  silicon: oauthWithSiliconFlow,
+  aihubmix: oauthWithAihubmix,
+  ppio: oauthWithPPIO,
+  tokenflux: () => oauthWithTokenFlux(),
+  '302ai': oauthWith302AI,
+  aionly: oauthWithAiOnly
+}
 
 interface Props extends React.ComponentProps<typeof Button> {
   /** Only `provider.id` is read; accepts either v1 or v2 Provider shape. */
@@ -28,29 +47,7 @@ const OauthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
       }
     }
 
-    if (provider.id === 'silicon') {
-      void oauthWithSiliconFlow(handleSuccess)
-    }
-
-    if (provider.id === 'aihubmix') {
-      void oauthWithAihubmix(handleSuccess)
-    }
-
-    if (provider.id === 'ppio') {
-      void oauthWithPPIO(handleSuccess)
-    }
-
-    if (provider.id === 'tokenflux') {
-      void oauthWithTokenFlux()
-    }
-
-    if (provider.id === '302ai') {
-      void oauthWith302AI(handleSuccess)
-    }
-
-    if (provider.id === 'aionly') {
-      void oauthWithAiOnly(handleSuccess)
-    }
+    API_KEY_OAUTH_LAUNCHERS[provider.id as (typeof API_KEY_OAUTH_PROVIDER_IDS)[number]]?.(handleSuccess)
   }
 
   return (

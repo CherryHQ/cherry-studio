@@ -1,4 +1,7 @@
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
+import { isCodexProviderId } from '@shared/data/presets/codex'
+import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -104,9 +107,25 @@ export function canManageProvider(provider: Provider): boolean {
   return provider.presetProviderId == null || provider.presetProviderId !== provider.id
 }
 
+/**
+ * Providers whose API key is obtained via a hosted OAuth "get key" flow (the
+ * `OauthButton`), keyed by runtime id. Single source of truth: `OauthButton`
+ * supplies one handler per id (a missing handler is a compile error there), and
+ * `isProviderSupportAuth` gates whether the button renders.
+ */
+export const API_KEY_OAUTH_PROVIDER_IDS = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly'] as const
+
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
-  return supportProviders.includes(provider.id)
+  return (API_KEY_OAUTH_PROVIDER_IDS as readonly string[]).includes(provider.id)
+}
+
+/**
+ * Login-based providers that authenticate via a sign-in flow (CLI login / hosted
+ * OAuth), not an API key — their sign-in panels render through the provider
+ * registry, so the generic API-key/host UI is suppressed for them.
+ */
+export function isLoginBasedProviderId(providerId: string): boolean {
+  return isClaudeCodeProviderId(providerId) || isCodexProviderId(providerId) || isGrokCliProviderId(providerId)
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
