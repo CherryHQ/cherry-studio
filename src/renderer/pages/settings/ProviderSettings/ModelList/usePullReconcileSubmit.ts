@@ -54,15 +54,16 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
         const skippedIds = toRemove.filter((id) => reconciledIds.has(id))
         const actualDeleted = toRemove.length - skippedIds.length
 
-        window.toast.success(
-          t('settings.models.manage.sync_apply_result', {
-            added: toAdd.length,
-            deprecated: 0,
-            deleted: actualDeleted
-          })
-        )
         if (skippedIds.length > 0) {
           window.toast.warning(t('settings.models.manage.sync_apply_default_in_use'))
+        } else {
+          window.toast.success(
+            t('settings.models.manage.sync_apply_result', {
+              added: toAdd.length,
+              deprecated: 0,
+              deleted: actualDeleted
+            })
+          )
         }
         onApplyCommitted()
       } catch (error) {

@@ -220,9 +220,7 @@ describe('usePullReconcileSubmit', () => {
     })
 
     expect(onApplyCommitted).toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith(
-      'settings.models.manage.sync_apply_result:{"added":0,"deprecated":0,"deleted":1}'
-    )
+    expect(window.toast.success).not.toHaveBeenCalled()
     expect(window.toast.warning).toHaveBeenCalledWith('settings.models.manage.sync_apply_default_in_use')
   })
 })
