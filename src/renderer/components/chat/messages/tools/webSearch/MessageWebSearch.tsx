@@ -1,6 +1,6 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import Spinner from '@renderer/components/Spinner'
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
 import { useTranslation } from 'react-i18next'
 

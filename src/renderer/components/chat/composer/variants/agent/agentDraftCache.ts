@@ -1,5 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import type { LocalSkill } from '@renderer/types'
+import type { LocalSkill } from '@shared/types/skill'
 
 import type { ComposerSerializedToken } from '../../tokens'
 

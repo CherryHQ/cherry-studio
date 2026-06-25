@@ -6,7 +6,7 @@ import {
   setAwsBedrockRegion,
   setAwsBedrockSecretAccessKey
 } from '@renderer/store/llm'
-import type { AwsBedrockAuthType } from '@renderer/types'
+import type { AwsBedrockAuthType } from '@renderer/types/provider'
 import { useDispatch } from 'react-redux'
 
 export function useAwsBedrockSettings() {

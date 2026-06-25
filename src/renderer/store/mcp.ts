@@ -16,7 +16,9 @@
  */
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import { type BuiltinMcpServer, BuiltinMcpServerNames, type McpConfig, type McpServer } from '@renderer/types'
+import type { McpConfig } from '@renderer/types/mcpTool'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { type BuiltinMcpServer, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('Store:MCP')
 const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const

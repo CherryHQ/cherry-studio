@@ -1,10 +1,14 @@
-import type { Citation, FileMetadata, McpTool, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
+import type { FileMetadata } from '@renderer/types/file'
+import type { Citation } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import type { McpTool } from '@renderer/types/tool'
+import type { Topic } from '@renderer/types/topic'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
-  MultiModelMessageStyle
+  MultiModelMessageStyle,
+  TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import type {
   CherryMessagePart,
@@ -14,6 +18,7 @@ import type {
   ModelSnapshot
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { ReactNode } from 'react'
 

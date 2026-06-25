@@ -6,7 +6,7 @@ import { useProviderEditor } from '../useProviderEditor'
 
 const uuidMock = vi.fn().mockReturnValue('new-provider-id')
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/uuid', () => ({
   uuid: () => uuidMock()
 }))
 

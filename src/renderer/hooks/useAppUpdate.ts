@@ -1,7 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { notificationService } from '@renderer/services/notification'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'

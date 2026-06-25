@@ -1,4 +1,4 @@
-import type { LocalSkill } from '@renderer/types'
+import type { LocalSkill } from '@shared/types/skill'
 
 import type { ComposerDraftToken } from '../tokens'
 import { composerFileTokenId, fileToComposerToken, getComposerTokenIds } from './shared/composerTokens'

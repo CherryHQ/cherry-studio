@@ -1,6 +1,6 @@
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
-import type { Model } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
