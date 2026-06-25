@@ -173,33 +173,29 @@ const TaskScheduleControls: FC<{
         )}
 
         {scheduleType === 'once' && (
-          <div>
-            <DateTimePicker
-              value={parseScheduleDate(scheduleValue)}
-              granularity="second"
-              format="yyyy-MM-dd HH:mm:ss"
-              placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
-              triggerClassName="w-72 max-w-full"
-              onChange={(date) => {
-                if (!date) return
-                onOnceDateChange(date)
-              }}
-              disabled={disabled}
-            />
-          </div>
+          <DateTimePicker
+            value={parseScheduleDate(scheduleValue)}
+            granularity="second"
+            format="yyyy-MM-dd HH:mm:ss"
+            placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
+            triggerClassName="w-72 max-w-full"
+            onChange={(date) => {
+              if (!date) return
+              onOnceDateChange(date)
+            }}
+            disabled={disabled}
+          />
         )}
 
         {scheduleType === 'cron' && (
-          <div>
-            <UIInput
-              value={scheduleValue}
-              onChange={(e) => onScheduleValueChange(e.target.value)}
-              onBlur={onScheduleValueBlur}
-              placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
-              disabled={disabled}
-              className="w-72 max-w-full"
-            />
-          </div>
+          <UIInput
+            value={scheduleValue}
+            onChange={(e) => onScheduleValueChange(e.target.value)}
+            onBlur={onScheduleValueBlur}
+            placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
+            disabled={disabled}
+            className="w-72 max-w-full"
+          />
         )}
       </div>
 
@@ -415,7 +411,8 @@ const TaskDetail: FC<{
                 size="sm"
                 checked={task.status === 'active'}
                 onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
-                aria-label={toggleStatusLabel}
+                // Name the state the switch controls; aria-checked carries on/off. title keeps the action hint for sighted hover.
+                aria-label={t('agent.cherryClaw.tasks.status.active')}
                 title={toggleStatusLabel}
               />
             )}
@@ -430,7 +427,7 @@ const TaskDetail: FC<{
                 side="bottom"
                 sideOffset={6}
                 collisionPadding={8}
-                className="w-44 min-w-44 rounded-lg border-border bg-popover p-1 shadow-md"
+                className="w-fit min-w-32 rounded-xl p-1.5"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onCloseAutoFocus={(event) => event.preventDefault()}>
                 <MenuList>
@@ -680,7 +677,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
           const sessionId = record.sessionId
 
           return (
-            <div className="flex items-center gap-1">
+            <div className="flex items-start gap-1">
               {sessionId && (
                 <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
                   <Button

@@ -471,12 +471,30 @@ describe('TasksSettings task logs', () => {
     )
   })
 
+  it('swaps the schedule input when the segmented selector changes type', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+
+    // Interval is the task's initial type.
+    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+
+    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+  })
+
   it('moves run and delete into the task detail more menu', async () => {
     render(<TasksSettings />)
 
     await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
 
-    expect(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.pause' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.status.active' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
     expect(screen.queryByTitle('agent.cherryClaw.tasks.run')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.pause' })).not.toBeInTheDocument()
 
@@ -493,7 +511,7 @@ describe('TasksSettings task logs', () => {
 
     await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
 
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.pause' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.status.active' }))
 
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
