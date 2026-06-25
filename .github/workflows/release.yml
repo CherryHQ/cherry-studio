@@ -42,7 +42,7 @@ jobs:
           github.event_name == 'pull_request_target' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
+          github.event.inputs.platform == 'windows' && '["windows-2022"]' ||
           github.event.inputs.platform == 'mac' && '["macos-latest"]' ||
           '["macos-latest", "windows-latest", "ubuntu-latest"]'
           ) }}
@@ -139,7 +139,7 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: |
           pnpm build:win
         env:
