@@ -481,9 +481,9 @@ describe('TasksSettings task logs', () => {
     expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.pause' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    expect(screen.getByRole('menuitem', { name: 'agent.cherryClaw.tasks.delete.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.delete.label' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.cherryClaw.tasks.run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.run' }))
 
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
   })
@@ -500,7 +500,7 @@ describe('TasksSettings task logs', () => {
     )
   })
 
-  it('renders completed task status badge with info color tokens', async () => {
+  it('renders completed task status badge with raw blue tokens matching the status dot', async () => {
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
       enabled: false,
@@ -511,8 +511,8 @@ describe('TasksSettings task logs', () => {
 
     const completedBadge = await screen.findByText('agent.cherryClaw.tasks.status.completed')
 
-    expect(completedBadge).toHaveClass('border-info/30', 'bg-info/10', 'text-info')
-    expect(completedBadge).not.toHaveClass('border-primary/30', 'bg-primary/10', 'text-primary')
+    expect(completedBadge).toHaveClass('border-blue-500/30', 'bg-blue-500/10', 'text-blue-500')
+    expect(completedBadge).not.toHaveClass('border-info/30', 'bg-info/10', 'text-info')
   })
 
   it('keeps delete in the more menu for completed tasks without showing run or status controls', async () => {
@@ -532,9 +532,9 @@ describe('TasksSettings task logs', () => {
       fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     })
 
-    expect(screen.queryByRole('menuitem', { name: 'agent.cherryClaw.tasks.run' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.run' })).not.toBeInTheDocument()
     act(() => {
-      fireEvent.click(screen.getByRole('menuitem', { name: 'agent.cherryClaw.tasks.delete.label' }))
+      fireEvent.click(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.delete.label' }))
     })
 
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.cherryClaw.tasks.delete.confirm')

@@ -421,13 +421,7 @@ const TaskDetail: FC<{
             )}
             <Popover open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
               <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={moreLabel}
-                  aria-haspopup="menu"
-                  aria-expanded={actionsMenuOpen}>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={moreLabel}>
                   <MoreHorizontal size={14} />
                 </Button>
               </PopoverTrigger>
@@ -439,10 +433,9 @@ const TaskDetail: FC<{
                 className="w-44 min-w-44 rounded-lg border-border bg-popover p-1 shadow-md"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onCloseAutoFocus={(event) => event.preventDefault()}>
-                <MenuList role="menu">
+                <MenuList>
                   {!isCompleted && (
                     <MenuItem
-                      role="menuitem"
                       variant="ghost"
                       icon={<Play className="size-3.5" />}
                       label={runLabel}
@@ -450,7 +443,6 @@ const TaskDetail: FC<{
                     />
                   )}
                   <MenuItem
-                    role="menuitem"
                     variant="ghost"
                     icon={<Trash2 className="size-3.5 text-destructive" />}
                     label={deleteLabel}
@@ -780,7 +772,8 @@ const badgeColorClass = (value: string) => {
     case 'orange':
       return 'border-warning/30 bg-warning/10 text-warning'
     case 'completed':
-      return 'border-info/30 bg-info/10 text-info'
+      // Raw blue-500 to match the left-list status dot (statusDotColors.completed) exactly.
+      return 'border-blue-500/30 bg-blue-500/10 text-blue-500'
     case 'blue':
       return 'border-primary/30 bg-primary/10 text-primary'
     case 'purple':
