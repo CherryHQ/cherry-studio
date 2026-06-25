@@ -20,14 +20,14 @@ vi.mock('electron', () => ({
   net: { fetch: netFetchMock }
 }))
 
-// Unified application mock provides a real Map-backed CacheService; ProxyManager
+// Unified application mock provides a real Map-backed CacheService; ProxyService
 // is not a default service, so wrap `get` to return our controllable stub.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'ProxyManager') {
+    if (name === 'ProxyService') {
       return {
         get appliedProxyKey() {
           return proxyState.appliedProxyKey
