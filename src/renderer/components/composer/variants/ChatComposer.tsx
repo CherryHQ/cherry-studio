@@ -55,6 +55,7 @@ import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { useInputHistory } from '../useInputHistory'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
@@ -590,6 +591,20 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
+  const applyHistoryText = useCallback((historyText: string) => {
+    setText(historyText)
+    setDraftTokens(undefined)
+  }, [])
+  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+    applyText: applyHistoryText
+  })
+  const handleTextChange = useCallback(
+    (nextText: string) => {
+      resetHistoryIndex()
+      setText(nextText)
+    },
+    [resetHistoryIndex]
+  )
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
@@ -1025,6 +1040,10 @@ const ChatComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
+      saveHistory(payload.text).catch((error) => {
+        logger.warn('Failed to save input history', { error })
+      })
+
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
@@ -1080,6 +1099,7 @@ const ChatComposerInner = ({
       staleEditingMessage,
       stopEditing,
       restoreSavedDraft,
+      saveHistory,
       t,
       text
     ]
@@ -1178,7 +1198,7 @@ const ChatComposerInner = ({
       )}
       <ComposerSurface
         text={text}
-        onTextChange={setText}
+        onTextChange={handleTextChange}
         tokens={tokens}
         draftTokens={draftTokens}
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
@@ -1252,6 +1272,7 @@ const ChatComposerInner = ({
         narrowMode={forceNarrowLayout || narrowMode}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
+        onInputHistoryNavigate={navigateHistory}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         rootPanelLeadingItems={rootPanelLeadingItems}

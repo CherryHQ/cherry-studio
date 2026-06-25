@@ -41,6 +41,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -146,6 +147,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  onInputHistoryNavigate?: (direction: InputHistoryDirection, currentText: string) => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -483,6 +485,21 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
   return createPromptVariableContent(text)
 }
 
+function getComposerSelectionState(view: ComposerTextInputView) {
+  const { doc, selection } = view.state
+  const lastSelectablePosition = Math.max(1, doc.content.size - 1)
+
+  return {
+    isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
+    isCursorAtEnd: selection.empty && selection.from >= lastSelectablePosition
+  }
+}
+
+const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
+const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
+const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
+const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
+const COMPOSER_EDITOR_HEIGHT_TRANSITION_MS = 260
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
@@ -512,6 +529,7 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  onInputHistoryNavigate,
   editingState,
   getToolLaunchers,
   toolLaunchersVersion,
@@ -1246,7 +1264,7 @@ export default function ComposerSurface({
         ),
         style: editorStyle
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
@@ -1261,6 +1279,25 @@ export default function ComposerSurface({
             !event.altKey
           ) {
             return false
+          }
+        }
+
+        if (
+          (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+          shouldHandleInputHistoryNavigation({
+            ...getComposerSelectionState(view),
+            isComposing: event.isComposing,
+            isQuickPanelVisible: quickPanel.isVisible,
+            key: event.key,
+            text: textRef.current
+          })
+        ) {
+          const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
+          const handled = onInputHistoryNavigate?.(direction, textRef.current) ?? false
+          if (handled) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
           }
         }
 
