@@ -6464,8 +6464,6 @@
         "confirm_delete_message": "Confirmer avant de supprimer le message",
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
-        "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
-        "paste_long_text_threshold": "Seuil de longueur de texte",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"

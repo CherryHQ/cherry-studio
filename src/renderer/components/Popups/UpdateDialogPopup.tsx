@@ -2,6 +2,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { ipcApi } from '@renderer/ipc'
 // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
 // import { handleSaveData } from '@renderer/store'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
@@ -44,7 +45,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
     try {
       // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
       // await handleSaveData()
-      await window.api.quitAndInstall()
+      await ipcApi.request('app.updater.quit_and_install')
       closePopup()
     } catch (error) {
       logger.error('Failed to save data before update', error as Error)

@@ -41,7 +41,7 @@ this.registerDisposable(power.registerShutdownHandler(() => flushCriticalState()
 
 - **WhenReady phase.** The app is already ready, so `powerSaveBlocker` / `BrowserWindow`
   are used directly — no `app.whenReady()` gymnastics. The preference gate is self-read,
-  mirroring `TrayService` / `ThemeService` / `ProxyManager`.
+  mirroring `TrayService` / `ThemeService` / `ProxyService`.
 - **Sleep prevention is a generic registry.** Any worker that needs the machine awake
   registers a hold; the gate (the user preference) is orthogonal and owned here. The Job
   system is the first registrant; streaming and other workers self-register later through
