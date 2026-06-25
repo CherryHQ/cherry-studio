@@ -4,8 +4,8 @@ import { net } from 'electron'
 /**
  * Base `fetch` for AI provider HTTP calls.
  *
- * Proxy policy is applied centrally by `ProxyManager`
- * (`src/main/services/ProxyManager.ts`), which configures both the Electron
+ * Proxy policy is applied centrally by `ProxyService`
+ * (`src/main/services/proxy/ProxyService.ts`), which configures both the Electron
  * session/app proxy and the Node network stack (`src/main/services/proxy`). AI
  * provider traffic intentionally uses Electron
  * `net.fetch` here so it runs on Chromium's network stack and benefits from

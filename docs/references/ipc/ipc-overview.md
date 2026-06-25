@@ -118,6 +118,30 @@ Lightweight `IpcError` (`code: string` + `message` + optional `data`), serialize
 
 The router maps invalid input to `VALIDATION_FAILED` and unknown routes to `ROUTE_NOT_FOUND`; an untrusted sender yields `FORBIDDEN_SENDER`; anything else normalizes to `INTERNAL`.
 
+### Error Codes — `IpcErrorCode`
+
+`IpcErrorCode` (`src/shared/ipc/errors/index.ts`) is the **single source of truth for the framework's own codes** — `ROUTE_NOT_FOUND`, `VALIDATION_FAILED`, `FORBIDDEN_SENDER`, `INTERNAL`. Throw sites reference the const (`IpcErrorCode.VALIDATION_FAILED`), never a bare string literal, so a typo is a compile error rather than a silently miscategorized code.
+
+The `IpcErrorCode` **type** is deliberately open — `(the four literals) | (string & {})`:
+
+- the literals give IDE completion and let `code` narrow when you branch on a known framework code;
+- the `(string & {})` tail keeps the set open on purpose: codes are rebuilt verbatim by `IpcError.fromJSON` across the boundary, `IpcError.from` normalizes any unknown throw to `INTERNAL`, and **a migrated domain may mint its own codes**. A closed union would be a lie at the deserialization boundary.
+
+**Producing errors from a handler.** A handler signals a failure the renderer must branch on by `throw`ing an `IpcError` — `IpcApiService` catches it, serializes via `toJSON`, and returns `{ ok: false, error }` (it never reaches `ipcMain.handle`). The four framework codes are **produced by the framework**, not thrown by a handler by hand; a handler that wants to signal a business failure throws a **domain code** instead. Any non-`IpcError` throw (an uncaught bug) is normalized to `INTERNAL` by `IpcError.from`, so it never leaks an arbitrary string as a `code`.
+
+| Situation | What to throw |
+|---|---|
+| Bad input / unknown route / untrusted sender / unexpected | nothing by hand — the router/service produce `VALIDATION_FAILED` / `ROUTE_NOT_FOUND` / `FORBIDDEN_SENDER` / `INTERNAL` |
+| A business failure the renderer must branch on (`FILE_NOT_FOUND`, `MCP_NOT_CONNECTED`, …) | a **domain code** — a `SCREAMING_SNAKE_CASE` string the domain owns; machine-readable detail rides in `data`, human text in `message` |
+| Any other unexpected throw | leave it — `IpcError.from` maps it to `INTERNAL` |
+
+**Domain codes — where they live.** A domain that throws its own codes puts them in `@shared/ipc/errors/<domain>.ts` as a `SCREAMING_SNAKE_CASE` `as const` map mirroring `IpcErrorCode`. Both the handler (throw) and the renderer (branch) import that map and reference the constant — never a bare literal — so a typo is a compile error on the side that actually branches. The codes must be stable (the renderer matches on `code` by equality). Two rules pin the placement:
+
+- **Not in `schemas/<domain>.ts`.** The map is a runtime *value* the renderer must read to branch (`e.code === fileErrorCodes.FILE_NOT_FOUND`), but the renderer may only `import type` from `@shared/ipc/schemas` (an ESLint rule keeps zod out of the renderer bundle) — a type-only import yields no runtime value to compare against. So the map lives beside the framework codes under `errors/`, which is value-importable and zod-free. This mirrors why `IpcError`/`IpcErrorCode` live in `errors/`, not `schemas/`.
+- **No barrel aggregation.** Unlike `ipcRequestSchemas` / `ipcHandlers` — which the framework consumes as a whole set and checks for exhaustiveness — *nothing* consumes "all error codes at once": `code` is the open `(string & {})`, never dispatched against. Import each domain's map directly from `@shared/ipc/errors/<domain>`; do **not** re-export domain codes through `errors/index.ts`. `errors/index.ts` holds only the framework core (`IpcError`, `IpcErrorCode`, `SerializedIpcError`, `IpcResult`); aggregating domain codes there would re-couple every domain into one shared file and tempt a closed union that fights the open-tail design.
+
+Carry machine-readable detail in `data` (typed, structured-clone-safe), human text in `message` — never string-parse `message`. See [usage](./ipc-usage.md#4-surface-a-typed-error-optional) for a handler-throws + renderer-branches example.
+
 ## Lifecycle & Timing
 
 `IpcApiService` is `@ServicePhase(Phase.BeforeReady)` — the command-side peer of `DataApiService`. `onInit` only registers the channel; `application.get(...)` inside the handler/`makeContext` is lazy, so handlers are ready before the first window opens (`Application.ts` runs `Promise.all([startPhase(BeforeReady), app.whenReady()])` before WhenReady, and the first window opens in `MainWindowService.onReady`). No `@DependsOn` or priority needed.
