@@ -6470,8 +6470,6 @@
         "confirm_delete_message": "Confirmar antes de eliminar mensaje",
         "confirm_regenerate_message": "confirmar antes de regenerar el mensaje",
         "enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
-        "paste_long_text_as_file": "Pegar texto largo como archivo",
-        "paste_long_text_threshold": "Límite de longitud de texto largo",
         "send_shortcuts": "Atajos de teclado para enviar",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configuración de entrada"

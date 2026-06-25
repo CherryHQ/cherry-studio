@@ -6470,8 +6470,6 @@
         "confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
         "confirm_regenerate_message": "Confirmă înainte de regenerarea mesajelor",
         "enable_quick_triggers": "Activează declanșatoarele / și @",
-        "paste_long_text_as_file": "Lipește text lung ca fișier",
-        "paste_long_text_threshold": "Lungime lipire text lung",
         "send_shortcuts": "Comenzi rapide trimitere",
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
