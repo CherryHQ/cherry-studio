@@ -44,8 +44,8 @@ const PROVIDERS_PATH = path.join(__dirname, '../data/providers.json')
 const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
-// Stamp generated files with the generation date (YYYY.MM.DD) — never a hardcoded literal. NOTE: this
-// changes per regeneration day, so the regenerate-and-diff CI check (#10) must ignore the `version` field.
+// Stamp generated files with the generation date (YYYY.MM.DD). Upstream (models.dev/OpenRouter) is read
+// live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to a local file to cache it during dev.
 const VERSION = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
 
 // ── canonicalization (same pipeline as the runtime resolver's normalizeModelId) ──

@@ -12,7 +12,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json",
+    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json",
     "generate:check": "tsx scripts/generate-catalog.ts --report"
   },
   "author": "Cherry Studio",

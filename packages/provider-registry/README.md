@@ -2,6 +2,8 @@
 
 Bundled AI provider and model catalog for Cherry Studio. Ships static JSON data files and TypeScript schemas for reading them.
 
+> **Contributing?** The `data/*.json` files are **generated** — never hand-edit them. Edit `src/labs/` / `src/provider/` and run `pnpm generate`. See [CLAUDE.md](CLAUDE.md) and [docs/architecture.md](docs/architecture.md).
+
 ## Data Files
 
 ```
