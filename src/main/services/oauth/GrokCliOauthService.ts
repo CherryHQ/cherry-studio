@@ -1,15 +1,9 @@
 import { randomBytes } from 'node:crypto'
 
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import {
-  type LoopbackConfig,
-  type LoopbackOAuthChannels,
-  LoopbackOAuthService,
-  OAuthServiceError
-} from '@main/services/oauth/LoopbackOAuthService'
+import { type LoopbackConfig, LoopbackOAuthService, OAuthServiceError } from '@main/services/oauth/LoopbackOAuthService'
 import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
-import { IpcChannel } from '@shared/IpcChannel'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -44,11 +38,6 @@ export class GrokCliOauthService extends LoopbackOAuthService {
     port: GROK_CONFIG.CALLBACK_PORT,
     path: GROK_CONFIG.CALLBACK_PATH,
     redirectUri: GROK_CONFIG.REDIRECT_URI
-  }
-  protected readonly channels: LoopbackOAuthChannels = {
-    signIn: IpcChannel.GrokCli_SignIn,
-    hasToken: IpcChannel.GrokCli_HasToken,
-    logout: IpcChannel.GrokCli_Logout
   }
 
   private discoveryCache: Discovery | null = null

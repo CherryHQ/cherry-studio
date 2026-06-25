@@ -19,20 +19,18 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// BaseService pulls in the lifecycle container; stub it down to just the bits the
-// service touches (ipcHandle) so the subclass can be constructed in isolation.
+// BaseService pulls in the lifecycle container; stub it to an empty base so the
+// subclass can be constructed in isolation (the token logic touches no base members).
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
-  class MockBaseService {
-    public ipcHandle = vi.fn().mockImplementation(() => ({ dispose: vi.fn() }))
-  }
+  class MockBaseService {}
   return { ...actual, BaseService: MockBaseService }
 })
 
 import type { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { type OAuthTokenResponse } from '@main/utils/oauth/PkceOAuthClient'
 
-import { type LoopbackConfig, type LoopbackOAuthChannels, LoopbackOAuthService } from '../LoopbackOAuthService'
+import { type LoopbackConfig, LoopbackOAuthService } from '../LoopbackOAuthService'
 
 const PROVIDER_ID = 'test-loopback'
 
@@ -45,11 +43,6 @@ class TestOAuthService extends LoopbackOAuthService {
     path: '/cb',
     redirectUri: 'http://127.0.0.1:1/cb'
   }
-  protected readonly channels = {
-    signIn: 'test:sign-in',
-    hasToken: 'test:has-token',
-    logout: 'test:logout'
-  } as unknown as LoopbackOAuthChannels
 
   public readonly refreshMock = vi.fn<(refreshToken: string) => Promise<OAuthTokenResponse>>()
   public extra: Record<string, unknown> = {}
@@ -194,22 +187,6 @@ describe('LoopbackOAuthService', () => {
         authConfig: { type: 'api-key' },
         isEnabled: false
       })
-    })
-  })
-
-  describe('onInit', () => {
-    it('registers the shared sign-in / has-token / logout channels from the channels map', () => {
-      // onInit is the lifecycle hook; invoke it directly to assert the base wires
-      // the three shared handlers so subclasses no longer repeat the registration.
-      const { onInit, ipcHandle } = service as unknown as {
-        onInit(): void
-        ipcHandle: ReturnType<typeof vi.fn>
-      }
-      onInit.call(service)
-
-      expect(ipcHandle).toHaveBeenCalledWith('test:sign-in', service.signIn)
-      expect(ipcHandle).toHaveBeenCalledWith('test:has-token', service.hasToken)
-      expect(ipcHandle).toHaveBeenCalledWith('test:logout', service.logout)
     })
   })
 })

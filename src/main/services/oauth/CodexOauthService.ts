@@ -1,13 +1,8 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import {
-  type LoopbackConfig,
-  type LoopbackOAuthChannels,
-  LoopbackOAuthService
-} from '@main/services/oauth/LoopbackOAuthService'
+import { type LoopbackConfig, LoopbackOAuthService } from '@main/services/oauth/LoopbackOAuthService'
 import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import type { OAuthAuthConfig } from '@shared/data/types/provider'
-import { IpcChannel } from '@shared/IpcChannel'
 
 // OpenAI Codex OAuth configuration. The client_id and the loopback redirect URI
 // are fixed by OpenAI's registered OAuth client (the same one the Codex CLI
@@ -40,12 +35,6 @@ export class CodexOauthService extends LoopbackOAuthService {
     path: CODEX_CONFIG.CALLBACK_PATH,
     redirectUri: CODEX_CONFIG.REDIRECT_URI
   }
-  protected readonly channels: LoopbackOAuthChannels = {
-    signIn: IpcChannel.Codex_SignIn,
-    hasToken: IpcChannel.Codex_HasToken,
-    logout: IpcChannel.Codex_Logout
-  }
-
   // Static endpoint, so the PKCE client is built once. The base owns the
   // loopback transport and token lifecycle; this service only adds the
   // account-id extraction and its sign-in/account return shape.
@@ -60,11 +49,6 @@ export class CodexOauthService extends LoopbackOAuthService {
       codex_cli_simplified_flow: 'true'
     }
   })
-
-  protected onInit(): void {
-    super.onInit()
-    this.ipcHandle(IpcChannel.Codex_GetAccount, this.getAccount)
-  }
 
   protected getClient(): PkceOAuthClient {
     return this.oauthClient

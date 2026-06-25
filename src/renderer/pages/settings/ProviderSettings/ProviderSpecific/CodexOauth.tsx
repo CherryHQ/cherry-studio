@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -29,9 +30,9 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const hasToken = await window.api.codex.hasToken()
+      const hasToken = await ipcApi.request('oauth.codex_has_token')
       setLoggedIn(hasToken)
-      setAccountId(hasToken ? (await window.api.codex.getAccount()).accountId : null)
+      setAccountId(hasToken ? (await ipcApi.request('oauth.codex_get_account')).accountId : null)
     } catch (error) {
       logger.error('Failed to check Codex login status', error as Error)
       setLoggedIn(false)
@@ -45,7 +46,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
   const handleSignIn = useCallback(async () => {
     setSigningIn(true)
     try {
-      const { accountId } = await window.api.codex.signIn()
+      const { accountId } = await ipcApi.request('oauth.codex_sign_in')
       setLoggedIn(true)
       setAccountId(accountId)
       // The main process enabled the provider; mirror it into the renderer cache.
@@ -67,7 +68,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
       onOk: async () => {
         setLoggingOut(true)
         try {
-          await window.api.codex.logout()
+          await ipcApi.request('oauth.codex_logout')
           await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
           setLoggedIn(false)
           setAccountId(null)

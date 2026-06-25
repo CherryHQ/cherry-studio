@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -28,7 +29,7 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
 
   const refreshStatus = useCallback(async () => {
     try {
-      setLoggedIn(await window.api.grokCli.hasToken())
+      setLoggedIn(await ipcApi.request('oauth.grok_has_token'))
     } catch (error) {
       logger.error('Failed to check Grok CLI login status', error as Error)
       setLoggedIn(false)
@@ -42,7 +43,7 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
   const handleSignIn = useCallback(async () => {
     setSigningIn(true)
     try {
-      await window.api.grokCli.signIn()
+      await ipcApi.request('oauth.grok_sign_in')
       setLoggedIn(true)
       // The main process enabled the provider; mirror it into the renderer cache.
       await updateProvider({ isEnabled: true })
@@ -63,7 +64,7 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
       onOk: async () => {
         setLoggingOut(true)
         try {
-          await window.api.grokCli.logout()
+          await ipcApi.request('oauth.grok_logout')
           setLoggedIn(false)
           window.toast.success(t('settings.provider.oauth.logout_success'))
         } catch (error) {

@@ -6,7 +6,6 @@ import { BaseService } from '@main/core/lifecycle'
 import type { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { type OAuthTokenResponse } from '@main/utils/oauth/PkceOAuthClient'
 import type { OAuthAuthConfig } from '@shared/data/types/provider'
-import type { IpcChannel } from '@shared/IpcChannel'
 import { shell } from 'electron'
 
 export interface LoopbackConfig {
@@ -17,13 +16,6 @@ export interface LoopbackConfig {
   path: string
   /** Full redirect URI registered with the provider's OAuth client. */
   redirectUri: string
-}
-
-/** The three IPC channels every loopback provider exposes; registered by the base. */
-export interface LoopbackOAuthChannels {
-  signIn: IpcChannel
-  hasToken: IpcChannel
-  logout: IpcChannel
 }
 
 export class OAuthServiceError extends Error {
@@ -49,12 +41,12 @@ const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
  * server the app starts. Owns the loopback transport, the PKCE token lifecycle
  * (persist / refresh-with-dedup / expiry-aware read), and the sign-in template.
  *
- * Subclasses supply the provider id, client id, loopback binding, the PKCE
- * client (static for a fixed endpoint, or built per call from OIDC discovery),
- * and the `channels` map naming their provider-specific IPC channels — the base
- * registers the shared `signIn`/`hasToken`/`logout` handlers from it. A subclass
- * with extra channels (e.g. Codex's get-account) or a richer sign-in return
- * shape overrides `onInit` (calling `super.onInit()`) and/or `signIn`.
+ * Subclasses supply the provider id, client id, loopback binding, and the PKCE
+ * client (static for a fixed endpoint, or built per call from OIDC discovery).
+ * The shared `signIn`/`hasToken`/`logout` methods are exposed to the renderer by
+ * the IpcApi `oauth` domain (`src/main/ipc/handlers/oauth.ts`), which calls them
+ * on the registered service; a subclass with a richer sign-in return shape (e.g.
+ * Codex's account) overrides `signIn` and adds its own routes.
  *
  * Deep-link providers (custom-protocol callback) deliberately do NOT extend this
  * — their transport and post-auth side effects differ enough that sharing the
@@ -64,7 +56,6 @@ export abstract class LoopbackOAuthService extends BaseService {
   protected abstract readonly providerId: string
   protected abstract readonly clientId: string
   protected abstract readonly loopback: LoopbackConfig
-  protected abstract readonly channels: LoopbackOAuthChannels
 
   /**
    * Resolve the PKCE client. Called once per sign-in and once per refresh, so a
@@ -79,12 +70,6 @@ export abstract class LoopbackOAuthService extends BaseService {
   // IPv4/IPv6 pair) tear down together; non-empty means a flow is active.
   private activeServers: Server[] = []
   private refreshPromise: Promise<string | null> | null = null
-
-  protected onInit(): void {
-    this.ipcHandle(this.channels.signIn, this.signIn)
-    this.ipcHandle(this.channels.hasToken, this.hasToken)
-    this.ipcHandle(this.channels.logout, this.logout)
-  }
 
   protected onStop(): void {
     this.closeActiveServer()

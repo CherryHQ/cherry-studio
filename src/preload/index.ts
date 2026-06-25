@@ -460,17 +460,7 @@ const api = {
       }
     }
   },
-  codex: {
-    signIn: (): Promise<{ accountId: string | null }> => ipcRenderer.invoke(IpcChannel.Codex_SignIn),
-    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Codex_HasToken),
-    getAccount: (): Promise<{ accountId: string | null }> => ipcRenderer.invoke(IpcChannel.Codex_GetAccount),
-    logout: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Codex_Logout)
-  },
-  grokCli: {
-    signIn: (): Promise<void> => ipcRenderer.invoke(IpcChannel.GrokCli_SignIn),
-    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.GrokCli_HasToken),
-    logout: (): Promise<void> => ipcRenderer.invoke(IpcChannel.GrokCli_Logout)
-  },
+  // Codex / Grok CLI OAuth migrated to IpcApi — see `ipcApi.request('oauth.*')`.
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),

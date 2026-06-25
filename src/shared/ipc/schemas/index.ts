@@ -3,6 +3,7 @@ import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { oauthRequestSchemas } from './oauth'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -19,6 +20,7 @@ export const ipcRequestSchemas = {
   ...binaryRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
+  ...oauthRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas

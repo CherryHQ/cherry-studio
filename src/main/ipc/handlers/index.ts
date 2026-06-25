@@ -5,6 +5,7 @@ import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { oauthHandlers } from './oauth'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -23,6 +24,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...binaryHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
+  ...oauthHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,
   ...windowHandlers
