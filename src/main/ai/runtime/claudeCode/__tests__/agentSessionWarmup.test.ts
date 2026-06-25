@@ -1,3 +1,4 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -98,6 +99,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession provenance headers', () => 
     mocks.getRotatedApiKey.mockResolvedValue('api-key')
     mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
     mocks.buildSessionSettings.mockResolvedValue({ env: {} })
+    // Headers are gated on data-collection consent; grant it by default so these
+    // cases exercise the cherryin logic, and revoke it explicitly where tested.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
   })
 
   it('injects the agent source + conversation headers via ANTHROPIC_CUSTOM_HEADERS for a cherryin model', async () => {
@@ -109,6 +113,16 @@ describe('buildClaudeCodeQueryRequestForAgentSession provenance headers', () => 
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
       'X-Cherry-Source: agent\nX-Cherry-Conversation-Id: session-1'
     )
+  })
+
+  it('does not inject the headers for a cherryin model when data-collection consent is withheld', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
   })
 
   it('does not inject the headers for a non-cherryin model', async () => {

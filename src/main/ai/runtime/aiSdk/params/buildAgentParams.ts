@@ -129,9 +129,10 @@ export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined
 
 /**
  * Stamp the feature/conversation provenance onto the provider settings — but
- * ONLY for the cherryin provider, the sole consumer. Every SDK call shape
- * (text / embed / rerank / image) forwards `providerSettings.headers`, so doing
- * it here once covers all features; other providers never receive the headers.
+ * ONLY for the cherryin provider (the sole consumer) and ONLY when the user has
+ * consented to anonymous data collection. Every SDK call shape (text / embed /
+ * rerank / image) forwards `providerSettings.headers`, so doing it here once
+ * covers all features; other requests never receive the headers.
  */
 export function applyCherryinSourceHeaders(
   sdkConfig: SdkConfig,
@@ -139,6 +140,7 @@ export function applyCherryinSourceHeaders(
   source: AiRequestSource | undefined
 ): void {
   if (!source || !isCherryinProviderId(provider.id)) return
+  if (application.get('PreferenceService').get('app.privacy.data_collection.enabled') !== true) return
   const settings = sdkConfig.providerSettings as { headers?: Record<string, string | undefined> }
   settings.headers = { ...settings.headers, ...buildRequestSourceHeaders(source) }
 }

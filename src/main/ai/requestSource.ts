@@ -4,7 +4,13 @@
  * CherryIN relays traffic for several Cherry Studio features through one
  * endpoint and can't otherwise tell which feature — or which conversation — a
  * request came from. Two headers carry that, and they are attached ONLY when
- * the request's provider is CherryIN (other providers never see them):
+ * BOTH hold (no other request ever sees them):
+ *
+ * - the request's provider is CherryIN, and
+ * - the user has consented to anonymous data collection
+ *   (`app.privacy.data_collection.enabled`).
+ *
+ * The headers themselves:
  *
  * - `X-Cherry-Source` — which feature originated the request.
  * - `X-Cherry-Conversation-Id` — the owning conversation, for the two features

@@ -1,7 +1,8 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { Provider } from '@shared/data/types/provider'
 import type { StopCondition, ToolSet } from 'ai'
-import { describe, expect, it } from 'vitest'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures'
 import { CherryRequestSource } from '../../../../requestSource'
@@ -85,6 +86,12 @@ describe('applyCherryinSourceHeaders', () => {
   const headersOf = (sdkConfig: SdkConfig) =>
     (sdkConfig.providerSettings as { headers?: Record<string, string> }).headers
 
+  // The provenance headers are gated on data-collection consent; default to granted
+  // so each case exercises the cherryin/source logic, and revoke it explicitly below.
+  beforeEach(() => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+  })
+
   it('stamps the source + conversation headers onto cherryin provider settings, preserving existing headers', () => {
     const sdkConfig = makeSdkConfig({ 'X-Title': 'Cherry Studio' })
 
@@ -112,6 +119,18 @@ describe('applyCherryinSourceHeaders', () => {
     const sdkConfig = makeSdkConfig({ 'X-Title': 'Cherry Studio' })
 
     applyCherryinSourceHeaders(sdkConfig, provider('openai'), {
+      feature: CherryRequestSource.Chat,
+      conversationId: 'topic-1'
+    })
+
+    expect(headersOf(sdkConfig)).toEqual({ 'X-Title': 'Cherry Studio' })
+  })
+
+  it('leaves cherryin untouched when data-collection consent is withheld', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    const sdkConfig = makeSdkConfig({ 'X-Title': 'Cherry Studio' })
+
+    applyCherryinSourceHeaders(sdkConfig, provider('cherryin'), {
       feature: CherryRequestSource.Chat,
       conversationId: 'topic-1'
     })

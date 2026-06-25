@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -45,8 +46,12 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const resumeSessionId =
     effectiveResume ?? (await agentSessionMessageService.getLastRuntimeResumeToken(session.id)) ?? undefined
   // Provenance headers ride ANTHROPIC_CUSTOM_HEADERS — but only when the agent's
-  // model is served by cherryin, the sole consumer. Other providers get nothing.
-  const sourceCustomHeaders = isCherryinProviderId(provider.id)
+  // model is served by cherryin (the sole consumer) and the user has consented to
+  // anonymous data collection. Otherwise nothing is sent.
+  const sendProvenance =
+    isCherryinProviderId(provider.id) &&
+    application.get('PreferenceService').get('app.privacy.data_collection.enabled') === true
+  const sourceCustomHeaders = sendProvenance
     ? toAnthropicCustomHeaders(
         buildRequestSourceHeaders({ feature: CherryRequestSource.Agent, conversationId: session.id })
       )
