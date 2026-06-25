@@ -56,10 +56,10 @@
 
 但当前包里仍存在旧依赖残留：
 
-1. `EditableNumber` 直接依赖旧 UI 组件库
+1. `EditableNumber` 直接依赖 `antd`
 2. `EditableNumber`、`Scrollbar`、`Sortable`、`HorizontalScrollContainer` 等仍在使用 `styled-components`
 3. `tsdown.config.ts` 仍将 `styled-components` 作为 external 保留
-4. `package.json` 的 devDependencies 中仍包含 旧 UI 组件库、`styled-components`、`@types/styled-components`
+4. `package.json` 的 devDependencies 中仍包含 `antd`、`styled-components`、`@types/styled-components`
 
 这类残留的风险不是“包暂时还能跑”，而是：
 
@@ -180,7 +180,7 @@
 ### 高优先级
 
 1. 发布入口与实际产物不一致
-2. UI 包继续暴露 旧 UI 组件库 / `styled-components` 迁移债务
+2. UI 包继续暴露 `antd` / `styled-components` 迁移债务
 3. renderer 依赖 UI 包源码路径而不是稳定包接口
 
 这些问题会直接阻碍 UI 包独立演进，也会影响后续 v2 收口。
@@ -221,7 +221,7 @@
 
 原则上：
 
-1. 正式 UI 层不再继续引入旧 UI 组件库
+1. 正式 UI 层不再继续引入 `antd`
 2. 正式 UI 层不再继续引入 `styled-components`
 3. 仍依赖旧栈的组件要么迁移，要么隔离到兼容目录，不应继续作为默认公共导出的一部分
 
@@ -307,7 +307,7 @@
 
 目标：
 
-把 旧 UI 组件库 / `styled-components` 从“正式 UI 层”中剥离出去。
+把 `antd` / `styled-components` 从“正式 UI 层”中剥离出去。
 
 主要工作：
 
@@ -325,7 +325,7 @@
 
 组件治理规则：
 
-1. 正式导出的组件不得继续新增旧 UI 组件库 依赖
+1. 正式导出的组件不得继续新增 `antd` 依赖
 2. 正式导出的组件不得继续新增 `styled-components` 依赖
 3. 尚未迁移完成的旧组件应显式标记为 compatibility，而不是混在默认公共能力里
 
@@ -509,7 +509,7 @@ CSS 变量分层约定：
 
 达到以下条件即可视为第二阶段完成：
 
-1. 正式 UI 层不再新增旧 UI 组件库
+1. 正式 UI 层不再新增 `antd`
 2. 正式 UI 层不再新增 `styled-components`
 3. compatibility 范围被显式标注
 
@@ -535,7 +535,7 @@ CSS 变量分层约定：
 
 1. `@cherrystudio/ui` 的所有公开入口都具备稳定 contract
 2. renderer 不再通过源码路径使用 UI 包
-3. 正式导出组件不再依赖 旧 UI 组件库 / `styled-components`
+3. 正式导出组件不再依赖 `antd` / `styled-components`
 4. 主题变量区分出 public contract 和 internal-only contract
 5. 文档、构建、导出、消费方式保持一致
 

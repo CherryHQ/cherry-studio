@@ -13,7 +13,7 @@ Per-module fine-grained TODOs live in their own docs and are not duplicated here
 | Remove Redux | ~100 files / 28 slices | 🟡 partially migrated |
 | Remove Dexie | ~50 files | 🟡 mostly migrated, fallback paths pending |
 | Remove ElectronStore | ~10 files | 🔲 awaiting migration-window close |
-| Remove legacy UI | ~145 files | 🟡 settings/knowledge pages already clean |
+| Remove antd | ~145 files | 🟡 settings/knowledge pages already clean |
 | Remove styled-components | ~112 files | 🟡 in progress |
 | Migrator finalization | 4 explicit todos | 🟡 14 migrators mostly complete |
 | Schema / migration SQL regen | release gate | 🔲 before release |
@@ -53,18 +53,18 @@ Representative entry slices: `src/renderer/store/{settings,llm,assistants,knowle
 
 ## 2. UI-Layer Teardown
 
-Migrate the prohibited libraries legacy UI libraries / styled-components fully to `@cherrystudio/ui` (Tailwind + Shadcn).
+Migrate the prohibited libraries antd / styled-components fully to `@cherrystudio/ui` (Tailwind + Shadcn).
 HeroUI is already removed (0 imports); `@cherrystudio/ui` is adopted in ~400 files, and settings / knowledge / library / code / notes / mini-apps pages are essentially clean.
 
-- legacy UI libraries and styled-components overlap heavily (~21 files import both); prioritizing the overlapping files clears two items at once.
+- antd and styled-components overlap heavily (~21 files import both); prioritizing the overlapping files clears two items at once.
 - Migrate by area in batches:
 
-| Area | legacy UI | styled | Priority | Notes |
+| Area | antd | styled | Priority | Notes |
 | --- | --- | --- | --- | --- |
 | home (main chat UI) | ~80 | ~58 | high | core UX: Messages / Inputbar / Blocks |
 | shared Popups | ~4 | ~4 | high | AddAssistantPopup / AgentModal / SelectModelPopup; high-traffic shared, migrating them cascades unblocks |
 | agents | ~22 | ~6 | medium | can batch with home |
-| paintings (per-provider config pages) | ~13 | ~11 | medium | overlap with styled usage, good consolidation target |
+| paintings (per-provider config pages) | ~13 | ~11 | medium | all are antd+styled overlap, good consolidation target |
 | windows | ~10 | ~16 | medium | quickAssistant / selection / migrationV2 / trace |
 | history / files / launchpad | ~5 | ~8 | low | lightweight |
 | single-file holdouts | 3 | — | low | SkillsSettings, ModelSelectorLegacy, ProviderLogoPicker |
