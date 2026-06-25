@@ -38,24 +38,22 @@ export interface CodeToolsState {
 }
 
 export const initialState: CodeToolsState = {
-  selectedCliTool: codeCLI.qwenCode,
+  selectedCliTool: codeCLI.claudeCode,
   selectedModels: {
-    [codeCLI.qwenCode]: null,
+    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     [codeCLI.claudeCode]: null,
-    [codeCLI.geminiCli]: null,
     [codeCLI.openaiCodex]: null,
-    [codeCLI.githubCopilotCli]: null,
-    [codeCLI.kimiCli]: null,
-    [codeCLI.openCode]: null
+    [codeCLI.openCode]: null,
+    [codeCLI.openclaw]: null,
+    [codeCLI.hermes]: null
   },
   environmentVariables: {
-    'qwen-code': '',
+    // @legacy — removed in v2: qwen-code, gemini-cli, qoder-cli, kimi-cli, github-copilot-cli
     'claude-code': '',
-    'gemini-cli': '',
     'openai-codex': '',
-    'github-copilot-cli': '',
-    'kimi-cli': '',
-    opencode: ''
+    opencode: '',
+    openclaw: '',
+    hermes: ''
   },
   directories: [],
   currentDirectory: '',
@@ -85,13 +83,11 @@ const codeToolsSlice = createSlice({
     setEnvironmentVariables: (state, action: PayloadAction<string>) => {
       if (!state.environmentVariables) {
         state.environmentVariables = {
-          'qwen-code': '',
           'claude-code': '',
-          'gemini-cli': '',
           'openai-codex': '',
-          'github-copilot-cli': '',
-          'kimi-cli': '',
-          opencode: ''
+          opencode: '',
+          openclaw: '',
+          hermes: ''
         }
       }
       state.environmentVariables[state.selectedCliTool] = action.payload

@@ -1,14 +1,5 @@
 import type { IconComponent } from '@cherrystudio/ui/icons'
-import {
-  ClaudeCode,
-  GeminiCli,
-  GithubCopilotCli,
-  KimiCli,
-  OpenaiCodex,
-  OpenCode,
-  QoderCli,
-  QwenCode
-} from '@cherrystudio/ui/icons'
+import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/codeProviders'
 import { formatApiHost } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
@@ -17,7 +8,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { type CliProviderConfig, codeCLI } from '@shared/types/codeCli'
 import {
   isAnthropicProvider,
-  isGeminiProvider,
   isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider
@@ -59,18 +49,17 @@ export interface ToolEnvironmentConfig {
 }
 
 // CLI 工具选项
+// @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
 export const CLI_TOOLS = [
   { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
-  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
-  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
   { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
-  { value: codeCLI.qoderCli, label: 'Qoder CLI', icon: QoderCli },
-  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
-  { value: codeCLI.kimiCli, label: 'Kimi Code', icon: KimiCli },
-  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
+  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode },
+  { value: codeCLI.openclaw, label: 'OpenClaw', icon: Openclaw },
+  { value: codeCLI.hermes, label: 'Hermes', icon: Nousresearch }
 ] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
-export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
+// @legacy — removed in v2
+// export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
@@ -87,24 +76,19 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter(
       (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
-  [codeCLI.geminiCli]: (providers) =>
-    providers.filter((p) => isGeminiProvider(p) || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.qwenCode]: (providers) => providers.filter(isOpenAILikeProvider),
+  // @legacy — removed in v2: geminiCli, qwenCode, qoderCli, githubCopilotCli, kimiCli
   [codeCLI.openaiCodex]: (providers) =>
     providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.qoderCli]: () => [],
-  [codeCLI.githubCopilotCli]: () => [],
-  [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
-  [codeCLI.openCode]: (providers) => providers.filter(isOpenCodeProvider)
+
+  [codeCLI.openCode]: (providers) => providers.filter(isOpenCodeProvider),
+  [codeCLI.openclaw]: (providers) => providers.filter(isOpenCodeProvider),
+  [codeCLI.hermes]: (providers) => providers.filter(isOpenAILikeProvider)
 }
 
-export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
-  const CODE_CLI_API_ENDPOINTS = {
-    aihubmix: {
-      gemini: {
-        api_base_url: 'https://aihubmix.com/gemini'
-      }
-    },
+// @legacy — removed in v2: gemini endpoint type
+// export const getCodeCliApiBaseUrl = (providerId, type) => { ... }
+export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic') => {
+  const CODE_CLI_API_ENDPOINTS: Record<string, { anthropic?: { api_base_url: string } }> = {
     deepseek: {
       anthropic: {
         api_base_url: 'https://api.deepseek.com/anthropic'
@@ -189,15 +173,7 @@ export const generateProviderConfig = ({
         ...(isAnthropic ? { apiKey } : { authToken: apiKey })
       }
 
-    case codeCLI.geminiCli:
-      return {
-        apiKey,
-        baseUrl: getCodeCliApiBaseUrl(providerId, 'gemini') || baseUrl,
-        model: rawModelId
-      }
-
-    case codeCLI.qwenCode:
-      return { apiKey, baseUrl: formattedBaseUrl, model: rawModelId }
+    // @legacy — removed in v2: geminiCli, qwenCode
 
     case codeCLI.openaiCodex:
       return {
@@ -207,8 +183,7 @@ export const generateProviderConfig = ({
         model: rawModelId
       }
 
-    case codeCLI.kimiCli:
-      return { apiKey, model: rawModelId, baseUrl: formattedBaseUrl, providerType: 'openai' }
+    // @legacy — removed in v2: kimiCli
 
     case codeCLI.openCode: {
       // @ai-sdk/anthropic appends /messages to the baseURL, so preserve any existing /v1 (formatApiHost
@@ -227,6 +202,26 @@ export const generateProviderConfig = ({
         ...(reasoning?.budgetTokens !== undefined ? { budgetTokens: reasoning.budgetTokens } : {})
       }
     }
+
+    case codeCLI.openclaw:
+      return {
+        apiKey,
+        baseUrl: formattedBaseUrl,
+        api: isAnthropic ? 'anthropic-messages' : 'openai-completions',
+        model: rawModelId,
+        modelName,
+        providerName: sanitizeProviderName(fancyProviderName)
+      }
+
+    case codeCLI.hermes:
+      return {
+        apiKey,
+        baseUrl: formattedBaseUrl,
+        apiMode: isAnthropic ? 'anthropic_messages' : 'chat_completions',
+        model: rawModelId,
+        modelName,
+        providerName: sanitizeProviderName(fancyProviderName)
+      }
 
     default:
       throw new Error(`Unsupported CLI tool for provider config: ${tool}`)

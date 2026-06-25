@@ -1969,13 +1969,10 @@
     "title": "Code Tools",
     "tool_description": {
       "claude_code": "Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "Google's official Gemini command-line assistant",
-      "github_copilot_cli": "GitHub's official Copilot command-line companion",
-      "kimi_cli": "Moonshot's Kimi command-line assistant",
+      "hermes": "Nous Research agentic coding CLI",
       "openai_codex": "OpenAI's official code generation CLI",
-      "opencode": "Open-source multi-model coding agent",
-      "qoder_cli": "Alibaba Qoder's agentic command-line coding tool",
-      "qwen_code": "Alibaba Tongyi's open-source CLI coding tool"
+      "openclaw": "Multi-channel personal AI assistant with gateway service",
+      "opencode": "Open-source multi-model coding agent"
     },
     "update_options": "Update Options",
     "working_directory": "Working Directory",
@@ -2461,6 +2458,9 @@
       "title": "Keep Alive Time"
     },
     "title": "GPUStack"
+  },
+  "hermes": {
+    "title": "Hermes"
   },
   "history": {
     "continue_chat": "Continue Chatting",

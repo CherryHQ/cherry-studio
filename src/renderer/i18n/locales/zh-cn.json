@@ -1969,13 +1969,10 @@
     "title": "代码工具",
     "tool_description": {
       "claude_code": "Anthropic 官方 CLI 编程助手",
-      "gemini_cli": "Google Gemini 命令行助手",
-      "github_copilot_cli": "GitHub Copilot 命令行版本",
-      "kimi_cli": "Moonshot Kimi 命令行助手",
+      "hermes": "Nous Research 智能编程 CLI",
       "openai_codex": "OpenAI 官方代码生成 CLI",
-      "opencode": "开源社区的多模型代码 Agent",
-      "qoder_cli": "阿里 Qoder 的智能体命令行编程工具",
-      "qwen_code": "阿里通义出品的开源 CLI 编程工具"
+      "openclaw": "多通道个人 AI 助手，支持 Gateway 常驻服务",
+      "opencode": "开源社区的多模型代码 Agent"
     },
     "update_options": "更新选项",
     "working_directory": "工作目录",
@@ -2461,6 +2458,9 @@
       "title": "保持活跃时间"
     },
     "title": "GPUStack"
+  },
+  "hermes": {
+    "title": "Hermes"
   },
   "history": {
     "continue_chat": "继续聊天",

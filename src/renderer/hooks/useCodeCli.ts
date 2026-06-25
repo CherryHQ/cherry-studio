@@ -7,7 +7,7 @@ import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
-const DEFAULT_TOOL = codeCLI.qwenCode as CodeCliId
+const DEFAULT_TOOL = codeCLI.claudeCode as CodeCliId
 
 function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides): Required<CodeCliOverride> {
   const preset = CODE_CLI_PRESET_MAP[toolId]
@@ -45,11 +45,7 @@ export const useCodeCli = () => {
   const directories = currentConfig.directories
   const currentDirectory = currentConfig.currentDirectory
 
-  const canLaunch = Boolean(
-    selectedCliTool &&
-      currentDirectory &&
-      (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || selectedModel)
-  )
+  const canLaunch = Boolean(selectedCliTool && currentDirectory && selectedModel)
 
   const updateCurrentTool = useCallback(
     async (patch: Partial<CodeCliOverride>) => {

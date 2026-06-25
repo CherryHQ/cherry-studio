@@ -166,7 +166,6 @@ const titleKeyMap = {
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate',
-  openclaw: 'openclaw.title',
   agents: 'agent.sidebar_title'
 } as const
 
@@ -194,8 +193,7 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title',
-  openclaw: 'openclaw.title'
+  notes: 'notes.title'
 } as const
 
 export const getSidebarIconLabelKey = (key: string): string => {
@@ -215,8 +213,7 @@ const sidebarFavoriteKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title',
-  openclaw: 'openclaw.title'
+  notes: 'notes.title'
 } as const
 export const getSidebarFavoriteLabelKey = (key: string): string => {
   return getLabelKey(sidebarFavoriteKeyMap, key)

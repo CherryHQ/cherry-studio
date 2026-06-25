@@ -35,7 +35,6 @@ import {
 } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
-import semver from 'semver'
 import { promisify } from 'util'
 
 import { getCliConfigWriter } from './cliConfigFiles'
@@ -125,69 +124,54 @@ export class CodeCliService extends BaseService {
 
   // npm package name used only for version registry lookups (not installation)
   private async getPackageName(cliTool: string) {
+    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     switch (cliTool) {
       case codeCLI.claudeCode:
         return '@anthropic-ai/claude-code'
-      case codeCLI.geminiCli:
-        return '@google/gemini-cli'
       case codeCLI.openaiCodex:
         return '@openai/codex'
-      case codeCLI.qwenCode:
-        return '@qwen-code/qwen-code'
-      case codeCLI.qoderCli:
-        return '@qodercn-ai/qoderclicn'
-      case codeCLI.githubCopilotCli:
-        return '@github/copilot'
-      case codeCLI.kimiCli:
-        return 'kimi-cli'
       case codeCLI.openCode:
         return 'opencode-ai'
+      case codeCLI.openclaw:
+        return 'openclaw'
+      case codeCLI.hermes:
+        return 'hermes-agent'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
   }
 
   private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
+    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     switch (cliTool) {
       case codeCLI.claudeCode:
         return { name: 'claude', tool: 'claude' }
-      case codeCLI.geminiCli:
-        return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
       case codeCLI.openaiCodex:
         return { name: 'codex', tool: 'codex' }
-      case codeCLI.qwenCode:
-        return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
-      case codeCLI.qoderCli:
-        return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
-      case codeCLI.githubCopilotCli:
-        return { name: 'copilot', tool: 'npm:@github/copilot' }
-      case codeCLI.kimiCli:
-        return { name: 'kimi', tool: 'pipx:kimi-cli' }
       case codeCLI.openCode:
         return { name: 'opencode', tool: 'opencode' }
+      case codeCLI.openclaw:
+        return { name: 'openclaw', tool: 'npm:openclaw' }
+      case codeCLI.hermes:
+        return { name: 'hermes', tool: 'pipx:hermes-agent' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
   }
 
   public async getCliExecutableName(cliTool: string) {
+    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     switch (cliTool) {
       case codeCLI.claudeCode:
         return 'claude'
-      case codeCLI.geminiCli:
-        return 'gemini'
       case codeCLI.openaiCodex:
         return 'codex'
-      case codeCLI.qwenCode:
-        return 'qwen'
-      case codeCLI.qoderCli:
-        return 'qoderclicn'
-      case codeCLI.githubCopilotCli:
-        return 'copilot'
-      case codeCLI.kimiCli:
-        return 'kimi'
       case codeCLI.openCode:
         return 'opencode'
+      case codeCLI.openclaw:
+        return 'openclaw'
+      case codeCLI.hermes:
+        return 'hermes'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -679,11 +663,26 @@ export class CodeCliService extends BaseService {
       return { success: false, message, command: '' }
     }
 
-    // Get installed version (needed for qwen-code auth-type check and optional auto-update)
-    let installedVersion: string | null = null
+    // OpenClaw starts as a background gateway, not a terminal process
+    if (cliTool === codeCLI.openclaw) {
+      try {
+        const gatewayResult = await application.get('OpenClawService').startGateway()
+        if (!gatewayResult.success) {
+          return { success: false, message: gatewayResult.message || 'Failed to start OpenClaw gateway', command: '' }
+        }
+        const dashboardUrl = application.get('OpenClawService').getDashboardUrl()
+        logger.info(`OpenClaw gateway started, dashboard: ${dashboardUrl}`)
+        return { success: true, message: 'OpenClaw gateway started', command: dashboardUrl }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to start OpenClaw gateway:', error as Error)
+        return { success: false, message: `Failed to start OpenClaw gateway: ${errorMessage}`, command: '' }
+      }
+    }
+
+    // Optional auto-update
     try {
       const versionInfo = await this.getVersionInfo(cliTool)
-      installedVersion = versionInfo.installed
       if (options.autoUpdateToLatest && versionInfo.needsUpdate) {
         logger.info(`Auto-updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}`)
         await this.updatePackage(cliTool)
@@ -740,18 +739,7 @@ export class CodeCliService extends BaseService {
     const executablePath = await getBinaryPath(executableName)
     let baseCommand = `"${executablePath}"`
 
-    // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
-    if (cliTool === codeCLI.qwenCode) {
-      // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
-      const coerced = semver.coerce(installedVersion)
-      const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
-      if (needsAuthType) {
-        baseCommand = `${baseCommand} --auth-type openai`
-        logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
-      } else {
-        logger.info(`qwen-code version ${installedVersion || 'unknown'} < 0.12.3, not using --auth-type`)
-      }
-    }
+    // @legacy — qwen-code --auth-type openai handling removed in v2
 
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.

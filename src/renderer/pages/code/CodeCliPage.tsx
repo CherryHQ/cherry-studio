@@ -43,7 +43,7 @@ import {
   isSupportedThinkingTokenClaudeModel,
   isTextToImageModel
 } from '@shared/utils/model'
-import { isAnthropicProvider, isOpenAIProvider } from '@shared/utils/provider'
+import { isAnthropicProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '@shared/utils/provider'
 import { Check, ChevronDown, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -145,12 +145,7 @@ const CodeCliPage: FC = () => {
         return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.geminiCli) {
-        if (eps.length) {
-          return eps.includes('google-generate-content')
-        }
-        return id.includes('gemini')
-      }
+      // @legacy — removed in v2: geminiCli, qwenCode, qoderCli, kimiCli, githubCopilotCli
 
       if (selectedCliTool === codeCLI.openaiCodex) {
         if (eps.length) {
@@ -162,18 +157,7 @@ const CodeCliPage: FC = () => {
         return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
-        return false
-      }
-
-      if (selectedCliTool === codeCLI.qwenCode) {
-        if (eps.length) {
-          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
-        }
-        return true
-      }
-
-      if (selectedCliTool === codeCLI.openCode) {
+      if (selectedCliTool === codeCLI.openCode || selectedCliTool === codeCLI.openclaw) {
         if (eps.length) {
           return (
             eps.includes('openai-chat-completions') ||
@@ -182,6 +166,13 @@ const CodeCliPage: FC = () => {
           )
         }
         return isOpenCodeProvider(provider)
+      }
+
+      if (selectedCliTool === codeCLI.hermes) {
+        if (eps.length) {
+          return eps.includes('openai-chat-completions') || eps.includes('anthropic-messages')
+        }
+        return isOpenAICompatibleProvider(provider) || isOpenAIProvider(provider) || isAnthropicProvider(provider)
       }
 
       return true
@@ -316,16 +307,14 @@ const CodeCliPage: FC = () => {
   }
 
   const validateLaunch = (): { isValid: boolean; message?: string } => {
-    // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
-    const needsBun = selectedCliTool !== codeCLI.qoderCli
-    if (!canLaunch || (needsBun && !isBunInstalled)) {
+    if (!canLaunch || !isBunInstalled) {
       return {
         isValid: false,
-        message: needsBun && !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
+        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
       }
     }
 
-    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli) {
+    if (!selectedModel) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -336,11 +325,6 @@ const CodeCliPage: FC = () => {
     env: Record<string, string>
     providerConfig?: CliProviderConfig
   } | null> => {
-    if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
-      const userEnv = parseEnvironmentVariables(environmentVariables)
-      return { env: userEnv }
-    }
-
     if (!selectedModel) return null
 
     const resolvedModel = resolveModel(selectedModel)
@@ -399,15 +383,12 @@ const CodeCliPage: FC = () => {
 
   const executeLaunch = async (env: Record<string, string>, providerConfig?: CliProviderConfig): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
-    if (selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && !resolvedModel) {
+    if (!resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
       window.toast.error(t('code.model_required'))
       return false
     }
-    const modelId =
-      selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || !resolvedModel
-        ? ''
-        : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
+    const modelId = resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId
 
     const runOptions = {
       autoUpdateToLatest,
@@ -560,7 +541,7 @@ const CodeCliPage: FC = () => {
                 </DialogHeader>
 
                 <div className="flex flex-col gap-4">
-                  {selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && (
+                  {
                     <div>
                       <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
                       <ModelSelector
@@ -574,7 +555,7 @@ const CodeCliPage: FC = () => {
                         trigger={renderModelSelectorTrigger()}
                       />
                     </div>
-                  )}
+                  }
 
                   <div>
                     <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
@@ -685,7 +666,7 @@ const CodeCliPage: FC = () => {
                     variant="emphasis"
                     onClick={handleLaunch}
                     loading={isLaunching}
-                    disabled={!canLaunch || (selectedCliTool !== codeCLI.qoderCli && !isBunInstalled) || isLaunching}>
+                    disabled={!canLaunch || !isBunInstalled || isLaunching}>
                     {launchSuccess ? (
                       <>
                         <Check size={14} />

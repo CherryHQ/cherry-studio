@@ -64,6 +64,7 @@ const rootReducer = combineReducers({
   backup,
   codeTools,
   nutstore,
+  openclaw,
   paintings,
   llm,
   settings,
@@ -75,7 +76,7 @@ const rootReducer = combineReducers({
   mcp,
   memory,
   copilot,
-  openclaw,
+
   selectionStore,
   tabs,
   preprocess,

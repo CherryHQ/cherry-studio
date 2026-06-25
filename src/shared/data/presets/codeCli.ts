@@ -51,14 +51,18 @@ const DEFAULT_CONFIG: CodeCliPresetDefaults = {
 }
 
 export const CODE_CLI_PRESET_MAP = {
-  'qwen-code': { name: 'Qwen Code', ...DEFAULT_CONFIG },
+  // @legacy — removed in v2
+  // 'qwen-code': { name: 'Qwen Code', ...DEFAULT_CONFIG },
+  // 'gemini-cli': { name: 'Gemini CLI', ...DEFAULT_CONFIG },
+  // 'qoder-cli': { name: 'Qoder CLI', ...DEFAULT_CONFIG },
+  // 'github-copilot-cli': { name: 'GitHub Copilot CLI', ...DEFAULT_CONFIG },
+  // 'kimi-cli': { name: 'Kimi Code', ...DEFAULT_CONFIG },
+
   'claude-code': { name: 'Claude Code', ...DEFAULT_CONFIG },
-  'gemini-cli': { name: 'Gemini CLI', ...DEFAULT_CONFIG },
   'openai-codex': { name: 'OpenAI Codex', ...DEFAULT_CONFIG },
-  'qoder-cli': { name: 'Qoder CLI', ...DEFAULT_CONFIG },
-  'github-copilot-cli': { name: 'GitHub Copilot CLI', ...DEFAULT_CONFIG },
-  'kimi-cli': { name: 'Kimi Code', ...DEFAULT_CONFIG },
-  opencode: { name: 'OpenCode', ...DEFAULT_CONFIG }
+  opencode: { name: 'OpenCode', ...DEFAULT_CONFIG },
+  openclaw: { name: 'OpenClaw', ...DEFAULT_CONFIG },
+  hermes: { name: 'Hermes', ...DEFAULT_CONFIG }
 } as const satisfies Record<CodeCliId, CodeCliPresetConfig>
 
 export const PRESETS_CODE_CLI: readonly CodeCliPreset[] = CODE_CLI_IDS.map((id) => ({

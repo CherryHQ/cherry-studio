@@ -9,7 +9,6 @@ const ALLOWED_ROUTE_PREFIXES = [
   '/settings',
   '/agents',
   '/knowledge',
-  '/openclaw',
   '/paintings',
   '/translate',
   '/files',

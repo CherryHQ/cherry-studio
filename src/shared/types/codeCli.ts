@@ -1,12 +1,16 @@
 export enum codeCLI {
-  qwenCode = 'qwen-code',
+  // @legacy — removed in v2
+  // qwenCode = 'qwen-code',
+  // geminiCli = 'gemini-cli',
+  // qoderCli = 'qoder-cli',
+  // kimiCli = 'kimi-cli',
+  // githubCopilotCli = 'github-copilot-cli',
+
   claudeCode = 'claude-code',
-  geminiCli = 'gemini-cli',
   openaiCodex = 'openai-codex',
-  qoderCli = 'qoder-cli',
-  githubCopilotCli = 'github-copilot-cli',
-  kimiCli = 'kimi-cli',
-  openCode = 'opencode'
+  openCode = 'opencode',
+  openclaw = 'openclaw',
+  hermes = 'hermes'
 }
 
 export enum terminalApps {
@@ -58,23 +62,27 @@ export interface CodexProviderConfig {
   model: string
 }
 
-export interface GeminiProviderConfig {
+// @legacy — removed in v2
+// export interface QwenProviderConfig { apiKey, baseUrl, model }
+// export interface GeminiProviderConfig { apiKey, baseUrl, model }
+// export interface KimiProviderConfig { apiKey, model, baseUrl?, providerType? }
+
+export interface OpenClawProviderConfig {
   apiKey: string
   baseUrl: string
+  api: string
   model: string
+  modelName: string
+  providerName: string
 }
 
-export interface QwenProviderConfig {
+export interface HermesProviderConfig {
   apiKey: string
   baseUrl: string
+  apiMode: string
   model: string
-}
-
-export interface KimiProviderConfig {
-  apiKey: string
-  model: string
-  baseUrl?: string
-  providerType?: string
+  modelName: string
+  providerName: string
 }
 
 export interface OpenCodeProviderConfig {
@@ -93,10 +101,9 @@ export interface OpenCodeProviderConfig {
 export interface CliProviderConfigMap {
   [codeCLI.claudeCode]: ClaudeProviderConfig
   [codeCLI.openaiCodex]: CodexProviderConfig
-  [codeCLI.geminiCli]: GeminiProviderConfig
-  [codeCLI.qwenCode]: QwenProviderConfig
-  [codeCLI.kimiCli]: KimiProviderConfig
   [codeCLI.openCode]: OpenCodeProviderConfig
+  [codeCLI.openclaw]: OpenClawProviderConfig
+  [codeCLI.hermes]: HermesProviderConfig
 }
 
 export type CliProviderConfig = CliProviderConfigMap[keyof CliProviderConfigMap]

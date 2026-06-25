@@ -20,15 +20,13 @@ export interface OpenClawState {
   gatewayPort: number
   channels: ChannelInfo[]
   lastHealthCheck: HealthInfo | null
-  selectedModelUniqId: string | null
 }
 
 export const initialState: OpenClawState = {
   gatewayStatus: 'stopped',
   gatewayPort: 18790,
   channels: [],
-  lastHealthCheck: null,
-  selectedModelUniqId: null
+  lastHealthCheck: null
 }
 
 const openClawSlice = createSlice({
@@ -47,22 +45,13 @@ const openClawSlice = createSlice({
     setLastHealthCheck: (state, action: PayloadAction<HealthInfo | null>) => {
       state.lastHealthCheck = action.payload
     },
-    setSelectedModelUniqId: (state, action: PayloadAction<string | null>) => {
-      state.selectedModelUniqId = action.payload
-    },
     resetOpenClaw: () => {
       return initialState
     }
   }
 })
 
-export const {
-  setGatewayStatus,
-  setGatewayPort,
-  setChannels,
-  setLastHealthCheck,
-  setSelectedModelUniqId,
-  resetOpenClaw
-} = openClawSlice.actions
+export const { setGatewayStatus, setGatewayPort, setChannels, setLastHealthCheck, resetOpenClaw } =
+  openClawSlice.actions
 
 export default openClawSlice.reducer
