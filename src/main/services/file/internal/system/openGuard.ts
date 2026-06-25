@@ -7,7 +7,10 @@ import type { FilePath } from '@shared/types/file'
 import { isDangerExt } from '@shared/utils/file/urlUtil'
 
 function getEffectiveExt(entry: FileEntry, physicalPath: FilePath): string | null {
-  return entry.ext ?? (path.extname(physicalPath).replace(/^\./, '') || null)
+  const fallbackPath = physicalPath.replace(/[\s.]+$/, '')
+  const raw = entry.ext ?? path.extname(fallbackPath).replace(/^\./, '')
+  const normalized = raw.replace(/[\s.]+$/, '').toLowerCase()
+  return normalized || null
 }
 
 export function assertSafeForDefaultOpen(entry: FileEntry, physicalPath: FilePath): void {
