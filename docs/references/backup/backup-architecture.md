@@ -65,7 +65,9 @@ flowchart LR
     A2 --> A3[查 ContributorManager]
     A3 --> A4[VACUUM INTO 复制为备份副本]
     A4 --> A5[beforeArchive 偏好过滤（自用备份保留凭证，脱敏属未来分享模式）]
-    A5 --> A6[收集文件与知识库资源]
+    A5 --> A6{完整模式?}
+    A6 -->|完整| A7[收集文件与知识库资源]
+    A6 -->|精简| A7s[跳过外部资源收集 resources 空集]
   end
   subgraph S2[备份归档]
     B[manifest 加 backup.sqlite 加 files 加 knowledge]
@@ -77,7 +79,8 @@ flowchart LR
     C4 --> C5[FTS 重建与一致性检查]
     C5 --> C6[结果页与撤销入口]
   end
-  A6 --> B
+  A7 --> B
+  A7s --> B
   B --> C1
 ```
 
