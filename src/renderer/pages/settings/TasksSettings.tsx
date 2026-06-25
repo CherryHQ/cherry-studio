@@ -695,13 +695,16 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
           </Button>
         )}
       </div>
-      <DataTable
-        data={filteredLogs}
-        columns={columns}
-        rowKey="id"
-        maxHeight={300}
-        emptyText={t('agent.cherryClaw.tasks.logs.empty')}
-      />
+      <div data-slot="task-logs-table-scroll" className="max-w-full overflow-x-auto">
+        <div data-slot="task-logs-table-width" className="min-w-[720px]">
+          <DataTable
+            data={filteredLogs}
+            columns={columns}
+            rowKey="id"
+            emptyText={t('agent.cherryClaw.tasks.logs.empty')}
+          />
+        </div>
+      </div>
     </div>
   )
 }

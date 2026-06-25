@@ -134,6 +134,7 @@ vi.mock('@cherrystudio/ui', () => {
     DataTable: ({
       columns,
       data,
+      maxHeight,
       rowKey
     }: {
       columns: Array<{
@@ -142,28 +143,36 @@ vi.mock('@cherrystudio/ui', () => {
         cell?: (ctx: { getValue: () => unknown; row: { original: Record<string, unknown> } }) => React.ReactNode
       }>
       data: Array<Record<string, unknown>>
+      maxHeight?: number | string
       rowKey: string
     }) => (
-      <table>
-        <tbody>
-          {data.map((row) => (
-            <tr key={String(row[rowKey])}>
-              {columns.map((column) => (
-                <td key={column.id ?? column.accessorKey}>
-                  {column.cell
-                    ? column.cell({
-                        getValue: () => (column.accessorKey ? row[column.accessorKey] : undefined),
-                        row: { original: row }
-                      })
-                    : column.accessorKey
-                      ? String(row[column.accessorKey] ?? '')
-                      : null}
-                </td>
+      <div data-slot="data-table">
+        <div
+          data-slot="data-table-scroll"
+          className={maxHeight ? 'overflow-y-auto' : undefined}
+          style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}>
+          <table>
+            <tbody>
+              {data.map((row) => (
+                <tr key={String(row[rowKey])}>
+                  {columns.map((column) => (
+                    <td key={column.id ?? column.accessorKey}>
+                      {column.cell
+                        ? column.cell({
+                            getValue: () => (column.accessorKey ? row[column.accessorKey] : undefined),
+                            row: { original: row }
+                          })
+                        : column.accessorKey
+                          ? String(row[column.accessorKey] ?? '')
+                          : null}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </tbody>
+          </table>
+        </div>
+      </div>
     ),
     DateTimePicker: passthrough('div'),
     Dialog: ({ children, open }: { children?: React.ReactNode; open?: boolean }) =>
@@ -320,6 +329,20 @@ describe('TasksSettings task logs', () => {
 
     expect(await screen.findByText(`${'x'.repeat(97)}...`)).toBeInTheDocument()
     expect(screen.queryByText(cappedResult)).not.toBeInTheDocument()
+  })
+
+  it('lets task log table height follow content while scrolling horizontally', async () => {
+    render(<TasksSettings />)
+
+    const table = await screen.findByRole('table')
+    const horizontalScroll = table.closest('[data-slot="task-logs-table-scroll"]')
+    const tableWidth = table.closest('[data-slot="task-logs-table-width"]')
+    const dataTableScroll = table.closest('[data-slot="data-table-scroll"]')
+
+    expect(horizontalScroll).toHaveClass('overflow-x-auto')
+    expect(tableWidth).toHaveClass('min-w-[720px]')
+    expect(dataTableScroll).not.toHaveClass('overflow-y-auto')
+    expect(dataTableScroll).not.toHaveStyle({ maxHeight: '300px' })
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {
