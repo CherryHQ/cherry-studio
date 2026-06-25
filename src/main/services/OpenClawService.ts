@@ -20,6 +20,7 @@ import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { vertexAiService } from './VertexAiService'
 
@@ -794,6 +795,9 @@ export class OpenClawService extends BaseService {
     ])
 
     this.ensureSyncProviderSupported(provider)
+    if (isNonChatModel(primaryModel)) {
+      throw new Error('Selected OpenClaw model must support chat')
+    }
 
     const endpointType = this.getModelEndpointType(primaryModel, provider)
     const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
@@ -816,7 +820,10 @@ export class OpenClawService extends BaseService {
             ? provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
             : undefined,
         models: models
-          .filter((model) => !model.isHidden && this.getModelEndpointType(model, provider) === endpointType)
+          .filter(
+            (model) =>
+              !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
+          )
           .map((model) => this.toOpenClawModel(model)),
         presetProviderId: provider.presetProviderId
       } as Provider,

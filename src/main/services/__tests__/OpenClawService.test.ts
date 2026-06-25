@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE, type Model as DataModel } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { OperationResult } from '@shared/types/codeTools'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -543,6 +543,33 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it('excludes non-chat models from the synced model list', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const chatModel = createModel()
+      const embeddingModel = createModel({
+        id: 'openai::text-embedding-3-large',
+        apiModelId: 'text-embedding-3-large',
+        name: 'Text Embedding 3 Large',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(chatModel)
+      vi.mocked(modelService.list).mockResolvedValue([chatModel, embeddingModel])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          models: [expect.objectContaining({ id: 'gpt-4o' })]
+        }),
+        expect.anything()
+      )
+    })
+
     it('returns an error for invalid model selections', async () => {
       const result = await service.syncConfig('invalid-model-id')
 
@@ -609,6 +636,27 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.syncConfig('openai::gpt-4o')
 
       expect(result).toEqual({ success: false, message: 'Provider openai has no enabled API key configured' })
+    })
+
+    it('returns an error when the selected OpenClaw model is non-chat', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const embeddingModel = createModel({
+        id: 'openai::text-embedding-3-large',
+        apiModelId: 'text-embedding-3-large',
+        name: 'Text Embedding 3 Large',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(embeddingModel)
+      vi.mocked(modelService.list).mockResolvedValue([embeddingModel])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::text-embedding-3-large')
+
+      expect(result).toEqual({ success: false, message: 'Selected OpenClaw model must support chat' })
+      expect(syncProviderConfigSpy).not.toHaveBeenCalled()
     })
 
     it('allows keyless GPUStack providers during sync', async () => {
