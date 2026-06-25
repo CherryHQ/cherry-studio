@@ -433,24 +433,13 @@ describe('TasksSettings task logs', () => {
     await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
-  it('truncates long task log results in the result column', async () => {
+  it('renders the full task log result without truncation', async () => {
     const longResult = 'x'.repeat(220)
     taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, result: longResult }]
 
     render(<TasksSettings />)
 
-    expect(await screen.findByText(`${'x'.repeat(97)}...`)).toBeInTheDocument()
-    expect(screen.queryByText(longResult)).not.toBeInTheDocument()
-  })
-
-  it('marks already capped task log results with an ellipsis', async () => {
-    const cappedResult = 'x'.repeat(200)
-    taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, result: cappedResult }]
-
-    render(<TasksSettings />)
-
-    expect(await screen.findByText(`${'x'.repeat(97)}...`)).toBeInTheDocument()
-    expect(screen.queryByText(cappedResult)).not.toBeInTheDocument()
+    expect(await screen.findByText(longResult)).toBeInTheDocument()
   })
 
   it('lets task log table height follow content while scrolling horizontally', async () => {
