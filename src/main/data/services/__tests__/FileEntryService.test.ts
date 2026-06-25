@@ -447,6 +447,58 @@ describe('FileEntryService', () => {
       expect(result.items.map((e) => e.name)).toEqual(['alpha', 'bravo', 'charlie'])
     })
 
+    it('sortBy=name cursor pagination handles colon-containing boundary names', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000100' as FileEntryId,
+          origin: 'internal',
+          name: 'alpha',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000101' as FileEntryId,
+          origin: 'internal',
+          name: 'meeting:notes',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000102' as FileEntryId,
+          origin: 'internal',
+          name: 'zulu',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'asc', limit: 2 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'name',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 2
+      })
+
+      expect(page1.items.map((e) => e.name)).toEqual(['alpha', 'meeting:notes'])
+      expect(page2.items.map((e) => e.name)).toEqual(['zulu'])
+      const seen = [...page1.items, ...page2.items].map((e) => e.id)
+      expect(new Set(seen).size).toBe(3)
+    })
+
     it('sortBy=size treats null sizes as the lowest sentinel value', async () => {
       const now = Date.now()
       await dbh.db.insert(fileEntryTable).values([
@@ -535,6 +587,126 @@ describe('FileEntryService', () => {
 
       const desc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'desc' })
       expect(desc.items.map((e) => e.name)).toEqual(['text', 'markdown', 'no-ext'])
+    })
+
+    it('sortBy=size cursor pagination handles null-size rows at the page boundary', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000120' as FileEntryId,
+          origin: 'external',
+          name: 'null-size-a',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/null-size-a.txt',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000121' as FileEntryId,
+          origin: 'external',
+          name: 'null-size-b',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/null-size-b.txt',
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000122' as FileEntryId,
+          origin: 'internal',
+          name: 'zero',
+          ext: 'txt',
+          size: 0,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc', limit: 1 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'size',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 1
+      })
+      const page3 = await fileEntryService.listCursor({
+        sortBy: 'size',
+        sortOrder: 'asc',
+        cursor: page2.nextCursor,
+        limit: 1
+      })
+
+      expect([page1.items[0]?.name, page2.items[0]?.name, page3.items[0]?.name]).toEqual([
+        'null-size-a',
+        'null-size-b',
+        'zero'
+      ])
+      expect(page3.nextCursor).toBeUndefined()
+    })
+
+    it('sortBy=ext cursor pagination handles null-ext rows at the page boundary', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000110' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext-a',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000111' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext-b',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000112' as FileEntryId,
+          origin: 'internal',
+          name: 'text',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 1 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'ext',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 1
+      })
+      const page3 = await fileEntryService.listCursor({
+        sortBy: 'ext',
+        sortOrder: 'asc',
+        cursor: page2.nextCursor,
+        limit: 1
+      })
+
+      expect([page1.items[0]?.name, page2.items[0]?.name, page3.items[0]?.name]).toEqual([
+        'no-ext-a',
+        'no-ext-b',
+        'text'
+      ])
+      expect(page3.nextCursor).toBeUndefined()
     })
 
     it('sortBy=ext cursor pagination has no overlap or misses across pages', async () => {
