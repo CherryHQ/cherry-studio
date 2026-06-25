@@ -80,7 +80,7 @@ function FileContextMenuContent({
       <ContextMenuItem onSelect={() => actions.onRename(file.id)}>
         <ContextMenuItemContent icon={<Pencil size={12} />}>{t('files.rename')}</ContextMenuItemContent>
       </ContextMenuItem>
-      {file.origin === 'external' && file.folder && (
+      {file.origin === 'external' && (
         <ContextMenuItem onSelect={() => actions.onShowInFolder(file.id)}>
           <ContextMenuItemContent icon={<FolderClosed size={12} />}>{t('files.show_in_folder')}</ContextMenuItemContent>
         </ContextMenuItem>

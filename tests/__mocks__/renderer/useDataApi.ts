@@ -46,8 +46,7 @@ function createMockDataForPath(path: string): any {
     return {
       activeTotal: 0,
       trashTotal: 0,
-      extCounts: [],
-      folderCounts: []
+      extCounts: []
     }
   }
 

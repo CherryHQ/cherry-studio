@@ -133,7 +133,6 @@ describe('fileHandlers (DataApi)', () => {
           { ext: 'txt', count: 1 }
         ])
       )
-      expect(result.folderCounts).toEqual([{ folder: '/tmp/files', count: 1 }])
     })
   })
 

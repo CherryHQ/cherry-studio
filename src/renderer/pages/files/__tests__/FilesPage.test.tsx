@@ -90,15 +90,8 @@ function bulkEntry(origin: 'internal' | 'external', index: number): FileEntry {
   return { ...base, size: 1 } as unknown as FileEntry
 }
 
-function dirnameOf(path: string): string | undefined {
-  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  if (index <= 0) return undefined
-  return path.slice(0, index)
-}
-
 function statsForEntries(entries: FileEntry[]): FileEntryStats {
   const extCounts = new Map<string | null, number>()
-  const folderCounts = new Map<string, number>()
   let activeTotal = 0
   let trashTotal = 0
 
@@ -111,17 +104,12 @@ function statsForEntries(entries: FileEntry[]): FileEntryStats {
 
     activeTotal += 1
     extCounts.set(item.ext, (extCounts.get(item.ext) ?? 0) + 1)
-    if (item.origin === 'external') {
-      const folder = dirnameOf(item.externalPath)
-      if (folder) folderCounts.set(folder, (folderCounts.get(folder) ?? 0) + 1)
-    }
   }
 
   return {
     activeTotal,
     trashTotal,
-    extCounts: [...extCounts.entries()].map(([ext, count]) => ({ ext, count })),
-    folderCounts: [...folderCounts.entries()].map(([folder, count]) => ({ folder, count }))
+    extCounts: [...extCounts.entries()].map(([ext, count]) => ({ ext, count }))
   }
 }
 
@@ -236,7 +224,7 @@ describe('FilesPage keyboard rename', () => {
   })
 
   it('uses server totals for all/trash counts', () => {
-    mockFileStats({ activeTotal: 123, trashTotal: 4, extCounts: [], folderCounts: [] })
+    mockFileStats({ activeTotal: 123, trashTotal: 4, extCounts: [] })
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
       const query = options?.query as { inTrash?: boolean } | undefined
       return {
@@ -258,23 +246,19 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getAllByText('4').length).toBeGreaterThan(0)
   })
 
-  it('uses stats for type and folder counts before all active pages are loaded', () => {
+  it('uses stats for type counts before all active pages are loaded', () => {
     mockFileStats({
-      activeTotal: 172,
+      activeTotal: 170,
       trashTotal: 0,
       extCounts: [
         { ext: 'blobx', count: 95 },
         { ext: 'md', count: 75 }
-      ],
-      folderCounts: [
-        { folder: '/tmp/cherry-target-folder', count: 75 },
-        { folder: 'C:\\Users\\me\\Music', count: 2 }
       ]
     })
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
       const query = options?.query as { inTrash?: boolean } | undefined
       return {
-        pages: query?.inTrash ? [] : [{ items: [entry], total: 172, nextCursor: 'next-page' }],
+        pages: query?.inTrash ? [] : [{ items: [entry], total: 170, nextCursor: 'next-page' }],
         isLoading: false,
         isRefreshing: false,
         error: undefined,
@@ -287,12 +271,9 @@ describe('FilesPage keyboard rename', () => {
     })
     render(<FilesPage />)
 
-    expect(screen.getAllByText('172').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('170').length).toBeGreaterThan(0)
     expect(screen.getByText('95')).toBeInTheDocument()
-    expect(screen.getAllByText('75').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText('cherry-target-folder')).toBeInTheDocument()
-    expect(screen.getByText('Music')).toBeInTheDocument()
-    expect(screen.queryByText('C:\\Users\\me\\Music')).not.toBeInTheDocument()
+    expect(screen.getByText('75')).toBeInTheDocument()
   })
 
   it('keeps current rows visible while the sorted query is loading', () => {

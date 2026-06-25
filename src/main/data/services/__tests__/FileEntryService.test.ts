@@ -872,7 +872,7 @@ describe('FileEntryService', () => {
   })
 
   describe('getStats', () => {
-    it('returns active extension counts, external folder counts, and trash total', async () => {
+    it('returns active extension counts and trash total', async () => {
       const now = Date.now()
       await dbh.db.insert(fileEntryTable).values([
         {
@@ -945,16 +945,12 @@ describe('FileEntryService', () => {
 
       const stats = await fileEntryService.getStats()
       const extCounts = new Map(stats.extCounts.map((row) => [row.ext, row.count]))
-      const folderCounts = new Map(stats.folderCounts.map((row) => [row.folder, row.count]))
-
       expect(stats.activeTotal).toBe(5)
       expect(stats.trashTotal).toBe(1)
       expect(extCounts.get('md')).toBe(2)
       expect(extCounts.get('txt')).toBe(1)
       expect(extCounts.get('mp3')).toBe(1)
       expect(extCounts.get(null)).toBe(1)
-      expect(folderCounts.get('/Users/me/docs')).toBe(2)
-      expect(folderCounts.get('C:\\Users\\me\\Music')).toBe(1)
     })
   })
 

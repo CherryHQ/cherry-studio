@@ -140,12 +140,6 @@ function formatDateTime(timestamp: number): string {
   )}`
 }
 
-function dirname(path: string): string | undefined {
-  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  if (index <= 0) return undefined
-  return path.slice(0, index)
-}
-
 function displayNameOf(entry: FileEntry): string {
   return entry.ext ? `${entry.name}.${entry.ext}` : entry.name
 }
@@ -184,10 +178,7 @@ function toFileItem(
     danglingState,
     isMissing
   }
-  const originFields =
-    entry.origin === 'external'
-      ? { origin: entry.origin, folder: dirname(entry.externalPath) }
-      : { origin: entry.origin }
+  const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
     if (!physicalPath && !isMissing) return null
@@ -471,7 +462,7 @@ function FilesPage() {
   )
 
   const maybeFillClientFilteredViewport = useCallback(() => {
-    // Type/folder filters are applied client-side over the loaded active pages.
+    // Type filters are applied client-side over the loaded active pages.
     // If the filtered rows do not make the container scrollable, scroll-load
     // cannot fire, so proactively fetch another active page until scrolling can engage.
     if (filter.kind === 'library') return
@@ -534,8 +525,6 @@ function FilesPage() {
     [refetchFiles, t]
   )
 
-  const folderList = useMemo(() => fileStats?.folderCounts.map((row) => row.folder).sort() ?? [], [fileStats])
-
   const filteredFiles = useMemo(() => {
     let result = files
 
@@ -544,8 +533,6 @@ function FilesPage() {
       else result = result.filter((f) => !f.trashed)
     } else if (filter.kind === 'type') {
       result = result.filter((f) => !f.trashed && f.type === filter.value)
-    } else if (filter.kind === 'folder') {
-      result = result.filter((f) => !f.trashed && f.origin === 'external' && f.folder === filter.value)
     }
 
     return result
@@ -570,16 +557,12 @@ function FilesPage() {
       const type = getFileTypeByExt(ext ?? '')
       counts[`type_${type}`] = (counts[`type_${type}`] ?? 0) + count
     }
-    for (const { folder, count } of fileStats.folderCounts) {
-      counts[`folder:${folder}`] = count
-    }
     return counts
   }, [activeFilesTotal, fileStats, trashedFilesTotal])
 
   const footerFileCount = useMemo(() => {
     if (filter.kind === 'library') return filter.value === 'trash' ? fileCounts.trash : fileCounts.all
-    if (filter.kind === 'type') return fileCounts[`type_${filter.value}`] ?? filteredFiles.length
-    return fileCounts[`folder:${filter.value}`] ?? filteredFiles.length
+    return fileCounts[`type_${filter.value}`] ?? filteredFiles.length
   }, [fileCounts, filter, filteredFiles.length])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
@@ -810,7 +793,6 @@ function FilesPage() {
           setPendingPermanentDeleteIds(null)
         }}
         fileCounts={fileCounts}
-        folders={folderList}
       />
 
       <Dialog

@@ -492,55 +492,20 @@ class FileEntryServiceImpl implements FileEntryService {
 
   async getStats(): Promise<FileEntryStats> {
     const db = this.getDb()
-    const [activeTotalRows, trashTotalRows, extRows, folderRows] = await Promise.all([
+    const [activeTotalRows, trashTotalRows, extRows] = await Promise.all([
       db.select({ count: count() }).from(fileEntryTable).where(isNull(fileEntryTable.deletedAt)),
       db.select({ count: count() }).from(fileEntryTable).where(isNotNull(fileEntryTable.deletedAt)),
       db
         .select({ ext: fileEntryTable.ext, count: count() })
         .from(fileEntryTable)
         .where(isNull(fileEntryTable.deletedAt))
-        .groupBy(fileEntryTable.ext),
-      db.all<{ folder: string; count: number }>(sql`
-        WITH RECURSIVE
-          external_paths(external_path, len) AS (
-            SELECT external_path, length(external_path)
-            FROM file_entry
-            WHERE origin = 'external'
-              AND deleted_at IS NULL
-              AND external_path IS NOT NULL
-          ),
-          path_chars(external_path, len, pos, last_sep) AS (
-            SELECT external_path, len, 1, 0 FROM external_paths
-            UNION ALL
-            SELECT
-              external_path,
-              len,
-              pos + 1,
-              CASE
-                WHEN substr(external_path, pos, 1) = '/' OR substr(external_path, pos, 1) = char(92) THEN pos
-                ELSE last_sep
-              END
-            FROM path_chars
-            WHERE pos <= len
-          ),
-          folders AS (
-            SELECT substr(external_path, 1, last_sep - 1) AS folder
-            FROM path_chars
-            WHERE pos = len + 1
-              AND last_sep > 1
-          )
-        SELECT folder, count(*) AS count
-        FROM folders
-        GROUP BY folder
-        ORDER BY folder
-      `)
+        .groupBy(fileEntryTable.ext)
     ])
 
     return {
       activeTotal: activeTotalRows[0]?.count ?? 0,
       trashTotal: trashTotalRows[0]?.count ?? 0,
-      extCounts: extRows.map((row) => ({ ext: row.ext, count: row.count })),
-      folderCounts: folderRows.map((row) => ({ folder: row.folder, count: row.count }))
+      extCounts: extRows.map((row) => ({ ext: row.ext, count: row.count }))
     }
   }
 

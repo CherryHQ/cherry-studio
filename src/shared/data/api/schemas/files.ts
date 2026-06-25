@@ -103,16 +103,10 @@ export interface FileEntryExtCount {
   count: number
 }
 
-export interface FileEntryFolderCount {
-  folder: string
-  count: number
-}
-
 export interface FileEntryStats {
   activeTotal: number
   trashTotal: number
   extCounts: FileEntryExtCount[]
-  folderCounts: FileEntryFolderCount[]
 }
 
 export const RefCountsQuerySchema = z.strictObject({
@@ -186,10 +180,10 @@ export type FileSchemas = {
   /**
    * Aggregate counts for the file sidebar.
    *
-   * Fixed shape and pure SQL: active/trash totals, active extension buckets,
-   * and active external folder buckets. Type buckets are intentionally NOT
-   * materialized here; renderers map `extCounts` to user-facing file types
-   * with the same shared extension classifier used by rows.
+   * Fixed shape and pure SQL: active/trash totals plus active extension buckets.
+   * Type buckets are intentionally NOT materialized here; renderers map
+   * `extCounts` to user-facing file types with the same shared extension
+   * classifier used by rows.
    *
    * @example GET /files/entries/stats
    */

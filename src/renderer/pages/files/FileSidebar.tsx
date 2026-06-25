@@ -1,23 +1,12 @@
 import { Button } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
-import {
-  FileCode,
-  FileQuestion,
-  Files,
-  FileText,
-  FolderClosed,
-  Image as ImageIcon,
-  Music,
-  Trash2,
-  Video
-} from 'lucide-react'
+import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type SidebarFilter =
   | { kind: 'library'; value: 'all' | 'trash' }
   | { kind: 'type'; value: 'image' | 'video' | 'audio' | 'text' | 'document' | 'other' }
-  | { kind: 'folder'; value: string }
 
 type SidebarEntry = {
   kind: string
@@ -44,24 +33,14 @@ const LIBRARY_ENTRIES: SidebarEntry[] = [
 export function FileSidebar({
   filter,
   onFilterChange,
-  fileCounts,
-  folders
+  fileCounts
 }: {
   filter: SidebarFilter
   onFilterChange: (f: SidebarFilter) => void
   fileCounts: Record<string, number>
-  folders: string[]
 }) {
   const { t } = useTranslation()
   const isActive = (kind: string, value: string) => filter.kind === kind && filter.value === value
-
-  const folderEntries: SidebarEntry[] = folders.map((folder) => ({
-    kind: 'folder',
-    value: folder,
-    label: () => folder.split(/[\\/]/).pop() || folder,
-    icon: FolderClosed,
-    countKey: `folder:${folder}`
-  }))
 
   const renderEntry = (entry: SidebarEntry) => {
     const active = isActive(entry.kind, entry.value)
@@ -86,12 +65,6 @@ export function FileSidebar({
   return (
     <div className="flex w-[180px] shrink-0 select-none flex-col overflow-y-auto border-border/30 border-r">
       <div className="space-y-[1px] px-1.5 pt-2 pb-1">{TYPE_ENTRIES.map(renderEntry)}</div>
-      {folderEntries.length > 0 && (
-        <>
-          <div className="mx-2.5 border-border/20 border-t" />
-          <div className="space-y-[1px] px-1.5 pt-1 pb-1">{folderEntries.map(renderEntry)}</div>
-        </>
-      )}
       <div className="mx-2.5 border-border/20 border-t" />
       <div className="space-y-[1px] px-1.5 pt-1 pb-2">{LIBRARY_ENTRIES.map(renderEntry)}</div>
     </div>

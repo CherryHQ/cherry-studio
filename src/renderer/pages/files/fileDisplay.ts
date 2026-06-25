@@ -22,7 +22,6 @@ type InternalFileItemFields = {
 
 type ExternalFileItemFields = {
   origin: Extract<FileEntryOrigin, 'external'>
-  folder?: string
 }
 
 type FileItemOriginFields = InternalFileItemFields | ExternalFileItemFields
