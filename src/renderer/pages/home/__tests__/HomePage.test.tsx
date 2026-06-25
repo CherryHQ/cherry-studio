@@ -1,6 +1,5 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
-import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -413,6 +412,7 @@ vi.mock('@renderer/services/EventService', () => ({
 
 import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { Topic } from '@renderer/types/topic'
 
 import HomePage from '../HomePage'
 

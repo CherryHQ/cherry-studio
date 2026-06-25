@@ -117,8 +117,7 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 })
 
 // Import the functions to test AFTER setting up mocks
-import type { Topic } from '@renderer/types'
-import { TopicType } from '@renderer/types'
+import { type Topic, TopicType } from '@renderer/types/topic'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import { copyMessageAsPlainText } from '../copy'

@@ -206,9 +206,6 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
-  // FileManager v2 surface (Phase 1b.3)
-  File_GetDanglingState = 'file:getDanglingState',
-  File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
   // FileManager v2 surface (Phase 2)
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',

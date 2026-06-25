@@ -3,7 +3,7 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
 

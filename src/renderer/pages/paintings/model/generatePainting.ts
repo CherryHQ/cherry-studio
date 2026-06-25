@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
-import type { FileMetadata, GenerateImageParams } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
+import type { GenerateImageParams } from '@shared/types/image'
 
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 import { runPainting } from './runPainting'

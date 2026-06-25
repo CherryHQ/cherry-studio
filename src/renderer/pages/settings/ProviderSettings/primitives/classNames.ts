@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 
 /** Provider settings class compositions. Prefer Tailwind utilities and exported design tokens. */
 export const providerSettingsTypography = {

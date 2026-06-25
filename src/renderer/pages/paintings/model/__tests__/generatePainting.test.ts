@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runPaintingMock = vi.fn(async (generate: () => Promise<unknown>) => {

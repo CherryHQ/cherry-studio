@@ -18,7 +18,9 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@renderer/config/constant'
-import type { ApiGatewayConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
+import type { ApiGatewayConfig } from '@renderer/types/apiGateway'
+import type { CodeStyleVarious, MathEngine } from '@renderer/types/app'
+import type { OpenAIServiceTier } from '@renderer/types/provider'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {
   AssistantIconType,
@@ -32,6 +34,7 @@ import type {
 import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import type { OpenAICompletionsStreamOptions, OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
+import type { S3Config } from '@shared/types/backup'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'

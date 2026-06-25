@@ -1,5 +1,5 @@
 import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 

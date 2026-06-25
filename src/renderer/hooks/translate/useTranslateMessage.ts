@@ -23,8 +23,8 @@
 import { loggerService } from '@logger'
 import { useOptionalTranslationOverlaySetter, useRefresh } from '@renderer/components/chat/messages/blocks'
 import { ipcApi } from '@renderer/ipc'
-import type { TranslateLanguage } from '@renderer/types'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useRef } from 'react'
 import { v4 as uuid } from 'uuid'
 

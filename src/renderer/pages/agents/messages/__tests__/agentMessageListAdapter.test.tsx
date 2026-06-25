@@ -1,5 +1,5 @@
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

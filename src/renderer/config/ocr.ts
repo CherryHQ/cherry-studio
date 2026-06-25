@@ -7,7 +7,7 @@ import type {
   OcrSystemProvider,
   OcrTesseractProvider,
   TesseractLangCode
-} from '@renderer/types'
+} from '@renderer/types/ocr'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { isMac, isWin } from './constant'
