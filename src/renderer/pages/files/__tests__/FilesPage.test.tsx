@@ -75,6 +75,21 @@ const trashedEntry = {
   updatedAt: 1_719_216_000_000
 } as unknown as FileEntry
 
+function bulkEntry(origin: 'internal' | 'external', index: number): FileEntry {
+  const base = {
+    id: `bulk-${origin}-${index}`,
+    origin,
+    name: `bulk-${origin}-${index}`,
+    ext: 'txt',
+    createdAt: 1_719_216_000_000 + index,
+    updatedAt: 1_719_216_000_000 + index
+  }
+  if (origin === 'external') {
+    return { ...base, size: null, externalPath: `/tmp/bulk-${index}.txt` } as unknown as FileEntry
+  }
+  return { ...base, size: 1 } as unknown as FileEntry
+}
+
 function dirnameOf(path: string): string | undefined {
   const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   if (index <= 0) return undefined
@@ -363,6 +378,36 @@ describe('FilesPage file operations', () => {
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
     await waitFor(() => {
       expect(refetchStats).toHaveBeenCalled()
+    })
+  })
+
+  it('chunks mixed-origin delete mutations independently by origin', async () => {
+    const entries = [
+      ...Array.from({ length: 501 }, (_, index) => bulkEntry('internal', index)),
+      ...Array.from({ length: 501 }, (_, index) => bulkEntry('external', index))
+    ]
+    renderFilesPage(entries)
+
+    const names = screen.getAllByText(/^bulk-(internal|external)-\d+\.txt$/)
+    act(() => {
+      for (const name of names) {
+        fireEvent.click(name, { ctrlKey: true })
+      }
+    })
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      const trashCalls = ipcMocks.request.mock.calls.filter(([route]) => route === 'file.batch_trash')
+      const permanentDeleteCalls = ipcMocks.request.mock.calls.filter(
+        ([route]) => route === 'file.batch_permanent_delete'
+      )
+
+      expect(trashCalls).toHaveLength(2)
+      expect(permanentDeleteCalls).toHaveLength(2)
+      expect((trashCalls[0][1] as { ids: string[] }).ids).toHaveLength(500)
+      expect((trashCalls[1][1] as { ids: string[] }).ids).toHaveLength(1)
+      expect((permanentDeleteCalls[0][1] as { ids: string[] }).ids).toHaveLength(500)
+      expect((permanentDeleteCalls[1][1] as { ids: string[] }).ids).toHaveLength(1)
     })
   })
 

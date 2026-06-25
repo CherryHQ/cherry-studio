@@ -40,7 +40,9 @@ type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
+type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
+type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.batch_permanent_delete'
 
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
 // This is a batching knob, not the schema cap itself; it only needs to stay at
@@ -76,6 +78,36 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
     })
   )
   return Object.assign({}, ...results) as OutputFor<Route>
+}
+
+async function requestBatchedFileMutation(
+  route: FileBatchMutationRoute,
+  ids: readonly string[]
+): Promise<FileBatchMutationResult> {
+  if (ids.length === 0) return { succeeded: [], failed: [] }
+
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
+    chunks.push(ids.slice(i, i + FILE_IPC_BATCH_SIZE))
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) => {
+      switch (route) {
+        case 'file.batch_trash':
+          return ipcApi.request('file.batch_trash', { ids: chunk })
+        case 'file.batch_restore':
+          return ipcApi.request('file.batch_restore', { ids: chunk })
+        case 'file.batch_permanent_delete':
+          return ipcApi.request('file.batch_permanent_delete', { ids: chunk })
+      }
+    })
+  )
+
+  return {
+    succeeded: results.flatMap((result) => result.succeeded),
+    failed: results.flatMap((result) => result.failed)
+  }
 }
 
 async function requestBatchedInternalEntryCreates(paths: readonly string[]): Promise<BatchCreateInternalEntriesResult> {
@@ -587,15 +619,18 @@ function FilesPage() {
 
       try {
         if (isTrash) {
-          const result = await ipcApi.request('file.batch_permanent_delete', { ids: targets.map((file) => file.id) })
+          const result = await requestBatchedFileMutation(
+            'file.batch_permanent_delete',
+            targets.map((file) => file.id)
+          )
           reportMutationFailures('file permanent delete', result, t('files.error.delete_partial_failed'))
         } else {
           const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
           const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
           const [trashResult, removeResult] = await Promise.all([
-            trashIds.length > 0 ? ipcApi.request('file.batch_trash', { ids: trashIds }) : Promise.resolve(null),
+            trashIds.length > 0 ? requestBatchedFileMutation('file.batch_trash', trashIds) : Promise.resolve(null),
             removeIds.length > 0
-              ? ipcApi.request('file.batch_permanent_delete', { ids: removeIds })
+              ? requestBatchedFileMutation('file.batch_permanent_delete', removeIds)
               : Promise.resolve(null)
           ])
           const trashFailed = warnMutationFailures('file trash', trashResult)
@@ -642,7 +677,7 @@ function FilesPage() {
   const handleRestore = useCallback(
     async (ids: Set<string>) => {
       try {
-        const result = await ipcApi.request('file.batch_restore', { ids: [...ids] })
+        const result = await requestBatchedFileMutation('file.batch_restore', [...ids])
         reportMutationFailures('file restore', result, t('files.error.restore_partial_failed'))
         setSelectedIds(new Set())
         await refetchFiles()
