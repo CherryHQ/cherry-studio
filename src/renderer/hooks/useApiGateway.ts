@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { useSharedCache } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { ipcApi } from '@renderer/ipc'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,7 +51,7 @@ export const useApiGateway = () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.start()
+      const result = await ipcApi.request('api_gateway.start')
       if (result.success) {
         setApiGatewayEnabled(true)
         window.toast.success(t('apiGateway.messages.startSuccess'))
@@ -68,7 +69,7 @@ export const useApiGateway = () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.stop()
+      const result = await ipcApi.request('api_gateway.stop')
       if (result.success) {
         setApiGatewayEnabled(false)
         window.toast.success(t('apiGateway.messages.stopSuccess'))
@@ -86,7 +87,7 @@ export const useApiGateway = () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.restart()
+      const result = await ipcApi.request('api_gateway.restart')
       if (result.success) {
         setApiGatewayEnabled(result.success)
         window.toast.success(t('apiGateway.messages.restartSuccess'))

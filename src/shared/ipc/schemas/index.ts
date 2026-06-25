@@ -1,4 +1,5 @@
 import type { RouteDef } from '../define'
+import { apiGatewayRequestSchemas } from './apiGateway'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { fileProcessingRequestSchemas } from './fileProcessing'
@@ -15,6 +16,7 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
+  ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
   ...binaryRequestSchemas,
   ...fileProcessingRequestSchemas,
