@@ -1,129 +1,207 @@
 {
-  "generated_at": "2026-06-24",
+  "generated_at": "2026-06-25",
   "v2_status": "merged_to_main",
-  "v2_merge_note": "The v2 branch was merged into main prior to 2026-06-24. Main is now the active development branch for v2. The dedicated v2 branch still exists for PRs not yet migrated.",
-  "milestone_v220": {
-    "title": "v2.2.0",
-    "state": "open",
-    "open_issues": 33,
-    "closed_issues": 1,
-    "url": "https://github.com/CherryHQ/cherry-studio/milestone/63",
-    "sample_open_issues": [
-      {
-        "number": 16186,
-        "title": "[Feature]: Default Sidebar Leads with Agent for New Users",
-        "labels": ["feature", "UI/UX", "prd", "internal_team"],
-        "author": "SiinXu"
-      },
-      {
-        "number": 15249,
-        "title": "[Feature]: Unified Recycle Bin for Deleted Items",
-        "labels": ["feature", "UI/UX"],
-        "author": "ninime09",
-        "assignee": "ninime09"
-      }
-    ]
+  "v2_merge_note": "v2 branch merged into main. Main is now the active development branch. v1 branch continues for hotfixes only. v2 and v1 code coexist on main during cleanup phase.",
+  "sprint_velocity_30d": {
+    "prs_merged": 247,
+    "issues_closed": 418,
+    "note": "Extremely high velocity week: v2 chat-page carve series (15+ PRs by DeJeune) landed 2026-06-19 to 2026-06-22."
   },
-  "blocked_v2_issues": {
-    "total": 47,
-    "url": "https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue+is%3Aopen+label%3A%22Blocked%3A+v2%22",
-    "note": "47 issues with 'Blocked: v2' label remain open. With v2 merged to main, these should be triaged — many may now be unblocked."
-  },
-  "v2_prs_historical": {
-    "total_merged_to_v2_branch": 20,
-    "total_closed_no_merge": 3,
-    "key_areas": ["web-search", "knowledge-base", "file-processing", "data-migration", "ui-components"],
-    "primary_contributor": "eeee0717",
-    "v2_branch_prs_sample": [
-      {"number": 15371, "title": "refactor(knowledge): knowledge workflow jobs round2", "mergedAt": "2026-05-28"},
-      {"number": 14993, "title": "refactor(web-search-settings): migrate settings to v2 data path", "mergedAt": "2026-05-12"},
-      {"number": 14734, "title": "feat(v2): knowledge ui migration", "mergedAt": "2026-05-11"},
-      {"number": 14929, "title": "feat(agents): add mock todo list panel preview", "mergedAt": "2026-05-08"}
-    ]
-  },
-  "recent_main_prs_v2_related": [
+  "completed_work_streams_30d": [
     {
-      "number": 15184,
-      "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager",
-      "author": "vaayne",
-      "mergedAt": "2026-06-24T07:15:25Z",
-      "labels": ["v2"]
+      "stream": "Chat Page v2 Architecture (Carve Series)",
+      "lead": "DeJeune",
+      "status": "completed",
+      "prs_merged": [
+        {"number": 16215, "title": "feat(chat): carve chat foundation layer", "merged_at": "2026-06-20"},
+        {"number": 16229, "title": "feat(chat): carve v2 message renderer onto foundation layer", "merged_at": "2026-06-21"},
+        {"number": 16260, "title": "feat(chat-composer): carve v2 composer onto main (additive, dormant)", "merged_at": "2026-06-22"},
+        {"number": 16272, "title": "feat(chat): carve v2 chat shell/orchestration layer", "merged_at": "2026-06-22"},
+        {"number": 16282, "title": "refactor(chat): re-add history records page", "merged_at": "2026-06-23"},
+        {"number": 16285, "title": "refactor(global-search): re-add the search panel", "merged_at": "2026-06-23"},
+        {"number": 16326, "title": "feat(paintings): rebuild prompt bar on the shared composer", "merged_at": "2026-06-25"},
+        {"number": 15338, "title": "feat(files): wire file page to real data", "merged_at": "2026-06-25"}
+      ],
+      "notes": "All major chat-page components now carved onto main. Composer fixes ongoing (#16293, #16295, #16426)."
     },
     {
-      "number": 16314,
-      "title": "feat(migration-v2-window): redesign V2 migration window",
-      "author": "AtomsH4",
-      "mergedAt": "2026-06-24T11:23:23Z",
-      "labels": []
+      "stream": "Knowledge Base v2",
+      "lead": "eeee0717",
+      "status": "feature-complete, polish ongoing",
+      "prs_merged": [
+        {"number": 15309, "title": "refactor(knowledge): knowledge v2 rfc and implement round 1", "merged_at": "2026-05-27"},
+        {"number": 15371, "title": "refactor(knowledge): knowledge workflow jobs round2", "merged_at": "2026-05-28"},
+        {"number": 15470, "title": "feat(knowledge): integrate file processing for document ingestion", "merged_at": "2026-05-31"},
+        {"number": 15973, "title": "feat(knowledge): engine-portable per-base index store and retrieval cutover", "merged_at": "2026-06-15"},
+        {"number": 16093, "title": "feat(knowledge): re-attribute v1 directory vectors to per-file children", "merged_at": "2026-06-18"},
+        {"number": 16237, "title": "fix(knowledge-migration): correctness + Windows file-lock fixes", "merged_at": "2026-06-22"},
+        {"number": 16288, "title": "feat(knowledge-ui): paginate data-source items", "merged_at": "2026-06-23"},
+        {"number": 16294, "title": "cleanup(knowledge): remove dead code and unify duplicated paths", "merged_at": "2026-06-23"},
+        {"number": 16298, "title": "feat(knowledge): add custom chunk strategy and separator", "merged_at": "2026-06-24"},
+        {"number": 16308, "title": "feat(knowledge): recover knowledge bases losing embedding model on v2 migration", "merged_at": "2026-06-24"},
+        {"number": 16331, "title": "feat(web-search): default providers and route Jina to China mirror", "merged_at": "2026-06-24"}
+      ],
+      "notes": "Knowledge v2 migration, indexing, chunking, IPC all completed. Open: #16345 agent tool surface (draft), #16407 local embedding + OCR RFC (docs PR)."
     },
     {
-      "number": 14997,
-      "title": "chore(chat-page): scaffold chat component tree",
-      "author": "DeJeune",
-      "mergedAt": "2026-06-23T12:31:50Z",
-      "labels": ["v2"]
+      "stream": "Settings and Pages Migration (v2 UI Carve)",
+      "lead": "DeJeune",
+      "status": "completed",
+      "prs_merged": [
+        {"number": 16263, "title": "feat(translate): carve v2 translate page onto main", "merged_at": "2026-06-22"},
+        {"number": 16264, "title": "feat(mini-apps): carve v2 mini-apps page onto main", "merged_at": "2026-06-22"},
+        {"number": 16265, "title": "feat(launchpad): carve v2 launchpad page onto main", "merged_at": "2026-06-22"},
+        {"number": 16267, "title": "feat(code): carve v2 code CLI page onto main", "merged_at": "2026-06-22"},
+        {"number": 16268, "title": "feat(knowledge): carve v2 knowledge page onto main", "merged_at": "2026-06-22"},
+        {"number": 16269, "title": "feat(settings): carve v2 settings pages onto main", "merged_at": "2026-06-22"},
+        {"number": 16202, "title": "feat(renderer-app-shell): carve tab architecture + app shell", "merged_at": "2026-06-19"}
+      ],
+      "notes": "All v2 pages now on main. Large UI overhaul PR #16104 (SiinXu) still open in review."
     },
     {
-      "number": 16104,
-      "title": "refactor(ui): v2 UI overhaul — design system, focus-aware shell, settings & pages migration",
-      "author": "SiinXu",
-      "state": "open",
-      "createdAt": "2026-06-16"
+      "stream": "IpcApi Migration",
+      "lead": "DeJeune / eeee0717 / Pleasurecruise",
+      "status": "major areas complete",
+      "prs_merged": [
+        {"number": 16191, "title": "refactor(knowledge): migrate runtime IPC to IpcApi", "merged_at": "2026-06-18"},
+        {"number": 16192, "title": "refactor(file-processing): migrate runtime IPC to IpcApi", "merged_at": "2026-06-18"},
+        {"number": 16193, "title": "refactor(web-search): migrate runtime IPC to IpcApi", "merged_at": "2026-06-18"},
+        {"number": 16369, "title": "refactor(ai-ipc): migrate AI IPC to IpcApi + expose provider errors", "merged_at": "2026-06-25"},
+        {"number": 16310, "title": "refactor(paths): route main-process service paths through application.getPath", "merged_at": "2026-06-24"}
+      ],
+      "notes": "Open: #16397 (api-gateway IPC migration, Pleasurecruise), #16415 (ImportService Redux→DataApi, Pleasurecruise)."
+    },
+    {
+      "stream": "Provider Ecosystem Expansion",
+      "lead": "vaayne / kangfenmao",
+      "status": "active",
+      "prs_merged": [
+        {"number": 15184, "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager", "merged_at": "2026-06-24"},
+        {"number": 16325, "title": "feat(provider): add OpenAI Codex login-based chat provider", "merged_at": "2026-06-25"},
+        {"number": 16327, "title": "feat(provider): add Grok CLI login-based chat provider", "merged_at": "2026-06-25"},
+        {"number": 16399, "title": "feat(agents): route Claude Code models through API Gateway", "merged_at": "2026-06-25"}
+      ],
+      "notes": "Login-based providers (Claude Code, Codex, Grok) now supported. Open: #16283 (vaayne, unified login-based provider PR still open), #16402 (MinGit on Windows), #16401 (provider registry catalog)."
+    },
+    {
+      "stream": "UI Component Library Migration (antd/styled-components removal)",
+      "lead": "kangfenmao",
+      "status": "in_progress",
+      "prs_merged": [],
+      "open_prs": [
+        {"number": 16336, "title": "refactor(ui): remove antd dependency", "created_at": "2026-06-24"},
+        {"number": 16370, "title": "refactor(styling): remove styled-components usage", "created_at": "2026-06-25"}
+      ],
+      "notes": "antd and styled-components removal PRs both open. Blocking full Shadcn/Tailwind adoption."
+    },
+    {
+      "stream": "AI Layer (Proxy, Image Gen, Usage Tracking)",
+      "lead": "DeJeune",
+      "status": "active",
+      "prs_merged": [
+        {"number": 16207, "title": "feat(ai-provider): route provider HTTP through proxy-aware net.fetch", "merged_at": "2026-06-21"},
+        {"number": 16133, "title": "feat(ai-image): run custom-provider async image generation on the job system", "merged_at": "2026-06-18"},
+        {"number": 16412, "title": "refactor(copilot): drop useCopilot redux hook + fix model-list 401", "merged_at": "2026-06-25"}
+      ],
+      "open_prs": [
+        {"number": 15992, "title": "feat(usage-ledger): AI SDK v6 message stats, cost engine, and durable usage ledger", "author": "DeJeune"},
+        {"number": 16057, "title": "feat(model-retry): user-configured model retry + fallback via ai-retry", "author": "DeJeune"},
+        {"number": 16208, "title": "feat(ai-video): video generation for custom providers on the job system", "author": "DeJeune", "draft": true}
+      ],
+      "notes": "Proxy routing complete. Usage ledger and model retry in review."
     }
   ],
-  "v2_data_layer_progress": {
-    "removing": ["Redux", "Dexie", "ElectronStore"],
-    "adopting": ["Cache", "Preference", "DataApi", "IpcApi"],
-    "ipc_api_merged": true,
-    "ipc_api_pr": 15631,
-    "ipc_api_merged_at": "2026-06-02",
-    "binary_manager_merged": true,
-    "binary_manager_pr": 15184,
-    "binary_manager_merged_at": "2026-06-24",
-    "antd_removal_in_progress": true,
-    "antd_removal_pr": 16336,
-    "knowledge_base_migration_complete": true
-  },
-  "open_prs_targeting_main_notable": [
+  "open_prs_notable": [
     {
       "number": 16104,
       "title": "refactor(ui): v2 UI overhaul — design system, focus-aware shell, settings & pages migration",
       "author": "SiinXu",
-      "age_days": 8,
-      "note": "Large v2 UI overhaul in review"
+      "age_days": 9,
+      "base_branch": "main",
+      "note": "Large v2 UI overhaul, 9 days in review. Highest priority review item."
+    },
+    {
+      "number": 16401,
+      "title": "feat(provider-registry): generate catalog from src/labs + src/provider, add TokenHub",
+      "author": "DeJeune",
+      "age_days": 0,
+      "base_branch": "main",
+      "note": "New today — provider registry catalog, TokenHub integration"
+    },
+    {
+      "number": 16257,
+      "title": "feat(read-file): agentic read_file tool for chat attachments",
+      "author": "DeJeune",
+      "age_days": 4,
+      "base_branch": "main",
+      "note": "Agentic file reading capability, 4 days open"
+    },
+    {
+      "number": 15992,
+      "title": "feat(usage-ledger): AI SDK v6 message stats, cost engine, and durable usage ledger",
+      "author": "DeJeune",
+      "age_days": 14,
+      "base_branch": "main",
+      "note": "14 days — large feature PR approaching stale threshold"
+    },
+    {
+      "number": 16283,
+      "title": "feat(provider): add login-based providers — Claude Code, OpenAI Codex & Grok CLI",
+      "author": "vaayne",
+      "age_days": 3,
+      "base_branch": "main",
+      "note": "Codex + Grok already split out and merged today; this may need update/close"
     },
     {
       "number": 15988,
       "title": "feat(ai-params): context-build — truncate tool results + history compression via context-chef",
       "author": "MyPrototypeWhat",
-      "age_days": 13,
-      "note": "Context management feature, 13 days old"
-    },
-    {
-      "number": 15338,
-      "title": "feat(files): wire file page to real data",
-      "author": "EurFelux",
-      "age_days": 29,
-      "note": "Approaching stale threshold"
+      "age_days": 14,
+      "base_branch": "main",
+      "note": "14 days — context management feature, approaching stale threshold"
     },
     {
       "number": 12659,
       "title": "feat(backup): add v2 backup system refactor plan document",
       "author": "GeorgeDong32",
-      "age_days": 144,
+      "age_days": 146,
       "labels": ["v2"],
-      "note": "Very old planning doc PR; likely needs decision"
+      "note": "146 days old planning doc PR — needs merge/close decision"
     }
   ],
   "v1_prs_open": {
     "count": 19,
-    "note": "19 open PRs still targeting v1 branch. Requires v1 maintenance team review."
+    "note": "19 open PRs targeting v1 branch. Requires v1 maintenance team review.",
+    "sample": [
+      {"number": 16245, "title": "fix(agents): skip unreachable MCP servers during agent startup", "author": "DeJeune"},
+      {"number": 15413, "title": "fix: scope memory deduplication hashes", "author": "3em0"},
+      {"number": 16275, "title": "fix: correct scroll positions for column-reverse layout", "author": "404-Page-Found"},
+      {"number": 16196, "title": "fix(message-converter): avoid empty assistant messages on Gemini", "author": "DeJeune"}
+    ]
+  },
+  "blocked_v2_issues": {
+    "total": 47,
+    "url": "https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue+is%3Aopen+label%3A%22Blocked%3A+v2%22",
+    "note": "47 issues with 'Blocked: v2' remain open. v2 merged to main — triage batch recommended."
+  },
+  "data_layer_progress": {
+    "redux_removal": "in_progress (useCopilot redux hook dropped in #16412 today; #16415 ImportService migration open)",
+    "dexie_removal": "in_progress",
+    "electron_store_removal": "in_progress",
+    "ipc_api_migration": "major areas complete (knowledge, file-processing, web-search, AI IPC done)",
+    "data_api_migration": "in_progress",
+    "antd_removal": "open_pr (#16336)",
+    "styled_components_removal": "open_pr (#16370)",
+    "knowledge_base_v2": "complete",
+    "binary_manager_v2": "complete (merged 2026-06-24)",
+    "provider_registry": "in_progress (PR #16401 open)"
   },
   "recommendations": [
-    "Triage 47 'Blocked: v2' issues — many are likely unblocked now that v2 merged to main",
-    "PR #16104 (v2 UI overhaul by SiinXu) is large and 8 days old — needs review attention",
-    "PR #12659 (backup plan doc, 144 days old) needs a merge/close decision",
-    "antd removal PR #16336 is open — completing this unblocks the UI/UX component migration",
-    "19 v1 PRs open — coordinate with v1 maintenance team for resolution"
+    "PR #16104 (v2 UI overhaul, 9 days) needs review — largest open change targeting main",
+    "Triage 47 'Blocked: v2' issues; many likely unblocked with v2 on main",
+    "PR #12659 (backup plan doc, 146 days) needs merge/close decision",
+    "antd (#16336) and styled-components (#16370) removal PRs need priority — both block final UI migration",
+    "PR #16283 (login-based providers) may overlap with individually merged #16325/#16327 — review for close/update",
+    "PRs #15988 and #15992 approaching stale at 14 days — need review attention"
   ]
 }

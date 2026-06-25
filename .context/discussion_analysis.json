@@ -1,60 +1,140 @@
 {
-  "generated_at": "2026-06-24",
-  "data_source_note": "GitHub Discussions GraphQL API not accessible via current MCP tooling. This file is derived from issue/PR signals that overlap with discussion topics.",
+  "generated_at": "2026-06-25",
+  "data_source_note": "GitHub Discussions GraphQL API not accessible via current MCP tooling. Derived from issue/PR signals overlapping with discussion topics.",
   "discussion_signals_from_issues": {
     "issues_labeled_discussion": 7,
     "discussion_topics_inferred": [
       {
-        "topic": "Agent/MCP tooling stability",
-        "evidence_issues": ["#12516 (MCP Auto mode stall)", "#15039 (tool approval mid-session)", "#16242 (MCP init failure)"],
-        "signal_strength": "high",
-        "notes": "Multiple reports of MCP/Agent stability; #16242 recently closed"
+        "topic": "Agent/MCP initialization and stability",
+        "evidence_issues": [
+          "#15712 (MCP tool messages lost from context in multi-turn)",
+          "#16419 (graceful MCP server init failures — prevent one failure blocking Agent startup)",
+          "#16386 (closed today: graceful degradation when MCP server fails to init)"
+        ],
+        "signal_strength": "very_high",
+        "notes": "Multiple independent reports of MCP reliability issues. Internal team filed new tracking issues today (#16386, #16419). Active PRs: #16258 (read MCP tools from cache, not block) merged 2026-06-22.",
+        "trend": "increasing"
       },
       {
-        "topic": "Model provider compatibility (OpenAI-compat)",
-        "evidence_issues": ["#16155 (NVIDIA NIM 400 on tool_calls)", "#15304 (gpt-image-2 name mismatch)", "#15047 (includeServerSideToolInvocations)"],
+        "topic": "Agent context management and cost",
+        "evidence_issues": [
+          "#16398 ({{time}} busts Anthropic prompt cache — filed today)",
+          "#16163 (long-run context auto-compaction)",
+          "#16130 (tool output budget guard)"
+        ],
         "signal_strength": "high",
-        "notes": "Growing user base on custom/third-party providers hitting protocol edge cases"
+        "notes": "Growing concern about token cost and cache invalidation. #16398 is a new bug from today with direct cost impact. Internal PRD issues #16163, #16130 already closed (captured in roadmap).",
+        "trend": "emerging"
       },
       {
-        "topic": "v2 migration pain points",
-        "evidence_issues": ["47 issues labeled 'Blocked: v2'"],
-        "signal_strength": "medium",
-        "notes": "Users waiting on v2 features; v2 merged to main so unblocking in progress"
+        "topic": "Model provider compatibility (OpenAI-compat, Gemini, Anthropic)",
+        "evidence_issues": [
+          "#16355 (MiniMax-M3 cannot set thinking mode)",
+          "#16240 (self-hosted Gemma4 missing reasoning settings)",
+          "#16195 (CherryIN gemini-3.1 AI_APICallError)",
+          "#16299 (Models bug — empty title)"
+        ],
+        "signal_strength": "high",
+        "notes": "Consistent stream of provider compatibility issues. Fix PRs active: #16405 (MiniMax M3 reasoning), #16368 (AIHubMix Gemini baseURL).",
+        "trend": "stable"
       },
       {
         "topic": "Knowledge Base / RAG enhancements",
-        "evidence_issues": ["label:RAG has 4 open, 7 closed in 30d"],
-        "signal_strength": "medium",
-        "notes": "Active development area; multiple KnowledgeBase PRs merged this week"
+        "evidence_issues": [
+          "#16396 (KB doesn't search file names)",
+          "#16313 (KB local file links can't open — Blocked shell.openExternal)",
+          "#16114 (auto-sync local folder to KB)",
+          "#15381 (KB image ingestion and multimodal retrieval)"
+        ],
+        "signal_strength": "high",
+        "notes": "Active user demand for KB improvements. Knowledge base v2 had massive PR activity this week (eeee0717 merged 22 PRs). Open: #16345 agent tool surface for KBs (draft), #16181 auto-sync local folder.",
+        "trend": "increasing"
       },
       {
-        "topic": "UI/UX polish requests",
-        "evidence_issues": ["32 open issues labeled UI/UX"],
+        "topic": "UI/UX polish and navigation",
+        "evidence_issues": [
+          "#16347 (collapse model execution process into summary bar)",
+          "#16297 (merge multiple thinking segments into single block — 3 comments)",
+          "#16273/#16274 (conversation jump button UX issues)",
+          "#16303 (shortcut assistant intercepts mouse focus after disappear)"
+        ],
         "signal_strength": "high",
-        "notes": "Largest non-inactive label category; covers sidebar, chat, painting, image UX"
+        "notes": "35+ open UI/UX issues. Largest non-inactive label category. Many filed by community; internal team tracking via prd/internal_team labels.",
+        "trend": "stable"
+      },
+      {
+        "topic": "v2 migration experience",
+        "evidence_issues": [
+          "47 issues labeled 'Blocked: v2'",
+          "#16314 (v2 migration window redesign, merged 2026-06-24)"
+        ],
+        "signal_strength": "medium",
+        "notes": "v2 merged to main; migration window redesigned. 47 blocked issues should now be triaged for unblocking.",
+        "trend": "decreasing (resolution in progress)"
+      },
+      {
+        "topic": "Cloud / Account features",
+        "evidence_issues": [
+          "#14898 (Cherry Studio account system and cross-device sync)",
+          "#16392 (Cherry Cloud Relay and Mobile Entry — filed today)",
+          "#16420 (Cloud Dashboard and Mobile Entry — filed today)"
+        ],
+        "signal_strength": "medium",
+        "notes": "Strong internal interest in cloud features. Multiple features filed today by SiinXu and kennyzheng-builds. No delivery timeline yet.",
+        "trend": "emerging"
       }
     ]
   },
   "top_engagement_issues": [
     {
-      "number": 15249,
-      "title": "[Feature]: Unified Recycle Bin for Deleted Items",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15249",
-      "milestone": "v2.2.0",
-      "labels": ["feature", "UI/UX"],
-      "reaction_count": 1,
-      "notes": "In v2.2.0 milestone; detailed spec written"
+      "number": 13301,
+      "title": "[Feature]: Support Multi-Agent Workflow and Collaboration",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13301",
+      "labels": ["feature", "Assistant", "Blocked: v2"],
+      "comments": 8,
+      "updated_at": "2026-06-24T03:41:24Z",
+      "notes": "High-engagement feature request; still blocked on v2 completion (v2 now merged)"
     },
     {
-      "number": 16186,
-      "title": "[Feature]: Default Sidebar Leads with Agent for New Users",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16186",
-      "milestone": "v2.2.0",
-      "labels": ["feature", "UI/UX", "prd", "internal_team"],
-      "reaction_count": 1,
-      "notes": "Internal team PRD; authored by SiinXu"
+      "number": 14720,
+      "title": "[Bug]: Gpt-image-2 encountered an error when parsing image generation interface parameters",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14720",
+      "labels": ["Models"],
+      "comments": 6,
+      "updated_at": "2026-06-23T11:34:22Z",
+      "notes": "6 comments; gpt-image-2 parameter parsing error — long-standing"
+    },
+    {
+      "number": 14644,
+      "title": "[Feature]: Add functionality to create Agent duplicates (copies)",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14644",
+      "labels": ["Assistant", "UI/UX", "inactive"],
+      "comments": 6,
+      "updated_at": "2026-06-22T01:19:38Z",
+      "notes": "Popular UX feature request; marked inactive"
+    },
+    {
+      "number": 16297,
+      "title": "[Feature]: 能不能把模型的多段思考合到一起",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16297",
+      "labels": ["UI/UX"],
+      "comments": 3,
+      "updated_at": "2026-06-25T03:53:58Z",
+      "notes": "3 comments within 2 days; internal team filed English spec #16382/#16390 today — likely being tracked"
     }
   ],
-  "recommendation": "Enable GraphQL Discussions API access (mcp__github__graphql or direct API) in future runs for richer discussion data."
+  "internal_team_activity_today": {
+    "total_issues_filed": 23,
+    "authors": ["SiinXu", "kennyzheng-builds"],
+    "themes": [
+      "Agent improvements (task dashboard, skill workshop, memory library, record & replay)",
+      "Cloud relay and mobile entry point",
+      "Keyboard shortcuts and navigation",
+      "MCP graceful degradation",
+      "Provider additions (Nex-N2-Pro, Agnes image gen)",
+      "UI/UX polish (multiple thinking segments, in-conversation search, export improvements)"
+    ],
+    "note": "23 issues filed today by internal team represent product roadmap capture. Most immediately closed (resolved as design decisions) or left open as active tracking issues."
+  },
+  "recommendation": "Enable GraphQL Discussions API access in future runs for richer discussion data. Current signals derived from issue labels and activity patterns."
 }
