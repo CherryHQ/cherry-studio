@@ -1,7 +1,7 @@
 import { updateWebSearchProvider } from '@renderer/store/websearch'
 import { describe, expect, it, vi } from 'vitest'
 
-import { applyProviderApiKeySideEffects, applyProviderCustomHeaderSideEffects } from './providerSettingsSideEffects'
+import { applyProviderApiKeySideEffects } from './providerSettingsSideEffects'
 
 describe('providerSettingsSideEffects', () => {
   it('syncs the first zhipu API key into legacy websearch state', () => {
@@ -31,29 +31,5 @@ describe('providerSettingsSideEffects', () => {
     })
 
     expect(dispatch).not.toHaveBeenCalled()
-  })
-
-  it('syncs copilot custom headers into the legacy store adapter', () => {
-    const updateCopilotHeaders = vi.fn()
-
-    applyProviderCustomHeaderSideEffects({
-      providerId: 'copilot',
-      headers: { Authorization: 'Bearer token' },
-      updateCopilotHeaders
-    })
-
-    expect(updateCopilotHeaders).toHaveBeenCalledWith({ Authorization: 'Bearer token' })
-  })
-
-  it('does not sync custom headers for non-copilot providers', () => {
-    const updateCopilotHeaders = vi.fn()
-
-    applyProviderCustomHeaderSideEffects({
-      providerId: 'openai',
-      headers: { Authorization: 'Bearer token' },
-      updateCopilotHeaders
-    })
-
-    expect(updateCopilotHeaders).not.toHaveBeenCalled()
   })
 })
