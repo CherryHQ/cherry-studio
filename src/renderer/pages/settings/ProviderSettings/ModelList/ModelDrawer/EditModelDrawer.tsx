@@ -11,7 +11,7 @@ import {
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { getDefaultGroupName } from '@renderer/utils'
+import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'

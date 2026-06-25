@@ -73,7 +73,7 @@ vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
   default: mocks.HorizontalScrollContainer
 }))
 
-vi.mock('@renderer/utils', () => {
+vi.mock('@renderer/utils/style', () => {
   const flattenClassNames = (value: unknown): string[] => {
     if (!value) return []
     if (typeof value === 'string') return [value]
@@ -88,10 +88,13 @@ vi.mock('@renderer/utils', () => {
 
   return {
     classNames: (...values: unknown[]) => flattenClassNames(values).join(' '),
-    cn: (...values: unknown[]) => flattenClassNames(values).join(' '),
-    isEmoji: () => false
+    cn: (...values: unknown[]) => flattenClassNames(values).join(' ')
   }
 })
+
+vi.mock('@renderer/utils/naming', () => ({
+  isEmoji: () => false
+}))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({

@@ -1,5 +1,5 @@
 import type { FileMetadata } from '@renderer/types/file'
-import { filterSupportedFiles } from '@renderer/utils'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

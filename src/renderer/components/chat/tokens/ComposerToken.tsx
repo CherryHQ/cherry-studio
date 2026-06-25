@@ -5,7 +5,7 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/chat/utils/quoteToken'
-import { formatFileSize } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { Boxes, Braces, FileText, TextQuote, Trash2, Zap } from 'lucide-react'
 import {
