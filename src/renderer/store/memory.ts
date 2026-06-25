@@ -15,7 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { MemoryConfig } from '@types'
+import type { MemoryConfig } from '@renderer/types/memory'
 
 /**
  * Memory store state interface

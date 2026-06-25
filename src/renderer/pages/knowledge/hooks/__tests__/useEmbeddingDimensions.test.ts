@@ -3,17 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useEmbeddingDimensions } from '../useEmbeddingDimensions'
 
-const mockEmbedMany = vi.fn()
-
-Object.assign(window, {
-  api: {
-    ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api,
-    ai: {
-      ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api?.ai,
-      embedMany: mockEmbedMany
-    }
-  }
-})
+// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
 
 describe('useEmbeddingDimensions', () => {
   beforeEach(() => {

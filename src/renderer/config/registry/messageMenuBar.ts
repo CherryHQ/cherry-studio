@@ -1,4 +1,4 @@
-import { TopicType } from '@renderer/types'
+import { TopicType } from '@renderer/types/topic'
 
 export type MessageMenuBarScope = TopicType
 

@@ -1,4 +1,4 @@
-import { formatApiHost } from '@renderer/utils'
+import { formatApiHost } from '@renderer/utils/api'
 import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'

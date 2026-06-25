@@ -27,7 +27,7 @@ import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvide
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { EFFORT_RATIO } from '@renderer/types'
+import { EFFORT_RATIO } from '@renderer/types/reasoning'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'

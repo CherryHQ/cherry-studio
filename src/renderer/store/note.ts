@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { RootState } from '@renderer/store/index'
-import type { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types/app'
 import type { NotesSortType } from '@renderer/types/note'
 
 export interface NotesSettings {
