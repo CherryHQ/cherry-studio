@@ -5,13 +5,13 @@ It is not part of the runtime package surface and should not be treated as packa
 
 ## Overview
 
-This document outlines the detailed plan for migrating Cherry Studio from legacy UI components and styled-components to shadcn/ui + Tailwind CSS. We will adopt a progressive migration strategy to ensure system stability and development efficiency, while gradually implementing UI refactoring in collaboration with UI designers.
+This document outlines the detailed plan for migrating Cherry Studio from antd + styled-components to shadcn/ui + Tailwind CSS. We will adopt a progressive migration strategy to ensure system stability and development efficiency, while gradually implementing UI refactoring in collaboration with UI designers.
 
 ## Migration Strategy
 
 ### Target Tech Stack
 
-- **UI Component Library**: shadcn/ui (replacing the legacy UI component stack)
+- **UI Component Library**: shadcn/ui (replacing antd and previously migrated HeroUI)
 - **Styling Solution**: Tailwind CSS v4 (replacing styled-components)
 - **Design System**: Custom CSS variable system (`--cs-*` namespace)
 - **Theme System**: CSS variables + Tailwind CSS theme
@@ -111,7 +111,7 @@ When submitting PRs, please place components in the correct directory based on t
 | Phase | Status | Main Tasks | Description |
 | --- | --- | --- | --- |
 | **Phase 1** | ✅ **Completed** | **Design System Integration** | • Converted design tokens from todocss.css to tokens.css with `--cs-*` namespace<br>• Created theme.css mapping all design tokens to standard Tailwind classes<br>• Extended Tailwind with semantic spacing (5xs~8xl) and radius (4xs~3xl) systems<br>• Established two usage modes: full override and selective override<br>• Cleaned up main package's conflicting Shadcn theme definitions |
-| **Phase 2** | ⏳ **To Start** | **Component Migration and Optimization** | • Filter components for migration based on extraction criteria<br>• Remove legacy UI dependencies, replace with shadcn/ui<br>• Remove HeroUI dependencies, replace with shadcn/ui<br>• Remove styled-components, replace with Tailwind CSS + design system variables<br>• Optimize component APIs and type definitions |
+| **Phase 2** | ⏳ **To Start** | **Component Migration and Optimization** | • Filter components for migration based on extraction criteria<br>• Remove antd dependencies, replace with shadcn/ui<br>• Remove HeroUI dependencies, replace with shadcn/ui<br>• Remove styled-components, replace with Tailwind CSS + design system variables<br>• Optimize component APIs and type definitions |
 | **Phase 3** | ⏳ **To Start** | **UI Refactoring and Optimization** | • Gradually implement UI refactoring with UI designers<br>• Ensure visual consistency and user experience<br>• Performance optimization and code quality improvement |
 
 ## Notes
@@ -123,6 +123,7 @@ When submitting PRs, please place components in the correct directory based on t
 
 2. **Can migrate** but need decoupling later:
    - Components using i18n (change i18n to props)
+   - Components using antd (replace with shadcn/ui later)
    - Components using HeroUI (replace with shadcn/ui later)
 
 3. **Submission Guidelines**:
