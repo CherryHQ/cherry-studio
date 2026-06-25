@@ -224,6 +224,11 @@
           "runFailed": "运行任务失败",
           "updateFailed": "更新任务失败"
         },
+        "frequency": {
+          "everyPrefix": "每",
+          "everySuffix": "分钟",
+          "label": "频率"
+        },
         "intervalPlaceholder": "间隔（分钟）",
         "intervalUnit": "分钟",
         "lastRun": "上次运行",

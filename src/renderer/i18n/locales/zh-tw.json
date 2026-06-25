@@ -224,6 +224,11 @@
           "runFailed": "無法執行任務",
           "updateFailed": "更新任務失敗"
         },
+        "frequency": {
+          "everyPrefix": "每",
+          "everySuffix": "分鐘",
+          "label": "頻率"
+        },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",

@@ -174,6 +174,32 @@ vi.mock('@cherrystudio/ui', () => {
     Divider: passthrough('hr'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    SegmentedControl: <TValue extends string>({
+      disabled,
+      options,
+      value,
+      onValueChange,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      disabled?: boolean
+      options: Array<{ value: TValue; label: React.ReactNode; disabled?: boolean }>
+      value?: TValue
+      onValueChange?: (value: TValue) => void
+    }) => (
+      <div role="radiogroup" {...props}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            disabled={disabled || option.disabled}
+            onClick={() => onValueChange?.(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
     Select: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     SelectContent: passthrough('div'),
     SelectItem: passthrough('div'),
@@ -294,5 +320,25 @@ describe('TasksSettings task logs', () => {
 
     expect(await screen.findByText(`${'x'.repeat(97)}...`)).toBeInTheDocument()
     expect(screen.queryByText(cappedResult)).not.toBeInTheDocument()
+  })
+
+  it('renders the segmented schedule type selector for the selected task', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+
+    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.interval' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.once' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
   })
 })

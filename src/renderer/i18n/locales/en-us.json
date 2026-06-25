@@ -224,6 +224,11 @@
           "runFailed": "Failed to run task",
           "updateFailed": "Failed to update task"
         },
+        "frequency": {
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "label": "Frequency"
+        },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",

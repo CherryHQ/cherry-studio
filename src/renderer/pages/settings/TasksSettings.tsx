@@ -12,6 +12,7 @@ import {
   DialogTitle,
   EmptyState,
   Input as UIInput,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
@@ -101,6 +102,120 @@ function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
   const at = Date.parse(trimmed)
   if (!Number.isFinite(at)) return null
   return { kind: 'once', at }
+}
+
+// --------------- Shared schedule controls ---------------
+
+const TaskScheduleControls: FC<{
+  scheduleType: ScheduleKind
+  scheduleValue: string
+  timeoutMinutes: string
+  disabled?: boolean
+  onScheduleTypeChange: (value: ScheduleKind) => void
+  onScheduleValueChange: (value: string) => void
+  onScheduleValueBlur?: () => void
+  onOnceDateChange: (date: Date) => void
+  onTimeoutMinutesChange: (value: string) => void
+  onTimeoutMinutesBlur?: () => void
+}> = ({
+  scheduleType,
+  scheduleValue,
+  timeoutMinutes,
+  disabled,
+  onScheduleTypeChange,
+  onScheduleValueChange,
+  onScheduleValueBlur,
+  onOnceDateChange,
+  onTimeoutMinutesChange,
+  onTimeoutMinutesBlur
+}) => {
+  const { t } = useTranslation()
+
+  const scheduleTypeOptions = [
+    { value: 'interval' as const, label: t('agent.cherryClaw.tasks.scheduleType.interval') },
+    { value: 'once' as const, label: t('agent.cherryClaw.tasks.scheduleType.once') },
+    { value: 'cron' as const, label: t('agent.cherryClaw.tasks.scheduleType.cron') }
+  ]
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <SettingRowTitle>{t('agent.cherryClaw.tasks.frequency.label')}</SettingRowTitle>
+        <SegmentedControl
+          size="sm"
+          value={scheduleType}
+          disabled={disabled}
+          onValueChange={onScheduleTypeChange}
+          options={scheduleTypeOptions}
+          className="max-w-full"
+        />
+
+        {scheduleType === 'interval' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-foreground text-sm">{t('agent.cherryClaw.tasks.frequency.everyPrefix')}</span>
+            <UIInput
+              type="number"
+              min={1}
+              value={scheduleValue}
+              onChange={(e) => onScheduleValueChange(e.target.value)}
+              onBlur={onScheduleValueBlur}
+              placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
+              disabled={disabled}
+              className="w-24"
+            />
+            <span className="text-foreground text-sm">{t('agent.cherryClaw.tasks.frequency.everySuffix')}</span>
+          </div>
+        )}
+
+        {scheduleType === 'once' && (
+          <div>
+            <DateTimePicker
+              value={parseScheduleDate(scheduleValue)}
+              granularity="second"
+              format="yyyy-MM-dd HH:mm:ss"
+              placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
+              triggerClassName="w-72 max-w-full"
+              onChange={(date) => {
+                if (!date) return
+                onOnceDateChange(date)
+              }}
+              disabled={disabled}
+            />
+          </div>
+        )}
+
+        {scheduleType === 'cron' && (
+          <div>
+            <UIInput
+              value={scheduleValue}
+              onChange={(e) => onScheduleValueChange(e.target.value)}
+              onBlur={onScheduleValueBlur}
+              placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
+              disabled={disabled}
+              className="w-72 max-w-full"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
+        <div className="flex items-center gap-2">
+          <UIInput
+            type="number"
+            min={1}
+            value={timeoutMinutes}
+            onChange={(e) => onTimeoutMinutesChange(e.target.value)}
+            onBlur={onTimeoutMinutesBlur}
+            placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
+            disabled={disabled}
+            className="h-8 min-h-8 w-24"
+          />
+          <span className="text-muted-foreground text-xs">{t('agent.cherryClaw.tasks.intervalUnit')}</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // --------------- Shared channel selector with warnings ---------------
@@ -225,6 +340,19 @@ const TaskDetail: FC<{
     [prompt, saveField, task.prompt]
   )
 
+  const handleScheduleValueBlur = useCallback(() => {
+    const trigger = formStateToTrigger(scheduleType, scheduleValue)
+    if (!trigger) return
+    if (JSON.stringify(trigger) === JSON.stringify(task.trigger)) return
+    saveField({ trigger })
+  }, [saveField, scheduleType, scheduleValue, task.trigger])
+
+  const handleTimeoutMinutesBlur = useCallback(() => {
+    const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
+    const prev = task.timeoutMinutes ?? null
+    if (val !== prev) saveField({ timeoutMinutes: val })
+  }, [saveField, task.timeoutMinutes, timeoutMinutes])
+
   const formatDateTime = (iso: string | null | undefined) => {
     if (!iso) return '-'
     const d = new Date(iso)
@@ -345,104 +473,24 @@ const TaskDetail: FC<{
               className="min-h-22 resize-y px-3 py-2"
             />
           </SettingRow>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
-              <Select
-                value={scheduleType}
-                disabled={isCompleted}
-                onValueChange={(value: ScheduleKind) => {
-                  setScheduleType(value)
-                  setScheduleValue('')
-                  // Defer save: trigger requires a non-empty value field; user fills then onBlur saves.
-                }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cron">{t('agent.cherryClaw.tasks.scheduleType.cron')}</SelectItem>
-                  <SelectItem value="interval">{t('agent.cherryClaw.tasks.scheduleType.interval')}</SelectItem>
-                  <SelectItem value="once">{t('agent.cherryClaw.tasks.scheduleType.once')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
-              {scheduleType === 'cron' && (
-                <UIInput
-                  value={scheduleValue}
-                  onChange={(e) => setScheduleValue(e.target.value)}
-                  onBlur={() => {
-                    const trigger = formStateToTrigger(scheduleType, scheduleValue)
-                    if (!trigger) return
-                    if (JSON.stringify(trigger) === JSON.stringify(task.trigger)) return
-                    saveField({ trigger })
-                  }}
-                  placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
-                  disabled={isCompleted}
-                />
-              )}
-              {scheduleType === 'interval' && (
-                <div className="relative">
-                  <UIInput
-                    type="number"
-                    min={1}
-                    value={scheduleValue}
-                    onChange={(e) => setScheduleValue(e.target.value)}
-                    onBlur={() => {
-                      const trigger = formStateToTrigger(scheduleType, scheduleValue)
-                      if (!trigger) return
-                      if (JSON.stringify(trigger) === JSON.stringify(task.trigger)) return
-                      saveField({ trigger })
-                    }}
-                    placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
-                    disabled={isCompleted}
-                    className="pr-10"
-                  />
-                  <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
-                    {t('agent.cherryClaw.tasks.intervalUnit')}
-                  </span>
-                </div>
-              )}
-              {scheduleType === 'once' && (
-                <DateTimePicker
-                  value={parseScheduleDate(scheduleValue)}
-                  granularity="second"
-                  format="yyyy-MM-dd HH:mm:ss"
-                  placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
-                  triggerClassName="w-full"
-                  onChange={(date) => {
-                    if (!date) return
-                    setScheduleValue(date.toISOString())
-                    saveField({ trigger: { kind: 'once', at: date.getTime() } })
-                  }}
-                  disabled={isCompleted}
-                />
-              )}
-            </div>
-            <div className="space-y-2">
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
-              <div className="relative">
-                <UIInput
-                  type="number"
-                  min={1}
-                  value={timeoutMinutes}
-                  onChange={(e) => setTimeoutMinutes(e.target.value)}
-                  onBlur={() => {
-                    const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
-                    const prev = task.timeoutMinutes ?? null
-                    if (val !== prev) saveField({ timeoutMinutes: val })
-                  }}
-                  placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
-                  disabled={isCompleted}
-                  className="pr-10"
-                />
-                <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
-                  {t('agent.cherryClaw.tasks.intervalUnit')}
-                </span>
-              </div>
-            </div>
-          </div>
+          <TaskScheduleControls
+            scheduleType={scheduleType}
+            scheduleValue={scheduleValue}
+            timeoutMinutes={timeoutMinutes}
+            disabled={isCompleted}
+            onScheduleTypeChange={(value) => {
+              setScheduleType(value)
+              setScheduleValue('')
+            }}
+            onScheduleValueChange={setScheduleValue}
+            onScheduleValueBlur={handleScheduleValueBlur}
+            onOnceDateChange={(date) => {
+              setScheduleValue(date.toISOString())
+              saveField({ trigger: { kind: 'once', at: date.getTime() } })
+            }}
+            onTimeoutMinutesChange={setTimeoutMinutes}
+            onTimeoutMinutesBlur={handleTimeoutMinutesBlur}
+          />
           <TaskChannelSelector
             channels={channels}
             channelIds={channelIds}
@@ -711,7 +759,7 @@ const CreateForm: FC<{
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [promptModalOpen, setPromptModalOpen] = useState(false)
-  const [scheduleType, setScheduleType] = useState<'cron' | 'interval' | 'once'>('interval')
+  const [scheduleType, setScheduleType] = useState<ScheduleKind>('interval')
   const [scheduleValue, setScheduleValue] = useState('')
   const [timeoutMinutes, setTimeoutMinutes] = useState('')
   const [channelIds, setChannelIds] = useState<string[]>([])
@@ -809,79 +857,18 @@ const CreateForm: FC<{
             </DialogContent>
           </Dialog>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
-              <Select
-                value={scheduleType}
-                onValueChange={(v: 'cron' | 'interval' | 'once') => {
-                  setScheduleType(v)
-                  setScheduleValue('')
-                }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cron">{t('agent.cherryClaw.tasks.scheduleType.cron')}</SelectItem>
-                  <SelectItem value="interval">{t('agent.cherryClaw.tasks.scheduleType.interval')}</SelectItem>
-                  <SelectItem value="once">{t('agent.cherryClaw.tasks.scheduleType.once')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
-              {scheduleType === 'cron' && (
-                <UIInput
-                  value={scheduleValue}
-                  onChange={(e) => setScheduleValue(e.target.value)}
-                  placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
-                />
-              )}
-              {scheduleType === 'interval' && (
-                <div className="relative">
-                  <UIInput
-                    type="number"
-                    min={1}
-                    value={scheduleValue}
-                    onChange={(e) => setScheduleValue(e.target.value)}
-                    placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
-                    className="pr-10"
-                  />
-                  <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
-                    {t('agent.cherryClaw.tasks.intervalUnit')}
-                  </span>
-                </div>
-              )}
-              {scheduleType === 'once' && (
-                <DateTimePicker
-                  value={parseScheduleDate(scheduleValue)}
-                  granularity="second"
-                  format="yyyy-MM-dd HH:mm:ss"
-                  placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
-                  triggerClassName="w-full"
-                  onChange={(date) => {
-                    if (date) setScheduleValue(date.toISOString())
-                  }}
-                />
-              )}
-            </div>
-            <div className="space-y-2">
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
-              <div className="relative">
-                <UIInput
-                  type="number"
-                  min={1}
-                  value={timeoutMinutes}
-                  onChange={(e) => setTimeoutMinutes(e.target.value)}
-                  placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
-                  className="pr-10"
-                />
-                <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
-                  {t('agent.cherryClaw.tasks.intervalUnit')}
-                </span>
-              </div>
-            </div>
-          </div>
+          <TaskScheduleControls
+            scheduleType={scheduleType}
+            scheduleValue={scheduleValue}
+            timeoutMinutes={timeoutMinutes}
+            onScheduleTypeChange={(value) => {
+              setScheduleType(value)
+              setScheduleValue('')
+            }}
+            onScheduleValueChange={setScheduleValue}
+            onOnceDateChange={(date) => setScheduleValue(date.toISOString())}
+            onTimeoutMinutesChange={setTimeoutMinutes}
+          />
           <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
 
           <div className="flex gap-2">
