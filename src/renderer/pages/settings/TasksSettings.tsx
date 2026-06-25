@@ -689,7 +689,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
           return (
             <div className="flex items-center gap-1">
-              <span className={isErrorStatus ? 'text-red-500' : ''}>{text}</span>
+              {/* Clamp height (full text stays in the DOM and copyable); the table scrolls horizontally for width. */}
+              <span className={`line-clamp-4 ${isErrorStatus ? 'text-red-500' : ''}`}>{text}</span>
               {sessionId && (
                 <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
                   <Button

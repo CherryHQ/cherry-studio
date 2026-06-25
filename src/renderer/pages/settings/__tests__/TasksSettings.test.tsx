@@ -60,7 +60,6 @@ const taskMutationMocks = vi.hoisted(() => ({
 }))
 
 const navigationMocks = vi.hoisted(() => ({
-  navigate: vi.fn(),
   openConversationTab: vi.fn(),
   openConversationWindow: vi.fn(),
   tabsContext: {} as Record<string, never> | null,
@@ -96,10 +95,6 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
 
 vi.mock('@renderer/components/chat/shell/WindowFrameContext', () => ({
   useWindowFrame: () => ({ mode: navigationMocks.windowFrameMode })
-}))
-
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigationMocks.navigate
 }))
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
@@ -403,7 +398,6 @@ describe('TasksSettings task logs', () => {
 
     expect(navigationMocks.openConversationTab).toHaveBeenCalledWith('session-1')
     expect(navigationMocks.openConversationWindow).not.toHaveBeenCalled()
-    expect(navigationMocks.navigate).not.toHaveBeenCalled()
     await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
@@ -416,7 +410,6 @@ describe('TasksSettings task logs', () => {
 
     expect(navigationMocks.openConversationWindow).toHaveBeenCalledWith('session-1')
     expect(navigationMocks.openConversationTab).not.toHaveBeenCalled()
-    expect(navigationMocks.navigate).not.toHaveBeenCalled()
     await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
@@ -429,17 +422,19 @@ describe('TasksSettings task logs', () => {
 
     expect(navigationMocks.openConversationWindow).toHaveBeenCalledWith('session-1')
     expect(navigationMocks.openConversationTab).not.toHaveBeenCalled()
-    expect(navigationMocks.navigate).not.toHaveBeenCalled()
     await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
-  it('renders the full task log result without truncation', async () => {
+  it('keeps the full task log result in the DOM while clamping its height', async () => {
     const longResult = 'x'.repeat(220)
     taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, result: longResult }]
 
     render(<TasksSettings />)
 
-    expect(await screen.findByText(longResult)).toBeInTheDocument()
+    // Full text stays in the DOM (copyable) ...
+    const resultText = await screen.findByText(longResult)
+    // ... but the cell height is bounded by a line clamp.
+    expect(resultText).toHaveClass('line-clamp-4')
   })
 
   it('lets task log table height follow content while scrolling horizontally', async () => {
