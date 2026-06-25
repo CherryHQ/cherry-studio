@@ -146,40 +146,52 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.7 - Model Support & Bug Fixes
+    Cherry Studio 2.0.0-alpha.1 - V2 Alpha Is Here
 
-    ✨ New Features
-    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
-    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
-    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
+    ✨ New Experience
+    - [V2] This is the first public Alpha of Cherry Studio V2, with a cleaner look and a simpler workspace
+    - [Tabs] Chats, mini apps, tools, and detached windows now feel more like working in a browser, with tabs you can pin or move out
+    - [Pages] Chat, Settings, Knowledge, Translation, Mini Apps, Launchpad, Code Tools, and Resource Library have all been rebuilt for V2
+    - [Library] Assistants, agents, and skills now live together in one Resource Library, with search, tags, import/export, and clearer detail views
+    - [Migration] V2 includes a guided upgrade flow for your existing settings, chats, agents, knowledge bases, files, models, providers, MCP servers, and preferences
 
-    🐛 Bug Fixes
-    - [Web Search] Fixed ExaMCP web search not returning result content correctly
-    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
-    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
-    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
-    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
-    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
-    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
-    - [Models] Fixed Qwen max series models incorrectly showing vision capability
-    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
+    🚀 New Capabilities
+    - [Chat] Branching conversations are easier to follow, and the message area and input box are ready for the new V2 chat experience
+    - [Knowledge] Knowledge bases are more flexible: add URLs and notes, tune chunking, handle folders better, browse long source lists, and import documents through File Processing
+    - [Providers] Provider and model management is easier, with grouped lists, model search, model deletion, clearer validation, and better model details
+    - [Web Search] Web Search now separates keyword search from URL reading, with better defaults and improved access through the Jina China mirror
+    - [Code Tools] Code tools now open from a gallery-style page, with per-tool settings and support for Qoder CLI and Kimi Code
+    - [MCP] MCP servers are easier to discover, install, and manage from the refreshed marketplace
+    - [Translate] Image OCR in Translation now uses the same File Processing flow as the rest of the app
+
+    ⚡ Performance
+    - [Startup] The app does less heavy work at launch, so startup should feel lighter
+    - [Data] Local data now uses the new V2 storage system, making chats, knowledge bases, settings, files, providers, and models more reliable
+    - [Agents] Agent and chat startup no longer has to wait on every MCP server refresh
+    - [Jobs] Image generation, file processing, OCR, indexing, and recovery now run through a smoother background job system
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.7 - 模型支持与错误修复
+    Cherry Studio 2.0.0-alpha.1 - V2 Alpha 来了
 
-    ✨ 新功能
-    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
-    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
-    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
+    ✨ 全新体验
+    - [V2] 这是 Cherry Studio V2 的第一个公开 Alpha，界面更清爽，工作区也更顺手
+    - [标签页] 聊天、小程序、工具和独立窗口现在更像浏览器标签页，可以固定，也可以分离出去
+    - [页面] 聊天、设置、知识库、翻译、小程序、启动台、代码工具和资源库都已经按 V2 重新打造
+    - [资源库] 助手、智能体和技能现在集中在一个资源库里管理，支持搜索、标签、导入导出和更清晰的详情页
+    - [迁移] V2 提供引导式升级流程，迁移已有设置、聊天、智能体、知识库、文件、模型、提供商、MCP 服务和偏好设置
 
-    🐛 问题修复
-    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
-    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
-    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
-    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
-    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
-    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
-    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
-    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
-    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
+    🚀 新能力
+    - [聊天] 多分支对话更容易看懂，消息区和输入框也已经为新的 V2 聊天体验打好基础
+    - [知识库] 知识库更灵活了：可以添加 URL 和笔记，调整分块方式，更好地处理文件夹，浏览长数据源列表，并通过文件处理导入文档
+    - [提供商] 提供商和模型管理更顺手，支持分组列表、模型搜索、删除模型、更清晰的校验和更完整的模型信息
+    - [网络搜索] 网络搜索现在区分关键词搜索和 URL 读取，默认配置更清楚，并通过 Jina 国内镜像改善访问体验
+    - [代码工具] 代码工具改成画廊式入口，每个工具都有独立设置，并支持 Qoder CLI 和 Kimi Code
+    - [MCP] MCP 服务可以在改版后的市场里更方便地发现、安装和管理
+    - [翻译] 翻译里的图片 OCR 现在和应用里的文件处理流程保持一致
+
+    ⚡ 性能优化
+    - [启动] 启动时少做重活，打开应用应该更轻快
+    - [数据] 本地数据换到新的 V2 存储系统，聊天、知识库、设置、文件、提供商和模型数据存储会更可靠
+    - [智能体] 智能体和聊天启动时不再需要等待所有 MCP 服务刷新
+    - [任务] 图片生成、文件处理、OCR、索引和恢复流程现在由后台任务系统处理，更顺畅也更稳
     <!--LANG:END-->
