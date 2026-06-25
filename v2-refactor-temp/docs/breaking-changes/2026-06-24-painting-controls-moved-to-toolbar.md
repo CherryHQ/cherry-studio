@@ -2,7 +2,7 @@
 title: Image-generation model & parameters moved into the prompt bar toolbar
 category: moved
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: 16326
 date: 2026-06-24
 ---
 

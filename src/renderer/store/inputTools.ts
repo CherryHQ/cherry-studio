@@ -70,7 +70,9 @@ export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-windo
     visible: ['attachment', 'mention_models', 'quick_phrases'],
     hidden: []
   },
-  // Image-generation prompt bar only surfaces the attachment tool (input images).
+  // Required for type exhaustiveness; painting tool visibility is driven by the
+  // registry's visibleInScopes (both attachment and quick_phrases), not this map —
+  // selectToolOrderForScope returns the chat order for any non-Session scope.
   painting: {
     visible: ['attachment'],
     hidden: []
