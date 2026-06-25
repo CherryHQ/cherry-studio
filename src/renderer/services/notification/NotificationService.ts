@@ -1,11 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import type { Notification } from '@renderer/types/notification'
 
-import { notificationQueue } from './NotificationQueue'
-
 export class NotificationService {
-  private queue = notificationQueue
-
   constructor() {
     this.setupNotificationClickHandler()
   }
@@ -22,7 +18,7 @@ export class NotificationService {
     })
 
     if (notificationSettings[notification.source]) {
-      void this.queue.add(notification)
+      void window.api.notification.send(notification)
     }
   }
 
@@ -37,20 +33,6 @@ export class NotificationService {
         notification.onClick?.()
       }
     })
-  }
-
-  /**
-   * 清空通知队列
-   */
-  public clear(): void {
-    this.queue.clear()
-  }
-
-  /**
-   * 获取队列中等待的通知数量
-   */
-  public get pendingCount(): number {
-    return this.queue.pending
   }
 }
 
