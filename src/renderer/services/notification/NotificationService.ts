@@ -17,6 +17,10 @@ export class NotificationService {
       knowledge: 'app.notification.knowledge.enabled'
     })
 
+    // TODO(notification): sources without a configured preference key (e.g. 'update')
+    // are silently dropped here — there is no `app.notification.update.enabled`
+    // preference, so update notifications never fire. Add a real preference/default
+    // policy for such sources, or remove the dead path, in a follow-up.
     if (notificationSettings[notification.source]) {
       void window.api.notification.send(notification)
     }
