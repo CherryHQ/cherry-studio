@@ -225,11 +225,11 @@
           "updateFailed": "更新任务失败"
         },
         "frequency": {
-          "everyPrefix": "每",
-          "everySuffix": "分钟",
-          "label": "频率"
+          "everyPrefix": "间隔",
+          "everySuffix": "分钟执行",
+          "label": "执行频率"
         },
-        "intervalPlaceholder": "间隔（分钟）",
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
@@ -282,7 +282,7 @@
           "minutesAgo": "{{count}}分钟前"
         },
         "timeout": {
-          "label": "超时时间",
+          "label": "最长执行时间",
           "placeholder": "无限制"
         },
         "title": "定时任务"

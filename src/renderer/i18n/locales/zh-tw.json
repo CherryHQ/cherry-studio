@@ -225,11 +225,11 @@
           "updateFailed": "更新任務失敗"
         },
         "frequency": {
-          "everyPrefix": "每",
-          "everySuffix": "分鐘",
-          "label": "頻率"
+          "everyPrefix": "間隔",
+          "everySuffix": "分鐘執行",
+          "label": "執行頻率"
         },
-        "intervalPlaceholder": "間隔（分鐘）",
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
         "logs": {
@@ -282,7 +282,7 @@
           "minutesAgo": "{{count}}分鐘前"
         },
         "timeout": {
-          "label": "逾時時間",
+          "label": "最長執行時間",
           "placeholder": "無限制"
         },
         "title": "排程任務"

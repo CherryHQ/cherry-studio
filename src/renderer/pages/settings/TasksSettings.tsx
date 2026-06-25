@@ -12,6 +12,11 @@ import {
   DialogTitle,
   EmptyState,
   Input as UIInput,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   SegmentedControl,
   Select,
   SelectContent,
@@ -19,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
+  Switch,
   Textarea,
   Tooltip
 } from '@cherrystudio/ui'
@@ -47,7 +53,7 @@ import {
   ExternalLink,
   History,
   Maximize2,
-  Pause,
+  MoreHorizontal,
   Play,
   Plus,
   Search,
@@ -308,10 +314,17 @@ const TaskDetail: FC<{
   const [prompt, setPrompt] = useState(task.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const [scheduleType, setScheduleType] = useState<ScheduleKind>(initialSchedule.kind)
   const [scheduleValue, setScheduleValue] = useState(initialSchedule.value)
   const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeoutMinutes?.toString() ?? '')
   const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
+
+  const toggleStatusLabel =
+    task.status === 'active' ? t('agent.cherryClaw.tasks.pause') : t('agent.cherryClaw.tasks.resume')
+  const moreLabel = t('common.more')
+  const runLabel = t('agent.cherryClaw.tasks.run')
+  const deleteLabel = t('agent.cherryClaw.tasks.delete.label')
 
   useEffect(() => {
     setName(task.name)
@@ -353,6 +366,16 @@ const TaskDetail: FC<{
     if (val !== prev) saveField({ timeoutMinutes: val })
   }, [saveField, task.timeoutMinutes, timeoutMinutes])
 
+  const handleRunNow = useCallback(() => {
+    setActionsMenuOpen(false)
+    void onRun(task.id)
+  }, [onRun, task.id])
+
+  const handleDeleteAction = useCallback(() => {
+    setActionsMenuOpen(false)
+    setDeleteConfirmOpen(true)
+  }, [])
+
   const formatDateTime = (iso: string | null | undefined) => {
     if (!iso) return '-'
     const d = new Date(iso)
@@ -389,23 +412,55 @@ const TaskDetail: FC<{
           </div>
           <div className="flex items-center gap-1">
             {!isCompleted && (
-              <Button size="icon-sm" onClick={() => onRun(task.id)} title={t('agent.cherryClaw.tasks.run')}>
-                <Play size={14} />
-              </Button>
+              <Switch
+                size="sm"
+                checked={task.status === 'active'}
+                onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
+                aria-label={toggleStatusLabel}
+                title={toggleStatusLabel}
+              />
             )}
-            {!isCompleted && (
-              <Button
-                size="icon-sm"
-                onClick={() => onToggleStatus(task.id, task.status === 'active' ? 'paused' : 'active')}
-                title={
-                  task.status === 'active' ? t('agent.cherryClaw.tasks.pause') : t('agent.cherryClaw.tasks.resume')
-                }>
-                <Pause size={14} />
-              </Button>
-            )}
-            <Button size="icon-sm" variant="destructive" onClick={() => setDeleteConfirmOpen(true)}>
-              <Trash2 size={14} />
-            </Button>
+            <Popover open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={moreLabel}
+                  aria-haspopup="menu"
+                  aria-expanded={actionsMenuOpen}>
+                  <MoreHorizontal size={14} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="bottom"
+                sideOffset={6}
+                collisionPadding={8}
+                className="w-44 min-w-44 rounded-lg border-border bg-popover p-1 shadow-md"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onCloseAutoFocus={(event) => event.preventDefault()}>
+                <MenuList role="menu">
+                  {!isCompleted && (
+                    <MenuItem
+                      role="menuitem"
+                      variant="ghost"
+                      icon={<Play className="size-3.5" />}
+                      label={runLabel}
+                      onClick={handleRunNow}
+                    />
+                  )}
+                  <MenuItem
+                    role="menuitem"
+                    variant="ghost"
+                    icon={<Trash2 className="size-3.5 text-destructive" />}
+                    label={deleteLabel}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
+                    onClick={handleDeleteAction}
+                  />
+                </MenuList>
+              </PopoverContent>
+            </Popover>
           </div>
         </SettingTitle>
         <SettingDivider />
@@ -529,7 +584,7 @@ const TaskDetail: FC<{
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title={t('agent.cherryClaw.tasks.delete.confirm')}
-        confirmText={t('agent.cherryClaw.tasks.delete.label')}
+        confirmText={deleteLabel}
         cancelText={t('agent.cherryClaw.tasks.cancel')}
         destructive
         onConfirm={() => onDelete(task.id)}

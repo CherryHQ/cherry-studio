@@ -227,9 +227,9 @@
         "frequency": {
           "everyPrefix": "Every",
           "everySuffix": "minutes",
-          "label": "Frequency"
+          "label": "Execution Frequency"
         },
-        "intervalPlaceholder": "Interval in minutes",
+        "intervalPlaceholder": "At least 1",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
@@ -282,7 +282,7 @@
           "minutesAgo": "{{count}}m ago"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Maximum Execution Time",
           "placeholder": "No limit"
         },
         "title": "Scheduled Tasks"

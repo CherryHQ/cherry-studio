@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,6 +28,37 @@ const taskLogsMock = vi.hoisted(() => {
   }
 })
 
+const taskDataMock = vi.hoisted(() => {
+  const defaultTask = {
+    id: 'task-1',
+    agentId: 'agent-1',
+    name: 'Daily task',
+    prompt: 'Run daily summary',
+    trigger: { kind: 'interval', ms: 60000 },
+    timeoutMinutes: 10,
+    workspace: { type: 'system' },
+    channelIds: [],
+    nextRun: null,
+    lastRun: null,
+    enabled: true,
+    status: 'active',
+    createdAt: '2026-06-25T00:00:00.000Z',
+    updatedAt: '2026-06-25T00:00:00.000Z'
+  }
+
+  return {
+    defaultTask,
+    task: { ...defaultTask }
+  }
+})
+
+const taskMutationMocks = vi.hoisted(() => ({
+  createTask: vi.fn(),
+  deleteTask: vi.fn(),
+  runTask: vi.fn(),
+  updateTask: vi.fn()
+}))
+
 const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openConversationTab: vi.fn(),
@@ -45,11 +76,11 @@ vi.mock('@renderer/hooks/agents/useChannels', () => ({
 }))
 
 vi.mock('@renderer/hooks/agents/useTasks', () => ({
-  useCreateTask: () => ({ createTask: vi.fn() }),
-  useDeleteTask: () => ({ deleteTask: vi.fn() }),
-  useRunTask: () => ({ runTask: vi.fn() }),
+  useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
+  useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
+  useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
   useTaskLogs: () => taskLogsMock,
-  useUpdateTask: () => ({ updateTask: vi.fn() })
+  useUpdateTask: () => ({ updateTask: taskMutationMocks.updateTask })
 }))
 
 vi.mock('@renderer/context/TabsContext', () => ({
@@ -110,6 +141,11 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => {
+  const PopoverContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  } | null>(null)
+
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
     ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -130,7 +166,30 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     Combobox: passthrough('div'),
-    ConfirmDialog: () => null,
+    ConfirmDialog: ({
+      cancelText,
+      confirmText,
+      onConfirm,
+      open,
+      title
+    }: {
+      cancelText?: React.ReactNode
+      confirmText?: React.ReactNode
+      onConfirm?: () => void
+      open?: boolean
+      title?: React.ReactNode
+    }) =>
+      open ? (
+        <div role="dialog">
+          {title && <span>{title}</span>}
+          {cancelText && <button type="button">{cancelText}</button>}
+          {confirmText && (
+            <button type="button" onClick={onConfirm}>
+              {confirmText}
+            </button>
+          )}
+        </div>
+      ) : null,
     DataTable: ({
       columns,
       data,
@@ -183,6 +242,65 @@ vi.mock('@cherrystudio/ui', () => {
     Divider: passthrough('hr'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    MenuItem: ({
+      description,
+      icon,
+      label,
+      onClick,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      description?: React.ReactNode
+      icon?: React.ReactNode
+      label: string
+    }) => (
+      <button type="button" onClick={onClick} {...props}>
+        {icon}
+        <span>{label}</span>
+        {description && <span>{description}</span>}
+      </button>
+    ),
+    MenuList: passthrough('div'),
+    Popover: ({
+      children,
+      onOpenChange,
+      open
+    }: {
+      children?: React.ReactNode
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+    }) => {
+      const [internalOpen, setInternalOpen] = React.useState(Boolean(open))
+      const actualOpen = open ?? internalOpen
+      const setOpen = (nextOpen: boolean) => {
+        setInternalOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+
+      return <PopoverContext value={{ open: actualOpen, setOpen }}>{children}</PopoverContext>
+    },
+    PopoverContent: ({ children }: { children?: React.ReactNode }) => {
+      const context = React.use(PopoverContext)
+
+      return context?.open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({ children }: { asChild?: boolean; children?: React.ReactNode }) => {
+      const context = React.use(PopoverContext)
+
+      if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        return React.cloneElement(children, {
+          onClick: (event: React.MouseEvent) => {
+            children.props.onClick?.(event)
+            context?.setOpen(!context.open)
+          }
+        })
+      }
+
+      return (
+        <button type="button" onClick={() => context?.setOpen(!context.open)}>
+          {children}
+        </button>
+      )
+    },
     SegmentedControl: <TValue extends string>({
       disabled,
       options,
@@ -215,6 +333,26 @@ vi.mock('@cherrystudio/ui', () => {
     SelectTrigger: passthrough('div'),
     SelectValue: passthrough('div'),
     Spinner: ({ text }: { text?: React.ReactNode }) => <div>{text}</div>,
+    Switch: ({
+      checked,
+      disabled,
+      onCheckedChange,
+      title,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        title={title}
+        onClick={() => onCheckedChange?.(!checked)}
+        {...props}
+      />
+    ),
     Textarea: {
       Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
     },
@@ -233,6 +371,7 @@ describe('TasksSettings task logs', () => {
     navigationMocks.tabsContext = {}
     navigationMocks.windowFrameMode = 'embedded'
     taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
+    taskDataMock.task = { ...taskDataMock.defaultTask }
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
         return Promise.resolve({
@@ -242,24 +381,7 @@ describe('TasksSettings task logs', () => {
 
       if (path === '/agents/agent-1/tasks') {
         return Promise.resolve({
-          items: [
-            {
-              id: 'task-1',
-              agentId: 'agent-1',
-              name: 'Daily task',
-              prompt: 'Run daily summary',
-              trigger: { kind: 'interval', ms: 60000 },
-              timeoutMinutes: 10,
-              workspace: { type: 'system' },
-              channelIds: [],
-              nextRun: null,
-              lastRun: null,
-              enabled: true,
-              status: 'active',
-              createdAt: '2026-06-25T00:00:00.000Z',
-              updatedAt: '2026-06-25T00:00:00.000Z'
-            }
-          ]
+          items: [taskDataMock.task]
         })
       }
 
@@ -365,39 +487,41 @@ describe('TasksSettings task logs', () => {
     )
   })
 
+  it('moves run and delete into the task detail more menu', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+
+    expect(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.pause' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByTitle('agent.cherryClaw.tasks.run')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.pause' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    expect(screen.getByRole('menuitem', { name: 'agent.cherryClaw.tasks.delete.label' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.cherryClaw.tasks.run' }))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
+  it('toggles the selected task status from the header switch', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.pause' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
+    )
+  })
+
   it('renders completed task status badge with info color tokens', async () => {
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') {
-        return Promise.resolve({
-          items: [{ id: 'agent-1', name: 'Agent One', configuration: { soul_enabled: true } }]
-        })
-      }
-
-      if (path === '/agents/agent-1/tasks') {
-        return Promise.resolve({
-          items: [
-            {
-              id: 'task-1',
-              agentId: 'agent-1',
-              name: 'Daily task',
-              prompt: 'Run daily summary',
-              trigger: { kind: 'interval', ms: 60000 },
-              timeoutMinutes: 10,
-              workspace: { type: 'system' },
-              channelIds: [],
-              nextRun: null,
-              lastRun: null,
-              enabled: false,
-              status: 'completed',
-              createdAt: '2026-06-25T00:00:00.000Z',
-              updatedAt: '2026-06-25T00:00:00.000Z'
-            }
-          ]
-        })
-      }
-
-      throw new Error(`unexpected path: ${path}`)
-    })
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      enabled: false,
+      status: 'completed'
+    }
 
     render(<TasksSettings />)
 
@@ -405,5 +529,30 @@ describe('TasksSettings task logs', () => {
 
     expect(completedBadge).toHaveClass('border-info/30', 'bg-info/10', 'text-info')
     expect(completedBadge).not.toHaveClass('border-primary/30', 'bg-primary/10', 'text-primary')
+  })
+
+  it('keeps delete in the more menu for completed tasks without showing run or status controls', async () => {
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      enabled: false,
+      status: 'completed'
+    }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    })
+
+    expect(screen.queryByRole('menuitem', { name: 'agent.cherryClaw.tasks.run' })).not.toBeInTheDocument()
+    act(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'agent.cherryClaw.tasks.delete.label' }))
+    })
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.cherryClaw.tasks.delete.confirm')
   })
 })
