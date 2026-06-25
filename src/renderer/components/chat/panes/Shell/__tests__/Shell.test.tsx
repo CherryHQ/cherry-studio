@@ -437,7 +437,9 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    expect(tabList).toHaveClass('pr-3', 'pl-3')
+    // pr resolves to pr-3 in the main window / macOS (--window-controls-width defaults to 0px);
+    // it only widens in a frameless Win/Linux sub-window to clear the OS window controls corner.
+    expect(tabList).toHaveClass('pr-[calc(0.75rem+var(--window-controls-width,0px))]', 'pl-3')
     expect(tabList).not.toHaveClass('pr-11')
     expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
     expect(tabsList).not.toHaveClass('overflow-x-auto')
