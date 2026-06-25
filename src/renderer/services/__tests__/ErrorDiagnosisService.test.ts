@@ -16,17 +16,6 @@ vi.mock('@renderer/config/providers', () => ({
   CHERRYAI_PROVIDER: { id: 'cherryai', type: 'openai', apiHost: 'https://api.cherry-ai.com', models: [] }
 }))
 
-// Mock store
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: vi.fn(() => ({
-      llm: { defaultModel: null }
-    })),
-    dispatch: vi.fn()
-  },
-  useAppSelector: vi.fn()
-}))
-
 // Mock LoggerService
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
@@ -39,14 +28,11 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-import store from '@renderer/store'
-
 import { fetchGenerate } from '../ApiService'
 import { diagnoseError } from '../ErrorDiagnosisService'
 import { readDefaultModel } from '../ModelService'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
-const mockGetState = vi.mocked(store.getState)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
@@ -67,9 +53,6 @@ Object.assign(window, {
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetState.mockReturnValue({
-      llm: { defaultModel: null }
-    } as any)
     mockListModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }])
   })
 
@@ -118,9 +101,6 @@ describe('ErrorDiagnosisService', () => {
     })
 
     it('uses CherryAI free model as primary', async () => {
-      const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-      mockGetState.mockReturnValue({ llm: { defaultModel: customModel } } as any)
-
       const mockResult = {
         summary: 'Error',
         category: 'unknown',
@@ -154,8 +134,6 @@ describe('ErrorDiagnosisService', () => {
     })
 
     it('uses only CherryAI when no default model', async () => {
-      mockGetState.mockReturnValue({ llm: { defaultModel: null } } as any)
-
       const mockResult = {
         summary: 'Error',
         category: 'unknown',

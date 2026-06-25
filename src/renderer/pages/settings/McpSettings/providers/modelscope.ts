@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
-import { nanoid } from '@reduxjs/toolkit'
 import { getMcpServerType } from '@renderer/types/mcp'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import i18next from 'i18next'
+import { nanoid } from 'nanoid'
 
 const logger = loggerService.withContext('ModelScopeSyncUtils')
 
