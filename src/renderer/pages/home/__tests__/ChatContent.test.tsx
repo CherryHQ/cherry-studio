@@ -84,7 +84,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
+vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   default: ({
     onSend,
     sendDisabled,
@@ -151,7 +151,7 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,

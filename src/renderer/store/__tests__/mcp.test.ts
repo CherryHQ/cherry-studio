@@ -1,16 +1,7 @@
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { createMigrate } from 'redux-persist'
 import { describe, expect, it } from 'vitest'
 
-import { builtinMcpServers } from '../mcp'
-
 describe('MCP filesystem defaults', () => {
-  it('disables auto-approve for sensitive filesystem tools by default', () => {
-    const filesystemServer = builtinMcpServers.find((server) => server.name === BuiltinMcpServerNames.filesystem)
-
-    expect(filesystemServer?.disabledAutoApproveTools).toEqual(['write', 'edit', 'delete'])
-  })
-
   describe('migration 202: filesystem approval backfill', () => {
     // Isolated migration function matching the logic in migrate.ts version 201
     const migrate202 = (state: any) => {

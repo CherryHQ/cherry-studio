@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/agent/types'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {

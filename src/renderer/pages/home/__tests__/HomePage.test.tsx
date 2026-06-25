@@ -163,7 +163,7 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
+vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   ChatPlacementComposer: ({
     assistantId,
     isHome,
