@@ -100,7 +100,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
@@ -230,7 +230,7 @@ vi.mock('../components/AgentRightPane', () => {
   }
 })
 
-vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
+vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: () => <div data-testid="agent-composer" />,
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />
 }))
