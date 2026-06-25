@@ -1,15 +1,9 @@
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-// [v1→v2 tail — deprecated] The ChatGPT importer still writes the new assistant into the
-// legacy Redux `assistants` slice, which has no v2 reader (the write is a no-op in v2).
-// Kept until the importer is migrated to DataApi `createAssistant`; this is the only remaining
-// reason this service depends on `src/renderer/store/`. Do not build on it.
-import store from '@renderer/store'
-import { addAssistant } from '@renderer/store/assistants'
-import type { LegacyAssistant } from '@renderer/types/assistant'
 import { uuid } from '@renderer/utils/uuid'
+import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 
-import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'
 import { availableImporters } from './importers'
 import type { ConversationImporter, ImportResponse } from './types'
 import { saveImportToDatabase } from './utils/database'
@@ -117,21 +111,13 @@ class ImportServiceClass {
 
       // Create assistant
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
-      const assistant: LegacyAssistant = {
-        id: assistantId,
+      const dto: CreateAssistantDto = {
         name: i18n.t(importerKey, {
           defaultValue: `${importer.name} Import`
         }),
-        emoji: importer.emoji,
-        prompt: '',
-        topics: result.topics,
-        messages: [],
-        type: 'assistant',
-        settings: DEFAULT_ASSISTANT_SETTINGS
+        emoji: importer.emoji
       }
-
-      // [v1→v2 tail — deprecated] Writes to the legacy Redux store; no v2 code reads it.
-      store.dispatch(addAssistant(assistant))
+      const assistant = await dataApiService.post('/assistants', { body: dto })
 
       logger.info(
         `Import completed: ${result.topics.length} conversations, ${result.messages.length} messages imported`
