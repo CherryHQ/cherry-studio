@@ -1,9 +1,9 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
-import { nanoid } from '@reduxjs/toolkit'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
+import { nanoid } from 'nanoid'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 

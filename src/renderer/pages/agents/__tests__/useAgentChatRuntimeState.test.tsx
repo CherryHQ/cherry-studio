@@ -43,7 +43,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
 }))
 
-vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', () => ({
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => []
 }))
 

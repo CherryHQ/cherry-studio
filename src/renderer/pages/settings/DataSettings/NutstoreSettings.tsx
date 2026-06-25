@@ -12,11 +12,11 @@ import {
   backupToNutstore,
   checkConnection,
   createDirectory,
+  getNutstoreSyncState,
   restoreFromNutstore,
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
-import { useAppSelector } from '@renderer/store'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
@@ -29,7 +29,7 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { nutstoreSyncState } = useAppSelector((state) => state.nutstore)
+  const nutstoreSyncState = getNutstoreSyncState()
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')

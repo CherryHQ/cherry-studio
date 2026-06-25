@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [mocks.sidebarFavorites, mocks.setSidebarFavorites]
+  usePreference: (key: string) => {
+    if (key === 'feature.paintings.default_provider') return ['zhipu', vi.fn()]
+    return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
+  }
 }))
 
 vi.mock('@renderer/components/Icons/SvgIcon', () => ({
@@ -61,10 +64,6 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
   )
-}))
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ defaultPaintingProvider: 'zhipu' })
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({

@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import { Readability } from '@mozilla/readability'
-import { nanoid } from '@reduxjs/toolkit'
 import type { WebSearchProviderResult } from '@renderer/types/webSearchProvider'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
+import { nanoid } from 'nanoid'
 import TurndownService from 'turndown'
 
 const logger = loggerService.withContext('Utils:fetch')
