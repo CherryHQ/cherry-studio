@@ -26,6 +26,9 @@ type ProviderConnection = Omit<
   apiFeatures?: Partial<ApiFeatures>
 }
 
+/** A provider as emitted to `providers.json`: the connection config plus its templated `description`. */
+export type ProviderEntry = ProviderConnection & { description: string }
+
 /** A provider's website links (official / docs / apiKey / models). */
 type ProviderWebsite = ProviderConfig['metadata']['website']
 

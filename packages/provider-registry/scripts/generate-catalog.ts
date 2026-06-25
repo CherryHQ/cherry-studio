@@ -17,6 +17,7 @@ import type { ZodType } from 'zod'
 
 import { LABS } from '../src/labs'
 import { PROVIDERS } from '../src/provider'
+import type { ProviderEntry } from '../src/provider/types'
 import {
   expandKnownPrefixes,
   normalizeVersionSeparators,
@@ -261,11 +262,12 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
  * `fetchModels` / `overrides` are dropped), with `description` templated as `"{name} - AI model provider"`.
  * Array order follows PROVIDERS; `sortKeys` orders each provider's keys.
  */
-function buildProviders(): { providers: any[]; version: string } {
-  const providers = PROVIDERS.map((p) => {
-    const { modelsDevProvider, fetchModels, overrides, ...conn } = p as any
-    return { ...conn, description: `${p.name} - AI model provider` }
-  })
+function buildProviders(): { providers: ProviderEntry[]; version: string } {
+  // oxlint-disable-next-line no-unused-vars
+  const providers = PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => ({
+    ...conn,
+    description: `${conn.name} - AI model provider`
+  }))
   return { providers, version: VERSION }
 }
 
