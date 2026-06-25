@@ -28,6 +28,8 @@ const queryClient = new QueryClient({
 
 function SubWindowApp(): React.ReactElement {
   return (
+    // [v1→v2 tail — deprecated] The Redux store is mounted only for the few remaining legacy
+    // consumers (useCopilot, ImportService). Remove this Provider once those tails are migrated.
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <StyleSheetManager>

@@ -416,9 +416,9 @@ vi.mock('@cherrystudio/ui', () => {
         ),
         React.createElement('button', { 'aria-label': labels.close, onClick: onClose, type: 'button' }, labels.close)
       ),
-    ImagePreviewTrigger: ({ alt, item, ...props }) =>
+    ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
-    Dialog: ({ children, open, ...props }) =>
+    Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
     DialogContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
