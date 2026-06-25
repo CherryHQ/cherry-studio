@@ -435,6 +435,42 @@ describe('KnowledgeBaseService', () => {
         }
       })
     })
+
+    it('should persist an explicit chunk strategy and separator', async () => {
+      const result = await service.create({
+        name: 'Delimiter Base',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '|'
+      })
+
+      expect(result.chunkStrategy).toBe('delimiter')
+      expect(result.chunkSeparator).toBe('|')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.chunkStrategy).toBe('delimiter')
+      expect(row.chunkSeparator).toBe('|')
+    })
+
+    it('should reject create in delimiter mode when the separator is empty', async () => {
+      await expect(
+        service.create({
+          name: 'Missing Separator',
+          dimensions: 1024,
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          chunkStrategy: 'delimiter',
+          chunkSeparator: ''
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
+          }
+        }
+      })
+    })
   })
 
   describe('status constraints', () => {
@@ -641,6 +677,57 @@ describe('KnowledgeBaseService', () => {
         details: {
           fieldErrors: {
             hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+          }
+        }
+      })
+    })
+
+    it('should reject switching to delimiter mode with an empty separator', async () => {
+      await seedKnowledgeBase()
+
+      await expect(
+        service.update(KNOWLEDGE_BASE_ID, {
+          chunkStrategy: 'delimiter',
+          chunkSeparator: ''
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
+          }
+        }
+      })
+    })
+
+    it('should persist a switch to delimiter mode with a custom separator', async () => {
+      await seedKnowledgeBase()
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, {
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '|'
+      })
+
+      expect(result.chunkStrategy).toBe('delimiter')
+      expect(result.chunkSeparator).toBe('|')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.chunkStrategy).toBe('delimiter')
+      expect(row.chunkSeparator).toBe('|')
+    })
+
+    it('should reject switching to delimiter mode when the persisted separator is already empty', async () => {
+      await seedKnowledgeBase({ chunkSeparator: '' })
+
+      await expect(
+        service.update(KNOWLEDGE_BASE_ID, {
+          chunkStrategy: 'delimiter'
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
           }
         }
       })

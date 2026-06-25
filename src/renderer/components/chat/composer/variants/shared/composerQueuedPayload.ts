@@ -1,4 +1,4 @@
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 
 import { createComposerUserMessageParts } from '../../composerDraft'

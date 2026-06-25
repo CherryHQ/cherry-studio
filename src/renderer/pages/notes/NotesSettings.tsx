@@ -104,6 +104,7 @@ const NotesSettings: FC = () => {
               onChange={(e) => setTempPath(e.target.value)}
               placeholder={t('notes.settings.data.work_directory_placeholder')}
               readOnly
+              tabIndex={-1}
             />
             <Button variant="default" onClick={handleSelectWorkDirectory} disabled={isSelecting} className="ml-2">
               <FolderOpen size={16} />

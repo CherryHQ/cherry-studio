@@ -15,14 +15,6 @@ export type GenerateImageParams = {
   aspectRatio?: string
   /** Optional: painting callers may omit it; `AiProvider` falls back to `n: 1`. */
   batchSize?: number
-  /**
-   * Painting-only opt-in: when true and `imageSize` is undefined, `AiProvider`
-   * skips the `'1024x1024'` default so `size` is omitted from the request body
-   * entirely (matches the bespoke `painting.size === 'auto' → undefined`
-   * handling for models whose server-side default differs from 1024×1024).
-   * Chat callers must leave this unset to keep the legacy default.
-   */
-  allowAutoSize?: boolean
   seed?: string
   numInferenceSteps?: number
   guidanceScale?: number

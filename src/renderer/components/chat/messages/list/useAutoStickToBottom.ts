@@ -1,17 +1,33 @@
 /**
  * Auto-stick-to-bottom: on every content size change, if the user was at
- * the bottom and content grew, scroll smoothly to the new bottom. Yields
- * to a higher-priority scroll owner (the scroll anchor) via the injected
- * `isLocked()` predicate — the orchestrator owns precedence; this hook
- * doesn't know about anchors.
+ * the bottom and content grew, stick to the new bottom. Visible growth follows
+ * the bottom with a per-frame speed limit so line-wrap renders do not produce
+ * one sudden scroll jump. Yields to a higher-priority scroll owner (the
+ * scroll anchor) via the injected `isLocked()` predicate — the orchestrator
+ * owns precedence; this hook doesn't know about anchors.
  */
 
 import { type RefObject, useCallback, useMemo, useRef } from 'react'
 
+import { getDistanceToBottom, getRealBottom } from './scrollGeometry'
 import type { SmoothScrollController } from './useSmoothScrollAnimation'
+
+const BOTTOM_FOLLOW_MIN_STEP_PX = 4
+const BOTTOM_FOLLOW_DAMPING = 0.32
+// Beyond this many viewports behind the live edge, a per-frame-capped crawl
+// takes long enough that the bottom appears to "rubber-band" away from the
+// newest content. A one-shot jump that large (a big code block or table that
+// renders all at once) is snapped straight to the live bottom instead; ordinary
+// streaming growth stays well under this and keeps its smooth crawl.
+const BOTTOM_FOLLOW_SNAP_DISTANCE_VIEWPORTS = 3
+
+function getBottomFollowMaxStep(element: HTMLElement): number {
+  return Math.max(48, Math.min(96, element.clientHeight * 0.12))
+}
 
 export interface AutoStickInputs {
   scrollerRef: RefObject<HTMLElement | null>
+  getBottomInset?(): number
   smoothScroll: SmoothScrollController
   isAtBottom(): boolean
   /** When true, auto-stick yields — another owner (e.g. scroll anchor) controls scrollTop. */
@@ -27,6 +43,7 @@ export interface AutoStickToBottom {
 
 export function useAutoStickToBottom({
   scrollerRef,
+  getBottomInset,
   smoothScroll,
   isAtBottom,
   isLocked,
@@ -36,8 +53,9 @@ export function useAutoStickToBottom({
 
   const targetBottom = useCallback(() => {
     const el = scrollerRef.current
-    return el ? Math.max(0, el.scrollHeight - el.clientHeight) : 0
-  }, [scrollerRef])
+    if (!el) return 0
+    return getRealBottom(el, getBottomInset?.() ?? 0)
+  }, [getBottomInset, scrollerRef])
 
   const onContentSizeChange = useCallback(() => {
     const el = scrollerRef.current
@@ -53,12 +71,20 @@ export function useAutoStickToBottom({
     // every frame and will catch up to the new bottom; jumping in with an
     // instant snap mid-animation would fight it.
     if (smoothScroll.isAnimating()) return
-    // Instant snap rather than starting a ~830ms RAF animation per chunk —
-    // the long animation window let scroll events fire after the spacer/anchor
-    // bookkeeping had reset, intermittently latching user-scrolled-up.
-    el.scrollTop = targetBottom()
+    // Too far behind for a graceful crawl — snap to the live bottom so the user
+    // never watches the newest content drift away while the animation catches up.
+    if (getDistanceToBottom(el, getBottomInset?.() ?? 0) > el.clientHeight * BOTTOM_FOLLOW_SNAP_DISTANCE_VIEWPORTS) {
+      el.scrollTop = targetBottom()
+      markStuck()
+      return
+    }
+    smoothScroll.followTo(targetBottom, {
+      maxStep: getBottomFollowMaxStep(el),
+      minStep: BOTTOM_FOLLOW_MIN_STEP_PX,
+      damping: BOTTOM_FOLLOW_DAMPING
+    })
     markStuck()
-  }, [isAtBottom, isLocked, markStuck, scrollerRef, smoothScroll, targetBottom])
+  }, [getBottomInset, isAtBottom, isLocked, markStuck, scrollerRef, smoothScroll, targetBottom])
 
   return useMemo(() => ({ onContentSizeChange }), [onContentSizeChange])
 }

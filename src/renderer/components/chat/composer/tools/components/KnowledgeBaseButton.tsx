@@ -1,12 +1,12 @@
+import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
+import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
   useQuickPanel
-} from '@renderer/components/chat/composer/panelEngine'
-import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
-import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
+} from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FileSearch } from 'lucide-react'

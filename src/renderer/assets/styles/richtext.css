@@ -1,11 +1,12 @@
 .tiptap {
   /* 预留5px给scrollbar */
-  padding: 12px 55px 12px 60px;
+  padding: var(--editor-padding, 12px 55px 12px 60px);
   outline: none;
-  min-height: 120px;
+  min-height: var(--editor-min-height, 120px);
   overflow-wrap: break-word;
   word-break: break-word;
   font-size: var(--editor-font-size, 16px);
+  line-height: var(--editor-line-height, normal);
 }
 
 .tiptap:focus {
@@ -67,12 +68,12 @@
 }
 
 .tiptap p {
-  margin: 1.1rem 0 0.5rem 0;
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  margin: var(--editor-paragraph-margin, 1.1rem 0 0.5rem 0);
+  white-space: var(--editor-paragraph-white-space, normal);
+  overflow-wrap: var(--editor-paragraph-overflow-wrap, break-word);
+  word-break: var(--editor-paragraph-word-break, break-word);
   width: 100%;
-  line-height: 1.6;
+  line-height: var(--editor-paragraph-line-height, 1.6);
   hyphens: auto;
 }
 
@@ -152,7 +153,7 @@
   color: var(--color-text-secondary);
   opacity: 0.6;
   pointer-events: none;
-  font-style: italic;
+  font-style: var(--editor-placeholder-font-style, italic);
   left: 0;
   right: 0;
 }
@@ -166,6 +167,31 @@
 /* Show placeholder only when focused or when it's the only empty node */
 .tiptap .placeholder.has-focus:before {
   opacity: 0.8;
+}
+
+.composer-tiptap.tiptap {
+  padding: var(--composer-editor-padding, 6px 15px 0) !important;
+  min-height: var(--composer-editor-min-height, 30px) !important;
+  font-size: var(--composer-editor-font-size, 14px) !important;
+  line-height: var(--composer-editor-line-height, 1.4) !important;
+}
+
+.composer-tiptap.tiptap p {
+  margin: 0 !important;
+  white-space: pre-wrap !important;
+  line-height: var(--composer-editor-line-height, 1.4) !important;
+}
+
+.composer-tiptap.tiptap .placeholder:before {
+  display: block !important;
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  font-style: normal !important;
 }
 
 .tiptap img {

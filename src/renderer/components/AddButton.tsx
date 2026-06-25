@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { PlusIcon } from 'lucide-react'
 
 const AddButton = ({

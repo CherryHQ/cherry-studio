@@ -2,12 +2,13 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { ipcApi } from '@renderer/ipc'
 // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
 // import { handleSaveData } from '@renderer/store'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 const logger = loggerService.withContext('UpdateDialog')
 const CLOSE_ANIMATION_MS = 200
@@ -44,7 +45,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
     try {
       // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
       // await handleSaveData()
-      await window.api.quitAndInstall()
+      await ipcApi.request('app.updater.quit_and_install')
       closePopup()
     } catch (error) {
       logger.error('Failed to save data before update', error as Error)
@@ -93,7 +94,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
         </DialogHeader>
         <div className="max-h-[450px] overflow-y-auto py-3">
           <div className="markdown rounded-md bg-muted p-4 text-muted-foreground text-sm leading-6 [&_code]:rounded [&_code]:bg-background [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[13px] [&_h1:first-child]:mt-0 [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:font-semibold [&_h1]:text-foreground [&_h2:first-child]:mt-0 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:text-foreground [&_h3:first-child]:mt-0 [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:font-semibold [&_h3]:text-foreground [&_h4:first-child]:mt-0 [&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:font-semibold [&_h4]:text-foreground [&_h5:first-child]:mt-0 [&_h5]:mt-4 [&_h5]:mb-2 [&_h5]:font-semibold [&_h5]:text-foreground [&_h6:first-child]:mt-0 [&_h6]:mt-4 [&_h6]:mb-2 [&_h6]:font-semibold [&_h6]:text-foreground [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_p:last-child]:mb-0 [&_p]:mb-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-background [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6">
-            <Markdown>{releaseNotesText}</Markdown>
+            <Streamdown mode="static">{releaseNotesText}</Streamdown>
           </div>
         </div>
         <DialogFooter>

@@ -19,8 +19,8 @@ vi.mock('tesseract.js', () => ({
   createWorker: createWorkerMock
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  getIpCountry: getIpCountryMock
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { getCountry: getIpCountryMock }
 }))
 
 vi.mock('@main/features/fileProcessing/utils/ocr', () => ({

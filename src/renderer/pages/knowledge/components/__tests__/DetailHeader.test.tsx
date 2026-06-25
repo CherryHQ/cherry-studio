@@ -5,10 +5,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DetailHeader from '../DetailHeader'
 
-vi.mock('@renderer/utils/time', () => ({
-  formatRelativeTime: () => '2小时前'
-}))
-
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const PopoverContext = React.createContext<{
@@ -154,6 +150,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: undefined,
   documentCount: undefined,
   status: 'completed',
@@ -173,6 +171,7 @@ describe('DetailHeader', () => {
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
+        onRebuild={vi.fn()}
       />
     )
 
@@ -185,7 +184,9 @@ describe('DetailHeader', () => {
     expect(detailIcon).toHaveClass('size-6')
   })
 
-  it('renders the failed status from the base status', () => {
+  it('renders the failed status as a clickable rebuild trigger', () => {
+    const onRebuild = vi.fn()
+
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
@@ -193,32 +194,45 @@ describe('DetailHeader', () => {
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
+        onRebuild={onRebuild}
       />
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
     expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
-    expect(screen.getByText('失败')).toHaveAttribute('aria-label', '失败')
+
+    const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
+    fireEvent.click(rebuildTrigger)
+    expect(onRebuild).toHaveBeenCalledOnce()
+
+    // The failure reason itself lives in the rebuild dialog, not the header.
     expect(
       screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
     ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '重建知识库' })).not.toBeInTheDocument()
+
+    // A failed base cannot be configured or recall-tested, so those actions are hidden.
+    expect(screen.queryByRole('button', { name: 'RAG 配置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '召回测试' })).not.toBeInTheDocument()
+    // Rename and delete stay reachable through the more menu.
+    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
   })
 
-  it('does not render the generic failure hint in the header when the failed base has no known error', () => {
+  it('does not expose a rebuild trigger when the base is not failed', () => {
+    const onRebuild = vi.fn()
+
     render(
       <DetailHeader
-        base={createKnowledgeBase({ status: 'failed', error: null })}
+        base={createKnowledgeBase()}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
+        onRebuild={onRebuild}
       />
     )
 
-    expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.queryByText('该知识库迁移失败，请重建知识库并选择新的嵌入模型。')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '重建知识库' })).not.toBeInTheDocument()
+    expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.queryByRole('button', { name: /重建知识库/ })).not.toBeInTheDocument()
   })
 
   it('renders the header actions as icon-only buttons', () => {
@@ -232,6 +246,7 @@ describe('DetailHeader', () => {
         onOpenRecallTest={onOpenRecallTest}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
+        onRebuild={vi.fn()}
       />
     )
 
@@ -252,6 +267,7 @@ describe('DetailHeader', () => {
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
+        onRebuild={vi.fn()}
       />
     )
 
@@ -271,6 +287,7 @@ describe('DetailHeader', () => {
         onOpenRecallTest={vi.fn()}
         onRenameBase={onRenameBase}
         onDeleteBase={vi.fn()}
+        onRebuild={vi.fn()}
       />
     )
 
@@ -293,6 +310,7 @@ describe('DetailHeader', () => {
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={onDeleteBase}
+        onRebuild={vi.fn()}
       />
     )
 

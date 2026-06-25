@@ -4,13 +4,8 @@ export enum IpcChannel {
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  App_CheckForUpdate = 'app:check-for-update',
-  App_QuitAndInstall = 'app:quit-and-install',
   Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetTestPlan = 'app:set-test-plan',
-  App_SetTestChannel = 'app:set-test-channel',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
@@ -27,8 +22,6 @@ export enum IpcChannel {
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
-  App_InstallUvBinary = 'app:install-uv-binary',
-  App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_GetSystemFonts = 'app:get-system-fonts',
@@ -440,6 +433,8 @@ export enum IpcChannel {
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
   // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
   SettingsWindow_Open = 'settings-window:open'
+
+  // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

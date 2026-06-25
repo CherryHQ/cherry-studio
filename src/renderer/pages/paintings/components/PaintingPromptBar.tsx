@@ -1,9 +1,9 @@
 import { Button, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import SendMessageButton from '@renderer/components/SendMessageButton'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useModels } from '@renderer/hooks/useModel'
-import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { FilePath } from '@shared/types/file/common'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
@@ -188,7 +188,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
           value={painting.prompt || ''}
           spellCheck={false}
           className={cn(
-            'min-h-19 flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none',
+            'max-h-40 min-h-19 flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none',
             'placeholder:text-muted-foreground/55 focus-visible:ring-0'
           )}
           placeholder={t('paintings.prompt_placeholder')}

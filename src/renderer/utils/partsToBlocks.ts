@@ -1,19 +1,18 @@
 /**
  * Citation reference helpers — projects `ContentReference[]` (V2 storage
  * format on `text` parts' `providerMetadata.cherry.references`) to the
- * renderer's `Citation` and legacy `citationReferences` shapes that
+ * renderer's `Citation` and inline `citationReferences` shapes that
  * `MainTextBlock` / `CitationsList` consume.
  *
  * The bulk of this file used to be a v2→v1 block-shape converter
  * (`partToBlock` / `mapMessageStatusToBlockStatus`) that fed the legacy
  * `messageBlocks` Redux slice. That slice and its writers are gone — only
  * the citation-reference projections remain, which are still needed by
- * `PartsRenderer` to render inline citations from text-part metadata.
+ * `MessagePartsRenderer` to render inline citations from text-part metadata.
  */
 
 import { loggerService } from '@logger'
 import type { Citation, WebSearchSource } from '@renderer/types/index'
-import type { MainTextMessageBlock } from '@renderer/types/newMessage'
 import type { CitationReference, ContentReference } from '@shared/data/types/message'
 import { isKnowledgeCitation, isMemoryCitation, isWebCitation, ReferenceCategory } from '@shared/data/types/message'
 
@@ -25,27 +24,11 @@ export type CitationReferenceView = {
 }
 
 /**
- * Convert `ContentReference[]` to the v1 block's `citationReferences` shape.
+ * Convert ContentReference[] (new format) to inline citationReferences shape.
+ * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
  *
- * `CitationReferenceView` is structurally identical to the legacy element, so
- * the v1 block path (`PartsRenderer`) reuses the single converter below instead
- * of duplicating the projection — only the return type is re-stated for v1
- * callers, keeping them decoupled from the v2-native view type.
- */
-export function convertReferencesToLegacyCitations(
-  references: ContentReference[],
-  blockId: string
-): MainTextMessageBlock['citationReferences'] {
-  return convertReferencesToCitationReferences(references, blockId)
-}
-
-/**
- * Convert `ContentReference[]` (V2 storage format) to the renderer's inline
- * `citationReferences` shape. The single source of truth for citation-reference
- * projection.
- *
- * Note: Only web citations are converted — knowledge and memory citations are
- * not representable in this inline reference format and are silently dropped.
+ * Note: Only web citations are converted. Knowledge and memory citations are not
+ * supported by this inline reference format and are silently dropped.
  */
 export function convertReferencesToCitationReferences(
   references: ContentReference[],
@@ -184,7 +167,7 @@ function assignMissingCitationNumbers(citations: Citation[]): Citation[] {
 
 /**
  * Convert ContentReference[] (new format) to renderer Citation[].
- * Used by V2 PartsRenderer to preserve inline citation tagging.
+ * Used by MessagePartsRenderer to preserve inline citation tagging.
  */
 export function convertReferencesToCitations(references: ContentReference[]): Citation[] {
   const all: Citation[] = []

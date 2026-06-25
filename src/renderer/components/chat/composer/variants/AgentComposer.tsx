@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { AgentContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/AgentContextUsageSummary'
+import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
@@ -12,15 +12,11 @@ import {
   useComposerToolLauncherActions,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
-import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/chat/composer/panelEngine'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/chat/composer/tools/types'
+import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
-// Imported from the `Selector/model` subpath (feat uses the `Selector` barrel):
-// the carve still carries the legacy `components/ModelSelector` that feat deleted,
-// and the two modules confuse tsgo's barrel `export *`. Reverts to the barrel at
-// the switchover, once the legacy module is gone.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/Selector'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
@@ -35,14 +31,14 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { LocalSkill, ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import type { ComposerAttachment } from '@renderer/utils/messageUtils/composerAttachment'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -51,7 +47,6 @@ import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from '
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { buildFilePartsForAttachments } from '../buildFileParts'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
@@ -63,6 +58,7 @@ import {
   readAgentDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { AgentLabel } from './agent/AgentLabel'
 import { useAgentResourceSuggestion } from './agent/useAgentResourceSuggestion'
 import {
   agentComposerTokenId,
@@ -432,7 +428,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         content: 'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md'
       }}
       content={
-        <AgentContextUsageSummary usage={usage} percentage={percentage} color={ringColor} isCompacting={isCompacting} />
+        <ContextUsageSummary usage={usage} percentage={percentage} color={ringColor} isCompacting={isCompacting} />
       }>
       <span
         aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
@@ -805,7 +801,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    async (draft: ComposerSerializedDraft) => {
+    (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
         window.toast?.error(t('code.model_required'))
@@ -826,49 +822,40 @@ const AgentComposerInner = ({
         return
       }
 
-      // Optimistically clear the draft so the cleared input doubles as the re-entry guard,
-      // but snapshot it first: a pre-stream failure never reaches the streaming UI, so
-      // restore the draft and surface the failure instead of silently discarding what the
-      // user typed. Mirrors ChatComposer.
-      const previousText = text
+      const previousText = draft.text
       const previousFiles = files
       const previousSkills = selectedSkills
-      // Snapshot the cache-form draft tokens too: programmatic skill-token re-insertion is
-      // suppressed by `isSyncingTokensRef`, so `handleTokensChange` never re-persists them —
-      // restore + persist them here or a remount would drop the restored skills (#16260).
       const previousDraftTokens = draftTokensRef.current
 
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
-      if (!sent) {
-        // `clearCurrentDraft` schedules a 500ms re-clear guard; cancel it so it doesn't
-        // wipe the draft we're restoring.
-        clearTimeoutTimer('agentComposerSendMessage')
-        setText(previousText)
-        setFiles(previousFiles)
-        setSelectedSkills(previousSkills)
-        setDraftTokens(previousDraftTokens)
-        draftTokensRef.current = previousDraftTokens
-        writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-        window.toast?.error(t('chat.input.send_failed'))
-      }
+      void sendQueuedPayload(payload).then((sent) => {
+        if (!sent) {
+          clearTimeoutTimer('agentComposerSendMessage')
+          setText(previousText)
+          setFiles(previousFiles)
+          setSelectedSkills(previousSkills)
+          setDraftTokens(previousDraftTokens)
+          draftTokensRef.current = previousDraftTokens
+          writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
+          window.toast?.error(t('chat.input.send_failed'))
+        }
+      })
     },
     [
       buildQueuedPayload,
-      clearCurrentDraft,
       clearTimeoutTimer,
+      clearCurrentDraft,
       draftCacheKey,
       enqueueFollowup,
       files,
       isStreaming,
       model,
-      selectedSkills,
       sendDisabled,
       sendQueuedPayload,
       setFiles,
       setText,
+      selectedSkills,
       t,
-      text,
       workspaceWarning
     ]
   )

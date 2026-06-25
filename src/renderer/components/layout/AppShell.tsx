@@ -2,15 +2,17 @@ import '@renderer/databases'
 
 import { cacheService } from '@data/CacheService'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import Sidebar from '../app/Sidebar'
+import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import SearchPopup from '../Popups/SearchPopup'
 import { AppShellTabBar } from './AppShellTabBar'
@@ -20,6 +22,8 @@ export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
     useTabs()
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
 
   useEffect(() => {
     const dispose = window.electron?.ipcRenderer.on(IpcChannel.App_OpenAgentSession, (_, sessionId: string) => {
@@ -36,6 +40,25 @@ export const AppShell = () => {
   }, [])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
+
+  const recordRouteVisit = useCallback(
+    (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
+      if (!tab) return
+
+      const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
+      if (!entry) return
+
+      const nextItems = upsertGlobalSearchRecentEntry(recentItems, entry)
+      if (nextItems !== recentItems) {
+        setRecentItems(nextItems)
+      }
+    },
+    [recentItems, setRecentItems]
+  )
+
+  useEffect(() => {
+    recordRouteVisit(activeTab)
+  }, [activeTab, recordRouteVisit])
 
   // Sync internal navigation back to tab state. For route-titled tabs we also
   // refresh the title and clear the per-entity icon (it was supplied for a
@@ -57,6 +80,10 @@ export const AppShell = () => {
           metadata: clearTabInstanceMetadata(tab?.metadata)
         }
     updateTab(tabId, patch)
+
+    if (tab) {
+      recordRouteVisit({ ...tab, ...patch }, Date.now())
+    }
   }
 
   return (

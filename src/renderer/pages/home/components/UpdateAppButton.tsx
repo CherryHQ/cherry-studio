@@ -5,7 +5,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
   const { appUpdateState } = useAppUpdateState()
@@ -29,25 +28,18 @@ const UpdateAppButton: FC = () => {
   }
 
   return (
-    <Container>
-      <UpdateButton
-        className="nodrag"
+    <div>
+      <Button
+        className="nodrag rounded-3xl text-xs"
         onClick={handleOpenUpdateDialog}
         icon={<SyncOutlined />}
         color="primary"
         variant="outlined"
         size="small">
         {t('button.update_available')}
-      </UpdateButton>
-    </Container>
+      </Button>
+    </div>
   )
 }
-
-const Container = styled.div``
-
-const UpdateButton = styled(Button)`
-  border-radius: 24px;
-  font-size: 12px;
-`
 
 export default UpdateAppButton

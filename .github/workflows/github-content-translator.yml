@@ -1,0 +1,246 @@
+name: GitHub Content Translator
+run-name: "Translate: ${{ github.event.issue.title || github.event.pull_request.title || github.event.comment.body || github.event.review.body || 'GitHub content' }}"
+
+concurrency:
+  group: translator-${{ github.event.comment.id || github.event.issue.number || github.event.review.id }}
+  cancel-in-progress: true
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+
+jobs:
+  translate:
+    if: |
+      (github.event_name == 'issues')
+      || (github.event_name == 'issue_comment' && github.event.sender.type != 'Bot')
+      || (
+        (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment')
+        && github.event.sender.type != 'Bot'
+        && github.event.pull_request.head.repo.fork == false
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Translate and update event content
+        uses: actions/github-script@v8
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+        with:
+          github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          script: |
+            const ORIGINAL_SUMMARY = '<summary>Original Content</summary>'
+
+            const stripCodeFence = (value) =>
+              value
+                .trim()
+                .replace(/^```(?:json)?\s*/i, '')
+                .replace(/\s*```$/i, '')
+                .trim()
+
+            const getTranslatedMarker = (kind) => {
+              switch (kind) {
+                case 'issue':
+                  return 'This issue was translated automatically.'
+                case 'issue_comment':
+                  return 'This comment was translated automatically.'
+                case 'pull_request_review':
+                  return 'This review was translated automatically.'
+                case 'pull_request_review_comment':
+                  return 'This review comment was translated automatically.'
+                default:
+                  return 'This content was translated automatically.'
+              }
+            }
+
+            const buildBody = (kind, translatedBody, originalBody) =>
+              [
+                `> ${getTranslatedMarker(kind)}`,
+                '',
+                translatedBody.trim(),
+                '',
+                '---',
+                '<details>',
+                ORIGINAL_SUMMARY,
+                '',
+                originalBody.trim(),
+                '</details>'
+              ].join('\n')
+
+            const getTarget = () => {
+              const payload = context.payload
+
+              switch (context.eventName) {
+                case 'issues':
+                  return {
+                    kind: 'issue',
+                    issueNumber: payload.issue.number,
+                    title: payload.issue.title || '',
+                    body: payload.issue.body || ''
+                  }
+                case 'issue_comment':
+                  return {
+                    kind: 'issue_comment',
+                    issueNumber: payload.issue.number,
+                    commentId: payload.comment.id,
+                    title: '',
+                    body: payload.comment.body || ''
+                  }
+                case 'pull_request_review':
+                  return {
+                    kind: 'pull_request_review',
+                    pullNumber: payload.pull_request.number,
+                    reviewId: payload.review.id,
+                    title: '',
+                    body: payload.review.body || ''
+                  }
+                case 'pull_request_review_comment':
+                  return {
+                    kind: 'pull_request_review_comment',
+                    pullNumber: payload.pull_request.number,
+                    commentId: payload.comment.id,
+                    title: '',
+                    body: payload.comment.body || ''
+                  }
+                default:
+                  throw new Error(`Unsupported event: ${context.eventName}`)
+              }
+            }
+
+            const updateTarget = async (target, translatedTitle, translatedBody, originalBody) => {
+              const body = buildBody(target.kind, translatedBody, originalBody)
+              const { owner, repo } = context.repo
+
+              switch (target.kind) {
+                case 'issue':
+                  await github.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: target.issueNumber,
+                    title: translatedTitle || target.title,
+                    body
+                  })
+                  return
+                case 'issue_comment':
+                  await github.rest.issues.updateComment({
+                    owner,
+                    repo,
+                    comment_id: target.commentId,
+                    body
+                  })
+                  return
+                case 'pull_request_review':
+                  await github.request('PUT /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}', {
+                    owner,
+                    repo,
+                    pull_number: target.pullNumber,
+                    review_id: target.reviewId,
+                    body
+                  })
+                  return
+                case 'pull_request_review_comment':
+                  await github.rest.pulls.updateReviewComment({
+                    owner,
+                    repo,
+                    comment_id: target.commentId,
+                    body
+                  })
+                  return
+              }
+            }
+
+            const callTranslator = async (target) => {
+              const apiKey = process.env.ANTHROPIC_API_KEY
+              if (!apiKey) {
+                throw new Error('Missing ANTHROPIC_API_KEY')
+              }
+
+              const baseUrl = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '')
+              const model = process.env.ANTHROPIC_MODEL
+              if (!model) {
+                throw new Error('Missing ANTHROPIC_MODEL')
+              }
+
+              const response = await fetch(`${baseUrl}/v1/messages`, {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/json',
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                  model,
+                  max_tokens: 4096,
+                  temperature: 0,
+                  system: `You translate GitHub issue, issue comment, pull request review, and pull request review comment content into English.
+
+            Return only compact JSON with this exact shape:
+            {
+              "should_update": boolean,
+              "translated_title": string | null,
+              "translated_body": string | null,
+              "original_body": string | null
+            }
+
+            Rules:
+            - If the content is already fully English, return should_update=false.
+            - If the content already follows the automatic translation format and its Original Content matches the current source, return should_update=false.
+            - If the content is translated but the original and translated content do not match, return should_update=true and fix it.
+            - Translate non-English or partially non-English content to natural English.
+            - For issues, translate the title when it is non-English. For all other event kinds, translated_title must be null.
+            - Preserve Markdown structure, code blocks, task lists, links, and mentions.
+            - If the content quotes an earlier automatic translation, keep only the English quoted content and remove translation markers and Original Content sections from the quote.
+            - If the content quotes non-translated content, keep that quote unchanged.
+            - If the content is an email reply, remove quoted email history from both translated_body and original_body.
+            - original_body must be the source text that corresponds to translated_body, after any required email quote cleanup.`,
+                  messages: [
+                    {
+                      role: 'user',
+                      content: JSON.stringify({
+                        event: context.eventName,
+                        target
+                      })
+                    }
+                  ]
+                })
+              })
+
+              if (!response.ok) {
+                throw new Error(`Translator API failed with ${response.status}: ${await response.text()}`)
+              }
+
+              const data = await response.json()
+              const text = data.content?.find((part) => part.type === 'text')?.text
+              if (!text) {
+                throw new Error('Translator API returned no text content')
+              }
+
+              return JSON.parse(stripCodeFence(text))
+            }
+
+            const target = getTarget()
+
+            const result = await callTranslator(target)
+            if (!result.should_update) {
+              core.info('Translator reported that no translation update is needed.')
+              return
+            }
+
+            if (typeof result.translated_body !== 'string' || typeof result.original_body !== 'string') {
+              throw new Error('Translator requested an update without translated_body and original_body')
+            }
+
+            await updateTarget(target, result.translated_title, result.translated_body, result.original_body)
+            core.info(`Updated ${target.kind} with English translation.`)

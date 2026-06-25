@@ -85,6 +85,20 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
 
+const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
+  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
+  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
+  { value: 'en-US', label: 'English', flag: '🇺🇸' },
+  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
+  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
+  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
+  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
+  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
+  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
+  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
+]
 export function confirmMenuPresentationModeChange({
   currentMode,
   mode,
@@ -136,6 +150,7 @@ const CommonSettings: FC = () => {
   const [launchToTray, setLaunchToTray] = usePreference('app.tray.on_launch')
   const [trayOnClose, setTrayOnClose] = usePreference('app.tray.on_close')
   const [tray, setTray] = usePreference('app.tray.enabled')
+  const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
@@ -189,20 +204,18 @@ const CommonSettings: FC = () => {
     [t]
   )
 
-  const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
-    { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-    { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-    { value: 'en-US', label: 'English', flag: '🇺🇸' },
-    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-    { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-    { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-    { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-    { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-    { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-  ]
+  const displayLanguage = useMemo(() => {
+    if (language && languagesOptions.some((opt) => opt.value === language)) {
+      return language
+    }
+
+    const resolved = i18n.resolvedLanguage ?? i18n.language
+    if (resolved && languagesOptions.some((opt) => opt.value === resolved)) {
+      return resolved as LanguageVarious
+    }
+
+    return defaultLanguage
+  }, [language, i18n.resolvedLanguage, i18n.language])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -496,7 +509,7 @@ const CommonSettings: FC = () => {
             <Selector
               size={14}
               style={{ width: '100%' }}
-              value={language || defaultLanguage}
+              value={displayLanguage}
               onChange={onSelectLanguage}
               options={languagesOptions.map((lang) => ({
                 label: (
@@ -659,6 +672,11 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
 

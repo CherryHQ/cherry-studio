@@ -10,6 +10,8 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -18,8 +20,7 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import type {
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
-  UnifiedPreferenceType,
-  UpgradeChannel
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
@@ -113,17 +114,13 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
-  checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
-  setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
-  setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
   // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
-  setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
@@ -133,7 +130,6 @@ const api = {
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
     ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
-  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   application: {
     quit: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_Quit),
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
@@ -467,9 +463,8 @@ const api = {
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
-  installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
-  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
+  // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
@@ -810,14 +805,8 @@ const api = {
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {
-      respond: (payload: {
-        approvalId: string
-        approved: boolean
-        reason?: string
-        updatedInput?: Record<string, unknown>
-        topicId?: string
-        anchorId?: string
-      }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+      respond: (payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> =>
+        ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     },
     agent: {
       runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)

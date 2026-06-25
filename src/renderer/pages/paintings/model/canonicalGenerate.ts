@@ -45,7 +45,6 @@ const AI_SDK_NATIVE_KEYS = new Set([
   'batchSize',
   'negativePrompt',
   'aspectRatio',
-  'allowAutoSize',
   'seed',
   'numInferenceSteps',
   'guidanceScale',
@@ -67,7 +66,7 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
   /**
    * Constants always written into `aiSdkParams`, overriding any
    * `painting.params` read for the same key. Use for vendor-wide flags
-   * (newapi's `allowAutoSize: true`).
+   * not surfaced as a painting param.
    */
   constants?: Partial<AiSdkParams>
   /**

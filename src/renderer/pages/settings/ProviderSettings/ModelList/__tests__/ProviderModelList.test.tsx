@@ -102,6 +102,8 @@ vi.mock('../useProviderModelList', () => ({
       disabled: false,
       pendingModelIds: new Set<string>(),
       onEditModel: vi.fn(),
+      onDeleteModel: vi.fn(),
+      onDeleteModels: vi.fn(),
       onToggleModel: vi.fn(),
       onToggleModels: vi.fn()
     },

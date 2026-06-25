@@ -107,7 +107,7 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@main/services/proxy/nodeProxy', () => ({
+vi.mock('@main/services/proxy/proxyEnv', () => ({
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 

@@ -36,7 +36,6 @@ function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | 
 export function AgentToolCallCard({
   toolCallId,
   toolName,
-  sourceMessageId,
   input,
   output,
   isStreaming = false,
@@ -47,7 +46,6 @@ export function AgentToolCallCard({
 }: {
   toolCallId?: string
   toolName?: string
-  sourceMessageId?: string
   input?: ToolInput | Record<string, unknown>
   output?: ToolOutput
   isStreaming?: boolean
@@ -66,7 +64,6 @@ export function AgentToolCallCard({
           actions.openAgentToolFlow?.({
             toolCallId,
             toolName,
-            sourceMessageId,
             title: getAgentToolFlowTitle(toolName, input)
           })
       : undefined

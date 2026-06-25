@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.message.font': 'system',
-    'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
@@ -105,7 +104,7 @@ describe('ChatPreferenceSections', () => {
     mocks.setPreference.mockClear()
   })
 
-  it('renders chat preferences', () => {
+  it('renders shared chat preferences without assistant-only controls by default', () => {
     render(<ChatPreferenceSections />)
 
     expect(screen.getByText('settings.messages.use_serif_font')).toBeInTheDocument()
@@ -113,7 +112,6 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.math.engine.label')).toBeNull()
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.prompt')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
