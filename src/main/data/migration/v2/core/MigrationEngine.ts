@@ -15,6 +15,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { inputHistoryTable } from '@data/db/schemas/inputHistory'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -328,6 +329,7 @@ export class MigrationEngine {
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: knowledgeBaseTable, name: 'knowledge_base' },
       { table: promptTable, name: 'prompt' },
+      { table: inputHistoryTable, name: 'input_history' },
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },

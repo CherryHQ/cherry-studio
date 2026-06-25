@@ -21,6 +21,7 @@ import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
+import { inputHistoryHandlers } from './inputHistory'
 import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
@@ -66,6 +67,7 @@ export const apiHandlers: ApiImplementation = {
   ...noteHandlers,
   ...tagHandlers,
   ...groupHandlers,
+  ...inputHistoryHandlers,
   ...pinHandlers,
   ...promptHandlers,
   ...agentWorkspaceHandlers,
