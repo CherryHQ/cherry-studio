@@ -52,7 +52,7 @@ export interface AiBaseRequest {
 }
 
 /**
- * Provider-scoped request without a model (Ai_ListModels). Falls back to
+ * Provider-scoped request without a model (ai.list_models). Falls back to
  * the assistant's bound model's provider when only `assistantId` is given.
  * `throwOnError` surfaces upstream failures (used by model-sync UX).
  */

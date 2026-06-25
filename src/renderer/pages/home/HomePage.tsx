@@ -8,10 +8,10 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
-import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
@@ -23,6 +23,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
@@ -278,7 +279,7 @@ const HomePage: FC = () => {
       const topic = await createTopic({
         ...(current.assistantId ? { assistantId: current.assistantId } : {})
       })
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],

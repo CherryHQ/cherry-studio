@@ -1,6 +1,6 @@
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
-import AgentComposer from '@renderer/components/chat/composer/variants/AgentComposer'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
+import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
