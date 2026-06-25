@@ -10,6 +10,40 @@
     { "providerId": "claude-code", "modelId": "claude-haiku-4-5" },
     { "providerId": "claude-code", "modelId": "claude-fable-5" },
     {
+      "providerId": "openai-codex",
+      "modelId": "gpt-5-5",
+      "apiModelId": "gpt-5.5",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
+      "providerId": "openai-codex",
+      "modelId": "gpt-5-4",
+      "apiModelId": "gpt-5.4",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
+      "providerId": "openai-codex",
+      "modelId": "gpt-5-4-mini",
+      "apiModelId": "gpt-5.4-mini",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
+      "providerId": "openai-codex",
+      "modelId": "gpt-5-3-codex-spark",
+      "apiModelId": "gpt-5.3-codex-spark",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
+      "providerId": "grok-cli",
+      "modelId": "grok-build",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
+      "providerId": "grok-cli",
+      "modelId": "grok-composer-2.5-fast",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
       "modelId": "deepseek-chat",
       "providerId": "deepseek"
     },
@@ -27691,5 +27725,5 @@
       "providerId": "dmxapi"
     }
   ],
-  "version": "2026.05.28"
+  "version": "2026.06.25"
 }

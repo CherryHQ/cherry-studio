@@ -554,6 +554,47 @@
       }
     },
     {
+      "id": "openai-codex",
+      "name": "OpenAI Codex",
+      "description": "OpenAI Codex - login-based provider that uses your ChatGPT Plus/Pro subscription via OAuth",
+      "defaultChatEndpoint": "openai-responses",
+      "modelListSource": "registry",
+      "apiFeatures": {
+        "serviceTier": true
+      },
+      "endpointConfigs": {
+        "openai-responses": {
+          "baseUrl": "https://chatgpt.com/backend-api/codex",
+          "adapterFamily": "openai"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://openai.com/codex",
+          "docs": "https://platform.openai.com/docs/codex"
+        }
+      }
+    },
+    {
+      "id": "grok-cli",
+      "name": "Grok CLI",
+      "description": "Grok CLI - login-based provider that uses your SuperGrok subscription via xAI OAuth",
+      "defaultChatEndpoint": "openai-responses",
+      "modelListSource": "registry",
+      "endpointConfigs": {
+        "openai-responses": {
+          "baseUrl": "https://cli-chat-proxy.grok.com/v1",
+          "adapterFamily": "openai"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://x.ai",
+          "docs": "https://docs.x.ai"
+        }
+      }
+    },
+    {
       "id": "openai",
       "name": "OpenAI",
       "description": "OpenAI - AI model provider",

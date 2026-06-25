@@ -4763,6 +4763,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "腾讯混元",
@@ -4786,6 +4787,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -7092,6 +7094,16 @@
         "open_terminal": "打开终端登录",
         "recheck": "重新检测"
       },
+      "codex": {
+        "account": "账号:{{accountId}}",
+        "description": "使用你的 ChatGPT 订阅登录",
+        "description_detail": "该提供商通过你的 ChatGPT Plus/Pro 登录(OAuth)访问 OpenAI Codex 模型。将打开浏览器完成登录。",
+        "logged_in": "已登录 OpenAI Codex",
+        "sign_in_button": "使用 ChatGPT 登录",
+        "sign_in_failed": "登录失败,请重试。",
+        "sign_in_success": "已登录 OpenAI Codex",
+        "signing_in": "等待浏览器授权…"
+      },
       "copilot": {
         "add_request_header": "添加请求头",
         "auth_failed": "Github Copilot 认证失败",
@@ -7166,6 +7178,15 @@
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "获取密钥",
+      "grok_cli": {
+        "description": "使用你的 SuperGrok 订阅登录",
+        "description_detail": "该 provider 使用你的 xAI SuperGrok 登录（OAuth）来访问 Grok CLI 模型（Grok Build、Composer）。将打开浏览器完成登录。",
+        "logged_in": "已登录 Grok CLI",
+        "sign_in_button": "使用 xAI 登录",
+        "sign_in_failed": "登录失败，请重试。",
+        "sign_in_success": "已登录 Grok CLI",
+        "signing_in": "等待浏览器…"
+      },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {

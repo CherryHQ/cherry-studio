@@ -120,6 +120,17 @@ export enum IpcChannel {
   // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
   CherryIN_OAuthResult = 'cherryin:oauth-result',
 
+  // OpenAI Codex OAuth (loopback-server authorization-code + PKCE)
+  Codex_SignIn = 'codex:sign-in',
+  Codex_HasToken = 'codex:has-token',
+  Codex_GetAccount = 'codex:get-account',
+  Codex_Logout = 'codex:logout',
+
+  // Grok CLI OAuth (loopback-server authorization-code + PKCE + OIDC discovery)
+  GrokCli_SignIn = 'grok-cli:sign-in',
+  GrokCli_HasToken = 'grok-cli:has-token',
+  GrokCli_Logout = 'grok-cli:logout',
+
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
   Obsidian_GetFiles = 'obsidian:get-files',

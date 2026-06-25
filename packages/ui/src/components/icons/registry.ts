@@ -184,6 +184,10 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
  * Provider ID aliases for IDs that don't directly match catalog keys.
  */
 const PROVIDER_ID_ALIASES: Record<string, string> = {
+  // Codex is an OpenAI product; reuse the OpenAI mark until a dedicated glyph exists.
+  'openai-codex': 'openai',
+  // Grok CLI is an xAI product; reuse the Grok mark.
+  'grok-cli': 'grok',
   'azure-openai': 'azureai',
   'new-api': 'newapi',
   'tencent-cloud-ti': 'tencent-cloud-ti',
