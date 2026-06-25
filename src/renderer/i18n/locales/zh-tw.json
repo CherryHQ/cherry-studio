@@ -6484,6 +6484,11 @@
         "label": "訊息導覽",
         "none": "不顯示"
       },
+      "resource_list": {
+        "position": "訊息列表位置",
+        "position_left": "左側",
+        "position_right": "右側"
+      },
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",

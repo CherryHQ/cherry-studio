@@ -24,9 +24,11 @@ type SelectOption<T extends string = string> = {
   value: T
   label: string
 }
+type ResourceListPosition = 'left' | 'right'
 
 const ChatPreferenceSections: FC = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
+  const [resourceListPosition, setResourceListPosition] = usePreference('chat.resource_list.position')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -79,6 +81,14 @@ const ChatPreferenceSections: FC = () => {
     () => [
       { value: 'plain', label: t('message.message.style.plain') },
       { value: 'bubble', label: t('message.message.style.bubble') }
+    ],
+    [t]
+  )
+
+  const resourceListPositionItems = useMemo<SelectOption<ResourceListPosition>[]>(
+    () => [
+      { value: 'left', label: t('settings.messages.resource_list.position_left') },
+      { value: 'right', label: t('settings.messages.resource_list.position_right') }
     ],
     [t]
   )
@@ -192,6 +202,24 @@ const ChatPreferenceSections: FC = () => {
         <>
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.resource_list.position')}</SettingRowTitleSmall>
+            <Select
+              value={resourceListPosition}
+              onValueChange={(value) => setResourceListPosition(value as ResourceListPosition)}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {resourceListPositionItems.map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
