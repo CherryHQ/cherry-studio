@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react'
 import { Search } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -20,6 +20,20 @@ vi.mock('../Tooltip', () => ({
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
+}))
+
+vi.mock('@renderer/config/miniApps', () => ({
+  getMiniAppsLogo: (logo?: string) => {
+    if (logo !== 'qwen') return undefined
+
+    const QwenLogo = ({ style }: { style?: CSSProperties }) => (
+      <svg data-testid="resolved-mini-app-logo" style={style} />
+    )
+    QwenLogo.Avatar = ({ size }: { size: number }) => (
+      <span data-size={size} data-testid="resolved-mini-app-logo-avatar" />
+    )
+    return QwenLogo
+  }
 }))
 
 const items: SidebarMenuItem[] = [
@@ -198,6 +212,104 @@ describe('Sidebar resize handle', () => {
 
     expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
     expect(getByText('Chat')).toBeInTheDocument()
+  })
+
+  it('renders full docked mini app icons directly without avatar chrome', () => {
+    const { container, getByTestId } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={[
+          {
+            id: 'qwen',
+            title: 'Qwen',
+            type: 'miniapp',
+            miniApp: { id: 'qwen', logo: 'qwen' }
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
+    expect(getByTestId('resolved-mini-app-logo')).toHaveStyle({ width: '16px', height: '16px' })
+  })
+
+  it('uses the same full row sizing and hover styles for docked mini apps as sidebar menu items', () => {
+    const { getByText } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={[
+          {
+            id: 'qwen',
+            title: 'Qwen',
+            type: 'miniapp',
+            miniApp: { id: 'qwen', logo: 'qwen' }
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    const sidebarItem = getByText('Chat').closest('button')
+    const dockedMiniApp = getByText('Qwen').closest('button')
+
+    expect(dockedMiniApp?.className).toBe(sidebarItem?.className)
+  })
+
+  it('uses the same full active indicator for docked mini apps as sidebar menu items', () => {
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        activeTabId="qwen"
+        items={items}
+        dockedTabs={[
+          {
+            id: 'qwen',
+            title: 'Qwen',
+            type: 'miniapp',
+            miniApp: { id: 'qwen', logo: 'qwen' }
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('.bg-sidebar-glow-bg')).not.toBeInTheDocument()
+    expect(container.querySelector('.bg-sidebar-glow-line')).not.toBeInTheDocument()
+  })
+
+  it('uses the same icon row sizing and hover styles for docked mini apps as sidebar menu items', () => {
+    const { getByTestId } = render(
+      <Sidebar
+        width={SIDEBAR_ICON_WIDTH}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={[
+          {
+            id: 'qwen',
+            title: 'Qwen',
+            type: 'miniapp',
+            miniApp: { id: 'qwen', logo: 'qwen' }
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    const dockedMiniAppButton = getByTestId('resolved-mini-app-logo').closest('button')
+
+    expect(getByTestId('resolved-mini-app-logo')).toHaveStyle({ width: '22px', height: '22px' })
+    expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
+    expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
   })
 
   it('renders footer actions with the current sidebar layout', () => {

@@ -14,6 +14,7 @@ import {
 } from '@renderer/config/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
@@ -28,13 +29,19 @@ import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
 import { UserAvatar } from '../Sidebar/primitives'
-import type { SidebarMenuItem, SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
+import type { SidebarMenuItem, SidebarMiniAppTab, SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
 
-const noop = () => {}
+const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 
 function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
   if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
   return null
+}
+
+function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
+  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
+  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
+  return appId || undefined
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
@@ -42,6 +49,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { pinned: pinnedMiniApps } = useMiniApps()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -99,6 +107,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Menu items
   const pathname = activeTab?.url || '/'
+  const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
+
+  const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
+    return pinnedMiniApps.map((app) => ({
+      id: app.appId,
+      title: app.nameKey ? t(app.nameKey) : app.name,
+      type: 'miniapp',
+      miniApp: {
+        id: app.appId,
+        logo: app.logo,
+        url: app.url
+      }
+    }))
+  }, [pinnedMiniApps, t])
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
@@ -177,18 +199,32 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     openTab('/settings/provider', { title: t('settings.title') })
   }, [openTab, t])
 
+  const handleOpenMiniAppTab = useCallback(
+    (appId: string) => {
+      const app = pinnedMiniApps.find((item) => item.appId === appId)
+      if (!app) return
+
+      openTab(`${MINI_APP_ROUTE_PREFIX}${app.appId}`, {
+        title: app.nameKey ? t(app.nameKey) : app.name,
+        icon: app.logo
+      })
+    },
+    [openTab, pinnedMiniApps, t]
+  )
+
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
     activeItem,
+    activeTabId: activeMiniAppId,
     items,
     title: sidebarUser.name,
     logo: sidebarLogo,
     actions: (footerLayout: SidebarVisibleLayout) => (
       <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
     ),
-    dockedTabs: [],
+    dockedTabs: sidebarMiniAppTabs,
     onItemClick: handleNavigate,
-    onCloseDockedTab: noop
+    onMiniAppTabClick: handleOpenMiniAppTab
   }
 
   return (

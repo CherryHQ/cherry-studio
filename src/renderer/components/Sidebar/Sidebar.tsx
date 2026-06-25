@@ -90,7 +90,7 @@ export function Sidebar({
     onDismiss?.()
   }, [onDismiss])
 
-  const menuProps = { items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }
+  const menuProps = { items, activeItem, onItemClick }
   const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick, onStartSidebarDrag, onCloseDockedTab }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
 

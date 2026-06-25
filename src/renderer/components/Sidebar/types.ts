@@ -1,11 +1,10 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
 import type { LucideIcon } from 'lucide-react'
 
 export interface SidebarMiniApp {
   id: string
   color?: string
   url?: string
-  logo?: string | CompoundIcon
+  logo?: string
 }
 
 export interface SidebarMiniAppTab {
@@ -19,7 +18,6 @@ export interface SidebarMenuItem {
   id: string
   label: string
   icon: LucideIcon
-  miniAppTabs?: SidebarMiniAppTab[]
 }
 
 export interface SidebarRouteTab {

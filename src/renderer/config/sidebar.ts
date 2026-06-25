@@ -7,7 +7,7 @@ import {
   hasTabInstanceMetadataForApp
 } from '@renderer/config/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite, SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import {
   Code,
@@ -262,25 +262,29 @@ export function getSidebarMenuPath(icon: SidebarIcon, defaultPaintingProvider: s
 }
 
 export function resolveSidebarActiveItem(url: string): SidebarIcon | '' {
-  const match = SIDEBAR_APPS.find((app) => tabBelongsToApp(app, url))
+  const match = SIDEBAR_APPS.find((app) => (app.exactRouteFocus ? url === app.routePrefix : tabBelongsToApp(app, url)))
   return match?.id ?? ''
 }
 
-export function sanitizeSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
+export function isSidebarIcon(value: string): value is SidebarIcon {
+  return sidebarIconSet.has(value as SidebarIcon)
+}
+
+export function sanitizeSidebarIcons(favorites: readonly string[] | undefined): SidebarIcon[] {
   const seen = new Set<SidebarIcon>()
 
-  return (icons ?? []).filter((icon) => {
-    if (!sidebarIconSet.has(icon) || seen.has(icon)) {
+  return (favorites ?? []).filter((favorite): favorite is SidebarIcon => {
+    if (!isSidebarIcon(favorite) || seen.has(favorite)) {
       return false
     }
 
-    seen.add(icon)
+    seen.add(favorite)
     return true
   })
 }
 
-export function getRequiredSidebarIconsVisible(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
-  const visible = new Set(sanitizeSidebarIcons(icons))
+export function getRequiredSidebarIconsVisible(favorites: readonly string[] | undefined): SidebarIcon[] {
+  const visible = new Set(sanitizeSidebarIcons(favorites))
 
   for (const icon of REQUIRED_SIDEBAR_ICONS) {
     visible.add(icon)
@@ -289,8 +293,8 @@ export function getRequiredSidebarIconsVisible(icons: readonly SidebarIcon[] | u
   return SIDEBAR_ICON_ORDER.filter((icon) => visible.has(icon))
 }
 
-export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
-  const visible = sanitizeSidebarIcons(icons)
+export function getOrderedVisibleSidebarIcons(favorites: readonly string[] | undefined): SidebarIcon[] {
+  const visible = sanitizeSidebarIcons(favorites)
 
   for (const icon of REQUIRED_SIDEBAR_ICONS) {
     if (visible.includes(icon)) continue
@@ -303,6 +307,6 @@ export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | un
   return visible
 }
 
-export function getDefaultSidebarFavorites(): SidebarIcon[] {
+export function getDefaultSidebarFavorites(): SidebarFavorite[] {
   return getOrderedVisibleSidebarIcons(getDefaultValue('ui.sidebar.favorites'))
 }

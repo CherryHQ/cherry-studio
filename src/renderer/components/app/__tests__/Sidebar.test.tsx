@@ -15,6 +15,13 @@ type FakeTab = {
   metadata?: Record<string, unknown>
 }
 
+type FakeMiniApp = {
+  appId: string
+  name: string
+  logo?: string
+  url: string
+}
+
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
   openTab: vi.fn(),
@@ -30,7 +37,8 @@ const mocks = vi.hoisted(() => ({
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
-  sidebarFavorites: ['assistants'] as string[]
+  sidebarFavorites: ['assistants'] as string[],
+  pinnedMiniApps: [] as FakeMiniApp[]
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -61,6 +69,10 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
 
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => ({ defaultPaintingProvider: undefined })
+}))
+
+vi.mock('@renderer/hooks/useMiniApps', () => ({
+  useMiniApps: () => ({ pinned: mocks.pinnedMiniApps })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -135,6 +147,9 @@ vi.mock('../../Sidebar', () => ({
     onDismiss,
     onHoverChange,
     onItemClick,
+    onMiniAppTabClick,
+    activeTabId,
+    dockedTabs,
     items,
     title,
     logo,
@@ -145,6 +160,8 @@ vi.mock('../../Sidebar', () => ({
   }: {
     isFloating?: boolean
     isFloatingClosing?: boolean
+    activeTabId?: string
+    dockedTabs?: Array<{ id: string; title: string }>
     items?: Array<{ id: string; label: string }>
     title?: string
     logo?: ReactNode
@@ -155,6 +172,7 @@ vi.mock('../../Sidebar', () => ({
     onDismiss?: () => void
     onHoverChange?: (hovering: boolean) => void
     onItemClick?: (id: string) => void
+    onMiniAppTabClick?: (id: string) => void
   }) =>
     isFloating ? (
       <div
@@ -178,12 +196,22 @@ vi.mock('../../Sidebar', () => ({
         <div data-testid="ui-sidebar" data-width={width} />
         <div data-testid="sidebar-items">
           {items?.map((item) => (
+            <div key={item.id}>
+              <button type="button" data-testid={`sidebar-item-${item.id}`} onClick={() => onItemClick?.(item.id)}>
+                <span>{item.label}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+        <div data-testid="sidebar-mini-app-section">
+          {dockedTabs?.map((miniTab) => (
             <button
-              key={item.id}
+              key={miniTab.id}
               type="button"
-              data-testid={`sidebar-item-${item.id}`}
-              onClick={() => onItemClick?.(item.id)}>
-              <span>{item.label}</span>
+              data-active={activeTabId === miniTab.id ? 'true' : 'false'}
+              data-testid={`sidebar-mini-app-${miniTab.id}`}
+              onClick={() => onMiniAppTabClick?.(miniTab.id)}>
+              {miniTab.title}
             </button>
           ))}
         </div>
@@ -215,6 +243,7 @@ afterEach(() => {
     title: 'Chat'
   }
   mocks.tabs = []
+  mocks.pinnedMiniApps = []
   mocks.sidebarWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
@@ -275,6 +304,58 @@ describe('app Sidebar', () => {
       (element) => element.textContent
     )
     expect(labels).toEqual(['Translate', 'Chat', 'Work'])
+  })
+
+  it('renders pinned mini apps directly in the sidebar mini app section', () => {
+    mocks.sidebarFavorites = ['assistants', 'mini_app']
+    mocks.pinnedMiniApps = [
+      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
+      { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
+    ]
+    mocks.activeTab = {
+      id: 'calculator-tab',
+      type: 'route',
+      url: '/app/mini-app/calculator',
+      title: 'Calculator'
+    }
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-mini-app-section')).toContainElement(
+      screen.getByTestId('sidebar-mini-app-calculator')
+    )
+    expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveTextContent('Calculator')
+    expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveAttribute('data-active', 'true')
+    expect(screen.getByTestId('sidebar-mini-app-weather')).toHaveTextContent('Weather')
+    expect(
+      Array.from(screen.getByTestId('sidebar-mini-app-section').querySelectorAll('button')).map(
+        (button) => button.textContent
+      )
+    ).toEqual(['Calculator', 'Weather'])
+  })
+
+  it('does not render mini app ids from sidebar favorites unless the app is pinned', () => {
+    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator', 'stale']
+
+    render(<Sidebar />)
+
+    expect(screen.queryByTestId('sidebar-mini-app-calculator')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('sidebar-mini-app-stale')).not.toBeInTheDocument()
+  })
+
+  it('opens a mini app tab from the sidebar mini app section', () => {
+    mocks.sidebarFavorites = ['assistants', 'mini_app']
+    mocks.pinnedMiniApps = [
+      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/calculator', {
+      title: 'Calculator',
+      icon: 'calculator-logo'
+    })
   })
 
   it('does nothing when the active tab is already on the target route', () => {

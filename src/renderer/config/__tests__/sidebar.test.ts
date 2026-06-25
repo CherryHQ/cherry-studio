@@ -43,6 +43,14 @@ describe('sidebar config helpers', () => {
     ])
   })
 
+  it('ignores pinned mini app ids when reading system sidebar icons', () => {
+    expect(getOrderedVisibleSidebarIcons(['translate', 'calculator', 'assistants', 'agents'])).toEqual([
+      'translate',
+      'assistants',
+      'agents'
+    ])
+  })
+
   it('resets to default sidebar favorites without forcing non-default icons visible', () => {
     const reset = getDefaultSidebarFavorites()
 
@@ -61,5 +69,10 @@ describe('sidebar config helpers', () => {
   it('resolves the active item for query-keyed conversation routes', () => {
     expect(resolveSidebarActiveItem('/app/chat?topicId=abc')).toBe('assistants')
     expect(resolveSidebarActiveItem('/app/agents?sessionId=xyz')).toBe('agents')
+  })
+
+  it('does not mark the launchpad sidebar item active for concrete mini app routes', () => {
+    expect(resolveSidebarActiveItem('/app/mini-app')).toBe('mini_app')
+    expect(resolveSidebarActiveItem('/app/mini-app/qwen')).toBe('')
   })
 })
