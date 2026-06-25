@@ -1,5 +1,6 @@
-import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { describe, expect, it } from 'vitest'
+
+import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '../keywordSearch'
 
 function buildSingleKeywordRegex(term: string, matchMode: KeywordMatchMode) {
   const [regex] = buildKeywordRegexes([term], { matchMode })
