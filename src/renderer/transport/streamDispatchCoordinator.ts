@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 
 const logger = loggerService.withContext('streamDispatchCoordinator')
@@ -25,8 +26,8 @@ function notify(result: StreamDispatchResult): void {
 
 export const streamDispatchCoordinator = {
   dispatch(topicId: string, request: AiStreamOpenRequest): void {
-    window.api.ai
-      .streamOpen(request)
+    ipcApi
+      .request('ai.stream_open', request)
       .then((ack) => {
         if (ack.mode === 'blocked' && ack.reason === 'agent-session-workspace') {
           window.toast?.error(ack.message)

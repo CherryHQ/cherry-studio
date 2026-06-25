@@ -1,15 +1,17 @@
 import { application } from '@application'
+import { WebContentsListener } from '@main/ai/streamManager/listeners/WebContentsListener'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { IpcError } from '@shared/ipc/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
-import type { IpcHandlersFor } from '@shared/ipc/types'
+import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 import { serializeError } from '@shared/utils/error'
 
 /**
- * Thin adapters for the non-streaming AI routes — each delegates to a stateful
- * `AiService` method (business logic, provider resolution and the image abort
- * registry stay in that service). These act on provider/model capabilities, not
- * the caller's window, so they ignore `IpcContext`.
+ * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
+ * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
+ * resolution, the image abort registry and the stream registry all stay in those
+ * services — these handlers only translate the IPC call.
  *
  * Every generating call is wrapped by {@link exposeAiError}: a provider/SDK failure
  * is re-thrown as an `AI_REQUEST_FAILED` IpcError carrying the full SerializedError
@@ -24,6 +26,17 @@ async function exposeAiError<T>(op: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * The caller window's `WebContents`, resolved from its WindowId — the stream listener
+ * needs the raw `WebContents` for its directed `send` + liveness, which IpcApi hides
+ * behind `senderId`. `undefined` when the sender is not a managed window (null senderId
+ * or window already gone); stream open/attach reject on that, detach treats it as a no-op.
+ */
+function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
+  if (senderId == null) return undefined
+  return application.get('WindowManager').getWindow(senderId)?.webContents
+}
+
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.generate_text': (request) => exposeAiError(() => application.get('AiService').generateText(request)),
   'ai.check_model': (request) => exposeAiError(() => application.get('AiService').checkModel(request)),
@@ -33,5 +46,26 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.abort_image': async ({ requestId }) => {
     application.get('AiService').abortImage(requestId)
   },
-  'ai.list_models': (request) => exposeAiError(() => application.get('AiService').listModels(request))
+  'ai.list_models': (request) => exposeAiError(() => application.get('AiService').listModels(request)),
+
+  // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
+  'ai.stream_open': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('ai.stream_open requires a managed window')
+    const subscriber = new WebContentsListener(wc, request.topicId)
+    return application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+  },
+  'ai.stream_attach': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('ai.stream_attach requires a managed window')
+    return application.get('AiStreamManager').attach(wc, request)
+  },
+  'ai.stream_detach': async (request, { senderId }) => {
+    // Best-effort: a gone window has no listener to remove, so a missing WebContents is a no-op.
+    const wc = senderWebContents(senderId)
+    if (wc) application.get('AiStreamManager').detach(wc, request)
+  },
+  'ai.stream_abort': async ({ topicId }) => {
+    application.get('AiStreamManager').abort(topicId, 'user-requested')
+  }
 }

@@ -4,17 +4,8 @@ import type { SpanContext } from '@opentelemetry/api'
 import type {
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
-  AiStreamAbortRequest,
-  AiStreamAttachRequest,
-  AiStreamAttachResponse,
-  AiStreamDetachRequest,
-  AiStreamOpenRequest,
-  AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
-  AiToolApprovalRespondResponse,
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamErrorPayload
+  AiToolApprovalRespondResponse
 } from '@shared/ai/transport'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
@@ -724,30 +715,9 @@ const api = {
     }
   },
   ai: {
-    // ── Stream push listeners ──
-    onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
-    },
-    onStreamDone: (callback: (data: StreamDonePayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamDonePayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
-    },
-    onStreamError: (callback: (data: StreamErrorPayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamErrorPayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
-    },
+    // Stream control (open/attach/detach/abort) and the chunk/done/error push events
+    // moved to IpcApi: `ipcApi.request('ai.stream_*')` and `ipcApi.on('ai.stream_*')`.
 
-    // ── Stream control ──
-    streamOpen: (req: AiStreamOpenRequest): Promise<AiStreamOpenResponse> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
-    streamAttach: (req: AiStreamAttachRequest): Promise<AiStreamAttachResponse> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
-    streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
-    streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
     prewarmAgentSession: (req: AiAgentSessionWarmRequest): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
     closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>

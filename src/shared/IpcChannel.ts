@@ -401,19 +401,9 @@ export enum IpcChannel {
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
-  // AI Stream (AiStreamManager)
-  Ai_StreamChunk = 'ai:stream-chunk',
-  Ai_StreamDone = 'ai:stream-done',
-  Ai_StreamError = 'ai:stream-error',
+  // AI Stream (AiStreamManager): chunk/done/error events + open/attach/detach/abort requests
+  // migrated to IpcApi (`ai.stream_*`). The remaining entries stay on legacy IPC.
   Ai_Translate_Open = 'ai:translate:open',
-  /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
-  Ai_Stream_Open = 'ai:stream:open',
-  /** Renderer → Main: subscribe to a topic's stream state */
-  Ai_Stream_Attach = 'ai:stream:attach',
-  /** Renderer → Main: unsubscribe from a topic (stream continues in Main) */
-  Ai_Stream_Detach = 'ai:stream:detach',
-  /** Renderer → Main: abort the active generation on a topic */
-  Ai_Stream_Abort = 'ai:stream:abort',
   /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
   Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
   /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */

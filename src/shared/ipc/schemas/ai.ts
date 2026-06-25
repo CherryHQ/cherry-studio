@@ -1,5 +1,13 @@
 import type { PersonGeneration } from '@google/genai'
+import type {
+  AiStreamAttachResponse,
+  AiStreamOpenResponse,
+  StreamChunkPayload,
+  StreamDonePayload,
+  StreamErrorPayload
+} from '@shared/ai/transport'
 import { type FileEntry, FileEntrySchema } from '@shared/data/types/file/fileEntry'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
@@ -7,21 +15,19 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 
 /**
- * AI IPC schemas — the non-streaming model operations served by `AiService`
- * (text/embedding/image generation, model probe, model listing). Each route
- * delegates to a stateful `AiService` method in main.
- *
- * Request-only domain: these ops push nothing main→renderer (the streaming chat
- * link — open/attach/chunk/done/error — is a separate domain, still on legacy IPC),
- * so there is no Event block.
+ * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
+ * generation, model probe, model listing) plus the `AiStreamManager` streaming-chat
+ * link (open/attach/detach/abort requests + chunk/done/error events). Each route
+ * delegates to a stateful service method in main.
  *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
  * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
  * are deliberately absent. Outputs reuse the canonical entity schemas
  * (`FileEntrySchema`, `ModelSchema`) where they exist and `z.custom<T>()` for opaque
- * AI SDK types (usage) — the router never parses `output`, and these are built by
- * trusted main, so a field mirror buys nothing (see ipc-migration-guide.md).
+ * AI SDK / transport types (usage, stream responses) — the router never parses
+ * `output`, and these are built by trusted main, so a field mirror buys nothing
+ * (see ipc-migration-guide.md).
  */
 
 /** Clone-safe subset of `AiTransportOptions` (no signal). */
@@ -97,5 +103,54 @@ export const aiRequestSchemas = {
       throwOnError: z.boolean().optional()
     }),
     output: z.array(ModelSchema.partial())
+  }),
+
+  // ── Streaming chat (AiStreamManager) ──
+  // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
+  'ai.stream_open': defineRoute({
+    // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
+    // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
+    input: z.intersection(
+      z.object({
+        topicId: z.string().min(1),
+        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional()
+      }),
+      z.discriminatedUnion('trigger', [
+        z.object({
+          trigger: z.literal('submit-message'),
+          parentAnchorId: z.string().optional(),
+          userMessageParts: z.array(z.custom<CherryMessagePart>())
+        }),
+        z.object({
+          trigger: z.literal('regenerate-message'),
+          parentAnchorId: z.string().min(1)
+        })
+      ])
+    ),
+    output: z.custom<AiStreamOpenResponse>()
+  }),
+  'ai.stream_attach': defineRoute({
+    input: z.strictObject({ topicId: z.string().min(1) }),
+    output: z.custom<AiStreamAttachResponse>()
+  }),
+  'ai.stream_detach': defineRoute({
+    input: z.strictObject({ topicId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.stream_abort': defineRoute({
+    input: z.strictObject({ topicId: z.string().min(1) }),
+    output: z.void()
   })
+}
+
+/**
+ * AI events (M→R, pure types — main is the TCB that builds them). High-frequency topic
+ * streams: `AiStreamManager`'s per-(topic,window) `WebContentsListener` emits these via
+ * directed `webContents.send` on the IpcApi event channel (class-B topic stream), keeping
+ * its coalescing/liveness intact — it does not `broadcast`.
+ */
+export type AiEventSchemas = {
+  'ai.stream_chunk': StreamChunkPayload
+  'ai.stream_done': StreamDonePayload
+  'ai.stream_error': StreamErrorPayload
 }

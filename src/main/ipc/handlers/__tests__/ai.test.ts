@@ -16,11 +16,31 @@ const aiService = {
   listModels: vi.fn()
 }
 
+const aiStreamManager = {
+  dispatch: vi.fn(),
+  attach: vi.fn(),
+  detach: vi.fn(),
+  abort: vi.fn()
+}
+
+// WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
+const fakeWebContents = { id: 1, once: vi.fn(), isDestroyed: () => false, send: vi.fn() }
+const windowManager = { getWindow: vi.fn() }
+
 beforeEach(() => {
   vi.clearAllMocks()
+  windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
-    if (name === 'AiService') return aiService
-    throw new Error(`Unexpected application.get(${name})`)
+    switch (name) {
+      case 'AiService':
+        return aiService
+      case 'AiStreamManager':
+        return aiStreamManager
+      case 'WindowManager':
+        return windowManager
+      default:
+        throw new Error(`Unexpected application.get(${name})`)
+    }
   })
 })
 
@@ -106,5 +126,54 @@ describe('aiHandlers', () => {
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
     expect(error.message).toBe('boom')
+  })
+})
+
+describe('aiHandlers — streaming', () => {
+  it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
+    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
+    aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
+
+    const result = await aiHandlers['ai.stream_open'](req, { senderId: 'w1' })
+
+    expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
+    expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
+    // Second arg is the parsed request; first is the freshly built WebContentsListener.
+    expect(aiStreamManager.dispatch.mock.calls[0][1]).toBe(req)
+    expect(result).toEqual({ mode: 'started' })
+  })
+
+  it('stream_open throws when the sender is not a managed window', async () => {
+    windowManager.getWindow.mockReturnValue(undefined)
+    await expect(aiHandlers['ai.stream_open']({ topicId: 't' } as never, { senderId: null })).rejects.toThrow(
+      'requires a managed window'
+    )
+    expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
+  })
+
+  it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
+    aiStreamManager.attach.mockReturnValue({ status: 'not-found' })
+
+    const result = await aiHandlers['ai.stream_attach']({ topicId: 't' }, { senderId: 'w1' })
+
+    expect(aiStreamManager.attach).toHaveBeenCalledWith(fakeWebContents, { topicId: 't' })
+    expect(result).toEqual({ status: 'not-found' })
+  })
+
+  it('stream_detach delegates when the sender window exists', async () => {
+    await aiHandlers['ai.stream_detach']({ topicId: 't' }, { senderId: 'w1' })
+    expect(aiStreamManager.detach).toHaveBeenCalledWith(fakeWebContents, { topicId: 't' })
+  })
+
+  it('stream_detach is a no-op when the sender window is gone', async () => {
+    windowManager.getWindow.mockReturnValue(undefined)
+    await aiHandlers['ai.stream_detach']({ topicId: 't' }, { senderId: 'w1' })
+    expect(aiStreamManager.detach).not.toHaveBeenCalled()
+  })
+
+  it('stream_abort aborts the topic without resolving a WebContents', async () => {
+    await aiHandlers['ai.stream_abort']({ topicId: 't' }, { senderId: null })
+    expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
+    expect(windowManager.getWindow).not.toHaveBeenCalled()
   })
 })

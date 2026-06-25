@@ -75,6 +75,15 @@ const homeMocks = vi.hoisted(() => ({
   streamOpen: vi.fn()
 }))
 
+// The send path calls ipcApi.request('ai.stream_open', …); route it to homeMocks.streamOpen.
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.stream_open' ? homeMocks.streamOpen(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: vi.fn()
 }))
@@ -438,9 +447,6 @@ describe('HomePage', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ai: {
-          streamOpen: homeMocks.streamOpen
-        },
         window: {
           resetMinimumSize: vi.fn().mockResolvedValue(undefined),
           setMinimumSize: vi.fn().mockResolvedValue(undefined)

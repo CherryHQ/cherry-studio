@@ -23,6 +23,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -277,7 +278,7 @@ const HomePage: FC = () => {
       const topic = await createTopic({
         ...(current.assistantId ? { assistantId: current.assistantId } : {})
       })
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
