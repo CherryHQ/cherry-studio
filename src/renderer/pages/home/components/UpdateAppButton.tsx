@@ -1,14 +1,14 @@
 import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const UpdateAppButton: FC = () => {
   const { appUpdateState } = useAppUpdateState()
-  const { autoCheckUpdate } = useSettings()
+  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const { t } = useTranslation()
 
   if (!appUpdateState) {

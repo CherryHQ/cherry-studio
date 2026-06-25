@@ -1,7 +1,5 @@
-import { configureStore } from '@reduxjs/toolkit'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React, { useEffect, useRef } from 'react'
-import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { QuickPanelInputAdapter, QuickPanelListItem, QuickPanelOpenOptions } from '../QuickPanel'
@@ -29,13 +27,6 @@ vi.mock('@renderer/components/VirtualList', async (importOriginal) => {
         </div>
       )
     }
-  }
-})
-
-// Mock Redux store
-const mockStore = configureStore({
-  reducer: {
-    settings: (state = { userTheme: { colorPrimary: '#1677ff' } }) => state
   }
 })
 
@@ -162,11 +153,7 @@ function OpenChildPanelWithParentOnMount() {
 }
 
 function wrapWithProviders(children: React.ReactNode) {
-  return (
-    <Provider store={mockStore}>
-      <QuickPanelProvider>{children}</QuickPanelProvider>
-    </Provider>
-  )
+  return <QuickPanelProvider>{children}</QuickPanelProvider>
 }
 
 describe('QuickPanelView', () => {

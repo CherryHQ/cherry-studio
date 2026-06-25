@@ -57,12 +57,6 @@ vi.mock('@renderer/store/settings', () => {
   )
 })
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
-
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()

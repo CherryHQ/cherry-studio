@@ -242,13 +242,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    messageNavigation: 'none',
-    messageStyle: 'message-style'
-  })
-}))
-
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
   useTopicOverlayHandoffOnTerminal: () => {}
