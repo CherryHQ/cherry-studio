@@ -347,6 +347,35 @@ describe('FilesPage keyboard rename', () => {
       expect(loadNext).toHaveBeenCalledTimes(1)
     })
   })
+
+  it('does not load another active page when a client-filtered view already fills the viewport', async () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = options?.query as { inTrash?: boolean } | undefined
+      return {
+        pages: query?.inTrash ? [] : [{ items: [entry], total: 200, nextCursor: 'next-page' }],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: !query?.inTrash,
+        loadNext: query?.inTrash ? vi.fn() : loadNext,
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    const { container } = render(<FilesPage />)
+    const scrollContainer = container.querySelector('.relative.flex-1.overflow-y-auto') as HTMLElement
+    Object.defineProperty(scrollContainer, 'scrollHeight', { configurable: true, value: 1000 })
+    Object.defineProperty(scrollContainer, 'clientHeight', { configurable: true, value: 500 })
+
+    fireEvent.click(screen.getByText('files.text'))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(loadNext).not.toHaveBeenCalled()
+  })
 })
 
 describe('FilesPage file operations', () => {
