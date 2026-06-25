@@ -22,12 +22,15 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
+import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type {
   AgentEntity,
@@ -36,7 +39,6 @@ import type {
   TaskRunLogEntity,
   UpdateTaskRequest
 } from '@shared/data/types/agent'
-import { useNavigate } from '@tanstack/react-router'
 import {
   AlertTriangle,
   CalendarClock,
@@ -493,9 +495,12 @@ const TaskDetail: FC<{
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const navigate = useNavigate()
+  const tabsContext = useOptionalTabsContext()
+  const isDetachedWindowFrame = useWindowFrame().mode === 'window'
+  const { openConversationTab, openConversationWindow } = useConversationNavigation('agents')
   const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
+  const shouldOpenInCurrentTabs = !!tabsContext && !isDetachedWindowFrame
 
   const filteredLogs = useMemo(() => {
     if (!searchText.trim()) return logs
@@ -511,9 +516,14 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
-      void navigate({ to: '/app/agents', search: { sessionId } })
+      if (shouldOpenInCurrentTabs) {
+        openConversationTab(sessionId)
+        return
+      }
+
+      openConversationWindow(sessionId)
     },
-    [navigate]
+    [openConversationTab, openConversationWindow, shouldOpenInCurrentTabs]
   )
 
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(

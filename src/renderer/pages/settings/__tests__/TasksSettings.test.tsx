@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,8 +28,12 @@ const taskLogsMock = vi.hoisted(() => {
   }
 })
 
-const navigationMock = vi.hoisted(() => ({
-  navigate: vi.fn()
+const navigationMocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  openConversationTab: vi.fn(),
+  openConversationWindow: vi.fn(),
+  tabsContext: {} as Record<string, never> | null,
+  windowFrameMode: 'embedded' as 'embedded' | 'window'
 }))
 
 vi.mock('@renderer/data/DataApiService', () => ({
@@ -48,8 +52,23 @@ vi.mock('@renderer/hooks/agents/useTasks', () => ({
   useUpdateTask: () => ({ updateTask: vi.fn() })
 }))
 
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: () => navigationMocks.tabsContext
+}))
+
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    openConversationTab: navigationMocks.openConversationTab,
+    openConversationWindow: navigationMocks.openConversationWindow
+  })
+}))
+
+vi.mock('@renderer/components/chat/shell/WindowFrameContext', () => ({
+  useWindowFrame: () => ({ mode: navigationMocks.windowFrameMode })
+}))
+
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigationMock.navigate
+  useNavigate: () => navigationMocks.navigate
 }))
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
@@ -176,6 +195,8 @@ vi.mock('@cherrystudio/ui', () => {
 describe('TasksSettings task logs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    navigationMocks.tabsContext = {}
+    navigationMocks.windowFrameMode = 'embedded'
     taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
@@ -209,6 +230,50 @@ describe('TasksSettings task logs', () => {
 
       throw new Error(`unexpected path: ${path}`)
     })
+  })
+
+  async function clickTaskLogSessionButton() {
+    const viewSessionTooltip = await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    const button = within(viewSessionTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+
+    fireEvent.click(button)
+  }
+
+  it('opens a task log session in the current tabs context when hosted by the main window', async () => {
+    render(<TasksSettings />)
+
+    await clickTaskLogSessionButton()
+
+    expect(navigationMocks.openConversationTab).toHaveBeenCalledWith('session-1')
+    expect(navigationMocks.openConversationWindow).not.toHaveBeenCalled()
+    expect(navigationMocks.navigate).not.toHaveBeenCalled()
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
+  })
+
+  it('opens a task log session in a new detached window when settings is hosted by a detached tab window', async () => {
+    navigationMocks.windowFrameMode = 'window'
+
+    render(<TasksSettings />)
+
+    await clickTaskLogSessionButton()
+
+    expect(navigationMocks.openConversationWindow).toHaveBeenCalledWith('session-1')
+    expect(navigationMocks.openConversationTab).not.toHaveBeenCalled()
+    expect(navigationMocks.navigate).not.toHaveBeenCalled()
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
+  })
+
+  it('opens a task log session in a new detached window when settings has no tabs context', async () => {
+    navigationMocks.tabsContext = null
+
+    render(<TasksSettings />)
+
+    await clickTaskLogSessionButton()
+
+    expect(navigationMocks.openConversationWindow).toHaveBeenCalledWith('session-1')
+    expect(navigationMocks.openConversationTab).not.toHaveBeenCalled()
+    expect(navigationMocks.navigate).not.toHaveBeenCalled()
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
   it('truncates long task log results in the result column', async () => {
