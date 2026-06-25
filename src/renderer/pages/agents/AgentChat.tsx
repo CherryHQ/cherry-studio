@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import {
   type ChatPanePosition,
   ConversationCenterState,
@@ -5,8 +6,8 @@ import {
   EmptyState
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agents/useSession'
@@ -14,7 +15,6 @@ import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { useSettings } from '@renderer/hooks/useSettings'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -113,7 +113,7 @@ const AgentChat = ({
   replacingDraftWorkspace
 }: AgentChatProps) => {
   const { t } = useTranslation()
-  const { messageStyle } = useSettings()
+  const [messageStyle] = usePreference('chat.message.style')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [reservedSessionSeed, setReservedSessionSeed] = useState<{

@@ -1,6 +1,6 @@
+import ConversationComposerStage from '@renderer/components/composer/ConversationComposerStage'
 import type { ComponentProps } from 'react'
 
-import ConversationComposerStage from '../composer/ConversationComposerStage'
 import { useOptionalShellState } from '../panes/Shell'
 
 export type ConversationStageCenterProps = ComponentProps<typeof ConversationComposerStage>

@@ -29,12 +29,6 @@ vi.mock('@renderer/store/settings', () => {
   )
 })
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
-
 import type { Model as V1Model } from '@renderer/types/model'
 
 import { toSharedCompatModel } from '../bridge'

@@ -1,4 +1,3 @@
-import { configureStore } from '@reduxjs/toolkit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { replacePromptVariables } from '../prompt'
@@ -10,23 +9,6 @@ const mockApi = {
   },
   getAppInfo: vi.fn()
 }
-
-vi.mock('@renderer/store', () => {
-  const mockStore = configureStore({
-    reducer: {
-      settings: (
-        state = {
-          language: 'zh-CN',
-          userName: 'MockUser'
-        }
-      ) => state
-    }
-  })
-  return {
-    default: mockStore,
-    __esModule: true
-  }
-})
 
 // `replacePromptVariables` only needs the model name string. The tests used
 // to pass through a full Assistant just to read `.model.name`; the v2 model

@@ -1,3 +1,4 @@
+import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
 import type { GenerateImageParams } from '@shared/types/image'
 
@@ -7,7 +8,7 @@ import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
 
 /**
  * Shared painting generate skeleton. Image generation runs in the MAIN process
- * via the `Ai_GenerateImage` IPC (`window.api.ai.generateImage`): main resolves
+ * via the `ai.generate_image` IpcApi route (`ipcApi.request`): main resolves
  * the provider from `uniqueModelId`, builds the AI SDK image request (including
  * per-vendor `providerOptions` via `buildImageProviderOptions`), runs any async
  * submit/poll loop, and returns base64 data URLs. The renderer only maps the
@@ -53,11 +54,12 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
     const inputImages = (aiSdkParams.inputImages ?? []).filter((img): img is string => typeof img === 'string')
 
     const requestId = crypto.randomUUID()
-    const onAbort = () => window.api.ai.abortImage(requestId)
+    const onAbort = () => void ipcApi.request('ai.abort_image', { requestId })
     opts.signal.addEventListener('abort', onAbort, { once: true })
-    const result = await window.api.ai
-      .generateImage(
-        {
+    const result = await ipcApi
+      .request('ai.generate_image', {
+        requestId,
+        payload: {
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
           prompt: opts.prompt,
           ...(inputImages.length > 0 && { inputImages }),
@@ -75,9 +77,15 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
           ...(aiSdkParams.moderation && { moderation: aiSdkParams.moderation }),
           ...(aiSdkParams.style && { style: aiSdkParams.style }),
           ...(providerBag && { providerOptions: { [opts.provider.id]: providerBag } })
-        },
-        requestId
-      )
+        }
+      })
+      // A failure now crosses IpcApi as an IpcError (name 'IpcError'), so an abort would
+      // no longer satisfy runPainting's `name === 'AbortError'` cancel check. When the
+      // user aborted, re-throw a real AbortError to preserve the silent-cancel behaviour.
+      .catch((error) => {
+        if (opts.signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
+        throw error
+      })
       .finally(() => opts.signal.removeEventListener('abort', onAbort))
 
     if (opts.signal.aborted) {
