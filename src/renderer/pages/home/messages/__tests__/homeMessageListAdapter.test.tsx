@@ -367,4 +367,48 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(dataApiService.patch).not.toHaveBeenCalled()
     expect(window.toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
   })
+
+  it('shows an error when saving code block edits through chat write fails', async () => {
+    const textPart = {
+      type: 'text',
+      text: '```ts\nconst value = "old"\n```'
+    } as CherryMessagePart
+    const partsByMessageId = {
+      'message-1': [textPart]
+    }
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'message-1',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue('```ts\nconst value = "new"\n```')
+    chatWriteMock.editMessage.mockRejectedValueOnce(new Error('edit failed'))
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={partsByMessageId}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'block-1',
+      codeBlockId: 'code-block-1',
+      newContent: 'const value = "new"'
+    })
+
+    expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [
+      {
+        ...textPart,
+        text: '```ts\nconst value = "new"\n```'
+      }
+    ])
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    expect(window.toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label: Error: edit failed')
+    expect(window.toast.success).not.toHaveBeenCalled()
+  })
 })

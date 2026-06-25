@@ -34,7 +34,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       await window.api.file.write(tempPath, htmlContent)
       await window.api.file.openPath(tempPath)
     } catch (error) {
-      logger.error(t('chat.artifacts.preview.openExternal.error.content'), error as Error)
+      logger.error('Failed to open HTML artifact externally', error as Error)
       window.toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
     }
   }

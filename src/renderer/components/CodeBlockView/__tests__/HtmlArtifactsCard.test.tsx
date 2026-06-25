@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
   error: vi.fn(),
   HtmlArtifactsPopup: vi.fn(({ open }) => (open ? <div data-testid="html-artifacts-popup" /> : null)),
+  loggerError: vi.fn(),
   openPath: vi.fn(),
   save: vi.fn(),
   success: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn(),
+      error: mocks.loggerError,
       info: vi.fn(),
       warn: vi.fn()
     })
@@ -103,19 +104,27 @@ describe('HtmlArtifactsCard', () => {
     await waitFor(() =>
       expect(mocks.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content: open failed')
     )
+    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open HTML artifact externally', expect.any(Error))
   })
 
-  it('downloads the HTML artifact and reports save failures', async () => {
+  it('downloads the HTML artifact', async () => {
     render(<HtmlArtifactsCard html={html} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('Sample-Page.html', html))
     expect(mocks.success).toHaveBeenCalledWith('message.download.success')
+    expect(mocks.error).not.toHaveBeenCalled()
+  })
 
+  it('shows an error when downloading the HTML artifact fails', async () => {
     mocks.save.mockRejectedValueOnce(new Error('save failed'))
+
+    render(<HtmlArtifactsCard html={html} />)
+
     fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
     await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('message.download.failed: save failed'))
+    expect(mocks.success).not.toHaveBeenCalled()
   })
 })
