@@ -4,7 +4,6 @@ import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
@@ -96,31 +95,29 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TopViewContainer>
-                        <div
-                          className={cn(
-                            'flex h-screen w-screen overflow-hidden text-foreground',
-                            settingsWindowFormControlTextClassName,
-                            isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                          )}
-                          style={shellStyle}>
-                          <SettingsWindowRouter initialPath={initialPath} />
-                        </div>
-                      </TopViewContainer>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
+        <ThemeProvider>
+          <AntdProvider>
+            <NotificationProvider>
+              <CodeStyleProvider>
+                <CommandContextKeyProvider>
+                  <CommandProvider>
+                    <TopViewContainer>
+                      <div
+                        className={cn(
+                          'flex h-screen w-screen overflow-hidden text-foreground',
+                          settingsWindowFormControlTextClassName,
+                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                        )}
+                        style={shellStyle}>
+                        <SettingsWindowRouter initialPath={initialPath} />
+                      </div>
+                    </TopViewContainer>
+                  </CommandProvider>
+                </CommandContextKeyProvider>
+              </CodeStyleProvider>
+            </NotificationProvider>
+          </AntdProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </Provider>
   )

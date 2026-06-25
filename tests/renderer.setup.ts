@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
 import { createRequire } from 'node:module'
-import { styleSheetSerializer } from 'jest-styled-components/serializer'
 import { expect, vi } from 'vitest'
 
 const require = createRequire(import.meta.url)
@@ -9,8 +8,6 @@ const bufferModule = require('buffer')
 if (!bufferModule.SlowBuffer) {
   bufferModule.SlowBuffer = bufferModule.Buffer
 }
-
-expect.addSnapshotSerializer(styleSheetSerializer)
 
 // Mock LoggerService globally for renderer tests
 vi.mock('@logger', async () => {

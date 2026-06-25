@@ -13,6 +13,7 @@ import store from '@renderer/store'
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -27,7 +28,6 @@ import {
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import FileList from './FileList'
 
@@ -150,12 +150,12 @@ const FilesPage: FC = () => {
   ] as const
 
   return (
-    <Container>
+    <div className="flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('files.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container">
-        <SideNav>
+      <div id="content-container" className="flex min-h-full flex-1 flex-row">
+        <div className="flex w-[var(--settings-width)] select-none flex-col gap-1.5 border-[var(--color-border)] border-r-[0.5px] px-2.5 py-3 [&_.ant-menu-item-selected]:border-[0.5px] [&_.ant-menu-item-selected]:border-[var(--color-border)] [&_.ant-menu-item-selected]:bg-[var(--color-background-soft)] [&_.ant-menu-item-selected]:text-[var(--color-primary)] [&_.ant-menu-item:hover]:bg-[var(--color-background-soft)] [&_.ant-menu-item]:my-1 [&_.ant-menu-item]:h-9 [&_.ant-menu-item]:w-full [&_.ant-menu-item]:rounded-[var(--list-item-border-radius)] [&_.ant-menu-item]:border-[0.5px] [&_.ant-menu-item]:border-transparent [&_.ant-menu-item]:leading-9 [&_.ant-menu]:border-e-0! [&_.ant-menu]:bg-transparent">
           {menuItems.map((item) => (
             <ListItem
               key={item.key}
@@ -165,14 +165,19 @@ const FilesPage: FC = () => {
               onClick={() => setFileType(item.key)}
             />
           ))}
-        </SideNav>
-        <MainContent>
-          <SortContainer>
+        </div>
+        <div className="flex flex-1 flex-col">
+          <div className="flex items-center justify-between gap-2 border-[var(--color-border)] border-b-[0.5px] px-4 py-2">
             <Flex className="items-center gap-2">
               {(['created_at', 'size', 'name'] as const).map((field) => (
-                <SortButton
+                <Button
                   key={field}
-                  active={sortField === field}
+                  variant="ghost"
+                  className={cn(
+                    'flex h-[30px] items-center gap-1 rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent bg-transparent px-3 py-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-background-soft)] hover:text-[var(--color-text)] [&_.anticon]:text-xs',
+                    sortField === field &&
+                      'border-[var(--color-border)] bg-[var(--color-background-soft)] text-[var(--color-text)]'
+                  )}
                   onClick={() => {
                     if (sortField === field) {
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -184,7 +189,7 @@ const FilesPage: FC = () => {
                   {t(getFileFieldLabelKey(field))}
                   {sortField === field &&
                     (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
-                </SortButton>
+                </Button>
               ))}
             </Flex>
             {fileType !== 'image' && (
@@ -220,100 +225,16 @@ const FilesPage: FC = () => {
                 </Checkbox>
               </Dropdown.Button>
             )}
-          </SortContainer>
+          </div>
           {dataSource && dataSource?.length > 0 ? (
             <FileList id={fileType} list={dataSource} files={sortedFiles} />
           ) : (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           )}
-        </MainContent>
-      </ContentContainer>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
-
-const MainContent = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
-
-const SortContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  min-height: 100%;
-`
-
-const SideNav = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 12px 10px;
-  user-select: none;
-  gap: 6px;
-
-  .ant-menu {
-    border-inline-end: none !important;
-    background: transparent;
-  }
-
-  .ant-menu-item {
-    height: 36px;
-    line-height: 36px;
-    margin: 4px 0;
-    width: 100%;
-    border-radius: var(--list-item-border-radius);
-    border: 0.5px solid transparent;
-
-    &:hover {
-      background-color: var(--color-background-soft) !important;
-    }
-
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-soft);
-      color: var(--color-primary);
-      border: 0.5px solid var(--color-border);
-    }
-  }
-`
-
-const SortButton = styled(Button)<{ active?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  height: 30px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
-  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
-  color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
-  }
-
-  .anticon {
-    font-size: 12px;
-  }
-`
 
 export default FilesPage

@@ -16,7 +16,6 @@ import {
 import { ColFlex } from '@cherrystudio/ui'
 import { videoExts } from '@shared/utils/file'
 import React, { memo } from 'react'
-import styled from 'styled-components'
 
 interface FileItemProps {
   fileInfo: {
@@ -85,79 +84,23 @@ const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {
   const { name, ext, extra, actions, icon } = fileInfo
 
   return (
-    <FileItemCard style={style}>
-      <CardContent>
-        <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
+    <div
+      className="shrink-0 overflow-hidden rounded-lg border-[0.5px] border-[var(--color-border)] transition-[box-shadow,background-color] duration-200 [--shadow-color:rgba(0,0,0,0.05)] hover:shadow-[0_10px_15px_-3px_var(--shadow-color),0_4px_6px_-4px_var(--shadow-color)] [body[theme-mode='dark']_&]:[--shadow-color:rgba(255,255,255,0.02)]"
+      style={style}>
+      <div className="flex items-stretch gap-4 py-2 pr-2 pl-4">
+        <div className="flex max-h-11 items-center justify-center text-[32px] text-[var(--color-text-3)]">
+          {icon || getFileIcon(ext)}
+        </div>
         <ColFlex className="w-0 flex-1 justify-center gap-0">
-          <FileName>{name}</FileName>
-          {extra && <FileInfo>{extra}</FileInfo>}
+          <div className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-[15px] transition-colors duration-200 hover:text-[var(--color-primary)] [&_span]:text-[15px]">
+            {name}
+          </div>
+          {extra && <div className="text-[13px] text-[var(--color-text-2)]">{extra}</div>}
         </ColFlex>
-        <FileActions>{actions}</FileActions>
-      </CardContent>
-    </FileItemCard>
+        <div className="flex max-h-11 items-center justify-center">{actions}</div>
+      </div>
+    </div>
   )
 }
-
-const FileItemCard = styled.div`
-  border-radius: 8px;
-  overflow: hidden;
-  border: 0.5px solid var(--color-border);
-  flex-shrink: 0;
-  transition:
-    box-shadow 0.2s ease,
-    background-color 0.2s ease;
-  --shadow-color: rgba(0, 0, 0, 0.05);
-  &:hover {
-    box-shadow:
-      0 10px 15px -3px var(--shadow-color),
-      0 4px 6px -4px var(--shadow-color);
-  }
-  body[theme-mode='dark'] & {
-    --shadow-color: rgba(255, 255, 255, 0.02);
-  }
-`
-
-const CardContent = styled.div`
-  padding: 8px 8px 8px 16px;
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-`
-
-const FileIcon = styled.div`
-  max-height: 44px;
-  color: var(--color-text-3);
-  font-size: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-const FileName = styled.div`
-  font-size: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  transition: color 0.2s ease;
-  span {
-    font-size: 15px;
-  }
-  &:hover {
-    color: var(--color-primary);
-  }
-`
-
-const FileInfo = styled.div`
-  font-size: 13px;
-  color: var(--color-text-2);
-`
-
-const FileActions = styled.div`
-  max-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
 
 export default memo(FileItem)

@@ -8,7 +8,6 @@ import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import store from '@renderer/store'
@@ -35,25 +34,23 @@ function MainApp(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TabsProvider>
-                        <TopViewContainer>
-                          <AppShell />
-                        </TopViewContainer>
-                      </TabsProvider>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
+        <ThemeProvider>
+          <AntdProvider>
+            <NotificationProvider>
+              <CodeStyleProvider>
+                <CommandContextKeyProvider>
+                  <CommandProvider>
+                    <TabsProvider>
+                      <TopViewContainer>
+                        <AppShell />
+                      </TopViewContainer>
+                    </TabsProvider>
+                  </CommandProvider>
+                </CommandContextKeyProvider>
+              </CodeStyleProvider>
+            </NotificationProvider>
+          </AntdProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </Provider>
   )
