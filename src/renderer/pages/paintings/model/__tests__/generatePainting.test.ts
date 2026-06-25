@@ -45,7 +45,8 @@ describe('generatePainting', () => {
   // The image payload now rides in the second arg as `{ requestId, payload }`.
   const imagePayload = (): Record<string, unknown> => {
     const call = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.generate_image')
-    return (call?.[1] as { payload: Record<string, unknown> }).payload
+    if (!call) throw new Error('ai.generate_image was not requested')
+    return (call[1] as { payload: Record<string, unknown> }).payload
   }
 
   it("forwards the 'auto' size sentinel as-is for main to omit", async () => {
