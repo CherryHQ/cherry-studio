@@ -215,6 +215,7 @@
           "confirm": "Are you sure you want to delete this task?",
           "label": "Delete"
         },
+        "details": "Details",
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
         "error": {
@@ -227,6 +228,7 @@
           "interval": "Interval",
           "label": "Execution Frequency",
           "monthDay": "Day of Month",
+          "monthDayHint": "Days 29-31 are skipped in months that don't have them.",
           "monthDayPlaceholder": "1-31",
           "monthly": "Monthly",
           "monthlyDay": "Monthly on day {{day}}",
@@ -245,6 +247,7 @@
         },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
+        "invalidForm": "Please complete the schedule and timeout.",
         "lastRun": "Last Run",
         "logs": {
           "cancelled": "Cancelled",
@@ -299,6 +302,15 @@
         "time": {
           "hoursAgo": "{{count}}h ago",
           "minutesAgo": "{{count}}m ago"
+        },
+        "timePicker": {
+          "am": "AM",
+          "hour": "Hour",
+          "minute": "Minute",
+          "open": "Open time picker",
+          "period": "Period",
+          "pm": "PM",
+          "title": "Time picker"
         },
         "timeout": {
           "label": "Maximum Runtime",

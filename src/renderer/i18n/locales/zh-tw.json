@@ -215,6 +215,7 @@
           "confirm": "確定要刪除此任務嗎？",
           "label": "刪除"
         },
+        "details": "詳情",
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
         "error": {
@@ -227,6 +228,7 @@
           "interval": "間隔",
           "label": "執行頻率",
           "monthDay": "日期",
+          "monthDayHint": "29-31 日在沒有該日期的月份會被跳過。",
           "monthDayPlaceholder": "1-31",
           "monthly": "每月",
           "monthlyDay": "每月{{day}}日",
@@ -245,6 +247,7 @@
         },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
+        "invalidForm": "請完整填寫執行計畫和逾時設定。",
         "lastRun": "上次執行",
         "logs": {
           "cancelled": "已取消",
@@ -299,6 +302,15 @@
         "time": {
           "hoursAgo": "{{count}}小時前",
           "minutesAgo": "{{count}}分鐘前"
+        },
+        "timePicker": {
+          "am": "上午",
+          "hour": "時",
+          "minute": "分",
+          "open": "開啟時間選擇器",
+          "period": "時段",
+          "pm": "下午",
+          "title": "時間選擇器"
         },
         "timeout": {
           "label": "最長執行時間",

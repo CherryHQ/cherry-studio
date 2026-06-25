@@ -12,8 +12,18 @@ const dateTimePickerPropsMock = vi.hoisted(() => vi.fn())
 const translations = vi.hoisted(
   () =>
     ({
+      'agent.cherryClaw.tasks.add': '添加任务',
+      'agent.cherryClaw.tasks.cancel': '取消',
+      'agent.cherryClaw.tasks.channels.label': '发送到频道',
       'agent.cherryClaw.tasks.cronPlaceholder': '高级 Cron，例如 0 9 * * *（每天上午 9 点）',
       'agent.cherryClaw.tasks.delete.label': '删除',
+      'agent.cherryClaw.tasks.details': '详情',
+      'agent.cherryClaw.tasks.edit': '编辑',
+      'agent.cherryClaw.tasks.invalidForm': '请完整填写',
+      'agent.cherryClaw.tasks.name.placeholder': '例如 每日代码审查',
+      'agent.cherryClaw.tasks.prompt.placeholder': '让 Agent 做什么？',
+      'agent.cherryClaw.tasks.save': '保存',
+      'agent.cherryClaw.tasks.timeout.label': '超时',
       'agent.cherryClaw.tasks.frequency.daily': '每天',
       'agent.cherryClaw.tasks.frequency.interval': '间隔',
       'agent.cherryClaw.tasks.frequency.monthly': '每月',
@@ -43,6 +53,7 @@ const translations = vi.hoisted(
       'agent.cherryClaw.tasks.timeout.unlimited': '不限制',
       'common.loading': '加载中',
       'common.more': '更多',
+      'common.none': '无',
       'settings.general.title': '通用',
       'settings.scheduledTasks.title': '定时任务'
     }) as Record<string, string>
@@ -323,6 +334,11 @@ function mockData(tasks: MockTask[] = [activeTask]) {
   })
 }
 
+async function openEditDialog() {
+  fireEvent.click(screen.getByRole('button', { name: '更多' }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: '编辑' }))
+}
+
 describe('TasksSettings header', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -349,6 +365,7 @@ describe('TasksSettings header', () => {
       fireEvent.click(screen.getByRole('button', { name: '更多' }))
     })
 
+    expect(screen.getByRole('menuitem', { name: '编辑' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '测试执行' })).toBeInTheDocument()
     expect(screen.getByText('额外执行一次，不会消耗或重排触发器。')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
@@ -409,16 +426,31 @@ describe('TasksSettings header', () => {
     expect(await screen.findByText(headerSchedule)).toBeInTheDocument()
   })
 
-  it('keeps period schedule edits in the period shape', async () => {
+  it('renders task config as read-only details without inline inputs', async () => {
+    mockData([activeTask])
+
+    render(<TasksSettings />)
+
+    expect(await screen.findAllByText('每日代码审查')).toHaveLength(2)
+    // Prompt is shown as read-only text, not an editable field.
+    expect(screen.getByText('检查今日提交')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('检查今日提交')).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue('每日代码审查')).not.toBeInTheDocument()
+    // Timeout summarized as unlimited.
+    expect(screen.getByText('不限制')).toBeInTheDocument()
+  })
+
+  it('saves period schedule edits from the edit dialog in the period shape', async () => {
     mockData([periodTask])
 
     render(<TasksSettings />)
 
     expect(await screen.findAllByText('每日周期任务')).toHaveLength(2)
-    const timeInput = screen.getByDisplayValue('09:00')
+    await openEditDialog()
 
+    const timeInput = await screen.findByDisplayValue('09:00')
     fireEvent.change(timeInput, { target: { value: '10:30' } })
-    fireEvent.blur(timeInput)
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(updateTaskMock).toHaveBeenCalledWith('agent-1', 'task-4', {
@@ -427,13 +459,14 @@ describe('TasksSettings header', () => {
     })
   })
 
-  it('uses compact schedule controls for once and cron modes', async () => {
+  it('uses compact schedule controls for once and cron modes inside the edit dialog', async () => {
     mockData([onceTask])
     const { unmount } = render(<TasksSettings />)
 
     expect(await screen.findAllByText('单次任务')).toHaveLength(2)
-    expect(screen.getByTestId('task-once-picker')).toHaveClass('w-60')
-    expect(dateTimePickerPropsMock).toHaveBeenCalled()
+    await openEditDialog()
+
+    expect(await screen.findByTestId('task-once-picker')).toHaveClass('w-60')
     const oncePickerProps = dateTimePickerPropsMock.mock.calls[dateTimePickerPropsMock.mock.calls.length - 1][0]
     expect(oncePickerProps).toMatchObject({
       format: 'yyyy-MM-dd HH:mm',
@@ -445,10 +478,14 @@ describe('TasksSettings header', () => {
     render(<TasksSettings />)
 
     expect(await screen.findAllByText('工作日 Cron 任务')).toHaveLength(2)
-    expect(screen.getByPlaceholderText('高级 Cron，例如 0 9 * * *（每天上午 9 点）')).toHaveClass('w-72', 'max-w-full')
+    await openEditDialog()
+    expect(await screen.findByPlaceholderText('高级 Cron，例如 0 9 * * *（每天上午 9 点）')).toHaveClass(
+      'w-72',
+      'max-w-full'
+    )
   })
 
-  it('hides run and auto-run controls for a completed task', async () => {
+  it('hides run, auto-run, and edit controls for a completed task', async () => {
     mockData([completedTask])
 
     render(<TasksSettings />)
@@ -462,17 +499,20 @@ describe('TasksSettings header', () => {
       fireEvent.click(screen.getByRole('button', { name: '更多' }))
     })
 
+    expect(screen.queryByRole('menuitem', { name: '编辑' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: '测试执行' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
   })
 
-  it('keeps an invalid past once time as a draft and shows an error only when committing', async () => {
+  it('blocks saving a past once time and surfaces an error', async () => {
     mockData([onceTask])
 
     render(<TasksSettings />)
 
     expect(await screen.findAllByText('单次任务')).toHaveLength(2)
-    expect(dateTimePickerPropsMock).toHaveBeenCalled()
+    await openEditDialog()
+    expect(await screen.findByTestId('task-once-picker')).toBeInTheDocument()
+
     const oncePickerProps = dateTimePickerPropsMock.mock.calls[dateTimePickerPropsMock.mock.calls.length - 1][0]
     updateTaskMock.mockClear()
 
@@ -480,14 +520,7 @@ describe('TasksSettings header', () => {
       oncePickerProps.onChange?.(new Date(Date.now() - 60_000))
     })
 
-    expect(window.toast.error).not.toHaveBeenCalled()
-    expect(updateTaskMock).not.toHaveBeenCalled()
-
-    const updatedOncePickerProps = dateTimePickerPropsMock.mock.calls[dateTimePickerPropsMock.mock.calls.length - 1][0]
-    expect(updatedOncePickerProps.onOpenChange).toEqual(expect.any(Function))
-    act(() => {
-      updatedOncePickerProps.onOpenChange?.(false)
-    })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('请选择未来时间')
@@ -495,13 +528,15 @@ describe('TasksSettings header', () => {
     expect(updateTaskMock).not.toHaveBeenCalled()
   })
 
-  it('commits a future once draft only when the picker closes and normalizes seconds', async () => {
+  it('saves a future once time normalized to the minute from the edit dialog', async () => {
     mockData([onceTask])
 
     render(<TasksSettings />)
 
     expect(await screen.findAllByText('单次任务')).toHaveLength(2)
-    expect(dateTimePickerPropsMock).toHaveBeenCalled()
+    await openEditDialog()
+    expect(await screen.findByTestId('task-once-picker')).toBeInTheDocument()
+
     const oncePickerProps = dateTimePickerPropsMock.mock.calls[dateTimePickerPropsMock.mock.calls.length - 1][0]
     const futureDate = new Date(Date.now() + 60 * 60_000)
     futureDate.setSeconds(45, 678)
@@ -513,13 +548,7 @@ describe('TasksSettings header', () => {
       oncePickerProps.onChange?.(futureDate)
     })
 
-    expect(updateTaskMock).not.toHaveBeenCalled()
-
-    const updatedOncePickerProps = dateTimePickerPropsMock.mock.calls[dateTimePickerPropsMock.mock.calls.length - 1][0]
-    expect(updatedOncePickerProps.onOpenChange).toEqual(expect.any(Function))
-    act(() => {
-      updatedOncePickerProps.onOpenChange?.(false)
-    })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(updateTaskMock).toHaveBeenCalledWith('agent-1', 'task-6', {

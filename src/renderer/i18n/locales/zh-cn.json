@@ -215,6 +215,7 @@
           "confirm": "确定要删除此任务吗？",
           "label": "删除"
         },
+        "details": "详情",
         "edit": "编辑",
         "empty": "暂无定时任务。添加一个开始吧。",
         "error": {
@@ -227,6 +228,7 @@
           "interval": "间隔",
           "label": "执行频率",
           "monthDay": "日期",
+          "monthDayHint": "29-31 日在没有该日期的月份会被跳过。",
           "monthDayPlaceholder": "1-31",
           "monthly": "每月",
           "monthlyDay": "每月{{day}}日",
@@ -245,6 +247,7 @@
         },
         "intervalPlaceholder": "间隔（分钟）",
         "intervalUnit": "分钟",
+        "invalidForm": "请完整填写执行计划和超时设置。",
         "lastRun": "上次运行",
         "logs": {
           "cancelled": "已取消",
@@ -299,6 +302,15 @@
         "time": {
           "hoursAgo": "{{count}}小时前",
           "minutesAgo": "{{count}}分钟前"
+        },
+        "timePicker": {
+          "am": "上午",
+          "hour": "时",
+          "minute": "分",
+          "open": "打开时间选择器",
+          "period": "时段",
+          "pm": "下午",
+          "title": "时间选择器"
         },
         "timeout": {
           "label": "最长执行时间",
