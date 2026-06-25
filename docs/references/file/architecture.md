@@ -265,14 +265,17 @@ Other services in the main process can call FileManager, `src/main/services/file
 
 ### 3.3 IPC Method Categories
 
-> **Phase 1 vs Phase 2 wiring.** Only `getDanglingState` and
-> `batchGetDanglingStates` have a registered IPC channel in this PR
-> (see `src/shared/IpcChannel.ts:258-259`); every other row in
-> the tables below is type-declared on `FileIpcApi` but its channel
-> lands in a Phase 2 PR alongside the first FileManager consumer of
-> that method. The matching `@phase` JSDoc tag on each method in
-> `src/shared/types/file/ipc.ts` is the source of truth for the
-> wiring status; treat the tables here as the design roadmap.
+> **Current wiring status.** New renderer-facing File IPC lives in IpcApi
+> routes declared in `src/shared/ipc/schemas/file.ts` and handled by
+> `src/main/ipc/handlers/file.ts`. The routes currently registered are:
+> `file.batch_get_metadata`, `file.batch_get_physical_paths`,
+> `file.batch_get_dangling_states`, `file.batch_create_internal_entries`,
+> `file.batch_trash`, `file.batch_restore`, `file.batch_permanent_delete`,
+> `file.rename`, `file.open`, and `file.show_in_folder`. Legacy
+> `IpcChannel.File_*` routes are compatibility-only for remaining preload
+> consumers (notably singular metadata / path helpers) and MUST NOT be used by
+> new renderer code. The tables below describe the logical File IPC surface;
+> the IpcApi schema registry is the source of truth for routes wired today.
 
 All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). File IPC handlers dispatch by `handle.kind` to FileManager (entry branch) or file-module path helpers (path branch).
 
@@ -307,7 +310,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 **How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState` / `batchGetDanglingStates`, path via `getPhysicalPath` / `batchGetPhysicalPaths`, live `size` / `mtime` via `getMetadata` / `batchGetMetadata`. Any flow iterating over >1 file MUST reach for the batch form to avoid N+1 IPC. DataApi's SQL-only boundary is documented in §4.1.1.
 
-**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
+**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
 
 **Operations accepting only FilePath**:
 
@@ -392,7 +395,7 @@ Every main-side mutation that changes an entry's DB row, a file's physical conte
 
 | Event | Fired when | Payload | QueryKey **prefixes** to invalidate |
 |---|---|---|---|
-| `onEntryRowChanged` | `createInternalEntry` / `ensureExternalEntry` / `update` / `rename` / `trash` / `restore` / `permanentDelete` (and batch variants) commit successfully | `{ kind: 'created' \| 'updated' \| 'deleted', id: FileEntryId, origin: FileEntryOrigin }` | `['fileManager', 'entry']`, `['fileManager', 'entries']`, `['fileManager', 'refCounts']`, `['fileManager', 'physicalPath']` |
+| `onEntryRowChanged` | `createInternalEntry` / `ensureExternalEntry` / `update` / `rename` / `trash` / `restore` / `permanentDelete` (and batch variants) commit successfully | `{ kind: 'created' \| 'updated' \| 'deleted', id: FileEntryId, origin: FileEntryOrigin }` | `['fileManager', 'entry']`, `['fileManager', 'entries']`, `['fileManager', 'stats']`, `['fileManager', 'refCounts']`, `['fileManager', 'physicalPath']` |
 | `onEntryContentChanged` | `write` / `writeIfUnchanged` / `createWriteStream` commit completes | `{ id: FileEntryId, version: FileVersion }` | `['fileManager', 'metadata']`, `['fileManager', 'version']`, `['fileManager', 'contentHash']` |
 | `onDanglingStateChanged` | `DanglingCache` transitions an entry's state (watcher event / cold `fs.stat` observation / explicit `ops` observation) | `{ id: FileEntryId, state: 'present' \| 'missing' }` | `['fileManager', 'dangling']` |
 
@@ -404,6 +407,7 @@ Three separate events, not a discriminated union: invalidation targets per event
 |---|---|---|
 | `['fileManager', 'entry', id]` | — | DataApi `GET /files/entries/:id` |
 | — | `['fileManager', 'entries', ...filters]` | DataApi `GET /files/entries` (list; no singular form) |
+| — | `['fileManager', 'stats', ...filters]` | DataApi `GET /files/entries/stats` (aggregate counts; no singular form) |
 | — | `['fileManager', 'refCounts', sortedIds]` | DataApi `GET /files/entries/ref-counts` (batch-only endpoint) |
 | `['fileManager', 'metadata', id]` | `['fileManager', 'metadata', 'batch', sortedIds]` | File IPC `getMetadata` / `batchGetMetadata` |
 | `['fileManager', 'version', id]` | — | File IPC `getVersion` (no batch variant) |
@@ -483,6 +487,7 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 | `/files/entries`                 | GET    | FileEntry list (supports origin / trashed / time-range filters). Fixed shape. |
 | `/files/entries/:id`             | GET    | Single entry lookup. Fixed shape.                                       |
 | `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (pure SQL JOIN + GROUP BY). |
+| `/files/entries/stats`           | GET    | Aggregate entry counts for sidebar/footer stats (pure SQL aggregation). |
 | `/files/entries/:id/refs`        | GET    | All references to a file.                                               |
 | `/files/refs`                    | GET    | All files referenced by a business object (`?sourceType=…&sourceId=…`). |
 
@@ -512,12 +517,12 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 | Ref counts per entry                         | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)                  |
 | Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
 | Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
-| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
+| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/utils/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
 | Live `size` / `mtime` for external           | File IPC `getMetadata(handle)` (single) / `batchGetMetadata({ items })` (list-page flows) | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design; batch variant is mandatory when iterating (§3.3) |
 
 **Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
 
-**Composition in the renderer**: fetch the entry list via DataApi, then call the relevant batch IPC method(s) with the retrieved ids. Wrap the two-step pattern in a dedicated hook (e.g. `useEntriesWithPresence`) so components stay declarative.
+**Composition in the renderer**: fetch the entry list via DataApi, then call the relevant batch IPC method(s) with the retrieved ids. Wrap the two-step pattern in a dedicated hook (e.g. `useEntriesWithPresence`) so components stay declarative. Current FilesPage wiring is a transitional implementation that composes batch IPC enrichments with local state; before enabling the §3.6 invalidation bridge, migrate those enrichments to the queryKey shapes below (or update this table and the binding together).
 
 **Staleness contract for dangling (best-effort)**: `dangling` is an FS-observed time-varying value — the watcher may not cover every path, and a file may be externally deleted right after a cache hit. Consumers of `getDanglingState` / `batchGetDanglingStates` MUST allow a natural refresh lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a user action). **Do not** cache the result with `staleTime: Infinity` — that equates to the contradictory "I want dangling but refuse to re-check". For user-triggered refresh, invalidate the presence query (the refetch re-runs the IPC, which repopulates the cache via a cold `fs.stat`).
 
@@ -536,7 +541,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 
 The spread of **locality** (a path string arriving in the renderer via IPC) is not the spread of **authority** (ownership of the resolution rule). The former is a natural consumption relationship; only the latter would actually tear the SoT apart.
 
-Pure **formatting** helpers built on top of an already-resolved path — `toFileUrl` (cross-platform `file://` encoding), `isDangerExt` (HTML-render danger policy), `toSafeFileUrl` (the composition used for `<img src>`) — live in the shared `@shared/file/urlUtil` module and run in whichever process needs them. They consume Main's authoritative path string but carry no authority themselves; storage-layout changes in Main still don't affect them.
+Pure **formatting** helpers built on top of an already-resolved path — `toFileUrl` (cross-platform `file://` encoding), `isDangerExt` (HTML-render danger policy), `toSafeFileUrl` (the composition used for `<img src>`) — live in the shared `@shared/utils/file/urlUtil` module and run in whichever process needs them. They consume Main's authoritative path string but carry no authority themselves; storage-layout changes in Main still don't affect them.
 
 ### 4.1.2 Typical Renderer Call Flows
 
