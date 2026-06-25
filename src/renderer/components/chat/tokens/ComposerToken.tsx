@@ -27,6 +27,8 @@ import {
 } from 'lucide-react'
 import {
   type ComponentType,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type MouseEventHandler,
   type ReactNode,
@@ -43,6 +45,7 @@ const fileTokenIconClassName = 'size-3 shrink-0 text-current'
 const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
 const FILE_TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const FILE_TOKEN_POPOVER_CLOSE_DELAY_MS = 160
+type FileTokenPopoverOpenReason = 'keyboard' | 'pointer'
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
@@ -328,6 +331,9 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
+  const triggerRef = useRef<HTMLSpanElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  const popoverOpenReasonRef = useRef<FileTokenPopoverOpenReason>('pointer')
   const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
   const label = file?.origin_name || file?.name || props.token.label
   const presentation = getFileTokenPresentation(file, label)
@@ -346,15 +352,30 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     closeTimerRef.current = null
   }, [])
 
-  const openPopover = useCallback(() => {
+  const openPopover = useCallback(
+    (reason: FileTokenPopoverOpenReason = 'pointer') => {
+      popoverOpenReasonRef.current = reason
+      clearOpenTimer()
+      clearCloseTimer()
+      setPopoverOpen(true)
+    },
+    [clearCloseTimer, clearOpenTimer]
+  )
+
+  const closePopover = useCallback(() => {
     clearOpenTimer()
     clearCloseTimer()
-    setPopoverOpen(true)
+    setPopoverOpen(false)
   }, [clearCloseTimer, clearOpenTimer])
+
+  const openPointerPopover = useCallback(() => {
+    openPopover('pointer')
+  }, [openPopover])
 
   const scheduleOpenPopover = useCallback(() => {
     clearCloseTimer()
     if (popoverOpen || openTimerRef.current !== null) return
+    popoverOpenReasonRef.current = 'pointer'
 
     openTimerRef.current = window.setTimeout(() => {
       openTimerRef.current = null
@@ -370,6 +391,67 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       closeTimerRef.current = null
     }, FILE_TOKEN_POPOVER_CLOSE_DELAY_MS)
   }, [clearCloseTimer, clearOpenTimer])
+
+  const markPointerOpenReason = useCallback(() => {
+    popoverOpenReasonRef.current = 'pointer'
+  }, [])
+
+  const handlePopoverOpenChange = useCallback(
+    (open: boolean) => {
+      if (open && popoverOpenReasonRef.current !== 'keyboard') {
+        popoverOpenReasonRef.current = 'pointer'
+      }
+      clearOpenTimer()
+      clearCloseTimer()
+      setPopoverOpen(open)
+    },
+    [clearCloseTimer, clearOpenTimer]
+  )
+
+  const handlePopoverOpenAutoFocus = useCallback((event: Event) => {
+    if (popoverOpenReasonRef.current !== 'keyboard') {
+      event.preventDefault()
+    }
+  }, [])
+
+  const isFocusWithinPopover = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof Node)) return false
+    return Boolean(triggerRef.current?.contains(target) || contentRef.current?.contains(target))
+  }, [])
+
+  const handleTriggerBlur = useCallback(
+    (event: ReactFocusEvent<HTMLElement>) => {
+      if (isFocusWithinPopover(event.relatedTarget)) return
+      scheduleClosePopover()
+    },
+    [isFocusWithinPopover, scheduleClosePopover]
+  )
+
+  const handleContentBlur = useCallback(
+    (event: ReactFocusEvent<HTMLElement>) => {
+      if (isFocusWithinPopover(event.relatedTarget)) return
+      scheduleClosePopover()
+    },
+    [isFocusWithinPopover, scheduleClosePopover]
+  )
+
+  const handleTriggerKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        event.stopPropagation()
+        openPopover('keyboard')
+        return
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        closePopover()
+      }
+    },
+    [closePopover, openPopover]
+  )
 
   useEffect(
     () => () => {
@@ -415,7 +497,8 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'mx-0.5 my-0.5 inline-flex h-6 max-w-52 select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-colors',
+        'mx-0.5 my-0.5 inline-flex h-6 max-w-52 select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50 group-data-[state=open]:ring-1 group-data-[state=open]:ring-ring/50',
         presentation.containerClassName,
         props.selected && 'border-primary ring-1 ring-ring',
         props.className
@@ -442,27 +525,35 @@ export function FileComposerToken(props: FileComposerTokenProps) {
 
   const tokenElement = (
     <span
-      className="inline-flex align-baseline"
+      ref={triggerRef}
+      className="group inline-flex align-baseline outline-none"
+      role="button"
+      tabIndex={0}
+      aria-label={title}
       onMouseEnter={scheduleOpenPopover}
       onMouseLeave={scheduleClosePopover}
       onMouseMove={scheduleOpenPopover}
-      onFocus={openPopover}
-      onBlur={scheduleClosePopover}>
+      onPointerDown={markPointerOpenReason}
+      onBlur={handleTriggerBlur}
+      onKeyDownCapture={handleTriggerKeyDown}>
       {chipElement}
     </span>
   )
 
   return (
-    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+    <Popover open={popoverOpen} onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger asChild>{tokenElement}</PopoverTrigger>
       <PopoverContent
+        ref={contentRef}
         side="top"
         align="start"
         sideOffset={8}
         className="w-fit max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl p-0 shadow-xl"
-        onMouseEnter={openPopover}
+        onMouseEnter={openPointerPopover}
         onMouseLeave={scheduleClosePopover}
-        onOpenAutoFocus={(event) => event.preventDefault()}>
+        onFocus={openPointerPopover}
+        onBlur={handleContentBlur}
+        onOpenAutoFocus={handlePopoverOpenAutoFocus}>
         {tooltipContent}
       </PopoverContent>
     </Popover>
