@@ -1032,7 +1032,8 @@ const visionAllowedModels = [
   'mistral-small-(2506|2603|latest)',
   'mimo-v2\\.5(?!-)',
   'mimo-v2-omni(?:-[\\w-]+)?',
-  'glm-5v-turbo'
+  'glm-5v-turbo',
+  'minimax-m3(?:\\.\\d+)?(?:-[\\w-]+)?'
 ]
 
 const visionExcludedModels = [

@@ -87,7 +87,8 @@ describe('shared model capability helpers', () => {
     'qwen3.5-plus',
     'deepseek-r1',
     'hunyuan-a13b',
-    'kimi-k2.5'
+    'kimi-k2.5',
+    'minimax-m3'
   ])('infers reasoning capability for %s', (modelId) => {
     expect(inferReasoningFromModelId(modelId)).toBe(true)
   })
@@ -111,7 +112,8 @@ describe('shared model capability helpers', () => {
     'doubao-seed-2.0',
     'gemma4:31b',
     'kimi-k2.6-preview',
-    'mistral-small-latest'
+    'mistral-small-latest',
+    'minimax-m3'
   ])('infers vision capability for %s', (modelId) => {
     expect(inferVisionFromModelId(modelId)).toBe(true)
   })
