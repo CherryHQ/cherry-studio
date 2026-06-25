@@ -82,12 +82,18 @@ vi.mock('@renderer/services/ImageStorage', () => ({
   }
 }))
 
-vi.mock('@renderer/utils', () => ({
-  fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args),
+vi.mock('@renderer/utils/image', () => ({
+  fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args)
+}))
+
+vi.mock('@renderer/utils/style', () => ({
   generateColorFromChar: vi.fn(),
   getForegroundColor: vi.fn(),
-  uuid: () => 'api-key-id',
   cn: (...args: any[]) => args.filter(Boolean).join(' ')
+}))
+
+vi.mock('@renderer/utils/uuid', () => ({
+  uuid: () => 'api-key-id'
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({

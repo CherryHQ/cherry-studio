@@ -2,7 +2,7 @@ import { ColFlex, Tooltip } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import type { FileMetadata } from '@renderer/types/file'
-import { formatFileSize } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   FileArchive,

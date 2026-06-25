@@ -21,6 +21,15 @@ const agentRightPanePropsMock = vi.hoisted(() => ({
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 
+// Tool-approval responses now go through ipcApi.request('ai.respond_tool_approval', …).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.respond_tool_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
@@ -100,7 +109,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
@@ -180,13 +189,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    messageNavigation: 'none',
-    messageStyle: 'message-style'
-  })
-}))
-
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
   useTopicOverlayHandoffOnTerminal: () => {}
@@ -237,7 +239,7 @@ vi.mock('../components/AgentRightPane', () => {
   }
 })
 
-vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
+vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: () => <div data-testid="agent-composer" />,
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />
 }))
@@ -286,13 +288,7 @@ describe('AgentChat settings panel', () => {
     agentSessionRefreshMock.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: {
-        ai: {
-          toolApproval: {
-            respond: toolApprovalRespondMock
-          }
-        }
-      }
+      value: {}
     })
   })
 

@@ -2,7 +2,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -325,7 +325,7 @@ describe('FileEntryService', () => {
     })
   })
 
-  describe('listPaged', () => {
+  describe('listCursor', () => {
     async function seed5(): Promise<void> {
       const now = Date.now()
       const rows = Array.from({ length: 5 }, (_, i) => ({
@@ -342,7 +342,7 @@ describe('FileEntryService', () => {
       await dbh.db.insert(fileEntryTable).values(rows)
     }
 
-    it('returns { items, total, page } with active-only filtering by default', async () => {
+    it('returns { items, total, nextCursor } with active-only filtering by default', async () => {
       const now = Date.now()
       await dbh.db.insert(fileEntryTable).values([
         {
@@ -369,36 +369,38 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const result = await fileEntryService.listPaged()
+      const result = await fileEntryService.listCursor()
       expect(result.items).toHaveLength(1)
       expect(result.items[0].name).toBe('a')
       expect(result.total).toBe(1)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
     })
 
-    it('paginates with page+limit and reports the true total across pages', async () => {
+    it('paginates with cursor+limit and reports the true total across pages', async () => {
       await seed5()
 
-      const page1 = await fileEntryService.listPaged({ page: 1, limit: 2 })
-      const page2 = await fileEntryService.listPaged({ page: 2, limit: 2 })
-      const page3 = await fileEntryService.listPaged({ page: 3, limit: 2 })
+      const page1 = await fileEntryService.listCursor({ limit: 2 })
+      const page2 = await fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
+      const page3 = await fileEntryService.listCursor({ cursor: page2.nextCursor, limit: 2 })
 
-      expect(page1.items).toHaveLength(2)
+      expect(page1.items.map((e) => e.name)).toEqual(['name0', 'name1'])
       expect(page1.total).toBe(5)
-      expect(page2.items).toHaveLength(2)
+      expect(page1.nextCursor).toBeDefined()
+      expect(page2.items.map((e) => e.name)).toEqual(['name2', 'name3'])
       expect(page2.total).toBe(5)
-      expect(page3.items).toHaveLength(1)
+      expect(page2.nextCursor).toBeDefined()
+      expect(page3.items.map((e) => e.name)).toEqual(['name4'])
       expect(page3.total).toBe(5)
-      expect(page3.page).toBe(3)
+      expect(page3.nextCursor).toBeUndefined()
     })
 
     it('sorts ascending by createdAt by default; reverses with sortOrder=desc', async () => {
       await seed5()
 
-      const asc = await fileEntryService.listPaged({})
+      const asc = await fileEntryService.listCursor({})
       expect(asc.items.map((e) => e.name)).toEqual(['name0', 'name1', 'name2', 'name3', 'name4'])
 
-      const desc = await fileEntryService.listPaged({ sortOrder: 'desc' })
+      const desc = await fileEntryService.listCursor({ sortOrder: 'desc' })
       expect(desc.items.map((e) => e.name)).toEqual(['name4', 'name3', 'name2', 'name1', 'name0'])
     })
 
@@ -441,24 +443,349 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const result = await fileEntryService.listPaged({ sortBy: 'name' })
+      const result = await fileEntryService.listCursor({ sortBy: 'name' })
       expect(result.items.map((e) => e.name)).toEqual(['alpha', 'bravo', 'charlie'])
     })
 
+    it('sortBy=name cursor pagination handles colon-containing boundary names', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000100' as FileEntryId,
+          origin: 'internal',
+          name: 'alpha',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000101' as FileEntryId,
+          origin: 'internal',
+          name: 'meeting:notes',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000102' as FileEntryId,
+          origin: 'internal',
+          name: 'zulu',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'asc', limit: 2 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'name',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 2
+      })
+
+      expect(page1.items.map((e) => e.name)).toEqual(['alpha', 'meeting:notes'])
+      expect(page2.items.map((e) => e.name)).toEqual(['zulu'])
+      const seen = [...page1.items, ...page2.items].map((e) => e.id)
+      expect(new Set(seen).size).toBe(3)
+    })
+
+    it('sortBy=size treats null sizes as the lowest sentinel value', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d3' as FileEntryId,
+          origin: 'internal',
+          name: 'zero',
+          ext: 'txt',
+          size: 0,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d4' as FileEntryId,
+          origin: 'external',
+          name: 'external-null',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/external-null.txt',
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d5' as FileEntryId,
+          origin: 'internal',
+          name: 'ten',
+          ext: 'txt',
+          size: 10,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const asc = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc' })
+      expect(asc.items.map((e) => e.name)).toEqual(['external-null', 'zero', 'ten'])
+
+      const desc = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'desc' })
+      expect(desc.items.map((e) => e.name)).toEqual(['ten', 'zero', 'external-null'])
+    })
+
+    it('sortBy=ext treats null extensions as the lowest sentinel value', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d6' as FileEntryId,
+          origin: 'internal',
+          name: 'text',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d7' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d8' as FileEntryId,
+          origin: 'internal',
+          name: 'markdown',
+          ext: 'md',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const asc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc' })
+      expect(asc.items.map((e) => e.name)).toEqual(['no-ext', 'markdown', 'text'])
+
+      const desc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'desc' })
+      expect(desc.items.map((e) => e.name)).toEqual(['text', 'markdown', 'no-ext'])
+    })
+
+    it('sortBy=size cursor pagination handles null-size rows at the page boundary', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000120' as FileEntryId,
+          origin: 'external',
+          name: 'null-size-a',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/null-size-a.txt',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000121' as FileEntryId,
+          origin: 'external',
+          name: 'null-size-b',
+          ext: 'txt',
+          size: null,
+          externalPath: '/tmp/null-size-b.txt',
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000122' as FileEntryId,
+          origin: 'internal',
+          name: 'zero',
+          ext: 'txt',
+          size: 0,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc', limit: 1 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'size',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 1
+      })
+      const page3 = await fileEntryService.listCursor({
+        sortBy: 'size',
+        sortOrder: 'asc',
+        cursor: page2.nextCursor,
+        limit: 1
+      })
+
+      expect([page1.items[0]?.name, page2.items[0]?.name, page3.items[0]?.name]).toEqual([
+        'null-size-a',
+        'null-size-b',
+        'zero'
+      ])
+      expect(page3.nextCursor).toBeUndefined()
+    })
+
+    it('sortBy=ext cursor pagination handles null-ext rows at the page boundary', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000110' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext-a',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000111' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext-b',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000112' as FileEntryId,
+          origin: 'internal',
+          name: 'text',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 1 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'ext',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 1
+      })
+      const page3 = await fileEntryService.listCursor({
+        sortBy: 'ext',
+        sortOrder: 'asc',
+        cursor: page2.nextCursor,
+        limit: 1
+      })
+
+      expect([page1.items[0]?.name, page2.items[0]?.name, page3.items[0]?.name]).toEqual([
+        'no-ext-a',
+        'no-ext-b',
+        'text'
+      ])
+      expect(page3.nextCursor).toBeUndefined()
+    })
+
+    it('sortBy=ext cursor pagination has no overlap or misses across pages', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d9' as FileEntryId,
+          origin: 'internal',
+          name: 'text',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000da' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000db' as FileEntryId,
+          origin: 'internal',
+          name: 'pdf',
+          ext: 'pdf',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000dc' as FileEntryId,
+          origin: 'internal',
+          name: 'markdown',
+          ext: 'md',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 3,
+          updatedAt: now + 3
+        }
+      ])
+
+      const page1 = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 2 })
+      const page2 = await fileEntryService.listCursor({
+        sortBy: 'ext',
+        sortOrder: 'asc',
+        cursor: page1.nextCursor,
+        limit: 2
+      })
+
+      const seen = [...page1.items, ...page2.items].map((e) => e.name)
+      expect(seen).toEqual(['no-ext', 'markdown', 'pdf', 'text'])
+      expect(new Set(seen).size).toBe(4)
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
     it('returns { items: [], total: 0 } on an empty table', async () => {
-      const result = await fileEntryService.listPaged()
+      const result = await fileEntryService.listCursor()
       expect(result.items).toEqual([])
       expect(result.total).toBe(0)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
     })
 
     /**
      * Tie-breaker coverage: without a secondary `ORDER BY id`, SQLite's row
-     * order for equal sort values is unspecified, so `limit/offset`
-     * pagination over ties can surface the same row twice across pages or
-     * drop a row entirely. These tests pin the deterministic-across-pages
-     * contract — page1 ∪ page2 must equal the full row set, no duplicates,
-     * no misses — for both sort directions.
+     * order for equal sort values is unspecified, so cursor pagination over
+     * ties can surface the same row twice across pages or drop a row entirely.
+     * These tests pin the deterministic-across-pages contract — page1 ∪ page2
+     * must equal the full row set, no duplicates, no misses — for both sort
+     * directions.
      */
     describe('stable pagination over tied sort values', () => {
       async function seedSameCreatedAt(): Promise<string[]> {
@@ -487,8 +814,8 @@ describe('FileEntryService', () => {
 
       it('asc: pages over rows with identical createdAt have no overlap and miss nothing', async () => {
         const ids = await seedSameCreatedAt()
-        const page1 = await fileEntryService.listPaged({ page: 1, limit: 2 })
-        const page2 = await fileEntryService.listPaged({ page: 2, limit: 2 })
+        const page1 = await fileEntryService.listCursor({ limit: 2 })
+        const page2 = await fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
 
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
@@ -523,8 +850,13 @@ describe('FileEntryService', () => {
           }))
         )
 
-        const page1 = await fileEntryService.listPaged({ sortBy: 'name', sortOrder: 'desc', page: 1, limit: 2 })
-        const page2 = await fileEntryService.listPaged({ sortBy: 'name', sortOrder: 'desc', page: 2, limit: 2 })
+        const page1 = await fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'desc', limit: 2 })
+        const page2 = await fileEntryService.listCursor({
+          sortBy: 'name',
+          sortOrder: 'desc',
+          cursor: page1.nextCursor,
+          limit: 2
+        })
 
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
@@ -539,6 +871,89 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('getStats', () => {
+    it('returns active extension counts and trash total', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000901' as FileEntryId,
+          origin: 'internal',
+          name: 'internal-md',
+          ext: 'md',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000902' as FileEntryId,
+          origin: 'internal',
+          name: 'no-ext',
+          ext: null,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000903' as FileEntryId,
+          origin: 'internal',
+          name: 'trashed',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: now,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000904' as FileEntryId,
+          origin: 'external',
+          name: 'a',
+          ext: 'txt',
+          size: null,
+          externalPath: '/Users/me/docs/a.txt',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000905' as FileEntryId,
+          origin: 'external',
+          name: 'b',
+          ext: 'md',
+          size: null,
+          externalPath: '/Users/me/docs/b.md',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000906' as FileEntryId,
+          origin: 'external',
+          name: 'song',
+          ext: 'mp3',
+          size: null,
+          externalPath: 'C:\\Users\\me\\Music\\song.mp3',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+
+      const stats = await fileEntryService.getStats()
+      const extCounts = new Map(stats.extCounts.map((row) => [row.ext, row.count]))
+      expect(stats.activeTotal).toBe(5)
+      expect(stats.trashTotal).toBe(1)
+      expect(extCounts.get('md')).toBe(2)
+      expect(extCounts.get('txt')).toBe(1)
+      expect(extCounts.get('mp3')).toBe(1)
+      expect(extCounts.get(null)).toBe(1)
+    })
+  })
+
   describe('create', () => {
     it('inserts an internal row and returns a parsed FileEntry', async () => {
       const id = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
@@ -547,8 +962,7 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 'note',
         ext: 'txt',
-        size: 11,
-        externalPath: null
+        size: 11
       })
       expect(entry.id).toBe(id)
       expect(entry.origin).toBe('internal')
@@ -560,13 +974,10 @@ describe('FileEntryService', () => {
     })
 
     it('inserts an external row with size=null in DB; size absent on BO projection', async () => {
-      const id = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
       const entry = await fileEntryService.create({
-        id,
         origin: 'external',
         name: 'doc',
         ext: 'pdf',
-        size: null,
         externalPath: '/Users/me/doc.pdf'
       })
       // BO shape: external variant has no `size` field at all (live values
@@ -578,21 +989,36 @@ describe('FileEntryService', () => {
       }
     })
 
-    it('throws when external row has non-null size (CHECK fe_size_internal_only)', async () => {
-      const id = '019606a0-0000-7000-8000-000000000a03' as FileEntryId
+    it('throws when external row has non-null size (schema mirrors fe_size_internal_only)', async () => {
       await expect(
         fileEntryService.create({
-          id,
           origin: 'external',
           name: 'doc',
           ext: 'pdf',
           size: 100,
           externalPath: '/Users/me/doc2.pdf'
-        })
+        } as never)
       ).rejects.toThrow()
     })
 
-    it('throws when internal row has externalPath (CHECK fe_origin_consistency)', async () => {
+    it('rejects unsafe ext BEFORE the SQL INSERT commits', async () => {
+      const id = '019606a0-0000-7000-8000-000000000a05' as FileEntryId
+
+      await expect(
+        fileEntryService.create({
+          id,
+          origin: 'internal',
+          name: 'payload',
+          ext: 'exe ',
+          size: 1
+        })
+      ).rejects.toThrow()
+
+      const raw = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw).toHaveLength(0)
+    })
+
+    it('throws when internal row has externalPath (schema mirrors fe_origin_consistency)', async () => {
       const id = '019606a0-0000-7000-8000-000000000a04' as FileEntryId
       await expect(
         fileEntryService.create({
@@ -601,8 +1027,8 @@ describe('FileEntryService', () => {
           name: 'note',
           ext: 'txt',
           size: 1,
-          externalPath: '/some/path' as string
-        })
+          externalPath: '/some/path'
+        } as never)
       ).rejects.toThrow()
     })
   })
@@ -610,7 +1036,7 @@ describe('FileEntryService', () => {
   describe('update', () => {
     it('updates name and refreshes updatedAt', async () => {
       const id = '019606a0-0000-7000-8000-000000000b01' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1 })
       const original = await fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
       const updated = await fileEntryService.update(id, { name: 'new' })
@@ -634,7 +1060,7 @@ describe('FileEntryService', () => {
 
     it('updates deletedAt for soft delete', async () => {
       const id = '019606a0-0000-7000-8000-000000000b02' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1 })
       const deletedAt = Date.now()
       const updated = await fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
@@ -642,16 +1068,13 @@ describe('FileEntryService', () => {
     })
 
     it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {
-      const id = '019606a0-0000-7000-8000-000000000b03' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'ext',
         ext: 'txt',
-        size: null,
         externalPath: '/x/y.txt'
       })
-      await expect(fileEntryService.update(id, { deletedAt: Date.now() })).rejects.toThrow()
+      await expect(fileEntryService.update(entry.id, { deletedAt: Date.now() })).rejects.toThrow()
     })
 
     it('rejects unsafe name BEFORE the SQL UPDATE commits', async () => {
@@ -662,12 +1085,22 @@ describe('FileEntryService', () => {
       // row back with a raw SELECT after the rejection and asserting the
       // `name` column is unchanged.
       const id = '019606a0-0000-7000-8000-000000000b04' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
 
       await expect(fileEntryService.update(id, { name: 'has\0null' })).rejects.toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
       expect(raw?.name).toBe('safe')
+    })
+
+    it('rejects unsafe ext BEFORE the SQL UPDATE commits', async () => {
+      const id = '019606a0-0000-7000-8000-000000000b05' as FileEntryId
+      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
+
+      await expect(fileEntryService.update(id, { ext: 'txt.' })).rejects.toThrow()
+
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.ext).toBe('txt')
     })
   })
 
@@ -692,18 +1125,16 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 'a',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
       await fileEntryService.create({
         id: trashed,
         origin: 'internal',
         name: 't',
         ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: Date.now()
+        size: 1
       })
+      await fileEntryService.update(trashed, { deletedAt: Date.now() })
 
       const ids = await fileEntryService.listAllIds()
       expect(ids).toBeInstanceOf(Set)
@@ -721,15 +1152,13 @@ describe('FileEntryService', () => {
     // miles downstream in the rename orchestrator.
 
     it('returns the refreshed row with new path and name', async () => {
-      const id = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'old-doc',
         ext: 'pdf',
-        size: null,
         externalPath: '/Users/me/old-doc.pdf'
       })
+      const id = entry.id
       const original = await fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
 
@@ -770,21 +1199,18 @@ describe('FileEntryService', () => {
       // Same regression class as the `update` typed-name guard: an unsafe
       // name must not reach SQLite, otherwise the row gets stuck past
       // `rowToFileEntry` parse. Raw SELECT proves the row stayed unchanged.
-      const id = '019606a0-0000-7000-8000-000000000d20' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'safe',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/safe.txt'
       })
 
       await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
       ).rejects.toThrow()
 
-      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
       expect(raw?.name).toBe('safe')
       expect(raw?.externalPath).toBe('/Users/me/safe.txt')
     })
@@ -794,21 +1220,18 @@ describe('FileEntryService', () => {
       // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
       // catches null bytes / non-absolute paths regardless of whether the
       // caller went through `canonicalizeExternalPath` or `as`-cast.
-      const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
-      await fileEntryService.create({
-        id,
+      const entry = await fileEntryService.create({
         origin: 'external',
         name: 'safe',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/safe.txt'
       })
 
       await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
       ).rejects.toThrow()
 
-      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
       expect(raw?.name).toBe('safe')
       expect(raw?.externalPath).toBe('/Users/me/safe.txt')
     })
@@ -818,22 +1241,16 @@ describe('FileEntryService', () => {
       // unique index rejects the second UPDATE with a SQLite constraint
       // failure. Callers that catch only "not found"-shaped errors would
       // otherwise see this as an unhandled rejection.
-      const a = '019606a0-0000-7000-8000-000000000d10' as FileEntryId
-      const b = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
       await fileEntryService.create({
-        id: a,
         origin: 'external',
         name: 'a',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/a.txt'
       })
-      await fileEntryService.create({
-        id: b,
+      const b = await fileEntryService.create({
         origin: 'external',
         name: 'b',
         ext: 'txt',
-        size: null,
         externalPath: '/Users/me/b.txt'
       })
 
@@ -843,7 +1260,7 @@ describe('FileEntryService', () => {
       // catching only that branch will correctly surface this case as
       // unexpected and bubble it up.
       const err = await fileEntryService
-        .setExternalPathAndName(b, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
+        .setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
         .then(
           () => null,
           (e: Error) => e
@@ -851,16 +1268,40 @@ describe('FileEntryService', () => {
       expect(err).toBeInstanceOf(Error)
       expect(err?.message).not.toMatch(/not found/i)
       // The conflicting entry is unchanged after the failed mutation
-      const refetched = await fileEntryService.getById(b)
+      const refetched = await fileEntryService.getById(b.id)
       if (refetched.origin !== 'external') throw new Error('expected external entry')
       expect(refetched.externalPath).toBe('/Users/me/b.txt')
     })
   })
 
   describe('delete', () => {
+    it('routes public write wrappers through DbService.withWriteTx', async () => {
+      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+      withWriteTx.mockClear()
+
+      const internalId = '019606a0-0000-7000-8000-000000000c10' as FileEntryId
+      await fileEntryService.create({ id: internalId, origin: 'internal', name: 'tx', ext: 'txt', size: 1 })
+      await fileEntryService.update(internalId, { name: 'tx-renamed' })
+      await fileEntryService.delete(internalId)
+
+      const external = await fileEntryService.create({
+        origin: 'external',
+        name: 'ext-tx',
+        ext: 'txt',
+        externalPath: '/Users/me/ext-tx.txt'
+      })
+      await fileEntryService.setExternalPathAndName(
+        external.id,
+        '/Users/me/ext-tx-renamed.txt' as CanonicalExternalPath,
+        'ext-tx-renamed'
+      )
+
+      expect(withWriteTx).toHaveBeenCalledTimes(5)
+    })
+
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1 })
       await fileEntryService.delete(id)
       expect(await fileEntryService.findById(id)).toBeNull()
     })
@@ -894,16 +1335,14 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 'r',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
       await fileEntryService.create({
         id: orphan,
         origin: 'internal',
         name: 'o',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
       await seedRef(referenced)
 
@@ -914,26 +1353,22 @@ describe('FileEntryService', () => {
 
     it('honours the optional origin filter', async () => {
       const internalOrphan = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
-      const externalOrphan = '019606a0-0000-7000-8000-000000000d12' as FileEntryId
       await fileEntryService.create({
         id: internalOrphan,
         origin: 'internal',
         name: 'i',
         ext: 'txt',
-        size: 1,
-        externalPath: null
+        size: 1
       })
-      await fileEntryService.create({
-        id: externalOrphan,
+      const externalOrphan = await fileEntryService.create({
         origin: 'external',
         name: 'e',
         ext: 'txt',
-        size: null,
         externalPath: '/abs/orphan.txt' as CanonicalExternalPath
       })
 
       const externalsOnly = await fileEntryService.findUnreferenced({ origin: 'external' })
-      expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan])
+      expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan.id])
 
       const internalsOnly = await fileEntryService.findUnreferenced({ origin: 'internal' })
       expect(internalsOnly.map((e) => e.id)).toEqual([internalOrphan])
@@ -946,10 +1381,9 @@ describe('FileEntryService', () => {
         origin: 'internal',
         name: 't',
         ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: Date.now()
+        size: 1
       })
+      await fileEntryService.update(id, { deletedAt: Date.now() })
 
       const result = await fileEntryService.findUnreferenced()
       expect(result.find((e) => e.id === id)).toBeUndefined()
@@ -1010,9 +1444,9 @@ describe('FileEntryService', () => {
       await expect(fileEntryService.findById(goodId)).resolves.toMatchObject({ id: goodId })
     })
 
-    it('listPaged excludes bad rows from items while total still counts them', async () => {
+    it('listCursor excludes bad rows from items while total still counts them', async () => {
       await seedOneGoodOneBad()
-      const page = await fileEntryService.listPaged()
+      const page = await fileEntryService.listCursor()
       expect(page.items.map((e) => e.id)).toEqual([goodId])
       expect(page.total).toBe(2)
     })

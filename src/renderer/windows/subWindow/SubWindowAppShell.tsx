@@ -10,8 +10,8 @@ import WindowControls, { useHasWindowControls } from '@renderer/components/Windo
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 import { Activity, type CSSProperties, useEffect, useRef } from 'react'
 

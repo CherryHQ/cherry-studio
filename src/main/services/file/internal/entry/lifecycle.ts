@@ -15,6 +15,7 @@
  * - For external origin, the user's file is **never** modified.
  */
 
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { remove as fsRemove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -25,25 +26,37 @@ import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/lifecycle')
 
-export async function trash(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  await deps.fileEntryService.update(id, { deletedAt: Date.now() })
+async function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): Promise<void> {
+  await deps.fileEntryService.updateTx(tx, id, { deletedAt: Date.now() })
 }
 
-export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<FileEntry> {
-  const entry = await deps.fileEntryService.getById(id)
+export async function trash(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  await deps.fileEntryService.withWriteTx((tx) => trashTx(deps, tx, id))
+}
+
+async function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): Promise<FileEntry> {
+  const entry = await deps.fileEntryService.getByIdTx(tx, id)
   if (entry.origin === 'external') {
     throw new Error(`restore: external entry ${id} cannot be trashed by definition; nothing to restore`)
   }
-  return deps.fileEntryService.update(id, { deletedAt: null })
+  return deps.fileEntryService.updateTx(tx, id, { deletedAt: null })
 }
 
-export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  const entry = await deps.fileEntryService.getById(id)
+export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<FileEntry> {
+  return deps.fileEntryService.withWriteTx((tx) => restoreTx(deps, tx, id))
+}
+
+async function permanentDeleteTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): Promise<FileEntry> {
+  const entry = await deps.fileEntryService.getByIdTx(tx, id)
+  await deps.fileEntryService.deleteTx(tx, id)
+  return entry
+}
+
+async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Promise<void> {
   const physical = entry.origin === 'internal' ? resolvePhysicalPath(entry) : undefined
-  await deps.fileEntryService.delete(id)
-  deps.versionCache.invalidate(id)
+  deps.versionCache.invalidate(entry.id)
   if (entry.origin === 'external') {
-    deps.danglingCache.removeEntry(id, entry.externalPath)
+    deps.danglingCache.removeEntry(entry.id, entry.externalPath)
   }
   if (physical !== undefined) {
     try {
@@ -55,7 +68,7 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
       // `id` + the (since-removed) DB row's `ext` — exactly the dance the
       // operator would otherwise have to do at incident time.
       logger.warn('permanentDelete: failed to unlink internal physical file (DB row already removed)', {
-        id,
+        id: entry.id,
         physical,
         err
       })
@@ -63,35 +76,54 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
   }
 }
 
-async function aggregate<T>(
+export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  const entry = await deps.fileEntryService.withWriteTx((tx) => permanentDeleteTx(deps, tx, id))
+  await cleanupDeletedEntry(deps, entry)
+}
+
+async function aggregateWriteTx<T>(
+  deps: FileManagerDeps,
   ids: readonly FileEntryId[],
-  op: (id: FileEntryId) => Promise<T>
+  op: (tx: DbOrTx, id: FileEntryId) => Promise<T>
 ): Promise<BatchMutationResult> {
   const succeeded: FileEntryId[] = []
   const failed: BatchMutationResult['failed'] = []
-  for (const id of ids) {
-    try {
-      await op(id)
-      succeeded.push(id)
-    } catch (err) {
-      // Wire format only carries `.message` (string), so the stack is lost in
-      // BatchMutationResult. Side-channel through the logger keeps it
-      // available for postmortem without changing the consumer-facing shape.
-      logger.warn('batch op item failed', { id, err })
-      failed.push({ id, error: (err as Error).message })
+  await deps.fileEntryService.withWriteTx(async (tx) => {
+    for (const id of ids) {
+      try {
+        await op(tx, id)
+        succeeded.push(id)
+      } catch (err) {
+        // Wire format only carries `.message` (string), so the stack is lost in
+        // BatchMutationResult. Side-channel through the logger keeps it
+        // available for postmortem without changing the consumer-facing shape.
+        logger.warn('batch op item failed', { id, err })
+        failed.push({ id, error: (err as Error).message })
+      }
     }
-  }
+  })
   return { succeeded, failed }
 }
 
 export function batchTrash(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
-  return aggregate(ids, (id) => trash(deps, id))
+  return aggregateWriteTx(deps, ids, (tx, id) => trashTx(deps, tx, id))
 }
 
 export function batchRestore(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
-  return aggregate(ids, (id) => restore(deps, id))
+  return aggregateWriteTx(deps, ids, (tx, id) => restoreTx(deps, tx, id))
 }
 
-export function batchPermanentDelete(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
-  return aggregate(ids, (id) => permanentDelete(deps, id))
+export async function batchPermanentDelete(
+  deps: FileManagerDeps,
+  ids: readonly FileEntryId[]
+): Promise<BatchMutationResult> {
+  const deletedEntries: FileEntry[] = []
+  const result = await aggregateWriteTx(deps, ids, async (tx, id) => {
+    const entry = await permanentDeleteTx(deps, tx, id)
+    deletedEntries.push(entry)
+  })
+  for (const entry of deletedEntries) {
+    await cleanupDeletedEntry(deps, entry)
+  }
+  return result
 }

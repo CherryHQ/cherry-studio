@@ -21,9 +21,10 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
-import { cn, getFileExtension, isTextFile } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
+import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,

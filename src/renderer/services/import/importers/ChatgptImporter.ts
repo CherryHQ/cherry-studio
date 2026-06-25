@@ -9,7 +9,7 @@ import {
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 
 import type { ConversationImporter, ImportResult } from '../types'
 

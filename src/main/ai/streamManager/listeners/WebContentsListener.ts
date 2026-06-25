@@ -1,16 +1,10 @@
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { IpcEventName } from '@shared/ipc/schemas'
+import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 
-import type {
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamDoneResult,
-  StreamErrorPayload,
-  StreamErrorResult,
-  StreamListener,
-  StreamPausedResult
-} from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const COALESCE_WINDOW_MS = 16
 const MAX_COALESCE_AGE_MS = 16
@@ -101,12 +95,12 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.wc.send(IpcChannel.Ai_StreamDone, {
+    this.emit('ai.stream_done', {
       topicId: this.topicId,
       executionId: result.modelId,
       status: result.status,
       isTopicDone: result.isTopicDone
-    } satisfies StreamDonePayload)
+    })
   }
 
   onPaused(result: StreamPausedResult): void {
@@ -115,12 +109,12 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.wc.send(IpcChannel.Ai_StreamDone, {
+    this.emit('ai.stream_done', {
       topicId: this.topicId,
       executionId: result.modelId,
       status: result.status,
       isTopicDone: result.isTopicDone
-    } satisfies StreamDonePayload)
+    })
   }
 
   onError(result: StreamErrorResult): void {
@@ -130,12 +124,12 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
-    this.wc.send(IpcChannel.Ai_StreamError, {
+    this.emit('ai.stream_error', {
       topicId: this.topicId,
       executionId: result.modelId,
       isTopicDone: result.isTopicDone,
       error: result.error
-    } satisfies StreamErrorPayload)
+    })
   }
 
   isAlive(): boolean {
@@ -165,11 +159,21 @@ export class WebContentsListener implements StreamListener {
 
   private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
     if (this.wc.isDestroyed()) return
-    this.wc.send(IpcChannel.Ai_StreamChunk, {
+    this.emit('ai.stream_chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
       chunk
-    } satisfies StreamChunkPayload)
+    })
+  }
+
+  /**
+   * Directed send of a typed AI stream event on the single IpcApi event channel — the
+   * class-B topic-stream transport: this per-(topic,window) listener `send`s straight to its
+   * own `WebContents` (preserving the coalescing/liveness above) instead of `broadcast`ing.
+   * Wire-identical to `IpcApiService.send`, but keyed by the held `WebContents`, not a WindowId.
+   */
+  private emit<E extends IpcEventName>(event: E, payload: EventPayload<E>): void {
+    this.wc.send(IpcChannel.IpcApi_Event, event, payload)
   }
 }
 
