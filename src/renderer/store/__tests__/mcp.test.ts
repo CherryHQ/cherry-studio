@@ -1,4 +1,4 @@
-import { BuiltinMcpServerNames } from '@renderer/types'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { createMigrate } from 'redux-persist'
 import { describe, expect, it } from 'vitest'
 

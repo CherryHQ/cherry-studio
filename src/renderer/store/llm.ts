@@ -18,7 +18,8 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
-import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
+import type { AwsBedrockAuthType, Provider } from '@renderer/types/provider'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {

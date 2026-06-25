@@ -1,4 +1,4 @@
-import type { ApiClient, Model } from '@types'
+import type { ApiClient, Model } from '@renderer/types/model'
 
 import type { FileMetadata } from './file'
 

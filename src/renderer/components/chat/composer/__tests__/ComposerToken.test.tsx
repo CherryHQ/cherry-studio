@@ -1,4 +1,4 @@
-import { FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'

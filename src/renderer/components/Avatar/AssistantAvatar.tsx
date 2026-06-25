@@ -1,7 +1,7 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
 import { getLeadingEmoji } from '@renderer/utils'
 import type { FC } from 'react'
 import { useMemo } from 'react'

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { AppModalFuncProps } from '@renderer/components/AppModal'
-import type { Model, ModelType } from '@renderer/types'
+import type { Model, ModelType } from '@renderer/types/model'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 

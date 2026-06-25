@@ -1,4 +1,4 @@
-import { COMPOSER_FILE_KIND } from '@renderer/types'
+import { COMPOSER_FILE_KIND } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,

@@ -1,7 +1,7 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
