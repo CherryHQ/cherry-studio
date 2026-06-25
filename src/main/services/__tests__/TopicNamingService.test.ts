@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
   getModelByKey: vi.fn(),
-  getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
   updateSession: vi.fn()
@@ -41,12 +40,6 @@ vi.mock('@main/data/services/MessageService', () => ({
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
     getByKey: mocks.getModelByKey
-  }
-}))
-
-vi.mock('@data/services/ProviderService', () => ({
-  providerService: {
-    getByProviderId: mocks.getProviderByProviderId
   }
 }))
 
@@ -91,11 +84,6 @@ describe('TopicNamingService', () => {
     mockMainLoggerService.warn.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
     mocks.getModelByKey.mockResolvedValue({ id: 'openai::gpt-4o-mini' })
-    // Agent-only providers are identified by `credentialSource === 'external-cli'`;
-    // `claude-code` is the only such provider, everything else serves chat.
-    mocks.getProviderByProviderId.mockImplementation(async (providerId: string) =>
-      providerId === 'claude-code' ? { id: providerId, credentialSource: 'external-cli' } : { id: providerId }
-    )
     mockRenameInputs()
   })
 
@@ -222,7 +210,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to an agent-only provider; falling back to managed CherryAI default model',
+      'topic.naming.model_id points to the agent-only Claude Code provider; falling back to managed CherryAI default model',
       { configured: 'claude-code::haiku' }
     )
   })
