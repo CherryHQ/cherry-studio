@@ -10,7 +10,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
@@ -27,7 +26,6 @@ import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
-import { applyProviderCustomHeaderSideEffects } from '../utils/providerSettingsSideEffects'
 
 const logger = loggerService.withContext('ProviderCustomHeaderDrawer')
 
@@ -172,7 +170,6 @@ export function findInvalidSecondaryEndpointUrl(
 export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
-  const { defaultHeaders, updateDefaultHeaders } = useCopilot()
   const { syncProviderModels } = useProviderModelSync(providerId)
 
   const topology = getProviderHostTopology(provider)
@@ -180,8 +177,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const endpointTypes = useMemo(() => resolveEndpointTypes(provider, primaryEndpoint), [provider, primaryEndpoint])
 
   const sourceHeaders = useMemo<Record<string, string>>(
-    () => (providerId === 'copilot' ? { ...defaultHeaders } : { ...provider?.settings?.extraHeaders }),
-    [defaultHeaders, provider?.settings?.extraHeaders, providerId]
+    () => ({ ...provider?.settings?.extraHeaders }),
+    [provider?.settings?.extraHeaders]
   )
 
   const [rows, setRows] = useState<HeaderRow[]>([])
@@ -272,12 +269,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       parsedHeaders = rowsToHeadersObject(rows)
     }
 
-    applyProviderCustomHeaderSideEffects({
-      providerId,
-      headers: parsedHeaders,
-      updateCopilotHeaders: updateDefaultHeaders
-    })
-
     try {
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
@@ -310,7 +301,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     rows,
     syncProviderModels,
     t,
-    updateDefaultHeaders,
     updateProvider
   ])
 

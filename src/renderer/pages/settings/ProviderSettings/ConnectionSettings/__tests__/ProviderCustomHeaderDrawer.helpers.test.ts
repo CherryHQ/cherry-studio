@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 // pure helpers can be unit-tested without render machinery.
 vi.mock('@cherrystudio/ui', () => ({}))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
-vi.mock('@renderer/hooks/useCopilot', () => ({ useCopilot: () => ({}) }))
 vi.mock('@renderer/hooks/useProvider', () => ({ useProvider: () => ({}) }))
 vi.mock('@renderer/utils/style', () => ({
   cn: (...a: any[]) => a.filter(Boolean).join(' ')
@@ -23,7 +22,6 @@ vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
   drawerClasses: {},
   fieldClasses: {}
 }))
-vi.mock('../../utils/providerSettingsSideEffects', () => ({ applyProviderCustomHeaderSideEffects: vi.fn() }))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (k: string) => k })

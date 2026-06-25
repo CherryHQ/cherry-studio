@@ -11,14 +11,12 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
 import NavigationService from '@renderer/services/NavigationService'
-import store from '@renderer/store'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { type CSSProperties, useEffect, useMemo } from 'react'
-import { Provider } from 'react-redux'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,37 +92,33 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
   useSettingsWindowFormControlText()
 
   return (
-    // [v1→v2 tail — deprecated] The Redux store is mounted only for the few remaining legacy
-    // consumers (useCopilot, ImportService). Remove this Provider once those tails are migrated.
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TopViewContainer>
-                        <div
-                          className={cn(
-                            'flex h-screen w-screen overflow-hidden text-foreground',
-                            settingsWindowFormControlTextClassName,
-                            isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                          )}
-                          style={shellStyle}>
-                          <SettingsWindowRouter initialPath={initialPath} />
-                        </div>
-                      </TopViewContainer>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
-      </QueryClientProvider>
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <StyleSheetManager>
+        <ThemeProvider>
+          <AntdProvider>
+            <NotificationProvider>
+              <CodeStyleProvider>
+                <CommandContextKeyProvider>
+                  <CommandProvider>
+                    <TopViewContainer>
+                      <div
+                        className={cn(
+                          'flex h-screen w-screen overflow-hidden text-foreground',
+                          settingsWindowFormControlTextClassName,
+                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                        )}
+                        style={shellStyle}>
+                        <SettingsWindowRouter initialPath={initialPath} />
+                      </div>
+                    </TopViewContainer>
+                  </CommandProvider>
+                </CommandContextKeyProvider>
+              </CodeStyleProvider>
+            </NotificationProvider>
+          </AntdProvider>
+        </ThemeProvider>
+      </StyleSheetManager>
+    </QueryClientProvider>
   )
 }
 
