@@ -496,8 +496,15 @@ describe('OpenClawService gateway status state machine', () => {
         })
       )
       const model = createModel({ id: 'new-api::gpt-4o', providerId: 'new-api' })
+      const anthropicModel = createModel({
+        id: 'new-api::claude-sonnet-4',
+        providerId: 'new-api',
+        apiModelId: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
       vi.mocked(modelService.getByKey).mockResolvedValue(model)
-      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(modelService.list).mockResolvedValue([model, anthropicModel])
       vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
       const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
 
@@ -507,7 +514,8 @@ describe('OpenClawService gateway status state machine', () => {
       expect(syncProviderConfigSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           apiHost: 'https://new-api.example.com/openai',
-          anthropicApiHost: undefined
+          anthropicApiHost: undefined,
+          models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })]
         }),
         expect.objectContaining({ endpoint_type: 'openai' })
       )
@@ -601,6 +609,43 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.syncConfig('openai::gpt-4o')
 
       expect(result).toEqual({ success: false, message: 'Provider openai has no enabled API key configured' })
+    })
+
+    it('allows keyless GPUStack providers during sync', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          id: 'gpustack',
+          name: 'GPUStack',
+          presetProviderId: 'gpustack',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8080/v1' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'gpustack::qwen3',
+        providerId: 'gpustack',
+        apiModelId: 'qwen3',
+        name: 'Qwen3'
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('gpustack::qwen3')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'gpustack',
+          apiKey: 'gpustack',
+          apiHost: 'http://127.0.0.1:8080/v1'
+        }),
+        expect.objectContaining({ id: 'qwen3' })
+      )
     })
 
     it('maps Anthropic endpoint models to Anthropic OpenClaw provider config', async () => {

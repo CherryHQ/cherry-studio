@@ -129,9 +129,10 @@ const OPENCLAW_API_TYPES = {
 /**
  * Placeholder API keys for providers that don't require authentication.
  * OpenClaw requires a non-empty apiKey value even for local providers.
- * Keys are matched by provider id first, then by provider type.
+ * Keys are matched by provider preset/id first, then by provider type.
  */
 const NO_KEY_PLACEHOLDERS: Record<string, string> = {
+  gpustack: 'gpustack',
   ollama: 'ollama',
   lmstudio: 'lmstudio'
 }
@@ -794,8 +795,7 @@ export class OpenClawService extends BaseService {
 
     this.ensureSyncProviderSupported(provider)
 
-    const endpointType =
-      primaryModel.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const endpointType = this.getModelEndpointType(primaryModel, provider)
     const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
 
     if (!apiHost) {
@@ -815,7 +815,9 @@ export class OpenClawService extends BaseService {
           endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
             ? provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
             : undefined,
-        models: models.filter((model) => !model.isHidden).map((model) => this.toOpenClawModel(model)),
+        models: models
+          .filter((model) => !model.isHidden && this.getModelEndpointType(model, provider) === endpointType)
+          .map((model) => this.toOpenClawModel(model)),
         presetProviderId: provider.presetProviderId
       } as Provider,
       primaryModel: this.toOpenClawModel(primaryModel)
@@ -827,12 +829,25 @@ export class OpenClawService extends BaseService {
       return apiKey
     }
 
-    const providerKey = provider.presetProviderId ?? provider.id
-    if (provider.authType === 'api-key' && !NO_KEY_PLACEHOLDERS[providerKey]) {
+    const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
+    if (provider.authType === 'api-key' && !noKeyPlaceholder) {
       throw new Error(`Provider ${provider.id} has no enabled API key configured`)
     }
 
-    return ''
+    return noKeyPlaceholder ?? ''
+  }
+
+  private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
+    return model.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  }
+
+  private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
+    const providerKey = provider.presetProviderId ?? provider.id
+    return (
+      NO_KEY_PLACEHOLDERS[providerKey] ??
+      NO_KEY_PLACEHOLDERS[provider.id] ??
+      (provider.type ? NO_KEY_PLACEHOLDERS[provider.type] : undefined)
+    )
   }
 
   private toOpenClawProviderType(providerType: string, endpointType: EndpointType): Provider['type'] {
@@ -937,7 +952,7 @@ export class OpenClawService extends BaseService {
       // Providers like Ollama and LM Studio don't require real API keys,
       // but OpenClaw needs a non-empty placeholder value
       if (!apiKey) {
-        apiKey = NO_KEY_PLACEHOLDERS[provider.id] ?? NO_KEY_PLACEHOLDERS[provider.type] ?? 'no-key-required'
+        apiKey = this.getNoKeyPlaceholder(provider) ?? 'no-key-required'
       }
 
       // Build OpenClaw provider config
