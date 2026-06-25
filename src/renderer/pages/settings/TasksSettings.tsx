@@ -57,6 +57,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('TasksSettings')
+const TASK_LOG_RESULT_PREVIEW_MAX_LENGTH = 100
 
 // --------------- Types ---------------
 
@@ -572,15 +573,15 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
               : isErrorStatus
                 ? record.error
                 : (val ?? '-')
+          const displayText =
+            typeof text === 'string' && text.length > TASK_LOG_RESULT_PREVIEW_MAX_LENGTH
+              ? `${text.slice(0, TASK_LOG_RESULT_PREVIEW_MAX_LENGTH - 3)}...`
+              : text
           const sessionId = record.sessionId
 
           return (
             <div className="flex items-center gap-1">
-              <span
-                className={isErrorStatus ? 'text-red-500' : ''}
-                style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {text}
-              </span>
+              <span className={isErrorStatus ? 'text-red-500' : ''}>{displayText}</span>
               {sessionId && (
                 <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
                   <Button
