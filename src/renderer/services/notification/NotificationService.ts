@@ -1,7 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import type { Notification } from '@renderer/types/notification'
 
-import { notificationQueue } from '../queue/NotificationQueue'
+import { notificationQueue } from './NotificationQueue'
 
 export class NotificationService {
   private queue = notificationQueue
