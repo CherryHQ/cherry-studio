@@ -83,16 +83,6 @@ export function rewriteGrokCliResponsesBody(json: Record<string, any>): Record<s
   return json
 }
 
-/** Coerce the raw request body string into the Grok-CLI-compatible payload. */
-export function coerceGrokCliRequestBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
-  if (typeof body !== 'string') return body
-  try {
-    return JSON.stringify(rewriteGrokCliResponsesBody(JSON.parse(body)))
-  } catch {
-    return body
-  }
-}
-
 /**
  * Build the request headers for a Grok CLI proxy call: the OAuth bearer token
  * plus the Grok-CLI client markers the proxy authenticates against, layered

@@ -3,11 +3,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService } from '@main/core/lifecycle'
-import { type OAuthTokenResponse, PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
-import type { AuthConfig } from '@shared/data/types/provider'
+import type { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
+import { type OAuthTokenResponse } from '@main/utils/oauth/PkceOAuthClient'
+import type { OAuthAuthConfig } from '@shared/data/types/provider'
+import type { IpcChannel } from '@shared/IpcChannel'
 import { shell } from 'electron'
-
-type OAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
 
 export interface LoopbackConfig {
   /** Loopback hosts to bind, in priority order (e.g. ['127.0.0.1', '::1']). */
@@ -17,6 +17,13 @@ export interface LoopbackConfig {
   path: string
   /** Full redirect URI registered with the provider's OAuth client. */
   redirectUri: string
+}
+
+/** The three IPC channels every loopback provider exposes; registered by the base. */
+export interface LoopbackOAuthChannels {
+  signIn: IpcChannel
+  hasToken: IpcChannel
+  logout: IpcChannel
 }
 
 export class OAuthServiceError extends Error {
@@ -42,11 +49,12 @@ const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
  * server the app starts. Owns the loopback transport, the PKCE token lifecycle
  * (persist / refresh-with-dedup / expiry-aware read), and the sign-in template.
  *
- * Subclasses supply the provider id, client id, loopback binding, and the PKCE
+ * Subclasses supply the provider id, client id, loopback binding, the PKCE
  * client (static for a fixed endpoint, or built per call from OIDC discovery),
- * plus any token-derived extra authConfig fields and their own sign-in return
- * shape. IPC registration stays in each subclass's `onInit` because the channel
- * names are provider-specific.
+ * and the `channels` map naming their provider-specific IPC channels — the base
+ * registers the shared `signIn`/`hasToken`/`logout` handlers from it. A subclass
+ * with extra channels (e.g. Codex's get-account) or a richer sign-in return
+ * shape overrides `onInit` (calling `super.onInit()`) and/or `signIn`.
  *
  * Deep-link providers (custom-protocol callback) deliberately do NOT extend this
  * — their transport and post-auth side effects differ enough that sharing the
@@ -56,6 +64,7 @@ export abstract class LoopbackOAuthService extends BaseService {
   protected abstract readonly providerId: string
   protected abstract readonly clientId: string
   protected abstract readonly loopback: LoopbackConfig
+  protected abstract readonly channels: LoopbackOAuthChannels
 
   /**
    * Resolve the PKCE client. Called once per sign-in and once per refresh, so a
@@ -71,6 +80,12 @@ export abstract class LoopbackOAuthService extends BaseService {
   private activeServers: Server[] = []
   private refreshPromise: Promise<string | null> | null = null
 
+  protected onInit(): void {
+    this.ipcHandle(this.channels.signIn, this.signIn)
+    this.ipcHandle(this.channels.hasToken, this.hasToken)
+    this.ipcHandle(this.channels.logout, this.logout)
+  }
+
   protected onStop(): void {
     this.closeActiveServer()
     this.refreshPromise = null
@@ -82,16 +97,19 @@ export abstract class LoopbackOAuthService extends BaseService {
 
   // ── Auth config ──
 
-  protected getOAuthAuthConfig = async (): Promise<OAuthConfig | null> => {
+  protected getOAuthAuthConfig = async (): Promise<OAuthAuthConfig | null> => {
     const authConfig = await providerService.getAuthConfig(this.providerId)
     return authConfig?.type === 'oauth' ? authConfig : null
   }
 
   /**
    * Extra authConfig fields derived from a freshly issued access token (e.g.
-   * Codex's `chatgpt_account_id`). Defaults to none.
+   * Codex's `chatgpt_account_id`). Defaults to none; the params are part of the
+   * override contract (see Codex), so the default `void`s them rather than dropping them.
    */
-  protected extraAuthFields(_accessToken: string, _current: OAuthConfig | null): Record<string, unknown> {
+  protected extraAuthFields(accessToken: string, current: OAuthAuthConfig | null): Record<string, unknown> {
+    void accessToken
+    void current
     return {}
   }
 
@@ -120,6 +138,11 @@ export abstract class LoopbackOAuthService extends BaseService {
 
   // ── Token read / refresh ──
 
+  /** Expired, or within the refresh buffer of expiry, relative to now. */
+  private isExpired(config: OAuthAuthConfig): boolean {
+    return config.expiresAt !== undefined && Date.now() >= config.expiresAt - TOKEN_EXPIRY_BUFFER_MS
+  }
+
   /**
    * Return a valid access token, refreshing if expired. Returns `null` when not
    * signed in or the refresh failed; a dead session (expired, no refresh token)
@@ -129,8 +152,7 @@ export abstract class LoopbackOAuthService extends BaseService {
     const config = await this.getOAuthAuthConfig()
     if (!config?.accessToken) return null
 
-    const expired = config.expiresAt !== undefined && Date.now() >= config.expiresAt - TOKEN_EXPIRY_BUFFER_MS
-    if (!expired) return config.accessToken
+    if (!this.isExpired(config)) return config.accessToken
 
     if (!config.refreshToken) {
       await this.clearStoredAuth()
@@ -161,12 +183,14 @@ export abstract class LoopbackOAuthService extends BaseService {
 
   // ── Public IPC surface shared by every loopback provider ──
 
+  /** Default sign-in handler. Codex overrides to also return its account shape. */
+  public signIn = async (): Promise<unknown> => this.runSignIn()
+
   public hasToken = async (): Promise<boolean> => {
     const config = await this.getOAuthAuthConfig()
     if (!config?.accessToken) return false
 
-    const expired = config.expiresAt !== undefined && Date.now() >= config.expiresAt - TOKEN_EXPIRY_BUFFER_MS
-    if (expired && !config.refreshToken) {
+    if (this.isExpired(config) && !config.refreshToken) {
       await this.clearStoredAuth()
       return false
     }

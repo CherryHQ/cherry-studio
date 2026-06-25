@@ -3,7 +3,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
-import type { AuthConfig } from '@shared/data/types/provider'
+import type { OAuthAuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import { net } from 'electron'
 import * as z from 'zod'
@@ -189,7 +189,7 @@ export class CherryInOauthService extends BaseService implements Activatable {
     void this.deactivate()
   }
 
-  private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
+  private getOAuthAuthConfig = async (): Promise<OAuthAuthConfig | null> => {
     const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
     return authConfig?.type === 'oauth' ? authConfig : null
   }

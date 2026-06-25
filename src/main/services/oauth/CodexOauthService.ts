@@ -1,8 +1,12 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { type LoopbackConfig, LoopbackOAuthService } from '@main/services/oauth/LoopbackOAuthService'
+import {
+  type LoopbackConfig,
+  type LoopbackOAuthChannels,
+  LoopbackOAuthService
+} from '@main/services/oauth/LoopbackOAuthService'
 import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
-import type { AuthConfig } from '@shared/data/types/provider'
+import type { OAuthAuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 
 // OpenAI Codex OAuth configuration. The client_id and the loopback redirect URI
@@ -25,12 +29,6 @@ export interface CodexAccount {
   accountId: string | null
 }
 
-export interface CodexSignInResult {
-  accountId: string | null
-}
-
-type OAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
-
 @Injectable('CodexOauthService')
 @ServicePhase(Phase.Background)
 export class CodexOauthService extends LoopbackOAuthService {
@@ -41,6 +39,11 @@ export class CodexOauthService extends LoopbackOAuthService {
     port: CODEX_CONFIG.CALLBACK_PORT,
     path: CODEX_CONFIG.CALLBACK_PATH,
     redirectUri: CODEX_CONFIG.REDIRECT_URI
+  }
+  protected readonly channels: LoopbackOAuthChannels = {
+    signIn: IpcChannel.Codex_SignIn,
+    hasToken: IpcChannel.Codex_HasToken,
+    logout: IpcChannel.Codex_Logout
   }
 
   // Static endpoint, so the PKCE client is built once. The base owns the
@@ -59,10 +62,8 @@ export class CodexOauthService extends LoopbackOAuthService {
   })
 
   protected onInit(): void {
-    this.ipcHandle(IpcChannel.Codex_SignIn, this.signIn)
-    this.ipcHandle(IpcChannel.Codex_HasToken, this.hasToken)
+    super.onInit()
     this.ipcHandle(IpcChannel.Codex_GetAccount, this.getAccount)
-    this.ipcHandle(IpcChannel.Codex_Logout, this.logout)
   }
 
   protected getClient(): PkceOAuthClient {
@@ -86,7 +87,7 @@ export class CodexOauthService extends LoopbackOAuthService {
     }
   }
 
-  protected extraAuthFields(accessToken: string, current: OAuthConfig | null): Record<string, unknown> {
+  protected extraAuthFields(accessToken: string, current: OAuthAuthConfig | null): Record<string, unknown> {
     const accountId = this.extractAccountId(accessToken) ?? current?.accountId
     return accountId ? { accountId } : {}
   }
@@ -106,7 +107,7 @@ export class CodexOauthService extends LoopbackOAuthService {
     return { accessToken, accountId: config?.accountId ?? null }
   }
 
-  public signIn = async (): Promise<CodexSignInResult> => {
+  public signIn = async (): Promise<CodexAccount> => {
     await this.runSignIn()
     const config = await this.getOAuthAuthConfig()
     return { accountId: config?.accountId ?? null }

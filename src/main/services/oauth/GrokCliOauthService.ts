@@ -1,7 +1,12 @@
 import { randomBytes } from 'node:crypto'
 
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { type LoopbackConfig, LoopbackOAuthService, OAuthServiceError } from '@main/services/oauth/LoopbackOAuthService'
+import {
+  type LoopbackConfig,
+  type LoopbackOAuthChannels,
+  LoopbackOAuthService,
+  OAuthServiceError
+} from '@main/services/oauth/LoopbackOAuthService'
 import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -40,14 +45,13 @@ export class GrokCliOauthService extends LoopbackOAuthService {
     path: GROK_CONFIG.CALLBACK_PATH,
     redirectUri: GROK_CONFIG.REDIRECT_URI
   }
+  protected readonly channels: LoopbackOAuthChannels = {
+    signIn: IpcChannel.GrokCli_SignIn,
+    hasToken: IpcChannel.GrokCli_HasToken,
+    logout: IpcChannel.GrokCli_Logout
+  }
 
   private discoveryCache: Discovery | null = null
-
-  protected onInit(): void {
-    this.ipcHandle(IpcChannel.GrokCli_SignIn, this.signIn)
-    this.ipcHandle(IpcChannel.GrokCli_HasToken, this.hasToken)
-    this.ipcHandle(IpcChannel.GrokCli_Logout, this.logout)
-  }
 
   /**
    * Reject any discovered endpoint that is not served from `x.ai`, so a
@@ -102,8 +106,4 @@ export class GrokCliOauthService extends LoopbackOAuthService {
    * failed — the caller surfaces the missing-credential error.
    */
   public getValidAccessToken = (): Promise<string | null> => this.getValidToken()
-
-  public signIn = async (): Promise<void> => {
-    await this.runSignIn()
-  }
 }

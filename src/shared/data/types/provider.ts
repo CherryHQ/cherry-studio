@@ -147,6 +147,8 @@ export const AuthConfigSchema = z.discriminatedUnion('type', [
   AuthConfigIamAzure
 ])
 export type AuthConfig = z.infer<typeof AuthConfigSchema>
+/** The OAuth variant of {@link AuthConfig}, narrowed for token-bearing providers. */
+export type OAuthAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
 
 export const ApiFeaturesSchema = CatalogApiFeaturesSchema
 export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>

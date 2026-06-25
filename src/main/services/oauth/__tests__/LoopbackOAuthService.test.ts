@@ -29,9 +29,10 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
   return { ...actual, BaseService: MockBaseService }
 })
 
-import { type OAuthTokenResponse, PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
+import type { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
+import { type OAuthTokenResponse } from '@main/utils/oauth/PkceOAuthClient'
 
-import { type LoopbackConfig, LoopbackOAuthService } from '../LoopbackOAuthService'
+import { type LoopbackConfig, type LoopbackOAuthChannels, LoopbackOAuthService } from '../LoopbackOAuthService'
 
 const PROVIDER_ID = 'test-loopback'
 
@@ -44,6 +45,11 @@ class TestOAuthService extends LoopbackOAuthService {
     path: '/cb',
     redirectUri: 'http://127.0.0.1:1/cb'
   }
+  protected readonly channels = {
+    signIn: 'test:sign-in',
+    hasToken: 'test:has-token',
+    logout: 'test:logout'
+  } as unknown as LoopbackOAuthChannels
 
   public readonly refreshMock = vi.fn<(refreshToken: string) => Promise<OAuthTokenResponse>>()
   public extra: Record<string, unknown> = {}
@@ -188,6 +194,22 @@ describe('LoopbackOAuthService', () => {
         authConfig: { type: 'api-key' },
         isEnabled: false
       })
+    })
+  })
+
+  describe('onInit', () => {
+    it('registers the shared sign-in / has-token / logout channels from the channels map', () => {
+      // onInit is the lifecycle hook; invoke it directly to assert the base wires
+      // the three shared handlers so subclasses no longer repeat the registration.
+      const { onInit, ipcHandle } = service as unknown as {
+        onInit(): void
+        ipcHandle: ReturnType<typeof vi.fn>
+      }
+      onInit.call(service)
+
+      expect(ipcHandle).toHaveBeenCalledWith('test:sign-in', service.signIn)
+      expect(ipcHandle).toHaveBeenCalledWith('test:has-token', service.hasToken)
+      expect(ipcHandle).toHaveBeenCalledWith('test:logout', service.logout)
     })
   })
 })

@@ -104,7 +104,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 import { net } from 'electron'
 
-import { mockMainLoggerService } from '../../../../tests/__mocks__/MainLoggerService'
+import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 import { CherryInOauthService } from '../CherryInOauthService'
 
 describe('CherryInOauthService', () => {
