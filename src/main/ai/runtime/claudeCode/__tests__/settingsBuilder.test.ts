@@ -111,7 +111,7 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 
-vi.mock('@main/services/proxy/nodeProxy', () => ({
+vi.mock('@main/services/proxy/proxyEnv', () => ({
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 

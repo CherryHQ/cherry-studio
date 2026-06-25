@@ -41,7 +41,7 @@ import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/cla
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
-import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
