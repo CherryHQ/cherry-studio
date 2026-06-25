@@ -14,7 +14,7 @@ const DEFAULT_COUNTRY = 'CN'
 
 type CachedEgressRegion = {
   country: string
-  /** ProxyManager's applied-config key in effect when this country was detected. */
+  /** ProxyService's applied-config key in effect when this country was detected. */
   proxyKey: string | null
 }
 
@@ -23,7 +23,7 @@ type CachedEgressRegion = {
  * geolocating the request's public IP, then caches the result.
  *
  * The detected country reflects the *egress* IP, which depends on the active
- * proxy — so the cache is keyed on ProxyManager's applied-config key and
+ * proxy — so the cache is keyed on ProxyService's applied-config key and
  * invalidates the moment the app's proxy changes, with a TTL backstop for
  * egress changes the app cannot observe. Single-flight dedups concurrent
  * detections, including those arriving via the App_GetIpCountry IPC.
@@ -33,7 +33,7 @@ class RegionService {
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
-    const proxyKey = application.get('ProxyManager').appliedProxyKey
+    const proxyKey = application.get('ProxyService').appliedProxyKey
     const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
     if (cached && cached.proxyKey === proxyKey) {
       return cached.country

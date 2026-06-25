@@ -51,7 +51,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({})
 })
 
-vi.mock('../proxy/nodeProxy', () => ({
+vi.mock('../NodeProxyController', () => ({
   NodeProxyController: vi.fn(() => ({ configure: nodeProxyConfigureMock }))
 }))
 
@@ -65,7 +65,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { ProxyManager, resolveProxyConfig } = await import('../ProxyManager')
+const { ProxyService, resolveProxyConfig } = await import('../ProxyService')
 
 const reconcilerOf = (manager: unknown) =>
   (manager as { proxyReconciler: { flush: () => Promise<void> } }).proxyReconciler
@@ -102,7 +102,7 @@ describe('resolveProxyConfig', () => {
   })
 })
 
-describe('ProxyManager — preference wiring', () => {
+describe('ProxyService — preference wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
@@ -115,8 +115,10 @@ describe('ProxyManager — preference wiring', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', 'localhost')
 
-    const manager = new ProxyManager()
+    const manager = new ProxyService()
     await (manager as any).onReady()
+    // onReady no longer blocks on the initial apply; await convergence before asserting.
+    await reconcilerOf(manager).flush()
 
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://127.0.0.1:7890',
@@ -130,8 +132,9 @@ describe('ProxyManager — preference wiring', () => {
 
   it('applies the resolved system proxy on ready to every stack', async () => {
     // Default mode is 'system'; getSystemProxy returns a known proxy (set in beforeEach).
-    const manager = new ProxyManager()
+    const manager = new ProxyService()
     await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
 
     const expected = { mode: 'system', proxyRules: 'http://system:1080', proxyBypassRules: 'localhost' }
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
@@ -145,8 +148,9 @@ describe('ProxyManager — preference wiring', () => {
 
   it('applies bare system mode when the OS proxy is unavailable', async () => {
     getSystemProxyMock.mockResolvedValue(null)
-    const manager = new ProxyManager()
+    const manager = new ProxyService()
     await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
 
     expect(sessionSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
     expect(appSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
@@ -155,8 +159,9 @@ describe('ProxyManager — preference wiring', () => {
 
   it('re-applies when a proxy preference changes after ready', async () => {
     // Default mode is 'system'.
-    const manager = new ProxyManager()
+    const manager = new ProxyService()
     await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
     nodeProxyConfigureMock.mockClear()
 
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'none')
@@ -179,14 +184,14 @@ describe('ProxyManager — preference wiring', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
 
-    const manager = new ProxyManager()
-    const ready = (manager as any).onReady()
+    const manager = new ProxyService()
+    await (manager as any).onReady()
 
     // Newer change lands while the first apply is gated.
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
 
     releaseFirstApply()
-    await ready
+    await reconcilerOf(manager).flush()
 
     // Latest wins: the final applied config targets the second URL (not dropped).
     expect(sessionSetProxyMock).toHaveBeenLastCalledWith(
@@ -195,9 +200,10 @@ describe('ProxyManager — preference wiring', () => {
   })
 
   it('manages the system-proxy monitor across mode switches', async () => {
-    const manager = new ProxyManager()
+    const manager = new ProxyService()
     const reconciler = reconcilerOf(manager)
     await (manager as any).onReady()
+    await reconciler.flush()
 
     // System apply starts exactly one monitor interval.
     expect(intervalRegistrations).toHaveLength(1)

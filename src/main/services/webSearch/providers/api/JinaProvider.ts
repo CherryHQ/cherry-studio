@@ -97,7 +97,7 @@ export class JinaProvider extends BaseWebSearchProvider {
     const chinaHost = JINA_CHINA_HOST_BY_DEFAULT[apiHost]
 
     // Region detection sits on the search/fetch hot path; a rejection (e.g. an
-    // unavailable ProxyManager/CacheService) must not fail the request — fall
+    // unavailable ProxyService/CacheService) must not fail the request — fall
     // back to the global host instead of routing to the China mirror.
     if (chinaHost && (await regionService.isInChina().catch(() => false))) {
       return chinaHost
