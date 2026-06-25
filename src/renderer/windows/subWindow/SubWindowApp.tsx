@@ -1,5 +1,3 @@
-import '@renderer/databases'
-
 import { preferenceService } from '@data/PreferenceService'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'

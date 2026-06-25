@@ -1,5 +1,3 @@
-import '@renderer/databases'
-
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
