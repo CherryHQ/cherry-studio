@@ -8,6 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
@@ -46,7 +47,7 @@ const AboutSettings: FC = () => {
       updateAppUpdateState({ checking: true, manualCheck: true })
 
       try {
-        await window.api.checkForUpdate()
+        await ipcApi.request('app.updater.check_for_update')
       } catch {
         updateAppUpdateState({ manualCheck: false })
         window.toast.error(t('settings.about.updateError'))
@@ -154,8 +155,7 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-    void setAutoCheckUpdate(autoCheckUpdate)
-  }, [autoCheckUpdate, setAutoCheckUpdate])
+  }, [])
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')

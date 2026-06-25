@@ -7,9 +7,9 @@ import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
-import { NodeProxyController } from './proxy/nodeProxy'
+import { NodeProxyController } from './NodeProxyController'
 
-const logger = loggerService.withContext('ProxyManager')
+const logger = loggerService.withContext('ProxyService')
 
 /** Proxy preferences that drive the global proxy. Changing any of them re-applies it. */
 const PROXY_PREFERENCE_KEYS = [
@@ -49,9 +49,9 @@ export function resolveProxyConfig({
   }
 }
 
-@Injectable('ProxyManager')
+@Injectable('ProxyService')
 @ServicePhase(Phase.WhenReady)
-export class ProxyManager extends BaseService {
+export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
   private nodeProxyController = new NodeProxyController(logger)
@@ -86,12 +86,16 @@ export class ProxyManager extends BaseService {
         .get('PreferenceService')
         .subscribeMultipleChanges([...PROXY_PREFERENCE_KEYS], () => this.proxyReconciler.request())
     )
+    // Don't gate startup on the initial apply. The OS-proxy read (a `scutil` spawn in system
+    // mode) only feeds the Node-side controller, which no startup request hits; Electron sessions
+    // already follow the system proxy by Chromium default. Converge in the background instead.
     this.proxyReconciler.request()
-    await this.proxyReconciler.flush()
-    const error = this.proxyReconciler.getLastError()
-    if (error) {
-      logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
-    }
+    void this.proxyReconciler.flush().then(() => {
+      const error = this.proxyReconciler.getLastError()
+      if (error) {
+        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
+      }
+    })
   }
 
   /** Latest intent from preferences, resolving the concrete OS proxy for `system` mode. */

@@ -303,7 +303,9 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
     <div
       data-testid="shell-tab-list"
       className={cn(
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-3',
+        // pr reserves the OS window controls corner in a frameless sub-window (--window-controls-width,
+        // 0px = pr-3 in the main window and on macOS).
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.75rem+var(--window-controls-width,0px))]',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
         isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
       )}>
