@@ -12,7 +12,7 @@ import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
-import { notificationService } from './NotificationService'
+import { notificationService } from './notification'
 
 const logger = loggerService.withContext('BackupService')
 
