@@ -120,4 +120,66 @@ describe('usePaintingComposerInputFiles', () => {
     // The failed entries are carried through, so the persisted list is never rewritten.
     expect(onInputFilesChange).not.toHaveBeenCalled()
   })
+
+  it('seeds the resolvable inputs and carries a seed-failed one to the tail', async () => {
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockImplementation(async ({ id }: { id: string }) =>
+      id === 'fe-bad' ? Promise.reject(new Error('unresolvable')) : `/p/${id}.png`
+    )
+    const onInputFilesChange = vi.fn()
+
+    // Failed entry first → only the resolvable one renders a chip, but both survive,
+    // with the unresolved one reordered to the tail (documented behavior).
+    const { result } = renderStatefulHarness('p-partial', [makeEntry('fe-bad'), makeEntry('fe-ok')], onInputFilesChange)
+
+    await waitFor(() => expect(result.current).toHaveLength(1))
+    await waitFor(() => expect(onInputFilesChange).toHaveBeenCalled())
+    const reported = onInputFilesChange.mock.calls.at(-1)?.[0] as FileEntry[]
+    expect(reported.map((entry) => entry.id)).toEqual(['fe-ok', 'fe-bad'])
+  })
+
+  it('drops the chip and notifies when a newly added attachment fails to promote', async () => {
+    ;(window.api.file.createInternalEntry as ReturnType<typeof vi.fn>).mockImplementation(
+      async ({ path }: { path: string }) =>
+        path.includes('bad') ? Promise.reject(new Error('promote failed')) : makeEntry('fe-ok')
+    )
+    const toastError = vi.fn()
+    window.toast = { error: toastError } as unknown as typeof window.toast
+    const setFiles = vi.fn()
+    const onInputFilesChange = vi.fn()
+
+    const { rerender } = renderHook(
+      (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
+      {
+        initialProps: {
+          paintingId: 'p-wb-fail',
+          inputFiles: [] as FileEntry[],
+          files: [] as ComposerAttachment[],
+          setFiles,
+          onInputFilesChange
+        }
+      }
+    )
+
+    rerender({
+      paintingId: 'p-wb-fail',
+      inputFiles: [],
+      files: [makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')],
+      setFiles,
+      onInputFilesChange
+    })
+
+    // The resolved sibling reaches inputFiles; the failed one does not.
+    await waitFor(() => expect(onInputFilesChange).toHaveBeenCalled())
+    const reported = onInputFilesChange.mock.calls.at(-1)?.[0] as FileEntry[]
+    expect(reported.map((entry) => entry.id)).toEqual(['fe-ok'])
+
+    // The failing chip is reconciled away and the user is notified.
+    expect(toastError).toHaveBeenCalled()
+    const remover = setFiles.mock.calls
+      .map((call) => call[0])
+      .find((arg): arg is (prev: ComposerAttachment[]) => ComposerAttachment[] => typeof arg === 'function')
+    expect(remover).toBeDefined()
+    const remaining = remover?.([makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')])
+    expect(remaining?.map((file) => file.fileTokenSourceId)).toEqual(['src-ok'])
+  })
 })

@@ -5,6 +5,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { FilePath } from '@shared/types/file/common'
 import { getFileTypeByExt } from '@shared/utils/file/fileType'
 import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
 
@@ -37,6 +38,7 @@ const withDot = (ext: string | null | undefined): string => {
  *   that has input files.
  */
 export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
+  const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
   // Input files that failed to resolve to a physical path during SEED: they get no
   // composer chip, but must survive the writeback so a transient read error never
@@ -110,6 +112,7 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     void (async () => {
       const cache = entryCacheRef.current
       const entries: FileEntry[] = []
+      const failedSourceIds: string[] = []
       for (const file of files) {
         const cached = cache.get(file.fileTokenSourceId)
         if (cached) {
@@ -122,15 +125,26 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
           entries.push(entry)
         } catch (error) {
           logger.error('failed to create input file entry from composer attachment', error as Error)
+          failedSourceIds.push(file.fileTokenSourceId)
         }
       }
       if (cancelled || epoch !== writebackEpochRef.current) return
 
+      // A visible chip must imply a file that will reach generation. A promote failure
+      // (swept temp file, disk/IPC error on a path the renderer doesn't own) breaks
+      // that, so drop the chip and tell the user instead of silently generating
+      // without the image — the chip is the only feedback channel.
+      if (failedSourceIds.length > 0) {
+        const failed = new Set(failedSourceIds)
+        setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
+        window.toast?.error(t('paintings.image_file_retry'))
+      }
+
       // Carry through entries that failed to seed so a transient read error can't
       // shrink the persisted list. When the whole painting failed to resolve, this
       // reproduces the original list and the unchanged guard suppresses the wipe.
-      // ponytail: failed entries land at the tail, so a *partial* failure persists a
-      // one-time reorder on open; widen to original-order merge only if that bites.
+      // Failed entries land at the tail, so a *partial* failure persists a one-time
+      // reorder on open; widen to original-order merge only if that bites.
       const preserved = unseededEntriesRef.current
       const nextEntries = preserved.length ? [...entries, ...preserved] : entries
       const nextIds = nextEntries.map((entry) => entry.id)
