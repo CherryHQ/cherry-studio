@@ -1,4 +1,5 @@
-import type { TranslateLangCode, TranslateLanguage } from '@renderer/types'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { TFunction } from 'i18next'
 
 import { translateText } from './translateText'

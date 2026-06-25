@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { classNames } from '@renderer/utils'
+import { classNames } from '@renderer/utils/style'
 import type { ComponentProps, ReactNode } from 'react'
 
 type MessageActionButtonProps = Omit<ComponentProps<typeof ActionIconButton>, 'icon'> & {

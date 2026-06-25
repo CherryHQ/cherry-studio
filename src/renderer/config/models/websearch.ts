@@ -1,17 +1,4 @@
-/**
- * Web-search capability checks.
- *
- * `isWebSearchModel` reads shared's `WEB_SEARCH` capability. Provider-host
- * nuances (Bedrock disabling Claude search, Vertex allowing only 4-series,
- * etc.) belong at the provider-routing layer — not in this model-identity
- * check.
- *
- * `isMandatoryWebSearchModel` / `isOpenRouterBuiltInWebSearchModel` remain
- * provider-aware because they answer "is this host forcing the search on?" —
- * a routing concern. v2 `Model.id` is a `providerId::modelId` pair, so the
- * provider is derived directly from the id (no v1 ProviderService lookup).
- */
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import {

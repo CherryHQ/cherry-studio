@@ -15,8 +15,8 @@ import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
-import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
@@ -137,11 +137,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     await setCustomTools([...customTools, tool])
   }
 
-  const handleRemoveCustomTool = async (toolName: string) => {
+  // Uninstalls the mise-managed binary for both preset and custom tools; only custom tools
+  // also drop from the persisted list (presets revert to bundled/not-installed on re-probe).
+  const handleRemoveTool = async (toolName: string) => {
     try {
       await ipcApi.request('binary.remove_tool', toolName)
-      const updated = customTools.filter((t) => t.name !== toolName)
-      await setCustomTools(updated)
+      if (customTools.some((t) => t.name === toolName)) {
+        await setCustomTools(customTools.filter((t) => t.name !== toolName))
+      }
       await refreshState()
       setDeleteTarget(null)
     } catch (error) {
@@ -198,6 +201,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => openToolDir(tool.name)}
+              onRemove={() => setDeleteTarget(tool.name)}
             />
           )
         })}
@@ -247,7 +251,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         description={t('settings.plugins.removeConfirmMessage', { name: deleteNameRef.current })}
         destructive
         onConfirm={async () => {
-          if (deleteTarget) await handleRemoveCustomTool(deleteTarget)
+          if (deleteTarget) await handleRemoveTool(deleteTarget)
         }}
       />
     </div>
@@ -262,7 +266,8 @@ const BinaryToolPresetCard: FC<{
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
-}> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
+  onRemove: () => void
+}> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
   const description = t(`settings.plugins.tools.${tool.name}`)
   const present = source !== 'none'
@@ -319,6 +324,16 @@ const BinaryToolPresetCard: FC<{
               ) : (
                 <RefreshCw className="size-3.5" />
               )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground/40 hover:text-destructive"
+              onClick={onRemove}
+              disabled={installing}
+              aria-label={t('settings.plugins.remove')}
+              title={t('settings.plugins.remove')}>
+              <Trash2 className="size-3.5" />
             </Button>
           </div>
         )}

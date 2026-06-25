@@ -34,7 +34,7 @@ import { getAllTools, getToolsForScope } from '@renderer/components/chat/compose
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'

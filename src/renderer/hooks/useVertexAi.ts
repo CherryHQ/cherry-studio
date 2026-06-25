@@ -5,7 +5,7 @@ import {
   setVertexAIServiceAccountClientEmail,
   setVertexAIServiceAccountPrivateKey
 } from '@renderer/store/llm'
-import type { Provider, VertexProvider } from '@renderer/types'
+import type { Provider, VertexProvider } from '@renderer/types/provider'
 import { useDispatch } from 'react-redux'
 
 export function useVertexAiSettings() {
