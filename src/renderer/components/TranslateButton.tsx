@@ -6,7 +6,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { translateInputText } from '@renderer/utils/translate'
 import { Languages, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -25,6 +25,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const [targetLanguage] = usePreference('chat.input.translate.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const { getLabel, languages } = useLanguages()
+  const isBusy = isTranslating || !!isLoading
 
   const handleTranslate = async () => {
     if (!text?.trim()) return
@@ -49,20 +50,16 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
     }
   }
 
-  useEffect(() => {
-    setIsTranslating(isLoading ?? false)
-  }, [isLoading])
-
   return (
     <Tooltip content={t('chat.input.translate', { target_language: getLabel(targetLanguage, false) })}>
       <Button
         onClick={handleTranslate}
-        disabled={disabled || isTranslating}
+        disabled={disabled || isBusy}
         style={style}
         variant="ghost"
         size="icon-sm"
         className="rounded-full">
-        {isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
+        {isBusy ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
       </Button>
     </Tooltip>
   )
