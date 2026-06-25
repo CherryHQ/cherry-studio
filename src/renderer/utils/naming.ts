@@ -1,7 +1,6 @@
 import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import type { Provider } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
+import { isSystemProvider, type Provider } from '@renderer/types/provider'
 
 /**
  * 从模型 ID 中提取默认组名。

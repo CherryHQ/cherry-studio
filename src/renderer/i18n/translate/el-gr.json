@@ -6464,8 +6464,6 @@
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"

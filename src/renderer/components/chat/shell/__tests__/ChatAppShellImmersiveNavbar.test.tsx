@@ -9,7 +9,7 @@ import { ChatAppShell } from '../ChatAppShell'
 // boolean the message list reports up. jsdom has no layout, so we drive the center width through a
 // stubbed ResizeObserver. Embedded threshold = column 848 + reserve 116 = 964px.
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
 

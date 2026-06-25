@@ -12,7 +12,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { restoreFromLocal } from '@renderer/services/BackupService'
-import { formatFileSize } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
 import type { Key } from 'react'

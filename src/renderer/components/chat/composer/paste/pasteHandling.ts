@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types'
-import { getFileExtension, isSupportedFile } from '@renderer/utils'
+import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
+import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
+import { getFileExtension, isSupportedFile } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 const logger = loggerService.withContext('pasteHandling')
@@ -30,8 +31,6 @@ export const handlePaste = async (
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
   setText?: (text: string) => void,
-  pasteLongTextAsFile?: boolean,
-  pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
   t?: (key: string) => string
@@ -40,8 +39,8 @@ export const handlePaste = async (
     // 优先处理文本粘贴
     const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText) {
-      // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
-      if (pasteLongTextAsFile && pasteLongTextThreshold && clipboardText.length > pasteLongTextThreshold) {
+      // 1. 文本粘贴
+      if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
         // 长文本直接转文件，阻止默认粘贴
         event.preventDefault()
 

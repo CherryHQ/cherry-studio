@@ -1,7 +1,7 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { useCallback, useEffect, useRef } from 'react'

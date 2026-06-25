@@ -1,4 +1,5 @@
-import type { KnowledgeReference, WebSearchProviderResult } from '@renderer/types'
+import type { KnowledgeReference } from '@renderer/types/knowledge'
+import type { WebSearchProviderResult } from '@renderer/types/webSearchProvider'
 
 /**
  * 将检索到的知识片段按源URL整合为搜索结果

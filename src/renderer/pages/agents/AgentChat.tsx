@@ -15,10 +15,11 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Citation, GetAgentResponse } from '@renderer/types'
-import { cn } from '@renderer/utils'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReactNode } from 'react'

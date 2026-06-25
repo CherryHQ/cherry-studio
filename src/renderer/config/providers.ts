@@ -1,5 +1,4 @@
-import type { SystemProvider, SystemProviderId } from '@renderer/types'
-import { OpenAIServiceTiers } from '@renderer/types'
+import { OpenAIServiceTiers, type SystemProvider, type SystemProviderId } from '@renderer/types/provider'
 import { CHERRYAI_API_BASE_URL, CHERRYAI_PROVIDER_ID, CHERRYAI_PROVIDER_NAME } from '@shared/data/presets/cherryai'
 
 import { TOKENFLUX_HOST } from './constant'

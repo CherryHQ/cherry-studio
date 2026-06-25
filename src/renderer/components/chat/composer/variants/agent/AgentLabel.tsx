@@ -1,6 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { cn } from '@renderer/utils'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { cn } from '@renderer/utils/style'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 
 export type AgentLabelProps = {
