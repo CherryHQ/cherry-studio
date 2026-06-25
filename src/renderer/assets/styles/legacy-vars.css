@@ -2,7 +2,7 @@
  * Legacy renderer compatibility variables.
  *
  * These variables are intentionally kept as a migration bridge for legacy
- * renderer styles and legacy styling usage.
+ * renderer styles and styled-components usage.
  *
  * Do not add new product code that depends on this file.
  * Prefer `@cherrystudio/ui/styles/theme.css` contract variables and Tailwind
