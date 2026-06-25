@@ -14575,29 +14575,47 @@
     },
     {
       "capabilities": ["video-generation"],
-      "id": "viduq2",
+      "id": "viduq3-pro",
       "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Vidu Q3 Pro",
+      "outputModalities": ["video"],
+      "ownedBy": "vidu"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "viduq3-turbo",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Vidu Q3 Turbo",
+      "outputModalities": ["video"],
+      "ownedBy": "vidu"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "viduq3-pro-fast",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Vidu Q3 Pro Fast",
+      "outputModalities": ["video"],
+      "ownedBy": "vidu"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "viduq2",
+      "inputModalities": ["text"],
       "metadata": {},
       "name": "Vidu Q2",
-      "outputModalities": ["video"],
+      "outputModalities": ["image"],
       "ownedBy": "vidu"
     },
     {
-      "capabilities": ["video-generation"],
-      "id": "viduq2-pro",
-      "inputModalities": ["text", "image"],
+      "capabilities": ["image-generation"],
+      "id": "viduq1",
+      "inputModalities": ["text"],
       "metadata": {},
-      "name": "Vidu Q2 Pro",
-      "outputModalities": ["video"],
-      "ownedBy": "vidu"
-    },
-    {
-      "capabilities": ["video-generation"],
-      "id": "viduq2-ctv",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Vidu Q2 CTV",
-      "outputModalities": ["video"],
+      "name": "Vidu Q1",
+      "outputModalities": ["image"],
       "ownedBy": "vidu"
     },
     {
