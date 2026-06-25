@@ -41,16 +41,23 @@ export function buildOpenClawConfig(
   const existingProviders =
     existingModels.providers && typeof existingModels.providers === 'object' ? existingModels.providers : {}
 
+  const modelEntry: Record<string, any> = {
+    id: model,
+    name: modelName
+  }
+  if (config.reasoning !== undefined) modelEntry.reasoning = config.reasoning
+  if (config.contextWindow !== undefined) modelEntry.contextWindow = config.contextWindow
+  if (config.maxTokens !== undefined) modelEntry.maxTokens = config.maxTokens
+
   const cherryProvider: Record<string, any> = {
     baseUrl,
     apiKey,
     api,
-    models: [
-      {
-        id: model,
-        name: modelName
-      }
-    ]
+    models: [modelEntry]
+  }
+
+  if (config.headers && Object.keys(config.headers).length > 0) {
+    cherryProvider.headers = config.headers
   }
 
   return {

@@ -46,6 +46,44 @@ export interface ToolEnvironmentConfig {
     supportsReasoningEffort: boolean
     budgetTokens?: number
   }
+  claude?: {
+    haikuModel?: string
+    sonnetModel?: string
+    opusModel?: string
+    timeoutMs?: string
+    maxOutputTokens?: string
+    disableNonessentialTraffic?: number
+    autoCompactWindow?: string
+    disableExperimentalBetas?: string
+    enableToolSearch?: boolean
+    skipWebFetchPreflight?: boolean
+    includeCoAuthoredBy?: boolean
+    effortLevel?: string
+    enabledPlugins?: Record<string, boolean>
+  }
+  codex?: {
+    reasoningEffort?: string
+    disableResponseStorage?: boolean
+    personality?: string
+    verbosity?: string
+    contextWindow?: number
+    autoCompactTokenLimit?: number
+    reviewModel?: string
+  }
+  opencode?: {
+    contextLimit?: number
+    outputLimit?: number
+  }
+  openclaw?: {
+    reasoning?: boolean
+    contextWindow?: number
+    maxTokens?: number
+    headers?: Record<string, string>
+  }
+  hermes?: {
+    contextLength?: number
+    maxTokens?: number
+  }
 }
 
 // CLI 工具选项
@@ -161,7 +199,12 @@ export const generateProviderConfig = ({
   anthropicBaseUrl,
   apiKey,
   baseUrl,
-  reasoning
+  reasoning,
+  claude,
+  codex,
+  opencode,
+  openclaw,
+  hermes
 }: ToolEnvironmentConfig): CliProviderConfig => {
   const formattedBaseUrl = formatApiHost(baseUrl)
 
@@ -170,7 +213,26 @@ export const generateProviderConfig = ({
       return {
         baseUrl: getCodeCliApiBaseUrl(providerId, 'anthropic') || anthropicBaseUrl || baseUrl,
         model: rawModelId,
-        ...(isAnthropic ? { apiKey } : { authToken: apiKey })
+        ...(isAnthropic ? { apiKey } : { authToken: apiKey }),
+        ...(claude?.haikuModel !== undefined ? { haikuModel: claude.haikuModel } : {}),
+        ...(claude?.sonnetModel !== undefined ? { sonnetModel: claude.sonnetModel } : {}),
+        ...(claude?.opusModel !== undefined ? { opusModel: claude.opusModel } : {}),
+        ...(claude?.timeoutMs !== undefined ? { timeoutMs: claude.timeoutMs } : {}),
+        ...(claude?.maxOutputTokens !== undefined ? { maxOutputTokens: claude.maxOutputTokens } : {}),
+        ...(claude?.disableNonessentialTraffic !== undefined
+          ? { disableNonessentialTraffic: claude.disableNonessentialTraffic }
+          : {}),
+        ...(claude?.autoCompactWindow !== undefined ? { autoCompactWindow: claude.autoCompactWindow } : {}),
+        ...(claude?.disableExperimentalBetas !== undefined
+          ? { disableExperimentalBetas: claude.disableExperimentalBetas }
+          : {}),
+        ...(claude?.enableToolSearch !== undefined ? { enableToolSearch: claude.enableToolSearch } : {}),
+        ...(claude?.skipWebFetchPreflight !== undefined
+          ? { skipWebFetchPreflight: claude.skipWebFetchPreflight }
+          : {}),
+        ...(claude?.includeCoAuthoredBy !== undefined ? { includeCoAuthoredBy: claude.includeCoAuthoredBy } : {}),
+        ...(claude?.effortLevel !== undefined ? { effortLevel: claude.effortLevel } : {}),
+        ...(claude?.enabledPlugins !== undefined ? { enabledPlugins: claude.enabledPlugins } : {})
       }
 
     // @legacy — removed in v2: geminiCli, qwenCode
@@ -180,7 +242,18 @@ export const generateProviderConfig = ({
         apiKey,
         baseUrl: formattedBaseUrl,
         providerName: sanitizeProviderName(fancyProviderName),
-        model: rawModelId
+        model: rawModelId,
+        ...(codex?.reasoningEffort !== undefined ? { reasoningEffort: codex.reasoningEffort } : {}),
+        ...(codex?.disableResponseStorage !== undefined
+          ? { disableResponseStorage: codex.disableResponseStorage }
+          : {}),
+        ...(codex?.personality !== undefined ? { personality: codex.personality } : {}),
+        ...(codex?.verbosity !== undefined ? { verbosity: codex.verbosity } : {}),
+        ...(codex?.contextWindow !== undefined ? { contextWindow: codex.contextWindow } : {}),
+        ...(codex?.autoCompactTokenLimit !== undefined
+          ? { autoCompactTokenLimit: codex.autoCompactTokenLimit }
+          : {}),
+        ...(codex?.reviewModel !== undefined ? { reviewModel: codex.reviewModel } : {})
       }
 
     // @legacy — removed in v2: kimiCli
@@ -199,7 +272,9 @@ export const generateProviderConfig = ({
         modelName,
         isReasoning: reasoning?.isReasoning ?? false,
         supportsReasoningEffort: reasoning?.supportsReasoningEffort ?? false,
-        ...(reasoning?.budgetTokens !== undefined ? { budgetTokens: reasoning.budgetTokens } : {})
+        ...(reasoning?.budgetTokens !== undefined ? { budgetTokens: reasoning.budgetTokens } : {}),
+        ...(opencode?.contextLimit !== undefined ? { contextLimit: opencode.contextLimit } : {}),
+        ...(opencode?.outputLimit !== undefined ? { outputLimit: opencode.outputLimit } : {})
       }
     }
 
@@ -210,7 +285,11 @@ export const generateProviderConfig = ({
         api: isAnthropic ? 'anthropic-messages' : 'openai-completions',
         model: rawModelId,
         modelName,
-        providerName: sanitizeProviderName(fancyProviderName)
+        providerName: sanitizeProviderName(fancyProviderName),
+        ...(openclaw?.reasoning !== undefined ? { reasoning: openclaw.reasoning } : {}),
+        ...(openclaw?.contextWindow !== undefined ? { contextWindow: openclaw.contextWindow } : {}),
+        ...(openclaw?.maxTokens !== undefined ? { maxTokens: openclaw.maxTokens } : {}),
+        ...(openclaw?.headers !== undefined ? { headers: openclaw.headers } : {})
       }
 
     case codeCLI.hermes:
@@ -220,7 +299,9 @@ export const generateProviderConfig = ({
         apiMode: isAnthropic ? 'anthropic_messages' : 'chat_completions',
         model: rawModelId,
         modelName,
-        providerName: sanitizeProviderName(fancyProviderName)
+        providerName: sanitizeProviderName(fancyProviderName),
+        ...(hermes?.contextLength !== undefined ? { contextLength: hermes.contextLength } : {}),
+        ...(hermes?.maxTokens !== undefined ? { maxTokens: hermes.maxTokens } : {})
       }
 
     default:

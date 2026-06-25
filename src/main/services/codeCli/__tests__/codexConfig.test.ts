@@ -31,6 +31,8 @@ describe('buildCodexConfig', () => {
     expect(buildCodexConfig({}, config)).toEqual({
       model: 'gpt-x',
       model_provider: 'Cherry-My-Provider',
+      model_reasoning_effort: 'high',
+      disable_response_storage: true,
       model_providers: {
         'Cherry-My-Provider': {
           name: 'My.Provider',

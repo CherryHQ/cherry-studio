@@ -29,7 +29,7 @@ describe('useCodeCli', () => {
     it('should return default tool when no tool is enabled', () => {
       setupOverridesMock({})
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(codeCLI.qwenCode)
+      expect(result.current.selectedCliTool).toBe(codeCLI.claudeCode)
     })
 
     it('should return the enabled tool', () => {
@@ -55,17 +55,17 @@ describe('useCodeCli', () => {
 
   describe('setCliTool', () => {
     it('should disable current tool and enable new tool', async () => {
-      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+      const mockSetter = setupOverridesMock({ 'claude-code': { enabled: true } })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setCliTool(codeCLI.claudeCode)
+        await result.current.setCliTool(codeCLI.openaiCodex)
       })
 
       expect(mockSetter).toHaveBeenCalledWith(
         expect.objectContaining({
-          'qwen-code': expect.objectContaining({ enabled: false }),
-          'claude-code': expect.objectContaining({ enabled: true })
+          'claude-code': expect.objectContaining({ enabled: false }),
+          'openai-codex': expect.objectContaining({ enabled: true })
         })
       )
     })
@@ -73,7 +73,7 @@ describe('useCodeCli', () => {
 
   describe('setModel', () => {
     it('should update modelId for current tool', async () => {
-      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+      const mockSetter = setupOverridesMock({ 'claude-code': { enabled: true } })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -82,7 +82,7 @@ describe('useCodeCli', () => {
 
       expect(mockSetter).toHaveBeenCalledWith(
         expect.objectContaining({
-          'qwen-code': expect.objectContaining({ modelId: 'openai::gpt-4' })
+          'claude-code': expect.objectContaining({ modelId: 'openai::gpt-4' })
         })
       )
     })
@@ -91,31 +91,23 @@ describe('useCodeCli', () => {
   describe('canLaunch', () => {
     it('should be true when tool, directory, and model are set', () => {
       setupOverridesMock({
-        'qwen-code': { enabled: true, modelId: 'openai::gpt-4', currentDirectory: '/tmp/project' }
+        'claude-code': { enabled: true, modelId: 'openai::gpt-4', currentDirectory: '/tmp/project' }
       })
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(true)
     })
 
-    it('should be true for github-copilot-cli without model', () => {
+    it('should be false without model selected', () => {
       setupOverridesMock({
-        'github-copilot-cli': { enabled: true, currentDirectory: '/tmp/project' }
+        'claude-code': { enabled: true, currentDirectory: '/tmp/project' }
       })
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(true)
-    })
-
-    it('should be true for qoder-cli without model', () => {
-      setupOverridesMock({
-        'qoder-cli': { enabled: true, currentDirectory: '/tmp/project' }
-      })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(true)
+      expect(result.current.canLaunch).toBe(false)
     })
 
     it('should be false when no directory is set', () => {
       setupOverridesMock({
-        'qwen-code': { enabled: true, modelId: 'openai::gpt-4' }
+        'claude-code': { enabled: true, modelId: 'openai::gpt-4' }
       })
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(false)
@@ -123,7 +115,7 @@ describe('useCodeCli', () => {
 
     it('should be false when no model is set for non-copilot tool', () => {
       setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/tmp/project' }
+        'claude-code': { enabled: true, currentDirectory: '/tmp/project' }
       })
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(false)
@@ -132,7 +124,7 @@ describe('useCodeCli', () => {
 
   describe('setCurrentDir', () => {
     it('should set directory and add to directories list', async () => {
-      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+      const mockSetter = setupOverridesMock({ 'claude-code': { enabled: true } })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -141,7 +133,7 @@ describe('useCodeCli', () => {
 
       expect(mockSetter).toHaveBeenCalledWith(
         expect.objectContaining({
-          'qwen-code': expect.objectContaining({
+          'claude-code': expect.objectContaining({
             currentDirectory: '/new/project',
             directories: ['/new/project']
           })
@@ -151,7 +143,7 @@ describe('useCodeCli', () => {
 
     it('should move existing directory to front of list', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: ['/a', '/b', '/c'] }
+        'claude-code': { enabled: true, directories: ['/a', '/b', '/c'] }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -160,13 +152,13 @@ describe('useCodeCli', () => {
       })
 
       const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toEqual(['/c', '/a', '/b'])
+      expect(calledValue['claude-code'].directories).toEqual(['/c', '/a', '/b'])
     })
 
     it('should limit directories list to 10 entries', async () => {
       const dirs = Array.from({ length: 10 }, (_, i) => `/dir${i}`)
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: dirs }
+        'claude-code': { enabled: true, directories: dirs }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -175,13 +167,13 @@ describe('useCodeCli', () => {
       })
 
       const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toHaveLength(10)
-      expect(calledValue['qwen-code'].directories[0]).toBe('/new-dir')
+      expect(calledValue['claude-code'].directories).toHaveLength(10)
+      expect(calledValue['claude-code'].directories[0]).toBe('/new-dir')
     })
 
     it('should not modify directories when directory is empty', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: ['/a', '/b'] }
+        'claude-code': { enabled: true, directories: ['/a', '/b'] }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -190,15 +182,15 @@ describe('useCodeCli', () => {
       })
 
       const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toEqual(['/a', '/b'])
-      expect(calledValue['qwen-code'].currentDirectory).toBe('')
+      expect(calledValue['claude-code'].directories).toEqual(['/a', '/b'])
+      expect(calledValue['claude-code'].currentDirectory).toBe('')
     })
   })
 
   describe('removeDir', () => {
     it('should remove directory from the list', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: ['/a', '/b', '/c'] }
+        'claude-code': { enabled: true, directories: ['/a', '/b', '/c'] }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -207,12 +199,12 @@ describe('useCodeCli', () => {
       })
 
       const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toEqual(['/a', '/c'])
+      expect(calledValue['claude-code'].directories).toEqual(['/a', '/c'])
     })
 
     it('should reset currentDirectory when removing the current directory', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
+        'claude-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -221,13 +213,13 @@ describe('useCodeCli', () => {
       })
 
       const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].currentDirectory).toBe('')
-      expect(calledValue['qwen-code'].directories).toEqual(['/b'])
+      expect(calledValue['claude-code'].currentDirectory).toBe('')
+      expect(calledValue['claude-code'].directories).toEqual(['/b'])
     })
 
     it('should not reset currentDirectory when removing a different directory', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
+        'claude-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -236,15 +228,15 @@ describe('useCodeCli', () => {
       })
 
       const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].currentDirectory).toBe('/a')
-      expect(calledValue['qwen-code'].directories).toEqual(['/a'])
+      expect(calledValue['claude-code'].currentDirectory).toBe('/a')
+      expect(calledValue['claude-code'].directories).toEqual(['/a'])
     })
   })
 
   describe('resetSettings', () => {
     it('should reset overrides to empty object', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, modelId: 'some-model' }
+        'claude-code': { enabled: true, modelId: 'some-model' }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -259,7 +251,7 @@ describe('useCodeCli', () => {
   describe('clearDirs', () => {
     it('should clear directories and currentDirectory', async () => {
       const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
+        'claude-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -269,7 +261,7 @@ describe('useCodeCli', () => {
 
       expect(mockSetter).toHaveBeenCalledWith(
         expect.objectContaining({
-          'qwen-code': expect.objectContaining({
+          'claude-code': expect.objectContaining({
             directories: [],
             currentDirectory: ''
           })

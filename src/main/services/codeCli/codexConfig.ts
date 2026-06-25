@@ -30,10 +30,13 @@ export function buildCodexConfig(
   const existingProviders =
     existing.model_providers && typeof existing.model_providers === 'object' ? existing.model_providers : {}
 
-  return {
+  const merged: Record<string, any> = {
     ...existing,
     model,
     model_provider: providerKey,
+    model_reasoning_effort: config.reasoningEffort ?? existing.model_reasoning_effort ?? 'high',
+    disable_response_storage:
+      config.disableResponseStorage ?? existing.disable_response_storage ?? true,
     model_providers: {
       ...existingProviders,
       [providerKey]: {
@@ -44,6 +47,24 @@ export function buildCodexConfig(
       }
     }
   }
+
+  if (config.personality !== undefined) merged.personality = config.personality
+  else if (existing.personality !== undefined) merged.personality = existing.personality
+
+  if (config.verbosity !== undefined) merged.model_verbosity = config.verbosity
+  else if (existing.model_verbosity !== undefined) merged.model_verbosity = existing.model_verbosity
+
+  if (config.contextWindow !== undefined) merged.model_context_window = config.contextWindow
+  else if (existing.model_context_window !== undefined) merged.model_context_window = existing.model_context_window
+
+  if (config.autoCompactTokenLimit !== undefined) merged.model_auto_compact_token_limit = config.autoCompactTokenLimit
+  else if (existing.model_auto_compact_token_limit !== undefined)
+    merged.model_auto_compact_token_limit = existing.model_auto_compact_token_limit
+
+  if (config.reviewModel !== undefined) merged.review_model = config.reviewModel
+  else if (existing.review_model !== undefined) merged.review_model = existing.review_model
+
+  return merged
 }
 
 /** Persist the Codex provider config to ~/.codex/config.toml (merged, atomic). */

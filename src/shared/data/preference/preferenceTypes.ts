@@ -243,14 +243,11 @@ export interface WebSearchProvider {
 import { codeCLI } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
-  'qwen-code',
   'claude-code',
-  'gemini-cli',
   'openai-codex',
-  'qoder-cli',
-  'github-copilot-cli',
-  'kimi-cli',
-  'opencode'
+  'opencode',
+  'openclaw',
+  'hermes'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

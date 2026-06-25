@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const testState = vi.hoisted(() => ({
   isBunInstalled: true,
-  selectedCliTool: 'github-copilot-cli',
+  selectedCliTool: 'claude-code',
   selectedModel: null as string | null,
   canLaunch: true,
   codeCliRun: vi.fn(),
@@ -189,7 +189,7 @@ vi.mock('../components/FieldLabel', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   testState.isBunInstalled = true
-  testState.selectedCliTool = codeCLI.githubCopilotCli
+  testState.selectedCliTool = codeCLI.claudeCode
   testState.selectedModel = null
   testState.canLaunch = true
   testState.codeCliRun.mockResolvedValue({ success: true })
@@ -258,7 +258,7 @@ function latestModelSelectorProps() {
 
 describe('CodeCliPage', () => {
   it('uses the shared model selector for non-copilot tools and writes selected ids back', async () => {
-    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedCliTool = codeCLI.claudeCode
 
     await openCodeToolDialog()
 
@@ -277,7 +277,7 @@ describe('CodeCliPage', () => {
   })
 
   it('does not pass malformed stored model ids to the shared model selector', async () => {
-    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedCliTool = codeCLI.claudeCode
     testState.selectedModel = 'legacy-model-id'
 
     await openCodeToolDialog()
@@ -286,7 +286,7 @@ describe('CodeCliPage', () => {
   })
 
   it('keeps the code-cli provider and model filter when using the shared model selector', async () => {
-    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedCliTool = codeCLI.claudeCode
     testState.providers = [
       makeProvider('openai'),
       makeProvider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
@@ -355,12 +355,12 @@ describe('CodeCliPage', () => {
     ).toBe(false)
   })
 
-  it('does not render the model selector for GitHub Copilot CLI', async () => {
-    testState.selectedCliTool = codeCLI.githubCopilotCli
+  it('renders the model selector for all supported CLI tools', async () => {
+    testState.selectedCliTool = codeCLI.claudeCode
 
     await openCodeToolDialog()
 
-    expect(screen.queryByTestId('code-model-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('code-model-selector')).toBeInTheDocument()
   })
 
   it('keeps the auto-update checkbox neutral instead of primary themed', async () => {

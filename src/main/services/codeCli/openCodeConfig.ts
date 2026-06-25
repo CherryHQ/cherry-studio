@@ -55,6 +55,13 @@ export function buildOpenCodeConfig(
     }
   }
 
+  if (config.contextLimit !== undefined || config.outputLimit !== undefined) {
+    const limit: Record<string, number> = {}
+    if (config.contextLimit !== undefined) limit.context = config.contextLimit
+    if (config.outputLimit !== undefined) limit.output = config.outputLimit
+    modelConfig.limit = { ...(modelConfig.limit ?? {}), ...limit }
+  }
+
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   const cherryProvider = {
     npm: resolveNpmPackage(endpointType, providerType),

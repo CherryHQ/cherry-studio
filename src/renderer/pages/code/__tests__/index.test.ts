@@ -9,7 +9,7 @@ vi.mock('../CodeCliPage', () => ({ default: () => null }))
 // Mock dependencies needed by CodeCliPage
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => ({
-    selectedCliTool: codeCLI.qwenCode,
+    selectedCliTool: codeCLI.claudeCode,
     selectedModel: null,
     selectedTerminal: 'systemDefault',
     environmentVariables: '',
@@ -81,31 +81,31 @@ describe('generateProviderConfig', () => {
     vi.clearAllMocks()
   })
 
-  it('should format baseUrl with /v1 for qwenCode when missing', () => {
+  it('should format baseUrl with /v1 for claudeCode when missing', () => {
     const config = generateProviderConfig(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode' })
+      baseConfig({ tool: codeCLI.claudeCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode' })
     )
 
     expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
-  it('should not duplicate /v1 when already present for qwenCode', () => {
+  it('should not duplicate /v1 when already present for claudeCode', () => {
     const config = generateProviderConfig(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })
+      baseConfig({ tool: codeCLI.claudeCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })
     )
 
     expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should handle empty baseUrl gracefully', () => {
-    const config = generateProviderConfig(baseConfig({ tool: codeCLI.qwenCode, baseUrl: '' }))
+    const config = generateProviderConfig(baseConfig({ tool: codeCLI.claudeCode, baseUrl: '' }))
 
     expect(config.baseUrl).toBe('')
   })
 
   it('should preserve other API versions when present', () => {
     const config = generateProviderConfig(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2' })
+      baseConfig({ tool: codeCLI.claudeCode, baseUrl: 'https://dashscope.aliyuncs.com/v2' })
     )
 
     expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/v2')
@@ -121,7 +121,7 @@ describe('generateProviderConfig', () => {
 
   it('should handle trailing slash correctly', () => {
     const config = generateProviderConfig(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/' })
+      baseConfig({ tool: codeCLI.claudeCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/' })
     )
 
     expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
@@ -129,7 +129,7 @@ describe('generateProviderConfig', () => {
 
   it('should handle v2beta version correctly', () => {
     const config = generateProviderConfig(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2beta' })
+      baseConfig({ tool: codeCLI.claudeCode, baseUrl: 'https://dashscope.aliyuncs.com/v2beta' })
     )
 
     expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/v2beta')
