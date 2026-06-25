@@ -21,10 +21,9 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessio
 import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
-import { TopicType } from '@renderer/types'
-import { cn } from '@renderer/utils'
+import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
   Activity,

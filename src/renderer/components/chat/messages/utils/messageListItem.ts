@@ -1,5 +1,5 @@
-import type { Model } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import {

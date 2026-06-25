@@ -5,8 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { BuiltinMcpServerName } from '@renderer/types'
-import { BuiltinMcpServerNames } from '@renderer/types'
+import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('i18n:label')
 

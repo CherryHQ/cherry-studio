@@ -1,4 +1,4 @@
-import type { Model } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
 
 export function isFreeModel(model: Model) {
   if (model.provider === 'cherryai') {

@@ -20,7 +20,7 @@ import {
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { ThinkingOption } from '@renderer/types'
+import type { ThinkingOption } from '@renderer/types/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'

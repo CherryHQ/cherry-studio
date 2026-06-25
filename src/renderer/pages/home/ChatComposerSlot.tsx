@@ -1,7 +1,7 @@
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 

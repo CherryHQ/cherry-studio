@@ -17,8 +17,8 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
-import { TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
+import { TopicType } from '@renderer/types/topic'
 
 type ToolOrder = {
   visible: LegacyInputBarToolType[]

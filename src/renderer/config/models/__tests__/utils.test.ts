@@ -1,5 +1,5 @@
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

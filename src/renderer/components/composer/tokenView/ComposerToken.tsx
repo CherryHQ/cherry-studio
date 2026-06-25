@@ -5,8 +5,8 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/composer/quoteToken'
-import { FILE_TYPE } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
+import { FILE_TYPE } from '@renderer/types/file'
+import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'

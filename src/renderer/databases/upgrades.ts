@@ -15,8 +15,8 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
-import type { LegacyMessage as OldMessage, Topic } from '@renderer/types'
-import { FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types' // Import FileTypes enum
+import { FILE_TYPE } from '@renderer/types/file'
+import type { LegacyMessage as OldMessage } from '@renderer/types/message'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
@@ -24,6 +24,8 @@ import type {
   MessageBlock
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import type { Topic } from '@renderer/types/topic'
+import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { parseTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Transaction } from 'dexie'

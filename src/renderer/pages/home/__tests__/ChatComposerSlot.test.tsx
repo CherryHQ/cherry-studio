@@ -1,5 +1,5 @@
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 

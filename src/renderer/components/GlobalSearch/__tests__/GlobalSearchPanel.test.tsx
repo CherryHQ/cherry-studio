@@ -400,7 +400,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 

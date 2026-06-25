@@ -8,12 +8,13 @@ import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import type { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types/app'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {

@@ -86,7 +86,7 @@ vi.mock('@renderer/components/chat/messages', () => ({
   toMessageListItem: (message: any) => message
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 

@@ -5,7 +5,7 @@ import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } f
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'

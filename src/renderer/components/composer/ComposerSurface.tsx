@@ -10,7 +10,7 @@ import SendMessageButton from '@renderer/components/SendMessageButton'
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { isPastedTextFileMetadata } from '@renderer/types'
+import { isPastedTextFileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
