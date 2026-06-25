@@ -39,6 +39,7 @@ type ServerSortKey = 'name' | 'size' | 'updatedAt' | 'ext'
 type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
+type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
 
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
@@ -47,6 +48,8 @@ type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths
 // Renderer intentionally avoids importing the schema registry here because
 // schemas are main/preload IPC runtime contracts, not renderer dependencies.
 const FILE_IPC_BATCH_SIZE = 500
+// Keep at or below `FILE_IPC_MAX_BATCH_CREATE_ITEMS` from the IPC schema.
+const FILE_IPC_CREATE_BATCH_SIZE = 100
 
 async function requestBatchedFileRecords<Route extends FileBatchRoute>(
   route: Route,
@@ -73,6 +76,26 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
     })
   )
   return Object.assign({}, ...results) as OutputFor<Route>
+}
+
+async function requestBatchedInternalEntryCreates(paths: readonly string[]): Promise<BatchCreateInternalEntriesResult> {
+  const chunks: string[][] = []
+  for (let i = 0; i < paths.length; i += FILE_IPC_CREATE_BATCH_SIZE) {
+    chunks.push(paths.slice(i, i + FILE_IPC_CREATE_BATCH_SIZE))
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      ipcApi.request('file.batch_create_internal_entries', {
+        items: chunk.map((path) => ({ source: 'path' as const, path }))
+      })
+    )
+  )
+
+  return {
+    succeeded: results.flatMap((result) => result.succeeded),
+    failed: results.flatMap((result) => result.failed)
+  }
 }
 
 function formatDateTime(timestamp: number): string {
@@ -468,9 +491,7 @@ function FilesPage() {
       if (paths.length === 0) return
 
       try {
-        const result = await ipcApi.request('file.batch_create_internal_entries', {
-          items: paths.map((path) => ({ source: 'path' as const, path }))
-        })
+        const result = await requestBatchedInternalEntryCreates(paths)
         reportImportFailures(result, t('files.error.import_partial_failed'))
         await refetchFiles()
       } catch (error) {

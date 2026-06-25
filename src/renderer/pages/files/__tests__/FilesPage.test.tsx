@@ -473,6 +473,68 @@ describe('FilesPage file operations', () => {
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [trashedEntry.id] })
   })
 
+  it('shows a toast when restore partially fails', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_restore') {
+        return Promise.resolve({ succeeded: [], failed: [{ id: trashedEntry.id, error: 'denied' }] })
+      }
+      return Promise.resolve(input)
+    })
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+    fireEvent.contextMenu(screen.getByText('trashed.txt'))
+    fireEvent.click(screen.getByText('files.restore'))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
+    })
+  })
+
+  it('shows a toast when restore rejects', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_restore') return Promise.reject(new Error('restore failed'))
+      return Promise.resolve(input)
+    })
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+    fireEvent.contextMenu(screen.getByText('trashed.txt'))
+    fireEvent.click(screen.getByText('files.restore'))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_failed')
+    })
+  })
+
   it('strips the current extension when renaming inline', async () => {
     renderFilesPage()
 
@@ -497,6 +559,27 @@ describe('FilesPage file operations', () => {
     fireEvent.blur(input)
 
     expect(ipcMocks.request).not.toHaveBeenCalledWith('file.rename', expect.anything())
+  })
+
+  it('shows a toast when rename rejects', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.rename') return Promise.reject(new Error('rename failed'))
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.click(screen.getByText('report.md'))
+    fireEvent.keyDown(document, { key: 'Enter' })
+    const input = screen.getByDisplayValue('report.md')
+    fireEvent.change(input, { target: { value: 'summary.md' } })
+    fireEvent.blur(input)
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.rename_failed')
+    })
   })
 
   it('falls back to show in folder when default-open is blocked as unsafe', async () => {
@@ -537,6 +620,27 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('chunks dropped file imports at the create-route batch cap', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn((file: File) => `/tmp/${file.name}`)
+    renderFilesPage()
+
+    const files = Array.from(
+      { length: 101 },
+      (_, index) => new File(['content'], `import-${index}.md`, { type: 'text/markdown' })
+    )
+    fireEvent.drop(screen.getByText('report.md'), { dataTransfer: { files } })
+
+    await waitFor(() => {
+      const createCalls = ipcMocks.request.mock.calls.filter(
+        ([route]) => route === 'file.batch_create_internal_entries'
+      )
+      expect(createCalls).toHaveLength(2)
+      expect((createCalls[0][1] as { items: unknown[] }).items).toHaveLength(100)
+      expect((createCalls[1][1] as { items: unknown[] }).items).toHaveLength(1)
+    })
+  })
+
   it('shows a toast when import partially fails', async () => {
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
     fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
@@ -557,6 +661,27 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
+    })
+  })
+
+  it('shows a toast when import rejects', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_create_internal_entries') return Promise.reject(new Error('import failed'))
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.drop(screen.getByText('report.md'), {
+      dataTransfer: { files: [new File(['content'], 'import.md', { type: 'text/markdown' })] }
+    })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('files.error.import_failed')
     })
   })
 
