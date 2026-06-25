@@ -4,13 +4,47 @@ import * as React from 'react'
 
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './popover'
 
-interface InputProps extends React.ComponentProps<'input'> {
-  'data-slot'?: string
+/**
+ * Localized labels for the native time-input popover picker. `packages/ui` has
+ * no i18n runtime, so callers pass i18n strings (matching the `SearchInput`
+ * `clearLabel` convention). Omitted labels fall back to English.
+ */
+type TimePickerLabels = {
+  /** Accessible label for the trigger button that opens the picker. */
+  openPicker: string
+  /** Accessible label for the picker popover. */
+  picker: string
+  /** Accessible label prefix for the hour column. */
+  hour: string
+  /** Accessible label prefix for the minute column. */
+  minute: string
+  /** Accessible label prefix for the AM/PM column. */
+  period: string
+  /** Visible + accessible label for the AM option. */
+  am: string
+  /** Visible + accessible label for the PM option. */
+  pm: string
 }
 
-function Input({ className, type, 'data-slot': dataSlot = 'input', ...props }: InputProps) {
+const DEFAULT_TIME_PICKER_LABELS: TimePickerLabels = {
+  openPicker: 'Open time picker',
+  picker: 'Time picker',
+  hour: 'Hour',
+  minute: 'Minute',
+  period: 'Period',
+  am: 'AM',
+  pm: 'PM'
+}
+
+interface InputProps extends React.ComponentProps<'input'> {
+  'data-slot'?: string
+  /** Localized labels for the `type="time"` popover picker. Ignored for other input types. */
+  timePickerLabels?: Partial<TimePickerLabels>
+}
+
+function Input({ className, type, 'data-slot': dataSlot = 'input', timePickerLabels, ...props }: InputProps) {
   if (type === 'time') {
-    return <TimeInput className={className} data-slot={dataSlot} {...props} />
+    return <TimeInput className={className} data-slot={dataSlot} timePickerLabels={timePickerLabels} {...props} />
   }
 
   return (
@@ -35,9 +69,11 @@ function TimeInput({
   onChange,
   disabled,
   readOnly,
+  timePickerLabels,
   'data-slot': dataSlot = 'input',
   ...props
 }: Omit<InputProps, 'type'>) {
+  const labels = { ...DEFAULT_TIME_PICKER_LABELS, ...timePickerLabels }
   const inputRef = React.useRef<HTMLInputElement>(null)
   const isControlled = value !== undefined
   const [open, setOpen] = React.useState(false)
@@ -97,7 +133,7 @@ function TimeInput({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label="Open time picker"
+              aria-label={labels.openPicker}
               disabled={disabled || readOnly}
               className="text-foreground-muted hover:text-foreground focus-visible:ring-ring/50 absolute top-1/2 right-2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-sm outline-none transition-colors focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50">
               <Clock className="size-4" />
@@ -107,16 +143,24 @@ function TimeInput({
       </PopoverAnchor>
       <PopoverContent
         align="start"
-        aria-label="Time picker"
+        aria-label={labels.picker}
         className="w-75 max-w-[calc(100vw-1rem)] rounded-md p-2"
         onOpenAutoFocus={(event) => event.preventDefault()}>
-        <TimePickerPanel value={timeValue} onValueChange={commitTimeValue} />
+        <TimePickerPanel value={timeValue} onValueChange={commitTimeValue} labels={labels} />
       </PopoverContent>
     </Popover>
   )
 }
 
-function TimePickerPanel({ value, onValueChange }: { value: string; onValueChange: (value: string) => void }) {
+function TimePickerPanel({
+  value,
+  onValueChange,
+  labels
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  labels: TimePickerLabels
+}) {
   const parsed = parseTimeValue(value)
   const selectedPeriod = parsed.hours >= 12 ? 'PM' : 'AM'
   const selectedHour = toDisplayHour(parsed.hours)
@@ -124,7 +168,7 @@ function TimePickerPanel({ value, onValueChange }: { value: string; onValueChang
   return (
     <div className="grid grid-cols-3 gap-2">
       <TimePickerColumn
-        label="Hour"
+        label={labels.hour}
         values={hourOptions}
         selectedValue={selectedHour}
         onSelect={(nextHour) => {
@@ -132,7 +176,7 @@ function TimePickerPanel({ value, onValueChange }: { value: string; onValueChang
         }}
       />
       <TimePickerColumn
-        label="Minute"
+        label={labels.minute}
         values={minuteOptions}
         selectedValue={parsed.minutes}
         onSelect={(nextMinute) => {
@@ -140,10 +184,11 @@ function TimePickerPanel({ value, onValueChange }: { value: string; onValueChang
         }}
       />
       <TimePickerColumn
-        label="Period"
+        label={labels.period}
+        ariaValueOnly
         values={periodOptions}
         selectedValue={selectedPeriod}
-        formatLabel={(period) => period}
+        formatLabel={(period) => (period === 'AM' ? labels.am : labels.pm)}
         onSelect={(nextPeriod) => {
           onValueChange(formatTimeValue(fromDisplayHour(selectedHour, nextPeriod), parsed.minutes, parsed.seconds))
         }}
@@ -154,12 +199,15 @@ function TimePickerPanel({ value, onValueChange }: { value: string; onValueChang
 
 function TimePickerColumn<T extends number | 'AM' | 'PM'>({
   label,
+  ariaValueOnly = false,
   values,
   selectedValue,
   formatLabel = formatTwoDigit,
   onSelect
 }: {
   label: string
+  /** When true the option's aria-label is the value alone (e.g. self-describing AM/PM). */
+  ariaValueOnly?: boolean
   values: readonly T[]
   selectedValue: T
   formatLabel?: (value: T) => string
@@ -170,7 +218,7 @@ function TimePickerColumn<T extends number | 'AM' | 'PM'>({
       {values.map((value) => {
         const selected = value === selectedValue
         const valueLabel = formatLabel(value)
-        const ariaLabel = label === 'Period' ? valueLabel : `${label} ${valueLabel}`
+        const ariaLabel = ariaValueOnly ? valueLabel : `${label} ${valueLabel}`
 
         return (
           <button
@@ -249,4 +297,4 @@ function setInputElementValue(input: HTMLInputElement, value: string) {
   input.value = value
 }
 
-export { Input, type InputProps }
+export { Input, type InputProps, type TimePickerLabels }

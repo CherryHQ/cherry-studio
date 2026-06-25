@@ -71,4 +71,23 @@ describe('Input', () => {
     expect(screen.getByLabelText('Time')).toHaveValue('22:00')
     expect(onChange).toHaveBeenCalled()
   })
+
+  it('localizes time picker labels when provided and falls back to English otherwise', () => {
+    render(
+      <Input
+        aria-label="时间"
+        type="time"
+        defaultValue="09:00"
+        timePickerLabels={{ openPicker: '打开时间选择器', hour: '小时', am: '上午', pm: '下午' }}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('打开时间选择器'))
+
+    expect(screen.getByRole('button', { name: '小时 09' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '上午' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下午' })).toBeInTheDocument()
+    // Unspecified labels keep their English defaults.
+    expect(screen.getByRole('button', { name: 'Minute 00' })).toBeInTheDocument()
+  })
 })
