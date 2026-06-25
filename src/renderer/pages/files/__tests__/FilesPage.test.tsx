@@ -251,7 +251,10 @@ describe('FilesPage keyboard rename', () => {
         { ext: 'blobx', count: 95 },
         { ext: 'md', count: 75 }
       ],
-      folderCounts: [{ folder: '/tmp/cherry-target-folder', count: 75 }]
+      folderCounts: [
+        { folder: '/tmp/cherry-target-folder', count: 75 },
+        { folder: 'C:\\Users\\me\\Music', count: 2 }
+      ]
     })
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
       const query = options?.query as { inTrash?: boolean } | undefined
@@ -273,6 +276,8 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getByText('95')).toBeInTheDocument()
     expect(screen.getAllByText('75').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('cherry-target-folder')).toBeInTheDocument()
+    expect(screen.getByText('Music')).toBeInTheDocument()
+    expect(screen.queryByText('C:\\Users\\me\\Music')).not.toBeInTheDocument()
   })
 
   it('keeps current rows visible while the sorted query is loading', () => {

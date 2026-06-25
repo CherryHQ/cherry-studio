@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
+import { formatFileSize, getFormatLabel } from '../fileDisplay'
 import { FileList } from '../FileList'
 
 vi.mock('react-i18next', () => ({
@@ -55,6 +56,28 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.clearAllMocks()
+})
+
+describe('fileDisplay helpers', () => {
+  it('formats file sizes at unit and precision boundaries', () => {
+    expect(formatFileSize(null)).toBe('—')
+    expect(formatFileSize(undefined)).toBe('—')
+    expect(formatFileSize(Number.NaN)).toBe('—')
+    expect(formatFileSize(0)).toBe('0 B')
+    expect(formatFileSize(1023)).toBe('1023 B')
+    expect(formatFileSize(1024)).toBe('1.0 KB')
+    expect(formatFileSize(1536)).toBe('1.5 KB')
+    expect(formatFileSize(10 * 1024)).toBe('10 KB')
+    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
+  })
+
+  it('uses known format labels and uppercases unknown extensions', () => {
+    expect(getFormatLabel('')).toBe('—')
+    expect(getFormatLabel('md')).toBe('Markdown')
+    expect(getFormatLabel('xls')).toBe('Excel')
+    expect(getFormatLabel('xlsx')).toBe('Excel')
+    expect(getFormatLabel('custom')).toBe('CUSTOM')
+  })
 })
 
 describe('FileList', () => {

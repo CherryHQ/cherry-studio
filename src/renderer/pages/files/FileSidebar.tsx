@@ -58,7 +58,7 @@ export function FileSidebar({
   const folderEntries: SidebarEntry[] = folders.map((folder) => ({
     kind: 'folder',
     value: folder,
-    label: () => folder.split('/').pop() || folder,
+    label: () => folder.split(/[\\/]/).pop() || folder,
     icon: FolderClosed,
     countKey: `folder:${folder}`
   }))
