@@ -71,7 +71,7 @@ describe('InputHistoryService', () => {
 
     const rows = await dbh.db.select().from(inputHistoryTable)
     expect(rows).toHaveLength(1)
-    expect(rows[0]!.content).toBe('hello')
+    expect(rows[0].content).toBe('hello')
   })
 
   it('moves duplicate content to the latest position instead of inserting another row', async () => {
@@ -116,6 +116,6 @@ describe('InputHistoryService', () => {
     expect(contents).not.toContain('content-0') // oldest trimmed
 
     // The newest entry must lead the DESC list.
-    expect(items[0]!.content).toBe(`content-${INPUT_HISTORY_DEFAULT_LIMIT + 1}`)
+    expect(items[0].content).toBe(`content-${INPUT_HISTORY_DEFAULT_LIMIT + 1}`)
   })
 })
