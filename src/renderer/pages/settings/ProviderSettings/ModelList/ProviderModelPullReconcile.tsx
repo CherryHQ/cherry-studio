@@ -28,7 +28,7 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         disabled={disabled || pullReconcile.isBusy}
         loading={pullReconcile.isBusy}
         onClick={pullReconcile.openPullReconcile}>
-        <RefreshCw className={modelListClasses.toolbarDesignIcon} />
+        {pullReconcile.isBusy ? null : <RefreshCw className={modelListClasses.toolbarDesignIcon} />}
         <span>{t('settings.models.toolbar.pull_short')}</span>
       </Button>
       <ModelListSyncDrawer

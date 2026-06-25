@@ -92,6 +92,12 @@ export function useModelMutations() {
   } = useMutation('DELETE', '/models/:uniqueModelId*', { refresh: ['/models'] })
 
   const {
+    trigger: bulkDeleteTrigger,
+    isLoading: isBulkDeleting,
+    error: bulkDeleteError
+  } = useMutation('DELETE', '/models', { refresh: ['/models'] })
+
+  const {
     trigger: updateTrigger,
     isLoading: isUpdating,
     error: updateError
@@ -144,6 +150,18 @@ export function useModelMutations() {
     [deleteTrigger]
   )
 
+  const deleteModels = useCallback(
+    async (uniqueModelIds: UniqueModelId[]) => {
+      try {
+        await bulkDeleteTrigger({ query: { ids: uniqueModelIds } })
+      } catch (error) {
+        logger.error('Failed to bulk delete models', { count: uniqueModelIds.length, error })
+        throw error
+      }
+    },
+    [bulkDeleteTrigger]
+  )
+
   const updateModel = useCallback(
     async (providerId: string, modelId: string, updates: UpdateModelDto) => {
       try {
@@ -185,6 +203,9 @@ export function useModelMutations() {
     deleteModel,
     isDeleting,
     deleteError,
+    deleteModels,
+    isBulkDeleting,
+    bulkDeleteError,
     updateModel,
     isUpdating,
     updateError,

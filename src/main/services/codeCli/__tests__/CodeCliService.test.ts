@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn().mockImplementation((name: string) => {
+      if (name === 'BinaryManager') {
+        return {
+          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
+          removeTool: vi.fn(() => Promise.resolve())
+        }
+      }
+      return {}
+    })
+  }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -20,12 +34,14 @@ vi.mock('@main/utils', () => ({
   removeEnvProxy: vi.fn()
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  isUserInChina: vi.fn().mockResolvedValue(false)
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
 vi.mock('@main/utils/process', () => ({
-  getBinaryName: vi.fn().mockResolvedValue('bun')
+  getBinaryName: vi.fn().mockResolvedValue('bun'),
+  getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
+  isBinaryExists: vi.fn().mockResolvedValue(false)
 }))
 
 vi.mock('child_process', () => ({
