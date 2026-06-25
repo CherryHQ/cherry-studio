@@ -37,7 +37,7 @@ import { MainWindowService } from '@main/services/MainWindowService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
-import { ProxyManager } from '@main/services/ProxyManager'
+import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
@@ -104,7 +104,7 @@ export const services = {
   ClaudeCodeTraceBridgeService,
   OvmsManager,
   ProtocolService,
-  ProxyManager,
+  ProxyService,
   StorageMonitorService,
   PythonService,
   TrayService,

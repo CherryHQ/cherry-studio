@@ -317,9 +317,7 @@ export function useHomeMessageListProviderValue({
             ...resolved.part,
             text: updatedText
           } as CherryMessagePart
-          await dataApiService.patch(`/messages/${resolved.messageId}`, {
-            body: { data: { parts: allParts } }
-          })
+          await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           window.toast.success(t('code_block.edit.save.success'))
           return
         }
@@ -333,7 +331,7 @@ export function useHomeMessageListProviderValue({
         window.toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
-    [t]
+    [requireChatWrite, t]
   )
 
   const openPath = useCallback((path: string) => {
