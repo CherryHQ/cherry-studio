@@ -435,19 +435,25 @@ type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 
 function renderTopicList({
   activeTopic = createRendererTopic(),
+  assistantIdFilter,
   onNewTopic = vi.fn(),
+  presentation,
   revealRequest
 }: {
   activeTopic?: Topic
+  assistantIdFilter?: string | null
   onNewTopic?: OnNewTopicMock
+  presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
 } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
     <Topics
       activeTopic={nextActiveTopic}
+      assistantIdFilter={assistantIdFilter}
       setActiveTopic={setActiveTopic}
       onNewTopic={onNewTopic}
+      presentation={presentation}
       revealRequest={nextRevealRequest}
     />
   )
@@ -767,6 +773,16 @@ describe('Topics', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(1)
     expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('uses only the redesigned search control in right panel mode', () => {
+    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
+
+    const searchInput = screen.getByRole('textbox', { name: 'Search conversations' })
+    expect(searchInput).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'text-xs')
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {

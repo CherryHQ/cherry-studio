@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { TabIdProvider } from '@renderer/context/TabIdContext'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -132,5 +134,42 @@ describe('TopicRightPane', () => {
     await waitFor(() => {
       expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     })
+  })
+
+  it('mounts the resource list pane open when requested', () => {
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
+        defaultOpen>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /chat\.topics\.title/ })).toBeInTheDocument()
+  })
+
+  it('does not open the resource list pane when the owning tab is revealed', async () => {
+    render(
+      <TabIdProvider tabId="chat-tab">
+        <TopicRightPane
+          resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+          <TopicRightPane.Host />
+        </TopicRightPane>
+      </TabIdProvider>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, {
+        source: 'assistants',
+        tabId: 'chat-tab'
+      })
+    })
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('resource-list')).toBeNull()
   })
 })

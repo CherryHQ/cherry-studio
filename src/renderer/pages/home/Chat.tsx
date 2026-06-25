@@ -40,7 +40,7 @@ interface Props {
   onPaneCollapse?: () => void
 }
 
-const ChatInner: FC<Props> = (props) => {
+const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -218,7 +218,7 @@ const ChatInner: FC<Props> = (props) => {
           onSidebarToggle={props.onSidebarToggle}
         />
       }
-      topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
+      topRightTool={<TopicRightPane.Toggle />}
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}
@@ -279,11 +279,5 @@ const ChatInner: FC<Props> = (props) => {
     />
   )
 }
-
-const Chat: FC<Props> = (props) => (
-  <TopicRightPane>
-    <ChatInner {...props} />
-  </TopicRightPane>
-)
 
 export default Chat

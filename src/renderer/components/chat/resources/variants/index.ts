@@ -1,2 +1,6 @@
+export { AgentResourceList } from './AgentResourceList'
+export { AssistantResourceList } from './AssistantResourceList'
+export type { ResourceEntityRailItem, ResourceEntityRailProps } from './ResourceEntityRail'
+export { ResourceEntityRail } from './ResourceEntityRail'
 export { SessionResourceList } from './SessionList'
 export { TopicResourceList } from './TopicList'

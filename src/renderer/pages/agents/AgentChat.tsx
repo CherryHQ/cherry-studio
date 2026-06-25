@@ -6,6 +6,7 @@ import {
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
+import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -83,6 +84,7 @@ interface AgentChatProps {
   onVisibleWorkspaceChange?: (workspaceId: string) => void
   replacingDraftAgent?: boolean
   replacingDraftWorkspace?: boolean
+  resourcePane?: ResourcePaneConfig | null
 }
 
 const AgentChat = ({
@@ -110,7 +112,8 @@ const AgentChat = ({
   onVisibleAgentChange,
   onVisibleWorkspaceChange,
   replacingDraftAgent,
-  replacingDraftWorkspace
+  replacingDraftWorkspace,
+  resourcePane
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
@@ -214,14 +217,17 @@ const AgentChat = ({
       <AgentRightPane
         workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
-        partsByMessageId={EMPTY_PARTS}>
+        partsByMessageId={EMPTY_PARTS}
+        resourcePane={resourcePane}>
         <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          topRightTool={resourcePane ? <AgentRightPane.FilesToggle /> : undefined}
           center={<ConversationCenterState state="loading" />}
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
         />
       </AgentRightPane>
@@ -294,7 +300,7 @@ const AgentChat = ({
         />
       ) : undefined
 
-      return (
+      const shell = (
         <ConversationShell
           className={messageStyle}
           pane={pane}
@@ -309,6 +315,7 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
+          topRightTool={resourcePane ? <AgentRightPane.FilesToggle /> : undefined}
           center={
             <ConversationStageCenter
               placement="home"
@@ -317,7 +324,24 @@ const AgentChat = ({
               homeWelcomeText={t('agent.home.welcome_title')}
             />
           }
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
+          rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />
+      )
+      if (!resourcePane) return shell
+      return (
+        <AgentRightPane
+          filesEnabled={false}
+          statusEnabled={false}
+          workspacePath={draftAgentConversation.workspace?.path}
+          messages={EMPTY_MESSAGES}
+          partsByMessageId={EMPTY_PARTS}
+          agentId={draftAgentConversation.agentId}
+          agentName={activeAgent?.name}
+          agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+          resourcePane={resourcePane}>
+          {shell}
+        </AgentRightPane>
       )
     }
     if (missingAgentDraft) {
@@ -325,7 +349,7 @@ const AgentChat = ({
         <MissingAgentHomeComposer onAgentChange={onMissingAgentDraftAgentChange} agentChanging={replacingDraftAgent} />
       ) : undefined
 
-      return (
+      const shell = (
         <ConversationShell
           className={messageStyle}
           pane={pane}
@@ -340,6 +364,7 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
+          topRightTool={resourcePane ? <AgentRightPane.FilesToggle /> : undefined}
           center={
             <ConversationStageCenter
               placement="home"
@@ -348,7 +373,20 @@ const AgentChat = ({
               homeWelcomeText={t('agent.home.welcome_title')}
             />
           }
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
+          rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />
+      )
+      if (!resourcePane) return shell
+      return (
+        <AgentRightPane
+          filesEnabled={false}
+          statusEnabled={false}
+          messages={EMPTY_MESSAGES}
+          partsByMessageId={EMPTY_PARTS}
+          resourcePane={resourcePane}>
+          {shell}
+        </AgentRightPane>
       )
     }
     return (
@@ -407,6 +445,7 @@ const AgentChat = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
+      resourcePane={resourcePane}
       onNewSessionDraft={
         sessionAgentId && onStartDraftSession
           ? () =>
@@ -453,6 +492,7 @@ interface AgentChatSessionFrameProps {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onNewSessionDraft?: () => void | Promise<void>
+  resourcePane?: ResourcePaneConfig | null
 }
 
 const AgentChatSessionFrame = ({
@@ -478,7 +518,8 @@ const AgentChatSessionFrame = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
-  onNewSessionDraft
+  onNewSessionDraft,
+  resourcePane
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
@@ -573,7 +614,8 @@ const AgentChatSessionFrame = ({
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-      modelFallback={runtime.fallbackSnapshot}>
+      modelFallback={runtime.fallbackSnapshot}
+      resourcePane={resourcePane}>
       <ConversationShell
         className={className}
         pane={pane}

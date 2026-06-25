@@ -1,5 +1,14 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
-import { Shell, useShellState } from '@renderer/components/chat/panes/Shell'
+import {
+  RESOURCE_PANE_TAB,
+  type ResourcePaneConfig,
+  ResourcePanePanel,
+  ResourcePaneProvider,
+  ResourcePaneTab,
+  Shell,
+  useResourcePane,
+  useShellState
+} from '@renderer/components/chat/panes/Shell'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
@@ -12,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import TopicBranchPanel from './TopicBranchPanel'
 
 interface TopicRightPaneSurfaceProps {
-  topicId: string
+  topicId?: string
   topicName?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
   traceId?: string
@@ -85,13 +94,19 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-function TopicRightPaneProvider({ children }: PropsWithChildren) {
+function TopicRightPaneProvider({
+  children,
+  resourcePane,
+  defaultOpen = false
+}: PropsWithChildren<{ resourcePane?: ResourcePaneConfig | null; defaultOpen?: boolean }>) {
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
 
   return (
-    <Shell defaultTab="branch">
-      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+    <Shell defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'branch'} defaultOpen={defaultOpen}>
+      <ResourcePaneProvider value={resourcePane ?? null}>
+        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+      </ResourcePaneProvider>
     </Shell>
   )
 }
@@ -107,10 +122,12 @@ function TopicRightPaneSurface({
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const shellState = useShellState()
-  const branchLiveState = useTopicBranchLiveState(topicId)
+  const resourcePane = useResourcePane()
+  const hasBranchPanel = !!topicId
+  const branchLiveState = useTopicBranchLiveState(topicId ?? '')
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
-  const canvasFocusKey = `${topicId}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
+  const canvasFocusKey = `${topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
   const handleLocateMessage = useCallback(
     (messageId: string) => {
@@ -125,38 +142,44 @@ function TopicRightPaneSurface({
   const tabListTrailing = (
     <>
       {isWindow ? chrome?.titleTrailing : null}
-      <TopicRightPaneToggle />
+      {(resourcePane || hasBranchPanel) && <TopicRightPaneToggle />}
     </>
   )
 
   return (
     <Shell.Tabs>
       <Shell.TabList extraTrailing={tabListTrailing}>
-        <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
-          {t('chat.message.flow.title')}
-        </Shell.Tab>
-        {enableDeveloperMode && (
+        <ResourcePaneTab />
+        {hasBranchPanel && (
+          <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
+            {t('chat.message.flow.title')}
+          </Shell.Tab>
+        )}
+        {hasBranchPanel && enableDeveloperMode && (
           <Shell.Tab value="trace" icon={<Activity className="size-3.5" />}>
             {t('trace.label')}
           </Shell.Tab>
         )}
       </Shell.TabList>
-      <Shell.Panel value="branch">
-        <TopicBranchPanel
-          open
-          topicId={topicId}
-          topicName={topicName}
-          liveState={branchLiveState}
-          focusKey={canvasFocusKey}
-          layoutReady={canvasLayoutReady}
-          onLocateMessage={handleLocateMessage}
-          onStartBranchDraft={onStartBranchDraft}
-          onCancelBranchDraft={onCancelBranchDraft}
-        />
-      </Shell.Panel>
-      {enableDeveloperMode && (
+      <ResourcePanePanel />
+      {hasBranchPanel && (
+        <Shell.Panel value="branch">
+          <TopicBranchPanel
+            open
+            topicId={topicId}
+            topicName={topicName}
+            liveState={branchLiveState}
+            focusKey={canvasFocusKey}
+            layoutReady={canvasLayoutReady}
+            onLocateMessage={handleLocateMessage}
+            onStartBranchDraft={onStartBranchDraft}
+            onCancelBranchDraft={onCancelBranchDraft}
+          />
+        </Shell.Panel>
+      )}
+      {hasBranchPanel && enableDeveloperMode && (
         <Shell.Panel value="trace">
-          <TracePane payload={{ topicId, traceId: traceId ?? '' }} />
+          <TracePane payload={{ topicId: topicId ?? '', traceId: traceId ?? '' }} />
         </Shell.Panel>
       )}
     </Shell.Tabs>
@@ -179,9 +202,17 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
   )
 }
 
-function TopicRightPaneToggle({ disabled }: { disabled?: boolean }) {
+function TopicRightPaneToggle() {
   const isActiveTab = useIsActiveTab()
-  return <Shell.Toggle tab="branch" command="topic.sidebar.toggle" commandEnabled={isActiveTab} disabled={disabled} />
+  const resourcePane = useResourcePane()
+  return (
+    <Shell.Toggle
+      tab={resourcePane ? RESOURCE_PANE_TAB : 'branch'}
+      command="topic.sidebar.toggle"
+      commandEnabled={isActiveTab}
+      disabled={resourcePane?.disabled}
+    />
+  )
 }
 
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {

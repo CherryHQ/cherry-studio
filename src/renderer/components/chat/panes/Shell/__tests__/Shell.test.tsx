@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CHAT_CENTER_MIN_USABLE_WIDTH } from '../../../shell/paneLayout'
@@ -143,7 +143,7 @@ import {
   useChatMaximizedOverlayBottomInset,
   useSetChatMaximizedOverlayBottomInset
 } from '../../../layout/ChatViewportInsetContext'
-import { Shell, useShellActions, useShellState } from '../Shell'
+import { Shell, useOptionalShellActions, useShellActions, useShellState } from '../Shell'
 
 function CloseShellButton() {
   const actions = useShellActions()
@@ -163,6 +163,20 @@ function OpenTraceButton() {
       open trace
     </button>
   )
+}
+
+function ShellActionsRenderCounter() {
+  useShellActions()
+  const renderCountRef = useRef(0)
+  renderCountRef.current += 1
+
+  return <output data-testid="shell-actions-render-count">{renderCountRef.current}</output>
+}
+
+function OptionalShellActionsSnapshot() {
+  const actions = useOptionalShellActions()
+
+  return <output data-testid="optional-shell-actions">{actions ? 'available' : 'missing'}</output>
 }
 
 function ToggleMaximizedButton() {
@@ -304,6 +318,42 @@ describe('Shell.Toggle', () => {
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
     expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
+  })
+
+  it('can mount open on the default tab', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
+  })
+
+  it('does not rerender actions-only consumers when shell state changes', () => {
+    render(
+      <Shell defaultTab="files">
+        <OpenTraceButton />
+        <ShellActionsRenderCounter />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-actions-render-count')).toHaveTextContent('1')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
+    expect(screen.getByTestId('shell-actions-render-count')).toHaveTextContent('1')
+  })
+
+  it('allows optional actions consumers outside a shell', () => {
+    render(<OptionalShellActionsSnapshot />)
+
+    expect(screen.getByTestId('optional-shell-actions')).toHaveTextContent('missing')
   })
 
   it('closes the open pane with the right sidebar shortcut', () => {

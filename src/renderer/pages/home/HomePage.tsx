@@ -9,8 +9,10 @@ import {
   LoadingState
 } from '@renderer/components/chat'
 import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
+import { type ResourcePaneConfig, useResourcePane } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import {
   createRecentTopicEntryFromTopic,
@@ -39,8 +41,10 @@ import { useTranslation } from 'react-i18next'
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
 import ChatNavbar from './components/ChatNavbar'
+import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
+import { Topics } from './Tabs/components/Topics'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
@@ -77,6 +81,7 @@ const HomePage: FC = () => {
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [resourceListPosition] = usePreference('chat.resource_list.position')
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
 
   const location = useLocation()
@@ -119,6 +124,9 @@ const HomePage: FC = () => {
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
   const resolveDraftAssistantTarget = useCallback(
     (explicitAssistantId?: string | null): ResolvedDraftAssistantSelection => {
+      if (explicitAssistantId === null) {
+        return { source: 'explicit' }
+      }
       if (explicitAssistantId && assistantIdSet.has(explicitAssistantId)) {
         return { assistantId: explicitAssistantId, source: 'explicit' }
       }
@@ -475,8 +483,15 @@ const HomePage: FC = () => {
     return <Container id="home-page" />
   }
 
-  const panePosition = 'left'
-  const pane = (
+  const useResourceEntityList = resourceListPosition === 'right'
+  const panePosition: ChatPanePosition = 'left'
+  const pane = useResourceEntityList ? (
+    <AssistantResourceList
+      activeAssistantId={visibleAssistantId ?? null}
+      onSelectTopic={setActiveTopicAndDiscardDraft}
+      onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
+    />
+  ) : (
     <HomeTabs
       activeTopic={visibleTopic}
       setActiveTopic={setActiveTopicAndDiscardDraft}
@@ -484,6 +499,27 @@ const HomePage: FC = () => {
       onOpenHistoryRecords={openHistoryRecords}
       revealRequest={topicRevealRequest}
     />
+  )
+  // In right mode the topic list moves into the chat's right pane as a tab; the single page-level
+  // provider owns the Shell for both modes so the rail and the right panel share its open/maximize
+  // state. Left mode passes a null config, leaving the pane as branch/trace only.
+  const resourcePane: ResourcePaneConfig | null = useResourceEntityList
+    ? {
+        label: t('chat.topics.title'),
+        node: (
+          <Topics
+            presentation="right-panel"
+            activeTopic={visibleTopic}
+            assistantIdFilter={visibleAssistantId ?? null}
+            setActiveTopic={setActiveTopicAndDiscardDraft}
+            onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+            revealRequest={topicRevealRequest}
+          />
+        )
+      }
+    : null
+  const renderWithRightPane = (content: ReactNode) => (
+    <TopicRightPane resourcePane={resourcePane}>{content}</TopicRightPane>
   )
   const historyRecordsOverlay = (
     <HistoryRecordsPage
@@ -496,7 +532,7 @@ const HomePage: FC = () => {
   )
 
   if (draftAssistantSelectionSnapshot) {
-    return (
+    return renderWithRightPane(
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <DraftWelcomeChat
@@ -523,7 +559,7 @@ const HomePage: FC = () => {
   const chatTopic = visibleTopic
   if (!chatTopic) return <Container id="home-page" />
 
-  return (
+  return renderWithRightPane(
     <Container id="home-page">
       <ContentContainer $detached={isWindowFrame}>
         <Chat
@@ -577,6 +613,7 @@ function DraftWelcomeChat({
   welcomeText
 }: DraftWelcomeChatProps) {
   const [messageStyle] = usePreference('chat.message.style')
+  const resourcePane = useResourcePane()
 
   const composer = (
     <ChatPlacementComposer
@@ -604,9 +641,12 @@ function DraftWelcomeChat({
           onSidebarToggle={onSidebarToggle}
         />
       }
+      topRightTool={resourcePane ? <TopicRightPane.Toggle /> : undefined}
       center={
         <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
       }
+      centerOverlay={resourcePane ? <TopicRightPane.MaximizedOverlay /> : undefined}
+      rightPane={resourcePane ? <TopicRightPane.Host /> : undefined}
       centerId="chat-main"
       centerClassName="transform-[translateZ(0)] relative justify-between"
     />

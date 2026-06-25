@@ -38,6 +38,14 @@ const dndMocks = vi.hoisted(() => ({
   sortableData: new Map<string, unknown>()
 }))
 
+// Return i18n keys verbatim so assertions on component-rendered copy (e.g. the default error
+// fallback) are deterministic regardless of the ambient i18next language. Readable labels in this
+// file are supplied as props, not via t(), so this only affects internal t() calls.
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-i18next')>()),
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: virtualMocks.useVirtualizer,
   defaultRangeExtractor: vi.fn((range) =>

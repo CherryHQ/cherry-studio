@@ -94,8 +94,10 @@ const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic?: Topic
+  assistantIdFilter?: string | null
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
 }
@@ -106,6 +108,9 @@ const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
   time: <Clock size={16} />,
   assistant: <Bot size={16} />
 }
+
+const RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME =
+  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'
 
 function buildCreateTopicPayload(
   topic: Topic | null | undefined,
@@ -269,8 +274,17 @@ function AssistantGroupMoreMenu({
   )
 }
 
-export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRequest, setActiveTopic }: Props) {
+export function Topics({
+  activeTopic,
+  assistantIdFilter,
+  onNewTopic,
+  onOpenHistoryRecords,
+  presentation = 'sidebar',
+  revealRequest,
+  setActiveTopic
+}: Props) {
   const { t } = useTranslation()
+  const isRightPanel = presentation === 'right-panel'
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
   const [groupNow] = useState(() => dayjs())
@@ -299,9 +313,18 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
-  const displayMode = topicDisplayMode ?? 'time'
+  const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
   const isAssistantDisplayMode = displayMode === 'assistant'
-  const topicExpansion = isAssistantDisplayMode ? topicExpansionAssistant : topicExpansionTime
+  const [rightPanelTopicExpansion, setRightPanelTopicExpansion] = useState<string[]>([])
+  const topicExpansion = isRightPanel
+    ? rightPanelTopicExpansion
+    : isAssistantDisplayMode
+      ? topicExpansionAssistant
+      : topicExpansionTime
+
+  useEffect(() => {
+    if (isRightPanel) setRightPanelTopicExpansion([])
+  }, [assistantIdFilter, isRightPanel])
 
   const {
     isLoading: isTopicPinsLoading,
@@ -654,10 +677,19 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
     [baseGroupedTopics, optimisticMove, topicGroupBy]
   )
 
-  const filteredTopics = groupedTopics
+  const filteredTopics = useMemo(() => {
+    if (!isRightPanel) return groupedTopics
+    if (!assistantIdFilter) return []
+    return groupedTopics.filter((topic) => topic.assistantId === assistantIdFilter)
+  }, [assistantIdFilter, groupedTopics, isRightPanel])
   const headerCreateTopicPayload = useMemo(
-    () => (isAssistantDisplayMode ? findLatestCreateTopicPayload(filteredTopics, undefined, assistantById) : undefined),
-    [assistantById, filteredTopics, isAssistantDisplayMode]
+    () =>
+      isRightPanel
+        ? { assistantId: assistantIdFilter ?? null }
+        : isAssistantDisplayMode
+          ? findLatestCreateTopicPayload(filteredTopics, undefined, assistantById)
+          : undefined,
+    [assistantById, assistantIdFilter, filteredTopics, isAssistantDisplayMode, isRightPanel]
   )
   const getCreateTopicPayloadForGroup = useCallback(
     (groupId: string) =>
@@ -911,10 +943,15 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
   const collapsedTopicState = topicExpansion
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
+      if (isRightPanel) {
+        setRightPanelTopicExpansion(nextCollapsedIds)
+        return
+      }
+
       if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
       else setTopicExpansionTime(nextCollapsedIds)
     },
-    [isAssistantDisplayMode, setTopicExpansionAssistant, setTopicExpansionTime]
+    [isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, setTopicExpansionTime]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
@@ -1058,6 +1095,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
   return (
     <>
       <TopicResourceList<Topic>
+        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-sidebar'}
+        className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={activeTopic?.id}
@@ -1087,25 +1126,32 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
-        <ResourceList.Header className="gap-1">
-          <ResourceList.HeaderItem
-            type="button"
-            command="topic.create"
-            aria-label={t('chat.conversation.new')}
-            icon={<SquarePen />}
-            label={t('chat.conversation.new')}
-            onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-            actions={
-              <>
+        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-2')}>
+          {isRightPanel ? (
+            <ResourceList.Search
+              aria-label={t('chat.topics.search.title')}
+              className={RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME}
+              placeholder={t('chat.topics.search.placeholder')}
+              wrapperClassName="pt-1"
+            />
+          ) : (
+            <ResourceList.HeaderItem
+              type="button"
+              command="topic.create"
+              aria-label={t('chat.conversation.new')}
+              icon={<SquarePen />}
+              label={t('chat.conversation.new')}
+              onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
+              actions={
                 <TopicListOptionsMenu
                   mode={displayMode}
                   onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
                 />
-              </>
-            }
-          />
+              }
+            />
+          )}
         </ResourceList.Header>
 
         <TopicListBody
@@ -1115,6 +1161,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
+          isRightPanel={isRightPanel}
           listRef={listRef}
           notesPath={notesPath}
           onAutoRename={handleAutoRename}
@@ -1128,7 +1175,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
           onRequestTopicImageAction={handleTopicImageAction}
           onSwitchTopic={setActiveTopic}
           topicsLength={topics.length}
-          variant={isAssistantDisplayMode ? 'draggable' : 'plain'}
+          variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
       </TopicResourceList>
 
@@ -1225,6 +1272,7 @@ interface TopicListBodyProps {
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
+  isRightPanel: boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -1241,7 +1289,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'isRightPanel' | 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1252,6 +1300,7 @@ function TopicListBody(props: TopicListBodyProps) {
     exportMenuOptions,
     isNewlyRenamed,
     isRenaming,
+    isRightPanel,
     listRef,
     notesPath,
     onAutoRename,
@@ -1317,7 +1366,7 @@ function TopicListBody(props: TopicListBodyProps) {
     <ResourceList.Body<Topic>
       listRef={listRef}
       draggable={variant === 'draggable'}
-      virtualClassName="pt-0 pb-3"
+      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
         <ResourceList.EmptyState

@@ -379,6 +379,51 @@ vi.mock('../Tabs', () => ({
   )
 }))
 
+vi.mock('../Tabs/components/Topics', () => ({
+  Topics: ({ assistantIdFilter, presentation }: { assistantIdFilter?: string | null; presentation?: string }) => (
+    <div
+      data-assistant-id={assistantIdFilter ?? ''}
+      data-presentation={presentation ?? ''}
+      data-testid="topic-resource-panel"
+    />
+  )
+}))
+
+vi.mock('../components/TopicRightPane', () => {
+  const TopicRightPane = Object.assign(
+    ({
+      children,
+      defaultOpen,
+      resourcePane
+    }: {
+      children: ReactNode
+      defaultOpen?: boolean
+      resourcePane?: { node?: ReactNode; label?: string } | null
+    }) => (
+      <div
+        data-default-open={String(Boolean(defaultOpen))}
+        data-default-tab={resourcePane ? 'resources' : 'branch'}
+        data-testid="topic-right-pane-provider">
+        {resourcePane?.node}
+        {children}
+      </div>
+    ),
+    {
+      Host: () => <div data-testid="topic-right-pane-host" />,
+      MaximizedOverlay: () => <div data-testid="topic-right-pane-overlay" />,
+      Toggle: () => <button type="button">Toggle topic right pane</button>
+    }
+  )
+
+  return { TopicRightPane }
+})
+
+vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', () => ({
+  AssistantResourceList: ({ activeAssistantId }: { activeAssistantId?: string | null }) => (
+    <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list" />
+  )
+}))
+
 vi.mock('../../history/HistoryRecordsPage', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
     open ? (
@@ -447,6 +492,19 @@ describe('HomePage', () => {
         }
       }
     })
+  })
+
+  it('renders the assistant resource list with the resource pane closed by default', () => {
+    homeMocks.preferenceValues.set('chat.resource_list.position', 'right')
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'resources')
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
+    expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
   })
 
   it('forwards a reveal request when navigation asks the current chat tab to reveal its selection', async () => {

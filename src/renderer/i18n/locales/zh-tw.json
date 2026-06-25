@@ -562,7 +562,8 @@
         }
       },
       "search": {
-        "placeholder": "搜尋任務"
+        "placeholder": "搜尋任務",
+        "title": "搜尋任務"
       },
       "unpin": {
         "title": "取消固定任務"

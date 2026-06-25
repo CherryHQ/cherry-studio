@@ -1,8 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import {
   createRecentSessionEntryFromSession,
@@ -32,6 +34,7 @@ import { useTranslation } from 'react-i18next'
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
+import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
@@ -43,6 +46,7 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
 
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [resourceListPosition] = usePreference('chat.resource_list.position')
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
@@ -473,6 +477,13 @@ const AgentPage = () => {
     },
     [setDraftSessionState]
   )
+  const handleResourceSessionSelect = useCallback(
+    (sessionId: string, session: AgentSessionEntity) => {
+      if (conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
+      setActiveSessionAndDiscardDraft(sessionId, session)
+    },
+    [conversationNav, currentTabId, setActiveSessionAndDiscardDraft]
+  )
 
   const ensurePersistentSession = useCallback(
     async (initialName?: string) => {
@@ -579,6 +590,45 @@ const AgentPage = () => {
   }, [])
 
   const panePosition = 'left'
+  const useResourceEntityList = resourceListPosition === 'right'
+  const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
+  const pane = useResourceEntityList ? (
+    <AgentResourceList
+      activeAgentId={activeResourceAgentId}
+      onSelectSession={handleResourceSessionSelect}
+      onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
+      onStartMissingAgentDraft={startMissingAgentDraft}
+    />
+  ) : (
+    <AgentSidePanel
+      activeSessionId={activeSessionId}
+      revealRequest={sessionRevealRequest}
+      onOpenHistoryRecords={openHistoryRecords}
+      onStartDraftSession={startDraftSession}
+      onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
+      setActiveSessionId={setActiveSessionAndDiscardDraft}
+    />
+  )
+  // In right mode the session list moves into the chat's right pane as a tab; AgentChat keeps the
+  // pane provider per-branch (its Shell meta is bound to per-session runtime, unlike Home), so the
+  // config is threaded into each branch rather than lifted to this page.
+  const resourcePane: ResourcePaneConfig | null = useResourceEntityList
+    ? {
+        label: t('title.work'),
+        node: (
+          <Sessions
+            presentation="right-panel"
+            activeSessionId={activeSessionId}
+            agentIdFilter={activeResourceAgentId}
+            revealRequest={sessionRevealRequest}
+            onSelectItem={undefined}
+            onStartDraftSession={startDraftSession}
+            onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
+            setActiveSessionId={setActiveSessionAndDiscardDraft}
+          />
+        )
+      }
+    : null
 
   return (
     <Container>
@@ -587,16 +637,7 @@ const AgentPage = () => {
           activeSession={visibleSession}
           activeSessionLoading={isActiveSessionLoading}
           activeSessionSource={activeSessionSource}
-          pane={
-            <AgentSidePanel
-              activeSessionId={activeSessionId}
-              revealRequest={sessionRevealRequest}
-              onOpenHistoryRecords={openHistoryRecords}
-              onStartDraftSession={startDraftSession}
-              onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
-              setActiveSessionId={setActiveSessionAndDiscardDraft}
-            />
-          }
+          pane={pane}
           lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={effectiveShowSidebar}
@@ -618,6 +659,7 @@ const AgentPage = () => {
           onLocateMessageHandled={handleLocateMessageHandled}
           replacingDraftAgent={replacingDraftAgent}
           replacingDraftWorkspace={replacingDraftWorkspace}
+          resourcePane={resourcePane}
         />
       </div>
       <HistoryRecordsPage

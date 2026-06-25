@@ -562,7 +562,8 @@
         }
       },
       "search": {
-        "placeholder": "Search tasks"
+        "placeholder": "Search tasks",
+        "title": "Search tasks"
       },
       "unpin": {
         "title": "Unpin task"

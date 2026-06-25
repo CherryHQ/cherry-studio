@@ -48,28 +48,46 @@ interface ShellContextValue {
   actions: ShellActions
 }
 
-const ShellContext = createContext<ShellContextValue | null>(null)
+const ShellStateContext = createContext<ShellState | null>(null)
+const ShellActionsContext = createContext<ShellActions | null>(null)
 
 function useShell(): ShellContextValue {
-  const value = use(ShellContext)
-  if (!value) throw new Error('useShell must be used within <Shell>')
-  return value
+  return {
+    state: useShellState(),
+    actions: useShellActions()
+  }
 }
 
 export function useShellActions(): ShellActions {
-  return useShell().actions
+  const actions = use(ShellActionsContext)
+  if (!actions) throw new Error('useShellActions must be used within <Shell>')
+  return actions
+}
+
+export function useOptionalShellActions(): ShellActions | undefined {
+  return use(ShellActionsContext) ?? undefined
 }
 
 export function useShellState(): ShellState {
-  return useShell().state
+  const state = use(ShellStateContext)
+  if (!state) throw new Error('useShellState must be used within <Shell>')
+  return state
 }
 
 export function useOptionalShellState(): ShellState | undefined {
-  return use(ShellContext)?.state
+  return use(ShellStateContext) ?? undefined
 }
 
-function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultTab: string }) {
-  const [open, setOpen] = useState(false)
+function ShellProvider({
+  children,
+  defaultTab,
+  defaultOpen = false
+}: {
+  children: ReactNode
+  defaultTab: string
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
   const [activeTab, setActiveTab] = useState(defaultTab)
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
@@ -116,26 +134,20 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
 
-  const value = useMemo<ShellContextValue>(
-    () => ({
-      state: { open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey },
-      actions: { close, finishClose, openTab, toggleMaximized, refreshPdfLayout }
-    }),
-    [
-      activeTab,
-      close,
-      finishClose,
-      maximized,
-      open,
-      openTab,
-      pdfLayoutPending,
-      pdfLayoutRefreshKey,
-      refreshPdfLayout,
-      toggleMaximized
-    ]
+  const state = useMemo<ShellState>(
+    () => ({ open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey }),
+    [activeTab, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
+  )
+  const actions = useMemo<ShellActions>(
+    () => ({ close, finishClose, openTab, toggleMaximized, refreshPdfLayout }),
+    [close, finishClose, openTab, refreshPdfLayout, toggleMaximized]
   )
 
-  return <ShellContext value={value}>{children}</ShellContext>
+  return (
+    <ShellActionsContext value={actions}>
+      <ShellStateContext value={state}>{children}</ShellStateContext>
+    </ShellActionsContext>
+  )
 }
 
 // Docked, resizable side container. Unmounted entirely while maximized: the
@@ -220,26 +232,36 @@ function ShellToggle({
   tab,
   disabled = false,
   command,
-  commandEnabled = true
+  commandEnabled = true,
+  closeLabel,
+  openLabel,
+  switchWhenOpen = false
 }: {
   tab: string
   disabled?: boolean
   command?: CommandId
   /** Gates the keyboard command (e.g. only the active tab handles it); the button stays clickable. */
   commandEnabled?: boolean
+  closeLabel?: string
+  openLabel?: string
+  /**
+   * Default toggle semantics are kept for existing single-pane buttons: any open pane closes.
+   * Multi-tab owners can opt into tab switching while the shell is already open.
+   */
+  switchWhenOpen?: boolean
 }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
-  const pressed = state.open
+  const pressed = switchWhenOpen ? state.open && state.activeTab === tab : state.open
   const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
-  const toggleLabel = t(pressed ? 'common.close_sidebar' : 'common.open_sidebar')
+  const toggleLabel = pressed ? (closeLabel ?? t('common.close_sidebar')) : (openLabel ?? t('common.open_sidebar'))
   const handleClick = useCallback(() => {
-    if (state.open) {
+    if (state.open && (!switchWhenOpen || state.activeTab === tab)) {
       actions.close()
       return
     }
     actions.openTab(tab)
-  }, [actions, state.open, tab])
+  }, [actions, state.activeTab, state.open, switchWhenOpen, tab])
 
   const button = (
     <NavbarIcon

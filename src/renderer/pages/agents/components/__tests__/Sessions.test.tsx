@@ -772,6 +772,18 @@ describe('Sessions', () => {
     expect(onStartDraftSession).not.toHaveBeenCalled()
   })
 
+  it('uses only the redesigned search control in right panel mode', () => {
+    setupSessions()
+
+    render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
+
+    expect(screen.queryByRole('button', { name: 'Add task' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
+
+    const searchInput = screen.getByPlaceholderText('Search tasks')
+    expect(searchInput).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'text-xs')
+  })
+
   it('starts a first-agent draft from the header when there are agents but no sessions', async () => {
     const onStartDraftSession = vi.fn()
     const onStartMissingAgentDraft = vi.fn()

@@ -58,6 +58,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
   setShowSidebar: vi.fn(),
+  resourceListPosition: 'left' as 'left' | 'right',
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
@@ -89,7 +90,11 @@ vi.mock('@data/hooks/usePreference', async () => {
   return {
     usePreference: (key: string) => {
       const [value, setValue] = React.useState<unknown>(
-        key === 'topic.tab.show' ? agentPageMocks.showSidebar : undefined
+        key === 'topic.tab.show'
+          ? agentPageMocks.showSidebar
+          : key === 'chat.resource_list.position'
+            ? agentPageMocks.resourceListPosition
+            : undefined
       )
       const setPreference = vi.fn(async (nextValue: unknown) => {
         if (key === 'topic.tab.show') {
@@ -245,6 +250,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId,
     pane,
     paneOpen,
+    resourcePane,
     showResourceListControls,
     onPaneCollapse
   }: {
@@ -270,6 +276,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId?: string
     pane?: ReactNode
     paneOpen?: boolean
+    resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
     onPaneCollapse?: () => void
   }) => (
@@ -314,6 +321,7 @@ vi.mock('../AgentChat', () => ({
         </button>
       )}
       {pane}
+      {resourcePane?.node}
     </section>
   )
 }))
@@ -367,6 +375,22 @@ vi.mock('../AgentSidePanel', () => ({
   }
 }))
 
+vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => ({
+  AgentResourceList: ({ activeAgentId }: { activeAgentId?: string | null }) => (
+    <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list" />
+  )
+}))
+
+vi.mock('../components/Sessions', () => ({
+  default: ({ agentIdFilter, presentation }: { agentIdFilter?: string | null; presentation?: string }) => (
+    <div
+      data-agent-id={agentIdFilter ?? ''}
+      data-presentation={presentation ?? ''}
+      data-testid="session-resource-panel"
+    />
+  )
+}))
+
 vi.mock('../../history/HistoryRecordsPage', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
     open ? (
@@ -391,6 +415,7 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.focusExistingTab.mockReturnValue(false)
+    agentPageMocks.resourceListPosition = 'left'
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
@@ -415,6 +440,19 @@ describe('AgentPage', () => {
         }
       }
     })
+  })
+
+  it('renders the agent resource list in the left pane', () => {
+    agentPageMocks.resourceListPosition = 'right'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-a')
+    expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
+    expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
+    expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
   })
 
   it('uses tab metadata as the session entry when the URL is the agents route', () => {
