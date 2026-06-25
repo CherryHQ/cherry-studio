@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ChatContent from '../ChatContent'
 
 // The send path calls ipcApi.request('ai.stream_open', …); route it to the per-test
-// `streamOpen` spy (kept on window.api.ai for the existing assertions). `ipcMock.request`
-// is re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
+// `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
+// re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
 const { ipcMock } = vi.hoisted(() => ({
   ipcMock: {
     request: (() => Promise.resolve(undefined)) as (route: string, input: unknown) => unknown,
