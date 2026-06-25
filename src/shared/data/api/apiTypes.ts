@@ -159,8 +159,12 @@ export interface DataResponse<T = any> {
   error?: SerializedDataApiError
   /** Response metadata */
   metadata?: {
-    /** Request processing duration in milliseconds — only set when CS_DIAGNOSTICS is on */
+    /** Request processing duration in milliseconds — devtools/debug only */
     duration?: number
+    /** Total main-process DataApi handling duration in milliseconds — devtools/debug only */
+    serverDuration?: number
+    /** DataApi handler body duration in milliseconds — devtools/debug only */
+    handlerDuration?: number
     /** Whether response was served from cache */
     cached?: boolean
     /** Cache TTL if applicable */

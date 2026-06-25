@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
+import { isDev } from '@main/core/platform'
 import type { RequestContext as ErrorRequestContext } from '@shared/data/api/apiErrors'
 import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/apiErrors'
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
@@ -18,6 +19,7 @@ import { MiddlewareEngine } from './MiddlewareEngine'
 type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
 
 const logger = loggerService.withContext('DataApi:Server')
+const DATA_API_TIMING_ENABLED = isDev || DIAGNOSTICS_ENABLED
 
 /**
  * Core API Server - Transport agnostic request processor
@@ -67,8 +69,9 @@ export class ApiServer {
   async handleRequest(request: DataRequest): Promise<DataResponse> {
     const { method, path } = request
     const startTime = Date.now()
-    // Opt-in (CS_DIAGNOSTICS): monotonic clock for the duration measurement only.
-    const perfStart = DIAGNOSTICS_ENABLED ? performance.now() : 0
+    // DevTools and CS_DIAGNOSTICS both need monotonic request timings.
+    const perfStart = DATA_API_TIMING_ENABLED ? performance.now() : 0
+    let handlerDuration: number | undefined
 
     // Build error request context for tracking
     const errorContext: ErrorRequestContext = {
@@ -94,18 +97,24 @@ export class ApiServer {
 
       // Execute handler if middleware didn't set error
       if (!requestContext.response.error) {
+        const handlerStart = DATA_API_TIMING_ENABLED ? performance.now() : 0
         await this.executeHandler(requestContext, handlerMatch)
+        if (DATA_API_TIMING_ENABLED) {
+          handlerDuration = performance.now() - handlerStart
+        }
       }
 
-      // Opt-in (CS_DIAGNOSTICS): attach request duration and log slow requests.
-      if (DIAGNOSTICS_ENABLED) {
+      // Opt-in timing: devtools reads metadata in dev; diagnostics additionally logs slow requests.
+      if (DATA_API_TIMING_ENABLED) {
         const duration = performance.now() - perfStart
         requestContext.response.metadata = {
           ...requestContext.response.metadata,
           duration,
+          serverDuration: duration,
+          handlerDuration,
           timestamp: Date.now()
         }
-        if (duration > SLOW_THRESHOLD_MS.dataApiRequest)
+        if (DIAGNOSTICS_ENABLED && duration > SLOW_THRESHOLD_MS.dataApiRequest)
           logger.info(`[Diagnostics/dataapi] ${duration.toFixed(1)}ms ${method} ${path}`)
       }
 
@@ -116,12 +125,18 @@ export class ApiServer {
       // Convert to DataApiError and serialize for IPC
       const apiError = error instanceof DataApiError ? error : toDataApiError(error, `${method} ${path}`)
 
+      const duration = DATA_API_TIMING_ENABLED ? performance.now() - perfStart : undefined
       return {
         id: request.id,
         status: apiError.status,
         error: apiError.toJSON(), // Serialize for IPC transmission
-        metadata: DIAGNOSTICS_ENABLED
-          ? { duration: performance.now() - perfStart, timestamp: Date.now() }
+        metadata: DATA_API_TIMING_ENABLED
+          ? {
+              duration,
+              serverDuration: duration,
+              handlerDuration,
+              timestamp: Date.now()
+            }
           : { timestamp: Date.now() }
       }
     }

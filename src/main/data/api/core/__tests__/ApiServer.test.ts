@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiServer } from '../ApiServer'
+
+const originalNodeEnv = process.env.NODE_ENV
+
+afterEach(() => {
+  process.env.NODE_ENV = originalNodeEnv
+})
 
 // The constructor is private; cast to bypass for focused unit tests.
 // extractPathParams() is a pure method and depends on no injected handlers,
@@ -155,6 +161,56 @@ describe('ApiServer.extractPathParams', () => {
       // `foo*` is not a param (no leading `:`) and must match literally.
       expect(extract('/foo*', '/foo*')).toEqual({})
       expect(extract('/foo*', '/foo/bar')).toBeNull()
+    })
+  })
+})
+
+describe('ApiServer devtools timing metadata', () => {
+  it('does not add timing metadata when devtools and diagnostics are disabled', async () => {
+    const server = new (ApiServer as any)({
+      '/providers': {
+        GET: async () => ({ ok: true })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_1',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response).toMatchObject({
+      id: 'req_1',
+      status: 200,
+      data: { ok: true }
+    })
+    expect(response.metadata?.serverDuration).toBeUndefined()
+    expect(response.metadata?.handlerDuration).toBeUndefined()
+  })
+
+  it('adds server and handler durations in development mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'development'
+    const { ApiServer: DevApiServer } = await import('../ApiServer')
+    const server = new (DevApiServer as any)({
+      '/providers': {
+        GET: async () => ({ ok: true })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_2',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      serverDuration: expect.any(Number),
+      handlerDuration: expect.any(Number),
+      timestamp: expect.any(Number)
     })
   })
 })
