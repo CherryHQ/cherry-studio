@@ -53,12 +53,7 @@ export function AssistantResourceList({
     isFullyLoaded: isTopicsFullyLoaded,
     error: topicsError
   } = useTopics({ loadAll: true })
-  const {
-    isLoading: isTopicPinsLoading,
-    isMutating: isTopicPinsMutating,
-    isRefreshing: isTopicPinsRefreshing,
-    pinnedIds: topicPinnedIds
-  } = usePins('topic')
+  const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
@@ -113,13 +108,7 @@ export function AssistantResourceList({
     getResourceParentId: (topic) => topic.assistantId,
     resourcesFullyLoaded: isTopicsFullyLoaded,
     activeEntityId: activeAssistantId,
-    isLoading:
-      isAssistantsLoading ||
-      isTopicsLoadingAll ||
-      !isTopicsFullyLoaded ||
-      isTopicPinsLoading ||
-      isTopicPinsRefreshing ||
-      isTopicPinsMutating,
+    isLoading: isAssistantsLoading || isTopicsLoadingAll || !isTopicsFullyLoaded || isTopicPinsLoading,
     isError: !!(assistantsError || topicsError),
     sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,

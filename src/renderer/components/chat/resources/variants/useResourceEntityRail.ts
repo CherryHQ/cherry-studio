@@ -87,7 +87,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     return [...optimistic, ...ordered.filter((entity) => !optimisticIds.has(entity.id))]
   }, [entities, entityIdsWithResources, optimisticOrderIds])
 
-  const listStatus: ResourceListStatus = isError ? 'error' : isLoading ? 'loading' : 'idle'
+  const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
   const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
 
   const handleSelect = useCallback(
