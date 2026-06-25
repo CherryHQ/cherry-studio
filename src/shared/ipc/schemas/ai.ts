@@ -154,7 +154,8 @@ export const aiRequestSchemas = {
   }),
   'ai.respond_tool_approval': defineRoute({
     // Mirrors AiToolApprovalRespondRequest (z.ZodType pins exact-shape drift here, not in a test).
-    input: z.object({
+    // strictObject for parity with the model-op routes — reject unknown keys rather than strip them.
+    input: z.strictObject({
       approvalId: z.string().min(1),
       approved: z.boolean(),
       reason: z.string().optional(),

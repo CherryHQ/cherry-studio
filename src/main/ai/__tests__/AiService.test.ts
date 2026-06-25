@@ -389,6 +389,32 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      return undefined
+    })
+    const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+      approvalMutationResult(committed, ['mcp-approval-1']) as never
+    )
+
+    // No managed window → senderWc undefined: the continuation has nothing to surface on.
+    const handler = getApprovalHandler()
+    const result = await handler({ sender: undefined } as never, {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    expect(result).toEqual({ ok: false })
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
   it('refuses (ok:false) without mutating the row when a stream is still live on the topic', async () => {
     // The approval card is clickable the moment the chunk arrives (live overlay), so a response can
     // land while a sibling exec / another continuation is still live. Dispatching continue-conversation

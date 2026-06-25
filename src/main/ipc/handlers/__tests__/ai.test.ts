@@ -168,6 +168,14 @@ describe('aiHandlers — streaming', () => {
     expect(result).toEqual({ status: 'not-found' })
   })
 
+  it('stream_attach throws when the sender is not a managed window', async () => {
+    windowManager.getWindow.mockReturnValue(undefined)
+    await expect(aiHandlers['ai.stream_attach']({ topicId: 't' }, { senderId: null })).rejects.toThrow(
+      'requires a managed window'
+    )
+    expect(aiStreamManager.attach).not.toHaveBeenCalled()
+  })
+
   it('stream_detach delegates when the sender window exists', async () => {
     await aiHandlers['ai.stream_detach']({ topicId: 't' }, { senderId: 'w1' })
     expect(aiStreamManager.detach).toHaveBeenCalledWith(fakeWebContents, { topicId: 't' })
