@@ -133,8 +133,14 @@ const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightTool
           '[-webkit-app-region:drag]',
           shouldReserveTrafficLightInset ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
         ],
-        // Reserve room for the floating right group: wider in window mode (pin + back + tool).
-        !maximized && (isWindow ? 'pr-28' : topRightToolReserve === 'double' ? 'pr-[76px]' : 'pr-11')
+        // Reserve room for the floating right group: wider in window mode (pin + back + tool),
+        // plus the OS window controls corner on frameless Win/Linux (--window-controls-width, 0px elsewhere).
+        !maximized &&
+          (isWindow
+            ? 'pr-[calc(7rem+var(--window-controls-width,0px))]'
+            : topRightToolReserve === 'double'
+              ? 'pr-[76px]'
+              : 'pr-11')
       )}>
       {leading}
       {children}
@@ -154,7 +160,8 @@ const ConversationShellTopRightTool = ({ isWindow, trailing, children }: TopRigh
     <div
       data-navbar-right-occupant
       className={cn(
-        'absolute top-0 right-2 z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]',
+        // right offset = 8px gap + the OS window controls corner (--window-controls-width, 0px elsewhere)
+        'absolute top-0 right-[calc(0.5rem+var(--window-controls-width,0px))] z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]',
         // Window mode: shorter bar (lines up with the traffic lights) + injected controls
         // (pin / back-to-main) to the left of the page's own tool.
         isWindow ? TITLE_BAR_HEIGHT_CLASS : 'h-(--navbar-height)'
