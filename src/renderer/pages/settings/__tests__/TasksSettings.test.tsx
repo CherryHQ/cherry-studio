@@ -364,4 +364,46 @@ describe('TasksSettings task logs', () => {
       'false'
     )
   })
+
+  it('renders completed task status badge with info color tokens', async () => {
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') {
+        return Promise.resolve({
+          items: [{ id: 'agent-1', name: 'Agent One', configuration: { soul_enabled: true } }]
+        })
+      }
+
+      if (path === '/agents/agent-1/tasks') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'task-1',
+              agentId: 'agent-1',
+              name: 'Daily task',
+              prompt: 'Run daily summary',
+              trigger: { kind: 'interval', ms: 60000 },
+              timeoutMinutes: 10,
+              workspace: { type: 'system' },
+              channelIds: [],
+              nextRun: null,
+              lastRun: null,
+              enabled: false,
+              status: 'completed',
+              createdAt: '2026-06-25T00:00:00.000Z',
+              updatedAt: '2026-06-25T00:00:00.000Z'
+            }
+          ]
+        })
+      }
+
+      throw new Error(`unexpected path: ${path}`)
+    })
+
+    render(<TasksSettings />)
+
+    const completedBadge = await screen.findByText('agent.cherryClaw.tasks.status.completed')
+
+    expect(completedBadge).toHaveClass('border-info/30', 'bg-info/10', 'text-info')
+    expect(completedBadge).not.toHaveClass('border-primary/30', 'bg-primary/10', 'text-primary')
+  })
 })
