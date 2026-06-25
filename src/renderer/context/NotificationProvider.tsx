@@ -1,4 +1,4 @@
-import { notificationQueue } from '@renderer/queue/NotificationQueue'
+import { notificationQueue } from '@renderer/services/notification'
 import type { Notification } from '@renderer/types/notification'
 import { isFocused } from '@renderer/utils/window'
 import { notification } from 'antd'
