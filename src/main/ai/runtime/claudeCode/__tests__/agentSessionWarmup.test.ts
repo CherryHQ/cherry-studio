@@ -88,3 +88,35 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
   })
 })
+
+describe('buildClaudeCodeQueryRequestForAgentSession provenance headers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
+    mocks.getModelByKey.mockResolvedValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
+    mocks.getRotatedApiKey.mockResolvedValue('api-key')
+    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
+    mocks.buildSessionSettings.mockResolvedValue({ env: {} })
+  })
+
+  it('injects the agent source + conversation headers via ANTHROPIC_CUSTOM_HEADERS for a cherryin model', async () => {
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'X-Cherry-Source: agent\nX-Cherry-Conversation-Id: session-1'
+    )
+  })
+
+  it('does not inject the headers for a non-cherryin model', async () => {
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'provider-1::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'provider-1', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
+  })
+})

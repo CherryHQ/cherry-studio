@@ -24,6 +24,7 @@ import * as z from 'zod'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
+import type { AiRequestSource } from '../requestSource'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -439,6 +440,8 @@ export class AiStreamManager extends BaseService {
     callOverrides?: CallOverrides
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
     idleTimeoutMs?: number
+    /** Feature provenance — materialized into the cherryin `X-Cherry-*` headers downstream. */
+    source?: AiRequestSource
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -451,6 +454,7 @@ export class AiStreamManager extends BaseService {
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      ...(input.source ? { source: input.source } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({

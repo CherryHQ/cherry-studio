@@ -130,7 +130,8 @@ describe('knowledge rerank runtime', () => {
       uniqueModelId: 'jina::jina-reranker-v2-base-multilingual',
       query: 'hello',
       documents: ['alpha', 'beta'],
-      topN: 2
+      topN: 2,
+      source: { feature: 'knowledge' }
     })
     expect(
       result.map((item) => ({

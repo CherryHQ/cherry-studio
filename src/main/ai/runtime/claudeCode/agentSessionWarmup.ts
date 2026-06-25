@@ -8,6 +8,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost } from '@shared/utils/api'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import {
+  buildRequestSourceHeaders,
+  CherryRequestSource,
+  isCherryinProviderId,
+  toAnthropicCustomHeaders
+} from '../../requestSource'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -38,10 +44,18 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const anthropicBaseUrl = resolveAnthropicBaseUrl(provider, baseUrl)
   const resumeSessionId =
     effectiveResume ?? (await agentSessionMessageService.getLastRuntimeResumeToken(session.id)) ?? undefined
+  // Provenance headers ride ANTHROPIC_CUSTOM_HEADERS — but only when the agent's
+  // model is served by cherryin, the sole consumer. Other providers get nothing.
+  const sourceCustomHeaders = isCherryinProviderId(provider.id)
+    ? toAnthropicCustomHeaders(
+        buildRequestSourceHeaders({ feature: CherryRequestSource.Agent, conversationId: session.id })
+      )
+    : undefined
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(session, provider, { lastAgentSessionId: resumeSessionId }),
     apiKey,
-    anthropicBaseUrl
+    anthropicBaseUrl,
+    sourceCustomHeaders
   )
   const sdkModelId = withDeepSeek1mSuffix(model.apiModelId ?? model.id, anthropicBaseUrl)
   const options = createClaudeCodeQueryOptions({
@@ -73,16 +87,25 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
 function mergeRuntimeSettings(
   settings: ClaudeCodeSettings,
   apiKey: string | undefined,
-  anthropicBaseUrl: string | undefined
+  anthropicBaseUrl: string | undefined,
+  sourceCustomHeaders: string | undefined
 ): ClaudeCodeSettings {
+  const customHeaders = mergeAnthropicCustomHeaders(settings.env?.ANTHROPIC_CUSTOM_HEADERS, sourceCustomHeaders)
   return {
     ...settings,
     env: {
       ...settings.env,
       ...(apiKey ? { ANTHROPIC_API_KEY: apiKey, ANTHROPIC_AUTH_TOKEN: apiKey } : {}),
-      ...(anthropicBaseUrl ? { ANTHROPIC_BASE_URL: anthropicBaseUrl } : {})
+      ...(anthropicBaseUrl ? { ANTHROPIC_BASE_URL: anthropicBaseUrl } : {}),
+      ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
     }
   }
+}
+
+/** Append our provenance line(s) to any pre-existing ANTHROPIC_CUSTOM_HEADERS instead of clobbering them. */
+function mergeAnthropicCustomHeaders(existing: string | undefined, added: string | undefined): string | undefined {
+  if (!added) return existing
+  return existing ? `${existing}\n${added}` : added
 }
 
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(

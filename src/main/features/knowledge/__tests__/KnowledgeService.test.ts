@@ -1635,6 +1635,7 @@ describe('KnowledgeService', () => {
     expect(aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['hello'],
+      source: { feature: 'knowledge' },
       requestOptions: undefined
     })
   })
@@ -1673,6 +1674,7 @@ describe('KnowledgeService', () => {
     expect(aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['hello'],
+      source: { feature: 'knowledge' },
       requestOptions: undefined
     })
     expect(storeSearchMock).toHaveBeenCalledWith(

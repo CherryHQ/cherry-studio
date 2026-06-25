@@ -117,6 +117,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     const history = prepared.models[0].request.messages
     expect(history).toBeDefined()
+    // Tags the upstream request so cherryin can attribute it to the chat feature + topic.
+    expect(prepared.models[0].request.source).toEqual({ feature: 'chat', conversationId: 'topic-1' })
     expect(flatten(history!)).toEqual([
       { role: 'user', text: 'first question' },
       // The paused partial survives into the rebuilt prompt — this is the B4 efficacy guarantee.

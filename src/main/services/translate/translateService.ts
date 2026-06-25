@@ -18,6 +18,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { CherryRequestSource } from '@main/ai/requestSource'
 import { modelService } from '@main/data/services/ModelService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -125,7 +126,13 @@ export class TranslateService {
     listeners.push(wcListener)
 
     const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })
+    streamManager.streamPrompt({
+      streamId: req.streamId,
+      uniqueModelId,
+      prompt: content,
+      listener: listeners,
+      source: { feature: CherryRequestSource.Translate }
+    })
 
     logger.debug('translate stream opened', {
       streamId: req.streamId,
