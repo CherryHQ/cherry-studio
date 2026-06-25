@@ -1,7 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
@@ -277,18 +275,14 @@ describe('AiService tool approval', () => {
   }
 
   /**
-   * Instantiate `AiService`, register its IPC handlers against the mocked
-   * `ipcMain`, and return the captured `Ai_ToolApproval_Respond` listener.
+   * The `ai.respond_tool_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
+   * (the IpcApi handler in `handlers/ai.ts` resolves the WebContents from `ctx.senderId` and calls
+   * it). Adapt to the old `(event, payload)` call shape so the cases below read unchanged.
    */
   function getApprovalHandler() {
     const service = createService()
-    ;(service as unknown as { registerIpcHandlers(): void }).registerIpcHandlers()
-    const call = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([channel]) => channel === IpcChannel.Ai_ToolApproval_Respond)
-    if (!call) throw new Error('Ai_ToolApproval_Respond handler was not registered')
-    return call[1] as (
-      event: unknown,
+    return (
+      event: { sender: Electron.WebContents },
       payload: {
         approvalId: string
         approved: boolean
@@ -297,7 +291,7 @@ describe('AiService tool approval', () => {
         topicId?: string
         anchorId?: string
       }
-    ) => Promise<{ ok: boolean }>
+    ) => service.respondToolApproval(payload, event.sender)
   }
 
   beforeEach(() => {
@@ -551,26 +545,9 @@ describe('AiService tool approval', () => {
     expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it('returns { ok: false } when the IPC payload is invalid (rejected at the boundary)', async () => {
-    const respondToolApproval = vi.fn(() => true)
-    const dispatch = vi.fn()
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
-      return undefined
-    })
-    const getById = vi.spyOn(messageService, 'getById')
-
-    const handler = getApprovalHandler()
-    // Missing `approved` boolean and empty `approvalId` → schema rejects.
-    const result = await handler(fakeEvent(), { approvalId: '' } as never)
-
-    expect(result).toEqual({ ok: false })
-    // Rejected before any registry dispatch or DB read.
-    expect(respondToolApproval).not.toHaveBeenCalled()
-    expect(getById).not.toHaveBeenCalled()
-    expect(dispatch).not.toHaveBeenCalled()
-  })
+  // Payload validation (empty `approvalId`, missing `approved`) now lives in the IpcApi router's
+  // zod parse of `ai.respond_tool_approval`, not in `respondToolApproval` — so the invalid-payload
+  // case is no longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing").
 
   it('routes rerank requests through ai-core rerank', async () => {
     const service = createService()

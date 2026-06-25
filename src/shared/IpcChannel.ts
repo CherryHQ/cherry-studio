@@ -401,16 +401,9 @@ export enum IpcChannel {
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
-  // AI Stream (AiStreamManager): chunk/done/error events + open/attach/detach/abort requests
-  // migrated to IpcApi (`ai.stream_*`). The remaining entries stay on legacy IPC.
+  // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
+  // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.
   Ai_Translate_Open = 'ai:translate:open',
-  /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
-  Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
-  /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */
-  Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
-  Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
-
-  Ai_Agent_RunTask = 'ai:agent:run-task',
 
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
   // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).

@@ -13,7 +13,8 @@ const aiService = {
   embedMany: vi.fn(),
   runImageRequest: vi.fn(),
   abortImage: vi.fn(),
-  listModels: vi.fn()
+  listModels: vi.fn(),
+  respondToolApproval: vi.fn()
 }
 
 const aiStreamManager = {
@@ -22,6 +23,9 @@ const aiStreamManager = {
   detach: vi.fn(),
   abort: vi.fn()
 }
+
+const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
+const agentJobsService = { runTask: vi.fn() }
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
 const fakeWebContents = { id: 1, once: vi.fn(), isDestroyed: () => false, send: vi.fn() }
@@ -36,6 +40,10 @@ beforeEach(() => {
         return aiService
       case 'AiStreamManager':
         return aiStreamManager
+      case 'ClaudeCodeWarmQueryManager':
+        return claudeCodeWarmQueryManager
+      case 'AgentJobsService':
+        return agentJobsService
       case 'WindowManager':
         return windowManager
       default:
@@ -175,5 +183,44 @@ describe('aiHandlers — streaming', () => {
     await aiHandlers['ai.stream_abort']({ topicId: 't' }, { senderId: null })
     expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+})
+
+describe('aiHandlers — agent sessions & tasks', () => {
+  it('prewarm_agent_session delegates to ClaudeCodeWarmQueryManager', async () => {
+    claudeCodeWarmQueryManager.prewarmAgentSession.mockResolvedValue(undefined)
+    await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
+    expect(claudeCodeWarmQueryManager.prewarmAgentSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('close_agent_session_warm delegates to ClaudeCodeWarmQueryManager', async () => {
+    await aiHandlers['ai.close_agent_session_warm']({ sessionId: 's1' }, ctx)
+    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
+  })
+
+  it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {
+    aiService.respondToolApproval.mockResolvedValue({ ok: true })
+    const payload = { approvalId: 'a1', approved: true }
+
+    const result = await aiHandlers['ai.respond_tool_approval'](payload, { senderId: 'w1' })
+
+    expect(aiService.respondToolApproval).toHaveBeenCalledWith(payload, fakeWebContents)
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('respond_tool_approval passes undefined WebContents when the sender is not a managed window', async () => {
+    aiService.respondToolApproval.mockResolvedValue({ ok: false })
+    const payload = { approvalId: 'a1', approved: false }
+
+    await aiHandlers['ai.respond_tool_approval'](payload, { senderId: null })
+
+    expect(aiService.respondToolApproval).toHaveBeenCalledWith(payload, undefined)
+    expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+
+  it('run_agent_task delegates to AgentJobsService', async () => {
+    agentJobsService.runTask.mockResolvedValue(true)
+    await aiHandlers['ai.run_agent_task']('task-1', ctx)
+    expect(agentJobsService.runTask).toHaveBeenCalledWith('task-1')
   })
 })

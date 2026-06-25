@@ -227,8 +227,8 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Single locked dispatch entry point for chat streams. Both `Ai_Stream_Open`
-   * and the tool-approval continue path (`AiService.Ai_ToolApproval_Respond`)
+   * Single locked dispatch entry point for chat streams. Both `ai.stream_open`
+   * and the tool-approval continue path (`AiService.respondToolApproval`)
    * route through here so the per-topic `dispatchLock` serialises every dispatch
    * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
    * placeholder off a `hasLiveStream` snapshot; without one lock covering both

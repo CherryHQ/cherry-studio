@@ -67,5 +67,19 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.stream_abort': async ({ topicId }) => {
     application.get('AiStreamManager').abort(topicId, 'user-requested')
+  },
+
+  // ── Agent sessions & tasks — delegate to the owning services. ──
+  'ai.prewarm_agent_session': async ({ sessionId }) => {
+    await application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  },
+  'ai.close_agent_session_warm': async ({ sessionId }) => {
+    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+  },
+  // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
+  'ai.respond_tool_approval': (payload, { senderId }) =>
+    application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
+  'ai.run_agent_task': async (taskId) => {
+    await application.get('AgentJobsService').runTask(taskId)
   }
 }

@@ -2,6 +2,7 @@ import type { PersonGeneration } from '@google/genai'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
+  AiToolApprovalRespondRequest,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -139,6 +140,33 @@ export const aiRequestSchemas = {
   }),
   'ai.stream_abort': defineRoute({
     input: z.strictObject({ topicId: z.string().min(1) }),
+    output: z.void()
+  }),
+
+  // ── Agent sessions & tasks ──
+  'ai.prewarm_agent_session': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.close_agent_session_warm': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.respond_tool_approval': defineRoute({
+    // Mirrors AiToolApprovalRespondRequest (z.ZodType pins exact-shape drift here, not in a test).
+    input: z.object({
+      approvalId: z.string().min(1),
+      approved: z.boolean(),
+      reason: z.string().optional(),
+      updatedInput: z.record(z.string(), z.unknown()).optional(),
+      topicId: z.string().optional(),
+      anchorId: z.string().optional()
+    }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
+    output: z.object({ ok: z.boolean() })
+  }),
+  'ai.run_agent_task': defineRoute({
+    // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
+    input: z.string().min(1),
     output: z.void()
   })
 }

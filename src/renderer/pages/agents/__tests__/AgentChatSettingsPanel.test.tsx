@@ -21,6 +21,15 @@ const agentRightPanePropsMock = vi.hoisted(() => ({
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 
+// Tool-approval responses now go through ipcApi.request('ai.respond_tool_approval', …).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.respond_tool_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
@@ -286,13 +295,7 @@ describe('AgentChat settings panel', () => {
     agentSessionRefreshMock.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: {
-        ai: {
-          toolApproval: {
-            respond: toolApprovalRespondMock
-          }
-        }
-      }
+      value: {}
     })
   })
 

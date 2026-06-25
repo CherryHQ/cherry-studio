@@ -1,12 +1,6 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanContext } from '@opentelemetry/api'
-import type {
-  AiAgentSessionWarmCloseRequest,
-  AiAgentSessionWarmRequest,
-  AiToolApprovalRespondRequest,
-  AiToolApprovalRespondResponse
-} from '@shared/ai/transport'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -714,24 +708,8 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.AgentSession_AutoRenamed, listener)
     }
   },
-  ai: {
-    // Stream control (open/attach/detach/abort) and the chunk/done/error push events
-    // moved to IpcApi: `ipcApi.request('ai.stream_*')` and `ipcApi.on('ai.stream_*')`.
-
-    prewarmAgentSession: (req: AiAgentSessionWarmRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
-    closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_CloseWarm, req),
-
-    // ── Tool approval (v6 ToolUIPart native flow) ──
-    toolApproval: {
-      respond: (payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> =>
-        ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
-    },
-    agent: {
-      runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)
-    }
-  },
+  // All `ai.*` capability IPC moved to IpcApi (`ipcApi.request('ai.*')` / `ipcApi.on('ai.stream_*')`):
+  // model ops, streaming chat, agent-session warm-up, tool approval and agent run-task.
   translate: {
     open: (req: {
       streamId: string
