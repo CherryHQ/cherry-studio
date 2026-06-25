@@ -12,7 +12,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/pages/settings'
-import type { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types/app'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'

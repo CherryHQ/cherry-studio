@@ -1,5 +1,5 @@
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +46,7 @@ describe('pasteHandling', () => {
     })
   })
 
-  it('marks long pasted text files with the pasted-text composer kind when the preference is enabled', async () => {
+  it('marks long pasted text files with the pasted-text composer kind', async () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
     let files: ComposerAttachment[] = []
@@ -61,16 +61,8 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(
-      event,
-      [],
-      setFiles,
-      undefined,
-      true,
-      LONG_TEXT_PASTE_THRESHOLD,
-      '',
-      undefined,
-      (key) => (key === 'chat.input.pasted_text_file_name' ? '已粘贴的文本.txt' : key)
+    const handled = await pasteHandling.handlePaste(event, [], setFiles, undefined, '', undefined, (key) =>
+      key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key
     )
 
     expect(handled).toBe(true)
@@ -82,7 +74,7 @@ describe('pasteHandling', () => {
         fileTokenSourceId: expect.any(String),
         path: selectedFile.path,
         name: selectedFile.name,
-        origin_name: '已粘贴的文本.txt',
+        origin_name: 'pasted text.txt',
         ext: selectedFile.ext,
         size: selectedFile.size,
         type: selectedFile.type,
@@ -92,8 +84,8 @@ describe('pasteHandling', () => {
     expect(files[0]?.fileTokenSourceId).not.toBe(selectedFile.id)
   })
 
-  it('leaves long pasted text untouched when the preference is disabled', async () => {
-    const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+  it('leaves short pasted text untouched', async () => {
+    const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD)
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
     const event = {
@@ -104,15 +96,7 @@ describe('pasteHandling', () => {
       }
     } as unknown as ClipboardEvent
 
-    const handled = await pasteHandling.handlePaste(
-      event,
-      [],
-      setFiles,
-      undefined,
-      false,
-      LONG_TEXT_PASTE_THRESHOLD,
-      ''
-    )
+    const handled = await pasteHandling.handlePaste(event, [], setFiles, undefined, '')
 
     expect(handled).toBe(false)
     expect(preventDefault).not.toHaveBeenCalled()

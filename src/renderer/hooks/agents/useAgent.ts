@@ -7,8 +7,7 @@
  */
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AddAgentForm, UpdateAgentForm } from '@renderer/types'
-import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
+import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'

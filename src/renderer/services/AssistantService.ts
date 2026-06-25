@@ -1,5 +1,5 @@
 import i18n from '@renderer/i18n'
-import type { Assistant, AssistantSettings } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 const LEGACY_DEFAULT_ASSISTANT_LITERAL = 'default'

@@ -1,4 +1,5 @@
-import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
 
 import { isReportArtifactsToolResponse } from './agent/ReportArtifacts'
 import MessageMcpTool from './mcp/MessageMcpTool'

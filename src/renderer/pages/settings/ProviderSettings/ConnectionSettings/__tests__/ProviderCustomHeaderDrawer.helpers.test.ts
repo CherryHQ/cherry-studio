@@ -6,8 +6,11 @@ vi.mock('@cherrystudio/ui', () => ({}))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/hooks/useCopilot', () => ({ useCopilot: () => ({}) }))
 vi.mock('@renderer/hooks/useProvider', () => ({ useProvider: () => ({}) }))
-vi.mock('@renderer/utils', () => ({
-  cn: (...a: any[]) => a.filter(Boolean).join(' '),
+vi.mock('@renderer/utils/style', () => ({
+  cn: (...a: any[]) => a.filter(Boolean).join(' ')
+}))
+
+vi.mock('@renderer/utils/api', () => ({
   // Delegation boundary: a simple http(s) shape is enough — validateApiHost
   // has its own tests; here we only pin the skip/iterate logic.
   validateApiHost: (h: string) => /^https?:\/\/[^\s]+$/.test(h)

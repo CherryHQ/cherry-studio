@@ -5,7 +5,7 @@ import {
   type SkillSearchResult,
   type SkillSearchSource,
   SkillsShSearchResponseSchema
-} from '@types'
+} from '@shared/types/skill'
 
 const logger = loggerService.withContext('SkillSearchService')
 

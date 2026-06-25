@@ -2,7 +2,7 @@ import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@ch
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'

@@ -11,7 +11,8 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
-import { type Citation, WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types'
+import type { Citation } from '@renderer/types/message'
+import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent, encodeHTML } from '@renderer/utils/formats'
 
 /** Pick the first valid source identifier out of a citation-reference list. */

@@ -1,6 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HighlightText from '@renderer/components/HighlightText'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'

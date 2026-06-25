@@ -1,5 +1,4 @@
 import { ComposerPanelSymbol } from '@renderer/components/chat/composer/quickPanel/symbols'
-import type { Assistant } from '@renderer/types'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it, vi } from 'vitest'
@@ -15,6 +14,8 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({ mcpServers: [] })
 }))
+
+import type { Assistant } from '@renderer/types/assistant'
 
 import { TopicType } from '../../types'
 import { buildMcpStatusItems, createMcpStatusLauncher } from '../mcpStatusTool'
