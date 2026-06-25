@@ -32,6 +32,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -63,7 +64,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 const logger = loggerService.withContext('reasoning')
 
 type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'adaptive' | 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: ReasoningEffortOption
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -210,6 +211,12 @@ export function getReasoningEffort(
     // DeepSeek V3.x hybrid, default behavior is non-thinking
     if (isDeepSeekHybridInferenceModel(model)) {
       return {}
+    }
+
+    // MiniMax M3 defaults to thinking enabled, explicitly disable it.
+    // MiniMax only accepts thinking.type 'adaptive' | 'disabled'.
+    if (isMiniMaxReasoningModel(model)) {
+      return { thinking: { type: 'disabled' } }
     }
 
     // GPT 5.1, GPT 5.2, or newer
@@ -563,6 +570,12 @@ export function getReasoningEffort(
     }
   }
 
+  // MiniMax M3, openai compatible api. MiniMax only accepts thinking.type
+  // 'adaptive' | 'disabled' ('enabled' is rejected with a 400).
+  if (isMiniMaxReasoningModel(model)) {
+    return { thinking: { type: 'adaptive' } }
+  }
+
   // Claude models, openai compatible api
   if (isSupportedThinkingTokenClaudeModel(model)) {
     const maxTokens = assistant.settings?.maxTokens
@@ -718,6 +731,13 @@ export function getAnthropicReasoningParams(
         type: 'disabled'
       }
     }
+  }
+
+  // MiniMax M3 (served via the Claude-compatible endpoint) only accepts
+  // thinking.type 'adaptive' | 'disabled' — 'enabled' is rejected with a 400.
+  // 'none' is already handled by the disabled branch above.
+  if (isMiniMaxReasoningModel(model)) {
+    return { thinking: { type: 'adaptive' } }
   }
 
   // Claude reasoning parameters
