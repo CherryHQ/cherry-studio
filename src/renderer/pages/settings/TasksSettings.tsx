@@ -1041,7 +1041,7 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <div className="flex flex-1">
+    <div className="flex min-w-0 flex-1">
       <div
         className="flex w-full flex-1 flex-row overflow-hidden"
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
@@ -1088,7 +1088,7 @@ const TasksSettings: FC = () => {
         </Scrollbar>
 
         {/* Right panel */}
-        <div className="relative flex flex-1">
+        <div className="relative flex min-w-0 flex-1 overflow-hidden">
           {creating ? (
             <CreateForm
               agents={agents}
