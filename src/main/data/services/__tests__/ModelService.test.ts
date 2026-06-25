@@ -265,6 +265,47 @@ describe('ModelService.update', () => {
     expect(row.userOverrides).toContain('parameters')
   })
 
+  it('marks only the fields whose value actually changed in a full-field patch', async () => {
+    // The edit drawer always sends the full field set; only the genuinely
+    // changed field should be tracked as a user override.
+    await seedExistingModel()
+
+    await modelService.update('openai', 'gpt-4o', {
+      name: 'GPT-4o', // unchanged
+      capabilities: ['function-call'], // unchanged
+      contextWindow: 200_000, // changed
+      maxOutputTokens: 4096 // unchanged
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.userOverrides).toEqual(['contextWindow'])
+  })
+
+  it('does not mark capabilities as overridden when only the array order differs', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+      })
+    )
+
+    await modelService.update('openai', 'gpt-4o', {
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.userOverrides ?? []).toEqual([])
+  })
+
   it('returns existing model unchanged when DTO is empty', async () => {
     await seedExistingModel()
 

@@ -12,9 +12,11 @@ import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils'
+import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
+import { isEqual } from 'lodash'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -73,6 +75,15 @@ const CURRENCY_CODE_TO_SYMBOL = {
 const symbolToCurrency = (symbol: string): ModelDrawerCurrency | undefined => CURRENCY_SYMBOL_TO_CODE[symbol]
 const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefined =>
   CURRENCY_CODE_TO_SYMBOL[currency as ModelDrawerCurrency]
+
+/** Order-insensitive equality for the model's string-set fields (capabilities, endpoint types). */
+const sameUnorderedStrings = (a?: readonly string[], b?: readonly string[]): boolean => {
+  const left = a ?? []
+  const right = b ?? []
+  if (left.length !== right.length) return false
+  const set = new Set(right)
+  return left.every((item) => set.has(item))
+}
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
@@ -138,17 +149,37 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
 
       const { modelId } = parseUniqueModelId(model.id)
-      await updateModel(model.providerId ?? providerId, modelId, {
-        name: patch.name,
-        group: patch.group,
-        capabilities: patch.capabilities,
-        supportsStreaming: patch.supportsStreaming,
-        endpointTypes: patch.endpointTypes,
-        contextWindow: patch.contextWindow,
-        maxInputTokens: patch.maxInputTokens,
-        maxOutputTokens: patch.maxOutputTokens,
-        pricing: patch.pricing
-      })
+
+      // The drawer always synthesizes a full patch; send only the fields the
+      // user actually changed so untouched fields aren't recorded as user
+      // overrides (which would freeze them against registry sync). Pricing is
+      // normalized the way `buildPatch` synthesizes it (missing prices → 0,
+      // default currency) so an untouched price field diffs as unchanged
+      // against a null `model.pricing`.
+      const baselineCurrency: Currency = symbolToCurrency(currencyToSymbol(readCurrency(model)) ?? '$') ?? CURRENCY.USD
+      const baselinePricing = {
+        input: { perMillionTokens: model.pricing?.input?.perMillionTokens ?? 0, currency: baselineCurrency },
+        output: { perMillionTokens: model.pricing?.output?.perMillionTokens ?? 0, currency: baselineCurrency }
+      }
+
+      const changes: UpdateModelDto = {}
+      if (patch.name !== model.name) changes.name = patch.name
+      if (patch.group !== model.group) changes.group = patch.group
+      if (!sameUnorderedStrings(patch.capabilities, model.capabilities)) changes.capabilities = patch.capabilities
+      if (patch.supportsStreaming !== model.supportsStreaming) changes.supportsStreaming = patch.supportsStreaming
+      if (patch.endpointTypes !== undefined && !sameUnorderedStrings(patch.endpointTypes, model.endpointTypes)) {
+        changes.endpointTypes = patch.endpointTypes
+      }
+      if (patch.contextWindow !== model.contextWindow) changes.contextWindow = patch.contextWindow
+      if (patch.maxInputTokens !== model.maxInputTokens) changes.maxInputTokens = patch.maxInputTokens
+      if (patch.maxOutputTokens !== model.maxOutputTokens) changes.maxOutputTokens = patch.maxOutputTokens
+      if (!isEqual(patch.pricing, baselinePricing)) changes.pricing = patch.pricing
+
+      if (Object.keys(changes).length === 0) {
+        return
+      }
+
+      await updateModel(model.providerId ?? providerId, modelId, changes)
     },
     [model, providerId, updateModel]
   )

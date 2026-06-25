@@ -333,6 +333,12 @@ describe('Model drawers', () => {
       />
     )
 
+    // Changing the endpoint type is what makes the save payload include it —
+    // the drawer now only sends fields the user actually changed.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'endpoint_type.anthropic' }))
+    })
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /common\.save/i }))
     })
@@ -341,7 +347,7 @@ describe('Model drawers', () => {
       'cherryin',
       'claude-4-sonnet',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       })
     )
   })

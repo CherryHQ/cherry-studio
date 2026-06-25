@@ -9,7 +9,7 @@
 
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
+import type { InsertUserModelRow, RegistryEnrichableField, UserModelRow } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -35,6 +35,7 @@ import type {
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { isEqual } from 'lodash'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
@@ -320,6 +321,47 @@ function rowToRuntimeModel(row: UserModelRow): Model {
     isDeprecated: row.isDeprecated,
     notes: row.notes ?? undefined
   }
+}
+
+/**
+ * Compare an enrichable field's incoming value against the at-rest row value.
+ *
+ * Array fields (capabilities / modalities / endpoint types) are conceptually
+ * sets — the edit drawer rebuilds them in a different element order even when
+ * membership is unchanged — so they are compared order-insensitively.
+ * Everything else (scalars, pricing / reasoning / parameter objects) uses deep
+ * equality.
+ */
+function enrichableValueEqual(next: unknown, prev: unknown): boolean {
+  if (Array.isArray(next) && Array.isArray(prev)) {
+    if (next.length !== prev.length) return false
+    const prevSet = new Set(prev)
+    return next.every((item) => prevSet.has(item))
+  }
+  return isEqual(next, prev)
+}
+
+/**
+ * Resolve which registry-enrichable fields a patch genuinely changes.
+ *
+ * The renderer's edit drawer always sends the full field set, so marking every
+ * enrichable key present would freeze the entire model against registry sync
+ * after a single edit (`user_model.userOverrides`). Compare each written value
+ * against the existing row and return only the fields that actually differ.
+ * `updates` keys are already DB column names.
+ */
+function computeChangedEnrichableFields(
+  updates: Partial<InsertUserModelRow>,
+  existing: UserModelRow
+): RegistryEnrichableField[] {
+  const changed: RegistryEnrichableField[] = []
+  for (const dbKey of Object.keys(updates)) {
+    if (!isRegistryEnrichableField(dbKey)) continue
+    if (!enrichableValueEqual(updates[dbKey], existing[dbKey])) {
+      changed.push(dbKey)
+    }
+  }
+  return changed
 }
 
 class ModelService {
@@ -644,13 +686,9 @@ class ModelService {
       }
     }
 
-    // Track which registry-enrichable fields the user explicitly changed
-    // Map DTO keys to DB column names (e.g. parameterSupport → parameters)
-    const dtoToDbKey = (key: string): string => {
-      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
-      return mapping && Array.isArray(mapping) ? mapping[1] : key
-    }
-    const changedEnrichableFields = Object.keys(dto).map(dtoToDbKey).filter(isRegistryEnrichableField)
+    // Track only the registry-enrichable fields whose value actually changed, so
+    // a full-patch save from the edit drawer doesn't freeze untouched fields.
+    const changedEnrichableFields = computeChangedEnrichableFields(updates, existing)
     if (changedEnrichableFields.length > 0) {
       const existingOverrides = existing.userOverrides ?? []
       updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
@@ -691,11 +729,6 @@ class ModelService {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
     }
 
-    const dtoToDbKey = (key: string): string => {
-      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
-      return mapping && Array.isArray(mapping) ? mapping[1] : key
-    }
-
     return await db.transaction(async (tx) => {
       const results: Model[] = []
 
@@ -718,7 +751,7 @@ class ModelService {
           }
         }
 
-        const changedEnrichableFields = Object.keys(patch).map(dtoToDbKey).filter(isRegistryEnrichableField)
+        const changedEnrichableFields = computeChangedEnrichableFields(updates, existing)
         if (changedEnrichableFields.length > 0) {
           const existingOverrides = existing.userOverrides ?? []
           updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
