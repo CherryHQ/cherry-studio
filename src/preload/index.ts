@@ -24,7 +24,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
@@ -753,54 +752,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
     closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Ai_AgentSession_CloseWarm, req),
-
-    // ── Non-streaming operations ──
-    // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.
-    generateText: (request: {
-      assistantId?: string
-      uniqueModelId?: string
-      system?: string
-      prompt?: string
-      messages?: unknown[]
-      mcpToolIds?: string[]
-    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
-    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
-      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
-    embedMany: (request: {
-      uniqueModelId?: string
-      values: string[]
-    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
-    generateImage: async (
-      payload: {
-        uniqueModelId?: string
-        prompt: string
-        inputImages?: string[]
-        mask?: string
-        n?: number
-        size?: string
-        negativePrompt?: string
-        seed?: number
-        quality?: string
-        numInferenceSteps?: number
-        guidanceScale?: number
-        promptEnhancement?: boolean
-        personGeneration?: string
-        aspectRatio?: string
-        background?: string
-        moderation?: string
-        style?: string
-        providerOptions?: Record<string, Record<string, unknown>>
-      },
-      requestId: string
-    ): Promise<{ files: FileEntry[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, { requestId, payload }),
-    abortImage: (requestId: string): void => {
-      ipcRenderer.send(IpcChannel.Ai_AbortImage, { requestId })
-    },
-    listModels: (request: {
-      providerId?: string
-      assistantId?: string
-      throwOnError?: boolean
-    }): Promise<Partial<Model>[]> => ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {

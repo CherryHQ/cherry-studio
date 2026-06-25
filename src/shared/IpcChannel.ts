@@ -420,13 +420,6 @@ export enum IpcChannel {
   Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
 
-  // AI Non-streaming
-  Ai_GenerateText = 'ai:generate-text',
-  Ai_CheckModel = 'ai:check-model',
-  Ai_EmbedMany = 'ai:embed-many',
-  Ai_GenerateImage = 'ai:generate-image',
-  Ai_AbortImage = 'ai:abort-image',
-  Ai_ListModels = 'ai:list-models',
   Ai_Agent_RunTask = 'ai:agent:run-task',
 
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).

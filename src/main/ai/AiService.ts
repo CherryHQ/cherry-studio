@@ -179,10 +179,10 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
-  // Per-request AbortControllers for `Ai_GenerateImage`, paired with the
-  // `Ai_AbortImage` channel. Key is the renderer-generated requestId
-  // (see `src/preload/index.ts`). Entries are self-cleaning via the
-  // handler's `finally` block; abort on an unknown id is a no-op.
+  // Per-request AbortControllers for the `ai.generate_image` route, paired with the
+  // `ai.abort_image` route. Key is the renderer-generated requestId. Entries are
+  // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
+  // a no-op.
   // TODO(abort-registry): collapse with MCP/stream/LAN registries once
   // the shared `ipcHandleWithAbort` helper lands.
   private readonly imageRequests = new Map<string, AbortController>()
@@ -195,40 +195,6 @@ export class AiService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
-      return this.generateText(request)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_CheckModel, async (_, request: AiBaseRequest & { timeout?: number }) => {
-      return this.checkModel(request)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_EmbedMany, async (_, request: AiEmbedRequest) => {
-      return this.embedMany(request)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: { requestId: string; payload: AiImageRequest }) => {
-      const { requestId, payload } = request
-      const controller = new AbortController()
-      this.imageRequests.set(requestId, controller)
-      try {
-        return await this.generateImage({
-          ...payload,
-          requestOptions: { ...payload.requestOptions, signal: controller.signal }
-        })
-      } finally {
-        this.imageRequests.delete(requestId)
-      }
-    })
-
-    this.ipcOn(IpcChannel.Ai_AbortImage, (_, request: { requestId: string }) => {
-      this.imageRequests.get(request.requestId)?.abort()
-    })
-
-    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: ListModelsRequest) => {
-      return this.listModels(request)
-    })
-
     this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, request: TranslateOpenRequest) => {
       return translateService.open(event.sender, request)
     })
@@ -449,6 +415,29 @@ export class AiService extends BaseService {
 
   // ── Image generation ──
 
+  /**
+   * Run an image request under an abort registry entry keyed by the renderer-supplied
+   * `requestId`, so `ai.abort_image` can cancel it. Self-cleaning via `finally`; the
+   * `ai.generate_image` handler delegates here (the registry is service state).
+   */
+  async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
+    const controller = new AbortController()
+    this.imageRequests.set(requestId, controller)
+    try {
+      return await this.generateImage({
+        ...payload,
+        requestOptions: { ...payload.requestOptions, signal: controller.signal }
+      })
+    } finally {
+      this.imageRequests.delete(requestId)
+    }
+  }
+
+  /** Abort the in-flight image request for `requestId`; a no-op on an unknown id. */
+  abortImage(requestId: string): void {
+    this.imageRequests.get(requestId)?.abort()
+  }
+
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
@@ -610,7 +599,7 @@ export class AiService extends BaseService {
       throw error
     }
 
-    // Reuse the existing IPC AbortController (Ai_AbortImage): when it fires,
+    // Reuse the existing IPC AbortController (ai.abort_image): when it fires,
     // cancel the job (which aborts the handler + remote task).
     const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
     if (signal?.aborted) onAbort()
