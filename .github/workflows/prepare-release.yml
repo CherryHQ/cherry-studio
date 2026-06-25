@@ -31,9 +31,9 @@ jobs:
       - name: Prepare Release via Claude
         uses: anthropics/claude-code-action@v1.0.66
         with:
-          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          claude_args: '--allowed-tools "Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with version argument: ${{ github.event.inputs.version }}
 
@@ -45,4 +45,4 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
         env:
-          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}

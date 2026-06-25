@@ -1,9 +1,11 @@
-import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
+
+import { getBinarySearchDirs, mergeBinaryExecutionEnv } from './process'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -11,13 +13,12 @@ const logger = loggerService.withContext('ShellEnv')
 const SHELL_ENV_TIMEOUT_MS = 15_000
 
 /**
- * Ensures the Cherry Studio bin directory is appended to the user's PATH while
+ * Ensures Cherry-managed tool directories are appended to the user's PATH while
  * preserving the original key casing and avoiding duplicate segments.
  */
-const appendCherryBinToPath = (env: Record<string, string>) => {
+const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
-  const homeDirFromEnv = env.HOME || env.Home || env.USERPROFILE || env.UserProfile || os.homedir()
-  const cherryBinPath = path.join(homeDirFromEnv, '.cherrystudio', 'bin')
+  const cherryToolDirs = getBinarySearchDirs()
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
@@ -45,7 +46,7 @@ const appendCherryBinToPath = (env: Record<string, string>) => {
     .map((segment) => segment.trim())
     .forEach(pushIfUnique)
 
-  pushIfUnique(cherryBinPath)
+  cherryToolDirs.forEach(pushIfUnique)
 
   const updatedPath = uniqueSegments.join(pathSeparator)
 
@@ -60,6 +61,12 @@ const appendCherryBinToPath = (env: Record<string, string>) => {
   if (!isWin) {
     env.PATH = updatedPath
   }
+}
+
+const applyBinaryExecutionEnv = (env: Record<string, string>) => {
+  const merged = mergeBinaryExecutionEnv(env)
+  Object.keys(env).forEach((key) => delete env[key])
+  Object.assign(env, merged)
 }
 
 /**
@@ -134,7 +141,8 @@ function getWindowsEnvironment(): Record<string, string> {
     logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
   }
 
-  appendCherryBinToPath(env)
+  appendCherryToolDirsToPath(env)
+  applyBinaryExecutionEnv(env)
   return env
 }
 
@@ -161,7 +169,11 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
 
   return new Promise((resolve, reject) => {
     const homeDirectory =
-      process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
+      process.env.HOME ||
+      process.env.Home ||
+      process.env.USERPROFILE ||
+      process.env.UserProfile ||
+      application.getPath('sys.home')
     if (!homeDirectory) {
       return reject(new Error("Could not determine user's home directory."))
     }
@@ -288,7 +300,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryBinToPath(env)
+      appendCherryToolDirsToPath(env)
+      applyBinaryExecutionEnv(env)
 
       resolveOnce(env)
     })
@@ -307,7 +320,8 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    appendCherryBinToPath(fallbackEnv)
+    appendCherryToolDirsToPath(fallbackEnv)
+    applyBinaryExecutionEnv(fallbackEnv)
     return fallbackEnv
   }
 }

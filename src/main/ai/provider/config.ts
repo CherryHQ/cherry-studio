@@ -123,10 +123,11 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
         isGenerateImageModel(model) &&
         (p.id === SystemProviderIds.modelscope ||
           p.id === SystemProviderIds.ppio ||
+          p.id === SystemProviderIds.silicon ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: (ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'dmxapi',
+        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'dmxapi',
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
@@ -159,7 +160,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
   }
 
   // Default every provider to the proxy-aware net.fetch base so the app proxy
-  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
+  // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch

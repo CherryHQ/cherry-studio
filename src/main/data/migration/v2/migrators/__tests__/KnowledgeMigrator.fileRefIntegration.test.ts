@@ -11,11 +11,14 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
-import { knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AssistantMigrator } from '../AssistantMigrator'
@@ -388,6 +391,107 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
 
     const refRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
     expect(refRows).toHaveLength(0)
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('re-creates an orphan embedding model whose provider survived so the base migrates without a re-index', async () => {
+    // The user removed this embedding model from the provider's model list but kept the provider
+    // (and its credentials), so v2 has the provider plus a sibling model — just not this one.
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+    await dbh.db
+      .insert(userModelTable)
+      .values({ id: 'openai::gpt-4o', providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o', orderKey: 'a0' })
+
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'legacy-kb-orphan-embed',
+          name: 'KB orphan embed',
+          dimensions: 1024,
+          model: { id: 'text-embedding-3-small', name: 'Text Embedding 3 Small', provider: 'openai', group: 'Embed' },
+          items: []
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, [], reduxKnowledge)
+    const migrator = new KnowledgeMigrator() as any
+    // No legacy vector store on disk in this harness; a resolved model would otherwise read it and
+    // fall into a missing-vector-store `failed` row. Stub dimensions so the resolved base stays
+    // `completed`, isolating the resurrection + FK behavior under test.
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    expect((await migrator.execute(ctx)).success).toBe(true)
+
+    const resurrected = await dbh.db
+      .select({
+        id: userModelTable.id,
+        providerId: userModelTable.providerId,
+        modelId: userModelTable.modelId,
+        name: userModelTable.name,
+        group: userModelTable.group
+      })
+      .from(userModelTable)
+      .where(eq(userModelTable.id, 'openai::text-embedding-3-small'))
+    expect(resurrected).toEqual([
+      {
+        id: 'openai::text-embedding-3-small',
+        providerId: 'openai',
+        modelId: 'text-embedding-3-small',
+        name: 'Text Embedding 3 Small',
+        group: 'Embed'
+      }
+    ])
+
+    const baseRows = await dbh.db
+      .select({
+        embeddingModelId: knowledgeBaseTable.embeddingModelId,
+        status: knowledgeBaseTable.status,
+        error: knowledgeBaseTable.error
+      })
+      .from(knowledgeBaseTable)
+    expect(baseRows).toEqual([{ embeddingModelId: 'openai::text-embedding-3-small', status: 'completed', error: null }])
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('keeps a base failed when its orphan embedding model provider did not survive', async () => {
+    // No matching user_provider row: re-adding the model would need a fabricated provider with no
+    // credentials, turning a clear restore prompt into a silent runtime failure — so stay failed.
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'legacy-kb-ghost-provider',
+          name: 'KB ghost provider',
+          dimensions: 1024,
+          model: { id: 'mystery-embed', name: 'Mystery Embed', provider: 'ghost-provider' },
+          items: []
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, [], reduxKnowledge)
+    const migrator = new KnowledgeMigrator()
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    expect((await migrator.execute(ctx)).success).toBe(true)
+
+    const modelRows = await dbh.db.select({ id: userModelTable.id }).from(userModelTable)
+    expect(modelRows).toHaveLength(0)
+
+    const baseRows = await dbh.db
+      .select({
+        embeddingModelId: knowledgeBaseTable.embeddingModelId,
+        status: knowledgeBaseTable.status,
+        error: knowledgeBaseTable.error
+      })
+      .from(knowledgeBaseTable)
+    expect(baseRows).toEqual([
+      { embeddingModelId: null, status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL }
+    ])
 
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
     expect(fkCheck.rows).toHaveLength(0)

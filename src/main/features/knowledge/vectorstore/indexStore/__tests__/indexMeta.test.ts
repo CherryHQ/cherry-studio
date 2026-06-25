@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { ensureIndexMeta, hasAnyMaterial, hasLegacyVectorStoreTable } from '../indexMeta'
+import { ensureIndexMeta, hasAnyMaterial } from '../indexMeta'
 import type { LibsqlDriver } from '../LibsqlDriver'
 import { openLibsqlIndexDriver } from '../LibsqlDriver'
 import { createKnowledgeIndexSchema, KNOWLEDGE_INDEX_SCHEMA_VERSION } from '../schema'
@@ -87,13 +87,5 @@ describe('index content diagnostics', () => {
     )
 
     expect(await hasAnyMaterial(driver)).toBe(true)
-  })
-
-  it('hasLegacyVectorStoreTable detects the legacy single-table layout remnant', async () => {
-    expect(await hasLegacyVectorStoreTable(driver)).toBe(false)
-
-    await driver.execute(`CREATE TABLE libsql_vectorstores_embedding (id TEXT PRIMARY KEY)`)
-
-    expect(await hasLegacyVectorStoreTable(driver)).toBe(true)
   })
 })
