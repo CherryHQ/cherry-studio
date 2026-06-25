@@ -8,11 +8,11 @@ import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
-import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import dayjs from 'dayjs'
 
-import { notificationService } from './NotificationService'
+import { notificationService } from './notification'
 
 const logger = loggerService.withContext('BackupService')
 

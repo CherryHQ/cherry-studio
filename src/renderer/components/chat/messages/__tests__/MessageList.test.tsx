@@ -1,4 +1,4 @@
-import { TopicType } from '@renderer/types'
+import { TopicType } from '@renderer/types/topic'
 import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils'
 import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'

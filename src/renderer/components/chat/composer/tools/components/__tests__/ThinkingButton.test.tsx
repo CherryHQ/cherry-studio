@@ -1,5 +1,6 @@
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import type { Assistant, ThinkingOption } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
+import type { ThinkingOption } from '@renderer/types/reasoning'
 import type { Model } from '@shared/data/types/model'
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

@@ -1,5 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import type { McpTool } from '@renderer/types/tool'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
@@ -12,7 +13,6 @@ import type { AgentConfiguration, AgentPermissionMode } from '@shared/data/api/s
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { AgentType } from '@shared/data/types/agent'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import type { McpTool } from '@types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 type McpToolsCacheKey = `mcp.tools.${string}`

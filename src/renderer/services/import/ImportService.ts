@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { LegacyAssistant } from '@renderer/types'
+import type { LegacyAssistant } from '@renderer/types/assistant'
 import { uuid } from '@renderer/utils'
 
 import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'

@@ -15,7 +15,8 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Citation, GetAgentResponse } from '@renderer/types'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import type { Citation } from '@renderer/types/message'
 import { cn } from '@renderer/utils'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
