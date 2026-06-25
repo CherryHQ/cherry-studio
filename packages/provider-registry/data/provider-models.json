@@ -34,6 +34,16 @@
       "endpointTypes": ["openai-responses"]
     },
     {
+      "providerId": "grok-cli",
+      "modelId": "grok-build",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
+      "providerId": "grok-cli",
+      "modelId": "grok-composer-2.5-fast",
+      "endpointTypes": ["openai-responses"]
+    },
+    {
       "modelId": "deepseek-chat",
       "providerId": "deepseek"
     },
@@ -27715,5 +27725,5 @@
       "providerId": "dmxapi"
     }
   ],
-  "version": "2026.06.24"
+  "version": "2026.06.25"
 }

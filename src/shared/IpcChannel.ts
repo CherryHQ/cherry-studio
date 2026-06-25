@@ -131,6 +131,11 @@ export enum IpcChannel {
   Codex_GetAccount = 'codex:get-account',
   Codex_Logout = 'codex:logout',
 
+  // Grok CLI OAuth (loopback-server authorization-code + PKCE + OIDC discovery)
+  GrokCli_SignIn = 'grok-cli:sign-in',
+  GrokCli_HasToken = 'grok-cli:has-token',
+  GrokCli_Logout = 'grok-cli:logout',
+
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
   Obsidian_GetFiles = 'obsidian:get-files',

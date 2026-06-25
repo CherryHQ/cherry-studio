@@ -33,6 +33,7 @@ import { CodexOauthService } from '@main/services/CodexOauthService'
 import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
+import { GrokCliOauthService } from '@main/services/GrokCliOauthService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -112,6 +113,7 @@ export const services = {
   WebviewService,
   CherryInOauthService,
   CodexOauthService,
+  GrokCliOauthService,
   MainWindowService,
   QuickAssistantService,
   McpPackageService,

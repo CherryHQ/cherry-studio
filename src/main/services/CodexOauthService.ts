@@ -1,15 +1,9 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-
-import { providerService } from '@data/services/ProviderService'
-import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { type OAuthTokenResponse, PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
+import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type LoopbackConfig, LoopbackOAuthService } from '@main/services/oauth/LoopbackOAuthService'
+import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { shell } from 'electron'
-
-const logger = loggerService.withContext('CodexOauthService')
 
 // OpenAI Codex OAuth configuration. The client_id and the loopback redirect URI
 // are fixed by OpenAI's registered OAuth client (the same one the Codex CLI
@@ -27,12 +21,6 @@ const CODEX_CONFIG = {
   JWT_CLAIM_PATH: 'https://api.openai.com/auth'
 } as const
 
-// How long to wait for the user to complete the browser flow before giving up.
-const SIGN_IN_TIMEOUT_MS = 10 * 60 * 1000
-// Refresh the access token slightly before it actually expires so an in-flight
-// request never races the expiry boundary.
-const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
-
 export interface CodexAccount {
   accountId: string | null
 }
@@ -41,42 +29,23 @@ export interface CodexSignInResult {
   accountId: string | null
 }
 
-class CodexOauthServiceError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-    public readonly code?: string
-  ) {
-    super(message)
-    this.name = 'CodexOauthServiceError'
-  }
-}
+type OAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
 
 @Injectable('CodexOauthService')
 @ServicePhase(Phase.Background)
-export class CodexOauthService extends BaseService {
-  // Guards against two concurrent sign-in flows fighting over port 1455.
-  private activeServers: Server[] = []
-  private refreshPromise: Promise<string | null> | null = null
-
-  protected onInit(): void {
-    this.ipcHandle(IpcChannel.Codex_SignIn, this.signIn)
-    this.ipcHandle(IpcChannel.Codex_HasToken, this.hasToken)
-    this.ipcHandle(IpcChannel.Codex_GetAccount, this.getAccount)
-    this.ipcHandle(IpcChannel.Codex_Logout, this.logout)
+export class CodexOauthService extends LoopbackOAuthService {
+  protected readonly providerId = OPENAI_CODEX_PROVIDER_ID
+  protected readonly clientId = CODEX_CONFIG.CLIENT_ID
+  protected readonly loopback: LoopbackConfig = {
+    hosts: CODEX_CONFIG.CALLBACK_HOSTS,
+    port: CODEX_CONFIG.CALLBACK_PORT,
+    path: CODEX_CONFIG.CALLBACK_PATH,
+    redirectUri: CODEX_CONFIG.REDIRECT_URI
   }
 
-  protected onStop(): void {
-    this.closeActiveServer()
-    this.refreshPromise = null
-  }
-
-  protected onDestroy(): void {
-    this.closeActiveServer()
-  }
-
-  // PKCE generation + token endpoint live in the shared client; this service
-  // owns the loopback transport, token persistence, and account extraction.
+  // Static endpoint, so the PKCE client is built once. The base owns the
+  // loopback transport and token lifecycle; this service only adds the
+  // account-id extraction and its sign-in/account return shape.
   private readonly oauthClient = new PkceOAuthClient({
     clientId: CODEX_CONFIG.CLIENT_ID,
     authorizeUrl: CODEX_CONFIG.AUTHORIZE_URL,
@@ -89,11 +58,15 @@ export class CodexOauthService extends BaseService {
     }
   })
 
-  // ── Auth config access ──
+  protected onInit(): void {
+    this.ipcHandle(IpcChannel.Codex_SignIn, this.signIn)
+    this.ipcHandle(IpcChannel.Codex_HasToken, this.hasToken)
+    this.ipcHandle(IpcChannel.Codex_GetAccount, this.getAccount)
+    this.ipcHandle(IpcChannel.Codex_Logout, this.logout)
+  }
 
-  private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
-    const authConfig = await providerService.getAuthConfig(OPENAI_CODEX_PROVIDER_ID)
-    return authConfig?.type === 'oauth' ? authConfig : null
+  protected getClient(): PkceOAuthClient {
+    return this.oauthClient
   }
 
   /**
@@ -113,132 +86,9 @@ export class CodexOauthService extends BaseService {
     }
   }
 
-  // ── Loopback callback server ──
-
-  private closeActiveServer(): void {
-    for (const server of this.activeServers) {
-      server.close()
-    }
-    this.activeServers = []
-  }
-
-  private clearStoredAuth = async (): Promise<void> => {
-    await providerService.update(OPENAI_CODEX_PROVIDER_ID, { authConfig: { type: 'api-key' }, isEnabled: false })
-  }
-
-  /**
-   * Start loopback HTTP servers and resolve with the authorization `code` once
-   * OpenAI redirects the browser back to `localhost:1455/auth/callback`. Bind
-   * both IPv4 and IPv6 loopback so either localhost resolution path is handled.
-   * The `state` is validated here as CSRF/replay defense.
-   */
-  private waitForAuthorizationCode(expectedState: string, signal: AbortSignal): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      const handleRequest = (req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url ?? '', CODEX_CONFIG.REDIRECT_URI)
-        if (url.pathname !== CODEX_CONFIG.CALLBACK_PATH) {
-          res.writeHead(404).end()
-          return
-        }
-
-        const error = url.searchParams.get('error')
-        const code = url.searchParams.get('code')
-        const state = url.searchParams.get('state')
-
-        const respond = (message: string) => {
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-          res.end(
-            `<!doctype html><html><body style="font-family:system-ui;text-align:center;padding-top:64px">` +
-              `<h2>${message}</h2><p>You can close this window and return to Cherry Studio.</p></body></html>`
-          )
-        }
-
-        if (error) {
-          respond('Sign-in failed')
-          reject(new CodexOauthServiceError(`OAuth provider returned error: ${error}`))
-          return
-        }
-        if (!state || state !== expectedState) {
-          respond('Sign-in failed')
-          reject(new CodexOauthServiceError('OAuth callback state mismatch'))
-          return
-        }
-        if (!code) {
-          respond('Sign-in failed')
-          reject(new CodexOauthServiceError('No authorization code received'))
-          return
-        }
-
-        respond('Signed in successfully')
-        resolve(code)
-      }
-
-      const listen = (host: string) =>
-        new Promise<void>((resolveListen, rejectListen) => {
-          const server = createServer(handleRequest)
-          this.activeServers.push(server)
-
-          server.once('listening', resolveListen)
-          server.once('error', (err: NodeJS.ErrnoException) => {
-            this.activeServers = this.activeServers.filter((activeServer) => activeServer !== server)
-            server.close()
-            if (host === '::1' && err.code === 'EADDRNOTAVAIL') {
-              resolveListen()
-              return
-            }
-            rejectListen(
-              new CodexOauthServiceError(
-                `Failed to start OAuth callback server on ${host}:${CODEX_CONFIG.CALLBACK_PORT}: ${err.message}`,
-                err
-              )
-            )
-          })
-
-          server.listen(CODEX_CONFIG.CALLBACK_PORT, host)
-        })
-
-      void Promise.all(CODEX_CONFIG.CALLBACK_HOSTS.map(listen)).catch(reject)
-      signal.addEventListener('abort', () => reject(new CodexOauthServiceError('Sign-in timed out')), { once: true })
-    })
-  }
-
-  // ── Token persistence ──
-
-  private async persistTokens(tokenData: OAuthTokenResponse): Promise<void> {
-    const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } = tokenData
-    const current = await this.getOAuthAuthConfig()
+  protected extraAuthFields(accessToken: string, current: OAuthConfig | null): Record<string, unknown> {
     const accountId = this.extractAccountId(accessToken) ?? current?.accountId
-    const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined
-
-    await providerService.update(OPENAI_CODEX_PROVIDER_ID, {
-      authConfig: {
-        type: 'oauth',
-        clientId: CODEX_CONFIG.CLIENT_ID,
-        accessToken,
-        ...(refreshToken || current?.refreshToken ? { refreshToken: refreshToken || current?.refreshToken } : {}),
-        ...(expiresAt ? { expiresAt } : {}),
-        ...(accountId ? { accountId } : {})
-      }
-    })
-  }
-
-  private async doRefresh(refreshToken: string): Promise<string | null> {
-    try {
-      const tokenData = await this.oauthClient.refresh(refreshToken)
-      await this.persistTokens(tokenData)
-      return tokenData.access_token
-    } catch (error) {
-      logger.error('Failed to refresh Codex token', error as Error)
-      return null
-    }
-  }
-
-  private refreshAccessToken(refreshToken: string): Promise<string | null> {
-    // De-duplicate concurrent refreshes (chat + agent may both fire at once).
-    this.refreshPromise ??= this.doRefresh(refreshToken).finally(() => {
-      this.refreshPromise = null
-    })
-    return this.refreshPromise
+    return accountId ? { accountId } : {}
   }
 
   // ── Public surface (runtime + IPC) ──
@@ -249,75 +99,21 @@ export class CodexOauthService extends BaseService {
    * the refresh failed — the caller surfaces the missing-credential error.
    */
   public getValidAccessToken = async (): Promise<{ accessToken: string; accountId: string | null } | null> => {
+    const accessToken = await this.getValidToken()
+    if (!accessToken) return null
+
     const config = await this.getOAuthAuthConfig()
-    if (!config?.accessToken) return null
-
-    const expired = config.expiresAt !== undefined && Date.now() >= config.expiresAt - TOKEN_EXPIRY_BUFFER_MS
-    if (!expired) {
-      return { accessToken: config.accessToken, accountId: config.accountId ?? null }
-    }
-
-    if (!config.refreshToken) {
-      await this.clearStoredAuth()
-      return null
-    }
-
-    const refreshed = await this.refreshAccessToken(config.refreshToken)
-    if (!refreshed) return null
-
-    const next = await this.getOAuthAuthConfig()
-    return { accessToken: refreshed, accountId: next?.accountId ?? null }
+    return { accessToken, accountId: config?.accountId ?? null }
   }
 
   public signIn = async (): Promise<CodexSignInResult> => {
-    if (this.activeServers.length > 0) {
-      throw new CodexOauthServiceError('A Codex sign-in is already in progress')
-    }
-
-    const { authUrl, state, codeVerifier } = this.oauthClient.createAuthorizationRequest()
-
-    const timeout = AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)
-    try {
-      const codePromise = this.waitForAuthorizationCode(state, timeout)
-      await shell.openExternal(authUrl)
-      const code = await codePromise
-
-      await this.persistTokens(await this.oauthClient.exchangeCode(code, codeVerifier))
-      // Enable the provider on first successful sign-in (seeded disabled).
-      await providerService.update(OPENAI_CODEX_PROVIDER_ID, { isEnabled: true })
-
-      const config = await this.getOAuthAuthConfig()
-      logger.info('Codex sign-in succeeded')
-      return { accountId: config?.accountId ?? null }
-    } catch (error) {
-      logger.error('Codex sign-in failed', error as Error)
-      throw error instanceof CodexOauthServiceError ? error : new CodexOauthServiceError('Codex sign-in failed', error)
-    } finally {
-      this.closeActiveServer()
-    }
-  }
-
-  public hasToken = async (): Promise<boolean> => {
+    await this.runSignIn()
     const config = await this.getOAuthAuthConfig()
-    if (!config?.accessToken) return false
-
-    const expired = config.expiresAt !== undefined && Date.now() >= config.expiresAt - TOKEN_EXPIRY_BUFFER_MS
-    if (expired && !config.refreshToken) {
-      await this.clearStoredAuth()
-      return false
-    }
-
-    return true
+    return { accountId: config?.accountId ?? null }
   }
 
   public getAccount = async (): Promise<CodexAccount> => {
     const config = await this.getOAuthAuthConfig()
     return { accountId: config?.accountId ?? null }
-  }
-
-  /** Clear stored tokens and disable the login-only provider. */
-  public logout = async (): Promise<void> => {
-    await this.clearStoredAuth()
-    logger.info('Cleared Codex OAuth tokens')
   }
 }

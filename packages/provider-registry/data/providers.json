@@ -576,6 +576,25 @@
       }
     },
     {
+      "id": "grok-cli",
+      "name": "Grok CLI",
+      "description": "Grok CLI - login-based provider that uses your SuperGrok subscription via xAI OAuth",
+      "defaultChatEndpoint": "openai-responses",
+      "modelListSource": "registry",
+      "endpointConfigs": {
+        "openai-responses": {
+          "baseUrl": "https://cli-chat-proxy.grok.com/v1",
+          "adapterFamily": "openai"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://x.ai",
+          "docs": "https://docs.x.ai"
+        }
+      }
+    },
+    {
       "id": "openai",
       "name": "OpenAI",
       "description": "OpenAI - AI model provider",

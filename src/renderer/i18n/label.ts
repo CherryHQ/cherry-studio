@@ -45,6 +45,7 @@ const providerKeyMap = {
   github: 'provider.github',
   gpustack: 'provider.gpustack',
   grok: 'provider.grok',
+  'grok-cli': 'provider.grok-cli',
   groq: 'provider.groq',
   hunyuan: 'provider.hunyuan',
   hyperbolic: 'provider.hyperbolic',
