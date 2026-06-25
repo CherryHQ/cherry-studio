@@ -147,7 +147,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
-  onInputHistoryNavigate?: (direction: InputHistoryDirection, currentText: string) => boolean
+  onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -1293,7 +1293,7 @@ export default function ComposerSurface({
           })
         ) {
           const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
-          const handled = onInputHistoryNavigate?.(direction, textRef.current) ?? false
+          const handled = onInputHistoryNavigate?.(direction) ?? false
           if (handled) {
             event.preventDefault()
             event.stopPropagation()

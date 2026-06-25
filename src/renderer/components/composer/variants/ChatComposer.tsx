@@ -52,6 +52,7 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts } from '../composerDraft'
+import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
@@ -591,13 +592,17 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
-  const applyHistoryText = useCallback((historyText: string) => {
-    setText(historyText)
-    setDraftTokens(undefined)
+  const applyHistoryDraft = useCallback((historyDraft: ComposerSerializedDraft) => {
+    setText(historyDraft.text)
+    setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
   }, [])
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
-    applyText: applyHistoryText
+    applyDraft: applyHistoryDraft
   })
+  const handleInputHistoryNavigate = useCallback(
+    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
+    [actionsRef, navigateHistory]
+  )
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
@@ -909,6 +914,9 @@ const ChatComposerInner = ({
           knowledgeBaseIds: payload.knowledgeBaseIds,
           userMessageParts: [...payload.userMessageParts, ...fileParts]
         })
+        void saveHistory(payload.text).catch((error) => {
+          logger.warn('Failed to save input history', { error })
+        })
         return true
       } catch (error) {
         logger.warn('send failed', { error })
@@ -917,7 +925,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [onSend]
+    [onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1040,10 +1048,6 @@ const ChatComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
-      saveHistory(payload.text).catch((error) => {
-        logger.warn('Failed to save input history', { error })
-      })
-
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
@@ -1099,7 +1103,6 @@ const ChatComposerInner = ({
       staleEditingMessage,
       stopEditing,
       restoreSavedDraft,
-      saveHistory,
       t,
       text
     ]
@@ -1272,7 +1275,7 @@ const ChatComposerInner = ({
         narrowMode={forceNarrowLayout || narrowMode}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
-        onInputHistoryNavigate={navigateHistory}
+        onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         rootPanelLeadingItems={rootPanelLeadingItems}

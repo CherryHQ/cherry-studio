@@ -4,6 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -55,7 +56,8 @@ const mocks = vi.hoisted(() => ({
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
   topicLayout: undefined as string | undefined,
-  inputAdapterFocus: vi.fn()
+  inputAdapterFocus: vi.fn(),
+  saveInputHistoryTrigger: vi.fn()
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -658,6 +660,11 @@ describe('ChatComposer', () => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
     })
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/input-history', [])
+    mocks.saveInputHistoryTrigger.mockReset()
+    mocks.saveInputHistoryTrigger.mockResolvedValue({})
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', mocks.saveInputHistoryTrigger)
     Object.defineProperty(window, 'electron', {
       configurable: true,
       value: {
@@ -1383,6 +1390,66 @@ describe('ChatComposer', () => {
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+  })
+
+  describe('input history', () => {
+    it('saves the sent text to input history after onSend resolves', async () => {
+      const onSend = vi.fn().mockResolvedValue(undefined)
+
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'final message', tokens: [] })
+      })
+
+      // saveHistory fires after onSend resolves; wait for the awaited promise to settle.
+      await waitFor(() => {
+        expect(mocks.saveInputHistoryTrigger).toHaveBeenCalledWith({ body: { content: 'final message' } })
+      })
+    })
+
+    it('does NOT save input history when onSend rejects', async () => {
+      const onSend = vi.fn().mockRejectedValue(new Error('send failed'))
+
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'doomed message', tokens: [] })
+      })
+
+      // onSend rejected → saveHistory must NOT have been called.
+      expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+    })
+
+    it('does NOT save input history for queued steer follow-ups during streaming', async () => {
+      mocks.topicPending = true
+      const onSend = vi.fn().mockResolvedValue(undefined)
+
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'queued steer', tokens: [] })
+      })
+
+      // The follow-up is queued (not actually sent), so history must stay clean.
+      // onSend should also NOT have been called directly — it goes through the dock.
+      expect(onSend).not.toHaveBeenCalled()
+      expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+
+      // Manually draining the dock via the queue's onSteer should send through onSend
+      // AND save history. This proves the history write happens only at the real-send moment.
+      const queueContent = mocks.surfaceProps?.queueContent as any
+      const itemId = queueContent.props.items[0].id
+      await act(async () => {
+        await queueContent.props.onSteer(itemId)
+      })
+
+      await waitFor(() => {
+        expect(onSend).toHaveBeenCalled()
+        expect(mocks.saveInputHistoryTrigger).toHaveBeenCalledWith({ body: { content: 'queued steer' } })
+      })
+    })
   })
 
   it('keeps the current draft when sending a new message fails', async () => {
@@ -1406,6 +1473,145 @@ describe('ChatComposer', () => {
       })
     )
     expect(mocks.surfaceProps?.text).toBe('draft message')
+  })
+
+  it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'previous chat prompt',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+
+    // getDraft() is called by handleInputHistoryNavigate to snapshot the entry
+    // draft. Default vi.fn() returns undefined, which would cause useInputHistory
+    // to treat the snapshot as missing and restore the empty fallback. Return the
+    // current text/tokens prop to simulate the live composer draft.
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous chat prompt')
+    })
+  })
+
+  it('wires ArrowDown input history navigation to restore the entry draft', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'history entry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+
+    // Mirror the live draft on every getDraft() call so navigateHistory can snapshot it.
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // Walk in then out: the last applied value must be the original draft.
+    act(() => {
+      mocks.surfaceProps?.onTextChange('my original draft')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('my original draft'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('my original draft'))
+  })
+
+  it('preserves in-progress draftTokens when navigating to history (does not clear them)', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'history entry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+
+    // The entry draft must carry a non-empty token array so we can verify the round-trip
+    // restores it. getDraft() is what handleInputHistoryNavigate calls to snapshot the
+    // current draft — its return value flows into useInputHistory's draftBeforeHistoryRef
+    // and ultimately back into ChatComposer.applyHistoryDraft on ArrowDown.
+    const inProgressSkillToken = {
+      id: 'skill:pdf',
+      kind: 'skill',
+      label: 'pdf',
+      index: 0,
+      textOffset: 0
+    }
+    mocks.getDraft.mockImplementation(() => ({
+      text: 'partial @pdf',
+      tokens: [inProgressSkillToken]
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // Pre-condition: no draft tokens yet.
+    expect(mocks.surfaceProps?.draftTokens).toBeUndefined()
+
+    // Enter history. useInputHistory snapshots the entry draft (with the in-progress
+    // skill token) and applies the history content. History has no tokens, so
+    // ChatComposer.applyHistoryDraft sets draftTokens to undefined.
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.surfaceProps?.draftTokens).toBeUndefined()
+
+    // Exit history. The entry draft (with the skill token) must come back.
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('partial @pdf'))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([inProgressSkillToken])
+
+    // Reference the local symbol so the lint tool doesn't flag it as unused.
+    expect(inProgressSkillToken.id).toBe('skill:pdf')
+  })
+
+  it('does NOT save input history when editing a previous message via forkAndResend', async () => {
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+
+    const message = { id: 'msg-1', topicId: topic.id }
+    const parts = [{ type: 'text', text: 'original message' }]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'edited text', tokens: [] })
+    })
+
+    expect(forkAndResend).toHaveBeenCalled()
+    // Edits do not represent new "things the user said" — they should not enter history.
+    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
   })
 
   it('restores file and quote tokens with attached files from the global draft cache', async () => {

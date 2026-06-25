@@ -58,9 +58,11 @@ import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAle
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { useInputHistory } from '../useInputHistory'
 import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   type AgentComposerDraftCache,
@@ -892,6 +894,31 @@ const AgentComposerInner = ({
     },
     [draftCacheKey]
   )
+  const applyHistoryDraft = useCallback(
+    (historyDraft: ComposerSerializedDraft) => {
+      const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
+      setText(historyDraft.text)
+      setDraftTokens(nextSkillTokens)
+      draftTokensRef.current = nextSkillTokens
+      writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+      setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
+    },
+    [draftCacheKey, setText]
+  )
+  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
+  const handleTextChange = useCallback(
+    (nextText: string) => {
+      resetHistoryIndex()
+      setText(nextText)
+    },
+    [resetHistoryIndex, setText]
+  )
+  const handleInputHistoryNavigate = useCallback(
+    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
+    [actionsRef, navigateHistory]
+  )
 
   useEffect(() => {
     textRef.current = text
@@ -1077,13 +1104,16 @@ const AgentComposerInner = ({
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        void saveHistory(payload.text).catch((error) => {
+          logger.warn('Failed to save input history', { error })
+        })
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1262,7 +1292,7 @@ const AgentComposerInner = ({
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ComposerSurface
         text={text}
-        onTextChange={setText}
+        onTextChange={handleTextChange}
         tokens={tokens}
         draftTokens={draftTokens}
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
@@ -1311,6 +1341,7 @@ const AgentComposerInner = ({
         fontSize={fontSize}
         narrowMode={forceNarrowLayout || narrowMode}
         onActionsChange={handleSurfaceActionsChange}
+        onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         suggestionSources={[]}
