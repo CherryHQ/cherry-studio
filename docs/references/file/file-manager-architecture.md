@@ -303,7 +303,7 @@ export class FileManager extends BaseService implements IFileManager {
   protected async onInit() {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    // No auto-sweep at startup; the cleanup UI triggers `runSweep` via IPC.
+    // No auto-sweep at startup; an explicit cleanup UI/caller triggers `runSweep` via IPC.
   }
 }
 ```
@@ -543,7 +543,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 - **Active push**: when a business module creates a watcher via `createDirectoryWatcher()`, the factory auto-wires add/unlink events into DanglingCache
 - **Side effect**: FileManager's own read/stat/write operations also update the cache on success/failure
 
-**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but are **not auto-cleaned**—the file_ref chain is preserved; the user can manually permanentDelete or attempt to re-point.
+**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but are **not auto-cleaned**—the file_ref chain is preserved; the user can explicitly "Remove from library" or attempt to re-point.
 
 ---
 
@@ -631,7 +631,7 @@ Key rules:
 - **fsync on by default**. Cherry's write frequency is user-action level, and fsync on SSD costs < 10ms
 - **tmp must be in the same directory as target**. Cross-filesystem rename is not atomic
 - **tmp naming**: `{target}.tmp-{uuidv7}`—UUID avoids concurrent-write conflicts
-- **Crash residue**: FileManager's background orphan sweep cleans up by `^.+\.tmp-<uuidv7>$`
+- **Crash residue**: FileManager's on-demand orphan sweep cleans up by `^.+\.tmp-<uuidv7>$`
 - **2× disk usage** is an inherent cost of POSIX rename semantics, unavoidable
 
 ### 5.2 Stream Variant
@@ -709,8 +709,8 @@ Three layers of protection, with each layer as a fallback for the next:
 | business entity deleted -> cleanup file_ref           |
 | (called in each Service's delete method)              |
 +-------------------------------------------------------+
-| Layer 3: registered orphan scanner                    |
-| background scan for file_ref with missing sourceId    |
+| Layer 3: on-demand DB orphan sweep                    |
+| scan file_ref with missing sourceId when runSweep runs|
 | compile-time enforced: Record<FileRefSourceType, ...> |
 +-------------------------------------------------------+
 ```
@@ -721,7 +721,7 @@ Layer 3 enforces "every sourceType must have a checker" via the `Record<FileRefS
 
 The default stance — *FileEntry is preserved even when no business refs point at it* — is chosen so the user never loses a file they (or Cherry) bothered to track merely because the original consumer got deleted. A UI surface may show an "unreferenced" marker for user-triggered cleanup.
 
-There is **one narrow exception**: external entries whose physical file is confirmed missing are garbage-collected automatically once their ref count reaches zero. The rationale: both sides of the reference relationship are gone — no file on disk, no business object using it — and the entry's continued existence is pure zombie noise.
+There are **no automatic deletion exceptions**. Even an external entry that is currently missing and has zero refs is still a user-visible library record: it may represent a temporarily unmounted drive, a file the user wants to re-link later, or simply a stale record the user should remove explicitly. The file module may report these rows, but it must not delete them without an explicit user/caller action.
 
 **Policy matrix by `(origin, dangling state, refs)`**:
 
@@ -730,60 +730,29 @@ There is **one narrow exception**: external entries whose physical file is confi
 | `internal` | n/a (always `'present'`) | any | **Preserve** — user may re-link via UI; only user-initiated cleanup |
 | `external` | `'present'` | any | **Preserve** — file still exists, fully re-attachable |
 | `external` | `'unknown'` | any | **Preserve** — not yet observed; treated as still-live until proven otherwise |
-| `external` | `'missing'` | >0 | **Preserve** — business objects still reference this entry. Automatic deletion would CASCADE-drop `file_ref` rows and silently mutate user data (messages' attachment count drops, UI state shifts). The business service owning those refs is the right layer to decide replacement / removal policy, not the file module. Reference-oriented UI surfaces (§3.4 UI filter convention) show these as "file missing" so the user can act. |
-| `external` | `'missing'` | 0 | **Auto-clean after retention window** — both sides are gone, no user-visible impact; see §7.2 |
+| `external` | `'missing'` | >0 | **Preserve** — business objects still reference this entry. Automatic deletion would CASCADE-drop `file_ref` rows and silently mutate user data (messages' attachment count drops, UI state shifts). The business service owning those refs is the right layer to decide replacement / removal policy, not the file module. Reference-oriented UI surfaces (§3.4 UI convention) show these as "file missing" so the user can act. |
+| `external` | `'missing'` | 0 | **Preserve + report** — no refs remain, but the row is still user-visible library state. FilesPage / cleanup UI may show "missing" and offer "Remove from library"; no time-based auto-delete. |
 
-### 7.2 Dangling External Auto-Cleanup (Layer 3 Extension, deferred)
+### 7.2 No Automatic Dangling-External Cleanup
 
-As part of the same Layer-3 scanner pass — not a separate background task — after cleaning orphan refs, the scanner scans for external entries eligible under row `('external', 'missing', 0)` of the policy matrix above:
+Dangling external entries are never deleted automatically by a scheduler, startup task, or `runSweep()` policy pass. Cleanup is explicit:
 
-```sql
-SELECT id FROM file_entry
-WHERE origin = 'external'
-  AND updatedAt < :now - INTERVAL 30 DAY               -- retention window (see below)
-  AND id NOT IN (SELECT DISTINCT fileEntryId FROM file_ref)
-LIMIT 500;                                             -- batch cap
--- For each candidate: verify DanglingCache.check(entry) === 'missing'
--- immediately before delete (TOCTOU guard; see below).
-```
+- **User action**: FilesPage or a cleanup UI calls the external-entry deletion path (labelled "Remove from library") for selected rows.
+- **Business action**: a business service that owns a reference may decide how to handle a missing file in its own workflow (prompt, re-link, remove ref, etc.).
+- **Sweep reporting**: `runDbSweep` may report unreferenced entries by origin so a UI can surface candidates, but it does not delete FileEntry rows based on dangling state or ref count.
 
-**Parameters** (open to later tuning based on production telemetry):
+Rationale:
 
-| Parameter | Value | Rationale |
-|---|---|---|
-| Retention window | **30 days** | Covers temporary unmounts (external drive, NAS downtime, weekend trips with USB at home). Any file genuinely reconnected within a month naturally excludes itself — DanglingCache flips back to `'present'` and the candidate fails the per-row verification below. |
-| "Dangling duration" proxy | `file_entry.updatedAt` | Avoids adding a `dangling_since` column (schema change). Any user interaction with the entry (rename, write, ref churn) resets the clock — coherent with "this entry is still actively tracked". |
-| Dangling verification | `DanglingCache.forceRecheck(entry) === 'missing'` before each delete — **not `check()`** | `check()` would return cached state while within TTL (§11.6); the scanner must `fs.stat` unconditionally to guarantee the file really is still missing at delete time, not just that DanglingCache saw it missing some minutes ago. `forceRecheck` also closes the TOCTOU gap if the file reappeared between scanner run and per-row execution, and if the file is back, the fresh stat automatically flips cache to `'present'` and fires a transition event — next-day scanner excludes the entry. |
-| Batch granularity | Up to **500 deletes per scanner run**, in a single transaction | Avoids long-held DB locks; unusually large cleanups spread across multiple scanner runs (scanner runs daily, so worst-case 500×365 ≈ 180k rows/year — more than enough for any realistic account). |
+- External paths are volatile (USB/NAS/network mounts, permission changes, moved files). A cached or freshly observed `'missing'` state is still not sufficient authority to delete a user-visible library record.
+- Automatic deletion would make file rows disappear without a visible initiating action, which is surprising even when `refs = 0`.
+- Explicit removal keeps product copy accurate: external-entry deletion is "Remove from library" and never claims to delete the user's physical file.
 
-**Safety threshold** (same pattern as the orphan sweep in §10.4):
-- If the planned deletion exceeds **50% of total external rows** OR **more than 1000 rows in a single plan**, abort and `warn`-log `{ planned, totalExternal, reason }`. Mass cleanup of that scale almost always signals an upstream bug (DanglingCache mis-initialization, filesystem fault marking every file missing, migration regression). Abort gives human intervention a chance.
-- Abort is not a hard failure — the scanner continues with orphan-ref cleanup and completes normally; the dangling-entry pass simply runs zero deletions this cycle and re-evaluates next run.
+Consequences:
 
-**Event emission**: each deleted entry fires `onEntryRowChanged { kind: 'deleted', id, origin: 'external' }` through the same pipeline interactive `permanentDelete` uses (see [`architecture.md §3.6`](./architecture.md#36-mutation-propagation-to-renderer)). A daily scanner run deleting ~tens to a few hundred entries is a non-flood for the renderer pipeline; React Query's prefix-invalidation dedupes the resulting refetches. The alternative — suppressing events and relying on `staleTime` — would leave open FilesPage views stale for up to the staleness window, and the event-emission path is already the standard contract.
-
-**Scope limits** (what this does NOT do):
-
-- **Does not touch `refs > 0` dangling entries**. The business service owning those refs is the authoritative decider of what to do when a referenced file goes missing (re-attach, prompt, remove ref, etc.). Auto-cleanup of referenced entries would silently destroy user-visible data.
-- **Does not touch internal entries**, regardless of ref count or DanglingCache state. Internal entries are always `'present'` by construction (§3.3); a no-ref internal entry is a user's "file uploaded but not yet consumed" state — preserved for user-initiated cleanup only.
-- **Does not touch external entries in `'unknown'` state**. `'unknown'` means no observation has been performed; treat as still-live.
-
-**Observability** — each scanner run emits:
-
-```typescript
-{ event: 'dangling-entry-cleanup',
-  outcome: 'completed' | 'aborted',
-  totalExternalRows: number,
-  planned: number,
-  verified: number,           // after per-row DanglingCache re-check
-  deleted: number,            // may be < verified if the 500-row cap was hit
-  scanDurationMs: number,
-  abortReason?: 'count-fraction' | 'count-absolute' }
-```
-
-Mirrors the orphan sweep's observability contract (§10.5) — one record per scanner run through `loggerService`, no separate metrics pipeline.
-
-**Implementation location**: lives alongside the OrphanRefScanner. The scanner gains a second pass method (e.g. `scanDanglingEntries(): Promise<void>`) called after `scanOrphanRefs` inside the same scheduled tick.
+- No persisted "missing since" timestamp or time-based cleanup query.
+- No cleanup-verification bypass around DanglingCache TTL.
+- No cleanup-specific observability event.
+- No `('external', 'missing', 0)` automatic deletion branch in Layer 3. Layer 3 remains orphan-ref cleanup plus orphan-entry reporting.
 
 ---
 
@@ -958,7 +927,7 @@ interface IFileUploadService {
 
 ### 10.1 Positioning
 
-Orphan sweep is **user-triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. The cleanup UI is the only consumer; FileManager exposes a single `runSweep()` method that runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle.
+Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle.
 
 ```typescript
 protected override async onInit(): Promise<void> {
@@ -1158,14 +1127,7 @@ export const danglingCache = new DanglingCache()
 
 ### 11.2 State Model
 
-> **Phase 1 vs deferred surface.** `forceRecheck()` (and the related
-> `'forceRecheck'` value of `CachedState['source']`) belongs to the §7.2
-> dangling-external auto-cleanup pass, which is itself deferred. Phase 1
-> ships `CachedState['source']` with only three values (`'watcher' | 'ops'
-> | 'stat'`) and exposes no `forceRecheck()` method on `DanglingCache`.
-> The signature is preserved below for design continuity — when §7.2
-> lands, both the source value and the method come back together as a
-> single change.
+DanglingCache exposes lazy, query-driven presence checks only. There is no cleanup-only recheck path because dangling external entries are not auto-deleted (§7.2). If a future explicit user workflow needs a strict re-stat escape hatch, add it with that concrete caller and document the user-visible action.
 
 ```typescript
 type DanglingState = 'present' | 'missing' | 'unknown'
@@ -1174,10 +1136,8 @@ interface CachedState {
   state: 'present' | 'missing'
   /** ms epoch of last observation — drives TTL expiry in `check` */
   observedAt: number
-  /** Where this observation came from (for diagnostics / log context).
-   *  Phase 1: `'watcher' | 'ops' | 'stat'`. `'forceRecheck'` is added
-   *  alongside the §7.2 auto-cleanup pass (deferred). */
-  source: 'watcher' | 'ops' | 'stat' | 'forceRecheck' // deferred: forceRecheck
+  /** Where this observation came from (for diagnostics / log context). */
+  source: 'watcher' | 'ops' | 'stat'
 }
 
 class DanglingCache {
@@ -1193,16 +1153,6 @@ class DanglingCache {
 
   // Query (TTL-aware; re-stats when cache entry is stale)
   async check(entry: FileEntry): Promise<DanglingState>
-
-  /**
-   * **Deferred (lands with §7.2)**: always re-stat, regardless of cache
-   * freshness. Used by callers with stricter freshness requirements than
-   * a plain query — notably the F-2 scanner's pre-delete verification
-   * step (see §7.2). Not implemented in Phase 1 because no production
-   * call site exists yet — the entry-delete path that needs it is
-   * itself deferred.
-   */
-  async forceRecheck(entry: FileEntry): Promise<DanglingState>
 
   // Event entry (for watcher factory + FileManager ops) — resets observedAt
   onFsEvent(path: string, state: 'present' | 'missing'): void
@@ -1232,12 +1182,6 @@ async check(entry: FileEntry): Promise<DanglingState> {
   return this.doStatAndUpdate(entry, 'stat')
 }
 
-// Deferred: lands with §7.2. Not implemented in Phase 1.
-async forceRecheck(entry: FileEntry): Promise<DanglingState> {
-  if (entry.origin === 'internal') return 'present'
-  return this.doStatAndUpdate(entry, 'forceRecheck')
-}
-
 private async doStatAndUpdate(
   entry: FileEntry,
   source: CachedState['source']
@@ -1257,7 +1201,7 @@ private async doStatAndUpdate(
 - **Lazy expiration only, no periodic background sweep**. FS IO cost scales with query frequency, not total entry count — heavy-user populations (10k+ external entries) consume zero IO when no UI is querying.
 - **Watcher events / ops observations reset `observedAt`** to `Date.now()` — a path with active watcher coverage stays fresh indefinitely and never triggers TTL-driven re-stat.
 - **TTL = 30 min**: external file path moves are rare in practice (files accumulate, rarely move); a 30-minute worst-case staleness window is acceptable for background UI state, while keeping TTL ≫ React Query's renderer-side `staleTime ≤ 5min` means most renderer refetches hit cache (desired: the cache adds value).
-- **`forceRecheck` is the explicit escape hatch** for callers that need guaranteed freshness — the F-2 scanner (§7.2) is its only intended production caller. Both `forceRecheck()` and §7.2 are deferred; nothing in Phase 1 calls this path.
+- **No background or cleanup-only recheck path**: presence is refreshed only when a caller queries or an observed operation/watch event supplies a new state. This keeps IO proportional to use and avoids hidden deletion authority.
 
 ### 11.3 Watcher Auto-Wiring
 
@@ -1315,13 +1259,12 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 - Watcher add/unlink/rename events (where coverage exists — see §11.1 caveat)
 - Observation side effects of FileManager ops (stat ENOENT → missing; create / ensureExternal / rename / write success → explicit `'present'` commit through `onFsEvent(..., 'ops')`). Read / hash / getMetadata / getVersion **do not** flip the cache to `'present'` on success — they only commit `'missing'` on ENOENT through the `observeExternalAccess` chokepoint. The watcher-led design deliberately keeps presence learning out of the passive-read path; see [`internal/observe.ts`](../../../src/main/services/file/internal/observe.ts) for the contract.
 - Cold-path or TTL-driven `fs.stat` from `check()` / `getMetadata` / `getDanglingState`
-- Explicit `forceRecheck()` calls (F-2 scanner verify step)
 
 **Freshness guarantee**: for any path the caller queries, cached state is never older than the TTL. Paths that are never queried may stay stale indefinitely — but by construction, no consumer is looking at them, so the staleness has no user-visible impact.
 
-**Why no background sweep**: a periodic background re-validation across all cached entries was considered and rejected. See [§12 Key Design Decisions](#12-key-design-decisions). The short version: FS IO cost would scale with total entry count instead of query frequency, and the F-2 scanner (§7.2) already provides a daily `forceRecheck` path for refs=0 candidates — the only subset where stale-`'present'` state would materially harm correctness.
+**Why no background sweep**: a periodic background re-validation across all cached entries was considered and rejected. See [§12 Key Design Decisions](#12-key-design-decisions). The short version: FS IO cost would scale with total entry count instead of query frequency, and dangling entries are never auto-deleted, so stale presence state should be corrected at use/query time rather than by a hidden global scanner.
 
-**Known residual case — stale `'present'` with `refs > 0`**: if an external file is deleted outside Cherry, without any watcher or ops observation to signal it, and no UI ever queries `getDanglingState` for that entry, the cache stays `'present'` past TTL boundaries (first query after TTL will re-stat and fix). Business services that depend on referenced files MUST re-validate at use time (read will surface ENOENT anyway) — this is the explicit "use-site check" side of the F-1 / F-2 policy split and is not attempted to be hidden behind cache semantics.
+**Known residual case — stale `'present'` with `refs > 0`**: if an external file is deleted outside Cherry, without any watcher or ops observation to signal it, and no UI ever queries `getDanglingState` for that entry, the cache stays `'present'` past TTL boundaries (first query after TTL will re-stat and fix). Business services that depend on referenced files MUST re-validate at use time (read will surface ENOENT anyway); DanglingCache is a UI/presence helper, not a correctness boundary.
 
 ### 11.7 Reactivity — Event Emission (deferred)
 
@@ -1347,7 +1290,7 @@ FileManager subscribes in `onInit` (see §1.6.8) and fans the event out to all r
 
 ### 11.8 Observability (deferred)
 
-DanglingCache emits a structured `info`-level log record at a fixed cadence (every 10 minutes, driven by a simple timer in `onInit`) summarizing its recent activity. This mirrors the F-2 scanner and orphan sweep observability contracts (§7.2, §10.5) — one periodic record plus opportunistic `warn` / `error` on anomalies, no separate metrics pipeline.
+DanglingCache emits a structured `info`-level log record at a fixed cadence (every 10 minutes, driven by a simple timer in `onInit`) summarizing its recent activity. This mirrors the orphan sweep observability contract (§10.5) — one periodic record plus opportunistic `warn` / `error` on anomalies, no separate metrics pipeline.
 
 ```typescript
 {
@@ -1359,7 +1302,6 @@ DanglingCache emits a structured `info`-level log record at a fixed cadence (eve
   checkCacheHits: number,          // returned cached within TTL
   checkTtlExpiredReStats: number,  // re-stat triggered by TTL
   checkColdStats: number,          // re-stat triggered by cache miss
-  forceRecheckCalls: number,       // explicit forceRecheck (F-2 scanner)
   watcherEvents: number,           // onFsEvent calls from watcher factory
   opsObservations: number,         // onFsEvent calls from FileManager ops
   transitionsFired: number,        // onDanglingStateChanged fires
@@ -1371,7 +1313,7 @@ DanglingCache emits a structured `info`-level log record at a fixed cadence (eve
 **Emission cadence**: every 10 minutes while the service is active. Upon `onStop`, one final snapshot flushes any outstanding counters. Snapshot volume at steady state is `6 records/hour × 24 = 144 records/day` through `loggerService` — trivial for log aggregation even on long-running installs.
 
 **Anomaly triggers** (emitted out-of-band at `warn` level, independent of the snapshot cadence):
-- `statErrors / (checkCalls + forceRecheckCalls) > 0.1` sustained across two consecutive snapshot windows → likely a systemic FS issue (unmounted drive, permission regression)
+- `statErrors / checkCalls > 0.1` sustained across two consecutive snapshot windows → likely a systemic FS issue (unmounted drive, permission regression)
 - `cachedEntries > 50_000` → memory-budget anomaly; suggests either a runaway caller or a bug in `removeEntry` cleanup
 - `transitionsFired > 1000` within one 10-minute window → likely a watcher feedback loop or mass unmount event
 
@@ -1404,7 +1346,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Directory import / bidirectional sync** | Moved out of file_module | Business modules (Knowledge, etc.) implement this with DirectoryWatcher + their own mapping tables |
 | **AI SDK upload cache** | Standalone file_upload table (deferred) | Decoupled from mount / remote; naturally aligns with SharedV4ProviderReference |
 | **Notes** | File tree is an independent domain, not mirrored to FileEntry | If other modules need to reference Notes files, they use the origin of their choice via the corresponding path |
-| **CacheService integration for DanglingCache / versionCache** | Not integrated; both stay bespoke | `CacheService` (`src/main/data/CacheService.ts`) is a general TTL KV + cross-window sync primitive. DanglingCache needs a `path → Set<entryId>` reverse index (§11.4), transition-aware event emission (§11.7 — fire only on genuine state change by comparing old vs new), a `forceRecheck` escape hatch that bypasses TTL (§11.2, for F-2 scanner), and `observedAt`-based "TTL expired → re-stat then update" semantics (§11.6 — CacheService's TTL is "expired → deleted", which would destroy the prev-state comparison needed for transition detection). versionCache needs size-bounded LRU (§4.4), not TTL — a fundamentally different eviction policy; and lives as a per-FileManager-instance field for test isolation, not as a BeforeReady singleton. Wrapping either in CacheService would flatten the value schema, bolt on the secondary structures separately, and bypass the TTL layer — no logic shed, only domain expression lost. CacheService remains the right tool for future scenarios that genuinely match "simple per-id TTL cache" or "cross-window cache" shape (e.g. a short-lived batchGetMetadata result cache, a future FileUploadService provider-upload cache). |
+| **CacheService integration for DanglingCache / versionCache** | Not integrated; both stay bespoke | `CacheService` (`src/main/data/CacheService.ts`) is a general TTL KV + cross-window sync primitive. DanglingCache needs a `path → Set<entryId>` reverse index (§11.4), transition-aware event emission (§11.7 — fire only on genuine state change by comparing old vs new), and `observedAt`-based "TTL expired → re-stat then update" semantics (§11.6 — CacheService's TTL is "expired → deleted", which would destroy the prev-state comparison needed for transition detection). versionCache needs size-bounded LRU (§4.4), not TTL — a fundamentally different eviction policy; and lives as a per-FileManager-instance field for test isolation, not as a BeforeReady singleton. Wrapping either in CacheService would flatten the value schema, bolt on the secondary structures separately, and bypass the TTL layer — no logic shed, only domain expression lost. CacheService remains the right tool for future scenarios that genuinely match "simple per-id TTL cache" or "cross-window cache" shape (e.g. a short-lived batchGetMetadata result cache, a future FileUploadService provider-upload cache). |
 
 ---
 
@@ -1450,7 +1392,7 @@ Every ad-hoc `if (entry.origin === 'internal')` / `=== 'external'` in the codeba
 | DanglingCache participation | `DanglingCache.check` returns `'present'` for internal; consider where the new variant falls on the `present/missing/unknown` axis |
 | `permanentDelete` semantics | Does it touch physical files? Just DB? Refer to §6 and architecture.md §3.4 |
 | Orphan sweep scope | §10 scans `origin='internal'` UUID files; does the new variant have a sweepable disk presence? |
-| F-2 auto-cleanup scope | §7.2 operates on `('external', 'missing', 0)`; extend the policy matrix row by row |
+| Explicit cleanup semantics | §7.2 forbids automatic dangling-entry deletion; decide whether the new origin is preserved, reported, or removable only through an explicit user/caller action |
 | IPC dispatch applicability | architecture.md §3.3 tables per method — does each method make sense for the new variant? |
 
 ### 13.5 UX Layer
@@ -1465,7 +1407,7 @@ Every ad-hoc `if (entry.origin === 'internal')` / `=== 'external'` in the codeba
 | Location | Change required |
 |---|---|
 | architecture.md §3.6 event payloads | `onEntryRowChanged.origin` field value domain expands — TS catches via discriminated-union narrowing in the renderer binding |
-| Observability logs | `dangling-cache-snapshot`, `orphan-sweep`, `dangling-entry-cleanup` records may need per-origin breakdowns if the new variant is material to diagnostics |
+| Observability logs | `dangling-cache-snapshot` and `orphan-sweep` records may need per-origin breakdowns if the new variant is material to diagnostics |
 
 ### 13.7 Documentation Layer
 
