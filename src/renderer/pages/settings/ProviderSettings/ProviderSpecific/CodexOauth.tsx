@@ -30,14 +30,14 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const hasToken = await ipcApi.request('oauth.codex_has_token')
+      const hasToken = await ipcApi.request('oauth.has_token', { providerId })
       setLoggedIn(hasToken)
-      setAccountId(hasToken ? (await ipcApi.request('oauth.codex_get_account')).accountId : null)
+      setAccountId(hasToken ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null)
     } catch (error) {
       logger.error('Failed to check Codex login status', error as Error)
       setLoggedIn(false)
     }
-  }, [])
+  }, [providerId])
 
   useEffect(() => {
     void refreshStatus()
@@ -46,7 +46,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
   const handleSignIn = useCallback(async () => {
     setSigningIn(true)
     try {
-      const { accountId } = await ipcApi.request('oauth.codex_sign_in')
+      const { accountId } = await ipcApi.request('oauth.sign_in', { providerId })
       setLoggedIn(true)
       setAccountId(accountId)
       // The main process enabled the provider; mirror it into the renderer cache.
@@ -58,7 +58,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
     } finally {
       setSigningIn(false)
     }
-  }, [t, updateProvider])
+  }, [providerId, t, updateProvider])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -68,7 +68,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
       onOk: async () => {
         setLoggingOut(true)
         try {
-          await ipcApi.request('oauth.codex_logout')
+          await ipcApi.request('oauth.logout', { providerId })
           await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
           setLoggedIn(false)
           setAccountId(null)
@@ -81,7 +81,7 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
         }
       }
     })
-  }, [t, updateProvider])
+  }, [providerId, t, updateProvider])
 
   if (loggedIn === null) {
     return (

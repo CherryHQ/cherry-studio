@@ -29,12 +29,12 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
 
   const refreshStatus = useCallback(async () => {
     try {
-      setLoggedIn(await ipcApi.request('oauth.grok_has_token'))
+      setLoggedIn(await ipcApi.request('oauth.has_token', { providerId }))
     } catch (error) {
       logger.error('Failed to check Grok CLI login status', error as Error)
       setLoggedIn(false)
     }
-  }, [])
+  }, [providerId])
 
   useEffect(() => {
     void refreshStatus()
@@ -43,7 +43,7 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
   const handleSignIn = useCallback(async () => {
     setSigningIn(true)
     try {
-      await ipcApi.request('oauth.grok_sign_in')
+      await ipcApi.request('oauth.sign_in', { providerId })
       setLoggedIn(true)
       // The main process enabled the provider; mirror it into the renderer cache.
       await updateProvider({ isEnabled: true })
@@ -54,7 +54,7 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
     } finally {
       setSigningIn(false)
     }
-  }, [t, updateProvider])
+  }, [providerId, t, updateProvider])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -64,7 +64,10 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
       onOk: async () => {
         setLoggingOut(true)
         try {
-          await ipcApi.request('oauth.grok_logout')
+          await ipcApi.request('oauth.logout', { providerId })
+          // The main process reset auth to api-key and disabled the provider;
+          // mirror it into the renderer cache (DataApi does not auto-sync).
+          await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
           setLoggedIn(false)
           window.toast.success(t('settings.provider.oauth.logout_success'))
         } catch (error) {
@@ -75,7 +78,7 @@ const GrokCliOauth: FC<GrokCliOauthProps> = ({ providerId }) => {
         }
       }
     })
-  }, [t])
+  }, [providerId, t, updateProvider])
 
   if (loggedIn === null) {
     return (

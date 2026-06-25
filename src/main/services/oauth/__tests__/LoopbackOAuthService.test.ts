@@ -179,6 +179,12 @@ describe('LoopbackOAuthService', () => {
     })
   })
 
+  describe('getAccount', () => {
+    it('defaults to no account for providers without an account concept', async () => {
+      await expect(service.getAccount()).resolves.toEqual({ accountId: null })
+    })
+  })
+
   describe('logout', () => {
     it('resets to api-key mode and disables the provider', async () => {
       await service.logout()

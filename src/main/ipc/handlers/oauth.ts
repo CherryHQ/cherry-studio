@@ -1,20 +1,31 @@
 import { application } from '@application'
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import type { oauthRequestSchemas } from '@shared/ipc/schemas/oauth'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 /**
- * OAuth handlers — thin adapters delegating to each provider's lifecycle service.
- * The void-returning sign-in/logout handlers swallow the service return so the
- * handler type matches the route's `z.void()` output.
+ * OAuth handlers — thin, provider-generic adapters. The routes carry a
+ * `providerId`; this table is the single source of truth mapping it to the
+ * lifecycle service that drives that provider's loopback flow. Adding a provider
+ * is one entry here (plus the service itself) — no new routes or schemas.
  */
+const OAUTH_SERVICES = {
+  [OPENAI_CODEX_PROVIDER_ID]: 'CodexOauthService',
+  [GROK_CLI_PROVIDER_ID]: 'GrokCliOauthService'
+} as const
+
+const resolve = (providerId: string) => {
+  const serviceName = OAUTH_SERVICES[providerId as keyof typeof OAUTH_SERVICES]
+  if (!serviceName) {
+    throw new Error(`No OAuth service registered for provider: ${providerId}`)
+  }
+  return application.get(serviceName)
+}
+
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
-  'oauth.codex_sign_in': () => application.get('CodexOauthService').signIn(),
-  'oauth.codex_has_token': () => application.get('CodexOauthService').hasToken(),
-  'oauth.codex_get_account': () => application.get('CodexOauthService').getAccount(),
-  'oauth.codex_logout': () => application.get('CodexOauthService').logout(),
-  'oauth.grok_sign_in': async () => {
-    await application.get('GrokCliOauthService').signIn()
-  },
-  'oauth.grok_has_token': () => application.get('GrokCliOauthService').hasToken(),
-  'oauth.grok_logout': () => application.get('GrokCliOauthService').logout()
+  'oauth.sign_in': ({ providerId }) => resolve(providerId).signIn(),
+  'oauth.has_token': ({ providerId }) => resolve(providerId).hasToken(),
+  'oauth.get_account': ({ providerId }) => resolve(providerId).getAccount(),
+  'oauth.logout': ({ providerId }) => resolve(providerId).logout()
 }

@@ -1,3 +1,5 @@
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -14,6 +16,7 @@ const codexService = {
 const grokService = {
   signIn: vi.fn(() => Promise.resolve({ accountId: null })),
   hasToken: vi.fn(() => Promise.resolve(false)),
+  getAccount: vi.fn(() => Promise.resolve({ accountId: null })),
   logout: vi.fn(() => Promise.resolve())
 }
 
@@ -27,38 +30,35 @@ beforeEach(() => {
 })
 
 const ctx = { senderId: 'w1' as const }
+const codex = { providerId: OPENAI_CODEX_PROVIDER_ID }
+const grok = { providerId: GROK_CLI_PROVIDER_ID }
 
 describe('oauthHandlers', () => {
-  it('codex_sign_in returns the account shape from the service', async () => {
-    const result = await oauthHandlers['oauth.codex_sign_in'](undefined, ctx)
+  it('dispatches sign_in to the service for the given provider', async () => {
+    await expect(oauthHandlers['oauth.sign_in'](codex, ctx)).resolves.toEqual({ accountId: 'acc-1' })
     expect(codexService.signIn).toHaveBeenCalledOnce()
-    expect(result).toEqual({ accountId: 'acc-1' })
-  })
 
-  it('codex_has_token forwards the boolean result', async () => {
-    await expect(oauthHandlers['oauth.codex_has_token'](undefined, ctx)).resolves.toBe(true)
-  })
-
-  it('codex_get_account returns the account shape', async () => {
-    await expect(oauthHandlers['oauth.codex_get_account'](undefined, ctx)).resolves.toEqual({ accountId: 'acc-1' })
-  })
-
-  it('codex_logout delegates to the service', async () => {
-    await oauthHandlers['oauth.codex_logout'](undefined, ctx)
-    expect(codexService.logout).toHaveBeenCalledOnce()
-  })
-
-  it('grok_sign_in swallows the service return to match the void route', async () => {
-    await expect(oauthHandlers['oauth.grok_sign_in'](undefined, ctx)).resolves.toBeUndefined()
+    await expect(oauthHandlers['oauth.sign_in'](grok, ctx)).resolves.toEqual({ accountId: null })
     expect(grokService.signIn).toHaveBeenCalledOnce()
   })
 
-  it('grok_has_token forwards the boolean result', async () => {
-    await expect(oauthHandlers['oauth.grok_has_token'](undefined, ctx)).resolves.toBe(false)
+  it('dispatches has_token to the matching provider service', async () => {
+    await expect(oauthHandlers['oauth.has_token'](codex, ctx)).resolves.toBe(true)
+    await expect(oauthHandlers['oauth.has_token'](grok, ctx)).resolves.toBe(false)
   })
 
-  it('grok_logout delegates to the service', async () => {
-    await oauthHandlers['oauth.grok_logout'](undefined, ctx)
+  it('dispatches get_account to the matching provider service', async () => {
+    await expect(oauthHandlers['oauth.get_account'](codex, ctx)).resolves.toEqual({ accountId: 'acc-1' })
+    expect(codexService.getAccount).toHaveBeenCalledOnce()
+  })
+
+  it('dispatches logout to the matching provider service', async () => {
+    await oauthHandlers['oauth.logout'](grok, ctx)
     expect(grokService.logout).toHaveBeenCalledOnce()
+    expect(codexService.logout).not.toHaveBeenCalled()
+  })
+
+  it('throws for a provider with no registered OAuth service', () => {
+    expect(() => oauthHandlers['oauth.sign_in']({ providerId: 'unknown' }, ctx)).toThrow(/unknown/)
   })
 })

@@ -1,5 +1,5 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { type LoopbackConfig, LoopbackOAuthService } from '@main/services/oauth/LoopbackOAuthService'
+import { type LoopbackConfig, LoopbackOAuthService, type OAuthAccount } from '@main/services/oauth/LoopbackOAuthService'
 import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import type { OAuthAuthConfig } from '@shared/data/types/provider'
@@ -19,10 +19,6 @@ const CODEX_CONFIG = {
   // ChatGPT account id lives under this namespaced claim in the access token.
   JWT_CLAIM_PATH: 'https://api.openai.com/auth'
 } as const
-
-export interface CodexAccount {
-  accountId: string | null
-}
 
 @Injectable('CodexOauthService')
 @ServicePhase(Phase.Background)
@@ -91,13 +87,13 @@ export class CodexOauthService extends LoopbackOAuthService {
     return { accessToken, accountId: config?.accountId ?? null }
   }
 
-  public signIn = async (): Promise<CodexAccount> => {
+  public signIn = async (): Promise<OAuthAccount> => {
     await this.runSignIn()
     const config = await this.getOAuthAuthConfig()
     return { accountId: config?.accountId ?? null }
   }
 
-  public getAccount = async (): Promise<CodexAccount> => {
+  public getAccount = async (): Promise<OAuthAccount> => {
     const config = await this.getOAuthAuthConfig()
     return { accountId: config?.accountId ?? null }
   }

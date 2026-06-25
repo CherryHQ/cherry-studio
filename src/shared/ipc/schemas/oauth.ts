@@ -7,21 +7,24 @@ import { defineRoute } from '../define'
  * providers (Codex, Grok CLI) whose flows the main process drives through a
  * loopback callback.
  *
- * One domain per provider family rather than per provider: the routes are thin
- * adapters over each provider's `*OauthService`, so `z.infer` of the input/output
- * schemas is the single source of truth for both the handler signatures and the
- * renderer facade — schema↔service drift becomes a compile error.
+ * Provider-generic, not per-provider: a fixed set of operations carries the
+ * target `providerId` as input, and the handler dispatches to that provider's
+ * `*OauthService`. Adding a provider needs no new route — only a handler-side
+ * dispatch entry — so the IPC surface stays flat as the provider set grows.
+ *
+ * `sign_in`/`get_account` return the account superset (just the account id);
+ * providers without an account concept resolve `{ accountId: null }`.
  */
 
-/** Codex sign-in / get-account result: the ChatGPT account id, or null when absent. */
-const codexAccountSchema = z.object({ accountId: z.string().nullable() })
+/** The account a provider associates with the session (Codex's ChatGPT id), or null. */
+const oauthAccountSchema = z.object({ accountId: z.string().nullable() })
+
+/** Every route targets one provider, named by its runtime id. */
+const providerInput = z.object({ providerId: z.string() })
 
 export const oauthRequestSchemas = {
-  'oauth.codex_sign_in': defineRoute({ input: z.void(), output: codexAccountSchema }),
-  'oauth.codex_has_token': defineRoute({ input: z.void(), output: z.boolean() }),
-  'oauth.codex_get_account': defineRoute({ input: z.void(), output: codexAccountSchema }),
-  'oauth.codex_logout': defineRoute({ input: z.void(), output: z.void() }),
-  'oauth.grok_sign_in': defineRoute({ input: z.void(), output: z.void() }),
-  'oauth.grok_has_token': defineRoute({ input: z.void(), output: z.boolean() }),
-  'oauth.grok_logout': defineRoute({ input: z.void(), output: z.void() })
+  'oauth.sign_in': defineRoute({ input: providerInput, output: oauthAccountSchema }),
+  'oauth.has_token': defineRoute({ input: providerInput, output: z.boolean() }),
+  'oauth.get_account': defineRoute({ input: providerInput, output: oauthAccountSchema }),
+  'oauth.logout': defineRoute({ input: providerInput, output: z.void() })
 }

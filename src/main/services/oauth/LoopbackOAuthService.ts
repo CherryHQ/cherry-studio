@@ -8,6 +8,11 @@ import { type OAuthTokenResponse } from '@main/utils/oauth/PkceOAuthClient'
 import type { OAuthAuthConfig } from '@shared/data/types/provider'
 import { shell } from 'electron'
 
+/** Account a provider associates with the session (e.g. Codex's ChatGPT id), or null. */
+export interface OAuthAccount {
+  accountId: string | null
+}
+
 export interface LoopbackConfig {
   /** Loopback hosts to bind, in priority order (e.g. ['127.0.0.1', '::1']). */
   hosts: readonly string[]
@@ -168,8 +173,17 @@ export abstract class LoopbackOAuthService extends BaseService {
 
   // ── Public IPC surface shared by every loopback provider ──
 
-  /** Default sign-in handler. Codex overrides to also return its account shape. */
-  public signIn = async (): Promise<unknown> => this.runSignIn()
+  /**
+   * Default sign-in: runs the loopback flow and reports no account. Providers
+   * with an account concept (Codex) override to return the real id.
+   */
+  public signIn = async (): Promise<OAuthAccount> => {
+    await this.runSignIn()
+    return { accountId: null }
+  }
+
+  /** Account for the current session. Defaults to none; Codex overrides. */
+  public getAccount = async (): Promise<OAuthAccount> => ({ accountId: null })
 
   public hasToken = async (): Promise<boolean> => {
     const config = await this.getOAuthAuthConfig()
