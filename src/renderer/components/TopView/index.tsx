@@ -6,7 +6,7 @@ import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agents/useSession
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
-import { notificationQueue } from '@renderer/queue/NotificationQueue'
+import { notificationQueue } from '@renderer/services/notification'
 import type { Notification } from '@renderer/types/notification'
 import { isFocused } from '@renderer/utils/window'
 import type { PropsWithChildren } from 'react'

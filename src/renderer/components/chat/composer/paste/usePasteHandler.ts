@@ -1,4 +1,3 @@
-import { usePreference } from '@renderer/data/hooks/usePreference'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
@@ -39,9 +38,6 @@ export function usePasteHandler(
   setText: (text: string | ((prev: string) => string)) => void,
   options: UsePasteHandlerOptions
 ) {
-  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
-  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
-
   const handlePaste = useCallback(
     async (event: ClipboardEvent) => {
       return await pasteHandling.handlePaste(
@@ -49,14 +45,12 @@ export function usePasteHandler(
         options.supportedExts,
         options.setFiles,
         setText,
-        pasteLongTextAsFile,
-        pasteLongTextThreshold,
         text,
         options.onResize ?? (() => {}),
         options.t
       )
     },
-    [text, setText, options, pasteLongTextAsFile, pasteLongTextThreshold]
+    [text, setText, options]
   )
 
   return { handlePaste }
