@@ -33,7 +33,7 @@ vi.mock('@renderer/config/miniApps', () => ({
   getMiniAppsLogo: (logo?: string) => (logo === 'application' ? 'application-icon' : undefined)
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/uuid', () => ({
   uuid: () => 'generated-id'
 }))
 
