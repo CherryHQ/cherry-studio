@@ -41,7 +41,6 @@ export const useCodeCli = () => {
 
   const selectedModel = currentConfig.modelId
   const selectedTerminal = currentConfig.terminal
-  const environmentVariables = currentConfig.envVars
   const directories = currentConfig.directories
   const currentDirectory = currentConfig.currentDirectory
 
@@ -83,13 +82,6 @@ export const useCodeCli = () => {
   const setTerminal = useCallback(
     async (terminal: string) => {
       await updateCurrentTool({ terminal })
-    },
-    [updateCurrentTool]
-  )
-
-  const setEnvVars = useCallback(
-    async (envVars: string) => {
-      await updateCurrentTool({ envVars })
     },
     [updateCurrentTool]
   )
@@ -159,14 +151,12 @@ export const useCodeCli = () => {
     selectedCliTool,
     selectedModel,
     selectedTerminal,
-    environmentVariables,
     directories,
     currentDirectory,
     canLaunch,
     setCliTool,
     setModel,
     setTerminal,
-    setEnvVars,
     setCurrentDir,
     removeDir,
     clearDirs,

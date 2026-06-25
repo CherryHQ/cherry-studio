@@ -1,0 +1,31 @@
+import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
+import { codeCLI } from '@shared/types/codeCli'
+import type { FC } from 'react'
+
+const CLI_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  [codeCLI.claudeCode]: ClaudeCode,
+  [codeCLI.openaiCodex]: OpenaiCodex,
+  [codeCLI.openCode]: OpenCode,
+  [codeCLI.openclaw]: Openclaw,
+  [codeCLI.hermes]: Nousresearch
+}
+
+interface CLIIconProps {
+  id: string
+  size?: number
+  className?: string
+}
+
+export const CLIIcon: FC<CLIIconProps> = ({ id, size = 28, className }) => {
+  const Icon = CLI_ICONS[id]
+  if (!Icon) {
+    return (
+      <div
+        className={`flex items-center justify-center rounded-md bg-accent/50 text-foreground/70 font-medium ${className}`}
+        style={{ width: size, height: size, fontSize: size * 0.4 }}>
+        {id.charAt(0).toUpperCase()}
+      </div>
+    )
+  }
+  return <Icon size={size} className={className} />
+}

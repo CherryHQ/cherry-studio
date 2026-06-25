@@ -59,7 +59,7 @@ export function buildOpenCodeConfig(
     const limit: Record<string, number> = {}
     if (config.contextLimit !== undefined) limit.context = config.contextLimit
     if (config.outputLimit !== undefined) limit.output = config.outputLimit
-    modelConfig.limit = { ...(modelConfig.limit ?? {}), ...limit }
+    modelConfig.limit = { ...modelConfig.limit, ...limit }
   }
 
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
