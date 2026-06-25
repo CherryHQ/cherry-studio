@@ -227,8 +227,7 @@ Review for:
 
 UI-specific checks:
 
-- New UI should use `@cherrystudio/ui` and project design rules. Do not add
-  legacy component libraries or styled-components.
+- New UI should use `@cherrystudio/ui` and project design rules.
 - User-visible text must use i18n.
 - Interactive controls need keyboard behavior and accessible names.
 - Prefer established component composition over boolean-prop growth.
