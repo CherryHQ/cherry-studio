@@ -311,7 +311,7 @@
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.5",
     "electron": "41.8.0",
-    "electron-builder": "26.8.1",
+    "electron-builder": "26.15.3",
     "electron-devtools-installer": "^3.2.0",
     "electron-reload": "^2.0.0-alpha.1",
     "electron-store": "^8.2.0",

@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CONTENT_TYPES, processMessageContent } from '../knowledge'

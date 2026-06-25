@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
 import { ArrowRight, Wrench } from 'lucide-react'
 import { useCallback, useState } from 'react'
@@ -15,6 +15,7 @@ import { ToolDisclosure, type ToolDisclosureItem } from '../../messages/tools/sh
 import type { ToolResponseLike } from '../../messages/tools/toolResponse'
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
+
 export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 export { findLatestPendingPermissionRequest } from './permissionRequestComposerRequest'
 

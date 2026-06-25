@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'

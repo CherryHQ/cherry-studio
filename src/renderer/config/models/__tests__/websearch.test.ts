@@ -42,9 +42,8 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
   getStoreSetting: vi.fn()
 }))
-
-import type { Model as V1Model } from '@renderer/types'
-import { SystemProviderIds } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
+import { SystemProviderIds } from '@renderer/types/provider'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 

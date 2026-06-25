@@ -1,4 +1,4 @@
-import type { ComposerFileKind, FileMetadata, FileType } from '@renderer/types'
+import type { ComposerFileKind, FileMetadata, FileType } from '@renderer/types/file'
 import {
   createComposerFileTokenSourceId,
   getComposerFileTokenSourceId

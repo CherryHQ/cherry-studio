@@ -1,5 +1,6 @@
-import type { LegacyAssistant, Topic } from '@renderer/types'
+import type { LegacyAssistant } from '@renderer/types/assistant'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import type { Topic } from '@renderer/types/topic'
 
 /**
  * Import result containing parsed data

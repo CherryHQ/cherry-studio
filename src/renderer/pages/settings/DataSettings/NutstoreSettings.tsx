@@ -16,7 +16,6 @@ import {
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
 import { useAppSelector } from '@renderer/store'
-import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
@@ -80,9 +79,14 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
-    const confirmedLogout = await modalConfirm({
-      title: t('settings.data.nutstore.logout.title'),
-      content: t('settings.data.nutstore.logout.content')
+    const confirmedLogout = await new Promise<boolean>((resolve) => {
+      window.modal.confirm({
+        centered: true,
+        title: t('settings.data.nutstore.logout.title'),
+        content: t('settings.data.nutstore.logout.content'),
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false)
+      })
     })
     if (confirmedLogout) {
       void setNutstoreToken('')

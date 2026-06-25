@@ -353,7 +353,7 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['@types', '@renderer', '@renderer/**'],
+              group: ['@renderer', '@renderer/**'],
               message:
                 'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
             }

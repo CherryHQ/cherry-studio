@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'

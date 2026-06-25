@@ -23,7 +23,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {

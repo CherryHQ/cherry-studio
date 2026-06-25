@@ -14,7 +14,7 @@ import {
   type ResourceListTimeBucket,
   withResourceListGroupIdPrefix
 } from '@renderer/components/chat/resources'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 

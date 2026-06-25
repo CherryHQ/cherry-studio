@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import React, { memo } from 'react'
 
 interface ActionIconButtonProps extends Omit<React.ComponentProps<'button'>, 'ref'> {

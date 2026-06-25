@@ -17,7 +17,7 @@ vi.mock('i18next', () => ({
   t: (key: string, fallback?: string) => fallback ?? key
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ')
 }))
 

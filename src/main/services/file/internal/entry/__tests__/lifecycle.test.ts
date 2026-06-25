@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -230,6 +230,22 @@ describe('internal/entry/lifecycle', () => {
       const result = await batchPermanentDelete(deps, [internal, external])
       expect(result.succeeded.sort()).toEqual([internal, external].sort())
       expect(result.failed).toEqual([])
+    })
+
+    it('composes each batch DB write loop inside one serialized write tx', async () => {
+      const trashInternal = await makeInternal()
+      const trashExternal = await makeExternal()
+      const deleteInternal = await makeInternal()
+      const deleteExternal = await makeExternal()
+      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+
+      withWriteTx.mockClear()
+      await batchTrash(deps, [trashInternal, trashExternal])
+      expect(withWriteTx).toHaveBeenCalledTimes(1)
+
+      withWriteTx.mockClear()
+      await batchPermanentDelete(deps, [deleteInternal, deleteExternal])
+      expect(withWriteTx).toHaveBeenCalledTimes(1)
     })
 
     it('side-channels the full Error object through logger.warn so the stack is preserved', async () => {
