@@ -20,7 +20,10 @@ import {
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
-  const PopoverOpenContext = React.createContext(false)
+  const PopoverContext = React.createContext<{
+    open: boolean
+    triggerRef: { current: HTMLElement | null }
+  }>({ open: false, triggerRef: { current: null } })
 
   return {
     Button: ({
@@ -63,13 +66,17 @@ vi.mock('@cherrystudio/ui', async () => {
         </span>
       )
     },
-    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
-      <PopoverOpenContext value={Boolean(open)}>
-        <span data-open={String(Boolean(open))} data-testid="composer-token-popover">
-          {children}
-        </span>
-      </PopoverOpenContext>
-    ),
+    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => {
+      const triggerRef = React.useRef<HTMLElement | null>(null)
+
+      return (
+        <PopoverContext value={{ open: Boolean(open), triggerRef }}>
+          <span data-open={String(Boolean(open))} data-testid="composer-token-popover">
+            {children}
+          </span>
+        </PopoverContext>
+      )
+    },
     PopoverContent: ({
       ref,
       children,
@@ -78,15 +85,18 @@ vi.mock('@cherrystudio/ui', async () => {
       side: _side,
       sideOffset: _sideOffset,
       onOpenAutoFocus,
+      onCloseAutoFocus,
       ...props
     }: HTMLAttributes<HTMLDivElement> & {
       align?: string
       side?: string
       sideOffset?: number
       onOpenAutoFocus?: (event: { preventDefault: () => void }) => void
+      onCloseAutoFocus?: (event: { preventDefault: () => void }) => void
     } & { ref?: { current: HTMLDivElement | null } }) => {
-      const open = React.use(PopoverOpenContext)
+      const { open, triggerRef } = React.use(PopoverContext)
       const contentRef = React.useRef<HTMLDivElement | null>(null)
+      const previousOpenRef = React.useRef(open)
       void _align
       void _side
       void _sideOffset
@@ -108,6 +118,22 @@ vi.mock('@cherrystudio/ui', async () => {
         }
       }, [onOpenAutoFocus, open])
 
+      React.useEffect(() => {
+        if (previousOpenRef.current && !open) {
+          let defaultPrevented = false
+          onCloseAutoFocus?.({
+            preventDefault: () => {
+              defaultPrevented = true
+            }
+          } as Event)
+
+          if (!defaultPrevented) {
+            triggerRef.current?.focus()
+          }
+        }
+        previousOpenRef.current = open
+      }, [onCloseAutoFocus, open, triggerRef])
+
       if (!open) return null
 
       const setContentRef = (node: HTMLDivElement | null) => {
@@ -124,11 +150,25 @@ vi.mock('@cherrystudio/ui', async () => {
       )
     },
     PopoverTrigger: ({ children, asChild: _asChild }: { children: ReactNode; asChild?: boolean }) => {
+      const { triggerRef } = React.use(PopoverContext)
       void _asChild
 
-      return React.isValidElement(children)
-        ? React.cloneElement(children, { 'data-popover-trigger': 'true' } as Record<string, unknown>)
-        : children
+      if (!React.isValidElement(children)) return children
+
+      const childRef = (children.props as { ref?: React.Ref<HTMLElement> }).ref
+      const setTriggerRef = (node: HTMLElement | null) => {
+        triggerRef.current = node
+        if (typeof childRef === 'function') {
+          childRef(node)
+        } else if (childRef && 'current' in childRef) {
+          childRef.current = node
+        }
+      }
+
+      return React.cloneElement(children, {
+        'data-popover-trigger': 'true',
+        ref: setTriggerRef
+      } as Record<string, unknown>)
     }
   }
 })
@@ -534,6 +574,35 @@ describe('ComposerToken', () => {
 
       await act(() => vi.advanceTimersByTime(1))
       expect(popover).toHaveAttribute('data-open', 'false')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not restore focus to a pointer-open file token after hover close', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const { container } = render(
+        <>
+          <FileComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />
+          <button type="button">Next token target</button>
+        </>
+      )
+      const trigger = getFileTokenTrigger(container)
+      const popover = screen.getByTestId('composer-token-popover')
+      const nextTarget = screen.getByRole('button', { name: 'Next token target' })
+
+      fireEvent.mouseEnter(trigger, { clientX: 12, clientY: 12 })
+      await act(() => vi.advanceTimersByTime(120))
+      expect(popover).toHaveAttribute('data-open', 'true')
+
+      nextTarget.focus()
+      fireEvent.mouseLeave(trigger)
+      await act(() => vi.advanceTimersByTime(160))
+
+      expect(popover).toHaveAttribute('data-open', 'false')
+      expect(nextTarget).toHaveFocus()
     } finally {
       vi.useRealTimers()
     }

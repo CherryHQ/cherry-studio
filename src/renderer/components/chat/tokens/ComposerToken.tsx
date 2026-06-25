@@ -5,26 +5,9 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/chat/utils/quoteToken'
-import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { FilePath } from '@shared/types/file'
-import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
-import {
-  Boxes,
-  Braces,
-  File,
-  FileCode2,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
-  FileText,
-  FileType2,
-  Presentation,
-  TextQuote,
-  Trash2,
-  Zap
-} from 'lucide-react'
+import { Boxes, Braces, FileText, TextQuote, Trash2, Zap } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -38,11 +21,10 @@ import {
   useState
 } from 'react'
 
+import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
 import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
-const fileTokenIconClassName = 'size-3 shrink-0 text-current'
-const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
 const FILE_TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const FILE_TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 type FileTokenPopoverOpenReason = 'keyboard' | 'pointer'
@@ -79,99 +61,6 @@ interface ActiveComposerTokenProps extends ComposerTokenProps {
   icon: ReactNode
   colorClassName?: string
 }
-
-interface FileTokenVisualPreset {
-  icon: ComponentType<{ className?: string; 'aria-hidden'?: true }>
-  iconClassName: string
-  defaultTypeLabel: string
-  displayExtensions?: readonly string[]
-}
-
-const fileTokenVisualPresetByVariant = {
-  image: {
-    icon: FileImage,
-    iconClassName: 'bg-[var(--color-cyan-100)] text-[var(--color-cyan-700)]',
-    defaultTypeLabel: 'IMAGE',
-    displayExtensions: ['avif', 'bmp', 'gif', 'heic', 'heif', 'jpeg', 'jpg', 'png', 'svg', 'webp']
-  },
-  word: {
-    icon: FileType2,
-    iconClassName: 'bg-[var(--color-blue-100)] text-[var(--color-blue-700)]',
-    defaultTypeLabel: 'WORD',
-    displayExtensions: ['doc', 'docx']
-  },
-  excel: {
-    icon: FileSpreadsheet,
-    iconClassName: 'bg-[var(--color-green-100)] text-[var(--color-green-700)]',
-    defaultTypeLabel: 'EXCEL',
-    displayExtensions: ['csv', 'xls', 'xlsx']
-  },
-  powerpoint: {
-    icon: Presentation,
-    iconClassName: 'bg-[var(--color-orange-100)] text-[var(--color-orange-700)]',
-    defaultTypeLabel: 'PPT',
-    displayExtensions: ['ppt', 'pptx']
-  },
-  pdf: {
-    icon: FileText,
-    iconClassName: 'bg-[var(--color-red-100)] text-[var(--color-red-700)]',
-    defaultTypeLabel: 'PDF',
-    displayExtensions: ['pdf']
-  },
-  markdown: {
-    icon: FileText,
-    iconClassName: 'bg-[var(--color-gray-100)] text-[var(--color-gray-700)]',
-    defaultTypeLabel: 'MD',
-    displayExtensions: ['markdown', 'md', 'mdx']
-  },
-  json: {
-    icon: FileJson,
-    iconClassName: 'bg-[var(--color-violet-100)] text-[var(--color-violet-700)]',
-    defaultTypeLabel: 'JSON',
-    displayExtensions: ['json', 'jsonl']
-  },
-  code: {
-    icon: FileCode2,
-    iconClassName: 'bg-[var(--color-indigo-100)] text-[var(--color-indigo-700)]',
-    defaultTypeLabel: 'CODE',
-    displayExtensions: ['css', 'go', 'html', 'java', 'js', 'jsx', 'py', 'rs', 'ts', 'tsx', 'xml', 'yaml', 'yml']
-  },
-  document: {
-    icon: FileText,
-    iconClassName: 'bg-[var(--color-slate-100)] text-[var(--color-slate-700)]',
-    defaultTypeLabel: 'DOCUMENT'
-  },
-  text: {
-    icon: FileText,
-    iconClassName: 'bg-[var(--color-info-bg)] text-info',
-    defaultTypeLabel: 'TEXT',
-    displayExtensions: ['log', 'text', 'txt']
-  },
-  fallback: {
-    icon: File,
-    iconClassName: 'bg-accent text-muted-foreground',
-    defaultTypeLabel: 'FILE'
-  }
-} satisfies Record<string, FileTokenVisualPreset>
-
-type FileTokenVariant = keyof typeof fileTokenVisualPresetByVariant
-
-interface FileTokenPresentation {
-  variant: FileTokenVariant
-  icon: ReactNode
-  previewIcon: ReactNode
-  containerClassName: string
-  iconClassName: string
-  typeLabel: string
-  previewUrl?: string
-}
-
-const fileTokenVariantByExtension = new Map<string, FileTokenVariant>(
-  Object.entries(fileTokenVisualPresetByVariant).flatMap(([variant, preset]) => {
-    const displayExtensions = 'displayExtensions' in preset ? preset.displayExtensions : undefined
-    return (displayExtensions ?? []).map((extension) => [extension, variant as FileTokenVariant])
-  })
-)
 
 function renderActiveComposerTokenElement({
   token,
@@ -215,49 +104,6 @@ export function SkillComposerToken(props: ComposerTokenProps) {
 
 function isComposerAttachment(value: unknown): value is ComposerAttachment {
   return typeof value === 'object' && value !== null
-}
-
-function getNormalizedFileExtension(file: ComposerAttachment | undefined, fallbackLabel: string) {
-  const extension = file?.ext || fallbackLabel.match(/\.[^.]+$/)?.[0] || ''
-  return extension.replace(/^\./, '').toLowerCase()
-}
-
-function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLabel: string) {
-  return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
-}
-
-function getFilePreviewUrl(file: ComposerAttachment | undefined) {
-  if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
-  return toSafeFileUrl(file.path as FilePath, file.ext?.replace(/^\./, '') || null)
-}
-
-function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {
-  const extension = getNormalizedFileExtension(file, fallbackLabel)
-  const extensionVariant = fileTokenVariantByExtension.get(extension)
-
-  if (file?.type === FILE_TYPE.IMAGE) return 'image'
-  if (extensionVariant) return extensionVariant
-  if (file?.type === FILE_TYPE.DOCUMENT) return 'document'
-  if (file?.type === FILE_TYPE.TEXT) return 'text'
-
-  return 'fallback'
-}
-
-function getFileTokenPresentation(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenPresentation {
-  const extensionLabel = getFileExtensionLabel(file, fallbackLabel)
-  const variant = getFileTokenVariant(file, fallbackLabel)
-  const preset = fileTokenVisualPresetByVariant[variant]
-  const Icon = preset.icon
-
-  return {
-    variant,
-    icon: <Icon className={fileTokenIconClassName} aria-hidden />,
-    previewIcon: <Icon className="size-7" aria-hidden />,
-    containerClassName: fileTokenContainerClassName,
-    iconClassName: preset.iconClassName,
-    typeLabel: extensionLabel || preset.defaultTypeLabel,
-    previewUrl: variant === 'image' ? getFilePreviewUrl(file) : undefined
-  }
 }
 
 function FileTokenPreviewCard({
@@ -414,6 +260,12 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     }
   }, [])
 
+  const handlePopoverCloseAutoFocus = useCallback((event: Event) => {
+    if (popoverOpenReasonRef.current !== 'keyboard') {
+      event.preventDefault()
+    }
+  }, [])
+
   const isFocusWithinPopover = useCallback((target: EventTarget | null) => {
     if (!(target instanceof Node)) return false
     return Boolean(triggerRef.current?.contains(target) || contentRef.current?.contains(target))
@@ -553,7 +405,8 @@ export function FileComposerToken(props: FileComposerTokenProps) {
         onMouseLeave={scheduleClosePopover}
         onFocus={openPointerPopover}
         onBlur={handleContentBlur}
-        onOpenAutoFocus={handlePopoverOpenAutoFocus}>
+        onOpenAutoFocus={handlePopoverOpenAutoFocus}
+        onCloseAutoFocus={handlePopoverCloseAutoFocus}>
         {tooltipContent}
       </PopoverContent>
     </Popover>
