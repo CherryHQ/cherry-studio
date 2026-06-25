@@ -2,14 +2,15 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCallback, useRef, useState } from 'react'
 
 import { getNextInputHistoryIndex, type InputHistoryDirection } from './inputHistoryNavigation'
+import type { ComposerSerializedDraft } from './tokens'
 
 interface UseInputHistoryOptions {
-  applyText: (value: string) => void
+  applyDraft: (draft: ComposerSerializedDraft) => void
 }
 
-export function useInputHistory({ applyText }: UseInputHistoryOptions) {
+export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   const [historyIndex, setHistoryIndex] = useState(-1)
-  const draftBeforeHistoryRef = useRef<string | null>(null)
+  const draftBeforeHistoryRef = useRef<ComposerSerializedDraft | null>(null)
   const { data: history = [] } = useQuery('/input-history')
   const { trigger: saveInputHistory } = useMutation('POST', '/input-history', {
     refresh: ['/input-history']
@@ -19,18 +20,26 @@ export function useInputHistory({ applyText }: UseInputHistoryOptions) {
     (nextIndex: number) => {
       setHistoryIndex(nextIndex)
       if (nextIndex === -1) {
-        applyText(draftBeforeHistoryRef.current ?? '')
+        applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] })
         draftBeforeHistoryRef.current = null
         return
       }
 
-      applyText(history[nextIndex]?.content ?? '')
+      const historyItem = history[nextIndex]
+      if (!historyItem) {
+        applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] })
+        draftBeforeHistoryRef.current = null
+        setHistoryIndex(-1)
+        return
+      }
+
+      applyDraft({ text: historyItem.content, tokens: [] })
     },
-    [applyText, history]
+    [applyDraft, history]
   )
 
   const navigateHistory = useCallback(
-    (direction: InputHistoryDirection, currentText: string) => {
+    (direction: InputHistoryDirection, currentDraft: ComposerSerializedDraft) => {
       const nextIndex = getNextInputHistoryIndex({
         currentIndex: historyIndex,
         direction,
@@ -42,7 +51,7 @@ export function useInputHistory({ applyText }: UseInputHistoryOptions) {
       }
 
       if (historyIndex === -1 && nextIndex !== -1) {
-        draftBeforeHistoryRef.current = currentText
+        draftBeforeHistoryRef.current = currentDraft
       }
       applyHistoryIndex(nextIndex)
       return true
