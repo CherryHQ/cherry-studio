@@ -567,6 +567,16 @@
         "type": "unknown",
         "defaultValue": "emoji"
       },
+      "pasteLongTextAsFile": {
+        "file": "src/renderer/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "pasteLongTextThreshold": {
+        "file": "src/renderer/store/settings.ts",
+        "type": "number",
+        "defaultValue": 1500
+      },
       "clickAssistantToShowTopic": {
         "file": "src/renderer/store/settings.ts",
         "type": "boolean",
