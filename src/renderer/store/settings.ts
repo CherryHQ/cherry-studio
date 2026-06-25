@@ -91,6 +91,8 @@ export interface SettingsState {
   showTopicTime: boolean
   pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
+  pasteLongTextAsFile: boolean
+  pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   testPlan: boolean
@@ -287,6 +289,8 @@ export const initialState: SettingsState = {
   showTopicTime: false,
   pinTopicsToTop: false,
   assistantIconType: 'emoji',
+  pasteLongTextAsFile: false,
+  pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   testPlan: false,
@@ -545,6 +549,9 @@ const settingsSlice = createSlice({
     // setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
     //   state.assistantIconType = action.payload
     // },
+    // setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
+    //   state.pasteLongTextAsFile = action.payload
+    // },
     // setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
     //   state.autoCheckUpdate = action.payload
     // },
@@ -684,6 +691,9 @@ const settingsSlice = createSlice({
     // },
     // setEnableTopicNaming: (state, action: PayloadAction<boolean>) => {
     //   state.enableTopicNaming = action.payload
+    // },
+    // setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
+    //   state.pasteLongTextThreshold = action.payload
     // },
     // setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
     //   state.topicNamingPrompt = action.payload

@@ -866,6 +866,7 @@ const migrateConfig = {
   },
   '49': (state: RootState) => {
     try {
+      state.settings.pasteLongTextThreshold = 1500
       if (state.shortcuts) {
         state.shortcuts.shortcuts = [
           ...state.shortcuts.shortcuts,
