@@ -267,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "间隔",
-          "label": "调度类型",
           "once": "一次性"
         },
-        "scheduleValue": "调度值",
         "status": {
           "active": "活跃",
           "completed": "已完成",

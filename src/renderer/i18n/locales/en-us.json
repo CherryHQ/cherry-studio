@@ -267,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Schedule Type",
           "once": "Once"
         },
-        "scheduleValue": "Schedule Value",
         "status": {
           "active": "Active",
           "completed": "Completed",

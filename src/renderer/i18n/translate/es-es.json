@@ -267,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalo",
-          "label": "Tipo de programación",
           "once": "Una vez"
         },
-        "scheduleValue": "Valor de programación",
         "status": {
           "active": "Activo",
           "completed": "Completado",
@@ -2772,8 +2770,6 @@
       "chunk_overlap_invalid": "El solapamiento de fragmentos debe ser mayor o igual que 0",
       "chunk_overlap_must_be_smaller": "El solapamiento de fragmentos debe ser menor que el tamaño del fragmento.",
       "chunk_overlap_requires_chunk_size": "El tamaño del fragmento es obligatorio cuando se establece la superposición de fragmentos.",
-      "chunk_separator": "[to be translated]:Separator",
-      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "Tamaño del fragmento",
       "chunk_size_change_warning": "Los cambios en el tamaño del fragmento y la superposición solo se aplican al contenido recién agregado",
       "chunk_size_invalid": "El tamaño del fragmento debe ser mayor que 0",
@@ -2786,7 +2782,6 @@
       "file_processing_hint": "El procesamiento de archivos se ejecuta automáticamente durante la importación del documento. Elegir el proveedor adecuado puede mejorar la calidad del análisis del documento.",
       "hints": {
         "chunk_overlap": "Número de tokens superpuestos que se conservan entre fragmentos adyacentes para reducir las rupturas semánticas.",
-        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Recuento objetivo de tokens para cada fragmento de documento. Esto afecta la granularidad de recuperación y la longitud del contexto.",
         "document_count": "Número máximo de fragmentos de documento devueltos para cada recuperación. Valores más altos cubren más contenido pero utilizan más contexto.",
         "embedding_model": "Se utiliza para convertir el contenido de la base de conocimientos en vectores. Cambiar el modelo suele requerir reindexar el contenido existente.",
@@ -2794,7 +2789,6 @@
         "processor": "Analizador utilizado al importar archivos para extraer el texto del cuerpo, tablas y contenido relacionado.",
         "rerank_model": "Modelo utilizado para reordenar los resultados de recuperación inicial y mejorar la relevancia del fragmento final.",
         "search_mode": "Elige un modo de recuperación: búsqueda vectorial para coincidencia semántica, búsqueda de texto completo para palabras clave o búsqueda híbrida para ambas.",
-        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta.",
         "threshold_disabled": "Este modo de recuperación devuelve resultados ordenados y no utiliza un umbral de similitud."
       },
@@ -2814,7 +2808,6 @@
         "vector": "Búsqueda Vectorial"
       },
       "separator_rule": "Regla de Separador",
-      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "Umbral de Similitud",
       "tokens_unit": "tokens"
     },
@@ -6742,7 +6735,6 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Mostrar {{count}} modelos más",
-        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Volver a obtener la lista de modelos",
         "reload_catalog": "Refresh list",

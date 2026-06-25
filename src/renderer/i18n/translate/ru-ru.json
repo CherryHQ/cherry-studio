@@ -267,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Интервал",
-          "label": "Тип расписания",
           "once": "Однократно"
         },
-        "scheduleValue": "Значение расписания",
         "status": {
           "active": "Активна",
           "completed": "Завершена",
@@ -2772,8 +2770,6 @@
       "chunk_overlap_invalid": "Перекрытие фрагментов должно быть больше или равно 0",
       "chunk_overlap_must_be_smaller": "Перекрытие чанков должно быть меньше размера чанка",
       "chunk_overlap_requires_chunk_size": "Размер фрагмента обязателен, если задано перекрытие фрагментов",
-      "chunk_separator": "[to be translated]:Separator",
-      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "Размер фрагмента",
       "chunk_size_change_warning": "Изменения размера и перекрытия фрагментов применяются только к вновь добавленному контенту",
       "chunk_size_invalid": "Размер фрагмента должен быть больше 0",
@@ -2786,7 +2782,6 @@
       "file_processing_hint": "Обработка файлов выполняется автоматически при импорте документа. Правильный выбор поставщика может повысить качество разбора документов.",
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
-        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Целевое количество токенов для каждого фрагмента документа. Это влияет на гранулярность извлечения и длину контекста.",
         "document_count": "Максимальное количество фрагментов документа, возвращаемых для каждого поиска. Более высокие значения охватывают больше контента, но используют больше контекста.",
         "embedding_model": "Используется для преобразования содержимого базы знаний в векторы. Смена модели обычно требует переиндексации существующего содержимого.",
@@ -2794,7 +2789,6 @@
         "processor": "Парсер, используемый при импорте файлов для извлечения основного текста, таблиц и связанного контента.",
         "rerank_model": "Модель, используемая для повторного ранжирования первоначальных результатов поиска и повышения релевантности финальных фрагментов.",
         "search_mode": "Выберите режим поиска: векторный поиск для семантического соответствия, полнотекстовый поиск по ключевым словам или гибридный поиск, объединяющий оба подхода.",
-        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже.",
         "threshold_disabled": "Этот режим извлечения возвращает упорядоченные результаты и не использует порог сходства."
       },
@@ -2814,7 +2808,6 @@
         "vector": "Векторный поиск"
       },
       "separator_rule": "Правило разделителя",
-      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "Порог сходства",
       "tokens_unit": "токены"
     },
@@ -6742,7 +6735,6 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Показать ещё {{count}} моделей",
-        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Повторное получение списка моделей",
         "reload_catalog": "Refresh list",
