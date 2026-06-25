@@ -8,7 +8,7 @@ import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import dayjs from 'dayjs'
 

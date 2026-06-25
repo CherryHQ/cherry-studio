@@ -11,7 +11,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { restoreFromS3 } from '@renderer/services/BackupService'
-import { formatFileSize } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils/file'
 import type { S3Config } from '@shared/types/backup'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'

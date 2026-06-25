@@ -2,7 +2,7 @@ import { SubWindowControls } from '@renderer/components/layout/SubWindowControls
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import { isMac } from '@renderer/config/constant'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 
 /**
  * Standalone window title bar for detached pages that DON'T render their own window chrome

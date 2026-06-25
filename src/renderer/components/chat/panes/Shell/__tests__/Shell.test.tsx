@@ -108,7 +108,7 @@ vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children?: ReactNode }) => children
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
 

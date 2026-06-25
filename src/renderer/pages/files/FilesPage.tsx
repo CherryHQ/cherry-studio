@@ -11,7 +11,7 @@ import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
-import { formatFileSize } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils/file'
 import { Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'

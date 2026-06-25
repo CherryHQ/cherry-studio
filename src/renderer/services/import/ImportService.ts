@@ -3,7 +3,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
 import type { LegacyAssistant } from '@renderer/types/assistant'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 
 import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'
 import { availableImporters } from './importers'
