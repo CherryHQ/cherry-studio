@@ -1,4 +1,3 @@
-import type { FileMetadata } from '@renderer/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runPaintingMock = vi.fn(async (generate: () => Promise<unknown>) => {
@@ -9,6 +8,8 @@ const runPaintingMock = vi.fn(async (generate: () => Promise<unknown>) => {
 vi.mock('../runPainting', () => ({
   runPainting: (generate: () => Promise<unknown>) => runPaintingMock(generate)
 }))
+
+import type { FileMetadata } from '@renderer/types/file'
 
 import type { GeneratePaintingOptions } from '../generatePainting'
 import { generatePainting } from '../generatePainting'

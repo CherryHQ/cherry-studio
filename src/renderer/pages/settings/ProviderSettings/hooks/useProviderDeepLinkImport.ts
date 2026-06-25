@@ -1,7 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
-import type { ProviderType } from '@renderer/types'
+import type { ProviderType } from '@renderer/types/provider'
 import { validateApiHost } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'

@@ -2,7 +2,7 @@
 
 import { Tooltip } from '@cherrystudio/ui'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
-import type { McpToolResponseStatus } from '@renderer/types'
+import type { McpToolResponseStatus } from '@renderer/types/mcpTool'
 import { formatFileSize } from '@renderer/utils/file'
 import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'

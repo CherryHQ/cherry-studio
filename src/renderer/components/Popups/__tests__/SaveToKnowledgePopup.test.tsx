@@ -1,6 +1,6 @@
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'

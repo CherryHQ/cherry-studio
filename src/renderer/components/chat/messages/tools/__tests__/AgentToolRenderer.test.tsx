@@ -1,5 +1,5 @@
 import type * as CherryUi from '@cherrystudio/ui'
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

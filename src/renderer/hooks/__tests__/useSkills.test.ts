@@ -1,4 +1,3 @@
-import type { InstalledSkill } from '@renderer/types'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +15,8 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
   useInvalidateCache: () => invalidateMock
 }))
+
+import type { InstalledSkill } from '@shared/types/skill'
 
 import { useAvailableSkills, useInstalledSkills, useSkillInstall } from '../useSkills'
 

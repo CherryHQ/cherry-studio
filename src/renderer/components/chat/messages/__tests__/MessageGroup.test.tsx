@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'

@@ -4,7 +4,7 @@ import { containsInlineFilePath } from '@renderer/components/chat/messages/utils
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import FileManager from '@renderer/services/FileManager'
-import { type McpTool } from '@renderer/types'
+import type { McpTool } from '@renderer/types/tool'
 import { parseFileTypes } from '@renderer/utils'
 import { buildEditorUrl } from '@renderer/utils/editorUtils'
 import type { CherryMessagePart } from '@shared/data/types/message'

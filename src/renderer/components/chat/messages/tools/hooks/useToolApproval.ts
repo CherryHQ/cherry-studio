@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
 import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

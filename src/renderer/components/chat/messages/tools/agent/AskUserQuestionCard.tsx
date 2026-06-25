@@ -1,6 +1,6 @@
 import { Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

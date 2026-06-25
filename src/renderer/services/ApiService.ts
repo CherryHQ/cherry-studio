@@ -4,7 +4,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'

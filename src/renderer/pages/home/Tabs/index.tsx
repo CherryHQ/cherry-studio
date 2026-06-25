@@ -1,5 +1,5 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { cn } from '@renderer/utils'
 import type { FC, HTMLAttributes } from 'react'
 

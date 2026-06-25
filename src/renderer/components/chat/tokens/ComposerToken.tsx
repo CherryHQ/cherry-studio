@@ -5,7 +5,7 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/chat/utils/quoteToken'
-import { FILE_TYPE } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FilePath } from '@shared/types/file'

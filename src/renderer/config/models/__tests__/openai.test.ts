@@ -1,4 +1,4 @@
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 
