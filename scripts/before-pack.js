@@ -50,7 +50,7 @@ const packages = [
   '@napi-rs/canvas-darwin-arm64',
   '@napi-rs/canvas-win32-x64-msvc',
   '@napi-rs/canvas-win32-arm64-msvc',
-  '@strongtz/win32-arm64-msvc'
+  '@libsql/win32-arm64-msvc'
 ]
 
 const platformToArch = {

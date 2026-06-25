@@ -24,6 +24,7 @@ overrides:
   tar-fs: '^2.1.4'
   undici: '6.23.0'
   vite: 'npm:rolldown-vite@7.3.0'
+  '@libsql/win32-arm64-msvc': 'npm:@cherrystudio/win32-arm64-msvc@0.5.29'
   yaml: '2.8.2'
   '@img/sharp-darwin-arm64': '0.34.5'
   '@img/sharp-darwin-x64': '0.34.5'
@@ -81,3 +82,6 @@ supportedArchitectures:
     - current
   cpu:
     - current
+
+minimumReleaseAgeExclude:
+  - '@cherrystudio/win32-arm64-msvc@0.5.29'

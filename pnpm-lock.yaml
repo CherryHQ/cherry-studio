@@ -27,6 +27,7 @@ overrides:
   tar-fs: ^2.1.4
   undici: 6.23.0
   vite: npm:rolldown-vite@7.3.0
+  '@libsql/win32-arm64-msvc': npm:@cherrystudio/win32-arm64-msvc@0.5.29
   yaml: 2.8.2
   '@img/sharp-darwin-arm64': 0.34.5
   '@img/sharp-darwin-x64': 0.34.5
@@ -1201,6 +1202,9 @@ importers:
       '@libsql/linux-x64-musl':
         specifier: 0.4.7
         version: 0.4.7
+      '@libsql/win32-arm64-msvc':
+        specifier: npm:@cherrystudio/win32-arm64-msvc@0.5.29
+        version: '@cherrystudio/win32-arm64-msvc@0.5.29'
       '@libsql/win32-x64-msvc':
         specifier: 0.4.7
         version: 0.4.7
@@ -1240,9 +1244,6 @@ importers:
       '@napi-rs/system-ocr-win32-x64-msvc':
         specifier: 1.0.2
         version: 1.0.2
-      '@strongtz/win32-arm64-msvc':
-        specifier: 0.4.7
-        version: 0.4.7
 
   packages/ai-sdk-provider:
     dependencies:
@@ -2371,6 +2372,11 @@ packages:
         optional: true
       zod:
         optional: true
+
+  '@cherrystudio/win32-arm64-msvc@0.5.29':
+    resolution: {integrity: sha512-NUKziImkxUFApMMClIvA9QxgPmRBSb4rCZPY5z6+JwNGpGUcq/9mok4GbM20SKEt5JsGrluOq7Bo+q2YBWgjpw==}
+    cpu: [arm64]
+    os: [win32]
 
   '@chevrotain/cst-dts-gen@11.1.2':
     resolution: {integrity: sha512-XTsjvDVB5nDZBQB8o0o/0ozNelQtn2KrUVteIHSlPd2VAV2utEb6JzyCJaJ8tGxACR4RiBNWy5uYUHX2eji88Q==}
@@ -6488,11 +6494,6 @@ packages:
     resolution: {integrity: sha512-Fr/4sBWnAeSnxM3PcrV/+DiZe5oPMq9gOkUIAH7ZauJeuwrZ/DVzD4g0zlav6AH0axh2m/sOfrfLtY5aLT7niw==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
-
-  '@strongtz/win32-arm64-msvc@0.4.7':
-    resolution: {integrity: sha512-LMU0CVfKGxKzIUawkDw6pwCNFb64DSwqEQhVAfEdLGMZcvVIdJghWB9yMW+72DHzALpwHscIssAJGhYAT4AbfA==}
-    cpu: [arm64]
-    os: [win32]
 
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0':
     resolution: {integrity: sha512-b9MIk7yhdS1pMCZM8VeNfUlSKVRhsHZNMl5O9SfaX0l0t5wjdgu4IDzGB8bpnGBBOjGST3rRFVsaaEtI4W6f7g==}
@@ -16399,6 +16400,9 @@ snapshots:
       ws: 8.20.0
       zod: 4.3.6
 
+  '@cherrystudio/win32-arm64-msvc@0.5.29':
+    optional: true
+
   '@chevrotain/cst-dts-gen@11.1.2':
     dependencies:
       '@chevrotain/gast': 11.1.2
@@ -20262,9 +20266,6 @@ snapshots:
     dependencies:
       mermaid: 11.13.0
       react: 19.2.3
-
-  '@strongtz/win32-arm64-msvc@0.4.7':
-    optional: true
 
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0(@babel/core@7.28.5)':
     dependencies:
