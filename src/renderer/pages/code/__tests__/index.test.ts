@@ -1,7 +1,7 @@
 import { codeCLI } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
+import { CLI_TOOLS, generateProviderConfig, type ToolEnvironmentConfig } from '../index'
 
 // Mock CodeCliPage which is default export
 vi.mock('../CodeCliPage', () => ({ default: () => null }))
@@ -64,7 +64,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-describe('generateToolEnvironment', () => {
+describe('generateProviderConfig', () => {
   const baseConfig = (
     overrides: Partial<ToolEnvironmentConfig> & Pick<ToolEnvironmentConfig, 'tool' | 'baseUrl'>
   ): ToolEnvironmentConfig => ({
@@ -82,65 +82,57 @@ describe('generateToolEnvironment', () => {
   })
 
   it('should format baseUrl with /v1 for qwenCode when missing', () => {
-    const { env } = generateToolEnvironment(
+    const config = generateProviderConfig(
       baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode' })
     )
 
-    expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
+    expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should not duplicate /v1 when already present for qwenCode', () => {
-    const { env } = generateToolEnvironment(
+    const config = generateProviderConfig(
       baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })
     )
 
-    expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
+    expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should handle empty baseUrl gracefully', () => {
-    const { env } = generateToolEnvironment(baseConfig({ tool: codeCLI.qwenCode, baseUrl: '' }))
+    const config = generateProviderConfig(baseConfig({ tool: codeCLI.qwenCode, baseUrl: '' }))
 
-    expect(env.OPENAI_BASE_URL).toBe('')
+    expect(config.baseUrl).toBe('')
   })
 
   it('should preserve other API versions when present', () => {
-    const { env } = generateToolEnvironment(
+    const config = generateProviderConfig(
       baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2' })
     )
 
-    expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2')
+    expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/v2')
   })
 
   it('should format baseUrl with /v1 for openaiCodex when missing', () => {
-    const { env } = generateToolEnvironment(
+    const config = generateProviderConfig(
       baseConfig({ tool: codeCLI.openaiCodex, providerId: 'openai', baseUrl: 'https://api.openai.com' })
     )
 
-    expect(env.CHERRY_CODEX_BASE_URL).toBe('https://api.openai.com/v1')
-  })
-
-  it('should inject QODERCN_PERSONAL_ACCESS_TOKEN for qoderCli', () => {
-    const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qoderCli, providerId: 'qoder', apiKey: 'test-key', baseUrl: 'https://api.qoder.com' })
-    )
-
-    expect(env.QODERCN_PERSONAL_ACCESS_TOKEN).toBe('test-key')
+    expect(config.baseUrl).toBe('https://api.openai.com/v1')
   })
 
   it('should handle trailing slash correctly', () => {
-    const { env } = generateToolEnvironment(
+    const config = generateProviderConfig(
       baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/' })
     )
 
-    expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
+    expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should handle v2beta version correctly', () => {
-    const { env } = generateToolEnvironment(
+    const config = generateProviderConfig(
       baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2beta' })
     )
 
-    expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2beta')
+    expect(config.baseUrl).toBe('https://dashscope.aliyuncs.com/v2beta')
   })
 })
 

@@ -33,7 +33,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import type { TerminalConfig } from '@shared/types/codeCli'
+import type { CliProviderConfig, TerminalConfig } from '@shared/types/codeCli'
 import { codeCLI, terminalApps } from '@shared/types/codeCli'
 import {
   isEmbeddingModel,
@@ -52,7 +52,7 @@ import { useTranslation } from 'react-i18next'
 import {
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
-  generateToolEnvironment,
+  generateProviderConfig,
   isOpenCodeProvider,
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
@@ -334,6 +334,7 @@ const CodeCliPage: FC = () => {
 
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
+    providerConfig?: CliProviderConfig
   } | null> => {
     if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
@@ -375,7 +376,7 @@ const CodeCliPage: FC = () => {
         : undefined
     }
 
-    const { env: toolEnv } = generateToolEnvironment({
+    const providerConfig = generateProviderConfig({
       tool: selectedCliTool,
       rawModelId: id,
       modelName: resolvedModel.name,
@@ -391,10 +392,12 @@ const CodeCliPage: FC = () => {
 
     const userEnv = parseEnvironmentVariables(environmentVariables)
 
-    return { env: { ...toolEnv, ...userEnv } }
+    // File-based CLIs persist the provider config to a native file in main (qoder/copilot returned
+    // earlier); the launch env carries only user-defined vars.
+    return { env: userEnv, providerConfig }
   }
 
-  const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
+  const executeLaunch = async (env: Record<string, string>, providerConfig?: CliProviderConfig): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
     if (selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && !resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
@@ -412,7 +415,14 @@ const CodeCliPage: FC = () => {
     }
 
     try {
-      const result = await window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      const result = await window.api.codeCli.run(
+        selectedCliTool,
+        modelId,
+        currentDirectory,
+        env,
+        runOptions,
+        providerConfig
+      )
       if (result && result.success) {
         setLaunchStatus('success')
         setTimeoutTimer(
@@ -475,7 +485,7 @@ const CodeCliPage: FC = () => {
         return
       }
 
-      const launched = await executeLaunch(result.env)
+      const launched = await executeLaunch(result.env, result.providerConfig)
       if (!launched) {
         setLaunchStatus('idle')
       }

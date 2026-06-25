@@ -42,3 +42,61 @@ export interface GitBashPathInfo {
   path: string | null
   source: GitBashPathSource | null
 }
+
+// Typed provider configs written to each file-based CLI's own config file
+export interface ClaudeProviderConfig {
+  baseUrl: string
+  model: string
+  apiKey?: string
+  authToken?: string
+}
+
+export interface CodexProviderConfig {
+  apiKey: string
+  baseUrl: string
+  providerName: string
+  model: string
+}
+
+export interface GeminiProviderConfig {
+  apiKey: string
+  baseUrl: string
+  model: string
+}
+
+export interface QwenProviderConfig {
+  apiKey: string
+  baseUrl: string
+  model: string
+}
+
+export interface KimiProviderConfig {
+  apiKey: string
+  model: string
+  baseUrl?: string
+  providerType?: string
+}
+
+export interface OpenCodeProviderConfig {
+  apiKey: string
+  baseUrl: string
+  providerName: string
+  providerType: string
+  endpointType: string
+  model: string
+  modelName: string
+  isReasoning: boolean
+  supportsReasoningEffort: boolean
+  budgetTokens?: number
+}
+
+export interface CliProviderConfigMap {
+  [codeCLI.claudeCode]: ClaudeProviderConfig
+  [codeCLI.openaiCodex]: CodexProviderConfig
+  [codeCLI.geminiCli]: GeminiProviderConfig
+  [codeCLI.qwenCode]: QwenProviderConfig
+  [codeCLI.kimiCli]: KimiProviderConfig
+  [codeCLI.openCode]: OpenCodeProviderConfig
+}
+
+export type CliProviderConfig = CliProviderConfigMap[keyof CliProviderConfigMap]
