@@ -361,9 +361,8 @@ export interface FileIpcApi {
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
   /**
-   * Batch version of `getMetadata`. Entry-id only — path-handle stat has no
-   * N-call motivation (pickers and dialogs typically surface <20 items, for
-   * which parallel singular calls are fine).
+   * Batch version of `getMetadata`. Each item carries an explicit caller key
+   * because `FileHandle` can reference either an entry id or a raw path.
    *
    * List-page flows in the renderer MUST use this over
    * `Promise.all(ids.map(id => getMetadata(...)))` — the latter incurs N IPC
@@ -371,19 +370,21 @@ export interface FileIpcApi {
    * parallelises `fs.stat` internally via `Promise.all` (microseconds per
    * stat on local FS; the IPC hop dominates).
    *
-   * Per-id result semantics:
+   * Per-key result semantics:
    * - `fs.stat` succeeds → `PhysicalFileMetadata`
    * - `fs.stat` fails (missing file, permission denied, etc.) → `null`
-   *   (caller renders a "—" fallback; DanglingCache is updated to `'missing'`
-   *   for external entries as a side effect)
+   *   (caller renders a "—" fallback; entry-handle failures update
+   *   DanglingCache for external entries as a side effect)
    *
-   * The result map contains every input id exactly once. Ids that refer to
-   * non-existent FileEntry rows (already deleted, never existed) cause the
-   * whole batch to throw — this is a caller bug, not a per-id failure.
+   * The result map contains every input key exactly once. Callers should choose
+   * stable keys (Files page uses `FileEntryId`) so they can merge results back
+   * into their local view model.
    *
    * @phase 2 — wired for Files page as IpcApi route `file.batch_get_metadata`.
    */
-  batchGetMetadata(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, PhysicalFileMetadata | null>>
+  batchGetMetadata(params: {
+    items: Array<{ key: string; handle: FileHandle }>
+  }): Promise<Record<string, PhysicalFileMetadata | null>>
 
   /**
    * Get lightweight FileVersion (live `fs.stat`-backed).

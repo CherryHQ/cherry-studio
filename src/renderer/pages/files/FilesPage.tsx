@@ -62,7 +62,9 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
     chunks.map((chunk) => {
       switch (route) {
         case 'file.batch_get_metadata':
-          return ipcApi.request('file.batch_get_metadata', { ids: chunk })
+          return ipcApi.request('file.batch_get_metadata', {
+            items: chunk.map((id) => ({ key: id, handle: { kind: 'entry' as const, entryId: id } }))
+          })
         case 'file.batch_get_physical_paths':
           return ipcApi.request('file.batch_get_physical_paths', { ids: chunk })
         case 'file.batch_get_dangling_states':

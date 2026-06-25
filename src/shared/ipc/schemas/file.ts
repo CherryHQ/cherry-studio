@@ -6,7 +6,7 @@ import {
   SafeExtSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { PhysicalFileMetadataSchema } from '@shared/types/file'
+import { FileHandleSchema, PhysicalFileMetadataSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -22,6 +22,10 @@ const fileEntryIdsInputSchema = z.strictObject({
 
 const fileEntryIdInputSchema = z.strictObject({
   id: FileEntryIdSchema
+})
+
+const batchGetMetadataInputSchema = z.strictObject({
+  items: z.array(z.strictObject({ key: z.string().min(1), handle: FileHandleSchema })).max(FILE_IPC_MAX_BATCH_IDS)
 })
 
 const batchMutationResultSchema = z.strictObject({
@@ -65,7 +69,7 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
  */
 export const fileRequestSchemas = {
   'file.batch_get_metadata': defineRoute({
-    input: fileEntryIdsInputSchema,
+    input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())
   }),
   'file.batch_get_physical_paths': defineRoute({

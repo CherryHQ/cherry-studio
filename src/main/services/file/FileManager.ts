@@ -187,6 +187,7 @@ import {
 import { assertSafeForDefaultOpen } from './internal/system/openGuard'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { getMetadataByPath } from './utils/metadata'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
@@ -676,7 +677,7 @@ export class FileManager extends BaseService implements IFileManager {
         async () => {
           throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
         },
-        (path) => this.getMetadataByPath(path)
+        getMetadataByPath
       )
     })
     // Phase 2 channels.
@@ -886,21 +887,6 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     return pathToFileURL(physicalPath).toString() as FileURLString
-  }
-
-  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
-    const s = await fsStat(path)
-    if (s.isDirectory) {
-      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
-    }
-    return {
-      kind: 'file',
-      type: 'other',
-      size: s.size,
-      createdAt: s.createdAt || s.modifiedAt,
-      modifiedAt: s.modifiedAt,
-      mime: mime.getType(path) ?? 'application/octet-stream'
-    }
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

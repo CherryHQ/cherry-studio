@@ -1,6 +1,9 @@
 import { application } from '@application'
+import { dispatchHandle } from '@main/services/file/internal/dispatch'
+import { getMetadataByPath } from '@main/services/file/utils/metadata'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+import type { FileHandle } from '@shared/types/file'
 import type { CreateInternalEntryIpcParams } from '@shared/types/file/ipc'
 
 /**
@@ -8,14 +11,19 @@ import type { CreateInternalEntryIpcParams } from '@shared/types/file/ipc'
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
-  'file.batch_get_metadata': async ({ ids }) => {
+  'file.batch_get_metadata': async ({ items }) => {
     const fileManager = application.get('FileManager')
     const pairs = await Promise.all(
-      ids.map(async (id) => {
+      items.map(async ({ key, handle }) => {
         try {
-          return [id, await fileManager.getMetadata(id)] as const
+          const metadata = await dispatchHandle(
+            handle as FileHandle,
+            (entryId) => fileManager.getMetadata(entryId),
+            getMetadataByPath
+          )
+          return [key, metadata] as const
         } catch {
-          return [id, null] as const
+          return [key, null] as const
         }
       })
     )

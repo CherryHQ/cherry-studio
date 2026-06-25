@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
+const { appGetMock, getMetadataByPathMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  getMetadataByPathMock: vi.fn()
+}))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/services/file/utils/metadata', () => ({ getMetadataByPath: getMetadataByPathMock }))
 
 import { fileHandlers } from '../file'
 
@@ -42,15 +46,23 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
-  it('batch_get_metadata returns null for per-entry metadata failures', async () => {
+  it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
+    const items = [
+      { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },
+      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' } },
+      { key: ids[1], handle: { kind: 'entry' as const, entryId: ids[1] } }
+    ]
     fileManager.getMetadata.mockResolvedValueOnce(metadata).mockRejectedValueOnce(new Error('ENOENT'))
+    getMetadataByPathMock.mockResolvedValueOnce({ ...metadata, size: 34 })
 
-    await expect(fileHandlers['file.batch_get_metadata']({ ids }, ctx)).resolves.toEqual({
+    await expect(fileHandlers['file.batch_get_metadata']({ items }, ctx)).resolves.toEqual({
       [ids[0]]: metadata,
+      '/tmp/a.txt': { ...metadata, size: 34 },
       [ids[1]]: null
     })
     expect(fileManager.getMetadata).toHaveBeenCalledWith(ids[0])
     expect(fileManager.getMetadata).toHaveBeenCalledWith(ids[1])
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
   })
 
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {

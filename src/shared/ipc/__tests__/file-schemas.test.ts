@@ -5,7 +5,6 @@ import { FILE_IPC_MAX_BATCH_CREATE_ITEMS, FILE_IPC_MAX_BATCH_IDS, fileRequestSch
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 const BATCH_ID_ROUTES = [
-  'file.batch_get_metadata',
   'file.batch_get_physical_paths',
   'file.batch_get_dangling_states',
   'file.batch_trash',
@@ -14,6 +13,25 @@ const BATCH_ID_ROUTES = [
 ] as const
 
 describe('file IpcApi schemas', () => {
+  it('caps batch metadata FileHandle items at FILE_IPC_MAX_BATCH_IDS', () => {
+    const input = fileRequestSchemas['file.batch_get_metadata'].input
+    const ok = Array.from({ length: FILE_IPC_MAX_BATCH_IDS }, () => ({
+      key: VALID_UUID_V7,
+      handle: { kind: 'entry' as const, entryId: VALID_UUID_V7 }
+    }))
+
+    expect(input.parse({ items: ok }).items).toHaveLength(FILE_IPC_MAX_BATCH_IDS)
+    expect(() =>
+      input.parse({ items: [...ok, { key: VALID_UUID_V7, handle: { kind: 'path', path: '/tmp/a.txt' } }] })
+    ).toThrow()
+    expect(() => input.parse({ items: [{ key: '', handle: { kind: 'entry', entryId: VALID_UUID_V7 } }] })).toThrow()
+    expect(() => input.parse({ items: [{ key: VALID_UUID_V7, handle: { kind: 'entry', entryId: 'oops' } }] })).toThrow()
+    expect(() =>
+      input.parse({ items: [{ key: '/tmp/a.txt', handle: { kind: 'path', path: '/tmp/a.txt' } }] })
+    ).not.toThrow()
+    expect(() => input.parse({ items: [{ key: 'rel', handle: { kind: 'path', path: 'relative.txt' } }] })).toThrow()
+  })
+
   it('caps Files-page batch entry routes at FILE_IPC_MAX_BATCH_IDS', () => {
     const ok = Array.from({ length: FILE_IPC_MAX_BATCH_IDS }, () => VALID_UUID_V7)
 
