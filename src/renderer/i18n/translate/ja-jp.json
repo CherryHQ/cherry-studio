@@ -224,7 +224,12 @@
           "runFailed": "タスクの実行に失敗しました",
           "updateFailed": "タスクの更新に失敗しました"
         },
-        "intervalPlaceholder": "間隔（分）",
+        "frequency": {
+          "everyPrefix": "間隔",
+          "everySuffix": "分ごとに実行",
+          "label": "実行頻度"
+        },
+        "intervalPlaceholder": "1以上",
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
-          "label": "スケジュールタイプ",
           "once": "一回限り"
         },
-        "scheduleValue": "スケジュール値",
         "status": {
           "active": "アクティブ",
           "completed": "完了",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分前"
         },
         "timeout": {
-          "label": "タイムアウト",
+          "label": "最長実行時間",
           "placeholder": "制限なし"
         },
         "title": "スケジュールタスク"

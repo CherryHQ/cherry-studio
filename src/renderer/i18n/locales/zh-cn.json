@@ -224,7 +224,12 @@
           "runFailed": "运行任务失败",
           "updateFailed": "更新任务失败"
         },
-        "intervalPlaceholder": "间隔（分钟）",
+        "frequency": {
+          "everyPrefix": "间隔",
+          "everySuffix": "分钟执行",
+          "label": "执行频率"
+        },
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "间隔",
-          "label": "调度类型",
           "once": "一次性"
         },
-        "scheduleValue": "调度值",
         "status": {
           "active": "活跃",
           "completed": "已完成",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分钟前"
         },
         "timeout": {
-          "label": "超时时间",
+          "label": "最长执行时间",
           "placeholder": "无限制"
         },
         "title": "定时任务"

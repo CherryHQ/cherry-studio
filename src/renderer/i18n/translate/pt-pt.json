@@ -224,7 +224,12 @@
           "runFailed": "Falha ao executar a tarefa",
           "updateFailed": "Falha ao atualizar a tarefa"
         },
-        "intervalPlaceholder": "Intervalo em minutos",
+        "frequency": {
+          "everyPrefix": "A cada",
+          "everySuffix": "minutos",
+          "label": "Frequência de execução"
+        },
+        "intervalPlaceholder": "Pelo menos 1",
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalo",
-          "label": "Tipo de agendamento",
           "once": "Uma vez"
         },
-        "scheduleValue": "Valor do agendamento",
         "status": {
           "active": "Ativo",
           "completed": "Concluído",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m atrás"
         },
         "timeout": {
-          "label": "Tempo esgotado",
+          "label": "Tempo máximo de execução",
           "placeholder": "Sem limite"
         },
         "title": "Tarefas agendadas"

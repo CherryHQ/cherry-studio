@@ -224,7 +224,12 @@
           "runFailed": "Nu s-a reușit executarea sarcinii",
           "updateFailed": "Nu s-a reușit actualizarea sarcinii"
         },
-        "intervalPlaceholder": "Interval în minute",
+        "frequency": {
+          "everyPrefix": "La fiecare",
+          "everySuffix": "minute",
+          "label": "Frecvență de execuție"
+        },
+        "intervalPlaceholder": "Cel puțin 1",
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Tip program",
           "once": "O singură dată"
         },
-        "scheduleValue": "Valoare program",
         "status": {
           "active": "Activă",
           "completed": "Finalizată",
@@ -277,7 +280,7 @@
           "minutesAgo": "acum {{count}}m"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Timp maxim de execuție",
           "placeholder": "Fără limită"
         },
         "title": "Sarcini programate"
