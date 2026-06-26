@@ -141,14 +141,14 @@
     {
       "targetKey": "topic.tab.display_mode",
       "type": "PreferenceTypes.TopicDisplayMode",
-      "defaultValue": "assistant",
+      "defaultValue": "time",
       "status": "classified",
       "description": "Topic sidebar display grouping mode"
     },
     {
       "targetKey": "agent.session.display_mode",
       "type": "PreferenceTypes.AgentSessionDisplayMode",
-      "defaultValue": "agent",
+      "defaultValue": "workdir",
       "status": "classified",
       "description": "Agent session sidebar display grouping mode"
     },
