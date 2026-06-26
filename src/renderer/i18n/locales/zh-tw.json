@@ -7563,7 +7563,6 @@
           "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
         },
         "fetch_urls_provider": "預設 URL 擷取供應商",
-        "firecrawl_api_key_placeholder": "請輸入 Firecrawl API 金鑰（每月免 key 額度內可留空）",
         "free": "免費",
         "is_default": "預設",
         "local_provider": {
