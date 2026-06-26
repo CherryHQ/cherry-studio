@@ -13,12 +13,7 @@
 
 ## 总览
 
-当前只有 2 个生产文件导入旧 renderer `FileManager`：
-
-| 导入方 | 运行时使用的方法 |
-| --- | --- |
-| `src/renderer/pages/paintings/components/Artboard.tsx` | `getFileUrl` |
-| `src/renderer/pages/paintings/components/PaintingStrip.tsx` | `getFileUrl` |
+当前没有生产文件导入旧 renderer `FileManager`，`src/renderer/services/FileManager.ts` 已删除。
 
 未发现 `FileManager[...]` 形式的动态调用。
 
@@ -45,12 +40,11 @@
 | `isDangerFile` | 旧 renderer 侧危险扩展判断；随 `getSafePath` 一起删除，改由 main 的 `safeOpen` / shared `toSafeFileUrl` 策略承接。 |
 | `getSafePath` | 聊天附件旧 path 安全包装；已拆为文本预览读取原始 path、默认打开走 `safeOpen(FileHandle)`、图片预览 URL 走 `toSafeFileUrl(path, ext)`。 |
 | `formatFileName` | 聊天附件展示名 helper；因唯一消费者是 `useMessageLeafCapabilities`，已内联迁移到该 hook。保留注释说明其 `pasted_text` / `temp_file...image` filename-marker 判断是 legacy 问题，后续应由粘贴生产处提供显式来源/展示名。 |
+| `getFileUrl` | paintings 图片展示 helper；已改为使用 `FileMetadata.path`（由 main `getPhysicalPath` 解析）+ shared `toSafeFileUrl(path, ext)`。 |
 
 ## 剩余方法清单
 
-| 方法 | 外部运行时消费者 | 测试消费者 | 类内部消费者 | 迁移备注 |
-| --- | --- | --- | --- | --- |
-| `getFileUrl` | `Artboard.tsx:53`, `Artboard.tsx:87`, `PaintingStrip.tsx:45` | 无 | 无 | 仅 paintings 图片展示使用。现有 TODO 指向自定义协议 `cherrystudio://file/internal/...`；过渡期可用 `getPhysicalPath` + safe URL helper。 |
+无。
 
 ## 仅注释引用
 
@@ -59,11 +53,10 @@
 | 文件 | 引用说明 |
 | --- | --- |
 | `src/renderer/pages/paintings/model/mappers/recordToPaintingData.ts` | 说明替代了 v1 `FileManager.getFile(id)` lookup。 |
-| `src/renderer/pages/paintings/model/mappers/__tests__/paintingMappers.test.ts` | 说明旧 `FileManager.getFileUrl` 的 URL 构造方式。 |
-| `src/renderer/pages/paintings/utils/fileEntryAdapter.ts` | 解释为了兼容 `getFileUrl`，仍合成 `FileMetadata.name = id + ext`。 |
-| `src/renderer/pages/paintings/components/Artboard.tsx` | TODO：自定义协议落地后移除 `getFileUrl` 依赖。 |
+| `src/renderer/pages/paintings/model/mappers/__tests__/paintingMappers.test.ts` | 说明 paintings 过渡期仍保留 `FileMetadata` 适配形状。 |
+| `src/renderer/pages/paintings/utils/fileEntryAdapter.ts` | 解释 `FileEntry` 到 legacy `FileMetadata` 的过渡适配。 |
+| `src/renderer/pages/paintings/components/Artboard.tsx` | TODO：自定义协议落地后直接使用 `FileEntry`。 |
 
-## 后续建议删除顺序
+## 后续建议
 
-1. 迁移 paintings 的 `getFileUrl` 消费者（`Artboard`、`PaintingStrip`），目标是自定义协议或 v2 path/URL helper。
-2. 若导入归零，再删除 `src/renderer/services/FileManager.ts`。
+renderer `FileManager` 已删除。后续聚焦 paintings 的 `FileMetadata[]` → `FileEntry[]` 迁移，以及自定义协议 `cherrystudio://file/internal/...` 落地后移除当前 `getPhysicalPath` 预解析。

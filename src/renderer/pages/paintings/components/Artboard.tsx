@@ -1,5 +1,4 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
 import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
@@ -16,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
+import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 
 const DEFAULT_IMAGE_SCALE = 1
 const MIN_IMAGE_SCALE = 0.25
@@ -99,10 +99,8 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
-  // custom-protocol handler is registered. Drops the `FileManager.getFileUrl`
-  // dependency and lets us stop synthesizing `FileMetadata.name = id+ext` in
-  // `fileEntryAdapter`.
-  const currentImageUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
+  // custom-protocol handler is registered and paintings consume `FileEntry` directly.
+  const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : ''
   const loadingText = loadText || t('paintings.generating')
 
   const onPrevImage = useCallback(() => {
