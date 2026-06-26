@@ -7,10 +7,8 @@ const { autoDiscoverGitBash, getGitBashPathInfo, validateGitBashPath } = vi.hois
 }))
 
 // Force the Windows code path so the Git Bash logic (not the off-Windows guards) is exercised.
-vi.mock('@main/core/platform', async (importActual) => ({
-  ...(await importActual<typeof import('@main/core/platform')>()),
-  isWin: true
-}))
+// The handler only reads `isWin`, so a minimal flag mock suffices (repo convention).
+vi.mock('@main/core/platform', () => ({ isWin: true }))
 vi.mock('@main/utils/process', () => ({ autoDiscoverGitBash, getGitBashPathInfo, validateGitBashPath }))
 
 import { application } from '@application'
