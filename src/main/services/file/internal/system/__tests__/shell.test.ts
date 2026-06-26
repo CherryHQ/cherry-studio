@@ -47,6 +47,17 @@ describe('internal/system/shell', () => {
     }
   })
 
+  it('falls back to the physical path when entry extension normalizes to empty', () => {
+    const entry = { ext: '.' } as FileEntry
+
+    try {
+      assertSafeForDefaultOpen(entry, '/tmp/payload.exe' as FilePath)
+      throw new Error('expected unsafe default-open to be blocked')
+    } catch (error) {
+      expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
+    }
+  })
+
   it('path default-open guard blocks dangerous fallback extension', () => {
     try {
       assertSafePathForDefaultOpen('/tmp/payload.cmd' as FilePath)

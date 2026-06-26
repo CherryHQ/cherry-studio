@@ -5,11 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 
-const { mockUseExternalApps, mockPreview, mockFormatFileName, mockGetSafePath } = vi.hoisted(() => ({
+const { mockUseExternalApps, mockPreview, mockFormatFileName, mockSafeOpen } = vi.hoisted(() => ({
   mockUseExternalApps: vi.fn(() => ({ data: [] })),
   mockPreview: vi.fn(),
   mockFormatFileName: vi.fn(),
-  mockGetSafePath: vi.fn()
+  mockSafeOpen: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useAttachment', () => ({
@@ -22,9 +22,12 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 
 vi.mock('@renderer/services/FileManager', () => ({
   default: {
-    formatFileName: mockFormatFileName,
-    getSafePath: mockGetSafePath
+    formatFileName: mockFormatFileName
   }
+}))
+
+vi.mock('@renderer/services/safeOpen', () => ({
+  safeOpen: mockSafeOpen
 }))
 
 describe('useMessageLeafCapabilities', () => {
@@ -32,7 +35,7 @@ describe('useMessageLeafCapabilities', () => {
     vi.clearAllMocks()
     mockUseExternalApps.mockReturnValue({ data: [] })
     mockFormatFileName.mockReturnValue('display.pdf')
-    mockGetSafePath.mockReturnValue('/safe/display.pdf')
+    mockSafeOpen.mockResolvedValue(undefined)
   })
 
   it('loads external apps for ordinary text parts that mention inline absolute paths', () => {
@@ -55,6 +58,26 @@ describe('useMessageLeafCapabilities', () => {
     expect(mockUseExternalApps).toHaveBeenCalledWith({ enabled: false })
   })
 
+  it('opens shared attachment files through safeOpen', async () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.DOCUMENT,
+      ext: '.pdf',
+      path: '/tmp/file.pdf',
+      origin_name: 'file.pdf',
+      name: 'stored-file.pdf',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    await result.current.openFile?.(file)
+
+    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/file.pdf' })
+  })
+
   it('projects file display data for shared attachment renderers', () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
@@ -72,10 +95,18 @@ describe('useMessageLeafCapabilities', () => {
 
     expect(result.current.getFileView?.(file)).toEqual({
       displayName: 'display.pdf',
-      safePath: '/safe/display.pdf',
-      previewUrl: 'file:///safe/display.pdf'
+      previewUrl: 'file:///tmp/file.pdf'
+    })
+    expect(
+      result.current.getFileView?.({
+        ...file,
+        ext: '.exe',
+        path: '/tmp/payload.exe'
+      })
+    ).toEqual({
+      displayName: 'display.pdf',
+      previewUrl: 'file:///tmp'
     })
     expect(mockFormatFileName).toHaveBeenCalled()
-    expect(mockGetSafePath).toHaveBeenCalled()
   })
 })
