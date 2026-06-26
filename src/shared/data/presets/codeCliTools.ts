@@ -7,7 +7,7 @@ export interface CliToolPreset {
   descriptionKey: string
   repoUrl: string
   homepage?: string
-  packageName: string
+  miseTool: string
 }
 
 export const CLI_TOOL_PRESETS: CliToolPreset[] = [
@@ -17,14 +17,14 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     descriptionKey: 'code.tool_description.claude_code',
     repoUrl: 'https://github.com/anthropics/claude-code',
     homepage: 'https://docs.anthropic.com/en/docs/claude-code',
-    packageName: '@anthropic-ai/claude-code'
+    miseTool: 'claude'
   },
   {
     id: codeCLI.openaiCodex,
     name: 'OpenAI Codex',
     descriptionKey: 'code.tool_description.openai_codex',
     repoUrl: 'https://github.com/openai/codex',
-    packageName: '@openai/codex'
+    miseTool: 'codex'
   },
   {
     id: codeCLI.openCode,
@@ -32,7 +32,7 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     descriptionKey: 'code.tool_description.opencode',
     repoUrl: 'https://github.com/anomalyco/opencode',
     homepage: 'https://opencode.ai',
-    packageName: 'opencode-ai'
+    miseTool: 'opencode'
   },
   {
     id: codeCLI.openclaw,
@@ -40,7 +40,7 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     descriptionKey: 'code.tool_description.openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw',
     homepage: 'https://docs.openclaw.ai',
-    packageName: 'openclaw'
+    miseTool: 'npm:openclaw'
   },
   {
     id: codeCLI.hermes,
@@ -48,7 +48,7 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     descriptionKey: 'code.tool_description.hermes',
     repoUrl: 'https://github.com/NousResearch/hermes-agent',
     homepage: 'https://hermes-agent.nousresearch.com',
-    packageName: 'hermes-agent'
+    miseTool: 'pipx:hermes-agent'
   }
 ]
 

@@ -11,6 +11,29 @@ import type { FilePath } from '@shared/types/file'
 
 const logger = loggerService.withContext('ClaudeCodeConfig')
 
+const CLAUDE_MANAGED_ENV_KEYS = [
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'API_TIMEOUT_MS',
+  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+  'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+  'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
+  'CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS'
+] as const
+
+const CLAUDE_MANAGED_TOP_LEVEL_KEYS = [
+  'ENABLE_TOOL_SEARCH',
+  'skipWebFetchPreflight',
+  'includeCoAuthoredBy',
+  'effortLevel',
+  'enabledPlugins'
+] as const
+
 /** Merge the provider config into the settings `env` block, preserving the user's other keys. */
 export function buildClaudeSettings(
   existing: Record<string, any>,
@@ -46,10 +69,23 @@ export function buildClaudeSettings(
     return null
   }
 
-  const existingEnv = existing.env && typeof existing.env === 'object' ? existing.env : {}
-  const merged = { ...existing, ...topLevel }
-  if (hasEnv) {
-    merged.env = { ...existingEnv, ...envBlock }
+  const existingEnv = existing.env && typeof existing.env === 'object' ? { ...existing.env } : null
+  if (existingEnv) {
+    for (const key of CLAUDE_MANAGED_ENV_KEYS) {
+      delete existingEnv[key]
+    }
+  }
+
+  const merged: Record<string, any> = { ...existing }
+  for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
+    delete merged[key]
+  }
+  if (hasTopLevel) {
+    Object.assign(merged, topLevel)
+  }
+
+  if (existingEnv || hasEnv) {
+    merged.env = { ...existingEnv, ...(hasEnv ? envBlock : {}) }
   }
   return merged
 }

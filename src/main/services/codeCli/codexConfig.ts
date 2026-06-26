@@ -11,11 +11,16 @@ import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 
 const logger = loggerService.withContext('CodexConfig')
 
-/**
- * Merge the Cherry provider routing into an existing Codex config object, preserving the user's
- * other top-level keys and model_providers. The API key is inlined as experimental_bearer_token.
- * Returns null when required fields are missing.
- */
+const CODEX_MANAGED_TOP_LEVEL_KEYS = [
+  'model_reasoning_effort',
+  'disable_response_storage',
+  'personality',
+  'model_verbosity',
+  'model_context_window',
+  'model_auto_compact_token_limit',
+  'review_model'
+] as const
+
 export function buildCodexConfig(
   existing: Record<string, any>,
   config: CodexProviderConfig
@@ -25,19 +30,29 @@ export function buildCodexConfig(
     return null
   }
 
-  // Cherry- prefix avoids colliding with Codex's reserved built-in provider IDs.
   const providerKey = `Cherry-${providerName.replace(/\./g, '-')}`
   const existingProviders =
     existing.model_providers && typeof existing.model_providers === 'object' ? existing.model_providers : {}
 
+  const preservedProviders = Object.fromEntries(
+    Object.entries(existingProviders).filter(([key]) => !key.startsWith('Cherry-'))
+  )
+
+  const cleaned: Record<string, any> = {}
+  for (const [key, value] of Object.entries(existing)) {
+    if (!CODEX_MANAGED_TOP_LEVEL_KEYS.includes(key as (typeof CODEX_MANAGED_TOP_LEVEL_KEYS)[number])) {
+      cleaned[key] = value
+    }
+  }
+
   const merged: Record<string, any> = {
-    ...existing,
+    ...cleaned,
     model,
     model_provider: providerKey,
-    model_reasoning_effort: config.reasoningEffort ?? existing.model_reasoning_effort ?? 'high',
-    disable_response_storage: config.disableResponseStorage ?? existing.disable_response_storage ?? true,
+    model_reasoning_effort: config.reasoningEffort ?? 'high',
+    disable_response_storage: config.disableResponseStorage ?? true,
     model_providers: {
-      ...existingProviders,
+      ...preservedProviders,
       [providerKey]: {
         name: providerName,
         base_url: baseUrl.replace(/\/$/, ''),
@@ -48,20 +63,10 @@ export function buildCodexConfig(
   }
 
   if (config.personality !== undefined) merged.personality = config.personality
-  else if (existing.personality !== undefined) merged.personality = existing.personality
-
   if (config.verbosity !== undefined) merged.model_verbosity = config.verbosity
-  else if (existing.model_verbosity !== undefined) merged.model_verbosity = existing.model_verbosity
-
   if (config.contextWindow !== undefined) merged.model_context_window = config.contextWindow
-  else if (existing.model_context_window !== undefined) merged.model_context_window = existing.model_context_window
-
   if (config.autoCompactTokenLimit !== undefined) merged.model_auto_compact_token_limit = config.autoCompactTokenLimit
-  else if (existing.model_auto_compact_token_limit !== undefined)
-    merged.model_auto_compact_token_limit = existing.model_auto_compact_token_limit
-
   if (config.reviewModel !== undefined) merged.review_model = config.reviewModel
-  else if (existing.review_model !== undefined) merged.review_model = existing.review_model
 
   return merged
 }

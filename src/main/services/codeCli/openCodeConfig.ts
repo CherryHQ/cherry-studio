@@ -14,7 +14,6 @@ const logger = loggerService.withContext('OpenCodeConfig')
 const OPENCODE_SCHEMA = 'https://opencode.ai/config.json'
 const CHERRY_PROVIDER_PREFIX = 'Cherry-'
 
-/** Pick the @ai-sdk npm package for the provider, by model endpoint type then provider type. */
 function resolveNpmPackage(endpointType: string, providerType: string): string {
   if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
     return '@ai-sdk/anthropic'
@@ -25,12 +24,6 @@ function resolveNpmPackage(endpointType: string, providerType: string): string {
   return '@ai-sdk/openai-compatible'
 }
 
-/**
- * Build the OpenCode config with a Cherry-namespaced provider merged in: the provider lives under
- * `provider["Cherry-<name>"]` with the API key inlined into `options.apiKey`. Stale `Cherry-*`
- * providers are dropped so only the active one remains; all user-authored entries are preserved.
- * Returns null when required fields are missing.
- */
 export function buildOpenCodeConfig(
   existing: Record<string, any>,
   config: OpenCodeProviderConfig
