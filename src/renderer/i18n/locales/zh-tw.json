@@ -224,7 +224,12 @@
           "runFailed": "無法執行任務",
           "updateFailed": "更新任務失敗"
         },
-        "intervalPlaceholder": "間隔（分鐘）",
+        "frequency": {
+          "everyPrefix": "間隔",
+          "everySuffix": "分鐘執行",
+          "label": "執行頻率"
+        },
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
-          "label": "排程類型",
           "once": "一次性"
         },
-        "scheduleValue": "排程值",
         "status": {
           "active": "活躍",
           "completed": "已完成",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分鐘前"
         },
         "timeout": {
-          "label": "逾時時間",
+          "label": "最長執行時間",
           "placeholder": "無限制"
         },
         "title": "排程任務"

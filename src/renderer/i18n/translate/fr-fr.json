@@ -224,7 +224,12 @@
           "runFailed": "Échec de l'exécution de la tâche",
           "updateFailed": "Échec de la mise à jour de la tâche"
         },
-        "intervalPlaceholder": "Intervalle en minutes",
+        "frequency": {
+          "everyPrefix": "Toutes les",
+          "everySuffix": "minutes",
+          "label": "Fréquence d’exécution"
+        },
+        "intervalPlaceholder": "Au moins 1",
         "intervalUnit": "minutes",
         "lastRun": "Dernière exécution",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalle",
-          "label": "Type de planification",
           "once": "Une fois"
         },
-        "scheduleValue": "Valeur de planification",
         "status": {
           "active": "Actif",
           "completed": "Terminé",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m il y a"
         },
         "timeout": {
-          "label": "Délai d'attente dépassé",
+          "label": "Temps d’exécution maximal",
           "placeholder": "Aucune limite"
         },
         "title": "Tâches planifiées"

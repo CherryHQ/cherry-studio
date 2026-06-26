@@ -224,8 +224,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-          const filesData = await window.api.obsidian.getFiles(vaultToUse)
-          setFiles(filesData)
         }
       } catch (error) {
         logger.error('获取Obsidian Vault失败:', error as Error)
