@@ -51,6 +51,13 @@
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
+| [AI SDK v7.0.0 — Source-Grounded Feature Inventory](./references/ai/unified-runtime/aisdk-v7-feature-inventory.md) | June 2026 source-based AI SDK v7 feature inventory and proposed Cherry Studio integration points |
+| [AI SDK v7 Research Report — STABLE](./references/ai/unified-runtime/aisdk-v7-research.md) | June 2026 AI SDK v7 upgrade-cost research covering provider changes, patches, and usage semantics |
+| [Cherry Unified Runtime — Architecture Proposal (v2)](./references/ai/unified-runtime/architecture.md) | June 2026 proposal for a unified runtime using context engineering and a centralized safety gate |
+| [Large-File Upload — Port Plan](./references/ai/unified-runtime/large-file-upload-port.md) | June 2026 large-file upload port proposal and proposed convergence on the AI SDK v7 upload API |
+| [Unified Runtime Migration — Plan & Decision Log](./references/ai/unified-runtime/migration-plan.md) | June 2026 unified-runtime migration proposal, decision log, and AI SDK v6-to-v7 upgrade checklist |
+| [Unified Runtime — June 2026 Design & Research](./references/ai/unified-runtime/README.md) | June 2026 unified-runtime design snapshot and AI SDK v7 research, preserved for reassessment against the current runtime |
+| [Tool-Approval Refactor — centralize `G`, retire per-tool `needsApproval`](./references/ai/unified-runtime/tool-approval-refactor.md) | June 2026 proposal to centralize tool approval decisions in a shared permission engine |
 
 ### API Gateway
 
