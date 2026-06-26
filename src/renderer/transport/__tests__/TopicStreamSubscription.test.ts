@@ -1,11 +1,26 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TopicStreamSubscription } from '../TopicStreamSubscription'
 
-// Reuse the established window.api.ai mock shape (see IpcChatTransport.test.ts).
+// Production calls ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*'). `ipcMock` is
+// re-pointed at a fresh createMockAiApi()'s dispatchers in beforeEach.
+const { ipcMock } = vi.hoisted(() => ({
+  ipcMock: {
+    request: (() => undefined) as (route: string, input: unknown) => unknown,
+    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+  }
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => ipcMock.request(route, input),
+    on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)
+  }
+}))
+
+// Reuse the established AI-stream mock shape (see IpcChatTransport.test.ts).
 function createMockAiApi() {
   const listeners = {
     chunk: [] as Array<(d: StreamChunkPayload) => void>,
@@ -34,8 +49,36 @@ function createMockAiApi() {
       return () => listeners.error.splice(listeners.error.indexOf(cb) >>> 0, 1)
     })
   }
+  const request = (route: string, input: unknown): unknown => {
+    switch (route) {
+      case 'ai.stream_open':
+        return mockApi.streamOpen(input)
+      case 'ai.stream_attach':
+        return mockApi.streamAttach(input)
+      case 'ai.stream_detach':
+        return mockApi.streamDetach(input)
+      case 'ai.stream_abort':
+        return mockApi.streamAbort(input)
+      default:
+        return Promise.resolve(undefined)
+    }
+  }
+  const on = (event: string, cb: (p: unknown) => void): (() => void) => {
+    switch (event) {
+      case 'ai.stream_chunk':
+        return mockApi.onStreamChunk(cb)
+      case 'ai.stream_done':
+        return mockApi.onStreamDone(cb)
+      case 'ai.stream_error':
+        return mockApi.onStreamError(cb)
+      default:
+        return () => {}
+    }
+  }
   return {
     mockApi,
+    request,
+    on,
     emitChunk: (topicId: string, executionId: UniqueModelId, chunk: UIMessageChunk) => {
       for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
     },
@@ -77,15 +120,11 @@ const B = 'anthropic::claude' as UniqueModelId
 
 describe('TopicStreamSubscription', () => {
   let mock: ReturnType<typeof createMockAiApi>
-  let originalApi: unknown
 
   beforeEach(() => {
     mock = createMockAiApi()
-    originalApi = (window as unknown as { api: unknown }).api
-    ;(window as unknown as { api: unknown }).api = { ...(originalApi as object), ai: mock.mockApi }
-  })
-  afterEach(() => {
-    ;(window as unknown as { api: unknown }).api = originalApi
+    ipcMock.request = mock.request
+    ipcMock.on = mock.on
   })
 
   it('attaches once for the topic regardless of how many executions register', async () => {

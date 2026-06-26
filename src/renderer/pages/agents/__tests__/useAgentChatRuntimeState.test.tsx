@@ -20,6 +20,15 @@ const mocks = vi.hoisted(() => ({
   toastWarning: vi.fn()
 }))
 
+// respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: mocks.useAgentSessionParts
 }))
@@ -146,13 +155,7 @@ describe('useAgentChatRuntimeState', () => {
 
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: {
-        ai: {
-          toolApproval: {
-            respond: mocks.respondToolApproval
-          }
-        }
-      }
+      value: {}
     })
     Object.defineProperty(window, 'toast', {
       configurable: true,

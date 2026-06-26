@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { type ReactNode, useEffect } from 'react'
+import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { serializeComposerDocument } from '../composerDraft'
@@ -20,8 +20,27 @@ import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } f
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
+  const PopoverContext = React.createContext<{
+    open: boolean
+    triggerRef: { current: HTMLElement | null }
+  }>({ open: false, triggerRef: { current: null } })
 
   return {
+    Button: ({
+      children,
+      size: _size,
+      variant: _variant,
+      ...props
+    }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
+      void _size
+      void _variant
+
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
     NormalTooltip: ({
       children,
       content,
@@ -47,11 +66,110 @@ vi.mock('@cherrystudio/ui', async () => {
         </span>
       )
     },
-    Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
-    PopoverContent: ({ children }: { children: ReactNode }) => (
-      <span data-testid="composer-token-popover-content">{children}</span>
-    ),
-    PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
+    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => {
+      const triggerRef = React.useRef<HTMLElement | null>(null)
+
+      return (
+        <PopoverContext value={{ open: Boolean(open), triggerRef }}>
+          <span data-open={String(Boolean(open))} data-testid="composer-token-popover">
+            {children}
+          </span>
+        </PopoverContext>
+      )
+    },
+    PopoverContent: ({
+      ref,
+      children,
+      className,
+      align: _align,
+      side: _side,
+      sideOffset: _sideOffset,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      ...props
+    }: HTMLAttributes<HTMLDivElement> & {
+      align?: string
+      side?: string
+      sideOffset?: number
+      onOpenAutoFocus?: (event: { preventDefault: () => void }) => void
+      onCloseAutoFocus?: (event: { preventDefault: () => void }) => void
+    } & { ref?: { current: HTMLDivElement | null } }) => {
+      const { open, triggerRef } = React.use(PopoverContext)
+      const contentRef = React.useRef<HTMLDivElement | null>(null)
+      const previousOpenRef = React.useRef(open)
+      void _align
+      void _side
+      void _sideOffset
+
+      React.useEffect(() => {
+        if (!open) return
+
+        let defaultPrevented = false
+        onOpenAutoFocus?.({
+          preventDefault: () => {
+            defaultPrevented = true
+          }
+        } as Event)
+
+        if (!defaultPrevented) {
+          contentRef.current
+            ?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+            ?.focus()
+        }
+      }, [onOpenAutoFocus, open])
+
+      React.useEffect(() => {
+        if (previousOpenRef.current && !open) {
+          let defaultPrevented = false
+          onCloseAutoFocus?.({
+            preventDefault: () => {
+              defaultPrevented = true
+            }
+          } as Event)
+
+          if (!defaultPrevented) {
+            triggerRef.current?.focus()
+          }
+        }
+        previousOpenRef.current = open
+      }, [onCloseAutoFocus, open, triggerRef])
+
+      if (!open) return null
+
+      const setContentRef = (node: HTMLDivElement | null) => {
+        contentRef.current = node
+        if (ref) {
+          ref.current = node
+        }
+      }
+
+      return (
+        <div {...props} ref={setContentRef} className={className} data-testid="composer-token-popover-content">
+          {children}
+        </div>
+      )
+    },
+    PopoverTrigger: ({ children, asChild: _asChild }: { children: ReactNode; asChild?: boolean }) => {
+      const { triggerRef } = React.use(PopoverContext)
+      void _asChild
+
+      if (!React.isValidElement(children)) return children
+
+      const childRef = (children.props as { ref?: React.Ref<HTMLElement> }).ref
+      const setTriggerRef = (node: HTMLElement | null) => {
+        triggerRef.current = node
+        if (typeof childRef === 'function') {
+          childRef(node)
+        } else if (childRef && 'current' in childRef) {
+          childRef.current = node
+        }
+      }
+
+      return React.cloneElement(children, {
+        'data-popover-trigger': 'true',
+        ref: setTriggerRef
+      } as Record<string, unknown>)
+    }
   }
 })
 
@@ -105,6 +223,33 @@ function findComposerTokenPosition(editor: Editor): number {
   return tokenPosition
 }
 
+function getRenderedFileToken(container: HTMLElement) {
+  const token = container.querySelector('[data-composer-token-kind="file"]')
+  expect(token).toBeInTheDocument()
+  return token as HTMLElement
+}
+
+function getFileTokenTrigger(container: HTMLElement) {
+  const trigger = getRenderedFileToken(container).closest('[data-popover-trigger="true"]')
+  expect(trigger).toBeInTheDocument()
+  return trigger as HTMLElement
+}
+
+function openFileTokenPopover(container: HTMLElement) {
+  const trigger = getFileTokenTrigger(container)
+  fireEvent.focus(trigger)
+  fireEvent.keyDown(trigger, { key: 'Enter' })
+  expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
+  return trigger
+}
+
+function expectFileTokenVariant(container: HTMLElement, variant: string, iconClassNames: string[]) {
+  const token = getRenderedFileToken(container)
+  expect(token).toHaveAttribute('data-file-token-variant', variant)
+  expect(token.querySelector(`[data-file-token-icon="${variant}"]`)).toHaveClass('border-0', ...iconClassNames)
+  return token
+}
+
 describe('ComposerToken', () => {
   it('maps active composer token kinds to explicit components', () => {
     expect(Object.keys(composerInputTokenComponentByKind).toSorted()).toEqual(
@@ -113,16 +258,18 @@ describe('ComposerToken', () => {
   })
 
   it('renders file tokens as compact inline chips with fallback styling', () => {
-    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'unknown.bin' }} />)
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveTextContent('notes.md')
+    const token = getRenderedFileToken(container)
+    expect(token).toHaveTextContent('unknown.bin')
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.getByTestId('composer-token-tooltip')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('notes.md')
+    openFileTokenPopover(container)
+    expect(screen.getByTestId('composer-token-popover-content')).toBeInTheDocument()
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('unknown.bin')
 
     expect(token).toHaveClass(
       'h-6',
+      'my-0.5',
       'items-center',
       'rounded-md',
       'border',
@@ -144,12 +291,13 @@ describe('ComposerToken', () => {
 
     const { container } = render(<ComposerToken token={{ id: 'file:long', kind: 'file', label: longLabel }} />)
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
+    const token = getRenderedFileToken(container)
     const label = token?.querySelector('span.truncate')
 
     expect(token).toHaveClass('max-w-52', 'overflow-hidden')
     expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent(longLabel)
+    openFileTokenPopover(container)
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent(longLabel)
   })
 
   it('renders image file tokens with image variant metadata and preview', () => {
@@ -172,24 +320,21 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'image')
+    const token = expectFileTokenVariant(container, 'image', [
+      'bg-[var(--color-cyan-100)]',
+      'text-[var(--color-cyan-700)]'
+    ])
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass(
-      'border-0',
-      'bg-[var(--color-success-bg)]',
-      'text-success'
-    )
     expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('avatar-preview.png')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('IMAGE')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
-    expect(screen.getByText('2 KB').closest('div')).toHaveClass('justify-between')
+    openFileTokenPopover(container)
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('avatar-preview.png')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('PNG')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('2 KB')
     expect(screen.getByAltText('avatar-preview.png')).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
   })
 
-  it('renders document file tokens with document variant metadata', () => {
+  it('renders pdf file tokens with pdf variant metadata', () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -208,24 +353,72 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'document')
+    const token = expectFileTokenVariant(container, 'pdf', ['bg-[var(--color-red-100)]', 'text-[var(--color-red-700)]'])
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass(
-      'border-0',
-      'bg-[var(--color-error-bg)]',
-      'text-destructive'
-    )
-    expect(token?.querySelector('[data-file-token-icon="document"]')).not.toHaveClass(
-      'border-destructive',
-      'bg-background'
-    )
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('PDF')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
+    expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
+    openFileTokenPopover(container)
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('PDF')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('2 KB')
   })
 
-  it('renders text and code file tokens with text variant metadata', () => {
+  it('renders office file tokens with dedicated variants and colors', () => {
+    const cases = [
+      {
+        label: 'report.docx',
+        ext: '.docx',
+        variant: 'word',
+        colorClasses: ['bg-[var(--color-blue-100)]', 'text-[var(--color-blue-700)]']
+      },
+      {
+        label: 'budget.xlsx',
+        ext: '.xlsx',
+        variant: 'excel',
+        colorClasses: ['bg-[var(--color-green-100)]', 'text-[var(--color-green-700)]']
+      },
+      {
+        label: 'deck.pptx',
+        ext: '.pptx',
+        variant: 'powerpoint',
+        colorClasses: ['bg-[var(--color-orange-100)]', 'text-[var(--color-orange-700)]']
+      }
+    ]
+
+    for (const item of cases) {
+      const { container, unmount } = render(
+        <ComposerToken
+          token={{
+            id: `file:${item.variant}`,
+            kind: 'file',
+            label: item.label,
+            payload: createFileMetadata({
+              name: item.label,
+              origin_name: item.label,
+              path: `/tmp/${item.label}`,
+              ext: item.ext,
+              type: FILE_TYPE.DOCUMENT
+            })
+          }}
+        />
+      )
+
+      expectFileTokenVariant(container, item.variant, item.colorClasses)
+      unmount()
+    }
+  })
+
+  it('keeps unsupported archive, audio, and video extensions on fallback styling', () => {
+    const cases = ['archive.zip', 'voice.mp3', 'clip.mp4']
+
+    for (const label of cases) {
+      const { container, unmount } = render(<ComposerToken token={{ id: `file:${label}`, kind: 'file', label }} />)
+
+      expectFileTokenVariant(container, 'fallback', ['bg-accent', 'text-muted-foreground'])
+      unmount()
+    }
+  })
+
+  it('renders text and code file tokens with code variant metadata', () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -244,49 +437,175 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveAttribute('data-file-token-variant', 'text')
+    const token = expectFileTokenVariant(container, 'code', [
+      'bg-[var(--color-indigo-100)]',
+      'text-[var(--color-indigo-700)]'
+    ])
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
-    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass(
-      'border-0',
-      'bg-[var(--color-info-bg)]',
-      'text-info'
-    )
-    expect(token?.querySelector('[data-file-token-icon="text"]')).not.toHaveClass('border-info', 'bg-background')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('TS')
-    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('3 KB')
+    expect(token?.querySelector('[data-file-token-icon="code"]')).not.toHaveClass('border-info', 'bg-background')
+    openFileTokenPopover(container)
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('TS')
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('3 KB')
   })
 
-  it('extends file tokens with interactive actions without changing the shared chip scale', () => {
+  it('extends file tokens with keyboard-reachable interactive actions without changing the shared chip scale', () => {
+    const onRemove = vi.fn()
+    const onShowInInput = vi.fn()
     const { container } = render(
-      <FileComposerToken
-        token={{
-          id: 'file:pasted-text',
-          kind: 'file',
-          label: '已粘贴的文本.txt',
-          payload: createFileMetadata({
-            name: 'pasted_text.txt',
-            origin_name: '已粘贴的文本.txt',
-            path: '/tmp/pasted_text.txt',
-            size: 23552,
-            ext: '.txt',
-            type: FILE_TYPE.TEXT
-          })
-        }}
-        tooltipMetadataLayout="split"
-        tooltipActions={<button type="button">在文本框中显示</button>}
-      />
+      <div data-testid="editor-keydown-boundary">
+        <FileComposerToken
+          token={{
+            id: 'file:pasted-text',
+            kind: 'file',
+            label: '已粘贴的文本.txt',
+            payload: createFileMetadata({
+              name: 'pasted_text.txt',
+              origin_name: '已粘贴的文本.txt',
+              path: '/tmp/pasted_text.txt',
+              size: 23552,
+              ext: '.txt',
+              type: FILE_TYPE.TEXT
+            })
+          }}
+          onRemove={onRemove}
+          removeLabel="删除"
+          tooltipActions={
+            <button type="button" onClick={onShowInInput}>
+              在文本框中显示
+            </button>
+          }
+        />
+      </div>
     )
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveClass('h-6', 'font-medium', 'text-xs', 'leading-[inherit]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
+    expect(token).toHaveClass(
+      'group-focus-visible:ring-[3px]',
+      'group-focus-visible:ring-ring/50',
+      'group-data-[state=open]:ring-1',
+      'group-data-[state=open]:ring-ring/50'
+    )
+    const trigger = getFileTokenTrigger(container)
+    expect(trigger).toHaveAttribute('role', 'button')
+    expect(trigger).toHaveAttribute('tabindex', '0')
+    expect(trigger).toHaveAccessibleName('已粘贴的文本.txt')
+    expect(trigger).toHaveClass('group', 'outline-none')
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+    const nativeEditorKeyDown = vi.fn()
+    screen.getByTestId('editor-keydown-boundary').addEventListener('keydown', nativeEditorKeyDown)
+
+    fireEvent.focus(trigger)
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
+    expect(nativeEditorKeyDown).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('composer-token-popover-content')).toBeNull()
+    expect(nativeEditorKeyDown).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(trigger, { key: ' ' })
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
+    expect(nativeEditorKeyDown).not.toHaveBeenCalled()
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('已粘贴的文本.txt')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('TXT')
     expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('23 KB')
-    expect(screen.getByRole('button', { name: '在文本框中显示' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '移除' })).toBeNull()
+    const showInInputButton = screen.getByRole('button', { name: '在文本框中显示' })
+    expect(showInInputButton).toBeInTheDocument()
+    const actionContainer = document.querySelector('[data-file-token-actions]')!
+    expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
+    const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
+    expect(actionButtons[0]).toHaveAttribute('aria-label', '删除')
+    expect(actionButtons[0]).toHaveFocus()
+    expect(actionButtons[0]).toHaveClass('size-6', 'rounded-md')
+    expect(actionButtons[0]).not.toHaveClass('size-7')
+    expect(actionButtons[0]).not.toHaveClass('rounded-full')
+    expect(actionButtons[1]).toHaveTextContent('在文本框中显示')
+
+    fireEvent.blur(trigger, { relatedTarget: showInInputButton })
+    fireEvent.focus(showInInputButton)
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(showInInputButton)
+    expect(onShowInInput).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(actionButtons[0])
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('delays file token popover hover transitions so adjacent tokens do not steal the preview immediately', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const onRemove = vi.fn()
+      const { container } = render(
+        <>
+          <button type="button">Before token</button>
+          <FileComposerToken
+            token={{ id: 'file:1', kind: 'file', label: 'notes.md' }}
+            onRemove={onRemove}
+            removeLabel="删除"
+          />
+        </>
+      )
+      const trigger = getFileTokenTrigger(container)
+      const popover = screen.getByTestId('composer-token-popover')
+      const previousFocus = screen.getByRole('button', { name: 'Before token' })
+      previousFocus.focus()
+
+      expect(popover).toHaveAttribute('data-open', 'false')
+
+      fireEvent.mouseEnter(trigger)
+      expect(popover).toHaveAttribute('data-open', 'false')
+
+      await act(() => vi.advanceTimersByTime(119))
+      expect(popover).toHaveAttribute('data-open', 'false')
+
+      await act(() => vi.advanceTimersByTime(1))
+      expect(popover).toHaveAttribute('data-open', 'true')
+      expect(previousFocus).toHaveFocus()
+
+      fireEvent.mouseLeave(trigger)
+      await act(() => vi.advanceTimersByTime(159))
+      expect(popover).toHaveAttribute('data-open', 'true')
+
+      await act(() => vi.advanceTimersByTime(1))
+      expect(popover).toHaveAttribute('data-open', 'false')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not restore focus to a pointer-open file token after hover close', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const { container } = render(
+        <>
+          <FileComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />
+          <button type="button">Next token target</button>
+        </>
+      )
+      const trigger = getFileTokenTrigger(container)
+      const popover = screen.getByTestId('composer-token-popover')
+      const nextTarget = screen.getByRole('button', { name: 'Next token target' })
+
+      fireEvent.mouseEnter(trigger, { clientX: 12, clientY: 12 })
+      await act(() => vi.advanceTimersByTime(120))
+      expect(popover).toHaveAttribute('data-open', 'true')
+
+      nextTarget.focus()
+      fireEvent.mouseLeave(trigger)
+      await act(() => vi.advanceTimersByTime(160))
+
+      expect(popover).toHaveAttribute('data-open', 'false')
+      expect(nextTarget).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps selected file tokens highlighted with primary border and ring', () => {
@@ -318,10 +637,12 @@ describe('ComposerToken', () => {
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
   })
 
-  it('disables tooltip arrows for file tokens', () => {
-    render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+  it('renders file token details in a popover', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
 
-    expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
+    openFileTokenPopover(container)
+    expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('notes.md')
+    expect(screen.queryByTestId('composer-token-tooltip')).toBeNull()
   })
 
   it('disables tooltip arrows for quote tokens', () => {
@@ -649,6 +970,31 @@ describe('ComposerToken', () => {
     })
 
     expect(serializeComposerDocument(editor!).text).toBe(' Reply')
+  })
+
+  it('removes a file token from the default node view action', async () => {
+    const fileToken: ComposerDraftToken = {
+      id: 'file:1',
+      kind: 'file',
+      label: 'notes.md',
+      promptText: 'notes.md'
+    }
+    let editor: Editor | null = null
+    const { container } = render(<ComposerEditorHarness text="" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().insertComposerToken(fileToken).run()
+    })
+
+    await waitFor(() => expect(container.querySelector('[data-popover-trigger="true"]')).toBeInTheDocument())
+    openFileTokenPopover(container)
+    const removeButton = screen.getByTestId('composer-token-popover-content').querySelector('button')
+    expect(removeButton).toBeInTheDocument()
+    fireEvent.click(removeButton as HTMLButtonElement)
+
+    await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe(''))
   })
 
   it('does not expose a trailing quote newline after Backspace removes the inserted separator', async () => {
