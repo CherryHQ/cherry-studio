@@ -279,39 +279,6 @@ export default defineConfig([
       'i18n/no-template-in-t': 'warn'
     }
   },
-  // ui migration
-  {
-    // Component Rules - prevent importing antd components when migration completed
-    files: ['**/*.{ts,tsx,js,jsx}'],
-    ignores: [],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [
-            // {
-            //   name: 'antd',
-            //   importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
-            //   message:
-            //     '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
-            // },
-            {
-              name: 'antd',
-              importNames: ['Switch'],
-              message:
-                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
-            },
-            {
-              name: '@heroui/react',
-              importNames: ['Switch'],
-              message:
-                '❌ Do not import the component from heroui directly. It\'s deprecated.'
-            }
-          ]
-        }
-      ]
-    }
-  },
   {
     // Bundle guard: the IpcApi zod schema *values* must never enter the renderer
     // bundle. Renderer code may only `import type` from the schema modules.
