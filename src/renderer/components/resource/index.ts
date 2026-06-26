@@ -15,6 +15,11 @@ export {
   type AssistantSelectorSingleItemProps
 } from './AssistantSelector'
 export {
+  ConversationPickerDialog,
+  type ConversationPickerItem,
+  type ConversationPickerLabels
+} from './ConversationPickerDialog'
+export {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
   type ResourceSelectorShellLabels,

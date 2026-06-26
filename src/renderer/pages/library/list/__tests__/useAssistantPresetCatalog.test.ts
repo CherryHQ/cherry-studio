@@ -1,4 +1,24 @@
-import { describe, expect, it } from 'vitest'
+import { renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const assistantCatalogMocks = vi.hoisted(() => ({
+  language: 'en-US',
+  read: vi.fn(),
+  resourcesPath: '/resources'
+}))
+
+vi.mock('@data/hooks/useCache', () => ({
+  useCache: () => [assistantCatalogMocks.resourcesPath]
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    i18n: { language: assistantCatalogMocks.language },
+    t: (key: string) => key
+  })
+}))
+
+import { useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 
 import {
   ASSISTANT_CATALOG_MY_TAB,
@@ -9,6 +29,35 @@ import {
 } from '../useAssistantPresetCatalog'
 
 describe('assistant preset catalog helpers', () => {
+  beforeEach(() => {
+    assistantCatalogMocks.language = 'en-US'
+    assistantCatalogMocks.read.mockReset()
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        fs: {
+          read: assistantCatalogMocks.read
+        }
+      }
+    })
+  })
+
+  it('loads every local assistant catalog preset for picker reuse', async () => {
+    assistantCatalogMocks.read.mockResolvedValue(
+      JSON.stringify([
+        { id: 'preset-product', name: 'Product Manager', group: ['Career'] },
+        { id: 'invalid-missing-name' },
+        { id: 'preset-business', name: 'Business Helper', group: ['Business'] }
+      ])
+    )
+
+    const { result } = renderHook(() => useAssistantCatalogPresets())
+
+    await waitFor(() => expect(result.current.presets).toHaveLength(2))
+    expect(assistantCatalogMocks.read).toHaveBeenCalledWith('/resources/data/agents-en.json', 'utf-8')
+    expect(result.current.presets.map((preset) => preset.id)).toEqual(['preset-product', 'preset-business'])
+  })
+
   it('keeps my assistants first and orders known system groups before custom groups', () => {
     const tabs = buildAssistantCatalogTabs(
       [
