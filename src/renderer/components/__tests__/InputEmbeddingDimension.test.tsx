@@ -22,16 +22,6 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: () => ({
-      llm: {
-        settings: {}
-      }
-    })
-  }
-}))
-
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }: any) => (
     <button type="button" data-testid="button" onClick={onPress} disabled={disabled || isDisabled} {...props}>

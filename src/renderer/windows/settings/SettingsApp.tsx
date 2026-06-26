@@ -2,7 +2,6 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
@@ -91,27 +90,25 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StyleSheetManager>
-        <ThemeProvider>
-          <CodeStyleProvider>
-            <CommandContextKeyProvider>
-              <CommandProvider>
-                <TopViewContainer>
-                  <div
-                    className={cn(
-                      'flex h-screen w-screen overflow-hidden text-foreground',
-                      settingsWindowFormControlTextClassName,
-                      isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                    )}
-                    style={shellStyle}>
-                    <SettingsWindowRouter initialPath={initialPath} />
-                  </div>
-                </TopViewContainer>
-              </CommandProvider>
-            </CommandContextKeyProvider>
-          </CodeStyleProvider>
-        </ThemeProvider>
-      </StyleSheetManager>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TopViewContainer>
+                <div
+                  className={cn(
+                    'flex h-screen w-screen overflow-hidden text-foreground',
+                    settingsWindowFormControlTextClassName,
+                    isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                  )}
+                  style={shellStyle}>
+                  <SettingsWindowRouter initialPath={initialPath} />
+                </div>
+              </TopViewContainer>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }
