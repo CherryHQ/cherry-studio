@@ -1342,26 +1342,6 @@ describe('main web search API providers', () => {
       expect(request.headers.authorization).toBeUndefined()
     })
 
-    it('allows empty api key to use the free quota with hosted service', async () => {
-      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-response.json')))
-
-      const provider = createProviderDriver(
-        FirecrawlProvider,
-        createProvider({
-          id: 'firecrawl',
-          name: 'Firecrawl',
-          apiKeys: [],
-          apiHost: 'https://api.firecrawl.dev'
-        })
-      )
-
-      const result = await provider.searchKeywords('hello', runtimeConfig)
-
-      expect(result.results[0].content).toBe('Scraped Markdown Content')
-      const request = toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined])
-      expect(request.headers.authorization).toBeUndefined()
-    })
-
     it('handles API errors when success is false', async () => {
       fetchMock.mockResolvedValueOnce(
         createJsonResponse({

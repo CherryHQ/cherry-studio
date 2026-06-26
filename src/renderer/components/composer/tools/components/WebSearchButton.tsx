@@ -21,10 +21,8 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => {
-  if (id === 'fetch' || id === 'searxng' || id === 'exa-mcp' || id === 'firecrawl') return false
-  return true
-}
+const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
+const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
@@ -40,10 +38,9 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const activeProviderId = useMemo(() => {
     const p = defaultSearchKeywordsProvider
     if (!p) return undefined
-    const apiHost = p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim()
     const available = webSearchProviderRequiresApiKey(p.id)
       ? p.apiKeys.some((k) => k.trim().length > 0)
-      : Boolean(apiHost)
+      : Boolean(p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim())
     return available ? p.id : undefined
   }, [defaultSearchKeywordsProvider])
   const hasSearchBackend = hasBuiltinWebSearch || Boolean(activeProviderId)
