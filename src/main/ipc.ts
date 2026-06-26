@@ -294,7 +294,8 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
   ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
   ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  // Git Bash: migrated to IpcApi (system.git_bash.* — src/main/ipc/handlers/system.ts)
+  // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
+  // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)

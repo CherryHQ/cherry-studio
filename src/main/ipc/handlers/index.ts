@@ -8,7 +8,6 @@ import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { selectionHandlers } from './selection'
-import { systemHandlers } from './system'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
 
@@ -29,7 +28,6 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
   ...selectionHandlers,
-  ...systemHandlers,
   ...webSearchHandlers,
   ...windowHandlers
 }

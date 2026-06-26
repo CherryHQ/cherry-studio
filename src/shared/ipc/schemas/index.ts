@@ -6,7 +6,6 @@ import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
-import { systemRequestSchemas } from './system'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
@@ -25,7 +24,6 @@ export const ipcRequestSchemas = {
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...selectionRequestSchemas,
-  ...systemRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>

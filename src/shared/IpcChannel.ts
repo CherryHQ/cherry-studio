@@ -267,7 +267,7 @@ export enum IpcChannel {
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
-  // Git Bash discovery/config migrated to IpcApi (system.git_bash.* routes)
+  // Git Bash has no IPC channel; resolved in-process (settingsBuilder).
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',

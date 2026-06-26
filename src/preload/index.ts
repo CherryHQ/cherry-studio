@@ -143,7 +143,7 @@ const api = {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
     getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
-    // Git Bash discovery/config migrated to IpcApi (system.git_bash.* routes)
+    // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)

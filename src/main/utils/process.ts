@@ -1,7 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import type { GitBashPathInfo } from '@shared/types/codeCli'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
@@ -746,26 +745,4 @@ export async function autoDiscoverGitBash(): Promise<string | null> {
   }
 
   return discoveredPath
-}
-
-/**
- * Get Git Bash path info including source
- * If no path is configured, triggers auto-discovery first
- */
-export async function getGitBashPathInfo(): Promise<GitBashPathInfo> {
-  if (!isWin) {
-    return { path: null, source: null }
-  }
-
-  const preferenceService = application.get('PreferenceService')
-  let path = preferenceService.get('feature.code_cli.git_bash_path')
-  let source = preferenceService.get('feature.code_cli.git_bash_path_source')
-
-  // If no path configured, trigger auto-discovery (handles upgrade from old versions)
-  if (!path) {
-    path = await autoDiscoverGitBash()
-    source = path ? 'auto' : null
-  }
-
-  return { path, source }
 }
