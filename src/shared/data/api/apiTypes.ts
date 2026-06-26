@@ -161,8 +161,6 @@ export interface DataResponse<T = any> {
   metadata?: {
     /** Request processing duration in milliseconds — devtools/debug only */
     duration?: number
-    /** Total main-process DataApi handling duration in milliseconds — devtools/debug only */
-    serverDuration?: number
     /** DataApi handler body duration in milliseconds — devtools/debug only */
     handlerDuration?: number
     /** Whether response was served from cache */

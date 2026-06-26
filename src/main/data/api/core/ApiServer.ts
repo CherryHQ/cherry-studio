@@ -20,6 +20,7 @@ type HandlerFunction = (params: { params?: Record<string, string>; query?: any; 
 
 const logger = loggerService.withContext('DataApi:Server')
 const DATA_API_TIMING_ENABLED = isDev || DIAGNOSTICS_ENABLED
+const DATA_API_HANDLER_TIMING_ENABLED = isDev
 
 /**
  * Core API Server - Transport agnostic request processor
@@ -97,9 +98,9 @@ export class ApiServer {
 
       // Execute handler if middleware didn't set error
       if (!requestContext.response.error) {
-        const handlerStart = DATA_API_TIMING_ENABLED ? performance.now() : 0
+        const handlerStart = DATA_API_HANDLER_TIMING_ENABLED ? performance.now() : 0
         await this.executeHandler(requestContext, handlerMatch)
-        if (DATA_API_TIMING_ENABLED) {
+        if (DATA_API_HANDLER_TIMING_ENABLED) {
           handlerDuration = performance.now() - handlerStart
         }
       }
@@ -110,8 +111,7 @@ export class ApiServer {
         requestContext.response.metadata = {
           ...requestContext.response.metadata,
           duration,
-          serverDuration: duration,
-          handlerDuration,
+          ...(DATA_API_HANDLER_TIMING_ENABLED ? { handlerDuration } : {}),
           timestamp: Date.now()
         }
         if (DIAGNOSTICS_ENABLED && duration > SLOW_THRESHOLD_MS.dataApiRequest)
@@ -133,8 +133,7 @@ export class ApiServer {
         metadata: DATA_API_TIMING_ENABLED
           ? {
               duration,
-              serverDuration: duration,
-              handlerDuration,
+              ...(DATA_API_HANDLER_TIMING_ENABLED ? { handlerDuration } : {}),
               timestamp: Date.now()
             }
           : { timestamp: Date.now() }

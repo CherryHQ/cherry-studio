@@ -51,7 +51,7 @@ describe('DataApiService devtools instrumentation', () => {
       },
       metadata: {
         timestamp: Date.now(),
-        serverDuration: 7,
+        duration: 7,
         handlerDuration: 5
       }
     }))
@@ -80,7 +80,7 @@ describe('DataApiService devtools instrumentation', () => {
       },
       status: 200,
       response: { ok: true, token: '<redacted>' },
-      serverDuration: 7,
+      mainDuration: 7,
       handlerDuration: 5
     })
     expect(JSON.stringify(events[0].body)).toContain('<truncated 5 chars>')
@@ -95,7 +95,7 @@ describe('DataApiService devtools instrumentation', () => {
       error: error.toJSON(),
       metadata: {
         timestamp: Date.now(),
-        serverDuration: 9,
+        duration: 9,
         handlerDuration: 6
       }
     }))
@@ -111,7 +111,7 @@ describe('DataApiService devtools instrumentation', () => {
       status: 422,
       method: 'GET',
       path: '/providers',
-      serverDuration: 9,
+      mainDuration: 9,
       handlerDuration: 6,
       error: {
         name: 'DataApiError',

@@ -5,7 +5,6 @@ type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
 interface DataApiDevtoolsOptions {
   capturePayloads: boolean
-  maxEntries: number
 }
 
 export interface DataApiDevtoolsEvent {
@@ -22,7 +21,7 @@ export interface DataApiDevtoolsEvent {
   status?: number
   retryAttempt?: number
   clientDuration?: number
-  serverDuration?: number
+  mainDuration?: number
   handlerDuration?: number
   error?: {
     name?: string
@@ -46,10 +45,10 @@ declare global {
 }
 
 const DEFAULT_OPTIONS: DataApiDevtoolsOptions = {
-  capturePayloads: true,
-  maxEntries: 500
+  capturePayloads: true
 }
 
+const MAX_ENTRIES = 500
 const MAX_STRING_LENGTH = 1000
 const MAX_ARRAY_LENGTH = 50
 const MAX_OBJECT_KEYS = 100
@@ -83,10 +82,13 @@ function pushEvent(
     startTimes.set(event.requestId, performance.now())
   }
 
-  if (events.length > options.maxEntries) {
-    for (const removed of events.splice(0, events.length - options.maxEntries)) {
-      startTimes.delete(removed.requestId)
-    }
+  pruneEvents()
+}
+
+function pruneEvents(): void {
+  if (events.length <= MAX_ENTRIES) return
+  for (const removed of events.splice(0, events.length - MAX_ENTRIES)) {
+    startTimes.delete(removed.requestId)
   }
 }
 
@@ -156,13 +158,7 @@ function installGlobal(): void {
     },
     setOptions: (nextOptions) => {
       options = {
-        capturePayloads: nextOptions.capturePayloads ?? options.capturePayloads,
-        maxEntries: Math.max(1, Math.floor(nextOptions.maxEntries ?? options.maxEntries))
-      }
-      if (events.length > options.maxEntries) {
-        for (const removed of events.splice(0, events.length - options.maxEntries)) {
-          startTimes.delete(removed.requestId)
-        }
+        capturePayloads: nextOptions.capturePayloads ?? options.capturePayloads
       }
       return { ...options }
     }
@@ -210,7 +206,7 @@ export function recordDataApiSuccess(input: {
       path: input.path,
       status: input.response.status,
       response: sanitizeValue(input.response.data),
-      serverDuration: input.response.metadata?.serverDuration ?? input.response.metadata?.duration,
+      mainDuration: input.response.metadata?.duration,
       handlerDuration: input.response.metadata?.handlerDuration,
       completedAt: Date.now()
     })
@@ -223,7 +219,7 @@ export function recordDataApiSuccess(input: {
     status: input.response.status,
     response: sanitizeValue(input.response.data),
     clientDuration: consumeClientDuration(input.requestId),
-    serverDuration: input.response.metadata?.serverDuration ?? input.response.metadata?.duration,
+    mainDuration: input.response.metadata?.duration,
     handlerDuration: input.response.metadata?.handlerDuration
   } satisfies Partial<DataApiDevtoolsEvent>)
 }
@@ -239,7 +235,7 @@ export function recordDataApiError(input: {
   if (!isEnabled()) return
   installGlobal()
   const timingFields: Partial<DataApiDevtoolsEvent> = {
-    serverDuration: input.metadata?.serverDuration ?? input.metadata?.duration,
+    mainDuration: input.metadata?.duration,
     handlerDuration: input.metadata?.handlerDuration
   }
   const event = findEvent(input.requestId)

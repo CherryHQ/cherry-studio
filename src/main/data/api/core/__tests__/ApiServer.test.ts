@@ -3,9 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiServer } from '../ApiServer'
 
 const originalNodeEnv = process.env.NODE_ENV
+const originalDiagnostics = process.env.CS_DIAGNOSTICS
 
 afterEach(() => {
   process.env.NODE_ENV = originalNodeEnv
+  if (originalDiagnostics === undefined) {
+    delete process.env.CS_DIAGNOSTICS
+  } else {
+    process.env.CS_DIAGNOSTICS = originalDiagnostics
+  }
 })
 
 // The constructor is private; cast to bypass for focused unit tests.
@@ -185,11 +191,11 @@ describe('ApiServer devtools timing metadata', () => {
       status: 200,
       data: { ok: true }
     })
-    expect(response.metadata?.serverDuration).toBeUndefined()
+    expect(response.metadata?.duration).toBeUndefined()
     expect(response.metadata?.handlerDuration).toBeUndefined()
   })
 
-  it('adds server and handler durations in development mode', async () => {
+  it('adds request and handler durations in development mode', async () => {
     vi.resetModules()
     process.env.NODE_ENV = 'development'
     const { ApiServer: DevApiServer } = await import('../ApiServer')
@@ -208,9 +214,33 @@ describe('ApiServer devtools timing metadata', () => {
 
     expect(response.metadata).toMatchObject({
       duration: expect.any(Number),
-      serverDuration: expect.any(Number),
       handlerDuration: expect.any(Number),
       timestamp: expect.any(Number)
     })
+  })
+
+  it('adds only request duration in diagnostics mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'production'
+    process.env.CS_DIAGNOSTICS = '1'
+    const { ApiServer: DiagnosticsApiServer } = await import('../ApiServer')
+    const server = new (DiagnosticsApiServer as any)({
+      '/providers': {
+        GET: async () => ({ ok: true })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_3',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+    expect(response.metadata?.handlerDuration).toBeUndefined()
   })
 })

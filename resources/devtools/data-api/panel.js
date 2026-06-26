@@ -10,6 +10,8 @@ const COPY_FEEDBACK_DURATION_MS = 2500
 
 let events = []
 let selectedId = null
+let rowsSignature = ''
+let detailsSignature = ''
 
 function evalInInspectedWindow(expression) {
   return new Promise((resolve) => {
@@ -51,10 +53,30 @@ function filteredEvents() {
   return events.filter((event) => getSearchText(event).includes(query))
 }
 
-function renderRows() {
+function getRowsSignature(visible) {
+  return JSON.stringify({
+    selectedId,
+    rows: visible.map((event) => ({
+      id: event.id,
+      state: event.state,
+      method: event.method,
+      path: event.path,
+      status: event.status,
+      clientDuration: event.clientDuration,
+      mainDuration: event.mainDuration
+    }))
+  })
+}
+
+function renderRows(force = false) {
   const visible = filteredEvents()
   countEl.textContent = `${events.length} requests`
+
+  const nextSignature = getRowsSignature(visible)
+  if (!force && nextSignature === rowsSignature) return
+
   rowsEl.replaceChildren()
+  rowsSignature = nextSignature
 
   for (const event of visible) {
     const tr = document.createElement('tr')
@@ -68,7 +90,7 @@ function renderRows() {
       { text: event.path, title: event.path },
       { text: event.status ?? '' },
       { text: formatDuration(event.clientDuration) },
-      { text: formatDuration(event.serverDuration) }
+      { text: formatDuration(event.mainDuration) }
     ]
 
     for (const cell of cells) {
@@ -79,21 +101,21 @@ function renderRows() {
       tr.appendChild(td)
     }
 
-    tr.addEventListener('click', () => {
-      selectedId = event.id
-      renderRows()
-      renderDetails(event)
-    })
     rowsEl.appendChild(tr)
   }
 
   if (selectedId && !visible.some((event) => event.id === selectedId)) {
     selectedId = null
+    detailsSignature = ''
     detailsEl.textContent = 'Select a DataApi event.'
   }
 }
 
-function renderDetails(event) {
+function renderDetails(event, force = false) {
+  const nextSignature = JSON.stringify(event)
+  if (!force && nextSignature === detailsSignature) return
+
+  detailsSignature = nextSignature
   detailsEl.replaceChildren()
   appendSection(
     'Request',
@@ -122,7 +144,7 @@ function renderDetails(event) {
   }
   appendSection('Timing', {
     clientDuration: formatDuration(event.clientDuration),
-    serverDuration: formatDuration(event.serverDuration),
+    mainDuration: formatDuration(event.mainDuration),
     handlerDuration: formatDuration(event.handlerDuration)
   })
 }
@@ -193,13 +215,30 @@ async function refresh() {
   }
 }
 
-filterEl.addEventListener('input', renderRows)
+filterEl.addEventListener('input', () => renderRows())
+
+rowsEl.addEventListener('pointerdown', (pointerEvent) => {
+  const target = pointerEvent.target
+  if (!(target instanceof Element)) return
+
+  const row = target.closest('tr[data-id]')
+  if (!row || !rowsEl.contains(row)) return
+
+  const event = events.find((item) => item.id === row.dataset.id)
+  if (!event) return
+
+  selectedId = event.id
+  renderRows(true)
+  renderDetails(event, true)
+})
 
 clearEl.addEventListener('click', async () => {
   await evalInInspectedWindow(
     'window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.clear()'
   )
   selectedId = null
+  rowsSignature = ''
+  detailsSignature = ''
   detailsEl.textContent = 'Select a DataApi event.'
   await refresh()
 })
