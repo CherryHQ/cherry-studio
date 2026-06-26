@@ -7,7 +7,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages } from 'ai'
 
-import { coalesceConsecutiveSameRole, normalizeUIMessages } from '../../messages/messageRules'
+import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, normalizeUIMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
@@ -173,12 +173,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const messages = initialMessages
       // Shape only the conversion input — keep `messages` (originalMessages for
       // the UI stream) untouched, so placeholders/strips never leak to the UI.
-      // Pipeline: strip unsupported media → ensure non-empty assistant turns →
-      // convert (dropping incomplete tool calls) → merge adjacent same-role turns.
-      // See #16195.
+      // Pipeline: strip unsupported media → convert (dropping incomplete tool
+      // calls) → merge adjacent same-role turns → placeholder for any turn that
+      // converted to empty content. See #16195.
       const shaped = normalizeUIMessages(initialMessages, { mediaCapabilities: params.mediaCapabilities })
-      const modelMessages = coalesceConsecutiveSameRole(
-        await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true })
+      const modelMessages = ensureNonEmptyAssistantContent(
+        coalesceConsecutiveSameRole(await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true }))
       )
       let hasUsedProvidedMessageId = false
 

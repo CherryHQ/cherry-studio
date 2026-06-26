@@ -8,7 +8,7 @@
  * nothing.
  */
 
-import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, type ModelMessage, type UIMessage } from 'ai'
+import type { ModelMessage, UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
 
@@ -19,39 +19,12 @@ export interface NormalizeContext {
 
 type MessageRule = <T extends UIMessage>(messages: T[], ctx: Required<NormalizeContext>) => T[]
 
-/**
- * Give an otherwise-empty assistant turn a placeholder text part.
- *
- * `convertToModelMessages` drops an assistant `UIMessage` whose parts produce no
- * content, and emits `{ role: 'assistant', content: [] }` for a turn that carries
- * only non-content parts. Gemini then rejects the empty `model` turn with HTTP 400
- * ("must include at least one parts field"). Such turns appear when a response was
- * interrupted/empty or held only tool/citation blocks, then the user sends "继续"
- * and the whole history is replayed. See #16195.
- *
- * Keeping the turn (vs. dropping it) avoids depending on provider-specific merge
- * behavior; the placeholder is harmless because `originalMessages` (the persisted/
- * rendered turn) is kept un-normalized upstream.
- */
-export function ensureNonEmptyAssistantParts<T extends UIMessage = UIMessage>(messages: T[]): T[] {
-  return messages.map((message) => {
-    if (message.role !== 'assistant') return message
-    const parts = message.parts ?? []
-    // Only parts the AI SDK converts to model content count. data-*, source-*, and
-    // step-start produce nothing, so a turn with only those converts to `content: []`
-    // (Gemini 400) — give it a placeholder instead. See #16195.
-    if (parts.some((p) => isTextUIPart(p) || isReasoningUIPart(p) || isFileUIPart(p) || isToolUIPart(p))) return message
-    return { ...message, parts: [...parts, { type: 'text', text: '...' }] } as T
-  })
-}
-
 /** Drop media the model can't accept — see `stripUnsupportedMedia` in `messageCapabilities.ts`. */
 function gateUnsupportedMedia<T extends UIMessage = UIMessage>(messages: T[], ctx: Required<NormalizeContext>): T[] {
   return stripUnsupportedMedia(messages, ctx.mediaCapabilities)
 }
 
-// Order matters: gate media before the empty-turn guard.
-const RULES: readonly MessageRule[] = [gateUnsupportedMedia, ensureNonEmptyAssistantParts]
+const RULES: readonly MessageRule[] = [gateUnsupportedMedia]
 
 /** Apply every UIMessage normalization rule in order, before `convertToModelMessages`. */
 export function normalizeUIMessages<T extends UIMessage = UIMessage>(messages: T[], ctx: NormalizeContext = {}): T[] {
@@ -99,4 +72,21 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
     } as ModelMessage
   }
   return out
+}
+
+/**
+ * Replace an assistant message that converted to empty content with a placeholder.
+ *
+ * `convertToModelMessages` emits `{ role: 'assistant', content: [] }` for a turn
+ * whose only parts don't convert to model content (e.g. a persisted `data-error`),
+ * which Gemini rejects (HTTP 400). Apply after `convertToModelMessages` — observing
+ * the actual converted shape is more robust than predicting it from UI part types.
+ * See #16195.
+ */
+export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelMessage[] {
+  return messages.map((m) =>
+    m.role === 'assistant' && Array.isArray(m.content) && m.content.length === 0
+      ? { ...m, content: [{ type: 'text', text: '...' }] }
+      : m
+  )
 }
