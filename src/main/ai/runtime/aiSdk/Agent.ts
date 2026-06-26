@@ -5,8 +5,8 @@
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
-import { convertToModelMessages } from 'ai'
 
+import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
@@ -170,7 +170,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const aiAgent = await this.buildAiSdkAgent(hooks)
 
       const messages = initialMessages
-      const modelMessages = await convertToModelMessages(initialMessages)
+      // Shape only the conversion input — keep `messages` (originalMessages for the
+      // UI stream) untouched, so placeholders/strips never leak to the UI. See #16195.
+      const modelMessages = await toModelMessages(initialMessages, params.mediaCapabilities)
       let hasUsedProvidedMessageId = false
 
       const result = await aiAgent.stream({

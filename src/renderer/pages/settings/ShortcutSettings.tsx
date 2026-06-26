@@ -1,4 +1,3 @@
-import { UndoOutlined } from '@ant-design/icons'
 import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -401,7 +400,8 @@ const ShortcutSettings: FC = () => {
           <RowFlex className="items-center justify-end gap-2">
             {isBindingModified && (
               <Tooltip content={t('settings.shortcuts.reset_to_default')}>
-                <UndoOutlined
+                <Undo2
+                  size={16}
                   className="shortcut-undo-icon cursor-pointer text-muted-foreground opacity-70 transition-opacity hover:opacity-100"
                   onClick={() => {
                     void handleResetShortcut(record)

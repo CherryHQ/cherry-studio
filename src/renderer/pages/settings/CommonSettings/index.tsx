@@ -527,6 +527,33 @@ const CommonSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
+          <RowFlex className="mr-4 flex-1 items-center justify-between">
+            <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
+            {enableSpellCheck && !isMac && (
+              <Selector<string>
+                size={14}
+                multiple
+                value={spellCheckLanguages}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  )
+                }))}
+              />
+            )}
+          </RowFlex>
+          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
           <SelectorRow>
             <Selector<ThemeMode>
@@ -727,37 +754,6 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.spell_check.label')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <RowFlex className="mr-4 flex-1 items-center justify-between">
-            <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
-            {enableSpellCheck && !isMac && (
-              <Selector<string>
-                size={14}
-                multiple
-                value={spellCheckLanguages}
-                placeholder={t('settings.general.spell_check.languages')}
-                onChange={handleSpellCheckLanguagesChange}
-                options={spellCheckLanguageOptions.map((lang) => ({
-                  value: lang.value,
-                  label: (
-                    <Flex className="items-center gap-2">
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
-                      {lang.label}
-                    </Flex>
-                  )
-                }))}
-              />
-            )}
-          </RowFlex>
-          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
         </SettingRow>
       </SettingGroup>
     </>
