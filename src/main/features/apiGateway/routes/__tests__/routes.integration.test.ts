@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageConfig } from '../../proxyStream'
+
 /**
  * Integration tests that drive the real Elysia app via `app.handle(Request)`.
  *
@@ -13,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // over them without a TDZ error.
 const { mockPreferenceGet, mockProcessMessage, mockGetModels } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn(
+  mockProcessMessage: vi.fn<(config: MessageConfig) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
@@ -169,6 +171,27 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.object).toBe('list')
       expect(body.data).toHaveLength(1)
+    })
+
+    it('messages: recovers the X-Cherry-* headers as the request source for processMessage', async () => {
+      const { status } = await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'cherryin:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, 'X-Cherry-Source': 'agent', 'X-Cherry-Conversation-Id': 'session-1' }
+        )
+      )
+      expect(status).toBe(200)
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        source: { feature: 'agent', conversationId: 'session-1' }
+      })
+    })
+
+    it('messages: leaves the source undefined when no X-Cherry headers are present', async () => {
+      await post(app, '/v1/messages', { model: 'cherryin:claude', messages: [{ role: 'user', content: 'hi' }] })
+      expect(mockProcessMessage.mock.calls[0][0].source).toBeUndefined()
     })
   })
 

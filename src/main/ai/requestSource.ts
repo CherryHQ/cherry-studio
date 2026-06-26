@@ -56,6 +56,26 @@ export function buildRequestSourceHeaders(source: AiRequestSource): Record<strin
   }
 }
 
+function isCherryRequestSource(value: string): value is CherryRequestSource {
+  return (Object.values(CherryRequestSource) as string[]).includes(value)
+}
+
+/**
+ * Inverse of {@link buildRequestSourceHeaders}: recover the provenance from
+ * incoming request headers. The API gateway needs this because an agent session
+ * whose models route through the local gateway forwards its provenance as real
+ * `X-Cherry-*` HTTP headers (the Claude Code subprocess emits its
+ * `ANTHROPIC_CUSTOM_HEADERS`); the gateway must recover the source so its own
+ * upstream CherryIN request still carries the attribution. Returns `undefined`
+ * when no recognized `X-Cherry-Source` is present.
+ */
+export function parseRequestSourceHeaders(headers: Headers): AiRequestSource | undefined {
+  const feature = headers.get(CHERRY_SOURCE_HEADER)
+  if (!feature || !isCherryRequestSource(feature)) return undefined
+  const conversationId = headers.get(CHERRY_CONVERSATION_ID_HEADER) ?? undefined
+  return conversationId ? { feature, conversationId } : { feature }
+}
+
 /**
  * Serialize headers into the `ANTHROPIC_CUSTOM_HEADERS` env format the Claude
  * Agent SDK parses — one `Name: Value` per line. Used by the agent-session

@@ -6,6 +6,7 @@ import {
   CHERRY_SOURCE_HEADER,
   CherryRequestSource,
   isCherryinProviderId,
+  parseRequestSourceHeaders,
   toAnthropicCustomHeaders
 } from '../requestSource'
 
@@ -21,6 +22,28 @@ describe('buildRequestSourceHeaders', () => {
     expect(buildRequestSourceHeaders({ feature: CherryRequestSource.Translate })).toEqual({
       [CHERRY_SOURCE_HEADER]: 'translate'
     })
+  })
+})
+
+describe('parseRequestSourceHeaders', () => {
+  it('round-trips the headers built by buildRequestSourceHeaders', () => {
+    const source = { feature: CherryRequestSource.Agent, conversationId: 'session-7' }
+    const headers = new Headers(buildRequestSourceHeaders(source))
+    expect(parseRequestSourceHeaders(headers)).toEqual(source)
+  })
+
+  it('omits the conversation id when the header is absent', () => {
+    const headers = new Headers({ [CHERRY_SOURCE_HEADER]: 'knowledge' })
+    expect(parseRequestSourceHeaders(headers)).toEqual({ feature: CherryRequestSource.Knowledge })
+  })
+
+  it('returns undefined when the source header is missing', () => {
+    expect(parseRequestSourceHeaders(new Headers())).toBeUndefined()
+  })
+
+  it('returns undefined for an unrecognized source value (no bogus provenance)', () => {
+    const headers = new Headers({ [CHERRY_SOURCE_HEADER]: 'not-a-feature', [CHERRY_CONVERSATION_ID_HEADER]: 'x' })
+    expect(parseRequestSourceHeaders(headers)).toBeUndefined()
   })
 })
 

@@ -143,6 +143,33 @@ describe('processMessage (streaming)', () => {
     // GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000.
     expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
   })
+
+  it('forwards the request source onto streamPrompt so a gateway-routed cherryin call keeps its attribution', async () => {
+    await processMessage({
+      params: { model: 'cherryin:claude', stream: true, messages: [] } as any,
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      source: { feature: 'agent', conversationId: 'session-1' }
+    })
+    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({
+      source: { feature: 'agent', conversationId: 'session-1' }
+    })
+  })
+
+  it('forwards the request source on the non-streaming path too', async () => {
+    const resPromise = processMessage({
+      params: { model: 'cherryin:claude', messages: [] } as any,
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      source: { feature: 'agent', conversationId: 'session-1' }
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    await captured.listener!.onDone({} as any)
+    await resPromise
+    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({
+      source: { feature: 'agent', conversationId: 'session-1' }
+    })
+  })
 })
 
 describe('processMessage (error & pause)', () => {
