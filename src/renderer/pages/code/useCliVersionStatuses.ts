@@ -5,7 +5,7 @@ import type { BinaryState } from '@shared/data/preference/preferenceTypes'
 import { codeCLI } from '@shared/types/codeCli'
 import { useEffect, useRef, useState } from 'react'
 
-import type { VersionStatus } from './VersionStatusCard'
+import type { VersionStatus } from './types'
 
 const logger = loggerService.withContext('useCliVersionStatus')
 

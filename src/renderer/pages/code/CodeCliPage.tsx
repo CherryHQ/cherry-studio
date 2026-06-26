@@ -17,13 +17,13 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS } from '.'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS } from './cliTools'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
 import { ConfigCard } from './components/ConfigCard'
-import { ConfigEditPanel } from './components/ConfigEditPanel'
-import type { CodeToolMeta } from './components/types'
-import { CLI_BINARY_NAMES, useCliVersionStatuses } from './components/useCliVersionStatus'
-import { type VersionStatus, VersionStatusCard } from './components/VersionStatusCard'
+import { ConfigEditPanel } from './components/configEditPanel/ConfigEditPanel'
+import { VersionStatusCard } from './components/VersionStatusCard'
+import type { CodeToolMeta, VersionStatus } from './types'
+import { CLI_BINARY_NAMES, useCliVersionStatuses } from './useCliVersionStatuses'
 
 const logger = loggerService.withContext('CodeCliPage')
 
@@ -59,8 +59,10 @@ const CodeCliPage: FC = () => {
     selectFolder
   } = useCodeCli()
 
-  const [isInstalling, setIsInstalling] = useState(false)
-  const [isUpgrading, setIsUpgrading] = useState(false)
+  // Track install/upgrade progress per tool so each card is independent —
+  // installing codex must not make the claude-code card show "installing".
+  const [installingTools, setInstallingTools] = useState<Set<string>>(() => new Set())
+  const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
   const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
   // Edit / add panel state
   const [editTarget, setEditTarget] = useState<CliNamedConfig | null>(null)
@@ -71,11 +73,6 @@ const CodeCliPage: FC = () => {
       if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
         return false
       }
-
-      // Compatibility is decided at the provider level (CLI_TOOL_PROVIDER_MAP →
-      // allowedProviderIds); here we only keep chat-capable models. Endpoint-type
-      // narrowing was dropped because it hid relayed models that speak the target
-      // API via the gateway even when their catalog endpointTypes don't list it.
       return providerMap.has(m.providerId)
     },
     [providerMap]
@@ -134,12 +131,13 @@ const CodeCliPage: FC = () => {
   }, [])
 
   const handleInstall = async () => {
+    const toolId = selectedCliTool
     try {
-      setIsInstalling(true)
-      const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+      setInstallingTools((prev) => new Set(prev).add(toolId))
+      const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
       if (cliPreset) {
         await ipcApi.request('binary.install_tool', {
-          name: CLI_BINARY_NAMES[selectedCliTool],
+          name: CLI_BINARY_NAMES[toolId],
           tool: cliPreset.miseTool
         })
         window.toast.success(t('code.install_success'))
@@ -148,17 +146,22 @@ const CodeCliPage: FC = () => {
       logger.error('Failed to install:', error as Error)
       window.toast.error(t('code.install_error'))
     } finally {
-      setIsInstalling(false)
+      setInstallingTools((prev) => {
+        const next = new Set(prev)
+        next.delete(toolId)
+        return next
+      })
     }
   }
 
   const handleUpgrade = async () => {
+    const toolId = selectedCliTool
     try {
-      setIsUpgrading(true)
-      const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+      setUpgradingTools((prev) => new Set(prev).add(toolId))
+      const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
       if (cliPreset) {
         await ipcApi.request('binary.install_tool', {
-          name: CLI_BINARY_NAMES[selectedCliTool],
+          name: CLI_BINARY_NAMES[toolId],
           tool: cliPreset.miseTool
         })
         window.toast.success(t('code.upgrade_success'))
@@ -167,7 +170,11 @@ const CodeCliPage: FC = () => {
       logger.error('Failed to upgrade:', error as Error)
       window.toast.error(t('code.upgrade_error'))
     } finally {
-      setIsUpgrading(false)
+      setUpgradingTools((prev) => {
+        const next = new Set(prev)
+        next.delete(toolId)
+        return next
+      })
     }
   }
 
@@ -289,6 +296,8 @@ const CodeCliPage: FC = () => {
           onSelectTool={handleSelectTool}
           toMeta={toMeta}
           statuses={statuses}
+          installingTools={installingTools}
+          upgradingTools={upgradingTools}
         />
 
         {/* Right content */}
@@ -317,8 +326,8 @@ const CodeCliPage: FC = () => {
                     onInstall={handleInstall}
                     onUpgrade={handleUpgrade}
                     onRemove={handleRemove}
-                    isInstalling={isInstalling}
-                    isUpgrading={isUpgrading}
+                    isInstalling={installingTools.has(selectedCliTool)}
+                    isUpgrading={upgradingTools.has(selectedCliTool)}
                   />
                 )}
 

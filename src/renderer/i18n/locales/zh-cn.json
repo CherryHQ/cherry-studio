@@ -1943,7 +1943,7 @@
         "effort_level": "推理努力程度",
         "enable_tool_search": "启用工具搜索",
         "haiku_model": "Haiku 模型",
-        "include_co_authored_by": "包含共同作者",
+        "hide_attribution": "隐藏AI署名",
         "max_output_tokens": "最大输出 Token",
         "model_roles": "模型角色映射",
         "model_roles_hint": "覆盖后台子任务（如压缩、标题）使用的模型，留空则跟随主模型",

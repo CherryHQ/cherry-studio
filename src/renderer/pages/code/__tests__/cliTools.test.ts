@@ -1,41 +1,7 @@
 import { codeCLI } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CLI_TOOLS, generateProviderConfig, type ToolEnvironmentConfig } from '../index'
-
-// Mock CodeCliPage which is default export
-vi.mock('../CodeCliPage', () => ({ default: () => null }))
-
-// Mock dependencies needed by CodeCliPage
-vi.mock('@renderer/hooks/useCodeCli', () => ({
-  useCodeCli: () => ({
-    selectedCliTool: codeCLI.claudeCode,
-    selectedModel: null,
-    selectedTerminal: 'systemDefault',
-    environmentVariables: '',
-    directories: [],
-    currentDirectory: '',
-    canLaunch: true,
-    selectTool: vi.fn(),
-    setModel: vi.fn(),
-    setTerminal: vi.fn(),
-    setEnvVars: vi.fn(),
-    setCurrentDir: vi.fn(),
-    removeDir: vi.fn(),
-    selectFolder: vi.fn()
-  })
-}))
-
-vi.mock('@renderer/services/LoggerService', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn()
-    })
-  }
-}))
+import { CLI_TOOLS, generateProviderConfig, type ToolEnvironmentConfig } from '../cliTools'
 
 vi.mock('@renderer/utils/api', () => ({
   formatApiHost: vi.fn((host) => {
@@ -50,14 +16,6 @@ vi.mock('@renderer/utils/api', () => ({
     return `${normalized}/v1`
   })
 }))
-
-vi.mock('react-i18next', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    useTranslation: () => ({ t: (key: string) => key })
-  }
-})
 
 describe('generateProviderConfig', () => {
   const baseConfig = (

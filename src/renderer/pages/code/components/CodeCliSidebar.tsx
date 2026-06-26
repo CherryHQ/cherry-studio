@@ -1,12 +1,12 @@
 import { Badge, Scrollbar, SearchInput } from '@cherrystudio/ui'
 import type { codeCLI } from '@shared/types/codeCli'
+import { Loader2 } from 'lucide-react'
 import { type FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CLI_TOOLS } from '..'
+import type { CLI_TOOLS } from '../cliTools'
+import type { CodeToolMeta, VersionStatus } from '../types'
 import { CLIIcon } from './CLIIcon'
-import type { CodeToolMeta } from './types'
-import type { VersionStatus } from './VersionStatusCard'
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
@@ -16,10 +16,20 @@ export interface CodeCliSidebarProps {
   onSelectTool: (tool: codeCLI) => void
   toMeta: (tool: CliToolOption) => CodeToolMeta
   statuses: Record<string, VersionStatus>
+  installingTools: Set<string>
+  upgradingTools: Set<string>
 }
 
-const SidebarStatusTag: FC<{ status?: VersionStatus }> = ({ status }) => {
+const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ status, isBusy }) => {
   const { t } = useTranslation()
+  if (isBusy) {
+    return (
+      <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] leading-4">
+        <Loader2 className="size-2.5 motion-safe:animate-spin" />
+        {t('code.installing')}
+      </Badge>
+    )
+  }
   if (!status) return null
   if (!status.installed) {
     return (
@@ -44,7 +54,15 @@ const SidebarStatusTag: FC<{ status?: VersionStatus }> = ({ status }) => {
   )
 }
 
-export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool, onSelectTool, toMeta, statuses }) => {
+export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
+  tools,
+  selectedCliTool,
+  onSelectTool,
+  toMeta,
+  statuses,
+  installingTools,
+  upgradingTools
+}) => {
   const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -94,7 +112,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool
                     <CLIIcon id={tool.value} size={28} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] text-foreground">{meta.label}</div>
-                      <SidebarStatusTag status={statuses[tool.value]} />
+                      <SidebarStatusTag
+                        status={statuses[tool.value]}
+                        isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}
+                      />
                     </div>
                   </button>
                 )
