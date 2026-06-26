@@ -1,10 +1,20 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreIfExistsMock, deleteMaterialsMock, reclaimSpaceMock } = vi.hoisted(() => ({
+const {
+  getIndexStoreIfExistsMock,
+  deleteMaterialsMock,
+  reclaimSpaceMock,
+  loggerWarnMock,
+  loggerErrorMock,
+  loggerInfoMock
+} = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
   deleteMaterialsMock: vi.fn(),
-  reclaimSpaceMock: vi.fn()
+  reclaimSpaceMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
+  loggerInfoMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -15,6 +25,12 @@ vi.mock('@application', async () => {
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ info: loggerInfoMock, warn: loggerWarnMock, error: loggerErrorMock, debug: vi.fn() })
+  }
+}))
 
 const { deleteKnowledgeItemVectors, reclaimKnowledgeIndexSpace } = await import('../vectorCleanup')
 
@@ -108,6 +124,26 @@ describe('reclaimKnowledgeIndexSpace', () => {
     reclaimSpaceMock.mockRejectedValueOnce(new Error('database is locked'))
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
+    // A transient failure stays a warn — not the corruption-class error path.
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1)
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('logs a corruption-class reclaim failure at error (still swallowed) so a damaged index is triaged', async () => {
+    // reclaim's whole-file checkpoint/optimize/VACUUM is often the first op to touch the full file
+    // post-delete, so SQLITE_CORRUPT/SQLITE_NOTADB surfaces here — it must be loud, not buried in the
+    // benign "failed to reclaim" warn, yet still swallowed (the delete already succeeded).
+    reclaimSpaceMock.mockRejectedValueOnce(
+      Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' })
+    )
+
+    await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Knowledge index appears corrupt during post-delete reclaim',
+      expect.any(Error),
+      { baseId: 'kb-1' }
+    )
+    expect(loggerWarnMock).not.toHaveBeenCalled()
   })
 
   it('never throws when the index store fails to open — the delete already succeeded', async () => {

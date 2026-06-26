@@ -142,7 +142,7 @@ export class KnowledgeIndexStore {
       //         body, so an offset/hash mismatch would leave a unit silently absent
       //         from vector search; and
       //     (b) the listExistingEmbeddingHashes race — the caller reads existing hashes
-      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterial) can
+      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterials) can
       //         drop a hash it reported present before this rebuild writes, and the job
       //         then skips re-embedding it. Failing loud rolls back; the job's retry
       //         re-reads (the hash is now absent), re-embeds it, and converges.
@@ -163,19 +163,12 @@ export class KnowledgeIndexStore {
   }
 
   /**
-   * Delete a material and everything derived from it. Removing the material row
-   * cascades to its `search_unit`; the units' body `search_text` is deleted
-   * explicitly first (no FK), which also clears the FTS index via the delete
-   * trigger. {@link collectIndexGarbage} then sweeps the `embedding` and `content`
-   * rows this delete orphaned, in the same transaction.
-   */
-  async deleteMaterial(materialId: string): Promise<void> {
-    await this.deleteMaterials([materialId])
-  }
-
-  /**
    * Delete many materials in ONE transaction, sweeping orphaned `embedding` /
    * `content` rows with a SINGLE {@link collectIndexGarbage} pass at the end.
+   *
+   * Removing each material row cascades to its `search_unit`; the units' body
+   * `search_text` is deleted explicitly first (no FK), which also clears the FTS
+   * index via the delete trigger.
    *
    * collectIndexGarbage runs two FULL-TABLE anti-join scans, so calling it once
    * per material (the old per-material delete loop) made a bulk delete
@@ -204,13 +197,16 @@ export class KnowledgeIndexStore {
       return
     }
     await this.driver.transaction(async (tx) => {
-      let lastYieldAt = Date.now()
+      // performance.now() is monotonic — a wall-clock step (NTP/manual) mid-batch
+      // must not make the delta negative and silently disable the yields for the
+      // rest of a large delete, reintroducing the freeze this loop prevents.
+      let lastYieldAt = performance.now()
       for (const materialId of uniqueMaterialIds) {
         await this.deleteMaterialSearchText(tx, materialId)
         await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
-        if (Date.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
+        if (performance.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
           await new Promise<void>((resolve) => setImmediate(resolve))
-          lastYieldAt = Date.now()
+          lastYieldAt = performance.now()
         }
       }
       await this.collectIndexGarbage(tx)
@@ -330,9 +326,18 @@ export class KnowledgeIndexStore {
   /**
    * Return space a large delete freed back to the OS (see {@link SqliteDriver.reclaim}).
    * Best-effort; only VACUUMs when the freelist crossed the driver's size threshold.
+   *
+   * Passes the external-content FTS 'optimize' as a pre-VACUUM step. A delete only
+   * TOMBSTONES its trigram entries (via the search_text delete trigger); the segment
+   * blobs linger as live rows in the `search_text_fts_data` shadow table, which VACUUM
+   * cannot reclaim on its own (they are not free pages). 'optimize' merges and drops
+   * them so the VACUUM hands their pages back to the OS. The driver gates it behind the
+   * freelist threshold (runs only when a VACUUM will), so a small delete never pays the
+   * whole-index segment merge — and the FTS table name lives here, with the schema, not
+   * in the engine-neutral driver.
    */
   async reclaimSpace(): Promise<SqliteReclaimOutcome> {
-    return this.driver.reclaim()
+    return this.driver.reclaim([`INSERT INTO search_text_fts(search_text_fts) VALUES('optimize')`])
   }
 
   async close(): Promise<void> {

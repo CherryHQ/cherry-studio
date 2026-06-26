@@ -269,7 +269,7 @@ describe('KnowledgeIndexStore', () => {
     await store.rebuildMaterial('m1', buildInput('the knowledge base', [[0, 18]]))
     expect(await ftsMatchCount('knowledge')).toBe(1)
 
-    await store.deleteMaterial('m1')
+    await store.deleteMaterials(['m1'])
 
     expect(await store.listMaterialUnits('m1')).toEqual([])
     expect(await count('material')).toBe(0)
@@ -296,7 +296,7 @@ describe('KnowledgeIndexStore', () => {
     await store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
     expect(await count('embedding')).toBe(1)
 
-    await store.deleteMaterial('m1')
+    await store.deleteMaterials(['m1'])
 
     // GC must keep the shared embedding (m2 still references it via its search_text)
     // and m2 must stay reachable by vector search. A GC that dropped a still-referenced
@@ -353,23 +353,23 @@ describe('KnowledgeIndexStore', () => {
   it('yields the main-process event loop between materials during a batch delete', async () => {
     // Each search_text delete fires the trigram FTS delete trigger synchronously, so a
     // large folder delete would block the main process (the macOS beachball) without
-    // periodic yields. Prove the loop hands control back: drive Date.now() past the time
-    // budget on every read (deterministic — no real-clock dependency) and confirm the loop
-    // schedules a macrotask (setImmediate) per material while still deleting correctly.
+    // periodic yields. Prove the loop hands control back: drive the MONOTONIC performance.now()
+    // past the time budget on every read (deterministic — no real-clock dependency) and confirm
+    // the loop schedules a macrotask (setImmediate) per material while still deleting correctly.
     await store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
     await store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
     await store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
 
     // setImmediate is spied (call-through), not stubbed, so the yields still resolve.
     let clock = 0
-    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 100))
+    const perfNow = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 100))
     const immediate = vi.spyOn(global, 'setImmediate')
     let yields = 0
     try {
       await store.deleteMaterials(['m1', 'm2', 'm3'])
       yields = immediate.mock.calls.length
     } finally {
-      dateNow.mockRestore()
+      perfNow.mockRestore()
       immediate.mockRestore()
     }
 
@@ -377,6 +377,30 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('material')).toBe(0)
     expect(await count('search_text')).toBe(0)
     expect(await count('embedding')).toBe(0)
+  })
+
+  it('does not yield when a small batch stays within the time budget', async () => {
+    // The yield is gated on ELAPSED TIME, not row count: a fast batch that never crosses
+    // DELETE_YIELD_BUDGET_MS must schedule zero macrotasks. Freezing the monotonic clock keeps
+    // every delta at 0 — so this fails if the gate is ever replaced by an unconditional
+    // yield-per-row (the exact regression the test above cannot, on its own, rule out).
+    await store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
+    await store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
+    await store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
+
+    const perfNow = vi.spyOn(performance, 'now').mockReturnValue(1000)
+    const immediate = vi.spyOn(global, 'setImmediate')
+    let yields = 0
+    try {
+      await store.deleteMaterials(['m1', 'm2', 'm3'])
+      yields = immediate.mock.calls.length
+    } finally {
+      perfNow.mockRestore()
+      immediate.mockRestore()
+    }
+
+    expect(yields).toBe(0)
+    expect(await count('material')).toBe(0)
   })
 
   it('reclaimSpace VACUUMs a large delete and keeps the survivor FTS-searchable (issue #16132 guard)', async () => {
@@ -491,6 +515,36 @@ describe('KnowledgeIndexStore', () => {
     // this suite asserts it resolves, so without this case those assertions could pass vacuously.
     await driver.execute(`UPDATE search_text SET fts_rowid = NULL`)
     await expect(ftsIntegrityCheck()).rejects.toThrow()
+  })
+
+  it('reuses a freed fts_rowid without leaving a stale FTS entry', async () => {
+    // The AFTER INSERT trigger assigns MAX(fts_rowid)+1, so deleting the row that holds the
+    // current MAX and then inserting REUSES that just-freed rowid — the highest-risk path for a
+    // stale external-content entry: the new row lands on the exact key the deleted row had, so a
+    // delete trigger that failed to tombstone it would surface the old content under the new row.
+    await store.rebuildMaterial('m1', buildInput('alpha apple body', [[0, 16]], 'a.md'))
+    await store.rebuildMaterial('m2', buildInput('bravo banana body', [[0, 17]], 'b.md'))
+    await store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
+
+    // m3 holds the current MAX fts_rowid. Delete it to free that rowid.
+    const maxBefore = Number((await driver.execute(`SELECT MAX(fts_rowid) AS m FROM search_text`)).rows[0].m)
+    await store.deleteMaterials(['m3'])
+    expect(await ftsMatchCount('cherry')).toBe(0)
+
+    // The next insert's MAX(fts_rowid)+1 reuses the value m3 just vacated.
+    await store.rebuildMaterial('m4', buildInput('delta dragon body', [[0, 17]], 'd.md'))
+    const reused = Number(
+      (await driver.execute(`SELECT fts_rowid FROM search_text WHERE text LIKE 'delta%'`)).rows[0].fts_rowid
+    )
+    expect(reused).toBe(maxBefore) // landed on the exact physical rowid m3 had held
+
+    // The reused rowid resolves to m4 (not stale m3 content), the deleted term stays gone, and the
+    // external-content index is consistent under the reliable detector.
+    expect((await store.search({ queryText: 'dragon', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
+      'm4'
+    ])
+    expect(await ftsMatchCount('cherry')).toBe(0)
+    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
   })
 
   it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {

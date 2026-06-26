@@ -11,10 +11,14 @@ import type { SqliteExecutor } from './types'
  *
  * Demand-first surface: tables and enum values ship together with their first
  * writer. Planned v2.x surface (material provenance relations, editable index
- * entries, watcher-driven origins/states) is NOT pre-created — since this DDL
- * replays under `IF NOT EXISTS` on every open and the index is a rebuildable
- * derived artifact, adding a table or widening a CHECK later is a zero-cost
- * additive change, while pre-created vocabulary would lock in guesses.
+ * entries, watcher-driven origins/states) is NOT pre-created, while pre-created
+ * vocabulary would lock in guesses. Adding a NEW table later is zero-cost (its
+ * `CREATE TABLE IF NOT EXISTS` simply runs on the next open). Changing an
+ * EXISTING table is NOT — `IF NOT EXISTS` is a no-op once the table exists, so a
+ * new column or a widened CHECK never reaches an already-created file. Such a
+ * change must bump {@link KNOWLEDGE_INDEX_SCHEMA_VERSION}; the store-open path
+ * then drops and recreates this rebuildable derived index (see
+ * {@link resetKnowledgeIndexSchema} and KnowledgeVectorStoreService).
  *
  * Engine portability (technical-design §5.6 / decision A1):
  * - All DDL is plain, engine-neutral SQLite — no engine-specific column types
@@ -49,8 +53,18 @@ import type { SqliteExecutor } from './types'
  * module only declares the schema.
  */
 
-/** Bump when the schema layout changes; persisted in `meta.schema_version`. */
-export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 1
+/**
+ * Bump when the physical layout of an EXISTING table changes (new column, widened
+ * CHECK, retargeted FTS content_rowid, rewritten trigger) — anything `CREATE ...
+ * IF NOT EXISTS` cannot retrofit onto an already-created file. The store-open path
+ * compares this to the stored `meta.schema_version` and, on a mismatch, drops and
+ * recreates the index (a rebuildable derived artifact) before applying the DDL.
+ * Adding a brand-new table needs no bump (its IF NOT EXISTS just runs).
+ *
+ * History: 1 → 2 — `search_text` gained the `fts_rowid` surrogate and the FTS table
+ * was re-keyed from the implicit rowid onto it (#16132-class desync fix).
+ */
+export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 2
 
 /**
  * Ordered, idempotent DDL for the per-base index database. Every statement uses
@@ -205,4 +219,40 @@ export async function createKnowledgeIndexSchema(executor: SqliteExecutor): Prom
   for (const statement of KNOWLEDGE_INDEX_SCHEMA_STATEMENTS) {
     await executor.execute(statement)
   }
+}
+
+/**
+ * DROP every object this schema creates, in child→parent order. Foreign keys are
+ * ON, so a `DROP TABLE` does an implicit row DELETE that fires FK actions:
+ * dropping a parent (e.g. `content`) while a child still references it with rows
+ * would throw, so children (`search_unit`, `material`) are dropped first. Triggers
+ * and the external-content FTS table are dropped before their base `search_text`.
+ * `IF EXISTS` keeps it a no-op on a partially-built file.
+ */
+export const KNOWLEDGE_INDEX_DROP_STATEMENTS: readonly string[] = [
+  `DROP TRIGGER IF EXISTS search_text_ai`,
+  `DROP TRIGGER IF EXISTS search_text_ad`,
+  `DROP TRIGGER IF EXISTS search_text_au`,
+  `DROP TABLE IF EXISTS search_text_fts`,
+  `DROP TABLE IF EXISTS search_text`,
+  `DROP TABLE IF EXISTS embedding`,
+  `DROP TABLE IF EXISTS search_unit`,
+  `DROP TABLE IF EXISTS material`,
+  `DROP TABLE IF EXISTS content`,
+  `DROP TABLE IF EXISTS meta`
+]
+
+/**
+ * Wipe and recreate the index schema. The per-base `index.sqlite` is a rebuildable
+ * derived artifact (its source of truth is `knowledge_item` + the raw materials), so
+ * when its stored `meta.schema_version` no longer matches {@link KNOWLEDGE_INDEX_SCHEMA_VERSION}
+ * the store-open path resets it here rather than attempting an in-place migration —
+ * the base simply re-indexes. Drops run first (autocommit per statement), then the
+ * current DDL is reapplied. Callers must restamp `meta` afterwards (the DROP removes it).
+ */
+export async function resetKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
+  for (const statement of KNOWLEDGE_INDEX_DROP_STATEMENTS) {
+    await executor.execute(statement)
+  }
+  await createKnowledgeIndexSchema(executor)
 }

@@ -31,6 +31,11 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
  * transient lock from a concurrent read) must never fail the delete job — it just
  * leaves the freed pages for a later index to reuse. Only VACUUMs when the freelist
  * crossed the driver's threshold (a large delete); otherwise it just truncates the WAL.
+ *
+ * A corruption-class failure is the exception that gets logged loudly (still swallowed):
+ * reclaim's whole-file checkpoint/optimize/VACUUM is often the first op to touch the full
+ * file after a delete, so it is where a structurally damaged index surfaces — and folding
+ * that into the generic "failed to reclaim" warn would bury it behind benign transient locks.
  */
 export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<void> {
   try {
@@ -46,6 +51,11 @@ export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<v
       logger.info('Reclaimed knowledge index space after delete', { baseId: base.id, reclaimedBytes })
     }
   } catch (error) {
-    logger.warn('Failed to reclaim knowledge index space after delete', error as Error, { baseId: base.id })
+    const code = (error as { code?: string }).code
+    if (code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB') {
+      logger.error('Knowledge index appears corrupt during post-delete reclaim', error as Error, { baseId: base.id })
+    } else {
+      logger.warn('Failed to reclaim knowledge index space after delete', error as Error, { baseId: base.id })
+    }
   }
 }

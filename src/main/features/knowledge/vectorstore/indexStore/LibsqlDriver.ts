@@ -124,7 +124,7 @@ export class LibsqlDriver implements SqliteDriver {
     }
   }
 
-  async reclaim(): Promise<SqliteReclaimOutcome> {
+  async reclaim(preVacuumStatements: readonly string[] = []): Promise<SqliteReclaimOutcome> {
     this.assertOpen()
     // Hold the write mutex so VACUUM never overlaps one of this driver's write
     // transactions on the same connection (reads run outside it and ride the WAL /
@@ -144,21 +144,21 @@ export class LibsqlDriver implements SqliteDriver {
         return { vacuumed: false, reclaimedBytes: 0 }
       }
 
-      // Compact the external-content FTS before the VACUUM. A delete only TOMBSTONES its
-      // trigram entries (via the search_text delete trigger); the segment blobs linger as
-      // live rows in the search_text_fts_data shadow table, which VACUUM cannot reclaim
-      // (they are not free pages). 'optimize' merges and drops them, returning their pages
-      // to the freelist so the VACUUM below hands them back to the OS — without it a
-      // whole-folder delete leaves the FTS index nearly as large as before.
-      await this.client.execute(`INSERT INTO search_text_fts(search_text_fts) VALUES('optimize')`)
+      // Run caller-owned maintenance now that we've committed to the whole-file rewrite —
+      // gated behind the same threshold so a sub-threshold delete never pays for it. The
+      // driver stays schema-agnostic: the knowledge store passes its external-content FTS
+      // 'optimize' (which compacts the dead trigram-segment rows VACUUM cannot reach on its
+      // own), but that table name and op live with the schema, not in this generic driver.
+      for (const statement of preVacuumStatements) {
+        await this.client.execute(statement)
+      }
       await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
 
-      // VACUUM rewrites the whole file and renumbers every table's implicit rowid — but
-      // search_text_fts keys on search_text.fts_rowid (a real integer column copied verbatim
-      // through the rewrite), NOT the implicit rowid, so the external-content index stays
-      // aligned by construction (see schema.ts; this is exactly the #16132 desync class that
-      // keying on the implicit rowid would reintroduce). VACUUM rewrites into the WAL, so
-      // checkpoint+truncate again to release it.
+      // VACUUM rewrites the whole file and renumbers every table's implicit rowid, so any
+      // external-content FTS in the schema must key on a stable surrogate column rather than
+      // the implicit rowid (the knowledge schema's fts_rowid does — see schema.ts; keying on
+      // the implicit rowid would reintroduce the #16132 desync). VACUUM rewrites into the WAL,
+      // so checkpoint+truncate again to release it.
       await this.client.execute('VACUUM')
       await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
       const pageCountAfter = await this.readPragmaInt('page_count')

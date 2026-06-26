@@ -41,12 +41,15 @@ export interface SqliteDriver extends SqliteExecutor {
   /**
    * Return free space left by deletes to the OS: always checkpoint+truncate the
    * WAL, and VACUUM the main file when its freelist has grown large (both a big
-   * fraction of the file AND past an absolute floor). Standard SQL, so
-   * engine-neutral. Serialized against this driver's writes; the VACUUM blocks the
-   * calling thread for the whole-file rewrite, which is why the freelist threshold
-   * gates it to large deletes rather than running on every delete.
+   * fraction of the file AND past an absolute floor). Engine-level
+   * checkpoint/threshold/VACUUM only — schema-specific maintenance stays out of the
+   * driver: `preVacuumStatements` are caller-owned SQL (e.g. the knowledge FTS
+   * 'optimize') run once, gated behind the same threshold and right before the
+   * VACUUM, so a sub-threshold delete runs none of them. Serialized against this
+   * driver's writes; the VACUUM blocks the calling thread for the whole-file
+   * rewrite, which is why the threshold gates it to large deletes.
    */
-  reclaim(): Promise<SqliteReclaimOutcome>
+  reclaim(preVacuumStatements?: readonly string[]): Promise<SqliteReclaimOutcome>
   /**
    * Whether {@link close} has been called. Lets a caller tell an operation that
    * failed because the store was closed mid-flight (concurrent base deletion or
