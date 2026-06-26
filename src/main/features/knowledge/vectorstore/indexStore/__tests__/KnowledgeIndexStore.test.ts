@@ -373,6 +373,67 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('embedding')).toBe(0)
   })
 
+  it('reclaimSpace VACUUMs a large delete and keeps the survivor FTS-searchable (issue #16132 guard)', async () => {
+    // A ~13 MB content row whose delete frees enough pages to cross the VACUUM threshold,
+    // plus a small survivor m2. VACUUM rewrites the whole file; if it reshuffled the
+    // implicit rowids the external-content search_text_fts keys on, m2 — whose search_text
+    // is untouched — would silently drop out of keyword search. It must stay reachable.
+    const hugeText = 'knowledge body filler '.repeat(600_000)
+    await store.rebuildMaterial('m1', buildInput(hugeText, [[0, 20]], 'big.md'))
+    await store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
+
+    await store.deleteMaterials(['m1'])
+    const outcome = await store.reclaimSpace()
+
+    expect(outcome.vacuumed).toBe(true)
+    expect(outcome.reclaimedBytes).toBeGreaterThan(0)
+    // The survivor stays both keyword- and vector-reachable after the rewrite.
+    expect(await ftsMatchCount('knowledge')).toBe(1)
+    expect((await store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
+      'm2'
+    ])
+    expect(
+      (await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })).map(
+        (h) => h.materialId
+      )
+    ).toEqual(['m2'])
+  })
+
+  it('reclaimSpace skips the VACUUM (truncates the WAL only) when the freelist is below the threshold', async () => {
+    // A tiny delete frees far less than the absolute floor, so the whole-file-rewrite block
+    // is not worth it — reclaim just checkpoints and reports nothing reclaimed.
+    await store.rebuildMaterial('m1', buildInput('small knowledge body', [[0, 20]], 'a.md'))
+    await store.deleteMaterials(['m1'])
+
+    const outcome = await store.reclaimSpace()
+
+    expect(outcome).toEqual({ vacuumed: false, reclaimedBytes: 0 })
+  })
+
+  it('reclaimSpace compacts the FTS shadow table, not just the freelist', async () => {
+    // A material with a large searchable BODY: deleting it only TOMBSTONES its trigram
+    // entries via the FTS delete trigger — the segment blobs linger as live rows in the
+    // search_text_fts_data shadow table, which VACUUM alone cannot reclaim. Without the FTS
+    // 'optimize' in reclaim, a whole-folder delete leaves the index nearly as large as
+    // before. content stays 13 MB so the freelist clears the VACUUM threshold; the 2 MB
+    // body makes the shadow segments measurable.
+    const hugeText = 'knowledge body filler '.repeat(600_000)
+    await store.rebuildMaterial('m1', buildInput(hugeText, [[0, 2_000_000]], 'big.md'))
+    await store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
+    const ftsSegmentsBefore = await count('search_text_fts_data')
+
+    await store.deleteMaterials(['m1'])
+    const outcome = await store.reclaimSpace()
+
+    expect(outcome.vacuumed).toBe(true)
+    // optimize merged and dropped m1's dead segments instead of leaving them behind.
+    expect(await count('search_text_fts_data')).toBeLessThan(ftsSegmentsBefore)
+    // The survivor is still keyword-searchable after the optimize + VACUUM.
+    expect((await store.search({ queryText: 'shared', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
+      'm2'
+    ])
+  })
+
   it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {
     // m1 and m2 index the identical body → one shared embedding row, referenced by both.
     await store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))

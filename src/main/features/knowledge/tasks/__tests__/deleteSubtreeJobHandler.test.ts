@@ -16,7 +16,8 @@ import {
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeLockManager,
-  listMock
+  listMock,
+  reclaimSpaceMock
 } from './jobHandlerTestUtils'
 
 describe('delete-subtree job handler', () => {
@@ -65,6 +66,8 @@ describe('delete-subtree job handler', () => {
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
+    // The freed index pages are reclaimed once, after the purge.
+    expect(reclaimSpaceMock).toHaveBeenCalledTimes(1)
   })
 
   it('routes file cleanup through best-effort delete before hard-deleting rows', async () => {

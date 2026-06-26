@@ -6,7 +6,7 @@ import type {
   KnowledgeSearchUnit,
   RebuildMaterialInput
 } from './model'
-import type { SqliteDriver, SqliteTransaction, SqlValue, VectorIndex } from './types'
+import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlValue, VectorIndex } from './types'
 import { encodeVectorBlob } from './vectorBlob'
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
@@ -325,6 +325,14 @@ export class KnowledgeIndexStore {
       this.bm25Search(input.queryText, prefetch)
     ])
     return fuseWithRrf(vector, bm25, alpha, input.topK)
+  }
+
+  /**
+   * Return space a large delete freed back to the OS (see {@link SqliteDriver.reclaim}).
+   * Best-effort; only VACUUMs when the freelist crossed the driver's size threshold.
+   */
+  async reclaimSpace(): Promise<SqliteReclaimOutcome> {
+    return this.driver.reclaim()
   }
 
   async close(): Promise<void> {

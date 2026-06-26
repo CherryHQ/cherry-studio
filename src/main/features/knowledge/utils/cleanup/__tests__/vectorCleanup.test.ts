@@ -1,9 +1,10 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreIfExistsMock, deleteMaterialsMock } = vi.hoisted(() => ({
+const { getIndexStoreIfExistsMock, deleteMaterialsMock, reclaimSpaceMock } = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
-  deleteMaterialsMock: vi.fn()
+  deleteMaterialsMock: vi.fn(),
+  reclaimSpaceMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -15,7 +16,7 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-const { deleteKnowledgeItemVectors } = await import('../vectorCleanup')
+const { deleteKnowledgeItemVectors, reclaimKnowledgeIndexSpace } = await import('../vectorCleanup')
 
 function createBase(): KnowledgeBase {
   return {
@@ -43,8 +44,12 @@ function createBase(): KnowledgeBase {
 describe('deleteKnowledgeItemVectors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getIndexStoreIfExistsMock.mockResolvedValue({ deleteMaterials: deleteMaterialsMock })
+    getIndexStoreIfExistsMock.mockResolvedValue({
+      deleteMaterials: deleteMaterialsMock,
+      reclaimSpace: reclaimSpaceMock
+    })
     deleteMaterialsMock.mockResolvedValue(undefined)
+    reclaimSpaceMock.mockResolvedValue({ vacuumed: false, reclaimedBytes: 0 })
   })
 
   it('skips cleanup when no vector store exists', async () => {
@@ -70,5 +75,38 @@ describe('deleteKnowledgeItemVectors', () => {
     deleteMaterialsMock.mockRejectedValueOnce(new Error('batch delete failed'))
 
     await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2'])).rejects.toThrow('batch delete failed')
+  })
+})
+
+describe('reclaimKnowledgeIndexSpace', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getIndexStoreIfExistsMock.mockResolvedValue({
+      deleteMaterials: deleteMaterialsMock,
+      reclaimSpace: reclaimSpaceMock
+    })
+    reclaimSpaceMock.mockResolvedValue({ vacuumed: true, reclaimedBytes: 1024 })
+  })
+
+  it('skips reclaim when no vector store exists', async () => {
+    getIndexStoreIfExistsMock.mockResolvedValueOnce(undefined)
+
+    await reclaimKnowledgeIndexSpace(createBase())
+
+    expect(reclaimSpaceMock).not.toHaveBeenCalled()
+  })
+
+  it('reclaims the index space when a store exists', async () => {
+    await reclaimKnowledgeIndexSpace(createBase())
+
+    expect(reclaimSpaceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('never throws when reclaim fails — the delete already succeeded', async () => {
+    // Best-effort: a transient reclaim failure must not fail the delete job whose rows
+    // and vectors are already gone; the freed pages just wait for a later index to reuse.
+    reclaimSpaceMock.mockRejectedValueOnce(new Error('database is locked'))
+
+    await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
   })
 })
