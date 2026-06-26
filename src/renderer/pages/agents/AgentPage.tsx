@@ -368,8 +368,9 @@ const AgentPage = () => {
 
   const handleAgentConversationSelect = useCallback(
     async (agentId: string) => {
-      // The picker stays open with its submitting spinner while we create the session, then closes on
-      // success — the spinner masks the session/state churn so the list underneath can't flash.
+      // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
+      // still visible (which reads as a black/white flash + the dialog reopening).
+      setAgentPickerOpen(false)
       try {
         const defaults = { agentId }
         const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
@@ -393,7 +394,6 @@ const AgentPage = () => {
           isUserWorkspaceSession(session) ? session.workspaceId : undefined
         )
         setActiveSessionId(session.id)
-        setAgentPickerOpen(false)
         void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
           logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
         })

@@ -3,7 +3,7 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
 import { Bot } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type AssistantConversationSelection =
@@ -34,7 +34,6 @@ export function AssistantConversationPickerDialog({
   onSelect
 }: AssistantConversationPickerDialogProps) {
   const { t } = useTranslation()
-  const [selectingId, setSelectingId] = useState<string | null>(null)
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
 
   const items = useMemo<AssistantConversationPickerItem[]>(
@@ -50,7 +49,7 @@ export function AssistantConversationPickerDialog({
           </span>
         ),
         searchText: assistant.description,
-        trailingLabel: t('button.added'),
+        trailingLabel: t('library.title'),
         selection: { type: 'assistant' as const, assistantId: assistant.id }
       })),
       ...presets.map((preset) => ({
@@ -64,19 +63,9 @@ export function AssistantConversationPickerDialog({
     [assistants, presets, t]
   )
 
-  const handleSelect = useCallback(
-    async (item: AssistantConversationPickerItem) => {
-      if (selectingId) return
-
-      setSelectingId(item.id)
-      try {
-        await onSelect(item.selection)
-      } finally {
-        setSelectingId(null)
-      }
-    },
-    [onSelect, selectingId]
-  )
+  // The picker closes itself before the caller runs its async work (avoids a refetch flash while the
+  // dialog is still mounted), so this just forwards the row's selection.
+  const handleSelect = useCallback((item: AssistantConversationPickerItem) => onSelect(item.selection), [onSelect])
 
   return (
     <ConversationPickerDialog
@@ -92,7 +81,6 @@ export function AssistantConversationPickerDialog({
       }}
       previewLimit={assistants.length + ASSISTANT_CONVERSATION_PICKER_CATALOG_PREVIEW_LIMIT}
       isLoading={assistantsLoading || catalogLoading}
-      isSubmitting={!!selectingId}
       showCloseButton={false}
       onSelect={handleSelect}
     />

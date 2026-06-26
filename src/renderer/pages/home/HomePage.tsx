@@ -424,8 +424,9 @@ const HomePage: FC = () => {
 
   const handleAssistantConversationSelect = useCallback(
     async (selection: AssistantConversationSelection) => {
-      // The picker stays open with its submitting spinner while we create the topic, then closes on
-      // success — the spinner masks the topic/assistant churn so the list underneath can't flash.
+      // Close the picker first so the topic/assistant data churn below doesn't refresh the dialog
+      // while it's still visible (which reads as a black/white flash + the dialog reopening).
+      setAssistantPickerOpen(false)
       try {
         const assistantId = await resolveAssistantIdForSelection(selection)
         const topic = await createTopic({ assistantId })
@@ -433,7 +434,6 @@ const HomePage: FC = () => {
 
         setDraftAssistantSelectionState(undefined)
         setActiveTopic(rendererTopic)
-        setAssistantPickerOpen(false)
         void refreshTopics().catch((err) => {
           logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
         })

@@ -1,4 +1,5 @@
 import {
+  Badge,
   Command,
   CommandGroup,
   CommandInput,
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { Loader2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
@@ -38,7 +40,6 @@ type ConversationPickerDialogProps<T extends ConversationPickerItem> = {
   /** Cap the number of rows shown before any search; the full list stays searchable. */
   previewLimit?: number
   isLoading?: boolean
-  isSubmitting?: boolean
   showCloseButton?: boolean
 }
 
@@ -57,7 +58,6 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
   onSelect,
   previewLimit,
   isLoading = false,
-  isSubmitting = false,
   showCloseButton = true
 }: ConversationPickerDialogProps<T>) {
   const [query, setQuery] = useState('')
@@ -72,16 +72,11 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
     return matched.slice(0, previewLimit)
   }, [items, previewLimit, query])
 
-  // While submitting we keep the dialog open but show a stable spinner so the caller's data churn
-  // (creating a session/topic, refreshing lists) can't flash the list underneath.
-  const isBusy = isLoading || isSubmitting
-
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex h-[min(520px,calc(100vh-4rem))] w-[min(520px,calc(100vw-2rem))] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[520px]"
-        closeOnOverlayClick={!isSubmitting}
-        showCloseButton={showCloseButton && !isSubmitting}>
+        showCloseButton={showCloseButton}>
         <DialogHeader className="sr-only">
           <DialogTitle>{labels.title}</DialogTitle>
           <DialogDescription>{labels.description ?? labels.searchPlaceholder}</DialogDescription>
@@ -94,45 +89,48 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
             value={query}
             onValueChange={setQuery}
             placeholder={labels.searchPlaceholder}
-            disabled={isSubmitting}
             className="placeholder:text-foreground-muted"
           />
-          <CommandList className="max-h-none min-h-0 flex-1 px-2.5 py-3">
-            {isBusy ? (
-              <div
-                role="status"
-                className="flex min-h-48 items-center justify-center gap-2 text-foreground-muted text-sm">
-                <Loader2 className="size-4 animate-spin" />
-                <span>{labels.loadingText}</span>
-              </div>
-            ) : visibleItems.length > 0 ? (
-              <CommandGroup className="px-0 py-0">
-                {visibleItems.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={item.id}
-                    className="group h-[42px] gap-2.5 rounded-md px-3"
-                    onSelect={() => void onSelect(item)}>
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
-                      {item.icon}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
-                      {item.name}
-                    </span>
-                    {item.trailingLabel ? (
-                      <span className="ml-auto shrink-0 text-foreground-muted text-xs leading-5">
-                        {item.trailingLabel}
+          <Scrollbar className="min-h-0 flex-1 px-2.5 py-3">
+            {/* Scrollbar is the scroll viewport; the cmdk list itself must not scroll so keyboard
+                navigation's scroll-into-view bubbles up to the styled Scrollbar instead. */}
+            <CommandList className="max-h-none overflow-x-visible overflow-y-visible">
+              {isLoading ? (
+                <div
+                  role="status"
+                  className="flex min-h-48 items-center justify-center gap-2 text-foreground-muted text-sm">
+                  <Loader2 className="size-4 animate-spin" />
+                  <span>{labels.loadingText}</span>
+                </div>
+              ) : visibleItems.length > 0 ? (
+                <CommandGroup className="px-0 py-0">
+                  {visibleItems.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={item.id}
+                      className="group h-[42px] gap-2.5 rounded-md px-3"
+                      onSelect={() => void onSelect(item)}>
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
+                        {item.icon}
                       </span>
-                    ) : null}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ) : (
-              <div className="flex min-h-48 items-center justify-center text-foreground-muted text-sm">
-                {labels.emptyText}
-              </div>
-            )}
-          </CommandList>
+                      <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
+                        {item.name}
+                      </span>
+                      {item.trailingLabel ? (
+                        <Badge variant="secondary" className="ml-auto shrink-0 font-normal text-foreground-muted">
+                          {item.trailingLabel}
+                        </Badge>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : (
+                <div className="flex min-h-48 items-center justify-center text-foreground-muted text-sm">
+                  {labels.emptyText}
+                </div>
+              )}
+            </CommandList>
+          </Scrollbar>
         </Command>
       </DialogContent>
     </Dialog>

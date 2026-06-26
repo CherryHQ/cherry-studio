@@ -79,6 +79,9 @@ describe('ConversationPickerDialog', () => {
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.getByText('Added')).toBeInTheDocument()
 
+    // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
+    expect(screen.getByText('Alpha Assistant').closest('[data-scrolling]')).toBeInTheDocument()
+
     const leadingSlot = screen.getByTestId('alpha-icon').parentElement
     expect(leadingSlot).toHaveClass('size-6', 'rounded-lg', 'text-foreground/70')
     expect(leadingSlot).not.toHaveClass('rounded-full', 'bg-secondary')
@@ -157,24 +160,5 @@ describe('ConversationPickerDialog', () => {
     rerender(<ConversationPickerDialog open onOpenChange={vi.fn()} items={[]} labels={LABELS} onSelect={vi.fn()} />)
 
     expect(screen.getByText('No resources')).toBeInTheDocument()
-  })
-
-  it('masks the list and blocks close while submitting', () => {
-    const onOpenChange = vi.fn()
-
-    render(
-      <ConversationPickerDialog
-        open
-        onOpenChange={onOpenChange}
-        items={ITEMS}
-        labels={LABELS}
-        isSubmitting
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   })
 })

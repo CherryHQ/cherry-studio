@@ -2,7 +2,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resource'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type AgentConversationPickerItem = ConversationPickerItem & {
@@ -25,7 +25,6 @@ export function AgentConversationPickerDialog({
   onSelect
 }: AgentConversationPickerDialogProps) {
   const { t } = useTranslation()
-  const [selectingId, setSelectingId] = useState<string | null>(null)
 
   const items = useMemo<AgentConversationPickerItem[]>(
     () =>
@@ -46,19 +45,9 @@ export function AgentConversationPickerDialog({
     [agents]
   )
 
-  const handleSelect = useCallback(
-    async (item: AgentConversationPickerItem) => {
-      if (selectingId) return
-
-      setSelectingId(item.id)
-      try {
-        await onSelect(item.agentId)
-      } finally {
-        setSelectingId(null)
-      }
-    },
-    [onSelect, selectingId]
-  )
+  // The picker closes itself before the caller runs its async work (avoids a refetch flash while the
+  // dialog is still mounted), so this just maps the row to its agent id.
+  const handleSelect = useCallback((item: AgentConversationPickerItem) => onSelect(item.agentId), [onSelect])
 
   return (
     <ConversationPickerDialog
@@ -73,7 +62,6 @@ export function AgentConversationPickerDialog({
         loadingText: t('common.loading')
       }}
       isLoading={agentsLoading}
-      isSubmitting={!!selectingId}
       onSelect={handleSelect}
     />
   )
