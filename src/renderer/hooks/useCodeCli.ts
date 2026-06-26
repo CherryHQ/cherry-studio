@@ -12,7 +12,7 @@ import { useCallback, useMemo, useState } from 'react'
 const logger = loggerService.withContext('useCodeCli')
 
 const PREFERENCE_KEY = 'feature.code_cli.configs'
-const DEFAULT_TOOL = codeCLI.claudeCode as CodeCliId
+const DEFAULT_TOOL = codeCLI.claudeCode
 
 const EMPTY_TOOL_STATE: CodeCliToolState = { providers: {}, current: null }
 
@@ -63,12 +63,10 @@ export const useCodeCli = () => {
   /** Patch a single tool's state. */
   const patchToolState = useCallback(
     async (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState) => {
-      await setConfigs((prevConfigs: CodeCliConfigs) => {
-        const prev = getToolState(toolId, prevConfigs)
-        return { ...prevConfigs, [toolId]: patch(prev) }
-      })
+      const prev = getToolState(toolId, configs)
+      await setConfigs({ ...configs, [toolId]: patch(prev) })
     },
-    [setConfigs]
+    [configs, setConfigs]
   )
 
   /** Add a new named config for a tool. Returns the new config id. */

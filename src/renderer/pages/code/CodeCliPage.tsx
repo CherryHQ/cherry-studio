@@ -11,12 +11,10 @@ import {
   isSiliconAnthropicCompatibleModel
 } from '@renderer/pages/code/codeProviders'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { BinaryState } from '@shared/data/preference/preferenceTypes'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { TerminalConfig } from '@shared/types/codeCli'
-import { codeCLI } from '@shared/types/codeCli'
+import type { codeCLI, TerminalConfig } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -28,66 +26,21 @@ import { CodeCliSidebar } from './components/CodeCliSidebar'
 import { ConfigCard } from './components/ConfigCard'
 import { ConfigEditPanel } from './components/ConfigEditPanel'
 import type { CodeToolMeta } from './components/types'
+import { CLI_BINARY_NAMES, useCliVersionStatuses } from './components/useCliVersionStatus'
 import { type VersionStatus, VersionStatusCard } from './components/VersionStatusCard'
 
 const logger = loggerService.withContext('CodeCliPage')
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
+// Stable list of CLI tool ids for the version-status hook.
+const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
+
 const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   id: tool.value,
   label: tool.label,
   icon: tool.icon
 })
-
-// CLI tool name mapping for BinaryManager
-const CLI_BINARY_NAMES: Record<string, string> = {
-  [codeCLI.claudeCode]: 'claude',
-  [codeCLI.openaiCodex]: 'codex',
-  [codeCLI.openCode]: 'opencode',
-  [codeCLI.openclaw]: 'openclaw',
-  [codeCLI.hermes]: 'hermes'
-}
-
-// Version status hook using BinaryManager
-const useCliVersionStatus = (toolId: string): VersionStatus => {
-  const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
-  const [latestVersion, setLatestVersion] = useState<string | undefined>()
-
-  useEffect(() => {
-    const refreshState = async () => {
-      try {
-        const state = await ipcApi.request('binary.get_state')
-        setBinaryState(state)
-
-        const binaryName = CLI_BINARY_NAMES[toolId]
-        if (binaryName) {
-          const results = await ipcApi.request('binary.search_registry', binaryName)
-          const match = results.find((r) => r.name === binaryName)
-          if (match?.tool) {
-            const versionMatch = match.tool.match(/@([\d.]+)$/)
-            if (versionMatch) {
-              setLatestVersion(versionMatch[1])
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to get binary state', error as Error)
-      }
-    }
-    void refreshState()
-  }, [toolId])
-
-  const binaryName = CLI_BINARY_NAMES[toolId]
-  const installed = binaryName ? binaryState?.tools[binaryName] : undefined
-
-  return {
-    installed: !!installed,
-    current: installed?.version,
-    latest: latestVersion,
-    canUpgrade: !!installed && !!latestVersion && installed.version !== latestVersion
-  }
-}
 
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
@@ -191,7 +144,7 @@ const CodeCliPage: FC = () => {
       if (cliPreset) {
         await ipcApi.request('binary.install_tool', {
           name: CLI_BINARY_NAMES[selectedCliTool],
-          tool: cliPreset.packageName
+          tool: cliPreset.miseTool
         })
         window.toast.success(t('code.install_success'))
       }
@@ -210,7 +163,7 @@ const CodeCliPage: FC = () => {
       if (cliPreset) {
         await ipcApi.request('binary.install_tool', {
           name: CLI_BINARY_NAMES[selectedCliTool],
-          tool: cliPreset.packageName
+          tool: cliPreset.miseTool
         })
         window.toast.success(t('code.upgrade_success'))
       }
@@ -314,7 +267,8 @@ const CodeCliPage: FC = () => {
     [selectedCliTool]
   )
   const activeMeta = activeTool ? toMeta(activeTool) : null
-  const versionStatus = useCliVersionStatus(selectedCliTool)
+  const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
+  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
 
   useEffect(() => {
@@ -338,6 +292,7 @@ const CodeCliPage: FC = () => {
           selectedCliTool={selectedCliTool}
           onSelectTool={handleSelectTool}
           toMeta={toMeta}
+          statuses={statuses}
         />
 
         {/* Right content */}

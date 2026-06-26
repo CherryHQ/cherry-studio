@@ -1,4 +1,4 @@
-import type { CodeCliConfigs } from '@shared/data/preference/preferenceTypes'
+import type { CliNamedConfig, CodeCliConfigs } from '@shared/data/preference/preferenceTypes'
 import { codeCLI } from '@shared/types/codeCli'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
@@ -21,8 +21,8 @@ function setupConfigsMock(configs: CodeCliConfigs) {
 /** Set updater-style setter that receives a function (mirrors real usePreference updater). */
 function setupUpdaterMock(configs: CodeCliConfigs) {
   let current = configs
-  const mockSetConfigs = vi.fn((updater: (prev: CodeCliConfigs) => CodeCliConfigs) => {
-    current = updater(current)
+  const mockSetConfigs = vi.fn((newValue: CodeCliConfigs) => {
+    current = newValue
     return Promise.resolve()
   })
   mockUsePreference.mockImplementation((key: string) => {
@@ -34,9 +34,7 @@ function setupUpdaterMock(configs: CodeCliConfigs) {
   return mockSetConfigs
 }
 
-const cfg = (
-  overrides: Partial<{ id: string; name: string; providerId: string; modelId: string; directory: string }> = {}
-) => ({
+const cfg = (overrides: Partial<CliNamedConfig> = {}) => ({
   id: overrides.id ?? 'cfg1',
   name: overrides.name ?? 'Work Claude',
   providerId: overrides.providerId ?? 'anthropic',
@@ -89,7 +87,7 @@ describe('useCodeCli', () => {
       setupConfigsMock({
         'claude-code': state(
           {
-            a: cfg({ id: 'a', name: 'A', sortIndex: undefined as unknown as number }),
+            a: cfg({ id: 'a', name: 'A', sortIndex: undefined }),
             b: cfg({ id: 'b', name: 'B' })
           },
           'b'

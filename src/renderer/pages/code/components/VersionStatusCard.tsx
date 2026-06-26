@@ -80,21 +80,19 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
 
         {status.installed && (
           <div className="flex shrink-0 items-center gap-1">
-            {status.canUpgrade && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-foreground/40 hover:text-foreground"
-                onClick={onUpgrade}
-                disabled={isUpgrading}
-                title={t('code.upgrade')}>
-                {isUpgrading ? (
-                  <Loader2 className="size-3.5 motion-safe:animate-spin" />
-                ) : (
-                  <RefreshCw className="size-3.5" />
-                )}
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground/40 hover:text-foreground"
+              onClick={onUpgrade}
+              disabled={isUpgrading}
+              title={t('code.upgrade')}>
+              {isUpgrading ? (
+                <Loader2 className="size-3.5 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"
