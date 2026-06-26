@@ -6784,6 +6784,7 @@
         "sync_added_metric": "{{count}} 个新增模型",
         "sync_added_section": "新增模型",
         "sync_apply_changes": "确认应用",
+        "sync_apply_default_in_use": "部分模型正被用作默认模型，无法删除。",
         "sync_apply_result": "已新增 {{added}} 个，标记弃用 {{deprecated}} 个，删除 {{deleted}} 个。",
         "sync_empty_added": "没有发现新增的上游模型。",
         "sync_empty_missing": "没有发现已失效的本地模型。",
