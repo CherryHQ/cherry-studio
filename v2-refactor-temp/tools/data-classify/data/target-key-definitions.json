@@ -83,20 +83,6 @@
       "description": "Complex migration: merge redux/codeTools (selectedCliTool, selectedModels, environmentVariables, directories, currentDirectory, selectedTerminal) into code CLI overrides"
     },
     {
-      "targetKey": "feature.code_cli.git_bash_path",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Windows Git Bash (bash.exe) path; auto-discovered or set manually. Main-process only, no v1 migration (auto-rediscovers when empty)"
-    },
-    {
-      "targetKey": "feature.code_cli.git_bash_path_source",
-      "type": "'manual' | 'auto'",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "How the Git Bash path was set: 'manual' (user) or 'auto' (discovered). Main-process only"
-    },
-    {
       "targetKey": "chat.web_search.exclude_domains",
       "type": "string[]",
       "defaultValue": [],

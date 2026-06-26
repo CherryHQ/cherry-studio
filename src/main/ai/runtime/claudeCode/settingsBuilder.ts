@@ -454,7 +454,7 @@ async function buildEnvironment(
   agent: AgentEntity
 ): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getLoginShellEnvironment()
-  const customGitBashPath = isWin ? await autoDiscoverGitBash() : null
+  const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.

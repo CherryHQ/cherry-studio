@@ -693,15 +693,15 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 }
 
 /**
- * Auto-discover and persist Git Bash path if not already configured
- * Only called when Git Bash is actually needed
+ * Resolve the Git Bash (bash.exe) path for the Claude Code runtime on Windows.
+ * Pure in-process discovery — not persisted (Git Bash has no UI/IPC surface, so
+ * there is no user-configured value to store; the env var is the manual override).
  *
  * Precedence order:
- * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
- * 2. Configured path from settings (manual or auto)
- * 3. Auto-discovery via findGitBash (only if no valid config exists)
+ * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (runtime override)
+ * 2. Auto-discovery via findGitBash
  */
-export async function autoDiscoverGitBash(): Promise<string | null> {
+export function autoDiscoverGitBash(): string | null {
   if (!isWin) {
     return null
   }
@@ -717,32 +717,10 @@ export async function autoDiscoverGitBash(): Promise<string | null> {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  const preferenceService = application.get('PreferenceService')
-
-  // 2. Check if a path is already configured
-  const existingPath = preferenceService.get('feature.code_cli.git_bash_path')
-  const existingSource = preferenceService.get('feature.code_cli.git_bash_path_source')
-
-  if (existingPath) {
-    const validated = validateGitBashPath(existingPath)
-    if (validated) {
-      return validated
-    }
-    // Existing path is invalid, try to auto-discover
-    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', {
-      path: existingPath,
-      source: existingSource
-    })
-  }
-
-  // 3. Try to find Git Bash via auto-discovery
+  // 2. Auto-discovery
   const discoveredPath = findGitBash()
   if (discoveredPath) {
-    // Persist the discovered path with 'auto' source
-    await preferenceService.set('feature.code_cli.git_bash_path', discoveredPath)
-    await preferenceService.set('feature.code_cli.git_bash_path_source', 'auto')
-    logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
+    logger.debug('Auto-discovered Git Bash path', { path: discoveredPath })
   }
-
   return discoveredPath
 }
