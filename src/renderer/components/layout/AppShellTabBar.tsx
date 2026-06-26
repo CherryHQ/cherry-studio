@@ -451,7 +451,7 @@ export const AppShellTabBar = ({
   const {
     tabBarRef,
     tabListRef,
-    addTabButtonRef,
+    rightInsetRef,
     tabRefs,
     noTransition,
     getTranslateX,
@@ -589,7 +589,7 @@ export const AppShellTabBar = ({
           {/* Launchpad button — sticky so it hugs the last tab but never scrolls away */}
           <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
             <button
-              ref={addTabButtonRef}
+              ref={rightInsetRef}
               type="button"
               aria-label={t('title.launchpad')}
               onClick={handleOpenLaunchpad}
