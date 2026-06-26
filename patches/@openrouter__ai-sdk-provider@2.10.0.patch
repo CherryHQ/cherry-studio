@@ -1,8 +1,8 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index ce83b1b71..f71d85637 100644
+index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93b01fd162 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
-@@ -355,6 +355,7 @@ type OpenRouterProviderOptions = {
+@@ -398,6 +398,7 @@ type OpenRouterProviderOptions = {
       * help OpenRouter to monitor and detect abuse.
       */
      user?: string;
@@ -11,10 +11,10 @@ index ce83b1b71..f71d85637 100644
  type OpenRouterSharedSettings = OpenRouterProviderOptions & {
      /**
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index ce83b1b71..f71d85637 100644
+index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93b01fd162 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -355,6 +355,7 @@ type OpenRouterProviderOptions = {
+@@ -398,6 +398,7 @@ type OpenRouterProviderOptions = {
       * help OpenRouter to monitor and detect abuse.
       */
      user?: string;
@@ -23,10 +23,10 @@ index ce83b1b71..f71d85637 100644
  type OpenRouterSharedSettings = OpenRouterProviderOptions & {
      /**
 diff --git a/dist/index.js b/dist/index.js
-index 22a7359ac..860eabb80 100644
+index 3c6c1b100611983d32172288e9e40a1e6736320d..5dd9fcc359de1f6009d8fbeebb2343dc5fa5a515 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -2380,7 +2380,8 @@ var OpenRouterProviderOptionsSchema = import_v43.z.object({
+@@ -2585,7 +2585,8 @@ var OpenRouterProviderOptionsSchema = import_v43.z.object({
      // (e.g., a future format not yet in the enum) is individually dropped
      // rather than causing the entire array to fail parsing.
      reasoning_details: ReasoningDetailArraySchema.optional(),
@@ -36,7 +36,7 @@ index 22a7359ac..860eabb80 100644
    }).optional()
  }).optional();
  
-@@ -3273,7 +3274,8 @@ var OpenRouterChatLanguageModel = class {
+@@ -3548,7 +3549,8 @@ var OpenRouterChatLanguageModel = class {
      responseFormat,
      topK,
      tools,
@@ -44,20 +44,20 @@ index 22a7359ac..860eabb80 100644
 +    toolChoice,
 +    providerOptions
    }) {
-     var _a16;
+     var _a16, _b16, _c, _d;
      const baseArgs = __spreadValues(__spreadValues({
-@@ -3329,7 +3331,8 @@ var OpenRouterChatLanguageModel = class {
-         function: {
-           name: tool.name,
-           description: tool.description,
--          parameters: tool.inputSchema
-+          parameters: tool.inputSchema,
-+          strict: providerOptions?.openrouter?.strictJsonSchema
-         }
-       }));
-       return __spreadProps(__spreadValues({}, baseArgs), {
-@@ -3343,7 +3346,7 @@ var OpenRouterChatLanguageModel = class {
-     var _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+@@ -3607,7 +3609,8 @@ var OpenRouterChatLanguageModel = class {
+             function: {
+               name: tool2.name,
+               description: tool2.description,
+-              parameters: tool2.inputSchema
++              parameters: tool2.inputSchema,
++              strict: providerOptions?.openrouter?.strictJsonSchema
+             }
+           }, eagerInputStreaming != null && {
+             eager_input_streaming: eagerInputStreaming
+@@ -3627,7 +3630,7 @@ var OpenRouterChatLanguageModel = class {
+     var _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
 -    const _a16 = openrouterOptions, { cacheControl } = _a16, restOpenrouterOptions = __objRest(_a16, ["cacheControl"]);
@@ -65,7 +65,7 @@ index 22a7359ac..860eabb80 100644
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: responseValue, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -3541,7 +3544,7 @@ var OpenRouterChatLanguageModel = class {
+@@ -3822,7 +3825,7 @@ var OpenRouterChatLanguageModel = class {
      var _b16;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
@@ -74,7 +74,7 @@ index 22a7359ac..860eabb80 100644
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4209,7 +4212,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4542,7 +4545,7 @@ var OpenRouterCompletionLanguageModel = class {
    async doGenerate(options) {
      var _a16, _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
      const providerOptions = options.providerOptions || {};
@@ -83,7 +83,7 @@ index 22a7359ac..860eabb80 100644
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4284,7 +4287,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4617,7 +4620,7 @@ var OpenRouterCompletionLanguageModel = class {
    }
    async doStream(options) {
      const providerOptions = options.providerOptions || {};
@@ -93,10 +93,10 @@ index 22a7359ac..860eabb80 100644
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3b4c63d74..96b592196 100644
+index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..01862a6c5693445f87397f0639eb6f034ca5909f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -2347,7 +2347,8 @@ var OpenRouterProviderOptionsSchema = z3.object({
+@@ -2552,7 +2552,8 @@ var OpenRouterProviderOptionsSchema = z3.object({
      // (e.g., a future format not yet in the enum) is individually dropped
      // rather than causing the entire array to fail parsing.
      reasoning_details: ReasoningDetailArraySchema.optional(),
@@ -106,7 +106,7 @@ index 3b4c63d74..96b592196 100644
    }).optional()
  }).optional();
  
-@@ -3240,7 +3241,8 @@ var OpenRouterChatLanguageModel = class {
+@@ -3515,7 +3516,8 @@ var OpenRouterChatLanguageModel = class {
      responseFormat,
      topK,
      tools,
@@ -114,20 +114,20 @@ index 3b4c63d74..96b592196 100644
 +    toolChoice,
 +    providerOptions
    }) {
-     var _a16;
+     var _a16, _b16, _c, _d;
      const baseArgs = __spreadValues(__spreadValues({
-@@ -3296,7 +3298,8 @@ var OpenRouterChatLanguageModel = class {
-         function: {
-           name: tool.name,
-           description: tool.description,
--          parameters: tool.inputSchema
-+          parameters: tool.inputSchema,
-+          strict: providerOptions?.openrouter?.strictJsonSchema
-         }
-       }));
-       return __spreadProps(__spreadValues({}, baseArgs), {
-@@ -3310,7 +3313,7 @@ var OpenRouterChatLanguageModel = class {
-     var _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+@@ -3574,7 +3576,8 @@ var OpenRouterChatLanguageModel = class {
+             function: {
+               name: tool2.name,
+               description: tool2.description,
+-              parameters: tool2.inputSchema
++              parameters: tool2.inputSchema,
++              strict: providerOptions?.openrouter?.strictJsonSchema
+             }
+           }, eagerInputStreaming != null && {
+             eager_input_streaming: eagerInputStreaming
+@@ -3594,7 +3597,7 @@ var OpenRouterChatLanguageModel = class {
+     var _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
 -    const _a16 = openrouterOptions, { cacheControl } = _a16, restOpenrouterOptions = __objRest(_a16, ["cacheControl"]);
@@ -135,7 +135,7 @@ index 3b4c63d74..96b592196 100644
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: responseValue, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -3508,7 +3511,7 @@ var OpenRouterChatLanguageModel = class {
+@@ -3789,7 +3792,7 @@ var OpenRouterChatLanguageModel = class {
      var _b16;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
@@ -144,7 +144,7 @@ index 3b4c63d74..96b592196 100644
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4176,7 +4179,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4509,7 +4512,7 @@ var OpenRouterCompletionLanguageModel = class {
    async doGenerate(options) {
      var _a16, _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
      const providerOptions = options.providerOptions || {};
@@ -153,7 +153,7 @@ index 3b4c63d74..96b592196 100644
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4251,7 +4254,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4584,7 +4587,7 @@ var OpenRouterCompletionLanguageModel = class {
    }
    async doStream(options) {
      const providerOptions = options.providerOptions || {};
