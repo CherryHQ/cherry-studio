@@ -2,7 +2,7 @@
 title: Assistant and agent chat layouts are separate "new/old" view settings
 category: changed
 severity: notice
-introduced_in_pr: branch jd/resource-list-config (PR TBD)
+introduced_in_pr: #16434
 date: 2026-06-26
 ---
 
@@ -34,4 +34,4 @@ Nothing — automatic. Switch **Conversation view** / **Work view** in Settings 
 
 ## Notes for release manager
 
-Fill in the PR number once opened. This entry supersedes the in-development `chat.resource_list.position` default of `right`; that key never shipped to a release, so only the new `new/old` framing needs translating.
+This entry supersedes the in-development `chat.resource_list.position` default of `right`; that key never shipped to a release, so only the new `new/old` framing needs translating.
