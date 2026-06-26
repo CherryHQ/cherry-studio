@@ -20,17 +20,26 @@ Each is **New view** or **Old view**:
 
 Both settings default to **Old view** (the entity rail).
 
-The legacy v1 assistant `topicPosition` is migrated into Conversation view: `right` → New view, `left` → Old view. Agent Work view has no v1 source and defaults to Old view.
+The legacy v1 assistant `topicPosition` is deleted during v2 classification and is not migrated into either setting. Both new settings default to Old view.
 
 ## Why this matters to the user
 
-Fresh installs — and v1 users whose `topicPosition` was the default `left` — land on the **Old view**: a compact entity rail plus a right-side topic/session panel. Users who had v1 `topicPosition = right` get the **New view** (the classic single sidebar). Agent Work view is a brand-new setting that also defaults to the Old view (rail).
+Fresh installs and migrated users land on the **Old view**: a compact entity rail plus a right-side topic/session panel. Users can switch **Conversation view** or **Work view** to **New view** for the classic single sidebar.
 
 The preference key also changed: the never-shipped `chat.resource_list.position` no longer exists. Anything expecting that key should read `chat.conversation_view` / `chat.work_view` instead.
 
 ## What the user should do
 
 Nothing — automatic. Switch **Conversation view** / **Work view** in Settings → Message Settings to change layout.
+
+## Also changed: default sidebar grouping mode
+
+This PR also changes the **default grouping** of the classic (New view) sidebar lists — an intentional product decision, independent of the view split:
+
+- `topic.tab.display_mode`: `assistant` → `time`
+- `agent.session.display_mode`: `agent` → `workdir`
+
+Neither key has a v1 migration mapping, so the new default applies to fresh installs **and** users migrating from v1. This is **not** a breaking change — the feature is still in alpha, both display modes remain fully supported, and any user can switch grouping back from the list's display-mode menu. Documented here only for completeness.
 
 ## Notes for release manager
 
