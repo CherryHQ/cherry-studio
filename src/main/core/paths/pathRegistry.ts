@@ -149,6 +149,14 @@ export function buildPathRegistry() {
 
     // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
+    'external.claude_code.config': path.join(os.homedir(), '.claude'),
+    'external.codex.config': path.join(os.homedir(), '.codex'),
+    // @legacy — removed in v2
+    // 'external.gemini_cli.config': path.join(os.homedir(), '.gemini'),
+    // 'external.qwen_code.config': path.join(os.homedir(), '.qwen'),
+    // 'external.kimi_code.config': path.join(os.homedir(), '.kimi-code'),
+    'external.opencode.config': path.join(os.homedir(), '.config', 'opencode'),
+    'external.hermes.config': path.join(os.homedir(), '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')

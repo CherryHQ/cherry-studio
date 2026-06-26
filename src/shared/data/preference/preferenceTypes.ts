@@ -243,29 +243,42 @@ export interface WebSearchProvider {
 import { codeCLI } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
-  'qwen-code',
   'claude-code',
-  'gemini-cli',
   'openai-codex',
-  'qoder-cli',
-  'github-copilot-cli',
-  'kimi-cli',
-  'opencode'
+  'opencode',
+  'openclaw',
+  'hermes'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-export type CodeCliOverride = {
-  enabled?: boolean
-  modelId?: string | null
-  envVars?: string
-  /** Terminal app name — should match `terminalApps` enum values */
+/** A named, user-editable CLI provider config for one CLI tool. */
+export interface CliNamedConfig {
+  id: string
+  name: string
+  providerId: string
+  modelId: string
+  /** Advanced CLI params (non-model), persisted. */
+  advanced?: Record<string, unknown>
+  directory?: string
+  createdAt?: number
+  sortIndex?: number
+  notes?: string
+  icon?: string
+  iconColor?: string
+}
+
+/** Per-CLI-tool state holding all named configs and the active one. */
+export interface CodeCliToolState {
+  providers: Record<string, CliNamedConfig>
+  current: string | null
+  /** Terminal app — matches `terminalApps` values. */
   terminal?: string
-  currentDirectory?: string
   directories?: string[]
 }
 
-export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
+/** Preference value for `feature.code_cli.configs`. */
+export type CodeCliConfigs = Record<CodeCliId, CodeCliToolState>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

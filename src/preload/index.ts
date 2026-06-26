@@ -13,8 +13,8 @@ import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
-import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
+import type { CliProviderConfig, GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
+import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { FilePath, PhysicalFileMetadata } from '@shared/types/file/common'
@@ -54,21 +54,6 @@ import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
-
-// OpenClaw types
-type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
-
-interface OpenClawHealthInfo {
-  status: 'healthy' | 'unhealthy'
-  gatewayPort: number
-}
-
-interface OpenClawChannelInfo {
-  id: string
-  name: string
-  type: string
-  status: 'connected' | 'disconnected' | 'error'
-}
 
 type DirectoryListOptions = {
   recursive?: boolean
@@ -608,9 +593,10 @@ const api = {
       model: string,
       directory: string,
       env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+      options?: { autoUpdateToLatest?: boolean; terminal?: string },
+      providerConfig?: CliProviderConfig
     ): Promise<CodeToolsRunResult> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
+      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options, providerConfig),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
@@ -770,32 +756,6 @@ const api = {
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
       ipcRenderer.invoke(IpcChannel.LanTransfer_SendFile, { filePath }),
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_CancelTransfer)
-  },
-  openclaw: {
-    checkInstalled: (): Promise<{
-      installed: boolean
-      path: string | null
-      needsMigration: boolean
-    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    install: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
-    uninstall: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
-    startGateway: (port?: number): Promise<OperationResult> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
-    stopGateway: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
-    getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
-    checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
-    getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
-    syncConfig: (uniqueModelId: string): Promise<OperationResult> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, uniqueModelId),
-    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels),
-    checkUpdate: (): Promise<{
-      hasUpdate: boolean
-      currentVersion: string | null
-      latestVersion: string | null
-      message?: string
-    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckUpdate),
-    performUpdate: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_PerformUpdate)
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)

@@ -10,14 +10,12 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { WindowType } from '@main/core/window/types'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
@@ -180,26 +178,11 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
+    // IPC handlers migrated to IpcApi (openclaw.*)
   }
 
   protected async onStop(): Promise<void> {
     await this.stopGateway()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.OpenClaw_CheckInstalled, () => this.checkInstalled())
-    this.ipcHandle(IpcChannel.OpenClaw_Install, () => this.install())
-    this.ipcHandle(IpcChannel.OpenClaw_Uninstall, () => this.uninstall())
-    this.ipcHandle(IpcChannel.OpenClaw_StartGateway, (_e, port?: number) => this.startGateway(port))
-    this.ipcHandle(IpcChannel.OpenClaw_StopGateway, () => this.stopGateway())
-    this.ipcHandle(IpcChannel.OpenClaw_GetStatus, () => this.getStatus())
-    this.ipcHandle(IpcChannel.OpenClaw_CheckHealth, () => this.checkHealth())
-    this.ipcHandle(IpcChannel.OpenClaw_GetDashboardUrl, () => this.getDashboardUrl())
-    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, uniqueModelId) => this.syncConfig(uniqueModelId))
-    this.ipcHandle(IpcChannel.OpenClaw_GetChannels, () => this.getChannelStatus())
-    this.ipcHandle(IpcChannel.OpenClaw_CheckUpdate, () => this.checkUpdate())
-    this.ipcHandle(IpcChannel.OpenClaw_PerformUpdate, () => this.performUpdate())
   }
 
   /**
@@ -229,15 +212,6 @@ export class OpenClawService extends BaseService {
     const localPath = await getBinaryPath('openclaw')
     if (fs.existsSync(localPath)) return localPath
     return null
-  }
-
-  /**
-   * Send install progress to renderer
-   */
-  private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    application
-      .get('WindowManager')
-      .broadcastToType(WindowType.Main, IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 
   /**
@@ -327,16 +301,13 @@ export class OpenClawService extends BaseService {
 
   private async installInternal(): Promise<OperationResult> {
     try {
-      this.sendInstallProgress('Installing OpenClaw...')
       await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
       await this.linkBinary()
-      this.sendInstallProgress('OpenClaw installed successfully!')
       logger.info('OpenClaw installed via BinaryManager')
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to install OpenClaw:', error as Error)
-      this.sendInstallProgress(errorMessage, 'error')
       return { success: false, message: errorMessage }
     }
   }
@@ -351,15 +322,13 @@ export class OpenClawService extends BaseService {
     }
 
     try {
-      this.sendInstallProgress('Removing OpenClaw...')
       await this.unlinkBinary()
       await application.get('BinaryManager').removeTool('openclaw')
-      this.sendInstallProgress('OpenClaw uninstalled successfully!')
+      logger.info('OpenClaw uninstalled via BinaryManager')
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to uninstall OpenClaw:', error as Error)
-      this.sendInstallProgress(errorMessage, 'error')
       return { success: false, message: errorMessage }
     }
   }
@@ -1080,17 +1049,14 @@ export class OpenClawService extends BaseService {
         await this.stopGateway()
       }
 
-      this.sendInstallProgress('Updating OpenClaw via BinaryManager...')
       await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
       void refreshShellEnv()
 
       logger.info('OpenClaw updated successfully')
-      this.sendInstallProgress('OpenClaw updated successfully!')
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to update OpenClaw:', error as Error)
-      this.sendInstallProgress(errorMessage, 'error')
       return { success: false, message: errorMessage }
     }
   }
