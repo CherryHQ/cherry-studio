@@ -42,6 +42,7 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
@@ -181,6 +182,10 @@ export class AiService extends BaseService {
     registerBuiltinTools()
     this.registerIpcHandlers()
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    // Heal the CLAUDE_CONFIG_DIR/skills mirror once at startup; fire-and-forget so it never blocks init.
+    void skillService.reconcileSkills().catch((error) => {
+      logger.error('Failed to reconcile skills', error)
+    })
     logger.info('AiService initialized')
   }
 

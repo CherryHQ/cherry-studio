@@ -1,14 +1,12 @@
-import * as fs from 'node:fs'
 import type * as NodeModule from 'node:module'
-import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   listSkills: vi.fn(),
-  getSkillDirectory: vi.fn(),
+  listLocalSkills: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -72,7 +70,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { list: mocks.listSkills, getSkillDirectory: mocks.getSkillDirectory }
+  skillService: { list: mocks.listSkills, listLocal: mocks.listLocalSkills }
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -156,12 +154,6 @@ vi.mock('../ToolApprovalRegistry', () => ({
 
 const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
 
-const tempRoots: string[] = []
-
-afterEach(async () => {
-  await Promise.all(tempRoots.splice(0).map((tempRoot) => fs.promises.rm(tempRoot, { recursive: true, force: true })))
-})
-
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -209,10 +201,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
-    mocks.getSkillDirectory.mockImplementation((folderName: string) => `/app/feature.agents.skills/${folderName}`)
+    mocks.listLocalSkills.mockResolvedValue([])
   })
 
-  it('builds the SDK skill whitelist before returning settings', async () => {
+  it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -222,28 +214,19 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
-  it('exposes managed skills under Claude config and passes SDK skill names, not paths', async () => {
-    const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'settings-builder-skills-'))
-    tempRoots.push(tempRoot)
-    const dataSkillsRoot = path.join(tempRoot, 'Data', 'Skills')
-    const claudeRoot = path.join(tempRoot, '.claude')
-    const sourceDir = path.join(dataSkillsRoot, 'pdf')
-    await fs.promises.mkdir(sourceDir, { recursive: true })
-    await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# PDF\n')
-    mocks.applicationGetPath.mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.claude.root') return filename ? path.join(claudeRoot, filename) : claudeRoot
-      if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
-      return `/app/${key}`
-    })
+  it('whitelists enabled managed skill names plus workspace skills, excludes disabled, never paths', async () => {
     mocks.listSkills.mockResolvedValue([
       { id: 'skill-1', folderName: 'pdf', name: 'pdf', isEnabled: true },
       { id: 'skill-2', folderName: 'docx', name: 'docx', isEnabled: false }
     ])
-    mocks.getSkillDirectory.mockImplementation((folderName: string) => path.join(dataSkillsRoot, folderName))
+    // Workspace project skill under cwd/.claude/skills — must be in the whitelist or the
+    // SDK filters the user's own project skill out.
+    mocks.listLocalSkills.mockResolvedValue([{ name: 'my-project-skill', filename: 'my-project-skill' }])
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -252,40 +235,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.skills).toEqual(['pdf'])
+    expect(settings.skills).toEqual(['pdf', 'my-project-skill'])
+    expect(settings.skills).not.toContain('docx')
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
-    await expect(fs.promises.access(path.join(claudeRoot, 'skills', 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
-  })
-
-  it('refreshes copied managed skills on Windows so updates are not hidden by stale config copies', async () => {
-    mocks.isWin = true
-    const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'settings-builder-skills-'))
-    tempRoots.push(tempRoot)
-    const dataSkillsRoot = path.join(tempRoot, 'Data', 'Skills')
-    const claudeRoot = path.join(tempRoot, '.claude')
-    const sourceDir = path.join(dataSkillsRoot, 'pdf')
-    const targetDir = path.join(claudeRoot, 'skills', 'pdf')
-    await fs.promises.mkdir(sourceDir, { recursive: true })
-    await fs.promises.mkdir(targetDir, { recursive: true })
-    await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# PDF v2\n')
-    await fs.promises.writeFile(path.join(targetDir, 'SKILL.md'), '# PDF v1\n')
-    mocks.applicationGetPath.mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.claude.root') return filename ? path.join(claudeRoot, filename) : claudeRoot
-      if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
-      return `/app/${key}`
-    })
-    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', name: 'pdf', isEnabled: true }])
-    mocks.getSkillDirectory.mockImplementation((folderName: string) => path.join(dataSkillsRoot, folderName))
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    expect(settings.skills).toEqual(['pdf'])
-    await expect(fs.promises.readFile(path.join(targetDir, 'SKILL.md'), 'utf-8')).resolves.toBe('# PDF v2\n')
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {

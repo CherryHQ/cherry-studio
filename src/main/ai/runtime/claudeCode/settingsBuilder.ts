@@ -290,10 +290,10 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
   const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
-  // 9. Skills — make app-managed skills discoverable under CLAUDE_CONFIG_DIR/skills,
-  // then pass SDK skill names. Claude Agent SDK `Options.skills` is a name whitelist,
-  // not a directory injection API.
-  const skills = await buildSkillWhitelist(agent.id)
+  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
+  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
+  // is maintained by SkillService (install/uninstall/startup), not here.
+  const skills = await buildSkillWhitelist(agent.id, cwd)
 
   // 10. Build settings
   const settings: ClaudeCodeSettings = {
@@ -544,89 +544,29 @@ async function buildEnvironment(
   return env
 }
 
-async function filterReadableSkillDirectories(skillPaths: string[]): Promise<string[]> {
-  const directories: string[] = []
-  for (const skillPath of skillPaths) {
-    try {
-      await fs.promises.access(path.join(skillPath, 'SKILL.md'), fs.constants.R_OK)
-      directories.push(skillPath)
-    } catch {
-      // Not a readable skill directory.
-    }
-  }
-  return directories
-}
-
-async function readSkillDirectories(root: string): Promise<string[]> {
-  const entries = await fs.promises.readdir(root, { withFileTypes: true }).catch(() => [])
-  return filterReadableSkillDirectories(
-    entries.filter((entry) => entry.isDirectory() || entry.isSymbolicLink()).map((entry) => path.join(root, entry.name))
-  )
-}
-
-async function ensureSkillInClaudeConfig(
-  sourceDir: string,
-  configSkillsRoot: string,
-  folderName: string
-): Promise<void> {
-  const rootDir = path.resolve(configSkillsRoot)
-  const targetDir = path.resolve(rootDir, folderName)
-  const relativeTarget = path.relative(rootDir, targetDir)
-  if (!relativeTarget || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
-    logger.warn('Refusing to expose skill outside Claude config root', { folderName, sourceDir, targetDir })
-    return
-  }
-
-  try {
-    await fs.promises.mkdir(rootDir, { recursive: true })
-
-    // Claude Agent SDK discovers skill files from CLAUDE_CONFIG_DIR/skills, but
-    // `Options.skills` below is only a name whitelist. Keep the files discoverable
-    // here, and never pass Data/Skills paths as SDK skill values.
-    if (!isWin) {
-      const stat = await fs.promises.lstat(targetDir).catch(() => null)
-      if (stat?.isSymbolicLink()) {
-        const [targetRealPath, sourceRealPath] = await Promise.all([
-          fs.promises.realpath(targetDir),
-          fs.promises.realpath(sourceDir)
-        ])
-        if (targetRealPath === sourceRealPath) return
-      }
-    }
-
-    await fs.promises.rm(targetDir, { recursive: true, force: true })
-    if (isWin) {
-      // Windows uses a real copy instead of symlink/junction to avoid privilege and
-      // packaging quirks, so refresh it every session build; otherwise updated
-      // Data/Skills contents would be hidden behind a stale CLAUDE_CONFIG_DIR copy.
-      await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
-    } else {
-      await fs.promises.symlink(sourceDir, targetDir, 'dir')
-    }
-  } catch (error) {
-    logger.warn('Failed to expose managed skill to Claude config', { folderName, sourceDir, targetDir, error })
-  }
-}
-
-export async function buildSkillWhitelist(agentId: string): Promise<string[]> {
-  const configSkillsRoot = application.getPath('feature.agents.claude.root', 'skills')
+/**
+ * Compute the SDK `Options.skills` whitelist for a session.
+ *
+ * `Options.skills` is a *filter over everything the SDK discovers* — both the
+ * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
+ * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ *   - the agent's enabled managed skills (by folder name and SKILL.md name), and
+ *   - the workspace's project-local skills (omitting them would filter the
+ *     user's own project skills out of their session).
+ *
+ * Read-only: the filesystem mirror is maintained at install / uninstall /
+ * startup reconcile, never here — so concurrent session builds never race.
+ */
+export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
   const installedSkills = await skillService.list({ agentId })
-  const disabledNames = new Set(
-    installedSkills.filter((skill) => !skill.isEnabled).flatMap((skill) => [skill.folderName, skill.name])
-  )
-  const enabledInstalledSkills = installedSkills.filter((skill) => skill.isEnabled)
-  for (const skill of enabledInstalledSkills) {
-    const sourceDir = skillService.getSkillDirectory(skill.folderName)
-    const [sourceReadable] = await filterReadableSkillDirectories([sourceDir])
-    if (sourceReadable) await ensureSkillInClaudeConfig(sourceReadable, configSkillsRoot, skill.folderName)
-  }
+  const enabledNames = installedSkills
+    .filter((skill) => skill.isEnabled)
+    .flatMap((skill) => [skill.folderName, skill.name])
 
-  const configSkillNames = (await readSkillDirectories(configSkillsRoot))
-    .map((skillPath) => path.basename(skillPath))
-    .filter((folderName) => !disabledNames.has(folderName))
-  const enabledInstalledSkillNames = enabledInstalledSkills.flatMap((skill) => [skill.folderName, skill.name])
+  const workspaceSkills = await skillService.listLocal(cwd)
+  const workspaceNames = workspaceSkills.flatMap((skill) => [skill.filename, skill.name])
 
-  return Array.from(new Set([...configSkillNames, ...enabledInstalledSkillNames]))
+  return Array.from(new Set([...enabledNames, ...workspaceNames]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
