@@ -33,16 +33,19 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
  * crossed the driver's threshold (a large delete); otherwise it just truncates the WAL.
  */
 export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<void> {
-  const store = await application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
-  if (!store) {
-    return
-  }
   try {
+    // getIndexStoreIfExists itself can throw (a corrupt index, a readiness/base_id mismatch, a
+    // schema open failure) — keep it inside the try so an open failure is best-effort just like a
+    // reclaim failure, never failing the already-completed delete job.
+    const store = await application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
+    if (!store) {
+      return
+    }
     const { vacuumed, reclaimedBytes } = await store.reclaimSpace()
     if (vacuumed) {
       logger.info('Reclaimed knowledge index space after delete', { baseId: base.id, reclaimedBytes })
     }
   } catch (error) {
-    logger.warn('Failed to reclaim knowledge index space after delete', error as Error)
+    logger.warn('Failed to reclaim knowledge index space after delete', error as Error, { baseId: base.id })
   }
 }

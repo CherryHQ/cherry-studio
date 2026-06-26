@@ -109,4 +109,14 @@ describe('reclaimKnowledgeIndexSpace', () => {
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
   })
+
+  it('never throws when the index store fails to open — the delete already succeeded', async () => {
+    // The open itself can throw (corrupt index, readiness/base_id mismatch, schema open failure).
+    // It is inside the same best-effort try, so an open failure must not fail the delete job whose
+    // rows and vectors are already gone.
+    getIndexStoreIfExistsMock.mockRejectedValueOnce(new Error('index store failed to open'))
+
+    await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
+    expect(reclaimSpaceMock).not.toHaveBeenCalled()
+  })
 })
