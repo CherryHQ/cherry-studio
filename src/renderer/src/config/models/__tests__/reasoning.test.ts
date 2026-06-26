@@ -3185,6 +3185,77 @@ describe('Doubao Seed 2.0 Models', () => {
   })
 })
 
+describe('Doubao Seed 2.1 and Evolving Models', () => {
+  it('should identify doubao-seed-2-1-pro-260628 as thinking model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-1-pro-260628',
+      name: 'doubao-seed-2-1-pro',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.1'
+    }
+    expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
+    expect(isDoubaoSeedAfter251015(model)).toBe(true)
+    expect(getThinkModelType(model)).toBe('doubao_after_251015')
+  })
+
+  it('should identify doubao-seed-2-1-turbo-260628 as thinking model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-1-turbo-260628',
+      name: 'doubao-seed-2-1-turbo',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.1'
+    }
+    expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
+    expect(isDoubaoSeedAfter251015(model)).toBe(true)
+    expect(getThinkModelType(model)).toBe('doubao_after_251015')
+  })
+
+  it('should identify doubao-seed-evolving as thinking model', () => {
+    const model: Model = {
+      id: 'doubao-seed-evolving',
+      name: 'doubao-seed-evolving',
+      provider: 'doubao',
+      group: 'Doubao-Seed-Evolving'
+    }
+    expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
+    expect(isDoubaoSeedAfter251015(model)).toBe(true)
+    expect(getThinkModelType(model)).toBe('doubao_after_251015')
+  })
+
+  it('should support minimal, low, medium, high reasoning effort for doubao-seed-2-1-pro', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-1-pro-260628',
+      name: 'doubao-seed-2-1-pro',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.1'
+    }
+    const options = getModelSupportedReasoningEffortOptions(model)
+    expect(options).toEqual(['default', 'minimal', 'low', 'medium', 'high'])
+  })
+
+  it('should support minimal, low, medium, high reasoning effort for doubao-seed-2-1-turbo', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-1-turbo-260628',
+      name: 'doubao-seed-2-1-turbo',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.1'
+    }
+    const options = getModelSupportedReasoningEffortOptions(model)
+    expect(options).toEqual(['default', 'minimal', 'low', 'medium', 'high'])
+  })
+
+  it('should support minimal, low, medium, high reasoning effort for doubao-seed-evolving', () => {
+    const model: Model = {
+      id: 'doubao-seed-evolving',
+      name: 'doubao-seed-evolving',
+      provider: 'doubao',
+      group: 'Doubao-Seed-Evolving'
+    }
+    const options = getModelSupportedReasoningEffortOptions(model)
+    expect(options).toEqual(['default', 'minimal', 'low', 'medium', 'high'])
+  })
+})
+
 describe('Gemma 4 Models', () => {
   describe('isReasoningModel', () => {
     it('detects Gemma 4 GenAI format as reasoning', () => {

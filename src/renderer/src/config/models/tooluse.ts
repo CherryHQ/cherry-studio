@@ -32,6 +32,8 @@ export const FUNCTION_CALLING_MODELS = [
   'grok-build(?:-[\\w-]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
+  'doubao-seed-2[.-]1(?:-[\\w-]+)?',
+  'doubao-seed-evolving(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
