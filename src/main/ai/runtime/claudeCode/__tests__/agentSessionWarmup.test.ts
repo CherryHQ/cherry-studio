@@ -217,6 +217,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession provenance headers', () => 
     )
   })
 
+  it('appends to a user-preset ANTHROPIC_CUSTOM_HEADERS instead of overwriting it', async () => {
+    // A cherryin agent can set ANTHROPIC_CUSTOM_HEADERS through agent.configuration.env_vars
+    // (settingsBuilder's BLOCKED_ENV_KEYS does not block that key), so provenance must
+    // append to the existing value rather than clobber it.
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ANTHROPIC_CUSTOM_HEADERS: 'X-User: keep' } })
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'X-User: keep\nX-Cherry-Source: agent\nX-Cherry-Conversation-Id: session-1'
+    )
+  })
+
+  it('preserves a user-preset ANTHROPIC_CUSTOM_HEADERS when provenance is suppressed', async () => {
+    // Suppressing our headers (here: consent withheld) must not clobber the user's own.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ANTHROPIC_CUSTOM_HEADERS: 'X-User: keep' } })
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-User: keep')
+  })
+
   it('does not inject the headers for a cherryin model when data-collection consent is withheld', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
