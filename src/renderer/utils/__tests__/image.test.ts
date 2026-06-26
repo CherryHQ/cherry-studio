@@ -67,11 +67,17 @@ describe('utils/image', () => {
       expect(dataUrl).toMatch(/^data:image\/png;base64,/)
     })
 
-    it('should encode a GIF without compressing it', async () => {
+    it('should encode a small GIF without compressing it', async () => {
       const gif = new File(['gif-bytes'], 'a.gif', { type: 'image/gif' })
       const dataUrl = await fileToAvatarDataUrl(gif)
       // Untouched GIF bytes encode to a gif data URL (not the compressor's png).
       expect(dataUrl).toMatch(/^data:image\/gif;base64,/)
+    })
+
+    it('should reject an oversized GIF instead of encoding the original', async () => {
+      // > 256 KiB raw — kept-as-is animation would blow up the stored base64.
+      const bigGif = new File([new Uint8Array(300 * 1024)], 'big.gif', { type: 'image/gif' })
+      await expect(fileToAvatarDataUrl(bigGif)).rejects.toThrow()
     })
   })
 

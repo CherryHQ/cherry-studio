@@ -22,24 +22,46 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
 /**
  * 压缩图像文件，限制最大大小和尺寸。
  * @param {File} file 要压缩的图像文件
+ * @param options 可覆盖最大体积 / 最大边长（默认 1MB / 300px）
  * @returns {Promise<File>} 压缩后的图像文件
  */
-export const compressImage = async (file: File): Promise<File> => {
+export const compressImage = async (
+  file: File,
+  options?: { maxSizeMB?: number; maxWidthOrHeight?: number }
+): Promise<File> => {
   return await imageCompression(file, {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 300,
+    maxSizeMB: options?.maxSizeMB ?? 1,
+    maxWidthOrHeight: options?.maxWidthOrHeight ?? 300,
     useWebWorker: false
   })
 }
 
+// Avatars / provider logos render at ≤80px; 128px stays crisp on HiDPI while
+// keeping the stored base64 small. Animated GIFs can't be re-encoded here
+// without losing the animation, so their raw upload is size-capped instead of
+// recompressed — this keeps the persisted string size controllable.
+const AVATAR_MAX_DIMENSION = 128
+const AVATAR_MAX_GIF_BYTES = 256 * 1024
+
 /**
- * 将上传的头像图片转换为可直接存储/预览的 base64 data URL。
- * GIF 原样保留以保留动画，其余压缩到头像尺寸。
+ * 将上传的头像 / logo 图片归一化为可直接存储/预览的 base64 data URL。
+ * 非 GIF 压缩到 {@link AVATAR_MAX_DIMENSION}px；GIF 保留动画但限制原始体积到
+ * {@link AVATAR_MAX_GIF_BYTES}，超出则抛错由调用方提示用户。
  * @param {File} file 用户上传的图片文件
  * @returns {Promise<string>} base64 data URL
  */
 export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
-  const processed = file.type === 'image/gif' ? file : await compressImage(file)
+  let processed: File
+  if (file.type === 'image/gif') {
+    if (file.size > AVATAR_MAX_GIF_BYTES) {
+      throw new Error(
+        i18n.t('message.error.avatar_gif_too_large', { limit: `${Math.round(AVATAR_MAX_GIF_BYTES / 1024)} KB` })
+      )
+    }
+    processed = file
+  } else {
+    processed = await compressImage(file, { maxWidthOrHeight: AVATAR_MAX_DIMENSION, maxSizeMB: 0.25 })
+  }
   const base64 = await convertToBase64(processed)
   if (typeof base64 !== 'string') {
     throw new Error('Failed to encode avatar image')

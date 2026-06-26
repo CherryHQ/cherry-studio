@@ -47,6 +47,15 @@ const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, Endpoi
  */
 const ProviderSettingsPartialSchema = ProviderSettingsSchema.partial()
 
+/**
+ * Backstop cap on the stored logo base64 string. The renderer already
+ * normalizes uploads (`fileToAvatarDataUrl`): non-GIF → ≤128px, GIF kept but
+ * capped at 256 KB raw (~341 KB base64). This is the server-side guard against
+ * a hand-crafted oversized value; tighter than the mini-app 1 MiB cap because
+ * the raw upload is now bounded.
+ */
+const LOGO_MAX_BASE64_BYTES = 512 * 1024
+
 // ============================================================================
 // DTOs
 // ============================================================================
@@ -61,14 +70,10 @@ export const CreateProviderSchema = z.strictObject({
   name: z.string().min(1),
   /**
    * Custom logo for a user-defined provider, stored inline on the row (data
-   * URL / SVG / remote URL). Capped at 1 MiB to keep a runaway data URL from
-   * bloating the row and the cached entity — mirrors the mini-app logo cap.
+   * URL / SVG / remote URL). Size-capped so a runaway data URL can't bloat the
+   * row and the cached entity — see {@link LOGO_MAX_BASE64_BYTES}.
    */
-  logo: z
-    .string()
-    .min(1)
-    .max(1024 * 1024)
-    .optional(),
+  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -107,11 +112,7 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
    * sets it; omitted leaves it unchanged. Nullable, so it lives here rather
    * than in the picked create fields (which can't express clear).
    */
-  logo: z
-    .string()
-    .max(1024 * 1024)
-    .nullable()
-    .optional()
+  logo: z.string().max(LOGO_MAX_BASE64_BYTES).nullable().optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

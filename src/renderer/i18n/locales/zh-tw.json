@@ -3498,6 +3498,7 @@
     },
     "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
     "error": {
+      "avatar_gif_too_large": "動圖過大（上限 {{limit}}）",
       "chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "copy": "複製失敗",
       "dimension_too_large": "內容尺寸過大",

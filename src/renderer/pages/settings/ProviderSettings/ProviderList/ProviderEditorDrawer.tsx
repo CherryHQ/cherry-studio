@@ -173,10 +173,13 @@ export default function ProviderEditorDrawer({
       setLogo(storedLogo)
       setLogoDirty(true)
     } catch (error) {
-      // fileToAvatarDataUrl can reject on a corrupt or unsupported file
-      // (compression or base64 encoding) — tell the user instead of silently doing nothing.
+      // fileToAvatarDataUrl can reject on an oversized GIF (with a clear i18n
+      // message) or a corrupt/unsupported file — surface its message, falling
+      // back to a generic one, instead of silently doing nothing.
       logger.error('Failed to process uploaded provider logo', error as Error)
-      window.toast.error(t('settings.provider.logo_upload_failed'))
+      const message =
+        error instanceof Error && error.message ? error.message : t('settings.provider.logo_upload_failed')
+      window.toast.error(message)
     }
   }
 
