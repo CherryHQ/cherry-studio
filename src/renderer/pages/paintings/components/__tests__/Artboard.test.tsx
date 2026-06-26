@@ -72,4 +72,41 @@ describe('Artboard', () => {
     expect(image).toHaveAttribute('src', 'https://files.test/image-2.png')
     expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
   })
+
+  it('ignores non-left-button image drag attempts', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
+
+    const image = document.querySelector('img') as HTMLImageElement
+
+    firePointer(image, 'pointerdown', { button: 1, clientX: 10, clientY: 10, pointerId: 1 })
+    firePointer(image, 'pointermove', { clientX: 35, clientY: 45, pointerId: 1 })
+
+    expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+  })
+
+  it('disables zoom controls at image scale boundaries', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
+
+    const image = document.querySelector('img') as HTMLImageElement
+    const zoomInButton = screen.getByRole('button', { name: 'preview.zoom_in' })
+    const zoomOutButton = screen.getByRole('button', { name: 'preview.zoom_out' })
+
+    expect(zoomOutButton).not.toBeDisabled()
+
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(zoomOutButton)
+    }
+
+    expect(image.style.transform).toBe('translate(0px, 0px) scale(0.25) rotate(0deg)')
+    expect(zoomInButton).not.toBeDisabled()
+    expect(zoomOutButton).toBeDisabled()
+
+    for (let i = 0; i < 15; i++) {
+      fireEvent.click(zoomInButton)
+    }
+
+    expect(image.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
+    expect(zoomInButton).toBeDisabled()
+    expect(zoomOutButton).not.toBeDisabled()
+  })
 })

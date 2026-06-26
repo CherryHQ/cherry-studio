@@ -81,7 +81,7 @@ const ArtboardToolButton: FC<{
         disabled={disabled}
         aria-label={label}
         onClick={onClick}
-        className="rounded-full text-muted-foreground hover:bg-muted/55 hover:text-foreground">
+        className={paintingClasses.toolbarButton}>
         {children}
       </Button>
     </Tooltip>
