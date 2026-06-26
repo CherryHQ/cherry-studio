@@ -224,7 +224,12 @@
           "runFailed": "Aufgabe konnte nicht ausgeführt werden",
           "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
         },
-        "intervalPlaceholder": "Intervall in Minuten",
+        "frequency": {
+          "everyPrefix": "Alle",
+          "everySuffix": "Minuten",
+          "label": "Ausführungshäufigkeit"
+        },
+        "intervalPlaceholder": "Mindestens 1",
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervall",
-          "label": "Zeitplantyp",
           "once": "Einmalig"
         },
-        "scheduleValue": "Zeitplanwert",
         "status": {
           "active": "Aktiv",
           "completed": "Abgeschlossen",
@@ -277,7 +280,7 @@
           "minutesAgo": "vor {{count}} m"
         },
         "timeout": {
-          "label": "Zeitlimit überschritten",
+          "label": "Maximale Ausführungszeit",
           "placeholder": "Kein Limit"
         },
         "title": "Geplante Aufgaben"
