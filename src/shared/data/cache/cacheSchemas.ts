@@ -327,6 +327,8 @@ export type RendererPersistCacheSchema = {
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
+  // Paintings canvas viewport (pan + zoom); `null` = never moved → fit on open.
+  'ui.painting.canvas_viewport': { x: number; y: number; zoom: number } | null
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -352,7 +354,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
   'agent.open_external_app.last_used_target': null,
-  'ui.emoji.recently_used': []
+  'ui.emoji.recently_used': [],
+  'ui.painting.canvas_viewport': null
 }
 
 // ============================================================================

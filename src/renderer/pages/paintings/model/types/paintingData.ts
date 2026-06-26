@@ -1,6 +1,6 @@
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
-import type { PaintingMode } from '@shared/data/types/painting'
+import type { PaintingMode, PaintingStatus } from '@shared/data/types/painting'
 
 export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
 
@@ -16,10 +16,13 @@ export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
  * carry wire-format quirks) the AI SDK adapter in
  * `aiCore/provider/custom/`.
  *
- * `mode` is a live form/draft concern only — the persisted painting record
- * (`Painting` in `@shared/data/types/painting`) does NOT carry mode.
- * `mediaType` is similarly not persisted; image vs video is derived from
- * `files` at display time when needed.
+ * `mode` and `params` are now persisted on the painting record as a
+ * generation snapshot (`Painting.mode` / `Painting.params` in
+ * `@shared/data/types/painting`) so a reloaded card knows its recipe; the
+ * live draft still overrides them while the user edits the form.
+ * `mediaType` is not persisted; image vs video is derived from `files` at
+ * display time when needed. `canvasX/Y/W` mirror the record's board
+ * placement (null/undefined = unplaced → auto-grid).
  *
  * `inputFiles` is v2-native `FileEntry[]` (the prompt-box attachment
  * surface registers each File via `window.api.file.createInternalEntry`
@@ -49,4 +52,18 @@ export interface PaintingData {
    * omitted from the wire — server applies its default.
    */
   params?: Record<string, unknown>
+  /**
+   * Canvas board placement, mirrored from the persisted painting record.
+   * `null`/`undefined` = unplaced; the canvas falls back to auto-grid layout.
+   * Persisted on drag end via `updatePainting`.
+   */
+  canvasX?: number | null
+  canvasY?: number | null
+  canvasW?: number | null
+  /**
+   * Persisted generation outcome, mirrored from the record. `null`/`undefined`
+   * = an empty board (no run attempted); `failed`/`canceled` offer retry. This
+   * is what disambiguates an empty `files` (failed vs intentionally empty).
+   */
+  status?: PaintingStatus | null
 }

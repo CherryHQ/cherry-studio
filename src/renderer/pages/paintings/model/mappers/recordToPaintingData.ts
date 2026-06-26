@@ -39,6 +39,10 @@ function normalizeStoredPaintingModel(value: unknown): string | undefined {
  * custom protocol. `resolveFiles` would then be a thin DataApi pass-through
  * returning `FileEntry[]`.
  */
+export async function resolvePaintingFileEntries(ids: string[]): Promise<FileEntry[]> {
+  return resolveEntries(ids)
+}
+
 async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
   if (ids.length === 0) return []
   const entries = await Promise.all(
@@ -55,12 +59,12 @@ async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
 }
 
 /**
- * Hydrate a persisted painting record (frozen receipt: prompt + files) into
- * the renderer's PaintingData draft shape. The DB record carries no mode,
- * mediaType, or params — those are live form-state concerns. The draft built
- * here defaults `mode` to `'generate'` so callers that select a past painting
- * land on the generate tab; the form will overwrite this when the user picks
- * a different tab.
+ * Hydrate a persisted painting record into the renderer's PaintingData draft
+ * shape. The record carries a generation snapshot (`mode` + `params`) and the
+ * canvas placement (`canvasX/Y/W`); those flow straight through so a reloaded
+ * card knows its recipe and position. `mode` falls back to `'generate'` for
+ * legacy rows that predate the snapshot; the form overwrites it when the user
+ * switches tabs.
  */
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
   const outputEntries = await resolveEntries(record.files.output)
@@ -72,12 +76,17 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
   return {
     id: record.id,
     providerId: record.providerId,
-    mode: 'generate',
+    mode: record.mode ?? 'generate',
     prompt: record.prompt,
     files,
     inputFiles,
     persistedAt: record.createdAt,
-    model
+    model,
+    params: record.params ?? undefined,
+    canvasX: record.canvasX,
+    canvasY: record.canvasY,
+    canvasW: record.canvasW,
+    status: record.status
   }
 }
 

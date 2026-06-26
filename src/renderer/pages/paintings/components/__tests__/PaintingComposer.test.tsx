@@ -2,7 +2,7 @@ import type { ComposerSurfaceProps } from '@renderer/components/composer/Compose
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { PaintingData } from '../../model/types/paintingData'
+import type { ComposerDraft } from '../../model/composerDraft'
 
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 
@@ -98,22 +98,22 @@ vi.mock('../PaintingSettings', () => ({
 // Imported after mocks are registered.
 const { default: PaintingComposer } = await import('../PaintingComposer')
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makeDraft = (overrides: Partial<ComposerDraft> = {}): ComposerDraft => ({
+  sessionId: 'session-1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  params: {},
+  inputFiles: [],
+  ...overrides
+})
 
 const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingComposer>> = {}) => {
   const onPromptChange = vi.fn()
   const onGenerate = vi.fn()
   const handlers = {
-    painting: makePainting(),
+    draft: makeDraft(),
     generating: false,
     onPromptChange,
     onInputFilesChange: vi.fn(),
@@ -145,13 +145,13 @@ describe('PaintingComposer', () => {
   })
 
   it('triggers generation on send', () => {
-    const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
+    const { onGenerate } = renderComposer({ draft: makeDraft({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
     expect(onGenerate).toHaveBeenCalledTimes(1)
   })
 
   it('disables send while generating', () => {
-    renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
+    renderComposer({ generating: true, draft: makeDraft({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
   })
 
@@ -160,24 +160,24 @@ describe('PaintingComposer', () => {
   const paramsButton = () => screen.getByRole('button', { name: /common\.settings/ })
 
   it('previews the selected size on the params button', () => {
-    renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
+    renderComposer({ draft: makeDraft({ params: { size: '1536x1024' } }) })
     expect(paramsButton()).toHaveTextContent('1536×1024')
   })
 
   it('previews registry defaults when nothing is stored', () => {
-    renderComposer({ painting: makePainting({ params: {} }) })
+    renderComposer({ draft: makeDraft({ params: {} }) })
     expect(paramsButton()).toHaveTextContent('1024×1024')
   })
 
   it('previews custom dimensions when size is custom', () => {
     renderComposer({
-      painting: makePainting({ params: { size: 'custom', customSize_width: 800, customSize_height: 600 } })
+      draft: makeDraft({ params: { size: 'custom', customSize_width: 800, customSize_height: 600 } })
     })
     expect(paramsButton()).toHaveTextContent('800×600')
   })
 
   it('previews count, quality and background alongside size', () => {
-    renderComposer({ painting: makePainting({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
+    renderComposer({ draft: makeDraft({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
     const button = paramsButton()
     expect(button).toHaveTextContent('6')
     expect(button).toHaveTextContent('1024×1024')
@@ -187,7 +187,7 @@ describe('PaintingComposer', () => {
   })
 
   it('folds the summary into the params button accessible name', () => {
-    renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
+    renderComposer({ draft: makeDraft({ params: { size: '1536x1024' } }) })
     // Summary (incl. registry defaults) is appended after the settings label.
     expect(paramsButton()).toHaveAccessibleName(/^common\.settings: .*1536×1024/)
   })

@@ -33,7 +33,7 @@ import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { resolveOptions } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
-import type { PaintingData } from '../model/types/paintingData'
+import type { ComposerDraft } from '../model/composerDraft'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
@@ -41,6 +41,8 @@ import PaintingSettings from './PaintingSettings'
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
+
+type DraftParams = Record<string, unknown>
 
 /** Size-bearing canonical keys — formatted as chip-style dimensions. */
 const SIZE_PREVIEW_KEYS = ['size', 'imageResolution', 'aspectRatio'] as const
@@ -58,21 +60,21 @@ const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
 function formatSummaryValue(
   item: BaseConfigItem,
   value: unknown,
-  params: PaintingData['params'],
+  params: DraftParams,
   translate: (key: string) => string
 ): string | undefined {
   // Size-bearing fields render as chip-style dimensions, matching the size chips.
   if ((SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key ?? '')) {
     if (value === 'custom') {
-      const w = params?.customSize_width
-      const h = params?.customSize_height
+      const w = params.customSize_width
+      const h = params.customSize_height
       return w && h ? `${String(w)}×${String(h)}` : undefined
     }
     return deriveChipLabel(String(value), String(value))
   }
   if (item.type === 'slider') return String(value)
   // Option-based: show the selected option's localized label.
-  const match = resolveOptions(item, params ?? {}, translate).find((opt) => String(opt.value) === String(value))
+  const match = resolveOptions(item, params, translate).find((opt) => String(opt.value) === String(value))
   return match?.label ?? String(value)
 }
 
@@ -82,16 +84,12 @@ function formatSummaryValue(
  * effective value is `params[key] ?? item.initialValue` (PaintingFieldRenderer), so
  * registry defaults appear before the user explicitly changes them.
  */
-function paramsSummary(
-  params: PaintingData['params'],
-  items: BaseConfigItem[],
-  translate: (key: string) => string
-): string {
+function paramsSummary(params: DraftParams, items: BaseConfigItem[], translate: (key: string) => string): string {
   const parts: string[] = []
   for (const item of items) {
     if (!item.key || !SUMMARY_TYPES.has(item.type)) continue
-    if (item.condition && !item.condition(params ?? {})) continue
-    const value = params?.[item.key] ?? item.initialValue
+    if (item.condition && !item.condition(params)) continue
+    const value = params[item.key] ?? item.initialValue
     if (value === undefined || value === null || value === '') continue
     const formatted = formatSummaryValue(item, value, params, translate)
     if (formatted) parts.push(formatted)
@@ -100,29 +98,29 @@ function paramsSummary(
 }
 
 export interface PaintingComposerProps {
-  painting: PaintingData
+  draft: ComposerDraft
   generating: boolean
   onPromptChange: (value: string) => void
   onInputFilesChange: (files: FileEntry[]) => void
   onGenerate: () => void
   onCancel: () => void
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
-  onConfigChange: (updates: Partial<PaintingData>) => void
+  onConfigChange: (updates: Partial<ComposerDraft>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
 
 /** Bottom-toolbar popover hosting the image-generation parameter list. */
 const PaintingParamsButton: FC<{
-  painting: PaintingData
-  onConfigChange: (updates: Partial<PaintingData>) => void
+  draft: ComposerDraft
+  onConfigChange: (updates: Partial<ComposerDraft>) => void
   onGenerateRandomSeed?: (key: string) => void
-}> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
+}> = ({ draft, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
-  const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+  const registrySupport = useImageGenerationSupport(draft.providerId, draft.model)
   const summary = useMemo(() => {
-    const items = imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) })
-    return paramsSummary(painting.params, items, t)
-  }, [registrySupport, painting.mode, painting.params, t])
+    const items = imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(draft.mode) })
+    return paramsSummary(draft.params, items, t)
+  }, [registrySupport, draft.mode, draft.params, t])
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -142,11 +140,7 @@ const PaintingParamsButton: FC<{
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="w-[min(340px,calc(100vw-2rem))] rounded-[8px] p-3">
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
-          <PaintingSettings
-            painting={painting}
-            onConfigChange={onConfigChange}
-            onGenerateRandomSeed={onGenerateRandomSeed}
-          />
+          <PaintingSettings draft={draft} onConfigChange={onConfigChange} onGenerateRandomSeed={onGenerateRandomSeed} />
         </div>
       </PopoverContent>
     </Popover>
@@ -159,7 +153,7 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
 }
 
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
-  painting,
+  draft,
   generating,
   onPromptChange,
   onInputFilesChange,
@@ -175,14 +169,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
-  const [text, setText] = useState(() => painting.prompt ?? '')
+  const [text, setText] = useState(() => draft.prompt)
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
   usePaintingComposerInputFiles({
-    paintingId: painting.id,
-    inputFiles: painting.inputFiles ?? [],
+    sessionId: draft.sessionId,
+    inputFiles: draft.inputFiles,
     files,
     setFiles,
     onInputFilesChange
@@ -199,7 +193,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     [onPromptChange]
   )
 
-  // The prompt + input files are kept synced to page state per edit, so the
+  // The prompt + input files are kept synced to the draft per edit, so the
   // serialized draft is unused here — sending just triggers generation.
   const handleSendDraft = useCallback(() => {
     if (generating) return
@@ -239,12 +233,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
               <>
                 <PaintingModelSelector
                   hideTitle
-                  painting={painting}
+                  draft={draft}
                   onSelect={onModelSelect}
                   className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'w-auto max-w-[200px] border border-border-subtle')}
                 />
                 <PaintingParamsButton
-                  painting={painting}
+                  draft={draft}
                   onConfigChange={onConfigChange}
                   onGenerateRandomSeed={onGenerateRandomSeed}
                 />
@@ -258,31 +252,26 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 }
 
 /**
- * The painting prompt bar, rebuilt on the shared `ComposerSurface`. The image-gen
- * model selector + parameter list live in the bottom toolbar; image inputs flow
- * through the composer attachment pipeline, bridged to the page's `FileEntry[]`.
+ * The painting prompt bar, rebuilt on the shared `ComposerSurface`. It is driven
+ * by a `ComposerDraft` (not a painting record); the runtime provider is keyed by
+ * `draft.sessionId`, which changes only when the draft is replaced — so editing
+ * the model/prompt/params never remounts the composer or drops input images.
  */
 const PaintingComposer: FC<PaintingComposerProps> = (props) => {
-  const { painting } = props
-  const { models } = useModels(painting.providerId ? { providerId: painting.providerId } : undefined)
+  const { draft } = props
+  const { models } = useModels(draft.providerId ? { providerId: draft.providerId } : undefined)
   const model = useMemo(
     () =>
-      painting.model
-        ? models.find((entry) => entry.providerId === painting.providerId && entry.apiModelId === painting.model)
+      draft.model
+        ? models.find((entry) => entry.providerId === draft.providerId && entry.apiModelId === draft.model)
         : undefined,
-    [models, painting.providerId, painting.model]
+    [models, draft.providerId, draft.model]
   )
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (
-    // Key the provider (which owns `files`) by painting AND model so a switch remounts
-    // it and re-seeds from the current `inputFiles`. Keying on the model too is what
-    // reconciles an external `inputFiles` clear: switchModel drops input images for a
-    // generate-only model on the same painting id, and without the model in the key the
-    // once-per-id seed would never re-run, leaving a stale chip that the writeback could
-    // resurrect and send to a model that can't accept it.
     <ComposerToolRuntimeProvider
-      key={`${painting.id}:${painting.model ?? ''}`}
+      key={draft.sessionId}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
       <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />

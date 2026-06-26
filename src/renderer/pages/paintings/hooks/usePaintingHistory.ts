@@ -8,10 +8,10 @@ import type { PaintingData } from '../model/types/paintingData'
 const PAGE_SIZE = 30
 const logger = loggerService.withContext('usePaintingHistory')
 
-export type PaintingStripEntry = PaintingData
+export type PaintingHistoryEntry = PaintingData
 
 export function usePaintingHistory(): {
-  items: PaintingStripEntry[]
+  items: PaintingHistoryEntry[]
   isLoading: boolean
   hasMore: boolean
   loadMore: () => void
@@ -19,7 +19,7 @@ export function usePaintingHistory(): {
   const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
   const records = useInfiniteFlatItems(pages)
 
-  const [items, setItems] = useState<PaintingStripEntry[]>([])
+  const [items, setItems] = useState<PaintingHistoryEntry[]>([])
 
   useEffect(() => {
     let cancelled = false

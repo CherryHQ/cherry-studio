@@ -27,7 +27,7 @@ export const paintingClasses = {
   promptWrap: 'shrink-0 px-2 pb-4 pt-2',
   toolbarWrap: 'absolute top-4 left-4 z-20',
   toolbarRail:
-    'flex items-center rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl',
-  toolbarButton: 'rounded-full text-muted-foreground hover:bg-muted/55 hover:text-foreground',
+    'flex items-center gap-0.5 rounded-[10px] border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl',
+  toolbarButton: 'rounded-md text-muted-foreground hover:bg-muted/55 hover:text-foreground',
   toolbarButtonActive: 'bg-muted text-foreground'
 } as const

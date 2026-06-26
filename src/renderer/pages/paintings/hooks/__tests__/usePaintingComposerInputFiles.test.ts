@@ -37,7 +37,7 @@ describe('usePaintingComposerInputFiles', () => {
 
     renderHook(() =>
       usePaintingComposerInputFiles({
-        paintingId: 'p1',
+        sessionId: 'p1',
         inputFiles: [makeEntry('fe-1')],
         files: [],
         setFiles,
@@ -57,7 +57,7 @@ describe('usePaintingComposerInputFiles', () => {
     const onInputFilesChange = vi.fn()
 
     renderHook(() =>
-      usePaintingComposerInputFiles({ paintingId: 'p2', inputFiles: [], files: [], setFiles, onInputFilesChange })
+      usePaintingComposerInputFiles({ sessionId: 'p2', inputFiles: [], files: [], setFiles, onInputFilesChange })
     )
 
     expect(setFiles).toHaveBeenCalledWith([])
@@ -72,7 +72,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
       {
         initialProps: {
-          paintingId: 'p3',
+          sessionId: 'p3',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -82,7 +82,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      paintingId: 'p3',
+      sessionId: 'p3',
       inputFiles: [],
       files: [makeAttachment('src-new', '/tmp/new.png')],
       setFiles,
@@ -98,10 +98,10 @@ describe('usePaintingComposerInputFiles', () => {
 
   // Stateful harness mirroring the provider: SEED's `setFiles` re-renders and re-fires
   // WRITEBACK, the round-trip a no-op `setFiles` would mask.
-  const renderStatefulHarness = (paintingId: string, inputFiles: FileEntry[], onInputFilesChange: () => void) =>
+  const renderStatefulHarness = (sessionId: string, inputFiles: FileEntry[], onInputFilesChange: () => void) =>
     renderHook(() => {
       const [files, setFiles] = useState<ComposerAttachment[]>([])
-      usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange })
+      usePaintingComposerInputFiles({ sessionId, inputFiles, files, setFiles, onInputFilesChange })
       return files
     })
 
@@ -151,7 +151,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
       {
         initialProps: {
-          paintingId: 'p-wb-fail',
+          sessionId: 'p-wb-fail',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -161,7 +161,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      paintingId: 'p-wb-fail',
+      sessionId: 'p-wb-fail',
       inputFiles: [],
       files: [makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')],
       setFiles,

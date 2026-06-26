@@ -4464,6 +4464,22 @@
         "image": "選擇繪圖"
       }
     },
+    "canvas": {
+      "back_to_content": "[to be translated]:Back to content",
+      "menu": {
+        "copy_prompt": "複製提示詞",
+        "download": "下載圖片",
+        "prompt_copied": "提示詞已複製"
+      },
+      "minimap": "[to be translated]:Minimap",
+      "op": {
+        "edit": "編輯",
+        "reference": "用作參考",
+        "upscale": "放大",
+        "variation": "變體"
+      },
+      "retry": "[to be translated]:Retry"
+    },
     "custom_size": "自訂尺寸",
     "dashscope": {
       "bottom_scale": "向下擴展",

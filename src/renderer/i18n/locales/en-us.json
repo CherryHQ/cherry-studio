@@ -4464,6 +4464,22 @@
         "image": "Select Image"
       }
     },
+    "canvas": {
+      "back_to_content": "Back to content",
+      "menu": {
+        "copy_prompt": "Copy prompt",
+        "download": "Download image",
+        "prompt_copied": "Prompt copied"
+      },
+      "minimap": "Minimap",
+      "op": {
+        "edit": "Edit",
+        "reference": "Use as reference",
+        "upscale": "Upscale",
+        "variation": "Variation"
+      },
+      "retry": "Retry"
+    },
     "custom_size": "Custom Size",
     "dashscope": {
       "bottom_scale": "Expand Bottom",

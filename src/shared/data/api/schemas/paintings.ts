@@ -1,5 +1,5 @@
 import type { Painting } from '@shared/data/types/painting'
-import { PaintingFilesSchema } from '@shared/data/types/painting'
+import { PaintingFilesSchema, PaintingModeSchema, PaintingStatusSchema } from '@shared/data/types/painting'
 import * as z from 'zod'
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
@@ -10,6 +10,17 @@ export const PAINTINGS_MAX_LIMIT = 100
 
 const TrimmedStringSchema = z.string().trim().min(1)
 const OptionalNullableTrimmedStringSchema = TrimmedStringSchema.nullable()
+
+// Generation snapshot + canvas placement, shared by create/update. All
+// nullable/optional — a draft may carry none.
+const PaintingSnapshotShape = {
+  mode: PaintingModeSchema.nullable().optional(),
+  params: z.record(z.string(), z.unknown()).nullable().optional(),
+  canvasX: z.number().nullable().optional(),
+  canvasY: z.number().nullable().optional(),
+  canvasW: z.number().nullable().optional(),
+  status: PaintingStatusSchema.nullable().optional()
+} as const
 
 export const ListPaintingsQuerySchema = z
   .object({
@@ -27,7 +38,8 @@ export const CreatePaintingSchema = z
     providerId: TrimmedStringSchema,
     modelId: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string(),
-    files: PaintingFilesSchema
+    files: PaintingFilesSchema,
+    ...PaintingSnapshotShape
   })
   .strict()
 export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>
@@ -37,7 +49,8 @@ export const UpdatePaintingSchema = z
     providerId: TrimmedStringSchema.optional(),
     modelId: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
-    files: PaintingFilesSchema.optional()
+    files: PaintingFilesSchema.optional(),
+    ...PaintingSnapshotShape
   })
   .strict()
 export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>

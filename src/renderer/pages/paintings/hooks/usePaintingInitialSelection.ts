@@ -1,49 +1,33 @@
 import { useEffect, useRef } from 'react'
 
-import { createDefaultPainting } from '../model/paintingPipeline'
-import type { PaintingData } from '../model/types/paintingData'
+import { type ComposerDraft, createDraft } from '../model/composerDraft'
 
 interface UsePaintingInitialSelectionInput {
-  currentPainting: PaintingData
-  historyItems: PaintingData[]
+  draft: ComposerDraft
   initialProviderId: string
-  setCurrentPainting: (painting: PaintingData) => void
+  setDraft: (draft: ComposerDraft) => void
 }
 
 /**
- * Bootstrap the page's first painting while `currentPainting` is still the
- * untouched mount-time draft (reference equality — every mutation path
- * replaces the reference, so once the user touches anything no branch fires
- * again):
+ * Re-seed the untouched mount-time draft onto the resolved provider once
+ * `providerOptions` load. The mount-time draft pins the fallback provider while
+ * options are still `[]`; once they resolve, a user whose default ≠ the fallback
+ * would otherwise stay pinned to a provider with an empty model list.
  *
- *   - History resolved non-empty → adopt the most recent persisted painting.
- *   - Fresh user (no history) → re-seed the draft on the resolved provider.
- *     The mount-time draft pins the fallback provider because `providerOptions`
- *     is still `[]` then; once they resolve, a user whose default ≠ the
- *     fallback would otherwise stay pinned to a provider with an empty model
- *     list and be unable to generate.
+ * The composer is an **independent draft** — it is never auto-bound to a
+ * persisted card. Selecting/loading history does not refill it (reference
+ * equality on `initialDraftRef`: once the user touches anything, this stops).
  */
-export function usePaintingInitialSelection({
-  currentPainting,
-  historyItems,
-  initialProviderId,
-  setCurrentPainting
-}: UsePaintingInitialSelectionInput) {
-  const initialDraftRef = useRef(currentPainting)
+export function usePaintingInitialSelection({ draft, initialProviderId, setDraft }: UsePaintingInitialSelectionInput) {
+  const initialDraftRef = useRef(draft)
 
   useEffect(() => {
-    if (currentPainting !== initialDraftRef.current) return
+    if (draft !== initialDraftRef.current) return
 
-    if (historyItems.length > 0) {
-      setCurrentPainting(historyItems[0])
-      return
-    }
-
-    if (initialProviderId && currentPainting.providerId !== initialProviderId) {
-      // Track the re-seeded draft so a later history load still replaces it.
-      const reseeded = createDefaultPainting(initialProviderId)
+    if (initialProviderId && draft.providerId !== initialProviderId) {
+      const reseeded = createDraft(initialProviderId)
       initialDraftRef.current = reseeded
-      setCurrentPainting(reseeded)
+      setDraft(reseeded)
     }
-  }, [currentPainting, historyItems, initialProviderId, setCurrentPainting])
+  }, [draft, initialProviderId, setDraft])
 }

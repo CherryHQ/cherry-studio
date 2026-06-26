@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "Ενέργειες",
     "all": "Όλα τα αρχεία",
+    "audio": "[to be translated]:Audio",
     "batch_delete": "μαζική διαγραφή",
     "batch_operation": "Επιλογή όλων",
     "count": "Αριθμός αρχείων",
@@ -2358,22 +2359,52 @@
       },
       "title": "Διαγραφή αρχείου"
     },
+    "delete_or_remove": "[to be translated]:Delete / remove",
     "document": "Έγγραφο",
+    "drag_upload": "[to be translated]:Drag files here to upload",
     "edit": "Επεξεργασία",
+    "empty": {
+      "no_match_description": "[to be translated]:No files match the current filters",
+      "no_match_title": "[to be translated]:No matching files found"
+    },
     "error": {
-      "open_path": "Δεν είναι δυνατό το άνοιγμα της διαδρομής: {{path}}"
+      "delete_failed": "[to be translated]:Failed to delete files",
+      "delete_partial_failed": "[to be translated]:Some files could not be deleted",
+      "import_failed": "[to be translated]:Failed to import files",
+      "import_partial_failed": "[to be translated]:Some files could not be imported",
+      "open_path": "Δεν είναι δυνατό το άνοιγμα της διαδρομής: {{path}}",
+      "rename_failed": "[to be translated]:Failed to rename file",
+      "restore_failed": "[to be translated]:Failed to restore files",
+      "restore_partial_failed": "[to be translated]:Some files could not be restored"
     },
     "file": "Αρχείο",
+    "footer_count": "[to be translated]:{{count}} files",
+    "footer_selected_count": "[to be translated]:{{count}} selected",
     "image": "Εικόνα",
+    "missing": "[to be translated]:Missing",
+    "modified_at": "[to be translated]:Modified At",
     "name": "Όνομα αρχείου",
     "open": "Άνοιγμα",
+    "other": "[to be translated]:Other",
+    "permanent_delete": "[to be translated]:Permanently delete",
+    "permanent_delete_confirm": {
+      "description": "[to be translated]:This will permanently remove {{count}} file(s). This action cannot be undone.",
+      "title": "[to be translated]:Permanently delete files?"
+    },
     "preview": {
       "error": "Αποτυχία ανοίγματος του αρχείου"
     },
+    "remove_from_library": "[to be translated]:Remove from library",
+    "rename": "[to be translated]:Rename",
+    "restore": "[to be translated]:Restore",
+    "selected_count": "[to be translated]:{{count}} files selected",
+    "show_in_folder": "[to be translated]:Show in folder",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
-    "type": "Τύπος"
+    "trash": "[to be translated]:Trash",
+    "type": "Τύπος",
+    "video": "[to be translated]:Video"
   },
   "globalSearch": {
     "clear": "Καθαρισμός αναζήτησης",
@@ -2767,6 +2798,8 @@
       "chunk_overlap_invalid": "Η επικάλυψη τμημάτων πρέπει να είναι μεγαλύτερη ή ίση με 0",
       "chunk_overlap_must_be_smaller": "Η επικάλυψη κομματιών πρέπει να είναι μικρότερη από το μέγεθος του κομματιού",
       "chunk_overlap_requires_chunk_size": "Το μέγεθος κομματιού είναι απαραίτητο όταν ορίζεται η επικάλυψη κομματιού",
+      "chunk_separator": "[to be translated]:Separator",
+      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "Μέγεθος Κομματιού",
       "chunk_size_change_warning": "Οι αλλαγές στο μέγεθος τμήματος και στην επικάλυψη εφαρμόζονται μόνο σε νεότερα προστεθέντα περιεχόμενα",
       "chunk_size_invalid": "Το μέγεθος του τμήματος πρέπει να είναι μεγαλύτερο από 0",
@@ -2779,6 +2812,7 @@
       "file_processing_hint": "Η επεξεργασία αρχείων εκτελείται αυτόματα κατά την εισαγωγή εγγράφων. Η επιλογή του κατάλληλου παρόχου μπορεί να βελτιώσει την ποιότητα ανάλυσης των εγγράφων.",
       "hints": {
         "chunk_overlap": "Αριθμός επικαλυπτόμενων διακριτικών που διατηρούνται μεταξύ γειτονικών τμημάτων για τη μείωση των σημασιολογικών διακοπών.",
+        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "Στόχος αριθμού token για κάθε τμήμα εγγράφου. Αυτό επηρεάζει την κοκκοποίηση ανάκτησης και το μήκος του πλαισίου.",
         "document_count": "Μέγιστος αριθμός τμημάτων εγγράφων που επιστρέφονται για κάθε ανάκτηση. Υψηλότερες τιμές καλύπτουν περισσότερο περιεχόμενο αλλά χρησιμοποιούν περισσότερο πλαίσιο.",
         "embedding_model": "Χρησιμοποιείται για τη μετατροπή του περιεχομένου της βάσης γνώσης σε διανύσματα. Η αλλαγή του μοντέλου συνήθως απαιτεί επανευρετηρίαση του υπάρχοντος περιεχομένου.",
@@ -2786,6 +2820,7 @@
         "processor": "Αναλυτής που χρησιμοποιείται κατά την εισαγωγή αρχείων για την εξαγωγή του κυρίως κειμένου, πινάκων και σχετικού περιεχομένου.",
         "rerank_model": "Μοντέλο που χρησιμοποιείται για την ανακατάταξη των αρχικών αποτελεσμάτων ανάκτησης και τη βελτίωση της σχετικότητας των τελικών τμημάτων.",
         "search_mode": "Επιλέξτε λειτουργία ανάκτησης: αναζήτηση διανυσμάτων για σημασιολογική αντιστοίχιση, πλήρη αναζήτηση κειμένου για λέξεις-κλειδιά ή υβριδική αναζήτηση και για τα δύο.",
+        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη.",
         "threshold_disabled": "Αυτή η λειτουργία ανάκτησης επιστρέφει ταξινομημένα αποτελέσματα και δεν χρησιμοποιεί κατώφλι ομοιότητας."
       },
@@ -2805,6 +2840,7 @@
         "vector": "Αναζήτηση Διανυσμάτων"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
+      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "Κατώφλι Ομοιότητας",
       "tokens_unit": "διακριτικά"
     },
@@ -4427,6 +4463,22 @@
       "select": {
         "image": "Επιλογή Εικόνας"
       }
+    },
+    "canvas": {
+      "back_to_content": "[to be translated]:Back to content",
+      "menu": {
+        "copy_prompt": "[to be translated]:Copy prompt",
+        "download": "[to be translated]:Download image",
+        "prompt_copied": "[to be translated]:Prompt copied"
+      },
+      "minimap": "[to be translated]:Minimap",
+      "op": {
+        "edit": "[to be translated]:Edit",
+        "reference": "[to be translated]:Use as reference",
+        "upscale": "[to be translated]:Upscale",
+        "variation": "[to be translated]:Variation"
+      },
+      "retry": "[to be translated]:Retry"
     },
     "custom_size": "Προσαρμοσμένο μέγεθος",
     "dashscope": {
@@ -6732,6 +6784,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Εμφάνιση {{count}} επιπλέον μοντέλων",
+        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",

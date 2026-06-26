@@ -3,7 +3,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { PaintingData } from '../../model/types/paintingData'
+import type { ComposerDraft } from '../../model/composerDraft'
 
 // Unlike PaintingComposer.test.tsx, this suite keeps the REAL ComposerToolRuntime so
 // the provider actually owns `files` — the point of the test. The surface is the only
@@ -30,16 +30,15 @@ const { default: PaintingComposer } = await import('../PaintingComposer')
 const makeEntry = (id: string): FileEntry =>
   ({ id, name: `${id}.png`, ext: 'png', size: 100, origin: 'internal' }) as unknown as FileEntry
 
-const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData =>
-  ({
-    id,
-    providerId: 'openai',
-    model,
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    inputFiles
-  }) as PaintingData
+const makeDraft = (sessionId: string, inputFiles: FileEntry[], model = 'gpt-image-1'): ComposerDraft => ({
+  sessionId,
+  providerId: 'openai',
+  model,
+  mode: 'generate',
+  prompt: '',
+  params: {},
+  inputFiles
+})
 
 const handlers = {
   generating: false,
@@ -52,7 +51,7 @@ const handlers = {
   onGenerateRandomSeed: vi.fn()
 }
 
-describe('PaintingComposer painting switch', () => {
+describe('PaintingComposer draft switch', () => {
   beforeEach(() => {
     window.api = {
       ...window.api,
@@ -64,38 +63,41 @@ describe('PaintingComposer painting switch', () => {
     } as typeof window.api
   })
 
-  // The provider key lives on ComposerToolRuntimeProvider (which owns `files`), so a
-  // painting switch remounts it and the next painting's inputs fully replace the
-  // previous ones — they never accumulate or leak across the boundary. (The subtle
-  // in-flight-writeback race the key removes is timing-dependent and not separately
-  // asserted; this guards the user-visible contract.)
-  it('replaces composer files with the newly selected painting across switches', async () => {
+  // The provider key lives on ComposerToolRuntimeProvider (which owns `files`) and is
+  // keyed by `draft.sessionId`. Replacing the draft (new session) remounts it, so the
+  // next draft's inputs fully replace the previous ones — they never accumulate or
+  // leak across the boundary.
+  it('replaces composer files when the draft session changes', async () => {
     const filesCount = () => screen.getByTestId('files-count').textContent
 
     const { rerender } = render(
-      <PaintingComposer {...handlers} painting={makePainting('A', [makeEntry('a1'), makeEntry('a2')])} />
+      <PaintingComposer {...handlers} draft={makeDraft('A', [makeEntry('a1'), makeEntry('a2')])} />
     )
     await waitFor(() => expect(filesCount()).toBe('2'))
 
-    rerender(<PaintingComposer {...handlers} painting={makePainting('B', [makeEntry('b1')])} />)
+    rerender(<PaintingComposer {...handlers} draft={makeDraft('B', [makeEntry('b1')])} />)
     await waitFor(() => expect(filesCount()).toBe('1'))
 
-    rerender(<PaintingComposer {...handlers} painting={makePainting('C', [])} />)
+    rerender(<PaintingComposer {...handlers} draft={makeDraft('C', [])} />)
     await waitFor(() => expect(filesCount()).toBe('0'))
   })
 
-  // switchModel clears inputFiles for a generate-only model on the SAME painting id.
-  // The model in the provider key remounts the bridge so the stale chip can't linger
-  // (and later be resurrected onto a model that can't accept it).
-  it('clears input files when the model switches on the same painting', async () => {
+  // The decoupling contract (the bug PR1.5 fixes): switching the MODEL keeps the same
+  // sessionId, so the runtime provider does NOT remount and the attached input images
+  // survive — even though the new draft's inputFiles prop is empty. Before the
+  // refactor, the model lived in the provider key and a model switch wiped the chips.
+  it('keeps input files when only the model changes (same session)', async () => {
     const filesCount = () => screen.getByTestId('files-count').textContent
 
     const { rerender } = render(
-      <PaintingComposer {...handlers} painting={makePainting('A', [makeEntry('a1')], 'edit-model')} />
+      <PaintingComposer {...handlers} draft={makeDraft('A', [makeEntry('a1')], 'edit-model')} />
     )
     await waitFor(() => expect(filesCount()).toBe('1'))
 
-    rerender(<PaintingComposer {...handlers} painting={makePainting('A', [], 'generate-model')} />)
-    await waitFor(() => expect(filesCount()).toBe('0'))
+    rerender(<PaintingComposer {...handlers} draft={makeDraft('A', [], 'generate-model')} />)
+    // Same session → no remount/re-seed → the composer keeps its files. Give async
+    // seed/writeback effects a chance to (wrongly) fire before asserting persistence.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(filesCount()).toBe('1')
   })
 })

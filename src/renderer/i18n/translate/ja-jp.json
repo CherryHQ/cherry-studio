@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "操作",
     "all": "すべてのファイル",
+    "audio": "[to be translated]:Audio",
     "batch_delete": "一括削除",
     "batch_operation": "すべて選択",
     "count": "ファイル",
@@ -2358,22 +2359,52 @@
       },
       "title": "ファイルを削除"
     },
+    "delete_or_remove": "[to be translated]:Delete / remove",
     "document": "ドキュメント",
+    "drag_upload": "[to be translated]:Drag files here to upload",
     "edit": "編集",
+    "empty": {
+      "no_match_description": "[to be translated]:No files match the current filters",
+      "no_match_title": "[to be translated]:No matching files found"
+    },
     "error": {
-      "open_path": "パスを開けません: {{path}}"
+      "delete_failed": "[to be translated]:Failed to delete files",
+      "delete_partial_failed": "[to be translated]:Some files could not be deleted",
+      "import_failed": "[to be translated]:Failed to import files",
+      "import_partial_failed": "[to be translated]:Some files could not be imported",
+      "open_path": "パスを開けません: {{path}}",
+      "rename_failed": "[to be translated]:Failed to rename file",
+      "restore_failed": "[to be translated]:Failed to restore files",
+      "restore_partial_failed": "[to be translated]:Some files could not be restored"
     },
     "file": "ファイル",
+    "footer_count": "[to be translated]:{{count}} files",
+    "footer_selected_count": "[to be translated]:{{count}} selected",
     "image": "画像",
+    "missing": "[to be translated]:Missing",
+    "modified_at": "[to be translated]:Modified At",
     "name": "名前",
     "open": "開く",
+    "other": "[to be translated]:Other",
+    "permanent_delete": "[to be translated]:Permanently delete",
+    "permanent_delete_confirm": {
+      "description": "[to be translated]:This will permanently remove {{count}} file(s). This action cannot be undone.",
+      "title": "[to be translated]:Permanently delete files?"
+    },
     "preview": {
       "error": "ファイルを開くのに失敗しました"
     },
+    "remove_from_library": "[to be translated]:Remove from library",
+    "rename": "[to be translated]:Rename",
+    "restore": "[to be translated]:Restore",
+    "selected_count": "[to be translated]:{{count}} files selected",
+    "show_in_folder": "[to be translated]:Show in folder",
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",
-    "type": "タイプ"
+    "trash": "[to be translated]:Trash",
+    "type": "タイプ",
+    "video": "[to be translated]:Video"
   },
   "globalSearch": {
     "clear": "検索をクリア",
@@ -2767,6 +2798,8 @@
       "chunk_overlap_invalid": "チャンクオーバーラップは0以上でなければなりません",
       "chunk_overlap_must_be_smaller": "チャンクのオーバーラップはチャンクサイズより小さくする必要があります",
       "chunk_overlap_requires_chunk_size": "チャンクオーバーラップが設定されている場合、チャンクサイズの指定が必要です",
+      "chunk_separator": "[to be translated]:Separator",
+      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
       "chunk_size": "チャンクサイズ",
       "chunk_size_change_warning": "チャンクサイズとオーバーラップの変更は、新しく追加されるコンテンツにのみ適用されます",
       "chunk_size_invalid": "チャンクサイズは0より大きくなければなりません",
@@ -2779,6 +2812,7 @@
       "file_processing_hint": "ファイルの処理はドキュメントのインポート時に自動的に実行されます。適切なプロバイダーを選択することで、ドキュメントの解析品質を向上させることができます。",
       "hints": {
         "chunk_overlap": "隣接するチャンク間でセマンティックな途切れを減らすために保持される重複トークンの数。",
+        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
         "chunk_size": "各ドキュメントチャンクのターゲットトークン数。これは検索の粒度とコンテキスト長に影響します。",
         "document_count": "各検索ごとに返されるドキュメントチャンクの最大数。値を大きくするとより多くのコンテンツをカバーできますが、より多くのコンテキストを使用します。",
         "embedding_model": "ナレッジベースのコンテンツをベクトルに変換するために使用されます。モデルを変更すると、通常は既存のコンテンツの再インデックスが必要になります。",
@@ -2786,6 +2820,7 @@
         "processor": "ファイルをインポートする際に本文、表、および関連コンテンツを抽出するために使用されるパーサー。",
         "rerank_model": "初期検索結果を再ランキングし、最終チャンクの関連性を向上させるために使用されるモデル。",
         "search_mode": "検索モードを選択してください：セマンティックマッチングにはベクトル検索、キーワードには全文検索、両方にはハイブリッド検索をお使いください。",
+        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
         "threshold": "低関連度チャンクをフィルタリングするための類似度閾値。値を高くすると検索がより厳格になります。",
         "threshold_disabled": "この検索モードは順序付けられた結果を返し、類似度の閾値は使用しません。"
       },
@@ -2805,6 +2840,7 @@
         "vector": "ベクトル検索"
       },
       "separator_rule": "セパレータルール",
+      "smart_chunking": "[to be translated]:Smart Chunking",
       "threshold": "類似度閾値",
       "tokens_unit": "トークン"
     },
@@ -4427,6 +4463,22 @@
       "select": {
         "image": "画像を選択"
       }
+    },
+    "canvas": {
+      "back_to_content": "[to be translated]:Back to content",
+      "menu": {
+        "copy_prompt": "[to be translated]:Copy prompt",
+        "download": "[to be translated]:Download image",
+        "prompt_copied": "[to be translated]:Prompt copied"
+      },
+      "minimap": "[to be translated]:Minimap",
+      "op": {
+        "edit": "[to be translated]:Edit",
+        "reference": "[to be translated]:Use as reference",
+        "upscale": "[to be translated]:Upscale",
+        "variation": "[to be translated]:Variation"
+      },
+      "retry": "[to be translated]:Retry"
     },
     "custom_size": "カスタムサイズ",
     "dashscope": {
@@ -6732,6 +6784,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "さらに {{count}} 件のモデルを表示",
+        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
         "reload_catalog": "Refresh list",

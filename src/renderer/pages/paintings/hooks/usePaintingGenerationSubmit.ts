@@ -1,37 +1,25 @@
 import { useCallback, useRef } from 'react'
 
-import type { PaintingData } from '../model/types/paintingData'
+import type { ComposerDraft } from '../model/composerDraft'
 import type { ModelOption } from '../model/types/paintingModel'
 import { presentPaintingGenerationGuardFeedback } from '../utils/presentPaintingGenerationGuardFeedback'
 import { usePaintingGeneration } from './usePaintingGeneration'
 import { usePaintingGenerationGuard } from './usePaintingGenerationGuard'
 
 interface UsePaintingGenerationSubmitInput {
-  painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
+  draft: ComposerDraft
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
 /**
  * Single owner of the painting generation submit lifecycle:
- * `validateBeforeGenerate -> generate`, plus cancel + generating state.
- *
- * `cancel(paintingId)` keeps the original signature so list-side flows
- * (e.g. cancel-before-delete) can target a specific painting.
+ * `validateBeforeGenerate -> generate`. Exposes the in-flight card (transient
+ * spinner node) and `cancel(paintingId)` so list-side flows (cancel-before-delete)
+ * can target a specific card.
  */
-export function usePaintingGenerationSubmit({
-  painting,
-  onPaintingChange,
-  ensureCurrentCatalog
-}: UsePaintingGenerationSubmitInput) {
-  const { validateBeforeGenerate } = usePaintingGenerationGuard({
-    painting,
-    ensureCurrentCatalog
-  })
-  const { generate, cancel, generating } = usePaintingGeneration({
-    painting,
-    onPaintingChange
-  })
+export function usePaintingGenerationSubmit({ draft, ensureCurrentCatalog }: UsePaintingGenerationSubmitInput) {
+  const { validateBeforeGenerate } = usePaintingGenerationGuard({ painting: draft, ensureCurrentCatalog })
+  const { generate, cancel, inflightCard } = usePaintingGeneration({ draft })
 
   const submittingRef = useRef(false)
 
@@ -41,14 +29,14 @@ export function usePaintingGenerationSubmit({
     try {
       const guardResult = await validateBeforeGenerate()
       if (!guardResult.ok) {
-        presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
+        presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, draft.providerId)
         return
       }
       await generate()
     } finally {
       submittingRef.current = false
     }
-  }, [generate, painting.providerId, validateBeforeGenerate])
+  }, [generate, draft.providerId, validateBeforeGenerate])
 
-  return { generating, submit, cancel }
+  return { inflightCard, submit, cancel }
 }

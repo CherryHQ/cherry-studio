@@ -2,9 +2,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { paintingDataToCreateDto } from '../paintingDataToCreateDto'
-import { paintingDataToUpdateDto } from '../paintingDataToUpdateDto'
-import { recordsToPaintingDataList, recordToPaintingData } from '../recordToPaintingData'
+import { recordToPaintingData } from '../recordToPaintingData'
 
 const { mockDataApiGet, mockGetPhysicalPath } = vi.hoisted(() => ({
   mockDataApiGet: vi.fn(),
@@ -25,7 +23,7 @@ vi.stubGlobal('window', {
   }
 })
 
-describe('paintingMappers', () => {
+describe('recordToPaintingData', () => {
   const file: FileMetadata = {
     id: 'file-1',
     name: 'file-1.png',
@@ -47,6 +45,12 @@ describe('paintingMappers', () => {
       output: ['file-1', 'missing-file'],
       input: ['input-file-1', 'missing-input-file']
     },
+    // Generation snapshot + canvas placement — must survive the round-trip.
+    mode: 'edit',
+    params: { seed: '42', size: '1024x1024' },
+    canvasX: 100,
+    canvasY: 200,
+    canvasW: 320,
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
@@ -80,7 +84,7 @@ describe('paintingMappers', () => {
     expect(result).toEqual({
       id: 'painting-1',
       providerId: 'silicon',
-      mode: 'generate',
+      mode: 'edit',
       model: 'model-1',
       prompt: 'draw a cat',
       // `name` is the on-disk filename (`${id}${ext}`) — Artboard's
@@ -101,62 +105,23 @@ describe('paintingMappers', () => {
           updatedAt: Date.parse('2026-01-01T00:00:00.000Z')
         }
       ],
-      persistedAt: '2026-01-01T00:00:00.000Z'
+      persistedAt: '2026-01-01T00:00:00.000Z',
+      // Generation snapshot + canvas placement flow straight through.
+      params: { seed: '42', size: '1024x1024' },
+      canvasX: 100,
+      canvasY: 200,
+      canvasW: 320,
+      status: undefined
     })
   })
 
-  it('round-trips painting through create DTO carrying only the frozen-receipt fields', async () => {
-    const paintingDataList = await recordsToPaintingDataList([record])
-    const paintingData = paintingDataList[0]
-
-    expect(paintingDataList).toHaveLength(1)
-
-    expect(
-      paintingDataToCreateDto({
-        ...paintingData,
-        providerId: 'silicon'
-      })
-    ).toEqual({
-      id: 'painting-1',
-      providerId: 'silicon',
-      modelId: 'model-1',
-      prompt: 'draw a cat',
-      files: {
-        output: ['file-1'],
-        input: ['input-file-1']
-      }
-    })
-  })
-
-  it('handles modelId: null — model resolves to undefined and round-trips as absent modelId', async () => {
-    const nullModelRecord: PaintingRecord = {
-      ...record,
-      id: 'painting-null-model',
-      modelId: null
-    }
-
-    const paintingData = await recordToPaintingData(nullModelRecord)
+  it('resolves model to undefined when modelId is null', async () => {
+    const paintingData = await recordToPaintingData({ ...record, id: 'painting-null-model', modelId: null })
     expect(paintingData.model).toBeUndefined()
-
-    const createDto = paintingDataToCreateDto({ ...paintingData, providerId: 'silicon' })
-    expect(createDto.modelId).toBeUndefined()
-
-    const updateDto = paintingDataToUpdateDto(paintingData)
-    expect(updateDto.modelId).toBeUndefined()
   })
 
-  it('translates a PaintingData into an UpdatePaintingDto', async () => {
-    const paintingDataList = await recordsToPaintingDataList([record])
-    const paintingData = paintingDataList[0]
-
-    expect(paintingDataToUpdateDto(paintingData)).toEqual({
-      providerId: 'silicon',
-      modelId: 'model-1',
-      prompt: 'draw a cat',
-      files: {
-        output: ['file-1'],
-        input: ['input-file-1']
-      }
-    })
+  it('mirrors the persisted generation status (failed → retry-able)', async () => {
+    const paintingData = await recordToPaintingData({ ...record, id: 'painting-failed', status: 'failed' })
+    expect(paintingData.status).toBe('failed')
   })
 })

@@ -188,6 +188,53 @@ describe('PaintingService', () => {
     expect(rows.map((row) => row.id)).toEqual([third.id, first.id, second.id])
   })
 
+  describe('generation snapshot + canvas placement', () => {
+    it('persists mode/params and canvas coords through create + getById', async () => {
+      const created = await paintingService.create({
+        providerId: 'aihubmix',
+        prompt: 'snap',
+        files: { output: [], input: [] },
+        mode: 'edit',
+        params: { seed: '42', size: '1024x1024' },
+        canvasX: 100,
+        canvasY: 200,
+        canvasW: 320
+      })
+      expect(created.mode).toBe('edit')
+      expect(created.params).toEqual({ seed: '42', size: '1024x1024' })
+      expect([created.canvasX, created.canvasY, created.canvasW]).toEqual([100, 200, 320])
+
+      const fetched = await paintingService.getById(created.id)
+      expect(fetched.mode).toBe('edit')
+      expect(fetched.params).toEqual({ seed: '42', size: '1024x1024' })
+      expect([fetched.canvasX, fetched.canvasY, fetched.canvasW]).toEqual([100, 200, 320])
+    })
+
+    it('updates canvas coords (drag) without disturbing the snapshot', async () => {
+      const created = await paintingService.create({
+        providerId: 'aihubmix',
+        prompt: 'snap2',
+        files: { output: [], input: [] },
+        mode: 'generate',
+        params: { seed: '7' }
+      })
+
+      const moved = await paintingService.update(created.id, { canvasX: 12.5, canvasY: -8, canvasW: 256 })
+
+      expect([moved.canvasX, moved.canvasY, moved.canvasW]).toEqual([12.5, -8, 256])
+      expect(moved.mode).toBe('generate')
+      expect(moved.params).toEqual({ seed: '7' })
+    })
+
+    it('leaves snapshot + coords null for a legacy-style painting', async () => {
+      const created = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'bare' }))
+
+      expect(created.mode).toBeNull()
+      expect(created.params).toBeNull()
+      expect([created.canvasX, created.canvasY, created.canvasW]).toEqual([null, null, null])
+    })
+  })
+
   describe('delete', () => {
     afterEach(() => {
       vi.restoreAllMocks()

@@ -4464,6 +4464,22 @@
         "image": "选择图片"
       }
     },
+    "canvas": {
+      "back_to_content": "回到画布",
+      "menu": {
+        "copy_prompt": "复制提示词",
+        "download": "下载图片",
+        "prompt_copied": "提示词已复制"
+      },
+      "minimap": "缩略图",
+      "op": {
+        "edit": "编辑",
+        "reference": "用作参考",
+        "upscale": "放大",
+        "variation": "变体"
+      },
+      "retry": "重试"
+    },
     "custom_size": "自定义尺寸",
     "dashscope": {
       "bottom_scale": "向下扩展",
