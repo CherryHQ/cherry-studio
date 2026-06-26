@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
@@ -299,6 +299,78 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('embedding')).toBe(1)
     const matches = await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
     expect(matches.map((m) => m.materialId)).toEqual(['m2'])
+  })
+
+  it('deleteMaterials removes the whole batch in one pass, sweeps only true orphans, and keeps the survivor searchable', async () => {
+    // m1, m2 will be deleted; m3 survives. m1 and m3 index the IDENTICAL body, so they
+    // share one content row and one embedding row; m2 has its own unique body.
+    await store.rebuildMaterial('m1', buildInput('shared knowledge body', [[0, 21]], 'a.md', [0.1, 0.2, 0.3]))
+    await store.rebuildMaterial('m2', buildInput('unique orphan body', [[0, 18]], 'b.md', [0.4, 0.5, 0.6]))
+    await store.rebuildMaterial('m3', buildInput('shared knowledge body', [[0, 21]], 'c.md', [0.1, 0.2, 0.3]))
+    expect(await count('material')).toBe(3)
+    expect(await count('content')).toBe(2) // shared (m1+m3) + unique (m2)
+    expect(await count('embedding')).toBe(2)
+
+    // Duplicate id must be de-duped; the whole batch deletes in one transaction with a
+    // single GC pass — the path a folder delete takes (one deleteMaterials over N files).
+    await store.deleteMaterials(['m1', 'm2', 'm1'])
+
+    expect((await driver.execute(`SELECT material_id FROM material`)).rows.map((r) => r.material_id)).toEqual(['m3'])
+    expect(await store.listMaterialUnits('m1')).toEqual([])
+    expect(await store.listMaterialUnits('m2')).toEqual([])
+    // The single end-of-batch GC must sweep m2's now-orphaned body/embedding/content while
+    // keeping the body m3 still references — i.e. the same end state N per-material GCs gave.
+    expect(await count('content')).toBe(1)
+    expect(await count('embedding')).toBe(1)
+
+    // The FTS-rowid hazard guard: deleting m1/m2 fires the external-content FTS delete
+    // trigger for their rows. If the batch delete desynced the FTS rowids (or over-swept),
+    // the survivor m3 — whose search_text row is untouched — would drop out of keyword
+    // search even though it is still present. It must stay both bm25- and vector-reachable.
+    expect(await ftsMatchCount('knowledge')).toBe(1)
+    expect((await store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
+      'm3'
+    ])
+    expect(
+      (await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })).map(
+        (h) => h.materialId
+      )
+    ).toEqual(['m3'])
+  })
+
+  it('deleteMaterials is a no-op for an empty batch', async () => {
+    await store.rebuildMaterial('m1', buildInput('keep me', [[0, 7]]))
+    await expect(store.deleteMaterials([])).resolves.toBeUndefined()
+    expect(await count('material')).toBe(1)
+  })
+
+  it('yields the main-process event loop between materials during a batch delete', async () => {
+    // Each search_text delete fires the trigram FTS delete trigger synchronously, so a
+    // large folder delete would block the main process (the macOS beachball) without
+    // periodic yields. Prove the loop hands control back: drive Date.now() past the time
+    // budget on every read (deterministic — no real-clock dependency) and confirm the loop
+    // schedules a macrotask (setImmediate) per material while still deleting correctly.
+    await store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
+    await store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
+    await store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
+
+    // setImmediate is spied (call-through), not stubbed, so the yields still resolve.
+    let clock = 0
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 100))
+    const immediate = vi.spyOn(global, 'setImmediate')
+    let yields = 0
+    try {
+      await store.deleteMaterials(['m1', 'm2', 'm3'])
+      yields = immediate.mock.calls.length
+    } finally {
+      dateNow.mockRestore()
+      immediate.mockRestore()
+    }
+
+    expect(yields).toBeGreaterThanOrEqual(3) // one yield per material under the forced clock
+    expect(await count('material')).toBe(0)
+    expect(await count('search_text')).toBe(0)
+    expect(await count('embedding')).toBe(0)
   })
 
   it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {

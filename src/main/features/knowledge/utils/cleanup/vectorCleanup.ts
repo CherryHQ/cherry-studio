@@ -13,17 +13,11 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
     return
   }
 
-  const results = await Promise.allSettled(uniqueItemIds.map((itemId) => store.deleteMaterial(itemId)))
-  // Carry each root cause into the aggregate error — an id-only list would leave
-  // nothing to diagnose the individual deletions with.
-  const failures = uniqueItemIds.flatMap((itemId, index) => {
-    const result = results[index]
-    return result?.status === 'rejected' ? [{ itemId, reason: result.reason }] : []
-  })
-  if (failures.length > 0) {
-    const details = failures
-      .map(({ itemId, reason }) => `${itemId} (${reason instanceof Error ? reason.message : String(reason)})`)
-      .join(', ')
-    throw new Error(`Failed to delete knowledge item vectors for item ids: ${details}`)
-  }
+  // Delete every id in ONE batched transaction with a single collectIndexGarbage pass.
+  // The old per-id Promise.allSettled loop ran the two full-table GC scans once per item,
+  // so deleting a folder of N files scanned the whole embedding/content table N times —
+  // the multi-second main-process freeze on large (PDF-heavy) folders. deleteMaterials
+  // rolls the whole batch back on failure (throwing the root cause), so a retry
+  // re-discovers every affected id; no per-item failure aggregation is needed.
+  await store.deleteMaterials(uniqueItemIds)
 }

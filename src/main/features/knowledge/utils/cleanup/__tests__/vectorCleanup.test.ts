@@ -1,9 +1,9 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreIfExistsMock, deleteMaterialMock } = vi.hoisted(() => ({
+const { getIndexStoreIfExistsMock, deleteMaterialsMock } = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
-  deleteMaterialMock: vi.fn()
+  deleteMaterialsMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -43,8 +43,8 @@ function createBase(): KnowledgeBase {
 describe('deleteKnowledgeItemVectors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getIndexStoreIfExistsMock.mockResolvedValue({ deleteMaterial: deleteMaterialMock })
-    deleteMaterialMock.mockResolvedValue(undefined)
+    getIndexStoreIfExistsMock.mockResolvedValue({ deleteMaterials: deleteMaterialsMock })
+    deleteMaterialsMock.mockResolvedValue(undefined)
   })
 
   it('skips cleanup when no vector store exists', async () => {
@@ -52,30 +52,23 @@ describe('deleteKnowledgeItemVectors', () => {
 
     await deleteKnowledgeItemVectors(createBase(), ['note-1'])
 
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
   })
 
-  it('deduplicates item ids before deleting vectors', async () => {
+  it('deletes all deduplicated item ids in a single batch call', async () => {
+    // The whole folder's ids go to deleteMaterials in ONE call (one transaction, one GC
+    // pass) — not one call per id, which was the O(N × table) folder-delete freeze.
     await deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-1', 'note-2'])
 
-    expect(deleteMaterialMock).toHaveBeenCalledTimes(2)
-    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
-    expect(deleteMaterialMock).toHaveBeenCalledWith('note-2')
+    expect(deleteMaterialsMock).toHaveBeenCalledTimes(1)
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1', 'note-2'])
   })
 
-  it('attempts every vector cleanup before reporting failed item ids with their root causes', async () => {
-    deleteMaterialMock
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('note-2 failed'))
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('note-4 failed'))
+  it('propagates the error when the batch delete fails', async () => {
+    // The batch is atomic: a failure rolls the whole transaction back and throws its root
+    // cause, so a retry re-discovers every affected id. No per-item aggregation to do.
+    deleteMaterialsMock.mockRejectedValueOnce(new Error('batch delete failed'))
 
-    // Each failed id carries its own reason — an id-only list would leave the
-    // aggregate error with nothing to diagnose the individual deletions.
-    await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2', 'note-3', 'note-4'])).rejects.toThrow(
-      'note-2 (note-2 failed), note-4 (note-4 failed)'
-    )
-
-    expect(deleteMaterialMock).toHaveBeenCalledTimes(4)
+    await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2'])).rejects.toThrow('batch delete failed')
   })
 })

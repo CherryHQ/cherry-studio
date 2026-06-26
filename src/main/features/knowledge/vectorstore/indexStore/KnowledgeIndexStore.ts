@@ -16,6 +16,15 @@ const RRF_K = 60
 const EMBEDDING_HASH_QUERY_BATCH = 500
 
 /**
+ * How long {@link KnowledgeIndexStore.deleteMaterials} may run its per-material
+ * row deletes before handing the main-process event loop back to the OS message
+ * pump (see the method doc for why). Tuned well under the multi-second window
+ * that surfaces the macOS beachball, while large enough that the yields add no
+ * measurable overhead to a small delete.
+ */
+const DELETE_YIELD_BUDGET_MS = 50
+
+/**
  * Engine-neutral store over a per-base `index.sqlite`. Written once; the storage
  * engine is swapped by injecting a different {@link SqliteDriver} (libsql today,
  * better-sqlite3 + sqlite-vec later) — see knowledge-technical-design.md §5.6.
@@ -161,9 +170,49 @@ export class KnowledgeIndexStore {
    * rows this delete orphaned, in the same transaction.
    */
   async deleteMaterial(materialId: string): Promise<void> {
+    await this.deleteMaterials([materialId])
+  }
+
+  /**
+   * Delete many materials in ONE transaction, sweeping orphaned `embedding` /
+   * `content` rows with a SINGLE {@link collectIndexGarbage} pass at the end.
+   *
+   * collectIndexGarbage runs two FULL-TABLE anti-join scans, so calling it once
+   * per material (the old per-material delete loop) made a bulk delete
+   * O(materials × table): deleting a folder of N files scanned the whole
+   * `embedding`/`content` table N times. With a large index (e.g. a folder of
+   * PDFs chunked into tens of thousands of rows) that blocked the main-process
+   * event loop for seconds — the folder-delete UI freeze. Deleting the rows up
+   * front and GCing once makes it O(N + table), and the single transaction makes
+   * the bulk delete atomic (a failure rolls the whole batch back so a retry
+   * re-discovers every affected id).
+   *
+   * Batching the GC removes the super-linear cost, but the per-material row
+   * deletes are still linear in chunks: each `search_text` delete fires the FTS
+   * delete trigger, which the libsql driver runs synchronously on the main
+   * process. Tens of thousands of rows still sum to a multi-second block, and
+   * because Electron drives the window from this same loop that block IS the
+   * macOS beachball (the renderer thread never stalls). So the loop yields to the
+   * OS message pump whenever it has run for {@link DELETE_YIELD_BUDGET_MS}: the
+   * total work is unchanged, but no single uninterrupted block is long enough to
+   * freeze the window. Yielding mid-transaction is safe — the caller holds the
+   * base mutation lock, so no other writer is waiting on this base's index.
+   */
+  async deleteMaterials(materialIds: string[]): Promise<void> {
+    const uniqueMaterialIds = [...new Set(materialIds)]
+    if (uniqueMaterialIds.length === 0) {
+      return
+    }
     await this.driver.transaction(async (tx) => {
-      await this.deleteMaterialSearchText(tx, materialId)
-      await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+      let lastYieldAt = Date.now()
+      for (const materialId of uniqueMaterialIds) {
+        await this.deleteMaterialSearchText(tx, materialId)
+        await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+        if (Date.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          lastYieldAt = Date.now()
+        }
+      }
       await this.collectIndexGarbage(tx)
     })
   }
