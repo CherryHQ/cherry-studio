@@ -219,6 +219,36 @@ describe('ApiServer devtools timing metadata', () => {
     })
   })
 
+  it('adds handler duration when a handler throws in development mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'development'
+    const { ApiServer: DevApiServer } = await import('../ApiServer')
+    const server = new (DevApiServer as any)({
+      '/providers': {
+        GET: async () => {
+          throw new Error('handler failed')
+        }
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_3',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response).toMatchObject({
+      id: 'req_3',
+      status: 500
+    })
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      handlerDuration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+  })
+
   it('adds only request duration in diagnostics mode', async () => {
     vi.resetModules()
     process.env.NODE_ENV = 'production'
@@ -231,7 +261,7 @@ describe('ApiServer devtools timing metadata', () => {
     })
 
     const response = await server.handleRequest({
-      id: 'req_3',
+      id: 'req_4',
       method: 'GET',
       path: '/providers',
       metadata: { timestamp: Date.now() }

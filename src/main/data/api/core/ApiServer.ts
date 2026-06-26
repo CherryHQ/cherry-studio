@@ -99,9 +99,12 @@ export class ApiServer {
       // Execute handler if middleware didn't set error
       if (!requestContext.response.error) {
         const handlerStart = DATA_API_HANDLER_TIMING_ENABLED ? performance.now() : 0
-        await this.executeHandler(requestContext, handlerMatch)
-        if (DATA_API_HANDLER_TIMING_ENABLED) {
-          handlerDuration = performance.now() - handlerStart
+        try {
+          await this.executeHandler(requestContext, handlerMatch)
+        } finally {
+          if (DATA_API_HANDLER_TIMING_ENABLED) {
+            handlerDuration = performance.now() - handlerStart
+          }
         }
       }
 

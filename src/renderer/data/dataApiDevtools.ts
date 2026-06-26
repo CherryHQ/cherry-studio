@@ -7,7 +7,7 @@ interface DataApiDevtoolsOptions {
   capturePayloads: boolean
 }
 
-export interface DataApiDevtoolsEvent {
+interface DataApiDevtoolsEvent {
   id: string
   state: DataApiDevtoolsRequestState
   timestamp: number
@@ -32,7 +32,7 @@ export interface DataApiDevtoolsEvent {
   }
 }
 
-export interface DataApiDevtoolsGlobal {
+interface DataApiDevtoolsGlobal {
   snapshot: () => DataApiDevtoolsEvent[]
   clear: () => void
   setOptions: (options: Partial<DataApiDevtoolsOptions>) => DataApiDevtoolsOptions
