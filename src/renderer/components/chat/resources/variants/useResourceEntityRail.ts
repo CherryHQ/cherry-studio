@@ -37,7 +37,7 @@ type UseResourceEntityRailResult<TEntity> = {
 }
 
 /**
- * Shared behavior for the right-mode entity rail (assistants / agents): only entities that own
+ * Shared behavior for the old-view entity rail (assistants / agents): only entities that own
  * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
  * first resource (or a blank draft), and reordering persists the real `orderKey`. Data fetching,
  * pins, deletion, and context menus stay in the per-variant component.

@@ -98,7 +98,7 @@ export function AssistantResourceList({
   }, [])
   const handleReorderError = useCallback(
     (error: unknown) => {
-      logger.error('Failed to reorder assistant right-mode rail', { error })
+      logger.error('Failed to reorder assistant old-view rail', { error })
       window.toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
     },
     [t]
@@ -131,7 +131,7 @@ export function AssistantResourceList({
         await toggleAssistantPin(assistantId)
         await refreshAssistants()
       } catch (err) {
-        logger.error('Failed to toggle assistant pin from right-mode rail', { assistantId, err })
+        logger.error('Failed to toggle assistant pin from old-view rail', { assistantId, err })
         window.toast.error(t('common.error'))
       }
     },
@@ -168,7 +168,7 @@ export function AssistantResourceList({
         window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
         await refreshTopics()
       } catch (err) {
-        logger.error('Failed to delete assistant topics from right-mode rail', { assistantId, err })
+        logger.error('Failed to delete assistant topics from old-view rail', { assistantId, err })
         window.toast.error(t('chat.topics.manage.delete.error'))
       } finally {
         setDeletingAssistantId(null)

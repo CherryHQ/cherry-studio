@@ -107,7 +107,7 @@ export function AgentResourceList({
   )
   const handleReorderError = useCallback(
     (error: unknown) => {
-      logger.error('Failed to reorder agent right-mode rail', { error })
+      logger.error('Failed to reorder agent old-view rail', { error })
       window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
     },
     [t]
@@ -140,7 +140,7 @@ export function AgentResourceList({
         await toggleAgentPin(agentId)
         await refetchAgents()
       } catch (err) {
-        logger.error('Failed to toggle agent pin from right-mode rail', { agentId, err })
+        logger.error('Failed to toggle agent pin from old-view rail', { agentId, err })
         window.toast.error(t('common.error'))
       }
     },
@@ -179,7 +179,7 @@ export function AgentResourceList({
         await reload()
         window.toast.success(t('common.delete_success'))
       } catch (err) {
-        logger.error('Failed to delete agent sessions from right-mode rail', { agentId, err, targetSessionIds })
+        logger.error('Failed to delete agent sessions from old-view rail', { agentId, err, targetSessionIds })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.agent.delete.error.failed')))
       } finally {
         setDeletingAgentId(null)
