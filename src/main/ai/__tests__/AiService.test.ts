@@ -166,14 +166,18 @@ describe('AiService', () => {
     const result = await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
-      n: 2,
-      size: '1024x1024',
-      negativePrompt: 'blurry',
-      seed: 7,
-      quality: 'high',
-      numInferenceSteps: 30,
-      guidanceScale: 4.5,
-      promptEnhancement: true,
+      // Canonical paramValues bag (`numImages`, not `n`); main re-derives the
+      // wire shape. The assertion below is unchanged — same wire, new input shape.
+      paramValues: {
+        numImages: 2,
+        size: '1024x1024',
+        negativePrompt: 'blurry',
+        seed: 7,
+        quality: 'high',
+        numInferenceSteps: 30,
+        guidanceScale: 4.5,
+        promptEnhancement: true
+      },
       requestOptions: { signal: new AbortController().signal }
     })
 
@@ -234,7 +238,7 @@ describe('AiService', () => {
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
-      size: 'auto'
+      paramValues: { size: 'auto' }
     })
 
     const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
@@ -733,6 +737,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const result = await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
       prompt: 'a cat',
+      paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],
       requestOptions: { signal: new AbortController().signal }
     })
@@ -764,9 +769,9 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       return undefined
     })
 
-    await expect(service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat' })).rejects.toThrow(
-      'vendor exploded'
-    )
+    await expect(
+      service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', paramValues: {} })
+    ).rejects.toThrow('vendor exploded')
   })
 
   it('cancels the job and throws AbortError when the request is aborted', async () => {
@@ -795,6 +800,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'a cat',
+        paramValues: {},
         requestOptions: { signal: controller.signal }
       })
     ).rejects.toThrow(/abort/i)
@@ -820,6 +826,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'edit',
+        paramValues: {},
         inputImages: ['data:image/png;base64,AAAA']
       })
     ).rejects.toThrow('enqueue boom')

@@ -18,7 +18,7 @@ import type { GeneratePaintingOptions } from '../generatePainting'
 import { generatePainting } from '../generatePainting'
 
 function makeOptions(
-  aiSdkParams: GeneratePaintingOptions['aiSdkParams'],
+  paramValues: Record<string, unknown> = {},
   signal: AbortSignal = new AbortController().signal
 ): GeneratePaintingOptions {
   return {
@@ -32,7 +32,7 @@ function makeOptions(
     signal,
     modelId: 'gpt-image-1',
     prompt: 'a fox',
-    aiSdkParams
+    paramValues
   }
 }
 
@@ -52,22 +52,22 @@ describe('generatePainting', () => {
     return (call[1] as { payload: Record<string, unknown> }).payload
   }
 
-  it("forwards the 'auto' size sentinel as-is for main to omit", async () => {
-    await generatePainting(makeOptions({ size: 'auto' }))
+  it('sends the canonical paramValues bag in the IPC payload (main owns the wire mapping)', async () => {
+    await generatePainting(makeOptions({ size: 'auto', numImages: 2 }))
 
     expect(imagePayload()).toMatchObject({
       uniqueModelId: 'aihubmix::gpt-image-1',
       prompt: 'a fox',
-      size: 'auto'
+      paramValues: { size: 'auto', numImages: 2 }
     })
   })
 
-  it('keeps a concrete size as the IPC size', async () => {
+  it('passes paramValues verbatim — no top-level wire fields', async () => {
     await generatePainting(makeOptions({ size: '1024x1024' }))
 
-    expect(imagePayload()).toMatchObject({
-      size: '1024x1024'
-    })
+    const payload = imagePayload()
+    expect((payload as { paramValues: Record<string, unknown> }).paramValues).toEqual({ size: '1024x1024' })
+    expect(payload).not.toHaveProperty('size')
   })
 
   // A provider failure now crosses IpcApi as an IpcError (name 'IpcError'), which no longer

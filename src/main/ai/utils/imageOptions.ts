@@ -1,6 +1,8 @@
 import type { GenerateImageParams } from '@shared/types/image'
 import type { JSONValue } from 'ai'
 
+import { nativeOptionFor } from './aiSdkNativeBindings'
+
 /**
  * Structural subset of the image params that {@link buildImageProviderOptions}
  * actually reads. Both `GenerateImageParams` and `EditImageParams` satisfy this,
@@ -22,6 +24,36 @@ export type ImageOptionParams = Partial<
     | 'providerOptions'
   >
 > & { background?: string; moderation?: string; style?: string }
+
+/** The structured fields + leftover vendor bag split out of a canonical `paramValues` bag. */
+export interface SplitImageParams {
+  /** `ImageOptionParams`-shaped (+ `n`): the binding-mapped structured fields. */
+  readonly structured: ImageOptionParams & { n?: number }
+  /** Non-binding canonical keys (cfg, addWatermark, modelDescriptor, …). */
+  readonly vendorBag: Record<string, unknown>
+}
+
+/**
+ * Partition a canonical `paramValues` bag into the structured fields the AI SDK
+ * call + {@link buildImageProviderOptions} consume vs the leftover vendor bag.
+ * The inverse of the renderer's old `canonicalGenerate` partition, moved to main
+ * after the IPC payload collapse.
+ *
+ * The `'' | null | undefined` skip mirrors the renderer's old `place()` guard
+ * exactly — it is the byte-identical-wire invariant (e.g. an empty-string `size`
+ * must NOT survive to `resolveImageRequestSize`).
+ */
+export function splitParamValues(paramValues: Record<string, unknown>): SplitImageParams {
+  const structured: Record<string, unknown> = {}
+  const vendorBag: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(paramValues)) {
+    if (value === undefined || value === '' || value === null) continue
+    const option = nativeOptionFor(key) // numImages → n; rest identity
+    if (option) structured[option] = value
+    else vendorBag[key] = value
+  }
+  return { structured: structured as ImageOptionParams & { n?: number }, vendorBag }
+}
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>
 

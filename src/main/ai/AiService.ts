@@ -4,7 +4,6 @@ import {
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
-import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { JobHandle } from '@main/core/job/types'
@@ -46,7 +45,12 @@ import { WebContentsListener } from './streamManager/listeners/WebContentsListen
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
-import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
+import {
+  buildImageProviderOptions,
+  normalizeAspectRatio,
+  type SplitImageParams,
+  splitParamValues
+} from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -85,21 +89,11 @@ export interface AiImageRequest extends AiBaseRequest {
   inputImages?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
-  n?: number
-  size?: string
-  negativePrompt?: string
-  seed?: number
-  quality?: string
-  numInferenceSteps?: number
-  guidanceScale?: number
-  promptEnhancement?: boolean
-  personGeneration?: PersonGeneration
-  aspectRatio?: string
-  background?: string
-  moderation?: string
-  style?: string
-  /** Vendor-specific image params keyed by provider id; mapped to AI SDK provider options in main. */
-  providerOptions?: Record<string, Record<string, unknown>>
+  /**
+   * Canonical param bag (registry param keys → coerced values). main derives the
+   * structured request fields + the vendor bag from it via `splitParamValues`.
+   */
+  paramValues: Record<string, unknown>
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
@@ -444,25 +438,18 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    // Map the canonical painting params onto each vendor's real image-API field
-    // names (negative_prompt / seed / imageConfig / …). AI SDK image models
-    // spread `providerOptions[<providerId>]` into the request body, so this is
-    // how negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
-    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, {
-      negativePrompt: request.negativePrompt,
-      seed: request.seed,
-      numInferenceSteps: request.numInferenceSteps,
-      guidanceScale: request.guidanceScale,
-      promptEnhancement: request.promptEnhancement,
-      personGeneration: request.personGeneration,
-      quality: request.quality,
-      aspectRatio: request.aspectRatio,
-      size: request.size,
-      providerOptions: request.providerOptions,
-      background: request.background,
-      moderation: request.moderation,
-      style: request.style
-    })
+    // Split the canonical `paramValues` bag into the structured fields the AI SDK
+    // call consumes vs the leftover vendor bag (cfg, modelDescriptor, …). The
+    // vendor bag rides under `providerOptions[providerId]` exactly as the renderer
+    // used to send it pre-collapse.
+    const { structured, vendorBag } = splitParamValues(request.paramValues)
+    const providerOptions = Object.keys(vendorBag).length ? { [sdkConfig.providerId]: vendorBag } : undefined
+
+    // Map the canonical params onto each vendor's real image-API field names
+    // (negative_prompt / seed / imageConfig / …). AI SDK image models spread
+    // `providerOptions[<providerId>]` into the request body, so this is how
+    // negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
+    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, { ...structured, providerOptions })
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
     // a restart (resumes the same remote task instead of re-submitting). Other
@@ -472,23 +459,28 @@ export class AiService extends BaseService {
       request.uniqueModelId &&
       resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     ) {
-      return await this.generateImageViaJob(request, imageProviderOptions[sdkConfig.providerId] ?? {}, signal)
+      return await this.generateImageViaJob(
+        request,
+        structured,
+        imageProviderOptions[sdkConfig.providerId] ?? {},
+        signal
+      )
     }
 
-    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
-    const requestSize = resolveImageRequestSize(request.size)
+    const aspectRatio = normalizeAspectRatio(structured.aspectRatio)
+    const requestSize = resolveImageRequestSize(structured.size)
 
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
-      n: request.n ?? 1,
+      n: structured.n ?? 1,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
-      ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
-      ...(request.seed !== undefined ? { seed: request.seed } : {}),
-      ...(request.quality ? { quality: request.quality } : {}),
-      ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
-      ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
-      ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
+      ...(structured.negativePrompt ? { negativePrompt: structured.negativePrompt } : {}),
+      ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
+      ...(structured.quality ? { quality: structured.quality } : {}),
+      ...(structured.numInferenceSteps !== undefined ? { numInferenceSteps: structured.numInferenceSteps } : {}),
+      ...(structured.guidanceScale !== undefined ? { guidanceScale: structured.guidanceScale } : {}),
+      ...(structured.promptEnhancement !== undefined ? { promptEnhancement: structured.promptEnhancement } : {}),
       ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
@@ -548,6 +540,7 @@ export class AiService extends BaseService {
    */
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
+    structured: SplitImageParams['structured'],
     providerParams: Record<string, unknown>,
     signal: AbortSignal | undefined
   ): Promise<AiImageResult> {
@@ -576,14 +569,14 @@ export class AiService extends BaseService {
       if (rejected) throw rejected.reason
       const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
-      const requestSize = resolveImageRequestSize(request.size)
+      const requestSize = resolveImageRequestSize(structured.size)
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
         prompt: request.prompt,
-        n: request.n ?? 1,
+        n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
-        seed: request.seed,
+        seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         providerParams

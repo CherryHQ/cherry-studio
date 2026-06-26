@@ -6,22 +6,22 @@ import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
 import type { PaintingData } from '../types/paintingData'
 
-// Capture the params handed to the shared generate skeleton — this is the
-// partition output (`aiSdkParams` vs `providerBag`) under test.
+// Capture the options handed to the shared generate skeleton — this is the
+// canonical `paramValues` bag (+ encoded inputImages) under test. The
+// native-vs-vendor partition now lives in main (`splitParamValues`), so the bag
+// stays canonical (no `numImages → n` rename here).
 const generatePaintingMock = vi.fn<(opts: unknown) => Promise<FileMetadata[]>>(async () => [] as FileMetadata[])
 vi.mock('../generatePainting', () => ({
   generatePainting: (opts: unknown) => generatePaintingMock(opts)
 }))
 
-// Provider enablement / apiKey resolution is covered elsewhere; here it just
-// needs to resolve so the partition runs.
 vi.mock('../../utils/checkProviderEnabled', () => ({
   checkProviderEnabled: vi.fn(async () => 'api-key')
 }))
 
 interface CapturedGenerate {
-  aiSdkParams: Record<string, unknown>
-  providerBag?: Record<string, unknown>
+  paramValues: Record<string, unknown>
+  inputImages?: string[]
 }
 
 function lastGenerateCall(): CapturedGenerate {
@@ -58,51 +58,48 @@ describe('canonicalGenerate', () => {
     generatePaintingMock.mockClear()
   })
 
-  it('partitions params into AI-SDK-native fields and the vendor bag, renaming positional keys', async () => {
+  it('ships the validated params as one canonical paramValues bag (no partition / rename)', async () => {
     await canonicalGenerate(
       makeInput({ size: '1024x1024', numImages: 2, seed: 5, addWatermark: true, outputFormat: 'png' })
     )
 
     const call = lastGenerateCall()
-    // numImages → n, size stays size, seed stays; all top-level IPC fields.
-    expect(call.aiSdkParams).toEqual({ size: '1024x1024', n: 2, seed: 5 })
-    // Unknown-to-AI-SDK keys flow through the vendor bag verbatim.
-    expect(call.providerBag).toEqual({ addWatermark: true, outputFormat: 'png' })
+    // Canonical key names (numImages, not n); main does the native split + rename.
+    expect(call.paramValues).toEqual({
+      size: '1024x1024',
+      numImages: 2,
+      seed: 5,
+      addWatermark: true,
+      outputFormat: 'png'
+    })
+    expect(call.inputImages).toBeUndefined()
   })
 
-  it('composes the customSize widget trio into imageSize', async () => {
+  it('composes the customSize widget trio into size and drops the companions', async () => {
     await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512, customSize_height: 768 }))
 
     const call = lastGenerateCall()
-    expect(call.aiSdkParams.size).toBe('512x768')
-    // The width/height companions are never sent raw.
-    expect(call.providerBag).toBeUndefined()
+    expect(call.paramValues.size).toBe('512x768')
+    expect(call.paramValues).not.toHaveProperty('customSize_width')
+    expect(call.paramValues).not.toHaveProperty('customSize_height')
   })
 
-  it("carries the 'auto' size sentinel through to imageSize untouched", async () => {
+  it("carries the 'auto' size sentinel through to paramValues untouched", async () => {
     await canonicalGenerate(makeInput({ size: 'auto' }))
-
-    const call = lastGenerateCall()
-    // The custom-size block only special-cases 'custom'; 'auto' must survive.
-    expect(call.aiSdkParams.size).toBe('auto')
+    expect(lastGenerateCall().paramValues.size).toBe('auto')
   })
 
-  it('drops imageSize when the custom width/height pair is incomplete', async () => {
+  it('drops size when the custom width/height pair is incomplete', async () => {
     await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512 }))
-
-    const call = lastGenerateCall()
-    expect(call.aiSdkParams).not.toHaveProperty('size')
+    expect(lastGenerateCall().paramValues).not.toHaveProperty('size')
   })
 
-  it('omits empty / undefined / empty-string params from the wire', async () => {
+  it('omits empty / undefined / empty-string params from the bag', async () => {
     await canonicalGenerate(makeInput({ size: '', seed: undefined, addWatermark: '' }))
-
-    const call = lastGenerateCall()
-    expect(call.aiSdkParams).toEqual({})
-    expect(call.providerBag).toBeUndefined()
+    expect(lastGenerateCall().paramValues).toEqual({})
   })
 
-  it('prefetches attached input images into aiSdkParams.inputImages as data URLs', async () => {
+  it('prefetches attached input images as data URLs, carried separately from paramValues', async () => {
     const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
     ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
 
@@ -111,7 +108,8 @@ describe('canonicalGenerate', () => {
 
     expect(binaryImage).toHaveBeenCalledWith('file-1.png')
     const call = lastGenerateCall()
-    // Encoded to a `data:` URL for the main-process image IPC (`base64('\x01\x02\x03') === 'AQID'`).
-    expect(call.aiSdkParams.inputImages).toEqual(['data:image/png;base64,AQID'])
+    // Encoded to a `data:` URL (`base64('\x01\x02\x03') === 'AQID'`); not in paramValues.
+    expect(call.inputImages).toEqual(['data:image/png;base64,AQID'])
+    expect(call.paramValues).toEqual({})
   })
 })

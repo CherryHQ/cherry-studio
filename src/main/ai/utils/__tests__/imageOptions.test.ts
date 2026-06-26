@@ -1,7 +1,7 @@
 import type { GenerateImageParams } from '@shared/types/image'
 import { describe, expect, it } from 'vitest'
 
-import { buildImageProviderOptions } from '../imageOptions'
+import { buildImageProviderOptions, splitParamValues } from '../imageOptions'
 
 function params(overrides: Partial<GenerateImageParams> = {}): GenerateImageParams {
   return {
@@ -191,6 +191,40 @@ describe('buildImageProviderOptions', () => {
         negative_prompt: 'no blur',
         seed: 42
       }
+    })
+  })
+})
+
+describe('splitParamValues', () => {
+  it('routes binding-mapped keys to structured (numImages→n) and the rest to vendorBag', () => {
+    expect(
+      splitParamValues({ numImages: 2, size: '1024x1024', seed: 5, addWatermark: true, modelDescriptor: { id: 'x' } })
+    ).toEqual({
+      structured: { n: 2, size: '1024x1024', seed: 5 },
+      vendorBag: { addWatermark: true, modelDescriptor: { id: 'x' } }
+    })
+  })
+
+  it('skips empty-string / null / undefined values (byte-identical-wire guard)', () => {
+    expect(splitParamValues({ size: '', seed: undefined, cfg: null, negativePrompt: 'x' })).toEqual({
+      structured: { negativePrompt: 'x' },
+      vendorBag: {}
+    })
+  })
+
+  it("preserves n: 0 and the 'auto' size sentinel in structured", () => {
+    expect(splitParamValues({ numImages: 0, size: 'auto' })).toEqual({
+      structured: { n: 0, size: 'auto' },
+      vendorBag: {}
+    })
+  })
+
+  it('keeps diffusion knobs (personGeneration/background/style) structured, vendor extras (cfg) bagged', () => {
+    expect(
+      splitParamValues({ personGeneration: 'allow_adult', background: 'opaque', style: 'vivid', cfg: 7.5 })
+    ).toEqual({
+      structured: { personGeneration: 'allow_adult', background: 'opaque', style: 'vivid' },
+      vendorBag: { cfg: 7.5 }
     })
   })
 })

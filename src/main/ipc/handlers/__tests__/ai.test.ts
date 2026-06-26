@@ -84,7 +84,7 @@ describe('aiHandlers', () => {
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
-    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox' }
+    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox', paramValues: {} }
     const out = { files: [] }
     aiService.runImageRequest.mockResolvedValue(out)
 

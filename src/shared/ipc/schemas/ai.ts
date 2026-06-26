@@ -1,4 +1,3 @@
-import type { PersonGeneration } from '@google/genai'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -49,22 +48,17 @@ const aiBaseRequestShape = {
 const aiImagePayloadSchema = z.strictObject({
   ...aiBaseRequestShape,
   prompt: z.string(),
+  /**
+   * The canonical param bag (registry param keys → coerced values). The renderer
+   * already validated/coerced it via `buildParamsSchema`; main re-derives the wire
+   * shape from it (`splitParamValues` + `buildImageProviderOptions`). Loose by
+   * design — vendor-bag keys (cfg, addWatermark, modelDescriptor) are open-ended,
+   * and re-validating what `buildParamsSchema` already owns buys nothing.
+   */
+  paramValues: z.record(z.string(), z.unknown()),
+  /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional(),
-  n: z.number().optional(),
-  size: z.string().optional(),
-  negativePrompt: z.string().optional(),
-  seed: z.number().optional(),
-  quality: z.string().optional(),
-  numInferenceSteps: z.number().optional(),
-  guidanceScale: z.number().optional(),
-  promptEnhancement: z.boolean().optional(),
-  personGeneration: z.custom<PersonGeneration>().optional(),
-  aspectRatio: z.string().optional(),
-  background: z.string().optional(),
-  moderation: z.string().optional(),
-  style: z.string().optional(),
-  providerOptions: z.record(z.string(), z.record(z.string(), z.unknown())).optional()
+  mask: z.string().optional()
 })
 
 export const aiRequestSchemas = {
