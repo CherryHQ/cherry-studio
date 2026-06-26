@@ -2,7 +2,6 @@ import { application } from '@application'
 import type { openclawRequestSchemas } from '@shared/ipc/schemas/openclaw'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-/** Thin adapters: delegate to OpenClawService, wrapping errors as status results. */
 export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
   'openclaw.start_gateway': async (_input, _ctx) => {
     try {
