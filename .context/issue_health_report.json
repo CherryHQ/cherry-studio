@@ -1,149 +1,99 @@
 {
-  "generated_at": "2026-06-25",
-  "total_open_issues": 967,
-  "delta_vs_yesterday": "+23 (944 → 967, driven by internal_team feature batch from SiinXu + kennyzheng-builds)",
+  "generated_at": "2026-06-26",
+  "cutoff_definitions": {
+    "Active":  "updated within 7 days  (after 2026-06-19)",
+    "Aging":   "updated 7–30 days ago  (2026-05-27 – 2026-06-19)",
+    "Stale":   "updated 30–90 days ago (2026-03-28 – 2026-05-27)",
+    "Zombie":  "not updated in 90+ days (before 2026-03-28)"
+  },
   "health_summary": {
     "active": {
-      "count": 200,
-      "pct": 20.7,
-      "definition": "updated within last 7 days (after 2026-06-18)"
+      "count": 156,
+      "pct": 16.3,
+      "definition": "updated within last 7 days (after 2026-06-19)"
     },
     "aging": {
-      "count": 421,
-      "pct": 43.5,
-      "definition": "updated 7-30 days ago (2026-05-26 to 2026-06-18)"
+      "count": 436,
+      "pct": 45.6,
+      "definition": "updated 7-30 days ago (2026-05-27 to 2026-06-19)"
     },
     "stale": {
-      "count": 200,
-      "pct": 20.7,
-      "definition": "updated 30-90 days ago (2026-03-26 to 2026-05-26)"
+      "count": 222,
+      "pct": 23.2,
+      "definition": "updated 30-90 days ago (2026-03-28 to 2026-05-27)"
     },
     "zombie": {
-      "count": 146,
-      "pct": 15.1,
-      "definition": "not updated in 90+ days (before 2026-03-26)",
-      "source": "confirmed via GitHub search updated:<2026-03-26"
+      "count": 147,
+      "pct": 15.4,
+      "definition": "not updated in 90+ days (before 2026-03-28)",
+      "source": "confirmed via GitHub search updated:<2026-03-28"
     },
-    "total_check": 967
+    "total_measured": 961
   },
   "triage_needs": {
     "unlabeled": 97,
-    "unlabeled_pct": 10.0,
-    "needs_repro": 11,
-    "needs_more_info": 5,
-    "inactive_auto_labeled": 105,
+    "unlabeled_pct": 10.2,
+    "needs_repro": 53,
+    "needs_more_info": 4,
+    "inactive_auto_labeled": 99,
     "blocked_v2": 47
   },
-  "label_distribution_sampled": {
-    "inactive": 105,
-    "UI_UX": 35,
-    "internal_team": 45,
-    "feature": 25,
-    "Models": 20,
-    "Assistant": 13,
-    "needs-repro": 11,
-    "help_wanted": 7,
-    "discussion": 7,
-    "prd": 8,
-    "Agent": 8,
-    "MCP": 8,
-    "RAG": 6,
-    "Data": 5,
-    "Connectivity": 5,
-    "Performance": 4,
-    "BUG": 103,
-    "needs-more-info": 5,
-    "Blocked_v2": 47,
-    "Docs": 1,
-    "Planned": 2
+  "priority_breakdown": {
+    "P1": { "count": 3, "issues": [14899, 13608, 13193] },
+    "P2": { "count": 11 }
   },
   "closed_last_30d": {
-    "total": 418,
-    "sampled": 100,
-    "closed_per_week_sample": {
-      "2026-W22": 2,
-      "2026-W23": 8,
-      "2026-W24": 65,
-      "2026-W25": 18,
-      "2026-W26": 7
-    },
-    "bulk_closure_note": "Large batch auto-closures on 2026-06-18, 2026-06-21, 2026-06-24, 2026-06-25 driven by inactive-label sweep bot. Most had 'inactive' label + no community response within 30 days.",
-    "top_closers_sample": {
-      "SiinXu": 12,
-      "kennyzheng-builds": 8,
-      "DeJeune": 3,
-      "EurFelux": 2,
-      "bot_auto_close": "~280 estimated"
-    }
+    "total": 419,
+    "delta_vs_yesterday": "+1"
   },
   "notable_open_bugs": [
+    {
+      "number": 16446,
+      "title": "[Bug]: Disastrous agent history bug",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16446",
+      "created_at": "2026-06-26T09:33:30Z",
+      "labels": ["needs-repro"],
+      "priority_note": "NEW TODAY — Agent conversation history silently wiped after many task rounds. High severity, no fix PR open."
+    },
+    {
+      "number": 16460,
+      "title": "[Bug]: Mini app keep-alive cache updates can overwrite newer state",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16460",
+      "created_at": "2026-06-26T16:10:56Z",
+      "labels": [],
+      "priority_note": "NEW TODAY — Race condition in keep-alive list write. Detailed repro from DeJeune."
+    },
     {
       "number": 15712,
       "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
-      "author": "furryaxw",
       "updated_at": "2026-06-25T12:37:22Z",
       "labels": ["MCP"],
-      "comments": 2,
-      "priority_note": "High-impact; MCP context loss affects multi-turn agent sessions. No fix PR open yet."
+      "priority_note": "Ongoing — High-impact MCP context loss affecting multi-turn sessions. No fix PR."
     },
     {
       "number": 16398,
       "title": "{{time}}/{{datetime}} system-prompt variables bust the Anthropic prompt cache (second-level granularity)",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
-      "author": "sumleo",
-      "updated_at": "2026-06-25T07:36:55Z",
+      "updated_at": "2026-06-26T11:22:32Z",
       "labels": ["Performance"],
-      "comments": 0,
-      "priority_note": "Every request invalidates prompt cache due to second-level timestamp → user cost impact"
+      "priority_note": "Second-level time variables invalidate prompt cache on every request — user cost impact"
     },
     {
-      "number": 16300,
-      "title": "[Bug]: Deleting agent messages in Cherry Studio UI does not remove them from Claude Code SDK .jsonl transcript",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16300",
-      "author": "rookietopred02-gif",
-      "updated_at": "2026-06-22T17:22:46Z",
-      "labels": [],
-      "comments": 2,
-      "priority_note": "UI/SDK transcript desync — deleted messages resurface on resume"
-    },
-    {
-      "number": 16291,
-      "title": "[Bug]: Startup recovery re-dispatches a retry job already running in the current process",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16291",
-      "author": "AtomsH4",
-      "updated_at": "2026-06-22T10:32:56Z",
-      "labels": [],
-      "comments": 1,
-      "priority_note": "Job deduplication issue in startup recovery path"
-    },
-    {
-      "number": 16373,
-      "title": "[Bug]: CherryClaw/OpenClaw agents ignore custom Provider LM Studio port",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16373",
-      "author": "weiCHENyongjin",
-      "updated_at": "2026-06-25T04:51:07Z",
-      "labels": [],
-      "comments": 0,
-      "priority_note": "Agent hardcodes default LM Studio port 1234, ignoring provider config"
-    },
-    {
-      "number": 15150,
-      "title": "[Bug]: After switching the software language, did the chat history disappear?",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15150",
-      "author": "17Reset",
-      "updated_at": "2026-06-23T03:06:18Z",
-      "labels": ["needs-repro"],
-      "comments": 3,
-      "priority_note": "Potential data loss on language switch — needs repro confirmation"
+      "number": 16450,
+      "title": "[Bug]: Painting migrator leaves dangling model_id",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16450",
+      "updated_at": "2026-06-26T10:40:14Z",
+      "labels": ["Data"],
+      "priority_note": "Data migration bug — composer cannot resolve model, send button disabled for affected users"
     }
   ],
   "recommendations": [
-    "97 unlabeled issues need triage (10.0% of open backlog — up 1 from yesterday)",
-    "146 zombie issues (>90 days inactive) are candidates for bulk closure review — up 2 from yesterday",
-    "47 issues labeled 'Blocked: v2' remain open; with v2 merged to main, these should be triaged for unblocking",
-    "Issue #15712 (MCP context loss) is high-impact with no fix PR — prioritize",
-    "Issue #16398 ({{time}} prompt cache bust) has direct user cost impact — straightforward fix candidate",
-    "11 'needs-repro' issues await community response; consider reaching out to reporters"
+    "NEW: #16446 (agent history wipe) filed today — assign priority label and find root cause before next release",
+    "97 unlabeled issues need triage (10.2% of open backlog)",
+    "147 zombie issues (>90 days inactive) are candidates for bulk closure review",
+    "47 issues labeled 'Blocked: v2' — with v2 merged to main, these should be unblocked and triaged",
+    "P1 #13608 and #13193 are 3+ months old with no resolution — escalate or document workaround",
+    "MCP context loss (#15712) ongoing with high user impact — prioritize fix"
   ]
 }

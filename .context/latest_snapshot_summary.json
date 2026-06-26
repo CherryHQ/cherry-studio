@@ -1,194 +1,190 @@
 {
-  "generated_at": "2026-06-25",
+  "generated_at": "2026-06-26",
   "source": "GitHub MCP API (daily automated run)",
   "open_issues": {
-    "total": 967,
+    "total": 955,
+    "delta_vs_yesterday": "-12 (967 → 955)",
     "unlabeled": 97,
-    "unlabeled_pct": 10.0,
-    "inactive_labeled": 105,
-    "bug_open": 103,
+    "unlabeled_pct": 10.2,
+    "inactive_labeled": 99,
     "blocked_v2": 47
   },
   "open_prs": {
-    "total": 266,
+    "total": 268,
+    "delta_vs_yesterday": "+2 (266 → 268)",
     "by_base_branch": {
-      "main": 245,
-      "v1": 19,
-      "other": 2
+      "main": 78,
+      "v1": 21,
+      "other": 1
     },
-    "draft_count": 11,
-    "stale_gt30d": 18,
-    "bot_prs": 2
+    "draft_count": 14,
+    "no_label_count": 79
   },
   "closed_last_30d": {
-    "issues_closed": 418,
-    "prs_merged": 247,
-    "closure_note": "418 issues closed; ~300 driven by automated inactive-label sweep. 247 PRs merged or closed — extremely active merge week with v2 chat-page carve series landing."
+    "issues_closed": 419,
+    "delta_vs_yesterday": "+1 (418 → 419)"
   },
   "health_buckets": {
-    "active_7d": 200,
-    "aging_7_30d": 421,
-    "stale_30_90d": 200,
-    "zombie_gt90d": 146
+    "active_7d": 156,
+    "aging_7_30d": 436,
+    "stale_30_90d": 222,
+    "zombie_gt90d": 147
   },
   "top_labels_open_sampled": {
-    "inactive": 105,
-    "UI_UX": 35,
-    "Models": 20,
-    "Assistant": 13,
-    "needs-repro": 11,
-    "MCP": 8,
+    "inactive": 99,
+    "UI_UX": 30,
+    "internal_team": 21,
+    "Models": 19,
+    "Assistant": 15,
+    "feature": 14,
+    "needs-repro": 53,
+    "MCP": 4,
     "RAG": 6,
-    "help_wanted": 7,
-    "discussion": 7,
-    "internal_team": 45,
-    "feature": 25,
+    "help_wanted": 2,
+    "discussion": 2,
     "Performance": 4,
-    "Connectivity": 5,
-    "Data": 5,
-    "Blocked_v2": 47,
-    "prd": 8,
-    "Agent": 8,
-    "Docs": 1
+    "Connectivity": 4,
+    "Data": 4,
+    "Blocked_v2": 1,
+    "prd": 1
   },
+  "p1_issues": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
+      "created_at": "2026-05-07",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "milestone": "v1.8.1 (closed)",
+      "created_at": "2026-03-18",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found, 404)",
+      "labels": ["P1", "Models"],
+      "assignee": "DeJeune",
+      "created_at": "2026-03-04",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    }
+  ],
   "top_pr_contributors_open": {
-    "DeJeune": 9,
-    "Raymond8196": 6,
-    "kovsu": 4,
-    "404-Page-Found": 5,
-    "Pleasurecruise": 4,
-    "kangfenmao": 5,
-    "vaayne": 3,
-    "ousugo": 3,
-    "eeee0717": 3,
-    "he-yufeng": 3
-  },
-  "top_pr_contributors_merged_30d": {
-    "DeJeune": 36,
-    "eeee0717": 23,
-    "kangfenmao": 7,
-    "AtomsH4": 6,
-    "EurFelux": 5,
+    "DeJeune": 15,
+    "Raymond8196": 8,
+    "Pleasurecruise": 6,
+    "404-Page-Found": 6,
+    "GeorgeDong32": 5,
+    "eeee0717": 5,
     "zhangjiadi225": 5,
-    "vaayne": 4,
-    "Pleasurecruise": 4,
-    "ousugo": 3
+    "ousugo": 5,
+    "he-yufeng": 4,
+    "kangfenmao": 3
   },
-  "p1_issues": [],
-  "p1_note": "No P1/critical priority labels exist in this repo. Uses type-based classification (Bug/Feature) without priority tiers.",
-  "notable_open_bugs": [
+  "notable_open_bugs_today": [
     {
-      "number": 15712,
-      "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
-      "updated_at": "2026-06-25T12:37:22Z",
-      "labels": ["MCP"],
-      "comments": 2,
-      "priority_note": "High-impact MCP context loss affecting multi-turn agent sessions"
+      "number": 16446,
+      "title": "[Bug]: Disastrous agent history bug",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16446",
+      "labels": ["needs-repro"],
+      "created_at": "2026-06-26",
+      "priority_note": "Agent history silently wiped after N task rounds — high severity, no fix PR open"
     },
     {
-      "number": 16300,
-      "title": "[Bug]: Deleting agent messages in Cherry Studio UI does not remove them from Claude Code SDK .jsonl transcript",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16300",
-      "updated_at": "2026-06-22T17:22:46Z",
+      "number": 16460,
+      "title": "[Bug]: Mini app keep-alive cache updates can overwrite newer state",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16460",
       "labels": [],
-      "comments": 2,
-      "priority_note": "Agent message sync issue between UI and SDK layer"
+      "created_at": "2026-06-26",
+      "priority_note": "Race condition in keep-alive cache setter; DeJeune filed with repro steps"
     },
     {
-      "number": 16291,
-      "title": "[Bug]: Startup recovery re-dispatches a retry job already running in the current process",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16291",
-      "updated_at": "2026-06-22T10:32:56Z",
+      "number": 16461,
+      "title": "[Bug]: Code block toolbar derives tools through effect-driven state",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16461",
       "labels": [],
-      "comments": 1,
-      "priority_note": "Job scheduling correctness bug in startup recovery path"
+      "created_at": "2026-06-26",
+      "priority_note": "Effect-based state derivation in code block — correctness issue"
     },
     {
-      "number": 16373,
-      "title": "[Bug]: CherryClaw/OpenClaw agents ignore custom Provider LM Studio port, hardcode default port 1234",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16373",
-      "updated_at": "2026-06-25T04:51:07Z",
-      "labels": [],
-      "comments": 0,
-      "priority_note": "Agent provider configuration not respected — affects LM Studio users"
+      "number": 16459,
+      "title": "[Bug]: Selection overlays load dynamic Lucide icons for built-in actions",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16459",
+      "labels": ["Performance"],
+      "created_at": "2026-06-26",
+      "priority_note": "Dynamic icon loading on selection overlay — performance regression"
+    },
+    {
+      "number": 16450,
+      "title": "[Bug]: Painting migrator leaves dangling model_id",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16450",
+      "labels": ["Data"],
+      "created_at": "2026-06-25",
+      "priority_note": "Data migration bug — composer can't resolve model, send disabled"
     },
     {
       "number": 16398,
       "title": "{{time}}/{{datetime}} system-prompt variables bust the Anthropic prompt cache",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
-      "updated_at": "2026-06-25T07:36:55Z",
       "labels": ["Performance"],
-      "comments": 0,
-      "priority_note": "Second-level time variables invalidate prompt cache on every request — cost impact for Anthropic users"
+      "updated_at": "2026-06-26",
+      "priority_note": "Second-level timestamp invalidates cache on every request — direct cost impact"
+    },
+    {
+      "number": 15712,
+      "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
+      "labels": ["MCP"],
+      "priority_note": "Ongoing: MCP context loss in multi-turn sessions — high impact, no fix PR"
     }
   ],
   "recent_hot_prs_today": [
     {
-      "number": 16428,
-      "title": "fix(code-block-view): lazy-load html artifact popup",
-      "author": "DeJeune",
-      "created_at": "2026-06-25",
-      "labels": []
+      "number": 16464,
+      "title": "feat(provider-registry): add support for doubao-seed-2-1 and doubao-seed-evolving models",
+      "author": "GeorgeDong32",
+      "base": "main"
     },
     {
-      "number": 16427,
-      "title": "fix(selection-settings): defer user action modal data reads",
+      "number": 16462,
+      "title": "docs(unified-runtime): AI SDK v7 migration plan and design docs",
       "author": "DeJeune",
-      "created_at": "2026-06-25",
-      "labels": []
+      "base": "main"
     },
     {
-      "number": 16426,
-      "title": "fix(composer): use functional file appends",
+      "number": 16444,
+      "title": "feat(paintings): infinite canvas paint mode with React Flow",
       "author": "DeJeune",
-      "created_at": "2026-06-25",
-      "labels": []
+      "base": "main"
     },
     {
-      "number": 16416,
-      "title": "feat(request-source): tag cherryin requests with feature + conversation headers",
+      "number": 16447,
+      "title": "fix(knowledge): stop UI freeze when deleting a large folder",
       "author": "eeee0717",
-      "created_at": "2026-06-25",
-      "labels": []
+      "base": "main"
     },
     {
-      "number": 16415,
-      "title": "refactor(import): migrate ImportService from Redux to DataApi",
-      "author": "Pleasurecruise",
-      "created_at": "2026-06-25",
-      "labels": []
+      "number": 16440,
+      "title": "refactor(dexie): retire the settings table from v2 storage paths",
+      "author": "DeJeune",
+      "base": "main"
+    },
+    {
+      "number": 16413,
+      "title": "fix(tabbar): replace active tab from sidebar navigation",
+      "author": "kangfenmao",
+      "base": "main"
     },
     {
       "number": 16401,
       "title": "feat(provider-registry): generate catalog from src/labs + src/provider, add TokenHub",
       "author": "DeJeune",
-      "created_at": "2026-06-25",
-      "labels": []
-    },
-    {
-      "number": 16405,
-      "title": "fix(reasoning): send adaptive thinking for MiniMax M3",
-      "author": "kapelame",
-      "created_at": "2026-06-25",
-      "labels": []
+      "base": "main"
     }
-  ],
-  "prs_merged_today": [
-    {"number": 16412, "title": "refactor(copilot): drop useCopilot redux hook + fix model-list 401", "author": "DeJeune"},
-    {"number": 16399, "title": "feat(agents): route Claude Code models through API Gateway", "author": "kangfenmao"},
-    {"number": 16369, "title": "refactor(ai-ipc): migrate AI IPC to IpcApi + expose provider errors", "author": "DeJeune"},
-    {"number": 16326, "title": "feat(paintings): rebuild prompt bar on the shared composer", "author": "DeJeune"},
-    {"number": 15338, "title": "feat(files): wire file page to real data", "author": "EurFelux"},
-    {"number": 16325, "title": "feat(provider): add OpenAI Codex login-based chat provider", "author": "vaayne"},
-    {"number": 16327, "title": "feat(provider): add Grok CLI login-based chat provider", "author": "vaayne"},
-    {"number": 16359, "title": "docs(skill-gh-pr-review): add platform, fork, routing, and cleanup guidance", "author": "ousugo"},
-    {"number": 16105, "title": "fix(openclaw): stabilize install and config sync", "author": "kangfenmao"},
-    {"number": 16349, "title": "feat(binary-manager): allow uninstalling mise-managed preset tools", "author": "vaayne"},
-    {"number": 16350, "title": "fix(code-block): persist HTML artifact edits and failures", "author": "AtomsH4"},
-    {"number": 16354, "title": "fix(translate-button): avoid mirroring loading prop", "author": "DeJeune"},
-    {"number": 16361, "title": "fix(file-icons): resolve the .d.ts icon for uppercase extensions", "author": "he-yufeng"},
-    {"number": 16371, "title": "fix(aihubmix): derive Gemini baseURL from configured baseURL", "author": "DDU1222"},
-    {"number": 16346, "title": "fix(chat-composer): polish file token previews", "author": "zhangjiadi225"}
   ]
 }
