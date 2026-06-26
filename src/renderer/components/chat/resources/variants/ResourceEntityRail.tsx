@@ -4,7 +4,9 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
+  type ResourceListGroup,
   type ResourceListReorderPayload,
+  type ResourceListSection,
   type ResourceListStatus
 } from '@renderer/components/chat/resources'
 import { CommandPopupMenu } from '@renderer/components/command'
@@ -19,13 +21,26 @@ export type ResourceEntityRailItem = {
   name: string
   icon: ReactNode
   orderKey?: string
+  /** When true the entity floats into the "已固定" section at the top and cannot be dragged. */
+  pinned?: boolean
 }
+
+// Pinned entities float into a "已固定" section at the top; the rest sit under the "助手" / "智能体"
+// section below. We use SECTION headers (not group headers) so the labels stay flush-left while the
+// entity rows keep their avatar and read as indented beneath — matching the new view's left list.
+// Each section also gets its own (header-less) group id so drag-reorder never crosses the boundary.
+const ENTITY_RAIL_PINNED_SECTION_ID = 'resource-entity-rail:section:pinned'
+const ENTITY_RAIL_DEFAULT_SECTION_ID = 'resource-entity-rail:section:default'
+const ENTITY_RAIL_PINNED_GROUP_ID = 'resource-entity-rail:group:pinned'
+const ENTITY_RAIL_DEFAULT_GROUP_ID = 'resource-entity-rail:group:default'
 
 export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionContext = unknown> = {
   addIcon?: ReactNode
   addLabel: string
   ariaLabel: string
   createItemLabel?: string
+  /** Header for the non-pinned group ("助手" for assistants, "智能体" for agents). */
+  defaultGroupLabel?: string
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   listRef?: RefObject<HTMLDivElement | null>
@@ -64,6 +79,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   addLabel,
   ariaLabel,
   createItemLabel,
+  defaultGroupLabel,
   emptyFallback,
   getContextMenuActions,
   listRef,
@@ -167,6 +183,24 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     [createItemLabel, getContextMenuActions, onContextMenuAction, onCreateItem, onSelect, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
+  // Collapsible sections matching the new view's left assistant/agent layout (minus the nested
+  // topics/sessions): pinned entities float into "已固定" at the top, the rest sit under the
+  // "助手" / "智能体" section below. Section headers stay flush-left; the entity rows keep their
+  // avatar and read as indented beneath. The single-section case (nothing pinned) renders the flat
+  // list with no header, exactly like the new view.
+  const sectionBy = useMemo<(item: T) => ResourceListSection>(
+    () => (item) =>
+      item.pinned
+        ? { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+        : { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' },
+    [defaultGroupLabel, t]
+  )
+  // Header-less groups (one per section, distinct ids) keep entity avatars visible and stop
+  // drag-reorder from crossing the pinned/non-pinned boundary.
+  const groupBy = useMemo<(item: T) => ResourceListGroup>(
+    () => (item) => ({ id: item.pinned ? ENTITY_RAIL_PINNED_GROUP_ID : ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }),
+    []
+  )
 
   // Alias the compound provider to a local before rendering — same pattern as TopicList/SessionList.
   // Written inline as `<ResourceList.Provider>` it gets auto-rewritten to `<ResourceList>` by the
@@ -179,14 +213,19 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       items={items}
       selectedId={selectedId}
       status={status}
+      groupBy={groupBy}
+      sectionBy={sectionBy}
+      defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
       dragCapabilities={{
         groups: false,
         items: !!onReorder,
         itemSameGroup: !!onReorder,
         itemCrossGroup: false
       }}
-      canDragItem={() => !!onReorder}
-      canDropItem={() => !!onReorder}
+      canDragItem={({ item }) => !!onReorder && !item.pinned}
+      canDropItem={({ activeItem, targetGroupId }) =>
+        !!onReorder && !activeItem.pinned && targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID
+      }
       onReorder={onReorder}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
         <ResourceList.Header className="gap-1">

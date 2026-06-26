@@ -82,10 +82,22 @@ own data fetching, pins, deletion, and context menus.
 - Clicking an entity does not open the right panel if it is closed; if it is open
   it stays open and switches to the new entity.
 
+### Pinned entities
+
+- Pinned assistants/agents float into a "已固定" section at the top, mirroring the
+  new view's left list (entity pins reuse `usePins('assistant'|'agent')`). The rest
+  sit under a "助手" / "智能体" section below.
+- Both are collapsible **section** headers (flush-left), so the entity rows keep
+  their avatar and read as indented beneath. With nothing pinned the rail renders a
+  single flat list with no header — same as the new view's single-section case.
+- Pinned rows cannot be dragged and nothing can be dropped into the pinned section;
+  only the entities still owning resources appear (the rail's visibility invariant
+  is unchanged).
+
 ### Ordering & context menu
 
-- Ordered by assistant/agent `orderKey`; drag reorders and persists the real
-  `orderKey` (optimistic, then refetch).
+- Non-pinned entities are ordered by assistant/agent `orderKey`; drag reorders and
+  persists the real `orderKey` (optimistic, then refetch).
 - Entity rows keep their left-mode entity context menus (assistant grouped-row /
   agent `AgentItem` behavior). Deleting the current entity, or clearing all its
   resources, closes the right panel and leaves the main chat in that entity's

@@ -84,9 +84,10 @@ export function AgentResourceList({
         id: agent.id,
         name: agent.name,
         orderKey: agent.orderKey,
+        pinned: agentPinnedIdSet.has(agent.id),
         icon: <span className="text-base leading-none">{getAgentAvatarFromConfiguration(agent.configuration)}</span>
       })),
-    [agents]
+    [agents, agentPinnedIdSet]
   )
 
   const sortSessionsForEntity = useCallback(
@@ -230,6 +231,7 @@ export function AgentResourceList({
         selectedId={selectedId}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
+        defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
         createItemLabel={t('chat.conversation.new')}

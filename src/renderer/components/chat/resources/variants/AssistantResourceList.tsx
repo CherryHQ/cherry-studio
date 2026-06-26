@@ -83,9 +83,10 @@ export function AssistantResourceList({
         id: assistant.id,
         name: assistant.name,
         orderKey: assistant.orderKey,
+        pinned: assistantPinnedIdSet.has(assistant.id),
         icon: assistant.emoji ? <span className="text-base leading-none">{assistant.emoji}</span> : <Bot size={14} />
       })),
-    [assistants]
+    [assistants, assistantPinnedIdSet]
   )
 
   const sortTopicsForEntity = useCallback(
@@ -228,6 +229,7 @@ export function AssistantResourceList({
         selectedId={selectedId}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
+        defaultGroupLabel={t('assistants.abbr')}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         createItemLabel={t('chat.conversation.new')}

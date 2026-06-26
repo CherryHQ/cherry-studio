@@ -198,4 +198,56 @@ describe('ResourceEntityRail', () => {
 
     requestAnimationFrameSpy.mockRestore()
   })
+
+  it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        items={[
+          { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" />, pinned: true },
+          { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    // Pinned section (i18n key under the mocked translator) + the non-pinned "助手"/"智能体" section.
+    expect(screen.getByText('selector.common.pinned_title')).toBeInTheDocument()
+    expect(screen.getByText('Assistants')).toBeInTheDocument()
+
+    // Both rows keep their avatar in a visible leading slot (not collapsed away by the section).
+    const pinnedRow = screen.getByText('Assistant B').closest('[role="option"]')
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeNull()
+    expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
+  })
+
+  it('renders a flat list with no section header when nothing is pinned', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        items={[
+          { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> },
+          { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" /> }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    // Single section → no header shown (mirrors the new view), avatars still visible.
+    expect(screen.queryByText('selector.common.pinned_title')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
+    expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
+  })
 })

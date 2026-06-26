@@ -74,15 +74,21 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   const items = useMemo<TEntity[]>(() => {
     const filtered = entities.filter((entity) => entityIdsWithResources.has(entity.id))
     const ordered = [...filtered].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
-    if (!optimisticOrderIds) return ordered
+    let base = ordered
+    if (optimisticOrderIds) {
+      const byId = new Map(ordered.map((entity) => [entity.id, entity]))
+      const optimistic = optimisticOrderIds.flatMap((id) => {
+        const entity = byId.get(id)
+        return entity ? [entity] : []
+      })
+      const optimisticIds = new Set(optimisticOrderIds)
+      base = [...optimistic, ...ordered.filter((entity) => !optimisticIds.has(entity.id))]
+    }
 
-    const byId = new Map(ordered.map((entity) => [entity.id, entity]))
-    const optimistic = optimisticOrderIds.flatMap((id) => {
-      const entity = byId.get(id)
-      return entity ? [entity] : []
-    })
-    const optimisticIds = new Set(optimisticOrderIds)
-    return [...optimistic, ...ordered.filter((entity) => !optimisticIds.has(entity.id))]
+    // Float pinned entities into the rail's "pinned" group at the top, preserving their relative order.
+    const pinned = base.filter((entity) => entity.pinned)
+    if (pinned.length === 0) return base
+    return [...pinned, ...base.filter((entity) => !entity.pinned)]
   }, [entities, entityIdsWithResources, optimisticOrderIds])
 
   const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'

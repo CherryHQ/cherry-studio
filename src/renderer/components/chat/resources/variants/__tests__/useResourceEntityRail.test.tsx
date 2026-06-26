@@ -8,6 +8,7 @@ type TestEntity = {
   name: string
   icon: string
   orderKey?: string
+  pinned?: boolean
 }
 
 type TestResource = {
@@ -97,6 +98,23 @@ describe('useResourceEntityRail', () => {
     result.current.handleSelect(ENTITIES[0])
 
     expect(onPickResource).toHaveBeenCalledWith(RESOURCES[0])
+  })
+
+  it('floats pinned entities to the top while preserving relative order of each partition', () => {
+    const { result } = renderRail({
+      entities: [
+        { id: 'assistant-a', name: 'Assistant A', icon: 'A', orderKey: 'a' },
+        { id: 'assistant-b', name: 'Assistant B', icon: 'B', orderKey: 'b', pinned: true },
+        { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }
+      ],
+      resources: [
+        { id: 'topic-a', entityId: 'assistant-a', updatedAt: 3 },
+        { id: 'topic-b', entityId: 'assistant-b', updatedAt: 2 },
+        { id: 'topic-c', entityId: 'assistant-c', updatedAt: 1 }
+      ]
+    })
+
+    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-b', 'assistant-a', 'assistant-c'])
   })
 
   it('falls back to a blank draft when the entity has no resources yet', () => {
