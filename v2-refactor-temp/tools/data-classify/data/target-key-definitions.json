@@ -76,11 +76,11 @@
       "description": "Web search compression method (from complex migration)"
     },
     {
-      "targetKey": "feature.code_cli.overrides",
-      "type": "PreferenceTypes.CodeCliOverrides",
-      "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliOverrides",
+      "targetKey": "feature.code_cli.configs",
+      "type": "PreferenceTypes.CodeCliConfigs",
+      "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliConfigs",
       "status": "classified",
-      "description": "Complex migration: merge redux/codeTools (selectedCliTool, selectedModels, environmentVariables, directories, currentDirectory, selectedTerminal) into code CLI overrides"
+      "description": "Fresh v2 key (no migration): per-tool named CLI configs. v1 codeTools is throwaway."
     },
     {
       "targetKey": "chat.web_search.exclude_domains",
