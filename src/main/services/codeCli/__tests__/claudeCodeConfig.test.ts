@@ -46,6 +46,23 @@ describe('buildClaudeSettings', () => {
   it('returns null when there is nothing to persist', () => {
     expect(buildClaudeSettings({ env: { FOO: 'bar' } }, { baseUrl: '', model: '' })).toBeNull()
   })
+
+  it("clears a prior config's managed env/top-level keys on switch (no residue)", () => {
+    // existing reflects what a previous named config wrote (opus + effortLevel)
+    const result = buildClaudeSettings(
+      {
+        env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'stale-opus', MY_VAR: 'keep' },
+        effortLevel: 'high',
+        theme: 'dark'
+      },
+      // new config sets sonnet only — no opus, no effortLevel
+      { baseUrl: '', model: 'claude-sonnet-4-6', apiKey: 'sk-xxx' }
+    )
+    expect(result).toEqual({
+      theme: 'dark',
+      env: { MY_VAR: 'keep', ANTHROPIC_MODEL: 'claude-sonnet-4-6', ANTHROPIC_API_KEY: 'sk-xxx' }
+    })
+  })
 })
 
 describe('writeClaudeCodeConfig', () => {

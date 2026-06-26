@@ -11,21 +11,20 @@ import YAML from 'js-yaml'
 
 const logger = loggerService.withContext('HermesConfig')
 
-/**
- * Merge a provider into the Hermes config's `custom_providers` list.
- * Upserts by `name` — replaces if found, appends if new.
- * Returns null when required fields are missing.
- */
+const PROVIDER_ENTRY_KEYS = ['name', 'base_url', 'api_key', 'api_mode', 'model', 'models'] as const
+
 export function buildHermesConfig(
   existing: Record<string, any>,
   config: HermesProviderConfig
 ): Record<string, any> | null {
-  const { apiKey, baseUrl, apiMode, model, modelName, providerName } = config
+  const { apiKey, baseUrl, apiMode, model, modelName, providerName, contextLength, maxTokens } = config
   if (!apiKey || !baseUrl || !model) {
     return null
   }
 
-  const customProviders: any[] = Array.isArray(existing.custom_providers) ? [...existing.custom_providers] : []
+  const modelConfig: Record<string, any> = modelName ? { name: modelName } : {}
+  if (contextLength !== undefined) modelConfig.context_length = contextLength
+  if (maxTokens !== undefined) modelConfig.max_tokens = maxTokens
 
   const entry: Record<string, any> = {
     name: providerName,
@@ -33,29 +32,27 @@ export function buildHermesConfig(
     api_key: apiKey,
     api_mode: apiMode || 'chat_completions',
     model,
-    models: {
-      [model]: {
-        ...(modelName ? { name: modelName } : {})
-      }
-    }
+    models: { [model]: modelConfig }
   }
 
-  const existingIndex = customProviders.findIndex((p: any) => p.name === providerName)
+  const customProviders: any[] = Array.isArray(existing.custom_providers) ? [...existing.custom_providers] : []
+  const existingIndex = customProviders.findIndex((p: any) => p?.name === providerName)
   if (existingIndex >= 0) {
-    // Merge: preserve any on-disk fields the UI payload didn't include
     const existingEntry = customProviders[existingIndex]
-    customProviders[existingIndex] = { ...existingEntry, ...entry }
+    const preserved: Record<string, any> = {}
+    for (const [key, value] of Object.entries(existingEntry)) {
+      if (!PROVIDER_ENTRY_KEYS.includes(key as (typeof PROVIDER_ENTRY_KEYS)[number])) {
+        preserved[key] = value
+      }
+    }
+    customProviders[existingIndex] = { ...preserved, ...entry }
   } else {
     customProviders.push(entry)
   }
 
-  return {
-    ...existing,
-    custom_providers: customProviders
-  }
+  return { ...existing, custom_providers: customProviders }
 }
 
-/** Persist the Hermes provider config to ~/.hermes/config.yaml (YAML, merged, atomic). */
 export async function writeHermesConfig(config: HermesProviderConfig): Promise<void> {
   const configPath = application.getPath('external.hermes.config', 'config.yaml')
 

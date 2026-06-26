@@ -57,6 +57,28 @@ describe('buildCodexConfig', () => {
   it('returns null when required fields are missing', () => {
     expect(buildCodexConfig({}, { apiKey: '', baseUrl: '', providerName: '', model: 'gpt-x' })).toBeNull()
   })
+
+  it('drops stale Cherry-* provider tables on switch (no residue)', () => {
+    const result = buildCodexConfig(
+      { model_providers: { 'Cherry-Old': { base_url: 'https://old' }, other: { base_url: 'https://other' } } },
+      config // providerName 'My.Provider' → 'Cherry-My-Provider'
+    )
+    expect(result?.model_providers['Cherry-Old']).toBeUndefined()
+    expect(result?.model_providers.other).toEqual({ base_url: 'https://other' })
+    expect(result?.model_providers['Cherry-My-Provider']).toBeTruthy()
+  })
+
+  it("clears a prior config's managed top-level keys on switch (no residue)", () => {
+    // existing reflects what a previous named config wrote (personality +
+    // context window). New config sets neither — they must not survive.
+    const result = buildCodexConfig(
+      { personality: 'stale', model_context_window: 1000000, review_model: 'stale-review' },
+      config
+    )
+    expect(result?.personality).toBeUndefined()
+    expect(result?.model_context_window).toBeUndefined()
+    expect(result?.review_model).toBeUndefined()
+  })
 })
 
 describe('writeCodexConfig', () => {
