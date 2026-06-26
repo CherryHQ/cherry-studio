@@ -305,6 +305,9 @@
           "currency": "USD",
           "perMillionTokens": 0.23
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -327,6 +330,9 @@
           "currency": "USD",
           "perMillionTokens": 0.287
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -424,6 +430,9 @@
           "currency": "USD",
           "perMillionTokens": 1.147
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -566,6 +575,9 @@
           "currency": "USD",
           "perMillionTokens": 7.5
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -689,6 +701,9 @@
           "currency": "USD",
           "perMillionTokens": 0.287
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -816,6 +831,9 @@
           "currency": "USD",
           "perMillionTokens": 0.4
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -849,6 +867,9 @@
           "currency": "USD",
           "perMillionTokens": 1.125
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -894,6 +915,9 @@
           "currency": "USD",
           "perMillionTokens": 1.433525
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1017,6 +1041,9 @@
           "currency": "USD",
           "perMillionTokens": 2.4
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1113,6 +1140,9 @@
           "currency": "USD",
           "perMillionTokens": 0.216
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1248,6 +1278,9 @@
           "currency": "USD",
           "perMillionTokens": 1.147
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1394,6 +1427,9 @@
           "currency": "USD",
           "perMillionTokens": 0.574
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1460,6 +1496,9 @@
           "currency": "USD",
           "perMillionTokens": 0.087
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1532,6 +1571,9 @@
           "currency": "USD",
           "perMillionTokens": 7.9
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1591,6 +1633,9 @@
           "currency": "USD",
           "perMillionTokens": 3
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1828,6 +1873,9 @@
           "currency": "USD",
           "perMillionTokens": 3.6
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -2079,6 +2127,9 @@
           "currency": "USD",
           "perMillionTokens": 1.485
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -2110,6 +2161,9 @@
           "currency": "USD",
           "perMillionTokens": 2.4
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -2163,6 +2217,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3742,16 +3799,6 @@
       "ownedBy": "baai"
     },
     {
-      "capabilities": ["embedding"],
-      "contextWindow": 512,
-      "id": "bce-embedding-base-v1",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "BCE Embedding Base v1",
-      "outputModalities": ["vector"],
-      "ownedBy": "baai"
-    },
-    {
       "capabilities": ["rerank"],
       "contextWindow": 8192,
       "id": "bge-reranker-v2-m3",
@@ -3785,15 +3832,6 @@
       "inputModalities": ["text"],
       "metadata": {},
       "name": "BGE Reranker Base",
-      "ownedBy": "baai"
-    },
-    {
-      "capabilities": ["rerank"],
-      "contextWindow": 512,
-      "id": "bce-reranker-base-v1",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "BCE Reranker Base v1",
       "ownedBy": "baai"
     },
     {
@@ -5244,11 +5282,33 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 163840,
+      "family": "deepseek-thinking",
+      "id": "deepseek-r1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "DeepSeek R1 0528",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.574
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.294
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "maxOutputTokens": 393216,
       "metadata": {},
       "name": "DeepSeek V4 Flash",
@@ -5271,58 +5331,6 @@
       },
       "reasoning": {
         "supportedEfforts": ["none", "high", "max"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
-      "family": "deepseek-thinking",
-      "id": "deepseek-v4-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 393216,
-      "metadata": {},
-      "name": "DeepSeek V4 Pro",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.003625
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.435
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.87
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "high", "max"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 163840,
-      "family": "deepseek-thinking",
-      "id": "deepseek-r1",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "DeepSeek R1 0528",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.574
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.294
-        }
       }
     },
     {
@@ -5371,6 +5379,36 @@
           "currency": "USD",
           "perMillionTokens": 0.861
         }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "deepseek-thinking",
+      "id": "deepseek-v4-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4 Pro",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003625
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "high", "max"]
       }
     },
     {
@@ -5559,11 +5597,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-2",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "maxOutputTokens": 65536,
       "metadata": {},
       "name": "siliconflow/deepseek-v3.2",
@@ -5947,7 +5985,7 @@
       "ownedBy": "google"
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input", "web-search"],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image-preview",
       "imageGeneration": {
@@ -9549,11 +9587,11 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "image-recognition"],
       "contextWindow": 256000,
       "family": "devstral",
       "id": "devstral-small-2",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 256000,
       "metadata": {},
       "name": "Devstral Small 2",
@@ -11799,8 +11837,7 @@
         "image-recognition",
         "image-generation",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 128000,
       "family": "gpt",
@@ -11857,7 +11894,6 @@
         "function-call",
         "reasoning",
         "image-recognition",
-        "image-generation",
         "structured-output",
         "file-input",
         "web-search"
@@ -11869,7 +11905,7 @@
       "maxOutputTokens": 272000,
       "metadata": {},
       "name": "GPT-5 pro",
-      "outputModalities": ["text", "image"],
+      "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "input": {
@@ -12016,8 +12052,7 @@
         "image-recognition",
         "image-generation",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 400000,
       "family": "gpt",
@@ -13572,14 +13607,7 @@
       }
     },
     {
-      "capabilities": [
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
       "contextWindow": 272000,
       "id": "gpt-5-4-image-2",
       "inputModalities": ["image", "text"],
@@ -13659,14 +13687,7 @@
       }
     },
     {
-      "capabilities": [
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
       "contextWindow": 400000,
       "id": "gpt-5-image-mini",
       "inputModalities": ["image", "text"],
@@ -13686,14 +13707,7 @@
       }
     },
     {
-      "capabilities": [
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
       "contextWindow": 400000,
       "id": "gpt-5-image",
       "inputModalities": ["image", "text"],
@@ -14316,7 +14330,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "web-search"],
       "contextWindow": 262144,
       "id": "hy3-preview",
       "inputModalities": ["text"],
@@ -15028,6 +15042,16 @@
       "ownedBy": "xai"
     },
     {
+      "capabilities": ["video-generation"],
+      "family": "grok",
+      "id": "grok-imagine-video-1-5",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Grok Imagine Video 1.5",
+      "outputModalities": ["video"],
+      "ownedBy": "xai"
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition"],
       "contextWindow": 1000000,
       "family": "grok",
@@ -15493,11 +15517,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "mimo-v2.5-pro",
       "id": "mimo-v2-5-pro",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo V2.5 Pro",
@@ -15587,6 +15611,25 @@
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       }
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 512,
+      "id": "bce-embedding-base-v1",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "BCE Embedding Base v1",
+      "outputModalities": ["vector"],
+      "ownedBy": "youdao"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 512,
+      "id": "bce-reranker-base-v1",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "BCE Reranker Base v1",
+      "ownedBy": "youdao"
     },
     {
       "capabilities": ["function-call"],
@@ -15801,11 +15844,11 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
       "contextWindow": 202800,
       "family": "glm",
       "id": "glm-5-1",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "GLM-5.1",
@@ -16082,6 +16125,32 @@
       },
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1000000,
+      "family": "glm",
+      "id": "glm-5-2-fast",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GLM 5.2 Fast",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10.25
+        }
       }
     },
     {
@@ -17233,10 +17302,10 @@
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "image-recognition"],
       "contextWindow": 1000000,
       "id": "interfaze-beta",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 32000,
       "metadata": {},
       "name": "Interfaze Beta",
@@ -17314,5 +17383,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "2026.06.25"
+  "version": "2026.06.26"
 }

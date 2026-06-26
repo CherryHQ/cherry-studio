@@ -5,7 +5,15 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { normalizeModelId, normalizeVersionSeparators, stripDateSnapshot, stripQuantization } from '../utils/normalize'
+import {
+  expandKnownPrefixes,
+  normalizeModelId,
+  normalizeVersionSeparators,
+  stripBedrockRevision,
+  stripBedrockVendorPrefix,
+  stripDateSnapshot,
+  stripQuantization
+} from '../utils/normalize'
 
 describe('stripQuantization', () => {
   it('strips a trailing quantization marker', () => {
@@ -53,7 +61,50 @@ describe('normalizeVersionSeparators', () => {
   })
 })
 
+describe('stripBedrockVendorPrefix', () => {
+  it('strips a region(s)+vendor dotted prefix from a bedrock arn', () => {
+    expect(stripBedrockVendorPrefix('us.anthropic.claude-sonnet-4-5')).toBe('claude-sonnet-4-5')
+    expect(stripBedrockVendorPrefix('global.meta.llama4-scout')).toBe('llama4-scout')
+    expect(stripBedrockVendorPrefix('anthropic.claude-3-5-haiku')).toBe('claude-3-5-haiku')
+  })
+
+  it('strips a vendor dash prefix', () => {
+    expect(stripBedrockVendorPrefix('meta-llama-3-70b')).toBe('llama-3-70b')
+    expect(stripBedrockVendorPrefix('cohere-command-r')).toBe('command-r')
+  })
+
+  it('leaves a version like qwen3.7 untouched (dotted word is not all-alpha)', () => {
+    expect(stripBedrockVendorPrefix('qwen3.7')).toBe('qwen3.7')
+  })
+})
+
+describe('stripBedrockRevision', () => {
+  it('strips a bedrock arn model revision', () => {
+    expect(stripBedrockRevision('claude-sonnet-4-5-v1:0')).toBe('claude-sonnet-4-5')
+    expect(stripBedrockRevision('claude-3-5-haiku:0')).toBe('claude-3-5-haiku')
+  })
+
+  it('leaves a real version suffix without a colon untouched', () => {
+    expect(stripBedrockRevision('whisper-large-v3')).toBe('whisper-large-v3')
+  })
+})
+
+describe('expandKnownPrefixes', () => {
+  it('expands the minimax shorthand (no aggregator-prefix strip swallows mm-)', () => {
+    expect(expandKnownPrefixes('mm-m2-1')).toBe('minimax-m2-1')
+  })
+})
+
 describe('normalizeModelId — spelling variants collapse to one canonical', () => {
+  it('folds a bedrock cross-vendor arn to the bare canonical id', () => {
+    expect(normalizeModelId('us.anthropic.claude-sonnet-4-5-v1:0')).toBe(normalizeModelId('claude-sonnet-4-5'))
+    expect(normalizeModelId('anthropic.claude-3-5-haiku-20241022:0')).toBe(normalizeModelId('claude-3-5-haiku'))
+  })
+
+  it('expands mm- → minimax- (the aggregator-prefix pass no longer swallows it)', () => {
+    expect(normalizeModelId('mm-m2-1')).toBe('minimax-m2-1')
+  })
+
   it('quantization + underscore + base all normalize to the same id', () => {
     const canonical = normalizeModelId('glm-4-5')
     expect(normalizeModelId('glm-4-5-fp8')).toBe(canonical)

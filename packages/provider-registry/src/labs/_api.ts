@@ -1,22 +1,18 @@
 /**
  * Shared helpers for a lab's `fetchModels()` — built on `@ai-sdk/provider-utils`. The connection
- * host comes from `data/providers.json` (the single source of truth for endpoints): a first-party
- * lab passes its Cherry provider id and we reuse that provider's `baseUrl` — no duplicated URLs.
- * Labs with no Cherry provider pass a full `https://…` base instead. Runs at generation time only.
+ * host comes from the typed `src/provider` registry (the single source of truth for endpoints): a
+ * first-party lab passes its Cherry provider id and we reuse that provider's `baseUrl` — no duplicated
+ * URLs. Reading the source (not the generated `data/providers.json`) keeps the generator buildable from
+ * a clean checkout where `data/` hasn't been generated yet. Labs with no Cherry provider pass a full
+ * `https://…` base instead. Runs at generation time only.
  */
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { createJsonResponseHandler, createStatusCodeErrorResponseHandler, getFromApi } from '@ai-sdk/provider-utils'
 import * as z from 'zod'
 
+import { PROVIDERS } from '../provider'
 import type { LabModel } from './types'
 
 const errorHandler = createStatusCodeErrorResponseHandler()
-const PROVIDERS = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../data/providers.json'), 'utf8')
-) as { providers: Array<{ id: string; endpointConfigs?: Record<string, { baseUrl?: string }> }> }
 
 function requireKey(env: string): string {
   const k = process.env[env]
@@ -27,13 +23,13 @@ function requireKey(env: string): string {
 /** Resolve a connection host: a full `https://…` base, or a Cherry provider id → its baseUrl. */
 function hostBase(providerOrUrl: string): string {
   if (/^https?:\/\//.test(providerOrUrl)) return providerOrUrl.replace(/\/+$/, '')
-  const ec = PROVIDERS.providers.find((p) => p.id === providerOrUrl)?.endpointConfigs ?? {}
+  const ec = PROVIDERS.find((p) => p.id === providerOrUrl)?.endpointConfigs ?? {}
   const base =
     ec['openai-chat-completions']?.baseUrl ??
     ec['openai-responses']?.baseUrl ??
     ec['anthropic-messages']?.baseUrl ??
     ec['google-generate-content']?.baseUrl
-  if (!base) throw new Error(`no baseUrl for provider '${providerOrUrl}' in providers.json`)
+  if (!base) throw new Error(`no baseUrl for provider '${providerOrUrl}' in src/provider`)
   return base.replace(/\/+$/, '')
 }
 

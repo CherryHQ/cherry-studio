@@ -10,7 +10,10 @@ export default defineLab({
   name: 'Tencent (Hunyuan)',
   families: ['hunyuan'],
   idPrefixes: ['hunyuan', 'hy'],
-  webSearch: ['hunyuan'],
+  // Web search is a per-request enhancement on Hunyuan's chat/reasoning models. `hunyuan` covers the
+  // `hunyuan-*` chat ids; `hy3-preview` lives in a different namespace, so it's listed explicitly (the
+  // `hy-*` MT/role/image and `tc-code` models are not chat models and stay out).
+  webSearch: ['hunyuan', 'hy3-preview'],
   models: [
     { id: 'hunyuan-turbos', name: 'Hunyuan TurboS', capabilities: ['function-call'] },
     { id: 'hunyuan-t1', name: 'Hunyuan T1', capabilities: ['reasoning', 'function-call'] },

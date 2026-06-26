@@ -24,7 +24,9 @@ export const COMMON_AGGREGATOR_PREFIXES = [
   'sf-',
   's-',
   'bai-',
-  'mm-',
+  // NOTE: `mm-` is intentionally NOT here — it's MiniMax shorthand handled by PREFIX_EXPANSIONS
+  // (`mm-m2-1` → `minimax-m2-1`). Stripping it as an aggregator prefix would run BEFORE the expansion
+  // and orphan the id (`m2-1`), so MiniMax could never claim it.
   'web-',
   // Platform aggregators
   'deepinfra-',
@@ -115,6 +117,14 @@ export const QUANTIZATION_SUFFIXES = ['-fp8', '-fp16', '-bf16', '-awq', '-int4',
 const DATE_SNAPSHOT_PATTERN =
   /-20\d{2}-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])$|-20\d{2}(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-2\d(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$/
 
+// Bedrock re-lists other creators' models as cross-vendor ARNs: a leading region(s)+vendor DOTTED
+// prefix (`us.anthropic.`, `global.meta.`) and/or a vendor DASH prefix (`meta-llama`, `cohere-command`),
+// plus a trailing model revision (`…-v1:0`, `…:0`). Both the build canonicalizer and the runtime resolver
+// strip these so `us.anthropic.claude-sonnet-4-5-v1:0` folds to the same canonical id as `claude-sonnet-4-5`.
+const BEDROCK_VENDOR = 'anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia'
+const BEDROCK_VENDOR_DASH = new RegExp(`^(?:${BEDROCK_VENDOR})-{1,2}`)
+const BEDROCK_REVISION_PATTERN = /(?:[-_]v\d+)?:\d+$/i
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Functions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +158,20 @@ export function stripHostReprefix(modelId: string, isKnownId: (id: string) => bo
     if (isKnownId(rest)) return rest
   }
   return modelId
+}
+
+/**
+ * Strip a Bedrock cross-vendor ARN's leading vendor prefix: region(s)+vendor dotted segments
+ * (`us.anthropic.claude-…` → `claude-…`) then a vendor dash prefix (`meta-llama-…` → `llama-…`).
+ * All-alpha dotted words only, so a version like `qwen3.7` is never touched.
+ */
+export function stripBedrockVendorPrefix(modelId: string): string {
+  return modelId.replace(/^(?:[a-z]+\.)+/, '').replace(BEDROCK_VENDOR_DASH, '')
+}
+
+/** Strip a Bedrock ARN model revision: `claude-…-v1:0` / `…:0` → bare id (keeps `whisper-v3`, no colon). */
+export function stripBedrockRevision(modelId: string): string {
+  return modelId.replace(BEDROCK_REVISION_PATTERN, '')
 }
 
 export function expandKnownPrefixes(modelId: string): string {
@@ -243,6 +267,10 @@ export function normalizeModelId(modelId: string): string {
   const parts = modelId.split('/')
   let baseName = parts[parts.length - 1].toLowerCase()
   baseName = stripAggregatorPrefixes(baseName)
+  // Bedrock cross-vendor ARNs: drop the `[region.]vendor.` / `vendor-` prefix and the `…-v1:0` revision
+  // (mirrors the build canonicalizer) so `us.anthropic.claude-…-v1:0` resolves to the catalog row.
+  baseName = stripBedrockVendorPrefix(baseName)
+  baseName = stripBedrockRevision(baseName)
   baseName = expandKnownPrefixes(baseName)
   baseName = stripVariantSuffixes(baseName)
   baseName = stripQuantization(baseName)

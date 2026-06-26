@@ -4390,6 +4390,25 @@
       "providerId": "fireworks"
     },
     {
+      "apiModelId": "accounts/fireworks/routers/glm-5p2-fast",
+      "modelId": "glm-5-2-fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.21
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6.6
+        }
+      },
+      "providerId": "fireworks"
+    },
+    {
       "apiModelId": "accounts/fireworks/models/gpt-oss-120b",
       "modelId": "gpt-oss-120b",
       "pricing": {
@@ -5559,6 +5578,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "zai/glm-5.2-fast",
+      "modelId": "glm-5-2-fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10.25
         }
       },
       "providerId": "gateway"
@@ -9465,6 +9503,21 @@
       "providerId": "huggingface"
     },
     {
+      "apiModelId": "XiaomiMiMo/MiMo-V2.5-Pro",
+      "modelId": "mimo-v2-5-pro",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
       "apiModelId": "XiaomiMiMo/MiMo-V2-Flash",
       "modelId": "mimo-v2-flash",
       "pricing": {
@@ -9683,6 +9736,21 @@
       "providerId": "huggingface"
     },
     {
+      "apiModelId": "Qwen/Qwen3.6-27B",
+      "modelId": "qwen3-6-27b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.47
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.19
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
       "apiModelId": "Qwen/Qwen3.6-35B-A3B",
       "modelId": "qwen3-6-35b-a3b",
       "pricing": {
@@ -9813,6 +9881,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.3
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
+      "apiModelId": "stepfun-ai/Step-3.7-Flash",
+      "modelId": "step-3-7-flash",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.15
         }
       },
       "providerId": "huggingface"
@@ -11980,6 +12063,10 @@
       "apiModelId": "deepseek/deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02288
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.2288
@@ -12106,6 +12193,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sakana/fugu-ultra",
+      "modelId": "fugu-ultra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
         }
       },
       "providerId": "openrouter"
@@ -12798,7 +12904,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.49
+          "perMillionTokens": 0.182
         },
         "input": {
           "currency": "USD",
@@ -14476,13 +14582,9 @@
       "apiModelId": "xiaomi/mimo-v2.5",
       "modelId": "mimo-v2-5",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.0028
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.105
         },
         "output": {
           "currency": "USD",
@@ -14582,17 +14684,13 @@
       "apiModelId": "minimax/minimax-m2.5",
       "modelId": "minimax-m2-5",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.12
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.9
+          "perMillionTokens": 0.48
         }
       },
       "providerId": "openrouter"
@@ -14603,11 +14701,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.24
+          "perMillionTokens": 0.18
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.96
+          "perMillionTokens": 0.72
         }
       },
       "providerId": "openrouter"
@@ -15635,6 +15733,10 @@
       "apiModelId": "qwen/qwen3.5-35b-a3b",
       "modelId": "qwen3-5-35b-a3b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.14
@@ -19805,5 +19907,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2026.06.25"
+  "version": "2026.06.26"
 }

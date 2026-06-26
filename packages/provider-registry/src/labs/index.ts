@@ -58,6 +58,7 @@ import voyage from './voyage'
 import writer from './writer'
 import xai from './xai'
 import xiaomi from './xiaomi'
+import youdao from './youdao'
 import zhipu from './zhipu'
 
 export const LABS: Lab[] = [
@@ -115,6 +116,7 @@ export const LABS: Lab[] = [
   writer,
   xai,
   xiaomi,
+  youdao,
   zhipu
 ]
 

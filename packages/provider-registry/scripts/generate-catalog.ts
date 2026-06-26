@@ -22,6 +22,8 @@ import {
   expandKnownPrefixes,
   normalizeVersionSeparators,
   stripAggregatorPrefixes,
+  stripBedrockRevision,
+  stripBedrockVendorPrefix,
   stripHostReprefix,
   stripQuantization,
   stripVariantSuffixes
@@ -48,18 +50,11 @@ const REPORT = process.argv.includes('--report')
 // live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to a local file to cache it during dev.
 const VERSION = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
 
-// ── canonicalization (same pipeline as the runtime resolver's normalizeModelId) ──
-const VENDOR_PREFIX = 'anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia'
-const stripVendorPrefix = (s: string) =>
-  s
-    // leading region(s)+vendor dotted prefixes — bedrock cross-region arns (`us.`/`eu.`/`au.`/`global.`
-    // then `anthropic.`/`meta.`/…). All-alpha words only, so a version like `qwen3.7` is never touched.
-    .replace(/^(?:[a-z]+\.)+/, '')
-    // vendor DASH prefix: `meta-llama` → `llama`, `cohere-command` → `command`
-    .replace(new RegExp(`^(?:${VENDOR_PREFIX})-{1,2}`), '')
+// ── canonicalization (shares the runtime resolver's normalizeModelId helpers) ──
 // strip the same org/host routing prefixes the runtime resolver does (zai-org-, databricks-, …),
-// so a host that flattens `zai-org/glm-5` → `zai-org-glm-5` folds into the real `glm-5`
-const base = (id: string) => stripVendorPrefix(stripAggregatorPrefixes(id.toLowerCase().split('/').pop()!))
+// so a host that flattens `zai-org/glm-5` → `zai-org-glm-5` folds into the real `glm-5`; then peel the
+// bedrock cross-vendor `[region.]vendor.` / `vendor-` prefix (shared with the runtime).
+const base = (id: string) => stripBedrockVendorPrefix(stripAggregatorPrefixes(id.toLowerCase().split('/').pop()!))
 const stripDate = (s: string) =>
   s
     .replace(/@.*$/, '')
@@ -72,7 +67,7 @@ const stripDate = (s: string) =>
 // `-thinking`/`-free` variant BEFORE the date so the date ends the token.
 const canonOf = (id: string) => {
   let s = base(id) // split('/').pop, lowercase, strip aggregator + bedrock-vendor prefix
-  s = s.replace(/(?:[-_]v\d+)?:\d+$/i, '') // bedrock arn revision: claude-…-v1:0 / …:0 (keeps whisper-v3)
+  s = stripBedrockRevision(s) // bedrock arn revision: claude-…-v1:0 / …:0 (keeps whisper-v3)
   s = expandKnownPrefixes(s) // mm- → minimax-
   s = stripVariantSuffixes(s) // -free / -thinking / -tee / -low / :free / (free) …
   s = stripQuantization(s) // -fp8 / -fp16 / -awq …
@@ -251,6 +246,9 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   // which of its models carry it, as DATA, via `webSearch` id-prefixes. Union onto upstream capabilities.
   const labWebSearch = new Map(LABS.map((l) => [l.id, l.webSearch ?? []]))
   for (const m of models.values()) {
+    // An image-generation model never inherits a text sibling's web search just for sharing its prefix
+    // (`gpt-5-image*` ride the `gpt-5` prefix). web-search is a text capability — skip the image rows.
+    if ((m.capabilities ?? []).includes('image-generation')) continue
     if ((labWebSearch.get(m.ownedBy) ?? []).some((p) => prefixHit(m.id, p)))
       m.capabilities = [...new Set([...(m.capabilities ?? []), 'web-search'])]
   }
