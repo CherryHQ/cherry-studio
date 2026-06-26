@@ -32,44 +32,6 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-// Mock antd components to prevent flaky snapshot tests
-vi.mock('antd', () => {
-  const MockSpaceCompact: React.FC<React.PropsWithChildren<{ style?: React.CSSProperties }>> = ({
-    children,
-    style
-  }) => (
-    <div data-testid="space-compact" style={style}>
-      {children}
-    </div>
-  )
-
-  const MockInputNumber = ({ ref, value, onChange, placeholder, disabled, style }: any) => (
-    <input
-      ref={ref}
-      type="number"
-      data-testid="input-number"
-      placeholder={placeholder}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.valueAsNumber)}
-      disabled={disabled}
-      style={style}
-    />
-  )
-
-  const MockButton: React.FC<any> = ({ children, onClick, disabled, icon, className, ...rest }) => (
-    <button type="button" onClick={onClick} disabled={disabled} {...rest} className={className}>
-      {icon}
-      {children}
-    </button>
-  )
-
-  return {
-    Button: MockButton,
-    InputNumber: MockInputNumber,
-    Space: { Compact: MockSpaceCompact }
-  }
-})
-
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }: any) => (
     <button type="button" data-testid="button" onClick={onPress} disabled={disabled || isDisabled} {...props}>
