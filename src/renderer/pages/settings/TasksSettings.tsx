@@ -29,10 +29,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
@@ -80,6 +78,15 @@ const parseScheduleDate = (value: string) => {
 
 /** UI form state ↔ wire Trigger conversions. */
 type ScheduleKind = 'cron' | 'interval' | 'once'
+type ScheduleFormState = {
+  kind: ScheduleKind
+  value: string
+  timeoutMinutes: string
+}
+type ScheduleCommitPatch = {
+  trigger?: Trigger
+  timeoutMinutes?: number | null
+}
 
 function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: string } {
   switch (trigger.kind) {
@@ -112,28 +119,13 @@ function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
 // --------------- Shared schedule controls ---------------
 
 const TaskScheduleControls: FC<{
-  scheduleType: ScheduleKind
-  scheduleValue: string
-  timeoutMinutes: string
+  value: ScheduleFormState
   disabled?: boolean
-  onScheduleTypeChange: (value: ScheduleKind) => void
-  onScheduleValueChange: (value: string) => void
-  onScheduleValueBlur?: () => void
-  onOnceDateChange: (date: Date) => void
-  onTimeoutMinutesChange: (value: string) => void
-  onTimeoutMinutesBlur?: () => void
-}> = ({
-  scheduleType,
-  scheduleValue,
-  timeoutMinutes,
-  disabled,
-  onScheduleTypeChange,
-  onScheduleValueChange,
-  onScheduleValueBlur,
-  onOnceDateChange,
-  onTimeoutMinutesChange,
-  onTimeoutMinutesBlur
-}) => {
+  committedTrigger?: Trigger
+  committedTimeoutMinutes?: number | null
+  onChange: (value: ScheduleFormState) => void
+  onCommit?: (patch: ScheduleCommitPatch) => void
+}> = ({ value, disabled, committedTrigger, committedTimeoutMinutes, onChange, onCommit }) => {
   const { t } = useTranslation()
 
   const scheduleTypeOptions = [
@@ -142,28 +134,43 @@ const TaskScheduleControls: FC<{
     { value: 'cron' as const, label: t('agent.cherryClaw.tasks.scheduleType.cron') }
   ]
 
+  const commitTrigger = (kind = value.kind, scheduleValue = value.value) => {
+    if (!onCommit) return
+    const trigger = formStateToTrigger(kind, scheduleValue)
+    if (!trigger) return
+    if (committedTrigger && JSON.stringify(trigger) === JSON.stringify(committedTrigger)) return
+    onCommit({ trigger })
+  }
+
+  const commitTimeoutMinutes = () => {
+    if (!onCommit) return
+    const nextTimeout = value.timeoutMinutes.trim() ? parseInt(value.timeoutMinutes, 10) : null
+    const previousTimeout = committedTimeoutMinutes ?? null
+    if (nextTimeout !== previousTimeout) onCommit({ timeoutMinutes: nextTimeout })
+  }
+
   return (
     <div className="space-y-5">
       <div className="space-y-3">
         <SettingRowTitle>{t('agent.cherryClaw.tasks.frequency.label')}</SettingRowTitle>
         <SegmentedControl
           size="sm"
-          value={scheduleType}
+          value={value.kind}
           disabled={disabled}
-          onValueChange={onScheduleTypeChange}
+          onValueChange={(kind) => onChange({ ...value, kind, value: '' })}
           options={scheduleTypeOptions}
           className="max-w-full"
         />
 
-        {scheduleType === 'interval' && (
+        {value.kind === 'interval' && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground text-sm">{t('agent.cherryClaw.tasks.frequency.everyPrefix')}</span>
             <UIInput
               type="number"
               min={1}
-              value={scheduleValue}
-              onChange={(e) => onScheduleValueChange(e.target.value)}
-              onBlur={onScheduleValueBlur}
+              value={value.value}
+              onChange={(e) => onChange({ ...value, value: e.target.value })}
+              onBlur={() => commitTrigger()}
               placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
               disabled={disabled}
               className="w-24"
@@ -172,26 +179,28 @@ const TaskScheduleControls: FC<{
           </div>
         )}
 
-        {scheduleType === 'once' && (
+        {value.kind === 'once' && (
           <DateTimePicker
-            value={parseScheduleDate(scheduleValue)}
+            value={parseScheduleDate(value.value)}
             granularity="second"
             format="yyyy-MM-dd HH:mm:ss"
             placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
             triggerClassName="w-72 max-w-full"
             onChange={(date) => {
               if (!date) return
-              onOnceDateChange(date)
+              const nextValue = date.toISOString()
+              onChange({ ...value, value: nextValue })
+              commitTrigger('once', nextValue)
             }}
             disabled={disabled}
           />
         )}
 
-        {scheduleType === 'cron' && (
+        {value.kind === 'cron' && (
           <UIInput
-            value={scheduleValue}
-            onChange={(e) => onScheduleValueChange(e.target.value)}
-            onBlur={onScheduleValueBlur}
+            value={value.value}
+            onChange={(e) => onChange({ ...value, value: e.target.value })}
+            onBlur={() => commitTrigger()}
             placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
             disabled={disabled}
             className="w-72 max-w-full"
@@ -205,9 +214,9 @@ const TaskScheduleControls: FC<{
           <UIInput
             type="number"
             min={1}
-            value={timeoutMinutes}
-            onChange={(e) => onTimeoutMinutesChange(e.target.value)}
-            onBlur={onTimeoutMinutesBlur}
+            value={value.timeoutMinutes}
+            onChange={(e) => onChange({ ...value, timeoutMinutes: e.target.value })}
+            onBlur={commitTimeoutMinutes}
             placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
             disabled={disabled}
             className="h-8 min-h-8 w-24"
@@ -310,9 +319,10 @@ const TaskDetail: FC<{
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  const [scheduleType, setScheduleType] = useState<ScheduleKind>(initialSchedule.kind)
-  const [scheduleValue, setScheduleValue] = useState(initialSchedule.value)
-  const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeoutMinutes?.toString() ?? '')
+  const [schedule, setSchedule] = useState<ScheduleFormState>({
+    ...initialSchedule,
+    timeoutMinutes: task.timeoutMinutes?.toString() ?? ''
+  })
   const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
 
   const toggleStatusLabel =
@@ -325,9 +335,7 @@ const TaskDetail: FC<{
     setName(task.name)
     setPrompt(task.prompt)
     const next = triggerToFormState(task.trigger)
-    setScheduleType(next.kind)
-    setScheduleValue(next.value)
-    setTimeoutMinutes(task.timeoutMinutes?.toString() ?? '')
+    setSchedule({ ...next, timeoutMinutes: task.timeoutMinutes?.toString() ?? '' })
     setChannelIds(task.channelIds ?? [])
   }, [task])
 
@@ -347,19 +355,6 @@ const TaskDetail: FC<{
     },
     [prompt, saveField, task.prompt]
   )
-
-  const handleScheduleValueBlur = useCallback(() => {
-    const trigger = formStateToTrigger(scheduleType, scheduleValue)
-    if (!trigger) return
-    if (JSON.stringify(trigger) === JSON.stringify(task.trigger)) return
-    saveField({ trigger })
-  }, [saveField, scheduleType, scheduleValue, task.trigger])
-
-  const handleTimeoutMinutesBlur = useCallback(() => {
-    const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
-    const prev = task.timeoutMinutes ?? null
-    if (val !== prev) saveField({ timeoutMinutes: val })
-  }, [saveField, task.timeoutMinutes, timeoutMinutes])
 
   const handleRunNow = useCallback(() => {
     setActionsMenuOpen(false)
@@ -517,22 +512,12 @@ const TaskDetail: FC<{
             />
           </SettingRow>
           <TaskScheduleControls
-            scheduleType={scheduleType}
-            scheduleValue={scheduleValue}
-            timeoutMinutes={timeoutMinutes}
+            value={schedule}
             disabled={isCompleted}
-            onScheduleTypeChange={(value) => {
-              setScheduleType(value)
-              setScheduleValue('')
-            }}
-            onScheduleValueChange={setScheduleValue}
-            onScheduleValueBlur={handleScheduleValueBlur}
-            onOnceDateChange={(date) => {
-              setScheduleValue(date.toISOString())
-              saveField({ trigger: { kind: 'once', at: date.getTime() } })
-            }}
-            onTimeoutMinutesChange={setTimeoutMinutes}
-            onTimeoutMinutesBlur={handleTimeoutMinutesBlur}
+            committedTrigger={task.trigger}
+            committedTimeoutMinutes={task.timeoutMinutes}
+            onChange={setSchedule}
+            onCommit={saveField}
           />
           <TaskChannelSelector
             channels={channels}
@@ -586,12 +571,9 @@ const TaskDetail: FC<{
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const tabsContext = useOptionalTabsContext()
-  const isDetachedWindowFrame = useWindowFrame().mode === 'window'
-  const { openConversationTab, openConversationWindow } = useConversationNavigation('agents')
+  const { openConversation } = useConversationNavigation('agents')
   const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
-  const shouldOpenInCurrentTabs = !!tabsContext && !isDetachedWindowFrame
 
   const filteredLogs = useMemo(() => {
     if (!searchText.trim()) return logs
@@ -607,14 +589,9 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
-      if (shouldOpenInCurrentTabs) {
-        openConversationTab(sessionId)
-        return
-      }
-
-      openConversationWindow(sessionId)
+      openConversation(sessionId)
     },
-    [openConversationTab, openConversationWindow, shouldOpenInCurrentTabs]
+    [openConversation]
   )
 
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
@@ -804,23 +781,21 @@ const CreateForm: FC<{
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [promptModalOpen, setPromptModalOpen] = useState(false)
-  const [scheduleType, setScheduleType] = useState<ScheduleKind>('interval')
-  const [scheduleValue, setScheduleValue] = useState('')
-  const [timeoutMinutes, setTimeoutMinutes] = useState('')
+  const [schedule, setSchedule] = useState<ScheduleFormState>({ kind: 'interval', value: '', timeoutMinutes: '' })
   const [channelIds, setChannelIds] = useState<string[]>([])
   // TODO(agent-workspace-picker): wire the workspace picker before re-enabling task creation.
   const [workspaceSource] = useState<CreateTaskRequest['workspace'] | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const isValid = agentId && name.trim() && prompt.trim() && scheduleValue.trim() && workspaceSource
+  const isValid = agentId && name.trim() && prompt.trim() && schedule.value.trim() && workspaceSource
 
   const handleCreate = useCallback(async () => {
-    if (!agentId || !name.trim() || !prompt.trim() || !scheduleValue.trim() || !workspaceSource) return
-    const trigger = formStateToTrigger(scheduleType, scheduleValue.trim())
+    if (!agentId || !name.trim() || !prompt.trim() || !schedule.value.trim() || !workspaceSource) return
+    const trigger = formStateToTrigger(schedule.kind, schedule.value.trim())
     if (!trigger) return
     setSaving(true)
     try {
-      const timeout = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
+      const timeout = schedule.timeoutMinutes.trim() ? parseInt(schedule.timeoutMinutes, 10) : null
       await onCreate(agentId, {
         name: name.trim(),
         prompt: prompt.trim(),
@@ -832,7 +807,7 @@ const CreateForm: FC<{
     } finally {
       setSaving(false)
     }
-  }, [agentId, name, prompt, scheduleType, scheduleValue, workspaceSource, timeoutMinutes, channelIds, onCreate])
+  }, [agentId, name, prompt, schedule, workspaceSource, channelIds, onCreate])
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -902,18 +877,7 @@ const CreateForm: FC<{
             </DialogContent>
           </Dialog>
 
-          <TaskScheduleControls
-            scheduleType={scheduleType}
-            scheduleValue={scheduleValue}
-            timeoutMinutes={timeoutMinutes}
-            onScheduleTypeChange={(value) => {
-              setScheduleType(value)
-              setScheduleValue('')
-            }}
-            onScheduleValueChange={setScheduleValue}
-            onOnceDateChange={(date) => setScheduleValue(date.toISOString())}
-            onTimeoutMinutesChange={setTimeoutMinutes}
-          />
+          <TaskScheduleControls value={schedule} onChange={setSchedule} />
           <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
 
           <div className="flex gap-2">
