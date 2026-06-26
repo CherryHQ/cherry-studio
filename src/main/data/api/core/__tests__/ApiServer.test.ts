@@ -249,6 +249,51 @@ describe('ApiServer devtools timing metadata', () => {
     })
   })
 
+  it('does not add handler duration when middleware short-circuits in development mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'development'
+    const { DataApiErrorFactory } = await import('@shared/data/api/apiErrors')
+    const { ApiServer: DevApiServer } = await import('../ApiServer')
+    const handler = vi.fn(async () => ({ ok: true }))
+    const server = new (DevApiServer as any)({
+      '/providers': {
+        GET: handler
+      }
+    })
+
+    server.use({
+      name: 'short-circuit',
+      priority: 5,
+      execute: async (_req: any, res: any) => {
+        const error = DataApiErrorFactory.validation({ provider: ['Blocked'] }, 'Blocked by middleware')
+        res.status = error.status
+        res.error = error.toJSON()
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_4',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(response).toMatchObject({
+      id: 'req_4',
+      status: 422,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Blocked by middleware'
+      }
+    })
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+    expect(response.metadata?.handlerDuration).toBeUndefined()
+  })
+
   it('adds only request duration in diagnostics mode', async () => {
     vi.resetModules()
     process.env.NODE_ENV = 'production'
@@ -261,7 +306,7 @@ describe('ApiServer devtools timing metadata', () => {
     })
 
     const response = await server.handleRequest({
-      id: 'req_4',
+      id: 'req_5',
       method: 'GET',
       path: '/providers',
       metadata: { timestamp: Date.now() }

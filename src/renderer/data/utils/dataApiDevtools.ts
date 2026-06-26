@@ -72,6 +72,15 @@ function prepareRecording(): boolean {
   return true
 }
 
+function safeRecord(record: () => void): void {
+  if (!prepareRecording()) return
+  try {
+    record()
+  } catch {
+    // DevTools instrumentation must never affect the request it observes.
+  }
+}
+
 function snapshotEvents(): DataApiDevtoolsEvent[] {
   return [...events]
 }
@@ -208,32 +217,33 @@ function recordStart(input: {
   body?: unknown
   retryAttempt: number
 }): void {
-  if (!prepareRecording()) return
-  appendEvent(
-    {
-      state: 'pending',
-      requestId: input.requestId,
-      method: input.method,
-      path: input.path,
-      query: sanitizeValue(input.query),
-      body: sanitizeValue(input.body),
-      retryAttempt: input.retryAttempt
-    },
-    { trackStart: true }
-  )
+  safeRecord(() => {
+    appendEvent(
+      {
+        state: 'pending',
+        requestId: input.requestId,
+        method: input.method,
+        path: input.path,
+        query: sanitizeValue(input.query),
+        body: sanitizeValue(input.body),
+        retryAttempt: input.retryAttempt
+      },
+      { trackStart: true }
+    )
+  })
 }
 
 function recordSuccess(input: { requestId: string; method: HttpMethod; path: string; response: DataResponse }): void {
-  if (!prepareRecording()) return
-
-  upsertEvent(input, {
-    state: 'success',
-    completedAt: Date.now(),
-    status: input.response.status,
-    response: sanitizeValue(input.response.data),
-    clientDuration: consumeClientDuration(input.requestId),
-    mainDuration: input.response.metadata?.duration,
-    handlerDuration: input.response.metadata?.handlerDuration
+  safeRecord(() => {
+    upsertEvent(input, {
+      state: 'success',
+      completedAt: Date.now(),
+      status: input.response.status,
+      response: sanitizeValue(input.response.data),
+      clientDuration: consumeClientDuration(input.requestId),
+      mainDuration: input.response.metadata?.duration,
+      handlerDuration: input.response.metadata?.handlerDuration
+    })
   })
 }
 
@@ -245,19 +255,19 @@ function recordError(input: {
   status?: number
   metadata?: DataResponse['metadata']
 }): void {
-  if (!prepareRecording()) return
-
-  const timingFields: Partial<DataApiDevtoolsEvent> = {
-    mainDuration: input.metadata?.duration,
-    handlerDuration: input.metadata?.handlerDuration
-  }
-  upsertEvent(input, {
-    state: 'error',
-    completedAt: Date.now(),
-    status: input.status,
-    clientDuration: consumeClientDuration(input.requestId),
-    ...timingFields,
-    error: serializeError(input.error)
+  safeRecord(() => {
+    const timingFields: Partial<DataApiDevtoolsEvent> = {
+      mainDuration: input.metadata?.duration,
+      handlerDuration: input.metadata?.handlerDuration
+    }
+    upsertEvent(input, {
+      state: 'error',
+      completedAt: Date.now(),
+      status: input.status,
+      clientDuration: consumeClientDuration(input.requestId),
+      ...timingFields,
+      error: serializeError(input.error)
+    })
   })
 }
 
@@ -268,13 +278,13 @@ function recordRetry(input: {
   retryAttempt: number
   error: unknown
 }): void {
-  if (!prepareRecording()) return
-
-  upsertEvent(input, {
-    state: 'retry',
-    completedAt: Date.now(),
-    retryAttempt: input.retryAttempt,
-    error: serializeError(input.error)
+  safeRecord(() => {
+    upsertEvent(input, {
+      state: 'retry',
+      completedAt: Date.now(),
+      retryAttempt: input.retryAttempt,
+      error: serializeError(input.error)
+    })
   })
 }
 

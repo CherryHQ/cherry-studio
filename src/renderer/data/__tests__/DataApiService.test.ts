@@ -93,6 +93,28 @@ describe('DataApiService devtools instrumentation', () => {
     expect(events[0].clientDuration).toEqual(expect.any(Number))
   })
 
+  it('does not let devtools payload inspection block the request', async () => {
+    request.mockImplementationOnce(async (req) => ({
+      id: req.id,
+      status: 200,
+      data: { ok: true },
+      metadata: { timestamp: Date.now() }
+    }))
+
+    const service = await createService()
+
+    await expect(
+      service.post('/providers' as any, {
+        body: {
+          get value() {
+            throw new Error('payload getter failed')
+          }
+        } as any
+      })
+    ).resolves.toEqual({ ok: true })
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
   it('records failed requests with request and error details in one entry', async () => {
     const error = DataApiErrorFactory.validation({ name: ['Required'] }, 'Invalid provider')
     request.mockImplementationOnce(async (req) => ({
