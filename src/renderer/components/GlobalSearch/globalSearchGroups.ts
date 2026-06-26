@@ -1,3 +1,4 @@
+import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type {
   EntitySearchItem,
@@ -7,7 +8,6 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import type { Topic } from '@types'
 import dayjs from 'dayjs'
 
 export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20

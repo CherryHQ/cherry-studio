@@ -169,6 +169,7 @@ export class TopicService {
         },
         {
           pkColumn: topicTable.id,
+          position: 'first',
           scope: topicScopePredicate(groupId)
         }
       )) as TopicRow

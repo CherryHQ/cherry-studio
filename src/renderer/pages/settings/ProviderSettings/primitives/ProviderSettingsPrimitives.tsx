@@ -1,5 +1,5 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { ReactNode } from 'react'
 

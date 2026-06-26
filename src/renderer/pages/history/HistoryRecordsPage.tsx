@@ -28,7 +28,7 @@ import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic as RendererTopic } from '@renderer/types'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot, ChevronLeft } from 'lucide-react'

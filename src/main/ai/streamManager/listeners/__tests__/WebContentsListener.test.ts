@@ -2,7 +2,7 @@
  * Coalescing behaviour tests for WebContentsListener.
  *
  * Goal: verify that consecutive `text-delta` / `reasoning-delta` chunks
- * collapse into one `wc.send` call within the 16ms window, while non-
+ * collapse into one `wc.send` (IpcApi event) call within the 16ms window, while non-
  * mergeable chunks and terminal events flush the buffer first so the
  * renderer always observes the original chunk ordering.
  */
@@ -58,7 +58,7 @@ describe('WebContentsListener coalescing', () => {
     vi.advanceTimersByTime(16)
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send).toHaveBeenCalledWith(IpcChannel.Ai_StreamChunk, {
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
       topicId: 'topic-1',
       executionId: undefined,
       chunk: { type: 'text-delta', id: 't1', delta: 'Hello, world' }
@@ -75,8 +75,8 @@ describe('WebContentsListener coalescing', () => {
 
     // Both the merged delta AND the text-end land synchronously, in order
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'Hi!' })
-    expect(wc.send.mock.calls[1][1].chunk).toEqual({ type: 'text-end', id: 't1' })
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'Hi!' })
+    expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-end', id: 't1' })
   })
 
   it('does not merge across different message ids', () => {
@@ -87,11 +87,11 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-delta', { id: 'b', delta: 'bar' }))
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({ type: 'text-delta', id: 'a', delta: 'foo' })
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'text-delta', id: 'a', delta: 'foo' })
 
     vi.advanceTimersByTime(16)
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[1][1].chunk).toEqual({ type: 'text-delta', id: 'b', delta: 'bar' })
+    expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-delta', id: 'b', delta: 'bar' })
   })
 
   it('does not merge across different sourceModelIds (multi-model)', () => {
@@ -102,13 +102,13 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'B' }), 'anthropic::claude')
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1]).toMatchObject({
+    expect(wc.send.mock.calls[0][2]).toMatchObject({
       executionId: 'openai::gpt-4o',
       chunk: { delta: 'A' }
     })
 
     vi.advanceTimersByTime(16)
-    expect(wc.send.mock.calls[1][1]).toMatchObject({
+    expect(wc.send.mock.calls[1][2]).toMatchObject({
       executionId: 'anthropic::claude',
       chunk: { delta: 'B' }
     })
@@ -130,8 +130,8 @@ describe('WebContentsListener coalescing', () => {
     // The metadata-carrying delta forces a flush of the prior buffer and
     // is sent immediately on its own (no batching either side).
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][1].chunk.delta).toBe('A')
-    expect(wc.send.mock.calls[1][1].chunk).toMatchObject({
+    expect(wc.send.mock.calls[0][2].chunk.delta).toBe('A')
+    expect(wc.send.mock.calls[1][2].chunk).toMatchObject({
       delta: 'B',
       providerMetadata: { cherry: { references: [] } }
     })
@@ -147,11 +147,11 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'answer' }))
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({ type: 'reasoning-delta', id: 'r1', delta: 'thinking' })
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'reasoning-delta', id: 'r1', delta: 'thinking' })
 
     vi.advanceTimersByTime(16)
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[1][1].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'answer' })
+    expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'answer' })
   })
 
   it('flushes pending buffer on onDone before sending the terminal event', () => {
@@ -162,9 +162,9 @@ describe('WebContentsListener coalescing', () => {
     l.onDone({ modelId: 'openai::gpt-4o', status: 'success', isTopicDone: true } as never)
 
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][0]).toBe(IpcChannel.Ai_StreamChunk)
-    expect(wc.send.mock.calls[0][1].chunk.delta).toBe('Final')
-    expect(wc.send.mock.calls[1][0]).toBe(IpcChannel.Ai_StreamDone)
+    expect(wc.send.mock.calls[0][1]).toBe('ai.stream_chunk')
+    expect(wc.send.mock.calls[0][2].chunk.delta).toBe('Final')
+    expect(wc.send.mock.calls[1][1]).toBe('ai.stream_done')
   })
 
   it('flushes pending buffer on onError before sending the terminal event', () => {
@@ -179,8 +179,8 @@ describe('WebContentsListener coalescing', () => {
     } as never)
 
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][1].chunk.delta).toBe('Partial')
-    expect(wc.send.mock.calls[1][0]).toBe(IpcChannel.Ai_StreamError)
+    expect(wc.send.mock.calls[0][2].chunk.delta).toBe('Partial')
+    expect(wc.send.mock.calls[1][1]).toBe('ai.stream_error')
   })
 
   it('drops pending buffer and sends nothing when the WebContents is destroyed', () => {
@@ -219,7 +219,7 @@ describe('WebContentsListener coalescing', () => {
 
     // Flushed synchronously — no fake-timer advance needed.
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'abc' })
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'abc' })
 
     nowSpy.mockRestore()
   })
@@ -234,7 +234,7 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-delta', { id: 't1', delta: big })) // total 3000 ≥ 2048
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk.delta.length).toBe(3000)
+    expect(wc.send.mock.calls[0][2].chunk.delta.length).toBe(3000)
   })
 
   it('coalesces consecutive tool-input-delta chunks with same toolCallId', () => {
@@ -250,7 +250,7 @@ describe('WebContentsListener coalescing', () => {
     vi.advanceTimersByTime(16)
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({
       type: 'tool-input-delta',
       toolCallId: 'call-1',
       inputTextDelta: '{"q":"hi"}'
@@ -265,11 +265,11 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('tool-input-delta', { toolCallId: 'b', inputTextDelta: '2' }))
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk.toolCallId).toBe('a')
+    expect(wc.send.mock.calls[0][2].chunk.toolCallId).toBe('a')
 
     vi.advanceTimersByTime(16)
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[1][1].chunk.toolCallId).toBe('b')
+    expect(wc.send.mock.calls[1][2].chunk.toolCallId).toBe('b')
   })
 
   it('does not merge tool-input-delta with text-delta even within window', () => {
@@ -280,7 +280,7 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }))
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({
       type: 'tool-input-delta',
       toolCallId: 'call-1',
       inputTextDelta: '{'
@@ -288,7 +288,7 @@ describe('WebContentsListener coalescing', () => {
 
     vi.advanceTimersByTime(16)
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[1][1].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'A' })
+    expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'A' })
   })
 
   it('flushes pending tool-input-delta when tool-input-start arrives', () => {
@@ -299,12 +299,12 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('tool-input-start', { toolCallId: 'call-2', toolName: 'next' }))
 
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][1].chunk).toEqual({
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({
       type: 'tool-input-delta',
       toolCallId: 'call-1',
       inputTextDelta: '{"q":"x"}'
     })
-    expect(wc.send.mock.calls[1][1].chunk).toMatchObject({ type: 'tool-input-start', toolCallId: 'call-2' })
+    expect(wc.send.mock.calls[1][2].chunk).toMatchObject({ type: 'tool-input-start', toolCallId: 'call-2' })
   })
 
   it('isAlive() returns false and clears state when WebContents is destroyed', () => {

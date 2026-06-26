@@ -59,6 +59,12 @@ describe('FileManager v2 IPC handler registration', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
+  it('does not register files-page dangling handlers on legacy File_* channels', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).not.toContain('file:getDanglingState')
+    expect(registeredChannels).not.toContain('file:batchGetDanglingStates')
+  })
+
   it('registers File:createInternalEntry IPC channel', () => {
     const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
     expect(registeredChannels).toContain(IpcChannel.File_CreateInternalEntry)

@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { type ButtonHTMLAttributes, createElement, type HTMLAttributes } from 'react'
 
 export const WindowControlsContainer = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) =>

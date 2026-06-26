@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { isJSON, parseJSON } from '../index'
+import { isJSON, parseJSON } from '../json'
 
 vi.mock('@renderer/store', () => ({
   default: {

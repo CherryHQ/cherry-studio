@@ -17,7 +17,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { Shortcut } from '@renderer/types'
+import type { Shortcut } from '@renderer/types/app'
 import { ZOOM_SHORTCUTS } from '@shared/utils/shortcut'
 
 export interface ShortcutsState {
