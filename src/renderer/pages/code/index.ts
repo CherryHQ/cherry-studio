@@ -87,7 +87,6 @@ export interface ToolEnvironmentConfig {
 }
 
 // CLI 工具选项
-// @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
 export const CLI_TOOLS = [
   { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
   { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
@@ -114,7 +113,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter(
       (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
-  // @legacy — removed in v2: geminiCli, qwenCode, qoderCli, githubCopilotCli, kimiCli
   [codeCLI.openaiCodex]: (providers) =>
     providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
 
@@ -232,8 +230,6 @@ export const generateProviderConfig = ({
         ...(claude?.effortLevel !== undefined ? { effortLevel: claude.effortLevel } : {}),
         ...(claude?.enabledPlugins !== undefined ? { enabledPlugins: claude.enabledPlugins } : {})
       }
-
-    // @legacy — removed in v2: geminiCli, qwenCode
 
     case codeCLI.openaiCodex:
       return {

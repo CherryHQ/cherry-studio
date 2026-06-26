@@ -1,4 +1,4 @@
-import { Scrollbar, SearchInput } from '@cherrystudio/ui'
+import { Badge, Scrollbar, SearchInput } from '@cherrystudio/ui'
 import type { codeCLI } from '@shared/types/codeCli'
 import { type FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import type { CLI_TOOLS } from '..'
 import { CLIIcon } from './CLIIcon'
 import type { CodeToolMeta } from './types'
+import type { VersionStatus } from './VersionStatusCard'
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
@@ -14,9 +15,36 @@ export interface CodeCliSidebarProps {
   selectedCliTool: codeCLI
   onSelectTool: (tool: codeCLI) => void
   toMeta: (tool: CliToolOption) => CodeToolMeta
+  statuses: Record<string, VersionStatus>
 }
 
-export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool, onSelectTool, toMeta }) => {
+const SidebarStatusTag: FC<{ status?: VersionStatus }> = ({ status }) => {
+  const { t } = useTranslation()
+  if (!status) return null
+  if (!status.installed) {
+    return (
+      <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground leading-4">
+        {t('code.not_installed')}
+      </Badge>
+    )
+  }
+  if (status.canUpgrade) {
+    return (
+      <Badge variant="outline" className="gap-0.5 border-warning/50 px-1.5 py-0 text-[10px] text-warning leading-4">
+        {t('code.can_upgrade')}
+      </Badge>
+    )
+  }
+  return (
+    status.current && (
+      <Badge variant="secondary" className="px-1.5 py-0 text-[10px] leading-4">
+        v{status.current}
+      </Badge>
+    )
+  )
+}
+
+export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool, onSelectTool, toMeta, statuses }) => {
   const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -31,7 +59,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool
   )
 
   return (
-    <div className="relative h-full min-h-0 shrink-0 w-60">
+    <div className="relative h-full min-h-0 w-60 shrink-0">
       <aside className="flex size-full min-h-0 flex-col border-border-muted border-r">
         <div className="flex shrink-0 items-center gap-2 p-3">
           <div className="min-w-0 flex-1">
@@ -47,7 +75,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool
 
         <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-3 pb-3">
           {displayedTools.length === 0 ? (
-            <div className="text-center text-xs text-muted-foreground/50 py-8">
+            <div className="py-8 text-center text-muted-foreground/50 text-xs">
               {searchTerm ? t('code.no_matching_tools') : t('code.no_tools')}
             </div>
           ) : (
@@ -60,17 +88,13 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({ tools, selectedCliTool
                     key={tool.value}
                     type="button"
                     onClick={() => onSelectTool(tool.value)}
-                    className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors ${
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
                       isSelected ? 'bg-accent/55' : 'hover:bg-accent/30'
                     }`}>
                     <CLIIcon id={tool.value} size={28} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] text-foreground truncate">{meta.label}</div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-muted-foreground/50 truncate">
-                          {t('code.tool_description.' + tool.value.replace(/-/g, '_'))}
-                        </span>
-                      </div>
+                      <div className="truncate text-[13px] text-foreground">{meta.label}</div>
+                      <SidebarStatusTag status={statuses[tool.value]} />
                     </div>
                   </button>
                 )
