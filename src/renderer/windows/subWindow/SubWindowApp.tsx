@@ -1,9 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
@@ -25,21 +23,17 @@ function SubWindowApp(): React.ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AntdProvider>
-          <NotificationProvider>
-            <CodeStyleProvider>
-              <CommandContextKeyProvider>
-                <CommandProvider>
-                  <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                    <TopViewContainer>
-                      <SubWindowAppShell />
-                    </TopViewContainer>
-                  </TabsProvider>
-                </CommandProvider>
-              </CommandContextKeyProvider>
-            </CodeStyleProvider>
-          </NotificationProvider>
-        </AntdProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                <TopViewContainer>
+                  <SubWindowAppShell />
+                </TopViewContainer>
+              </TabsProvider>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

@@ -93,16 +93,6 @@ import type { Model as V1Model } from '@renderer/types/model'
 
 import { isTextToImageModel } from '../vision'
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: () => ({
-      llm: {
-        settings: {}
-      }
-    })
-  }
-}))
-
 // FIXME: Idk why it's imported. Maybe circular dependency somewhere
 vi.mock('@renderer/services/AssistantService.ts', () => ({
   getDefaultAssistant: () => {

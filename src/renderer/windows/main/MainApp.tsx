@@ -3,9 +3,7 @@ import { loggerService } from '@logger'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -30,21 +28,17 @@ function MainApp(): React.ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AntdProvider>
-          <NotificationProvider>
-            <CodeStyleProvider>
-              <CommandContextKeyProvider>
-                <CommandProvider>
-                  <TabsProvider>
-                    <TopViewContainer>
-                      <AppShell />
-                    </TopViewContainer>
-                  </TabsProvider>
-                </CommandProvider>
-              </CommandContextKeyProvider>
-            </CodeStyleProvider>
-          </NotificationProvider>
-        </AntdProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TabsProvider>
+                <TopViewContainer>
+                  <AppShell />
+                </TopViewContainer>
+              </TabsProvider>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )
