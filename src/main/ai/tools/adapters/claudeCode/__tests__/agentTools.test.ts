@@ -6,6 +6,13 @@
  * `disallowedTools`, so the live gate and the fresh-connection block stay consistent.
  */
 
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
+  CHERRY_BUILTIN_MCP_SERVER,
+  cherryBuiltinRuntimeName,
+  KB_MANAGE_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -143,5 +150,49 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
     expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
     // A sibling read tool under the same prefix is still auto-approved.
     expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
+  })
+})
+
+describe('createClaudeAgentToolPolicySnapshot — production approval-gate wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.listMcpTools.mockResolvedValue([])
+  })
+
+  // Drive the snapshot with the SAME values settingsBuilder.buildToolPermissions wires in production:
+  // the cherry-tools auto-allow prefix plus the approval exceptions derived from the shared constant.
+  // The literal-string tests above stay green even if these constants are emptied or .map() drifts;
+  // these fail the moment the real gate stops carving the mutating tools out.
+  const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
+  const productionOptions = {
+    autoAllowRuntimeNamePrefixes: [PREFIX],
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(cherryBuiltinRuntimeName)
+  }
+
+  it('keeps kb_manage approval-gated and the two policy sets disjoint', () => {
+    // Catches the gate being undone: kb_manage dropped from approval-required, or added to
+    // auto-approved, or the two sets overlapping. (It cannot catch a brand-new mutating tool added
+    // only to auto-approved — nothing marks a tool as mutating — that is the human reviewer's job.)
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(KB_MANAGE_TOOL_NAME)
+    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(KB_MANAGE_TOOL_NAME)
+    const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
+    // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
+    expect(cherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+  })
+
+  it('prompts for every approval-required tool and auto-approves every read tool under the real wiring', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
+
+    for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
+      expect(snapshot.resolve(cherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'prompt' })
+    }
+    for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
+      expect(snapshot.resolve(cherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
+    }
   })
 })

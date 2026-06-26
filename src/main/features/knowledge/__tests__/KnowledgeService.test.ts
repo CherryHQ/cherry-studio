@@ -1794,6 +1794,30 @@ describe('KnowledgeService', () => {
       expect(result.truncated).toBe(true)
     })
 
+    it('pages on from the previous charEnd to read the remaining tail, no longer truncated', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('x'.repeat(25_000))
+
+      // Continue from where the capped first slice (charEnd 20_000, above) stopped.
+      const tail = await service.readConcept('kb-1', CONCEPT_ID, { charStart: 20_000 })
+
+      expect(tail.charStart).toBe(20_000)
+      expect(tail.charEnd).toBe(25_000)
+      expect(tail.content).toHaveLength(5_000)
+      expect(tail.truncated).toBe(false)
+    })
+
+    it('does not flag a read that exactly fills the cap as truncated', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('x'.repeat(20_000))
+
+      const result = await service.readConcept('kb-1', CONCEPT_ID)
+
+      expect(result.charEnd).toBe(20_000)
+      expect(result.content).toHaveLength(20_000)
+      expect(result.truncated).toBe(false)
+    })
+
     it('throws NOT_FOUND when the Concept ID resolves to nothing', async () => {
       const service = new KnowledgeService()
       getMaterialByRelativePathMock.mockResolvedValue(null)
@@ -1856,6 +1880,20 @@ describe('KnowledgeService', () => {
       expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo', ignoreCase: false })).totalMatches).toBe(
         1
       )
+    })
+
+    it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
+      const service = new KnowledgeService()
+      // Matches sit on row 2 (not the first line) so the assertion pins BOTH behaviours of the forward
+      // cursor: it must advance to the shared row AND not advance again between matches on that row.
+      arrangeReadable('intro\nFoo foo FOO')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
+
+      expect(result.matches.map((m) => m.line)).toEqual([2, 2, 2])
+      const starts = result.matches.map((m) => m.charStart)
+      expect(starts).toEqual([...starts].sort((a, b) => a - b))
+      expect(new Set(starts).size).toBe(starts.length)
     })
 
     it('caps returned matches at maxMatches while still reporting the full totalMatches', async () => {

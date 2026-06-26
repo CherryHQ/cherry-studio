@@ -134,9 +134,17 @@ export interface KnowledgeTreeNode {
  */
 export interface KnowledgeOrganizationTree {
   baseId: string
-  /** Count of non-deleting items in the base (may exceed `nodes.length` when capped). */
+  /**
+   * Count of non-deleting items in the base. May exceed `nodes.length` for two reasons: the node
+   * list hit the {@link KNOWLEDGE_TREE_MAX_NODES} cap, or a `maxDepth` filter dropped deeper items
+   * (which are still counted here but not emitted as nodes).
+   */
   totalItems: number
-  /** True when the emitted node list was capped at {@link KNOWLEDGE_TREE_MAX_NODES}. */
+  /**
+   * True only when the emitted node list was capped at {@link KNOWLEDGE_TREE_MAX_NODES} — it does
+   * NOT flag `maxDepth` filtering. A reliable "whole tree returned" check is therefore
+   * `truncated === false` AND no `maxDepth` was passed.
+   */
   truncated: boolean
   nodes: KnowledgeTreeNode[]
 }
