@@ -1,7 +1,6 @@
 import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
 import '@ant-design/v5-patch-for-react-19'
-import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'

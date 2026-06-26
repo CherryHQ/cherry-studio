@@ -902,36 +902,40 @@ export default function ComposerSurface({
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
     (token, { selected, nodeViewProps }) => {
       const currentToken = tokenByIdRef.current.get(token.id) ?? token
-      if (currentToken.kind !== 'file' || !isPastedTextFileMetadata(currentToken.payload)) return undefined
+      if (currentToken.kind !== 'file') return undefined
 
-      const pastedTextToken = currentToken as ComposerDraftToken & { kind: 'file' }
+      const fileToken = currentToken as ComposerDraftToken & { kind: 'file' }
+      const pastedTextToken = isPastedTextFileMetadata(fileToken.payload) ? fileToken : undefined
       return (
         <FileComposerToken
-          token={pastedTextToken}
+          token={fileToken}
           selected={selected}
-          tooltipMetadataLayout="split"
+          onRemove={() => removeToken(fileToken.id)}
+          removeLabel={t('appMenu.delete')}
           tooltipActions={
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
-              onMouseDown={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void handleShowPastedTextFileInInput(pastedTextToken, nodeViewProps)
-              }}>
-              {t('chat.input.paste_text_file')}
-            </Button>
+            pastedTextToken ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  void handleShowPastedTextFileInInput(pastedTextToken, nodeViewProps)
+                }}>
+                {t('chat.input.paste_text_file')}
+              </Button>
+            ) : undefined
           }
         />
       )
     },
-    [handleShowPastedTextFileInInput, t]
+    [handleShowPastedTextFileInInput, removeToken, t]
   )
 
   const editorExtensions = useMemo(

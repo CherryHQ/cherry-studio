@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CreateTaskRequest, ScheduledTaskEntity, UpdateTaskRequest } from '@shared/data/types/agent'
 import { useCallback } from 'react'
@@ -70,7 +71,7 @@ export const useRunTask = () => {
   const runTask = useCallback(
     async (taskId: string): Promise<boolean> => {
       try {
-        await window.api.ai.agent.runTask(taskId)
+        await ipcApi.request('ai.run_agent_task', taskId)
         window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
         return true
       } catch (error) {

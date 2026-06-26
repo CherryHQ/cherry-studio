@@ -126,18 +126,15 @@ vi.mock('@renderer/components/Icons', () => ({
   )
 }))
 
-// Mock window.toast and window.api.ai.embedMany
+// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mocks.embedMany(input) }
+}))
+
 Object.assign(window, {
   toast: {
     error: vi.fn(),
     success: vi.fn()
-  },
-  api: {
-    ...(window as any).api,
-    ai: {
-      ...(window as any).api?.ai,
-      embedMany: mocks.embedMany
-    }
   }
 })
 

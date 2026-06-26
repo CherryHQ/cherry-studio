@@ -8,9 +8,18 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+// runTask now goes through ipcApi.request('ai.run_agent_task', taskId).
+const { runTaskMock } = vi.hoisted(() => ({ runTaskMock: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.run_agent_task' ? runTaskMock(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 const mockToast = { success: vi.fn(), error: vi.fn() }
-const mockApi = { ai: { agent: { runTask: vi.fn() } } }
-vi.stubGlobal('window', { toast: mockToast, api: mockApi })
+vi.stubGlobal('window', { toast: mockToast, api: {} })
 
 describe('useTasks', () => {
   beforeEach(() => {
@@ -151,19 +160,19 @@ describe('useRunTask', () => {
     vi.clearAllMocks()
   })
 
-  it('calls window.api.ai.agent.runTask and returns true on success', async () => {
-    mockApi.ai.agent.runTask.mockResolvedValue(undefined)
+  it('calls the ai.run_agent_task route and returns true on success', async () => {
+    runTaskMock.mockResolvedValue(undefined)
 
     const { result } = renderHook(() => useRunTask())
     const ran = await act(async () => result.current.runTask('t-1'))
 
-    expect(mockApi.ai.agent.runTask).toHaveBeenCalledWith('t-1')
+    expect(runTaskMock).toHaveBeenCalledWith('t-1')
     expect(ran).toBe(true)
     expect(mockToast.success).toHaveBeenCalled()
   })
 
   it('toasts error and returns false on failure', async () => {
-    mockApi.ai.agent.runTask.mockRejectedValue(new Error('run failed'))
+    runTaskMock.mockRejectedValue(new Error('run failed'))
 
     const { result } = renderHook(() => useRunTask())
     const ran = await act(async () => result.current.runTask('t-1'))
