@@ -1,14 +1,20 @@
+import { buildParamsSchema } from '@cherrystudio/provider-registry'
 import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import type { CanonicalParamKey } from '@shared/data/types/model'
+import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 import type { GenerateImageParams } from '@shared/types/image'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
+import { nativeOptionFor } from './aiSdkNativeBindings'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
 
-type AiSdkParams = Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
+// Painting attaches files as `data:` URL strings (see the inputImages step in
+// canonicalGenerate), so narrow inputImages from GenerateImageParams' broad union.
+type AiSdkParams = Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions' | 'inputImages'> & {
+  inputImages?: string[]
+}
 
 /** Encode raw image bytes as a `data:` URL for the main-process image IPC. */
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
@@ -19,44 +25,6 @@ function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   }
   return `data:${mime || 'image/png'};base64,${btoa(binary)}`
 }
-
-/**
- * Painting-state keys (registry-canonical) that map to a different AI SDK
- * canonical param name. The only divergence today: `size → imageSize` (UI
- * canonical vs AI SDK canonical) and `numImages → batchSize`. Everything
- * else matches name-for-name.
- */
-const POSITIONAL_RENAME: Partial<Record<CanonicalParamKey, string>> = {
-  size: 'imageSize',
-  numImages: 'batchSize'
-}
-
-/**
- * AI SDK canonical fields recognized by `generatePainting` / the AI SDK
- * image-model. Anything outside this set, after `POSITIONAL_RENAME`, flows
- * through `providerOptions[providerId]` (the vendor bag) — the AI SDK
- * image-model adapter for that vendor reads it.
- *
- * Adding a new AI SDK canonical field: append it here. Renderer / registry
- * agree on the canonical name; the vendor adapter takes care of any
- * wire-format quirks (snake_case rename, enum string format, etc.).
- */
-const AI_SDK_NATIVE_KEYS = new Set([
-  'imageSize',
-  'batchSize',
-  'negativePrompt',
-  'aspectRatio',
-  'seed',
-  'numInferenceSteps',
-  'guidanceScale',
-  'promptEnhancement',
-  'personGeneration',
-  'quality',
-  'background',
-  'moderation',
-  'style',
-  'inputImages'
-])
 
 export interface CanonicalGenerateOptions<T extends PaintingData> {
   /**
@@ -78,15 +46,24 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
    * per-model rule when the standard check is skipped.
    */
   requirePrompt?: boolean | ((painting: T) => boolean)
+  /**
+   * Registry image-generation support for this model — composes with the
+   * central param catalog to validate/coerce `painting.params` (seed
+   * string→number, blank→undefined, enum/range bounds) at submit. Threaded in
+   * by `paintingPipeline`, which already prefetches it.
+   */
+  support?: ImageGenerationSupport
+  /** Resolved mode for the `support` lookup. Default `'generate'`. */
+  mode?: ImageGenerationMode
 }
 
 /**
  * Generic painting generate path. Reads `painting.params` (keyed by
  * canonical names from the registry's `imageGeneration.modes[mode]
- * .supports`), partitions each entry into `aiSdkParams` vs
- * `providerOptions[providerId]` via `AI_SDK_NATIVE_KEYS` + `POSITIONAL_
- * RENAME`, and hands the result to the shared `generatePainting`
- * skeleton.
+ * .supports`), validates/coerces them via the central catalog
+ * (`buildParamsSchema`), partitions each entry into `aiSdkParams` vs
+ * `providerOptions[providerId]` via `AI_SDK_NATIVE_BINDINGS`, and hands the
+ * result to the shared `generatePainting` skeleton.
  *
  * Vendor wire transforms (snake_case, `ASPECT_X_Y → X:Y`, base64
  * encoding, etc.) live in `aiCore/provider/custom/{aihubmixImageModel,
@@ -116,7 +93,13 @@ export async function canonicalGenerate<T extends PaintingData>(
     typeof options.requirePrompt === 'function' ? options.requirePrompt(painting) : (options.requirePrompt ?? true)
   if (promptRequired && !prompt) throw createPaintingGenerateError('PROMPT_REQUIRED')
 
-  const params = painting.params ?? {}
+  // Validate + coerce the raw form params through the central catalog
+  // (seed string→number, blank→undefined, enum/range bounds). Soft-fail: a
+  // bad / legacy value must never break submit, so fall back to raw params.
+  const rawParams = painting.params ?? {}
+  const validated = buildParamsSchema(options.support, options.mode).safeParse(rawParams)
+  const params: Record<string, unknown> = validated.success ? validated.data : rawParams
+
   const aiSdkParams: Record<string, unknown> = {}
   const providerBag: Record<string, unknown> = {}
 
@@ -127,9 +110,12 @@ export async function canonicalGenerate<T extends PaintingData>(
 
   function place(paramKey: string, value: unknown): void {
     if (value === undefined || value === '' || value === null) return
-    const aiKey = (POSITIONAL_RENAME as Record<string, string>)[paramKey] ?? paramKey
-    if (AI_SDK_NATIVE_KEYS.has(aiKey)) {
-      aiSdkParams[aiKey] = value
+    // The binding table maps a canonical key to its top-level IPC field name
+    // (`numImages → n`, `size → size`, …); everything else flows through the
+    // vendor bag (`providerOptions[providerId]`).
+    const option = nativeOptionFor(paramKey)
+    if (option) {
+      aiSdkParams[option] = value
     } else {
       providerBag[paramKey] = value
     }
@@ -143,15 +129,15 @@ export async function canonicalGenerate<T extends PaintingData>(
 
   // 2. Custom size: the customSize widget pairs `size: 'custom'` with
   //    `customSize_width`/`customSize_height` (zhipu CogView's free WxH
-  //    range). Compose them into the AI SDK `imageSize`; drop the sentinel
+  //    range). Compose them into the AI SDK `size`; drop the sentinel
   //    when width/height are incomplete so the server applies its default.
-  if (aiSdkParams.imageSize === 'custom') {
+  if (aiSdkParams.size === 'custom') {
     const width = params.customSize_width
     const height = params.customSize_height
     if (typeof width === 'number' && typeof height === 'number') {
-      aiSdkParams.imageSize = `${width}x${height}`
+      aiSdkParams.size = `${width}x${height}`
     } else {
-      delete aiSdkParams.imageSize
+      delete aiSdkParams.size
     }
   }
 

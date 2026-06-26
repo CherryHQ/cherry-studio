@@ -18,7 +18,7 @@ export type ImageOptionParams = Partial<
     | 'personGeneration'
     | 'quality'
     | 'aspectRatio'
-    | 'imageSize'
+    | 'size'
     | 'providerOptions'
   >
 > & { background?: string; moderation?: string; style?: string }
@@ -41,8 +41,8 @@ export function normalizeAspectRatio(value: string | undefined): string | undefi
  * Parse the painting form's seed string into a number, or `undefined` when
  * blank / non-numeric (so it's omitted rather than sent as `NaN`).
  */
-function parseSeed(seed: string | undefined): number | undefined {
-  return seed && /^-?\d+$/.test(seed.trim()) ? Number(seed.trim()) : undefined
+function parseSeed(seed: number | undefined): number | undefined {
+  return typeof seed === 'number' && Number.isFinite(seed) ? seed : undefined
 }
 
 /**
@@ -155,7 +155,7 @@ const dashscope: Emitter = (_id, p, seed) =>
 // `ALLOW_ALL`), but `@ai-sdk/google`'s provider-option schema validates the
 // lowercase form (`allow_all`) — so normalize at this boundary.
 const google: Emitter = (_id, p) => {
-  const imageConfig = googleImageConfig(p.aspectRatio, p.imageSize)
+  const imageConfig = googleImageConfig(p.aspectRatio, p.size)
   const personGeneration = typeof p.personGeneration === 'string' ? p.personGeneration.toLowerCase() : undefined
   const googleOptions: Record<string, JSONValue> = { ...compact({ personGeneration }) }
   if (Object.keys(imageConfig).length) googleOptions.imageConfig = imageConfig

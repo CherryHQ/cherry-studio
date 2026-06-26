@@ -450,14 +450,14 @@ export class AiService extends BaseService {
     // how negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
     const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, {
       negativePrompt: request.negativePrompt,
-      seed: request.seed !== undefined ? String(request.seed) : undefined,
+      seed: request.seed,
       numInferenceSteps: request.numInferenceSteps,
       guidanceScale: request.guidanceScale,
       promptEnhancement: request.promptEnhancement,
       personGeneration: request.personGeneration,
       quality: request.quality,
       aspectRatio: request.aspectRatio,
-      imageSize: request.size,
+      size: request.size,
       providerOptions: request.providerOptions,
       background: request.background,
       moderation: request.moderation,

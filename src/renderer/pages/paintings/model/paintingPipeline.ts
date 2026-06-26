@@ -2,7 +2,7 @@ import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { uuid } from '@renderer/utils/uuid'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { canonicalGenerate } from './canonicalGenerate'
@@ -40,6 +40,10 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   const modelId = input.painting.model
   const canonicalMode = tabToImageGenerationMode(input.painting.mode)
   let requirePrompt: boolean | undefined
+  // Threaded into canonicalGenerate so it can validate/coerce params against
+  // the model's registry support + central catalog (already prefetched here).
+  let support: ImageGenerationSupport | undefined
+  let effectiveMode: ImageGenerationMode | undefined
   // Local params copy threaded to canonicalGenerate — never reassign
   // `input.painting.params`, or the synthetic `modelDescriptor` leaks into
   // the live in-memory draft and re-emits on regenerate.
@@ -47,11 +51,12 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
 
   if (modelId) {
     try {
-      const support = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
-        params: { providerId: input.provider.id, modelId }
-      })
+      support =
+        (await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
+          params: { providerId: input.provider.id, modelId }
+        })) ?? undefined
       const modes = support?.modes
-      const effectiveMode: ImageGenerationMode | undefined =
+      effectiveMode =
         canonicalMode && modes?.[canonicalMode]
           ? canonicalMode
           : modes
@@ -82,7 +87,9 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   }
 
   const options = {
-    ...(requirePrompt !== undefined && { requirePrompt })
+    ...(requirePrompt !== undefined && { requirePrompt }),
+    ...(support !== undefined && { support }),
+    ...(effectiveMode !== undefined && { mode: effectiveMode })
   }
   const generateInput: GenerateInput =
     paramsForGenerate === input.painting.params

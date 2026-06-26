@@ -53,7 +53,7 @@ describe('generatePainting', () => {
   }
 
   it("forwards the 'auto' size sentinel as-is for main to omit", async () => {
-    await generatePainting(makeOptions({ imageSize: 'auto' }))
+    await generatePainting(makeOptions({ size: 'auto' }))
 
     expect(imagePayload()).toMatchObject({
       uniqueModelId: 'aihubmix::gpt-image-1',
@@ -62,8 +62,8 @@ describe('generatePainting', () => {
     })
   })
 
-  it('keeps concrete imageSize as the IPC size', async () => {
-    await generatePainting(makeOptions({ imageSize: '1024x1024' }))
+  it('keeps a concrete size as the IPC size', async () => {
+    await generatePainting(makeOptions({ size: '1024x1024' }))
 
     expect(imagePayload()).toMatchObject({
       size: '1024x1024'

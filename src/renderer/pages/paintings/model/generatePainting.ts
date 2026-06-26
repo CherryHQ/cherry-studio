@@ -30,11 +30,13 @@ export interface GeneratePaintingOptions {
   readonly prompt: string
   /**
    * Canonical AI SDK image params (all fields except `model` / `prompt` /
-   * `signal` / `providerOptions`). `imageSize` / `batchSize` / `negativePrompt`
-   * / `seed` / `aspectRatio` / `inputImages` (already encoded as data URLs) /
-   * etc. live here.
+   * `signal` / `providerOptions`). `n` / `size` / `negativePrompt` / `seed` /
+   * `aspectRatio` etc. live here. `inputImages` is narrowed to `string[]`: the
+   * painting path always encodes attached files as `data:` URLs.
    */
-  readonly aiSdkParams: Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
+  readonly aiSdkParams: Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions' | 'inputImages'> & {
+    inputImages?: string[]
+  }
   /**
    * Vendor-exclusive params keyed by canonical name — forwarded to main as
    * `providerOptions[<provider.id>]`, where `buildImageProviderOptions` maps
@@ -48,10 +50,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
   return runPainting(async () => {
     const { aiSdkParams, providerBag } = opts
 
-    const seedRaw = typeof aiSdkParams.seed === 'string' ? aiSdkParams.seed.trim() : ''
-    const seed = /^-?\d+$/.test(seedRaw) ? Number(seedRaw) : undefined
-    // canonicalGenerate encodes attached files as `data:` URL strings.
-    const inputImages = (aiSdkParams.inputImages ?? []).filter((img): img is string => typeof img === 'string')
+    const inputImages = aiSdkParams.inputImages ?? []
 
     const requestId = crypto.randomUUID()
     const onAbort = () => void ipcApi.request('ai.abort_image', { requestId })
@@ -63,10 +62,10 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
           prompt: opts.prompt,
           ...(inputImages.length > 0 && { inputImages }),
-          ...(aiSdkParams.batchSize !== undefined && { n: aiSdkParams.batchSize }),
-          ...(aiSdkParams.imageSize && { size: aiSdkParams.imageSize }),
+          ...(aiSdkParams.n !== undefined && { n: aiSdkParams.n }),
+          ...(aiSdkParams.size && { size: aiSdkParams.size }),
           ...(aiSdkParams.negativePrompt && { negativePrompt: aiSdkParams.negativePrompt }),
-          ...(seed !== undefined && { seed }),
+          ...(aiSdkParams.seed !== undefined && { seed: aiSdkParams.seed }),
           ...(aiSdkParams.quality && { quality: aiSdkParams.quality }),
           ...(aiSdkParams.numInferenceSteps !== undefined && { numInferenceSteps: aiSdkParams.numInferenceSteps }),
           ...(aiSdkParams.guidanceScale !== undefined && { guidanceScale: aiSdkParams.guidanceScale }),

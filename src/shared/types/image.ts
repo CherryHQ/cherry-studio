@@ -11,11 +11,12 @@ export type GenerateImageParams = {
    */
   inputImages?: (Buffer | Uint8Array | string)[]
   negativePrompt?: string
-  imageSize?: string
+  /** Image size, `${width}x${height}` or a vendor enum (`'2K'`, `'auto'`). */
+  size?: string
   aspectRatio?: string
-  /** Optional: painting callers may omit it; `AiProvider` falls back to `n: 1`. */
-  batchSize?: number
-  seed?: string
+  /** Number of images. Optional: painting callers may omit it; `AiProvider` falls back to `n: 1`. */
+  n?: number
+  seed?: number
   numInferenceSteps?: number
   guidanceScale?: number
   signal?: AbortSignal

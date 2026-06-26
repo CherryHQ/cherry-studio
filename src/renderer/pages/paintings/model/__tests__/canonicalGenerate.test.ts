@@ -64,8 +64,8 @@ describe('canonicalGenerate', () => {
     )
 
     const call = lastGenerateCall()
-    // size → imageSize, numImages → batchSize, seed stays; all AI-SDK native.
-    expect(call.aiSdkParams).toEqual({ imageSize: '1024x1024', batchSize: 2, seed: 5 })
+    // numImages → n, size stays size, seed stays; all top-level IPC fields.
+    expect(call.aiSdkParams).toEqual({ size: '1024x1024', n: 2, seed: 5 })
     // Unknown-to-AI-SDK keys flow through the vendor bag verbatim.
     expect(call.providerBag).toEqual({ addWatermark: true, outputFormat: 'png' })
   })
@@ -74,7 +74,7 @@ describe('canonicalGenerate', () => {
     await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512, customSize_height: 768 }))
 
     const call = lastGenerateCall()
-    expect(call.aiSdkParams.imageSize).toBe('512x768')
+    expect(call.aiSdkParams.size).toBe('512x768')
     // The width/height companions are never sent raw.
     expect(call.providerBag).toBeUndefined()
   })
@@ -84,14 +84,14 @@ describe('canonicalGenerate', () => {
 
     const call = lastGenerateCall()
     // The custom-size block only special-cases 'custom'; 'auto' must survive.
-    expect(call.aiSdkParams.imageSize).toBe('auto')
+    expect(call.aiSdkParams.size).toBe('auto')
   })
 
   it('drops imageSize when the custom width/height pair is incomplete', async () => {
     await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512 }))
 
     const call = lastGenerateCall()
-    expect(call.aiSdkParams).not.toHaveProperty('imageSize')
+    expect(call.aiSdkParams).not.toHaveProperty('size')
   })
 
   it('omits empty / undefined / empty-string params from the wire', async () => {

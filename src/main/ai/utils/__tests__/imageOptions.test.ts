@@ -7,8 +7,8 @@ function params(overrides: Partial<GenerateImageParams> = {}): GenerateImagePara
   return {
     model: 'm',
     prompt: 'p',
-    imageSize: '1024x1024',
-    batchSize: 1,
+    size: '1024x1024',
+    n: 1,
     ...overrides
   }
 }
@@ -19,7 +19,7 @@ describe('buildImageProviderOptions', () => {
       'openai-compatible',
       params({
         negativePrompt: 'no blur',
-        seed: '42',
+        seed: 42,
         numInferenceSteps: 30,
         guidanceScale: 4.5,
         promptEnhancement: true,
@@ -65,11 +65,11 @@ describe('buildImageProviderOptions', () => {
     expect(result).toEqual({ 'openai-compatible': { negative_prompt: 'mapped' } })
   })
 
-  it('coerces a numeric seed string to a number and drops a non-numeric seed', () => {
-    expect(buildImageProviderOptions('openai-compatible', params({ seed: '-7' }))).toEqual({
+  it('passes a finite numeric seed through and drops an undefined seed', () => {
+    expect(buildImageProviderOptions('openai-compatible', params({ seed: -7 }))).toEqual({
       'openai-compatible': { seed: -7 }
     })
-    expect(buildImageProviderOptions('openai-compatible', params({ seed: 'abc' }))).toEqual({})
+    expect(buildImageProviderOptions('openai-compatible', params({ seed: undefined }))).toEqual({})
   })
 
   it('omits empty-string and undefined values', () => {
@@ -79,7 +79,7 @@ describe('buildImageProviderOptions', () => {
   })
 
   it('for the OpenAI image family forwards only quality, under both openai and the raw id, and never seed', () => {
-    const result = buildImageProviderOptions('openai-chat', params({ quality: 'high', seed: '5', negativePrompt: 'x' }))
+    const result = buildImageProviderOptions('openai-chat', params({ quality: 'high', seed: 5, negativePrompt: 'x' }))
     expect(result).toEqual({ openai: { quality: 'high' }, 'openai-chat': { quality: 'high' } })
   })
 
@@ -129,14 +129,14 @@ describe('buildImageProviderOptions', () => {
   })
 
   it('maps a normalized aspectRatio + imageSize into google.imageConfig', () => {
-    const result = buildImageProviderOptions('google', params({ aspectRatio: 'ASPECT_16_9', imageSize: '2048x2048' }))
+    const result = buildImageProviderOptions('google', params({ aspectRatio: 'ASPECT_16_9', size: '2048x2048' }))
     expect(result).toEqual({ google: { imageConfig: { aspectRatio: '16:9', imageSize: '2048x2048' } } })
   })
 
   it('lowercases the registry-uppercase personGeneration for the @ai-sdk/google schema', () => {
     const result = buildImageProviderOptions(
       'google',
-      params({ imageSize: undefined, personGeneration: 'ALLOW_ALL' as GenerateImageParams['personGeneration'] })
+      params({ size: undefined, personGeneration: 'ALLOW_ALL' as GenerateImageParams['personGeneration'] })
     )
     expect(result).toEqual({ google: { personGeneration: 'allow_all' } })
   })
@@ -151,7 +151,7 @@ describe('buildImageProviderOptions', () => {
       'dmxapi',
       params({
         negativePrompt: 'no blur',
-        seed: '7',
+        seed: 7,
         aspectRatio: 'ASPECT_1_1',
         providerOptions: { dmxapi: { imageResolution: '4K' } }
       })
@@ -174,7 +174,7 @@ describe('buildImageProviderOptions', () => {
       'dashscope',
       params({
         negativePrompt: 'no blur',
-        seed: '42',
+        seed: 42,
         providerOptions: {
           dashscope: {
             modelDescriptor: { id: 'qwen-mt-image', endpoint: '/api/v1/services/aigc/image', isSync: false },

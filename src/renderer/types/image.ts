@@ -14,7 +14,7 @@ export type EditImageParams = {
   /** Optional mask image for inpainting (marks the region to edit) */
   mask?: Buffer | Uint8Array | string
   /** Output image size */
-  imageSize?: string
+  size?: string
   /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
   quality?: string
   /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
