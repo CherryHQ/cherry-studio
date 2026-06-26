@@ -6,7 +6,6 @@ import ProviderSetting from '../ProviderSetting'
 const useProviderMock = vi.fn()
 const useProviderAutoModelSyncMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
-const useProviderLegacyWebSearchSyncMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
 
@@ -26,10 +25,6 @@ vi.mock('../hooks/providerSetting/useProviderAutoModelSync', () => ({
 
 vi.mock('../hooks/providerSetting/useProviderOnboardingAutoEnable', () => ({
   useProviderOnboardingAutoEnable: (...args: any[]) => useProviderOnboardingAutoEnableMock(...args)
-}))
-
-vi.mock('../hooks/providerSetting/useProviderLegacyWebSearchSync', () => ({
-  useProviderLegacyWebSearchSync: (...args: any[]) => useProviderLegacyWebSearchSyncMock(...args)
 }))
 
 vi.mock('../components/ProviderHeader', () => ({
@@ -101,7 +96,6 @@ describe('ProviderSetting', () => {
       providerId: 'openai',
       isOnboarding: true
     })
-    expect(useProviderLegacyWebSearchSyncMock).toHaveBeenCalledWith('openai')
   })
 
   it('renders nothing when the provider is missing', () => {

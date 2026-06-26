@@ -1,5 +1,3 @@
-import '@renderer/databases'
-
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'

@@ -7,7 +7,11 @@ import RagConfigPanel from '../RagConfigPanel'
 
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
-const mockEmbedMany = vi.fn()
+// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
 
 const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
   return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
@@ -146,7 +150,7 @@ vi.mock('../../../hooks', () => ({
   useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base),
   useEmbeddingDimensions: () => ({
     fetchDimensions: async (uniqueModelId: string) => {
-      const { embeddings } = await window.api.ai.embedMany({
+      const { embeddings } = await mockEmbedMany({
         uniqueModelId,
         values: ['test']
       })
@@ -277,13 +281,6 @@ describe('RagConfigPanel', () => {
       toast: {
         success: vi.fn(),
         error: vi.fn()
-      },
-      api: {
-        ...(window as unknown as { api?: Record<string, unknown> }).api,
-        ai: {
-          ...(window as unknown as { api?: { ai?: Record<string, unknown> } }).api?.ai,
-          embedMany: mockEmbedMany
-        }
       }
     })
 

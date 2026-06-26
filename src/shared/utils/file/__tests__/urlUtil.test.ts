@@ -16,7 +16,32 @@ describe('isDangerExt', () => {
   })
 
   it('matches every category from the policy list', () => {
-    const samples = ['sh', 'exe', 'bat', 'cmd', 'lnk', 'app', 'desktop', 'jar', 'svg', 'dmg', 'pkg']
+    const samples = [
+      'sh',
+      'exe',
+      'bat',
+      'cmd',
+      'js',
+      'py',
+      'scpt',
+      'msc',
+      'inf',
+      'application',
+      'appref-ms',
+      'lnk',
+      'app',
+      'desktop',
+      'appimage',
+      'run',
+      'iso',
+      'img',
+      'vhd',
+      'vhdx',
+      'jar',
+      'svg',
+      'dmg',
+      'pkg'
+    ]
     for (const ext of samples) {
       expect(isDangerExt(ext)).toBe(true)
     }

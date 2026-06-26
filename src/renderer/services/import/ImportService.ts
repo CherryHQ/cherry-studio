@@ -1,5 +1,9 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+// [v1→v2 tail — deprecated] The ChatGPT importer still writes the new assistant into the
+// legacy Redux `assistants` slice, which has no v2 reader (the write is a no-op in v2).
+// Kept until the importer is migrated to DataApi `createAssistant`; this is the only remaining
+// reason this service depends on `src/renderer/store/`. Do not build on it.
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
 import type { LegacyAssistant } from '@renderer/types/assistant'
@@ -126,7 +130,7 @@ class ImportServiceClass {
         settings: DEFAULT_ASSISTANT_SETTINGS
       }
 
-      // Add assistant to store
+      // [v1→v2 tail — deprecated] Writes to the legacy Redux store; no v2 code reads it.
       store.dispatch(addAssistant(assistant))
 
       logger.info(
