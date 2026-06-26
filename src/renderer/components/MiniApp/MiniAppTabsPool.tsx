@@ -47,19 +47,19 @@ const MiniAppTabsPool: React.FC = () => {
   // (known platform limitation). A stable sort breaks that link: every
   // surviving webview keeps the same DOM position across reorders, so
   // switching tabs never re-loads.
+  // The id-set hash captures membership without order — when the LRU reorders
+  // the same set, useMemo returns the previous reference.
+  const openedKeepAliveMiniAppIdsKey = openedKeepAliveMiniApps
+    .map((a) => a.appId)
+    .sort()
+    .join('|')
+
   const apps = useMemo(() => {
     const sorted = [...openedKeepAliveMiniApps]
     sorted.sort((a, b) => (a.appId < b.appId ? -1 : a.appId > b.appId ? 1 : 0))
     return sorted
-    // The id-set hash captures membership without order — when the LRU
-    // reorders the same set, useMemo returns the previous reference.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    openedKeepAliveMiniApps
-      .map((a) => a.appId)
-      .sort()
-      .join('|')
-  ])
+  }, [openedKeepAliveMiniAppIdsKey])
 
   /** 设置 ref 回调 */
   const handleSetRef = (appid: string, el: WebviewTag | null) => {
