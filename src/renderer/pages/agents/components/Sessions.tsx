@@ -12,6 +12,7 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
   remapResourceListCollapsedGroupIds,
+  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
   type ResourceListItemReorderPayload,
@@ -123,8 +124,6 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
   time: <Clock size={16} />,
   workdir: <Folder size={16} />
 }
-const RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME =
-  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
 type CreateSessionSeed = {
   agentId: string
@@ -1463,7 +1462,7 @@ const Sessions = ({
         {isRightPanel ? (
           <ResourceList.Search
             aria-label={t('agent.session.search.title')}
-            className={RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME}
+            className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
             placeholder={t('agent.session.search.placeholder')}
             wrapperClassName="pt-1"
           />

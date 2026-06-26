@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
@@ -89,9 +90,6 @@ interface Props {
   revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
 }
-
-const RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME =
-  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'
 
 function buildCreateTopicPayload(
   topic: Topic | null | undefined,
@@ -1068,7 +1066,7 @@ export function Topics({
           {isRightPanel ? (
             <ResourceList.Search
               aria-label={t('chat.topics.search.title')}
-              className={RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME}
+              className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
               placeholder={t('chat.topics.search.placeholder')}
               wrapperClassName="pt-1"
             />
