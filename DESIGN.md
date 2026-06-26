@@ -399,7 +399,7 @@ Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-vi
 - Footer: `mt-auto flex flex-col gap-2 p-4`
 - Title / description: `font-semibold text-foreground`; `text-sm text-muted-foreground`
 
-`Drawer` uses `bg-background` and edge attachment, not the floating `bg-card rounded-3xl shadow-xl` shell of `PageSidePanel`. New drawer work should use `PageSidePanel` or this shared `Drawer` primitive; legacy `antd` drawers are migration targets, not the design contract.
+`Drawer` uses `bg-background` and edge attachment, not the floating `bg-card rounded-3xl shadow-xl` shell of `PageSidePanel`. New drawer work should use `PageSidePanel` or this shared `Drawer` primitive.
 
 ### Cards
 

@@ -9,33 +9,6 @@ import { isDeepSeekHybridInferenceModel } from '../reasoning'
 import { isFunctionCallingModel } from '../tooluse'
 import { isPureGenerateImageModel, isTextToImageModel } from '../vision'
 
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  },
-  useAppDispatch: vi.fn(),
-  useAppSelector: vi.fn()
-}))
-
-vi.mock('@renderer/store/settings', () => {
-  const noop = vi.fn()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (prop === 'initialState') {
-          return {}
-        }
-        return noop
-      }
-    }
-  )
-})
-
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()

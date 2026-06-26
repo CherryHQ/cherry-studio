@@ -39,7 +39,7 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
         with:
-          github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          github-token: ${{ github.token }}
           script: |
             const ORIGINAL_SUMMARY = '<summary>Original Content</summary>'
 
@@ -49,6 +49,30 @@ jobs:
                 .replace(/^```(?:json)?\s*/i, '')
                 .replace(/\s*```$/i, '')
                 .trim()
+
+            const parseTranslatorResult = (text, responseMetadata) => {
+              const strippedText = stripCodeFence(text)
+
+              try {
+                return JSON.parse(strippedText)
+              } catch (error) {
+                core.startGroup('Translator response metadata')
+                core.info(JSON.stringify(responseMetadata, null, 2))
+                core.endGroup()
+
+                core.startGroup('Translator raw model response')
+                core.info(text)
+                core.endGroup()
+
+                if (strippedText !== text) {
+                  core.startGroup('Translator response after code-fence stripping')
+                  core.info(strippedText)
+                  core.endGroup()
+                }
+
+                throw new Error(`Translator API returned invalid JSON: ${error.message}`)
+              }
+            }
 
             const getTranslatedMarker = (kind) => {
               switch (kind) {
@@ -227,7 +251,13 @@ jobs:
                 throw new Error('Translator API returned no text content')
               }
 
-              return JSON.parse(stripCodeFence(text))
+              return parseTranslatorResult(text, {
+                id: data.id,
+                model: data.model,
+                stop_reason: data.stop_reason,
+                stop_sequence: data.stop_sequence,
+                usage: data.usage
+              })
             }
 
             const target = getTarget()
