@@ -153,7 +153,6 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const showApiKeySettings = provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng'
   const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
-  const apiKeyPlaceholder = t('settings.provider.api_key.label')
   const showApiKeyCheckButton = showApiKeySettings && !usesLlmProviderApiKey && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
   const showApiHostSetting = entry.providerCapability.apiHost !== undefined
@@ -353,7 +352,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                 <Input
                   type="password"
                   value={apiKeysInput}
-                  placeholder={apiKeyPlaceholder}
+                  placeholder={t('settings.provider.api_key.label')}
                   onChange={(e) => setApiKeysInput(e.target.value)}
                   onBlur={() => void persist(commitApiKeysDraft, 'Failed to save web search API keys')}
                   spellCheck={false}
