@@ -139,8 +139,8 @@ export function applyCherryinSourceHeaders(
   provider: Provider,
   source: AiRequestSource | undefined
 ): void {
-  if (!source || !isCherryinProviderId(provider.id)) return
-  if (application.get('PreferenceService').get('app.privacy.data_collection.enabled') !== true) return
+  const dataCollectionEnabled = application.get('PreferenceService').get('app.privacy.data_collection.enabled') === true
+  if (!source || !isCherryinProviderId(provider.id) || !dataCollectionEnabled) return
   const settings = sdkConfig.providerSettings as { headers?: Record<string, string | undefined> }
   settings.headers = { ...settings.headers, ...buildRequestSourceHeaders(source) }
 }
