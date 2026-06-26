@@ -159,7 +159,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
 - **Known partition dimensions** in the codebase:
   - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
-  - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
+  - Planned / hypothetical: none currently.
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
 ---
@@ -188,12 +188,6 @@ Binding semantics:
 Scoped usage:
 
 ```typescript
-// Topic: groupId is nullable, both NULL and non-NULL are real partitions
-await insertWithOrderKey(tx, topicTable, values, {
-  pkColumn: topicTable.id,
-  scope: values.groupId ? eq(topicTable.groupId, values.groupId) : isNull(topicTable.groupId),
-})
-
 // user_model: scope by providerId
 await applyMoves(tx, userModelTable, moves, {
   pkColumn: userModelTable.id,
@@ -263,7 +257,7 @@ Single field only — composite keys like `${providerId}:${modelName}` are out o
 | **Wrapped pagination** `{ items, total, page }` / `{ items, nextCursor }` | `GET /mini-apps`, `GET /mcp-servers`, `GET /assistants`, `GET /knowledges` | Reads `cache.items`; preserves `total` / `page` / `nextCursor` on optimistic writes. |
 | **Naked items wrapper** `{ items: T[] }` | `GET /knowledges/:id/items` | Reads `cache.items`. |
 
-No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged.
+No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged. For the pagination model itself, see the [Pagination Guide](./data-pagination-guide.md).
 
 ### 4.4 Using accessors for nested shapes
 
@@ -358,8 +352,7 @@ Complete in one PR:
    - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
    - `user_model`: `eq(userModelTable.providerId, providerId)`.
    - `miniapp`: `eq(miniappTable.status, status)`.
-   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)` — hypothetical, pending `topic` migration.
-   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
+   - `topic` / `user_provider` / `mcp_server`: whole-table (`scope: undefined`), except topic service may narrow to non-deleted rows.
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
@@ -374,7 +367,7 @@ Complete in one PR:
 
 **Is `order:reset` safe under concurrent calls?** Yes. Reset is deterministic (same preset + row data → same keys via `generateOrderKeySequence`). SQLite's write lock serializes concurrent resets; the second overwrites the first and the end state is consistent.
 
-**Known boundary — fractional-indexing collisions.** Two transactions reading the same anchor pair simultaneously both call `generateKeyBetween` and produce **identical** new keys. `order_key` is not `UNIQUE`, so both rows succeed — the effect is a tie in `ORDER BY order_key` (two rows alternate in the UI). No data loss; the next drag self-repairs. Single-user SQLite makes it extremely rare. Future fix: composite `(order_key, pk)` index + deterministic tiebreaker. **Don't implement now.**
+**Known boundary — fractional-indexing collisions.** Two transactions reading the same anchor pair could call `generateKeyBetween` and produce **identical** new keys. `order_key` is not `UNIQUE`, so both rows would succeed — the effect is a tie in `ORDER BY order_key` (two rows alternate in the UI). No data loss; the next drag self-repairs. It is extremely rare in practice: a single libsql connection issuing `BEGIN IMMEDIATE` serializes write intent, so concurrent same-anchor inserts cannot each read the old neighborhood and insert against it. Cursor pagination now applies a deterministic `(order_key, id)` tiebreaker through the shared `keysetOrdering` (`services/utils/keysetCursor.ts`), so keyset page-walking stays deterministic under an `order_key` tie **by construction**, rather than relying on `order_key` being unique — this is pagination determinism, not a fix for an observed skip/dup. Read/display paths that sort by `order_key` **alone** (no id tiebreaker) can still briefly alternate two tied rows until the next drag. The composite `(order_key, pk)` index from the original "future fix" is still **not** added (negligible at single-user scale; avoids schema↔migration drift) — only the deterministic tiebreaker landed, applied at the query layer.
 
 **Known boundary — multi-window drag flicker.** Window A mid-drag receives window B's cache invalidation → revalidates with server state (not yet including A's in-flight reorder) → optimistic value overwritten → UI snaps back → A's PATCH returns → another revalidate brings new order in → UI jumps forward. ~150–300 ms, visual-only, no data loss. Future fix: suspend external revalidations while an in-flight PATCH holds the key.
 

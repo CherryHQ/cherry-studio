@@ -8,6 +8,7 @@ export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.delete-subtree',
   'knowledge.reindex-subtree'
 ] as const satisfies readonly KnowledgeWorkflowJobType[]
+
 declare const knowledgeBaseIdBrand: unique symbol
 declare const knowledgeItemIdBrand: unique symbol
 

@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "respondido",
+      "close": "Fechar",
       "customPlaceholder": "Digite sua resposta...",
       "loading": "Carregando perguntas...",
       "multiSelect": "Seleção múltipla",
@@ -25,6 +26,8 @@
       "noQuestions": "Nenhuma pergunta disponível",
       "other": "Outro",
       "previous": "Anterior",
+      "progress": "{{current}} de {{total}}",
+      "skip": "Pular",
       "submit": "Enviar",
       "title": "Perguntas do Agente"
     },
@@ -215,7 +218,11 @@
         "edit": "Editar",
         "empty": "Sem tarefas agendadas. Adicione uma para começar.",
         "error": {
-          "loadFailed": "Falha ao carregar tarefas"
+          "createFailed": "Falha ao criar tarefa",
+          "deleteFailed": "Falha ao excluir tarefa",
+          "loadFailed": "Falha ao carregar tarefas",
+          "runFailed": "Falha ao executar a tarefa",
+          "updateFailed": "Falha ao atualizar a tarefa"
         },
         "intervalPlaceholder": "Intervalo em minutos",
         "intervalUnit": "minutos",
@@ -326,6 +333,9 @@
       "success": "Git Bash detectado com sucesso!",
       "tooltip": "O Git Bash é necessário para executar agentes no Windows. Instale-o a partir de git-scm.com, caso não esteja disponível."
     },
+    "home": {
+      "welcome_title": "Sobre o que vamos falar hoje?"
+    },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando",
       "soul_placeholder": "Ajude-me a conectar ao Telegram"
@@ -335,9 +345,119 @@
         "failed": "Falha ao listar agentes."
       }
     },
+    "pin": {
+      "title": "Agente Pin"
+    },
+    "preview_pane": {
+      "close": "Fechar pré-visualização",
+      "code": "Código",
+      "code_unavailable": "Visualização de origem não disponível para arquivos binários",
+      "default_app": "Aplicativo padrão",
+      "empty": {
+        "description": "Comece a conversar com o agente; o código gerado e as pré-visualizações ao vivo aparecerão aqui.",
+        "title": "Pronto"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "Este ficheiro Excel excede o limite de tamanho para pré-visualização.",
+          "invalid_request": "A solicitação de visualização do Excel é inválida.",
+          "parse_failed": "Não foi possível ler este arquivo Excel.",
+          "too_complex": "Este ficheiro Excel é demasiado complexo para pré-visualizar.",
+          "unsupported_extension": "Apenas arquivos .xlsx e .xlsm podem ser visualizados.",
+          "unsupported_xls": "Arquivos .xls legados não são suportados pela visualização do Excel."
+        },
+        "warnings": {
+          "generic": "Algum conteúdo da pasta de trabalho pode não ser exibido completamente.",
+          "title": "Aviso de pré-visualização",
+          "unsupported_images": "As imagens ainda não são exibidas na pré-visualização do Excel."
+        }
+      },
+      "file_tree": "Árvore de ficheiros",
+      "items_one": "{{count}} item",
+      "items_other": "{{count}} itens",
+      "maximize": "Maximizar",
+      "minimize": "Minimizar",
+      "no_search_results": "Nenhum arquivo corresponde à sua pesquisa",
+      "office": {
+        "description": "Este tipo de arquivo precisa ser aberto com o aplicativo padrão do sistema.",
+        "title": "Abrir arquivos {{extension}} aqui ainda não é suportado"
+      },
+      "preview": "Pré-visualização",
+      "refresh": "Atualizar",
+      "search_placeholder": "Pesquisar ficheiros...",
+      "select_file": "Selecione um arquivo para pré-visualizar",
+      "toggle": "Mostrar painel de pré-visualização",
+      "too_large": {
+        "description": "O arquivo excede o limite de pré-visualização de {{limit}}.",
+        "title": "Arquivo muito grande para pré-visualizar"
+      },
+      "unavailable": {
+        "description": "Este arquivo não pôde ser aberto — pode ter sido movido ou excluído.",
+        "title": "Arquivo indisponível"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "Não foi possível renderizar este documento do Word.",
+          "read_failed": "Incapaz de ler este documento do Word."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Falha ao reordenar agentes"
+      }
+    },
+    "right_pane": {
+      "close": "Fechar",
+      "flow": {
+        "empty": {
+          "description": "Selecione uma chamada de ferramenta de agente para inspecionar o fluxo de mensagens filho.",
+          "title": "Nenhuma ferramenta selecionada"
+        },
+        "no_messages": {
+          "description": "Esta chamada de ferramenta não possui fluxo de mensagem filho capturado.",
+          "title": "Sem mensagens"
+        }
+      },
+      "info": {
+        "artifacts": "Entregáveis",
+        "context_categories": {
+          "autocompact_buffer": "Buffer de autocompactação",
+          "custom_agents": "Agentes personalizados",
+          "free_space": "Espaço livre",
+          "mcp_tools": "Ferramentas MCP",
+          "memory_files": "Arquivos de memória",
+          "messages": "Mensagens",
+          "plugins": "Plugins",
+          "skills": "Competências",
+          "system_prompt": "Prompt do sistema",
+          "system_tools": "Ferramentas do sistema"
+        },
+        "context_usage": "Uso de contexto",
+        "label": "Informações da sessão",
+        "more": "+{{count}} mais",
+        "no_artifacts": "Nenhum entregável declarado",
+        "no_subagents": "Sem subagentes",
+        "subagents": "Subagentes"
+      },
+      "status": {
+        "activity": "Atividade",
+        "agent": "Agente",
+        "context": "Contexto",
+        "no_tasks": "Sem tarefas ativas",
+        "selected_tool": "Ferramenta selecionada",
+        "task_count": "{{completed}} / {{total}} concluído",
+        "tasks": "Tarefas",
+        "tools_active": "Ativo",
+        "tools_done": "Feito",
+        "tools_failed": "Falhou",
+        "tools_total": "Total",
+        "workspace": "Área de Trabalho"
+      },
+      "tabs": {
+        "files": "Arquivos",
+        "flow": "Fluxo",
+        "status": "Estado"
       }
     },
     "server": {
@@ -360,6 +480,16 @@
       "add": {
         "title": "Adicionar uma sessão"
       },
+      "agent": {
+        "delete": {
+          "content": "Excluir as tarefas deste agente excluirá todas as tarefas associadas a ele. O próprio agente não será excluído.",
+          "error": {
+            "failed": "Falha ao excluir tarefas do agente"
+          },
+          "title": "Excluir tarefas do agente",
+          "trigger": "Excluir tarefas do agente"
+        }
+      },
       "allowed_tools": {
         "empty": "Não há ferramentas disponíveis para este agente.",
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
@@ -379,26 +509,94 @@
         },
         "title": "Excluir sessão"
       },
+      "display": {
+        "agent": "Agente",
+        "time": "Tempo",
+        "title": "Modo de exibição",
+        "workdir": "Diretório de trabalho"
+      },
       "edit": {
         "title": "Sessão de edição"
+      },
+      "empty": {
+        "description": "As tarefas aparecerão aqui depois que você iniciar uma.",
+        "title": "Ainda sem tarefas"
+      },
+      "file_manager": {
+        "file_explorer": "Explorador de Ficheiros",
+        "files": "Arquivos",
+        "finder": "Localizador"
       },
       "get": {
         "error": {
           "failed": "Falha ao obter a sessão",
+          "not_found": "Tarefa não encontrada",
           "null_id": "O ID da sessão é nulo"
         }
       },
+      "group": {
+        "collapse": "Recolher exibição",
+        "collapse_all": "Recolher tudo",
+        "conversation": "Conversas",
+        "drag_hint": "Arraste para reordenar. Arraste as tarefas para ajustar os grupos exibidos e ocultos.",
+        "earlier": "Anterior",
+        "expand_all": "Expandir tudo",
+        "no_workdir": "Sem diretório de trabalho",
+        "show_more": "Expandir exibição",
+        "this_week": "Esta semana",
+        "today": "Hoje",
+        "unknown_agent": "Agente desconhecido",
+        "yesterday": "Ontem"
+      },
       "label_one": "Sessão",
       "label_other": "Sessões",
+      "list": {
+        "title": "Tarefas"
+      },
+      "pin": {
+        "title": "Fixar tarefa"
+      },
       "reorder": {
         "error": {
           "failed": "Falha ao reordenar as sessões"
         }
       },
+      "search": {
+        "placeholder": "Tarefas de pesquisa"
+      },
+      "unpin": {
+        "title": "Desafixar tarefa"
+      },
       "update": {
         "error": {
           "failed": "Falha ao atualizar a sessão"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "Excluir este diretório de trabalho também excluirá todas as tarefas sob ele. Apenas os registros do banco de dados são removidos; a pasta real no disco não será excluída.",
+          "error": {
+            "failed": "Falha ao excluir o diretório de trabalho"
+          },
+          "title": "Excluir diretório de trabalho",
+          "trigger": "Apagar diretório de trabalho"
+        },
+        "rename": {
+          "error": {
+            "failed": "Falha ao renomear o diretório de trabalho"
+          },
+          "title": "Renomear diretório de trabalho",
+          "trigger": "Renomear diretório de trabalho"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "Falha ao adicionar o diretório de trabalho.",
+        "create_new": "Adicionar novo diretório de trabalho",
+        "empty_text": "Sem diretórios de trabalho",
+        "no_project": "Sem diretório de trabalho",
+        "placeholder": "Selecionar diretório de trabalho",
+        "search_placeholder": "Pesquisar diretórios de trabalho",
+        "select_failed": "Falha ao selecionar pasta."
       },
       "workspace_status": {
         "inaccessible": "O caminho do workspace não está acessível: {{path}}",
@@ -695,8 +893,10 @@
         "showDetails": "Mostrar detalhes da ferramenta"
       },
       "button": {
+        "allow": "Permitir",
         "allowAll": "Sempre Permitir",
         "cancel": "Cancelar",
+        "deny": "Negar",
         "run": "Correr"
       },
       "confirmation": "Tem certeza de que quer executar esta ferramenta Claude?",
@@ -724,17 +924,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "Armazena e recupera memória entre sessões",
+          "label": "Memória"
+        },
         "Bash": {
-          "description": "Executa comandos shell no seu ambiente"
+          "description": "Executa comandos shell no seu ambiente",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "Pesquisa suas bases de conhecimento",
+          "label": "Pesquisa de Conhecimento"
+        },
+        "CherryWebFetch": {
+          "description": "Busca e lê uma página da web",
+          "label": "Busca na Web"
+        },
+        "CherryWebSearch": {
+          "description": "Pesquisa na web através do seu provedor configurado",
+          "label": "Pesquisa na Web"
+        },
+        "ClawCron": {
+          "description": "Gerencia o agendador dentro do aplicativo",
+          "label": "Agendador"
         },
         "Edit": {
-          "description": "Faz edições direcionadas em arquivos específicos"
+          "description": "Faz edições direcionadas em arquivos específicos",
+          "label": "Editar"
         },
         "Glob": {
-          "description": "Encontra arquivos com base na correspondência de padrões"
+          "description": "Encontra arquivos com base na correspondência de padrões",
+          "label": "Globo"
         },
         "Grep": {
-          "description": "Procura por padrões no conteúdo dos arquivos"
+          "description": "Procura por padrões no conteúdo dos arquivos",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "Realiza várias edições em um único arquivo de forma atômica"
@@ -746,7 +970,8 @@
           "description": "Lê e exibe o conteúdo de notebooks Jupyter"
         },
         "Read": {
-          "description": "Lê o conteúdo dos arquivos"
+          "description": "Lê o conteúdo dos arquivos",
+          "label": "Ler"
         },
         "Task": {
           "description": "Executa um sub-agente para lidar com tarefas complexas de várias etapas"
@@ -763,14 +988,22 @@
         "WebSearch": {
           "description": "Realiza pesquisas na web com filtragem de domínio"
         },
+        "Workflow": {
+          "description": "Executa um fluxo de trabalho de várias etapas que orquestra subagentes",
+          "label": "Fluxo de trabalho"
+        },
         "Write": {
-          "description": "Cria ou sobrescreve arquivos"
+          "description": "Cria ou sobrescreve arquivos",
+          "label": "Escreva"
         }
       }
     },
     "type": {
       "label": "Tipo de Agente",
       "unknown": "Tipo Desconhecido"
+    },
+    "unpin": {
+      "title": "Desafixar Agente"
     },
     "update": {
       "error": {
@@ -881,6 +1114,7 @@
     "abbr": "Assistente",
     "clear": {
       "content": "Limpar o tópico removerá todos os tópicos e arquivos do assistente. Tem certeza de que deseja continuar?",
+      "menu_title": "Apagar todas as conversas com o assistente",
       "title": "Limpar Tópico"
     },
     "copy": {
@@ -902,6 +1136,9 @@
     "list": {
       "showByList": "Exibição em Lista",
       "showByTags": "Exibição por Etiquetas"
+    },
+    "pin": {
+      "title": "Assistente de Pin"
     },
     "presets": {
       "add": {
@@ -997,6 +1234,11 @@
       },
       "title": "Biblioteca de assistentes"
     },
+    "reorder": {
+      "error": {
+        "failed": "Falha ao reordenar assistentes"
+      }
+    },
     "save": {
       "success": "Salvo com Sucesso",
       "title": "Salvar para Agente Inteligente"
@@ -1090,7 +1332,10 @@
       },
       "untagged": "Não agrupado"
     },
-    "title": "Assistente"
+    "title": "Assistente",
+    "unpin": {
+      "title": "Desafixar Assistente"
+    }
   },
   "auth": {
     "error": "Falha ao obter a chave automaticamente, por favor obtenha manualmente",
@@ -1125,6 +1370,7 @@
     "download": "Baixar",
     "includes_user_questions": "Incluir perguntas do usuário",
     "manage": "Gerenciar",
+    "select_assistant": "Selecione Assistente",
     "select_model": "Selecionar Modelo",
     "show": {
       "all": "Mostrar tudo"
@@ -1162,12 +1408,16 @@
             "content": "Erro ao abrir em navegador externo"
           }
         }
-      }
+      },
+      "title": "Entregáveis"
     },
     "assistant": {
       "search": {
         "placeholder": "Pesquisar"
       }
+    },
+    "conversation": {
+      "new": "Novo Chat"
     },
     "deeply_thought": "Profundamente pensado (demorou {{seconds}} segundos)",
     "default": {
@@ -1187,8 +1437,12 @@
       "user_node": "Usuário",
       "view_full_content": "Ver conteúdo completo"
     },
+    "home": {
+      "welcome_title": "Sobre o que devemos falar hoje?"
+    },
     "input": {
       "auto_resize": "Ajuste automático de altura",
+      "cancel_editing": "Cancelar edição",
       "clear": {
         "content": "Tem certeza de que deseja limpar todas as mensagens da sessão atual?",
         "label": "Limpar mensagens {{Command}}",
@@ -1198,6 +1452,8 @@
       "context_count": {
         "tip": "Número de contexto / Número máximo de contexto"
       },
+      "editing": "Edição",
+      "editing_message": "Editando mensagem enviada",
       "estimated_tokens": {
         "tip": "Número estimado de tokens"
       },
@@ -1205,15 +1461,28 @@
       "file_error": "Erro ao processar o arquivo",
       "file_not_supported": "O modelo não suporta este tipo de arquivo",
       "file_not_supported_count": "{{count}} arquivos não suportados",
+      "followup_queue": {
+        "edit": "Editar",
+        "pause": "Pausar envio automático",
+        "remove": "Remover",
+        "resume": "Retomar envio automático",
+        "steer": "Enviar para o turno atual",
+        "title": "Na fila ({{count}})"
+      },
       "generate_image": "Gerar imagem",
       "generate_image_not_supported": "Modelo não suporta geração de imagem",
       "knowledge_base": "Base de conhecimento",
+      "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
+      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
+      "locate_editing_message": "Localizar mensagem original",
+      "mcp_unavailable": "Selecione um modelo compatível com ferramentas ou ative o uso de ferramentas no prompt",
       "new": {
         "context": "Limpar contexto {{Command}}"
       },
       "new_session": "Nova Sessão {{Command}}",
       "new_topic": "Novo tópico {{Command}}",
       "paste_text_file": "Cole na entrada",
+      "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
@@ -1239,11 +1508,19 @@
       "send_failed": "Falha ao enviar mensagem",
       "settings": "Configurações",
       "slash_commands": {
+        "commands": {
+          "clear": "Limpar histórico da conversa",
+          "compact": "Conversa compacta com instruções opcionais de foco",
+          "context": "Visualize o uso atual do contexto como uma grade colorida",
+          "cost": "Mostrar estatísticas de uso de tokens (consulte o guia de acompanhamento de custos para detalhes específicos da assinatura)",
+          "todos": "Listar itens atuais da lista de tarefas"
+        },
         "description": "Comandos de barra da sessão do agente",
         "title": "Comandos de Barra"
       },
       "thinking": {
         "budget_exceeds_max": "Orçamento de pensamento excede o número máximo de tokens",
+        "fixed_model": "O raciocínio é fixo para este modelo",
         "label": "Pensando",
         "mode": {
           "custom": {
@@ -1257,7 +1534,8 @@
           "tokens": {
             "tip": "Definir o número de tokens para raciocínio"
           }
-        }
+        },
+        "unsupported_model": "O modelo atual não suporta raciocínio ajustável"
       },
       "tools": {
         "collapse": "Recolher",
@@ -1275,6 +1553,8 @@
       "upload": {
         "attachment": "Carregar anexo",
         "document": "Carregar documento (o modelo não suporta imagens)",
+        "document_only": "Apenas documentos",
+        "image_not_supported": "Este modelo não suporta envio de imagens. Apenas documentos.",
         "image_or_document": "Carregar imagem ou documento",
         "upload_from_local": "Fazer upload de arquivo local..."
       },
@@ -1310,6 +1590,20 @@
       }
     },
     "message": {
+      "editing_current": "Esta mensagem está sendo editada no compositor",
+      "flow": {
+        "branches": "ramos",
+        "copy_topic": {
+          "created": "Copiado para uma nova conversa",
+          "label": "Copiar como Nova Conversa"
+        },
+        "nodes": "nós",
+        "status": {
+          "awaiting_input": "Aguardando entrada"
+        },
+        "title": "Gestão de Filiais"
+      },
+      "more": "Mais ações",
       "new": {
         "branch": {
           "created": "Nova ramificação criada",
@@ -1419,6 +1713,7 @@
             "save_failed": "Falha ao guardar o tópico, verifique a configuração da base de conhecimento"
           },
           "loading": "A analisar o conteúdo do tópico...",
+          "menu_title": "Salvar na Base de Conhecimento",
           "select": {
             "content": {
               "label": "Selecionar o tipo de conteúdo a guardar",
@@ -1491,6 +1786,7 @@
       "title": "Perguntas sugeridas"
     },
     "thinking": "Pensando",
+    "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
       "clear": {
@@ -1505,14 +1801,25 @@
       "delete": {
         "shortcut": "Pressione {{key}} para deletar diretamente"
       },
+      "display": {
+        "assistant": "Assistente",
+        "tag": "Etiqueta",
+        "time": "Tempo",
+        "title": "Modo de exibição"
+      },
       "edit": {
         "placeholder": "Digite novo nome",
         "title": "Editar nome do tópico",
         "title_tip": "Dicas: Clique duas vezes no nome do tópico para renomeá-lo diretamente no local"
       },
+      "empty": {
+        "description": "Crie um chat e ele permanecerá aqui para que você possa continuar com seu contexto depois.",
+        "title": "Ainda sem conversas"
+      },
       "export": {
         "failed": "Falha na exportação",
         "image": "Exportar como imagem",
+        "image_exporting_keep_page": "Exportando imagem. Por favor, permaneça nesta página.",
         "image_saved": "Imagem salva com sucesso",
         "joplin": "Exportar para Joplin",
         "md": {
@@ -1559,6 +1866,17 @@
         "wait_for_title_naming": "Gerando título...",
         "word": "Exportar como Word",
         "yuque": "Exportar para Yuque"
+      },
+      "group": {
+        "collapse": "Recolher exibição",
+        "collapse_all": "Recolher tudo",
+        "earlier": "Anterior",
+        "expand_all": "Expandir tudo",
+        "show_more": "Expandir exibição",
+        "this_week": "Esta semana",
+        "today": "Hoje",
+        "unknown_assistant": "Assistente Desvinculado",
+        "yesterday": "Ontem"
       },
       "list": "Lista de tópicos",
       "manage": {
@@ -1708,8 +2026,10 @@
     "add": "Adicionar",
     "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
+    "agent": "Agente",
     "agent_one": "Agente",
     "agent_other": "Agentes",
+    "all": "Todos",
     "and": "e",
     "assistant": "Agente Inteligente",
     "assistant_one": "assistente",
@@ -1723,12 +2043,14 @@
     "clear_all": "Limpar Tudo",
     "click_to_replace": "Clique para substituir",
     "close": "Fechar",
+    "close_sidebar": "Fechar barra lateral",
     "collapse": "Recolher",
     "completed": "Concluído",
     "confirm": "Confirmar",
     "copied": "Copiado",
     "copy": "Copiar",
     "copy_failed": "Falha ao copiar",
+    "create_success": "Criado com sucesso",
     "current": "Atual",
     "cut": "Cortar",
     "default": "Padrão",
@@ -1773,6 +2095,8 @@
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
     "loading": "Carregando...",
+    "maximize": "Maximizar",
+    "minimize": "Minimizar",
     "model": "Modelo",
     "models": "Modelos",
     "more": "Mais",
@@ -1785,6 +2109,8 @@
     "on": "Ligado",
     "open": "Abrir",
     "open_in": "Abrir em {{name}}",
+    "open_in_new_tab": "Abrir em nova aba",
+    "open_sidebar": "Abrir barra lateral",
     "paste": "Colar",
     "placeholders": {
       "select": {
@@ -1804,6 +2130,7 @@
     "rename": "Renomear",
     "required_field": "Campo obrigatório",
     "reset": "Redefinir",
+    "resize_panel": "Redimensionar painel",
     "retry": "Tentar novamente",
     "save": "Salvar",
     "save_failed": "Falha ao salvar",
@@ -1837,6 +2164,7 @@
     "upload_image": "Carregar arquivo de imagem",
     "uploaded_image": "Imagem carregada",
     "warning": "Aviso",
+    "yesterday": "Ontem",
     "you": "Você"
   },
   "dialog": {
@@ -2017,6 +2345,7 @@
   "files": {
     "actions": "Ações",
     "all": "Todos os Arquivos",
+    "audio": "Áudio",
     "batch_delete": "excluir em massa",
     "batch_operation": "Selecionar tudo",
     "count": "Número de Arquivos",
@@ -2030,22 +2359,131 @@
       },
       "title": "Excluir Arquivo"
     },
+    "delete_or_remove": "Excluir / remover",
     "document": "Documento",
+    "drag_upload": "Arraste os ficheiros aqui para fazer upload",
     "edit": "Editar",
+    "empty": {
+      "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
+      "no_match_title": "Nenhum arquivo correspondente encontrado"
+    },
     "error": {
-      "open_path": "Não foi possível abrir o caminho: {{path}}"
+      "delete_failed": "Falha ao excluir arquivos",
+      "delete_partial_failed": "Alguns arquivos não puderam ser excluídos",
+      "import_failed": "Falha ao importar arquivos",
+      "import_partial_failed": "Alguns arquivos não puderam ser importados",
+      "open_path": "Não foi possível abrir o caminho: {{path}}",
+      "rename_failed": "Falha ao renomear o arquivo",
+      "restore_failed": "Falha ao restaurar arquivos",
+      "restore_partial_failed": "Alguns arquivos não puderam ser restaurados"
     },
     "file": "Arquivo",
+    "footer_count": "{{count}} ficheiros",
+    "footer_selected_count": "{{count}} selecionado",
     "image": "Imagem",
+    "missing": "Ausente",
+    "modified_at": "Modificado em",
     "name": "Nome do Arquivo",
     "open": "Abrir",
+    "other": "Outro",
+    "permanent_delete": "Excluir permanentemente",
+    "permanent_delete_confirm": {
+      "description": "Isso removerá permanentemente {{count}} arquivo(s). Esta ação não pode ser desfeita.",
+      "title": "Excluir arquivos permanentemente?"
+    },
     "preview": {
       "error": "Falha ao abrir o arquivo"
     },
+    "remove_from_library": "Remover da biblioteca",
+    "rename": "Renomear",
+    "restore": "Restaurar",
+    "selected_count": "{{count}} ficheiros selecionados",
+    "show_in_folder": "Mostrar na pasta",
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",
-    "type": "Tipo"
+    "trash": "Lixo",
+    "type": "Tipo",
+    "video": "Vídeo"
+  },
+  "globalSearch": {
+    "clear": "Limpar pesquisa",
+    "error": "Falha na pesquisa",
+    "filters": {
+      "agent": "Agente",
+      "all": "Todos",
+      "assistant": "Assistente",
+      "conversation": "Conversa",
+      "knowledge": "Conhecimento",
+      "label": "Tipo de pesquisa",
+      "session": "Tarefa",
+      "topic": "Conversa"
+    },
+    "groups": {
+      "agent": "Agente",
+      "assistant": "Assistente",
+      "conversation": "Conversa",
+      "knowledge-base": "Conhecimento",
+      "message": "Mensagens",
+      "recent": "Recentes",
+      "session": "Tarefa",
+      "topic": "Conversa"
+    },
+    "keyboard": {
+      "select": "Selecionar"
+    },
+    "messageSearch": {
+      "entry": "Mensagens",
+      "hint": "Digite para pesquisar o conteúdo da mensagem",
+      "jumpToMessage": "Ir para a mensagem",
+      "more": "Mostrar {{count}} mais resultados",
+      "open": "Pesquisar mensagens",
+      "roles": {
+        "assistant": "Assistente",
+        "system": "Sistema",
+        "tool": "Ferramenta",
+        "user": "Utilizador"
+      },
+      "sourceLabel": "Fonte da mensagem",
+      "sources": {
+        "all": "Todas as mensagens",
+        "session": "Mensagens de tarefa",
+        "topic": "Mensagens de conversa"
+      },
+      "viewMore": "Ver mais em Mensagens"
+    },
+    "no_recent": "Nenhuma rota recente",
+    "open": "Abrir pesquisa global",
+    "open_failed": "Falha ao abrir o resultado da pesquisa",
+    "placeholder": "Pesquisar conversas, tarefas, assistentes, agentes e conhecimento...",
+    "quickApps": {
+      "hide": "Ocultar {{name}}",
+      "manage": "Gerenciar",
+      "manager_description": "Arraste para reordenar, clique no olho para ocultar ou mostrar",
+      "manager_title": "Gerenciar aplicativos rápidos",
+      "reset": "Reiniciar",
+      "save_failed": "Falha ao salvar aplicativos rápidos",
+      "show": "Mostrar {{name}}",
+      "title": "Aplicativos rápidos"
+    },
+    "recent_hint": "Digite para pesquisar conversas, tarefas, assistentes, agentes e conhecimento",
+    "resultTypes": {
+      "agent": "Agente",
+      "assistant": "Assistente",
+      "knowledge-base": "Conhecimento",
+      "session": "Tarefa",
+      "topic": "Conversa"
+    },
+    "showMore": "Mostrar mais {{count}}",
+    "timeFilters": {
+      "any": "A qualquer hora",
+      "label": "Hora atualizada",
+      "messageLabel": "Tempo de criação",
+      "month": "Mês passado",
+      "quarter": "Últimos 3 meses",
+      "today": "Hoje",
+      "week": "Últimos 7 dias"
+    }
   },
   "gpustack": {
     "keep_alive_time": {
@@ -2062,6 +2500,67 @@
     },
     "locate": {
       "message": "Localizar mensagem"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} tarefas",
+      "agentTitle": "Histórico do Agente",
+      "assistantSubtitle": "{{count}} conversas",
+      "bulkDelete": "Exclusão em Lote",
+      "bulkDeleteSessions": {
+        "description": "Excluir {{count}} tarefa(s) selecionada(s)?",
+        "title": "Excluir tarefas selecionadas"
+      },
+      "bulkDeleteTopics": {
+        "description": "Excluir {{count}} conversa(s) selecionada(s)?",
+        "title": "Excluir conversas selecionadas"
+      },
+      "bulkMove": "Movimento em Lote",
+      "bulkMoveTopics": {
+        "confirm": "Mover",
+        "description": "Mover {{count}} conversa(s) selecionada(s) para o assistente de destino.",
+        "empty": "Nenhum assistente disponível",
+        "error": "Falha ao mover conversas",
+        "partialSuccess": "Movidas {{moved}} de {{total}} conversa(s); {{failed}} falharam",
+        "placeholder": "Selecionar",
+        "success": "Movidas {{count}} conversa(s)",
+        "target": "Assistente-alvo",
+        "title": "Mover conversas selecionadas"
+      },
+      "empty": {
+        "description": "Nenhuma conversa para os filtros atuais.",
+        "sessionsDescription": "Nenhuma tarefa para os filtros atuais.",
+        "sessionsTitle": "Sem tarefas",
+        "title": "Sem conversas"
+      },
+      "loading": {
+        "description": "Carregando lista de conversas.",
+        "sessionsDescription": "Carregando lista de tarefas.",
+        "sessionsTitle": "Carregando tarefas",
+        "title": "Carregando conversas"
+      },
+      "resultCount": "{{count}} resultados",
+      "searchSession": "Pesquisar tarefas...",
+      "searchTopic": "Pesquisar conversas...",
+      "shortTitle": "História",
+      "sidebar": {
+        "searchAssistant": "Assistentes de pesquisa...",
+        "status": "Estado",
+        "unknownAssistant": "Assistente desvinculado"
+      },
+      "status": {
+        "completed": "Concluído",
+        "failed": "Falhou",
+        "running": "Correndo"
+      },
+      "table": {
+        "actions": "Ações",
+        "emptyValue": "—",
+        "messages": "Mensagens",
+        "session": "Tarefa",
+        "time": "Tempo",
+        "title": "Título"
+      },
+      "title": "Histórico de Conversa"
     },
     "search": {
       "match": {
@@ -2144,13 +2643,13 @@
         "view_chunks": "Ver Blocos"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Importar recursivamente arquivos suportados de uma pasta",
-          "title": "Clique para selecionar uma pasta"
+        "conflict_dialog": {
+          "description": "{{count}} das fontes que você está adicionando têm o mesmo nome que itens existentes. Escolha como lidar com elas.",
+          "keep_all": "Manter Todos",
+          "replace": "Substituir",
+          "title": "As fontes já existem"
         },
         "footer": {
-          "selected_directories": "{{count}} diretórios selecionados",
-          "selected_files": "{{count}} ficheiros selecionados",
           "selected_notes": "{{count}} notas selecionadas"
         },
         "note": {
@@ -2174,6 +2673,7 @@
           "success": "Fonte de dados adicionada à base de conhecimento"
         },
         "title": "Adicionar Fonte de Dados",
+        "too_many_sources": "Você pode adicionar no máximo {{count}} fontes de cada vez. Reduza sua seleção e tente novamente.",
         "unsupported_files_skipped": "Ignorados {{count}} arquivo(s) não suportado(s)",
         "url": {
           "description": "Insira um URL de página web:",
@@ -2187,6 +2687,7 @@
         "delete": "Apagar",
         "delete_confirm_description": "Excluir {{count}} fontes de dados selecionadas? Isso não pode ser desfeito.",
         "delete_confirm_title": "Excluir Fontes de Dados Selecionadas?",
+        "loaded_only_hint": "Aplica-se apenas aos itens carregados ({{total}} no total)",
         "reindex": "Reindexar",
         "selected_count": "{{count}} selecionado"
       },
@@ -2216,11 +2717,14 @@
         "note": "Notas",
         "url": "URLs"
       },
+      "list": {
+        "end_reached": "Não há mais itens",
+        "loading_more": "Carregando mais…"
+      },
       "preview": {
         "failed": "Falha ao pré-visualizar a fonte",
         "unavailable": "Esta fonte de dados não tem nenhuma fonte para pré-visualizar"
       },
-      "ready_summary": "{{ready}}/{{total}} pronto",
       "reindex_failed": "Falha ao reindexar a fonte de dados",
       "status": {
         "chunking": "Fragmentação",
@@ -2230,6 +2734,7 @@
         "ready": "Pronto"
       },
       "table": {
+        "aria_label": "Fontes de dados",
         "columns": {
           "actions": "Ações",
           "name": "Nome",
@@ -2238,7 +2743,8 @@
           "updated_at": "Atualizado"
         },
         "select_all": "Selecionar todos",
-        "select_row": "Selecionar linha"
+        "select_row": "Selecionar linha",
+        "view_chunks_row": "Ver chunks para {{title}}"
       },
       "toolbar": {
         "add": "Adicionar Fonte de Dados"
@@ -2246,7 +2752,6 @@
     },
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
-    "drag_file": "Arraste o arquivo aqui",
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
@@ -2257,10 +2762,11 @@
       "failed_to_delete": "Falha ao excluir a base de conhecimento",
       "failed_to_edit": "Falha ao editar a base de conhecimento",
       "failed_to_move": "Falha ao mover a base de conhecimento",
+      "indexing_interrupted": "A indexação foi interrompida porque o aplicativo foi fechado. Reindexe este item para concluir.",
       "missing_embedding_model": "O modelo de incorporação utilizado por esta base de conhecimento não foi encontrado durante a migração. Reconstrua a base de conhecimento e escolha um novo modelo de incorporação.",
+      "missing_vector_store": "O armazenamento de vetores desta base de conhecimento não pôde ser lido durante a migração (ausente, vazio ou bloqueado). A base de conhecimento foi mantida; re-indexe-a para recuperar.",
       "model_invalid": "Modelo não selecionado ou eliminado"
     },
-    "file_hint": "Formatos suportados: {{file_types}}",
     "groups": {
       "add": "Novo Grupo",
       "create_base_here": "Criar aqui",
@@ -2292,6 +2798,8 @@
       "chunk_overlap_invalid": "A sobreposição de blocos deve ser maior ou igual a 0",
       "chunk_overlap_must_be_smaller": "A sobreposição de blocos deve ser menor que o tamanho do bloco",
       "chunk_overlap_requires_chunk_size": "O tamanho do bloco é obrigatório quando a sobreposição de blocos está definida",
+      "chunk_separator": "Separador",
+      "chunk_separator_required": "Separador é obrigatório quando o particionamento inteligente está desativado",
       "chunk_size": "Tamanho do Chunk",
       "chunk_size_change_warning": "As alterações no tamanho do chunk e na sobreposição aplicam-se apenas ao conteúdo recém-adicionado",
       "chunk_size_invalid": "O tamanho do bloco deve ser maior que 0",
@@ -2304,6 +2812,7 @@
       "file_processing_hint": "O processamento de arquivos é executado automaticamente durante a importação do documento. Escolher o provedor certo pode melhorar a qualidade da análise do documento.",
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
+        "chunk_separator": "Delimitador no qual o texto é dividido, em forma escapada. Com a divisão inteligente ativada, ele adiciona um ponto de interrupção; com ela desativada, o texto é dividido apenas por esse delimitador.",
         "chunk_size": "Contagem-alvo de tokens para cada fragmento de documento. Isso afeta a granularidade da recuperação e o comprimento do contexto.",
         "document_count": "Número máximo de blocos de documentos retornados para cada recuperação. Valores mais altos cobrem mais conteúdo, mas utilizam mais contexto.",
         "embedding_model": "Usado para converter o conteúdo da base de conhecimento em vetores. Alterar o modelo geralmente exige reindexar o conteúdo existente.",
@@ -2311,6 +2820,7 @@
         "processor": "Analisador utilizado ao importar arquivos para extrair o texto principal, tabelas e conteúdo relacionado.",
         "rerank_model": "Modelo usado para reordenar os resultados iniciais da recuperação e melhorar a relevância final dos chunks.",
         "search_mode": "Escolha um modo de recuperação: busca vetorial para correspondência semântica, busca de texto completo para palavras-chave ou busca híbrida para ambos.",
+        "smart_chunking": "Dividir automaticamente ao longo da estrutura Markdown (títulos, blocos de código, parágrafos) e nunca dividir dentro de um bloco de código. Desative para dividir puramente pelo separador.",
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita.",
         "threshold_disabled": "Este modo de recuperação retorna resultados ordenados e não utiliza um limiar de similaridade."
       },
@@ -2330,6 +2840,7 @@
         "vector": "Busca Vetorial"
       },
       "separator_rule": "Regra Separadora",
+      "smart_chunking": "Fragmentação Inteligente",
       "threshold": "Limite de Similaridade",
       "tokens_unit": "tokens"
     },
@@ -2358,6 +2869,8 @@
       "action": "Reconstruir base de conhecimento",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Falha ao reconstruir a base de conhecimento",
+      "skipped_missing_sources_one": "Ignorou {{count}} item cuja fonte já não existe",
+      "skipped_missing_sources_other": "Ignorados {{count}} itens cuja fonte já não existe",
       "submit": "Reconstruir",
       "title": "Reconstruir Base de Conhecimento"
     },
@@ -2405,7 +2918,9 @@
   "launchpad": {
     "apps": "Aplicativos",
     "minapps": "Minapps",
-    "miniApps": "Miniaplicativos"
+    "miniApps": "Miniaplicativos",
+    "pin_to_sidebar": "Fixar na barra lateral",
+    "unpin_from_sidebar": "Desafixar da barra lateral"
   },
   "library": {
     "action": {
@@ -2424,6 +2939,7 @@
       "browse_label": "Categorias de assistente",
       "empty_description": "Esta categoria ainda não possui predefinições de assistente.",
       "empty_title": "Nenhum assistente para adicionar",
+      "go_to_chat": "Vá para o chat",
       "mine": "Minha",
       "no_match_description": "Tente uma palavra-chave de pesquisa diferente",
       "no_match_title": "Nenhum assistente correspondente",
@@ -2462,7 +2978,8 @@
           },
           "env_vars": {
             "help": "Uma CHAVE=VALOR por linha",
-            "label": "Variáveis de ambiente"
+            "label": "Variáveis de ambiente",
+            "placeholder": "KEY=valor\nANOTHER_KEY=outro_valor"
           },
           "heartbeat_enabled": {
             "label": "Verificação de pulsação"
@@ -2541,6 +3058,14 @@
           },
           "tools": {
             "add": "Adicionar",
+            "category": {
+              "context": "Contexto",
+              "file": "Arquivo",
+              "media": "Mídia",
+              "orchestration": "Orquestração",
+              "search": "Pesquisar",
+              "shell": "Shell"
+            },
             "desc": "servidores MCP, ferramentas permitidas e configurações de tempo de execução",
             "label": "Ferramentas e tempo de execução",
             "no_builtin_enabled": "Nenhuma ferramenta integrada ativada",
@@ -2610,6 +3135,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Máximo de chamadas de ferramentas",
+        "mcp_mode": "Modo MCP",
         "model": "Modelo padrão",
         "model_clear": "Claro",
         "model_not_found": "Modelo não encontrado (pode ter sido removido): {{id}}",
@@ -2628,6 +3154,34 @@
         "unlimited": "Ilimitado"
       },
       "breadcrumb": "Biblioteca",
+      "dialogs": {
+        "create": {
+          "agent_title": "Novo Agente",
+          "assistant_title": "Novo Assistente",
+          "avatar_aria": "Escolher avatar",
+          "description_placeholder": "Descreva para que serve...",
+          "dialog_description": "Crie um assistente ou agente leve.",
+          "model_placeholder": "Selecione um modelo",
+          "model_required": "Por favor, selecione um modelo",
+          "name_placeholder": "Insira um nome",
+          "name_required": "Por favor, insira um nome",
+          "submit": "Criar",
+          "submit_failed": "Falha na criação"
+        },
+        "edit": {
+          "advanced_tab": "Avançado",
+          "agent_description": "Ajuste rapidamente os elementos essenciais deste agente.",
+          "agent_title": "Editar Agente",
+          "assistant_description": "Ajuste rapidamente os essenciais deste assistente.",
+          "assistant_title": "Assistente de Edição",
+          "basic_tab": "Básico",
+          "knowledge_tab": "Conhecimento",
+          "permission_tab": "Permissão",
+          "prompt_tab": "Prompt",
+          "save_failed": "Falha ao salvar",
+          "tools_tab": "Ferramentas"
+        }
+      },
       "knowledge": {
         "add": "Adicionar base de conhecimento",
         "desc": "Vincule uma ou mais bases de conhecimento; trechos relevantes serão recuperados durante o chat",
@@ -2658,11 +3212,15 @@
           }
         },
         "generate": "Gerar prompt",
+        "generate_failed_description": "Verifique ou altere o modelo predefinido e tente novamente.",
+        "generate_failed_title": "Falha ao gerar o prompt",
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
-        "placeholder": "Insira o prompt do sistema. Variáveis como {{date}} e {{model_name}} são suportadas...",
+        "placeholder": "Introduza instruções para o assistente, como estilo de resposta, função ou contexto",
         "title": "Prompt",
         "tokens_label": "Tokens:",
+        "variables_description": "Insira essas variáveis de sistema no prompt do sistema; antes de cada resposta do assistente, elas são preenchidas com as informações atuais.",
+        "variables_example": "Exemplo: Hoje é {{variable}}, e a data atual é utilizada.",
         "variables_title": "Variáveis disponíveis",
         "vars": {
           "arch": "arquitetura da CPU",
@@ -2846,6 +3404,7 @@
     "title": "Biblioteca",
     "toolbar": {
       "add_tag_placeholder": "Nome da etiqueta...",
+      "all_tags": "Todas as etiquetas",
       "new_resource": "Novo recurso",
       "search_placeholder": "Pesquisar recursos...",
       "tag_button": "Etiqueta"
@@ -2942,6 +3501,7 @@
       "chunk_overlap_too_large": "A sobreposição de fragmentos não pode ser maior que o tamanho do fragmento",
       "copy": "Falha ao copiar",
       "dimension_too_large": "Dimensão do conteúdo muito grande",
+      "dismiss_failed": "Falha ao descartar a mensagem de erro",
       "enter": {
         "api": {
           "host": "Insira seu endereço API",
@@ -2992,6 +3552,7 @@
         "no_api_key": "API Key ou Notion Database ID não configurados",
         "no_content": "Nenhum conteúdo para exportar para o Notion"
       },
+      "operation_unavailable": "Operação de mensagem indisponível. Tente novamente.",
       "siyuan": {
         "export": "Falha ao exportar nota do Siyuan, verifique o estado da conexão e confira a configuração no documento",
         "no_config": "Endereço da API ou token do Siyuan não configurado"
@@ -3050,6 +3611,10 @@
         "bubble": "Bolha",
         "label": "Estilo da mensagem",
         "plain": "Simples"
+      },
+      "user_content": {
+        "collapse": "Colapso",
+        "expand": "Expandir"
       },
       "video": {
         "error": {
@@ -3117,6 +3682,77 @@
     "tools": {
       "abort_failed": "Falha ao interromper a chamada da ferramenta",
       "aborted": "Chamada da ferramenta foi interrompida",
+      "activity": {
+        "archive": "arquivo",
+        "assistantTask": "tarefa",
+        "availableFeatures": "recursos disponíveis",
+        "availableResources": "recursos disponíveis",
+        "branch": "ramo de código",
+        "build": "Construir",
+        "building": "Construindo",
+        "check": "Verificar",
+        "checking": "Verificando",
+        "codeFiles": "arquivos de código",
+        "codeHostInfo": "informações de hospedagem de código",
+        "commandName": "comando {{name}}",
+        "configFiles": "documentos do projeto e arquivos de configuração",
+        "copy": "Copiar",
+        "copying": "Copiando",
+        "create": "Criar",
+        "creating": "Criando",
+        "currentFolder": "pasta atual",
+        "delete": "Apagar",
+        "deleting": "Excluindo",
+        "documentFiles": "arquivos de documentos",
+        "download": "Baixar",
+        "downloading": "Baixando",
+        "executeCommand": "Executar comando",
+        "executingCommand": "Executando comando",
+        "extract": "Extrair",
+        "extracting": "Extraindo",
+        "file": "arquivo",
+        "fileList": "lista de arquivos",
+        "folder": "pasta",
+        "handle": "Lidar",
+        "handling": "Manipulação",
+        "imageFiles": "arquivos de imagem",
+        "install": "Instalar",
+        "installing": "Instalando",
+        "matchingFiles": "arquivos correspondentes",
+        "modify": "Modificar",
+        "modifying": "Modificando",
+        "move": "Mover",
+        "moving": "Movendo",
+        "open": "Abrir",
+        "opening": "Abertura",
+        "plan": "plano de execução",
+        "projectChanges": "alterações do projeto",
+        "projectChecks": "verificações do projeto",
+        "projectDependencies": "dependências do projeto",
+        "projectFiles": "arquivos do projeto",
+        "projectRootFiles": "arquivos raiz do projeto",
+        "projectTask": "tarefa do projeto",
+        "relatedContent": "conteúdo relacionado",
+        "repository": "repositório de código",
+        "search": "Encontrar",
+        "searching": "Encontrando",
+        "switch": "Alternar",
+        "switching": "Alternando",
+        "sync": "Sincronizar",
+        "syncing": "Sincronizando",
+        "taskId": "Tarefa {{id}}",
+        "taskList": "lista de tarefas",
+        "translationFiles": "arquivos de tradução",
+        "upload": "Carregar",
+        "uploading": "Fazendo upload",
+        "view": "Visualizar",
+        "viewing": "Visualização",
+        "webPage": "página web",
+        "webSearch": "conteúdo web",
+        "workspace": "área de trabalho",
+        "write": "Salvar",
+        "writing": "Salvando"
+      },
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -3137,6 +3773,12 @@
         "search": "Pesquisar",
         "skill": "Habilidade",
         "task": "Tarefa",
+        "taskCreate": "Criar tarefa",
+        "taskGet": "Ver tarefa",
+        "taskList": "Listar tarefas",
+        "taskOutput": "Ver saída da tarefa",
+        "taskStop": "Parar tarefa",
+        "taskUpdate": "Atualizar tarefa",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
@@ -3145,9 +3787,22 @@
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
       "pending": "Pendente",
+      "placeholder": {
+        "elapsed": {
+          "days": "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "{{minutes}}m {{seconds}}s",
+          "seconds": "{{seconds}}s"
+        },
+        "generating": "Escrevendo resposta",
+        "preparing": "Preparando resposta",
+        "thinking": "Pensando",
+        "usingTools": "Trabalhando na tarefa"
+      },
       "preview": "Pré-visualização",
       "raw": "Bruto",
       "runningCount": "{{count}} ferramentas em execução",
+      "runningHeader": "Trabalhando…",
       "sections": {
         "args": "Argumentos",
         "command": "Comando",
@@ -3169,6 +3824,7 @@
         "success": "Sucesso"
       },
       "streaming": "Transmissão",
+      "thinkingHeader": "Pensando",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Concluído",
@@ -3213,6 +3869,7 @@
     "websearch": {
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
+      "fetch_empty": "Nenhum resultado de pesquisa encontrado",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
@@ -3355,6 +4012,14 @@
     "add_parameter": "Adicionar parâmetro",
     "all": "Todos",
     "custom_parameters": "Parâmetros personalizados",
+    "detail": {
+      "context_window": "Janela de contexto",
+      "image_modes": "Modos de imagem",
+      "max_input_tokens": "Entrada máxima",
+      "max_output_tokens": "Saída máxima",
+      "model_id": "ID do Modelo",
+      "provider": "Fornecedor"
+    },
     "dimensions": "{{dimensions}} dimensões",
     "edit": "Editar modelo",
     "embedding": "Inscrição",
@@ -3398,6 +4063,12 @@
     "search": {
       "placeholder": "Procurar modelo...",
       "tooltip": "Procurar modelo"
+    },
+    "selection": {
+      "context_window": "Contexto {{count}}",
+      "remove_model": "Remover {{name}}",
+      "restore_default": "Restaurar modelo de assistente",
+      "selected_models": "Modelos selecionados"
     },
     "stream_output": "Saída em fluxo",
     "type": {
@@ -3572,28 +4243,7 @@
     "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
   },
   "ocr": {
-    "builtin": {
-      "system": "OCR do sistema"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
-        "existing": "O provedor já existe",
-        "get_providers": "Falha ao obter provedores disponíveis",
-        "not_found": "O provedor OCR não existe",
-        "update_failed": "Falha ao atualizar a configuração"
-      },
-      "unknown": "O processo OCR apresentou um erro"
-    },
-    "file": {
-      "not_supported": "Tipo de arquivo não suportado {{type}}"
-    },
-    "processing": "Processamento OCR em andamento...",
-    "warning": {
-      "provider": {
-        "fallback": "Revertido para {{name}}, o que pode causar problemas"
-      }
-    }
+    "processing": "Processamento OCR em andamento..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -4690,6 +5340,12 @@
       "sort_label": "Ordenar",
       "unpin": "Desafixar"
     },
+    "create_dialog": {
+      "refresh_failed": "Criado, mas falhou ao atualizar a lista"
+    },
+    "edit_dialog": {
+      "refresh_failed": "Salvo, mas falha ao atualizar a lista"
+    },
     "workspace": {
       "empty_text": "Ainda não há workspaces",
       "placeholder": "Selecionar espaço de trabalho"
@@ -4760,117 +5416,6 @@
     "channels": {
       "description": "Conecte agentes a plataformas de mensagens como Telegram, Feishu, Discord e muitas outras.",
       "title": "Canais"
-    },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "Claro",
-        "configDescription": "Alternar propriedades para visualizar o comportamento do componente",
-        "configTitle": "Configuração",
-        "currentProps": "Propriedades atuais",
-        "description": "AgentSelector agora lê dados reais da DataApi de /agents para verificar a seleção de id/item, fixação, ordenação e comportamento de busca.",
-        "emptyShellNotice": "Esta pré-visualização utiliza a lista real de agentes devolvida pela DataApi /agents.",
-        "lastOnChange": "Mais recente onChange",
-        "previewDescription": "Clique no gatilho para abrir o seletor",
-        "previewTitle": "Pré-visualização",
-        "title": "Seletor de Agente",
-        "triggerPlaceholder": "Selecione um agente",
-        "valueProp": "Valor atual"
-      },
-      "agentTodoList": {
-        "title": "Lista de Tarefas do Agente"
-      },
-      "assistantSelector": {
-        "clearSelection": "Limpo",
-        "configDescription": "Alterne as props para visualizar o comportamento do componente",
-        "configTitle": "Configuração",
-        "currentProps": "Propriedades atuais",
-        "description": "Monta o componente de negócios AssistantSelector diretamente para verificar o comportamento de múltiplo/único, id/item, pin, ordenação e pesquisa.",
-        "lastOnChange": "Mais recente onChange",
-        "previewDescription": "Clique no gatilho para abrir o seletor",
-        "previewTitle": "Pré-visualização",
-        "title": "Seletor de Assistente",
-        "triggerPlaceholder": "Selecione um assistente",
-        "triggerSelectedCount": "{{count}} assistentes selecionados",
-        "valueProp": "Valor atual"
-      },
-      "description": "Visível apenas em desenvolvimento para testar o novo seletor de modelos diretamente dentro do aplicativo.",
-      "fileProcessing": {
-        "artifact": {
-          "file": "arquivo Markdown",
-          "text": "Resultado de texto"
-        },
-        "description": "Execute todos os processadores de arquivo configurados por meio do IPC de processamento de arquivo real e compare os resultados.",
-        "duration": "{{seconds}}s",
-        "jobId": "ID do Trabalho",
-        "markdown": {
-          "description": "Selecione um documento e execute todos os processadores de documento-para-markdown.",
-          "fileFilterName": "Documentos",
-          "noFile": "Nenhum documento selecionado",
-          "select": "Selecionar documento",
-          "start": "Teste markdown",
-          "title": "Markdown"
-        },
-        "noProcessors": "Nenhum processador suporta esse recurso.",
-        "ocr": {
-          "description": "Selecione uma imagem e execute todos os processadores OCR.",
-          "fileFilterName": "Imagens",
-          "noFile": "Nenhuma imagem selecionada",
-          "select": "Selecionar imagem",
-          "start": "Teste OCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} processadores",
-        "status": {
-          "cancelled": "Cancelado",
-          "completed": "Concluído",
-          "delayed": "Atrasado",
-          "failed": "Falhou",
-          "idle": "Ocioso",
-          "pending": "Pendente",
-          "processing": "Processando",
-          "running": "Correndo",
-          "starting": "Iniciando"
-        },
-        "title": "Análise de Documentos"
-      },
-      "label": "Laboratório de Componentes",
-      "modelSelector": {
-        "behaviorConfig": "Configuração de Comportamento e Exibição",
-        "callbackEmpty": "Nenhuma chamada de retorno de componente recebida ainda",
-        "clearSelection": "Limpar Seleção",
-        "configDescription": "Alterne as principais props do ModelSelector acima e inspecione o valor de entrada mais os payloads de retorno de chamada abaixo.",
-        "configTitle": "Parque de Props",
-        "controlMultiSelectMode": "Modo de multiseleção controlado",
-        "currentProps": "Atuais Adereços",
-        "defaultMultiSelectMode": "modoMultiSeleçãoPadrão",
-        "description": "Esta página monta diretamente o componente de negócio ModelSelector atual para que possamos verificar o comportamento de seleção, filtragem, pesquisa e fixação.",
-        "empty": "Nenhum modelo está disponível no momento, portanto o seletor ainda não pode ser exibido.",
-        "lastModeChangeReturn": "Último em MultiSelectModeChange Return",
-        "lastSelectReturn": "Último retorno onSelect",
-        "loading": "Carregando modelos...",
-        "modelId": "ID do Modelo",
-        "multiSelectMode": "modo de seleção múltipla",
-        "multiple": "múltiplo",
-        "normalizedIds": "IDs Selecionados Normalizados",
-        "outputEmpty": "Ainda não há dados para exibir",
-        "provider": "Fornecedor",
-        "resetOutputs": "Redefinir Saídas",
-        "resultsDescription": "Isto mostra o valor atual da propriedade, os ids normalizados selecionados e a última saída de retorno de chamada do componente.",
-        "resultsTitle": "Saídas e Estado",
-        "selected": "Seleção Atual",
-        "selectedEmpty": "Nenhum modelo selecionado ainda",
-        "selectionConfig": "Configuração do Valor de Seleção",
-        "selectionType": "tipoDeSeleção",
-        "selectionTypeId": "Retornar IDs do Modelo",
-        "selectionTypeModel": "Retornar Objetos do Modelo",
-        "showPinnedModels": "mostrarModelosFixados",
-        "showTagFilter": "mostrarFiltroDeEtiqueta",
-        "title": "Seletor de Modelos",
-        "triggerPlaceholder": "Selecione um modelo",
-        "triggerSelectedCount": "{{count}} modelos selecionados",
-        "valueProp": "Proposta de Valor Atual"
-      },
-      "title": "Laboratório de Componentes de Desenvolvimento"
     },
     "data": {
       "app_data": {
@@ -5566,7 +6111,19 @@
         "title": "Backup e restauração de dados"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cereja",
+            "native": "Nativo",
+            "restart": {
+              "content": "Alterar o estilo do menu exige reiniciar o aplicativo para que as alterações entrem em vigor. Deseja reiniciar agora?",
+              "title": "Reinicialização necessária"
+            },
+            "title": "Estilo do menu de contexto"
+          }
+        },
         "sections": {
+          "chat_settings": "Configurações do Chat",
           "custom_css": "CSS Personalizado",
           "display_language": "Exibição e Idioma",
           "privacy_advanced": "Privacidade & Avançado",
@@ -5831,6 +6388,13 @@
         "text": "Texto",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "Conectado",
+        "connecting": "Conectando",
+        "disabled": "Desabilitado",
+        "error": "Erro",
+        "unavailable": "Indisponível"
+      },
       "search": {
         "placeholder": "Buscar servidores MCP...",
         "tooltip": "Buscar servidores MCP"
@@ -5936,8 +6500,6 @@
         "confirm_delete_message": "confirmar antes de excluir a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
-        "paste_long_text_as_file": "Colar texto longo como arquivo",
-        "paste_long_text_threshold": "Limite de texto longo",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"
@@ -5953,10 +6515,10 @@
         "label": "Botão de navegação de conversa",
         "none": "Não mostrar"
       },
-      "prompt": "Exibir palavra-chave",
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
-      "use_serif_font": "Usar fonte serif"
+      "use_serif_font": "Usar fonte serif",
+      "wide_mode": "Modo de layout amplo"
     },
     "miniApps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
@@ -6206,6 +6768,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Mostrar mais {{count}} modelos",
+        "model_in_use_by_knowledge_base": "Este modelo é utilizado por uma base de conhecimento e não pode ser eliminado.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Obter novamente a lista de modelos",
         "reload_catalog": "Refresh list",
@@ -6334,13 +6897,51 @@
         "title": "nível de detalhe"
       }
     },
+    "parameter_settings": "Configurações de Parâmetros",
     "plugins": {
-      "bunDescription": "Runtime JavaScript usado pelos serviços MCP e pelas respectivas cadeias de ferramentas.",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Ainda não há ferramentas personalizadas. Adicione uma para começar.",
       "description": "Gerencie ferramentas binárias e dependências de runtime necessárias para o aplicativo.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Instalar",
+      "installError": "Failed to install tool",
       "installing": "Instalando...",
+      "invalidTool": "Nome ou chave de ferramenta inválida",
       "notInstalled": "Não instalado",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
       "title": "Dependências do Ambiente",
-      "uvDescription": "Gerenciador de pacotes Python para serviços MCP e instalação de dependências."
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
+    "power": {
+      "prevent_sleep_when_busy": "Mantenha o sistema ativo enquanto as tarefas estão sendo executadas"
     },
     "privacy": {
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
@@ -6362,7 +6963,8 @@
       },
       "title": "Gestão de Prompts",
       "titleLabel": "Título",
-      "titlePlaceholder": "Introduza o título do prompt"
+      "titlePlaceholder": "Introduza o título do prompt",
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
@@ -6702,6 +7304,14 @@
       "close": "Fechar",
       "confirm": "Confirmar",
       "forward": "Avançar",
+      "mcp": {
+        "agentEmpty": "Nenhum servidor MCP configurado para este agente",
+        "assistantEmpty": "Nenhum servidor MCP configurado para este assistente",
+        "autoEmpty": "Nenhum servidor MCP ativado",
+        "description": "Ver status atual do servidor MCP",
+        "disabled": "O MCP está desabilitado para este assistente",
+        "unknownServer": "Servidor MCP desconhecido"
+      },
       "multiple": "Múltipla Seleção",
       "noResult": "Nenhum resultado encontrado",
       "page": "Página",
@@ -7067,10 +7677,16 @@
       "title": "Escala"
     }
   },
+  "subWindow": {
+    "back_to_main": "Voltar à Janela Principal",
+    "pin": "Manter no Topo",
+    "unpin": "Cancelar Manter no Topo"
+  },
   "tab": {
     "close": "Fechar Aba",
     "move_to_first": "Mover para o Primeiro",
     "new": "Nova Aba",
+    "open_in_new_window": "Abrir em Nova Janela",
     "pin": "Fixar Aba",
     "unpin": "Desafixar Aba"
   },
@@ -7087,7 +7703,8 @@
     "paintings": "Pinturas",
     "settings": "Configurações",
     "store": "Biblioteca de assistentes",
-    "translate": "Traduzir"
+    "translate": "Traduzir",
+    "work": "Trabalho"
   },
   "trace": {
     "agent": "Agente",
@@ -7194,6 +7811,7 @@
         "too_large": "Arquivo muito grande",
         "unknown": "Falha ao ler o conteúdo do arquivo"
       },
+      "ocr_completed": "OCR de imagem concluído",
       "reading": "Lendo o conteúdo do arquivo...",
       "upload": "Solte ou clique para fazer upload de imagem/documento"
     },

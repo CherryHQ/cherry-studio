@@ -75,26 +75,41 @@ export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
 export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
 export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
 export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
-export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model'] as const
+// `missing_embedding_model`: the v1 embedding model could not be resolved to a migrated
+// user_model, so the base needs a new embedding model on restore.
+// `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
+// was missing/empty/locked so its dimensions could not be determined. The base (name, model,
+// config, idle items) is kept as a restorable `failed` row instead of being dropped, so the
+// user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
+export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
 export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema>
 export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
+export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode = 'missing_vector_store'
 
 /**
- * Item-level error codes stored on `knowledge_item.error`. Currently only the v2
- * migration sets one: a v1-indexed `directory` whose container-level vectors could not
- * be re-attributed to per-file children (unreadable legacy sources, or no migratable
- * vectors) is marked `failed` with `directory_not_migrated`. Modeled as a zod enum (the
- * same shape as the base error codes above) so the renderer's code → i18n switch in
- * `error.ts` stays exhaustive-checkable and the code ↔ translator-key triple is tied together.
+ * Item-level error codes stored on `knowledge_item.error`. Two are set today:
+ * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
+ *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
+ * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
+ *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
+ * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
+ * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
  */
-export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated'] as const
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated', 'indexing_interrupted'] as const
 export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
 export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
+export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode = 'indexing_interrupted'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KNOWLEDGE_CHUNK_STRATEGIES = ['structured', 'delimiter'] as const
+export const KnowledgeChunkStrategySchema = z.enum(KNOWLEDGE_CHUNK_STRATEGIES)
+export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema>
+// Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
+export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
@@ -103,6 +118,8 @@ export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
+export const DEFAULT_KNOWLEDGE_CHUNK_STRATEGY: KnowledgeChunkStrategy = 'structured'
+export const DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR = '\\n\\n'
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
 
@@ -125,6 +142,8 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
   chunkOverlap: KnowledgeChunkOverlapSchema,
+  chunkStrategy: KnowledgeChunkStrategySchema,
+  chunkSeparator: KnowledgeChunkSeparatorSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema,
@@ -520,6 +539,8 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
   chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  chunkStrategy: KnowledgeChunkStrategySchema.optional(),
+  chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),
@@ -565,6 +586,15 @@ export const RestoreKnowledgeBaseSchema = z.strictObject({
   embeddingModelId: z.string().trim().min(1)
 })
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
+
+// Restore is a partial operation: root items whose source is genuinely gone are skipped rather
+// than aborting the whole restore, so the result reports how many were dropped for the UI to tell
+// the user (a silent count is a silent data loss).
+export const RestoreKnowledgeBaseResultSchema = z.strictObject({
+  base: KnowledgeBaseSchema,
+  skippedMissingSourceCount: z.number().int().nonnegative()
+})
+export type RestoreKnowledgeBaseResult = z.infer<typeof RestoreKnowledgeBaseResultSchema>
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: KnowledgeItemIdSchema.nullable().optional()
@@ -626,7 +656,7 @@ const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
 })
 
 // Runtime note add carries only the caller-supplied content; `relativePath` is
-// written lazily by main on first index (see ensureNoteSnapshot), never by raw
+// written lazily by main on first index (see ensureSnapshot), never by raw
 // caller input, so it is omitted from the add surface.
 const RuntimeNoteItemDataSchema = KnowledgeItemSharedSchema.extend({
   content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.')

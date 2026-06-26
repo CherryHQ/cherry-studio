@@ -1,5 +1,5 @@
-import type { Message } from '@renderer/types/newMessage'
-import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
 
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
@@ -30,9 +30,9 @@ import { useTopicStreamStatus } from './useTopicStreamStatus'
  * construction — none of the three signals match. Used wherever a consumer
  * gates "this message is busy / show beat-loader / hide menubar".
  */
-export function useIsActiveTurnTarget(message: Message): boolean {
+export function useIsActiveTurnTarget(message: Pick<MessageListItem, 'id' | 'topicId' | 'status'>): boolean {
   const { activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(message.topicId)
-  if (isMessageProcessing(message)) return true
+  if (isMessageListItemProcessing(message)) return true
   if (activeExecutions.some((e) => e.anchorMessageId === message.id)) return true
   if (awaitingApprovalAnchors.some((e) => e.anchorMessageId === message.id)) return true
   return false

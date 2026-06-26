@@ -7,6 +7,8 @@ import {
 } from '@shared/types/tabInstanceMetadata'
 import { normalizeTabInstanceMetadata } from '@shared/utils/tabInstanceMetadata'
 
+export { TAB_INSTANCE_METADATA_APP_ID, TAB_INSTANCE_METADATA_KEY }
+
 export interface TabInstanceMetadataInput {
   appId?: TabInstanceAppId
   key?: string | null

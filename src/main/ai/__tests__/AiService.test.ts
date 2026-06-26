@@ -1,7 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
@@ -217,6 +215,31 @@ describe('AiService', () => {
     expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
     expect(result).toEqual({ files: [fileEntry] })
   })
+
+  it("omits SDK size when size is the 'auto' sentinel", async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      size: 'auto'
+    })
+
+    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
+    expect(callOptions).not.toHaveProperty('size')
+  })
 })
 
 describe('AiService tool approval', () => {
@@ -252,18 +275,14 @@ describe('AiService tool approval', () => {
   }
 
   /**
-   * Instantiate `AiService`, register its IPC handlers against the mocked
-   * `ipcMain`, and return the captured `Ai_ToolApproval_Respond` listener.
+   * The `ai.respond_tool_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
+   * (the IpcApi handler in `handlers/ai.ts` resolves the WebContents from `ctx.senderId` and calls
+   * it). Adapt to the old `(event, payload)` call shape so the cases below read unchanged.
    */
   function getApprovalHandler() {
     const service = createService()
-    ;(service as unknown as { registerIpcHandlers(): void }).registerIpcHandlers()
-    const call = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([channel]) => channel === IpcChannel.Ai_ToolApproval_Respond)
-    if (!call) throw new Error('Ai_ToolApproval_Respond handler was not registered')
-    return call[1] as (
-      event: unknown,
+    return (
+      event: { sender: Electron.WebContents },
       payload: {
         approvalId: string
         approved: boolean
@@ -272,7 +291,7 @@ describe('AiService tool approval', () => {
         topicId?: string
         anchorId?: string
       }
-    ) => Promise<{ ok: boolean }>
+    ) => service.respondToolApproval(payload, event.sender)
   }
 
   beforeEach(() => {
@@ -368,6 +387,32 @@ describe('AiService tool approval', () => {
         approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }]
       })
     )
+  })
+
+  it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      return undefined
+    })
+    const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+      approvalMutationResult(committed, ['mcp-approval-1']) as never
+    )
+
+    // No managed window → senderWc undefined: the continuation has nothing to surface on.
+    const handler = getApprovalHandler()
+    const result = await handler({ sender: undefined } as never, {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    expect(result).toEqual({ ok: false })
+    expect(dispatch).not.toHaveBeenCalled()
   })
 
   it('refuses (ok:false) without mutating the row when a stream is still live on the topic', async () => {
@@ -526,26 +571,9 @@ describe('AiService tool approval', () => {
     expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it('returns { ok: false } when the IPC payload is invalid (rejected at the boundary)', async () => {
-    const respondToolApproval = vi.fn(() => true)
-    const dispatch = vi.fn()
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
-      return undefined
-    })
-    const getById = vi.spyOn(messageService, 'getById')
-
-    const handler = getApprovalHandler()
-    // Missing `approved` boolean and empty `approvalId` → schema rejects.
-    const result = await handler(fakeEvent(), { approvalId: '' } as never)
-
-    expect(result).toEqual({ ok: false })
-    // Rejected before any registry dispatch or DB read.
-    expect(respondToolApproval).not.toHaveBeenCalled()
-    expect(getById).not.toHaveBeenCalled()
-    expect(dispatch).not.toHaveBeenCalled()
-  })
+  // Payload validation (empty `approvalId`, missing `approved`) now lives in the IpcApi router's
+  // zod parse of `ai.respond_tool_approval`, not in `respondToolApproval` — so the invalid-payload
+  // case is no longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing").
 
   it('routes rerank requests through ai-core rerank', async () => {
     const service = createService()

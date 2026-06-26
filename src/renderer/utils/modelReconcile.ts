@@ -15,6 +15,8 @@
  */
 import {
   getThinkModelType,
+  isFunctionCallingModel,
+  isOpenRouterBuiltInWebSearchModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel,
@@ -22,11 +24,20 @@ import {
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
-import type { AssistantSettings, ThinkingOption } from '@renderer/types'
+import type { AssistantSettings } from '@renderer/types/assistant'
+import type { ThinkingOption } from '@renderer/types/reasoning'
 import type { Model } from '@shared/data/types/model'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string
+}
+
+export function hasModelBuiltinWebSearch(model: Model): boolean {
+  return isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel(model)
+}
+
+export function canModelUseAssistantWebSearch(model: Model): boolean {
+  return hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
 }
 
 export function reconcileReasoningEffortForModel(
@@ -68,6 +79,6 @@ export function reconcileWebSearchForModel(
   current: Pick<AssistantSettings, 'enableWebSearch'>
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
-  if (isWebSearchModel(nextModel)) return null
+  if (canModelUseAssistantWebSearch(nextModel)) return null
   return { enableWebSearch: false }
 }

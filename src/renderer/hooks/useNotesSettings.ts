@@ -1,6 +1,6 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types/app'
 import type { NotesSortType } from '@renderer/types/note'
 import { useTranslation } from 'react-i18next'
 

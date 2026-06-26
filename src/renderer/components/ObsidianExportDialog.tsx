@@ -22,8 +22,8 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
@@ -33,6 +33,7 @@ import {
 } from '@renderer/utils/export'
 import { XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+
 const logger = loggerService.withContext('ObsidianExportDialog')
 
 interface FileInfo {
@@ -53,8 +54,8 @@ interface PopupContainerProps {
   processingMethod: (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
   open: boolean
   resolve: (success: boolean) => void
-  message?: Message
-  messages?: Message[]
+  message?: ExportableMessage
+  messages?: ExportableMessage[]
   topic?: Topic
   rawContent?: string
 }

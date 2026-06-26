@@ -11,13 +11,7 @@ export const paintingClasses = {
   /** Fills space between mode tabs and prompt; keeps canvas in the flex-shrink chain. */
   centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col',
   /** Pins the prompt visually to the bottom of the middle column. */
-  promptDock: 'shrink-0 border-border-muted border-t bg-background px-2 pt-2 pb-2',
-  panel: 'flex h-full w-[260px] shrink-0 flex-col overflow-hidden border-border-subtle border-r bg-background',
-  panelModelSelector: 'shrink-0 px-4 pt-3 pb-3',
-  panelModelSelectorTrigger:
-    'h-9 w-full max-w-none justify-between rounded-xl border border-border-subtle bg-background/70 px-3 hover:bg-muted/45',
-  panelBody: 'flex min-h-0 flex-1 flex-col px-4 pb-4',
-  panelScroll: '-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pr-2',
+  promptDock: 'shrink-0 bg-background px-2 pt-2 pb-2',
   historyStrip:
     'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-l bg-background px-2 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:

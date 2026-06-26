@@ -3,7 +3,7 @@ import {
   ClawhubSearchResponseSchema,
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
-} from '@types'
+} from '@shared/types/skill'
 import { describe, expect, it } from 'vitest'
 
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'

@@ -3,11 +3,12 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { t } from '@main/utils/language'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileType } from '@shared/types/file'
+import { FILE_TYPE } from '@shared/types/file'
 import { KB, MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import type { FileMetadata, FileType } from '@types'
-import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
@@ -773,7 +774,7 @@ class FileStorage {
       }
 
       // Get app paths to prevent selection of restricted directories
-      const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
+      const appDataPath = path.resolve(application.getPath('sys.appdata'))
       const filesDir = path.resolve(application.getPath('feature.files.data'))
       const currentNotesDir = path.resolve(application.getPath('feature.notes.data'))
 

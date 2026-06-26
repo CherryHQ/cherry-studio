@@ -1,4 +1,4 @@
-import type { PermissionMode } from '@renderer/types'
+import type { PermissionMode } from '@renderer/types/agent'
 
 export const DEFAULT_MAX_TURNS = 100
 export const DEFAULT_PERMISSION_MODE = 'default' as const

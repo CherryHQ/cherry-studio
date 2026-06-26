@@ -61,7 +61,7 @@ const createOpenrouterReasoningPlugin = () =>
     }
   })
 
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { RequestFeature } from '../feature'
 

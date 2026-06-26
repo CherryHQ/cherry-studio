@@ -1,6 +1,3 @@
-// import { useAppDispatch, useAppSelector } from '@renderer/store'
-// import { setUserTheme, UserTheme } from '@renderer/store/settings'
-
 import { usePreference } from '@data/hooks/usePreference'
 import Color from 'color'
 

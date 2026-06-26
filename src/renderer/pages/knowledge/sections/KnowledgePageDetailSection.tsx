@@ -28,7 +28,14 @@ const KnowledgePageDetailSection = () => {
     openRestoreBaseDialog,
     deleteBase
   } = useKnowledgePage()
-  const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
+  const {
+    items: selectedBaseItems,
+    total: selectedBaseItemsTotal,
+    isLoading: isItemsLoading,
+    hasMore: hasMoreItems,
+    isLoadingMore: isLoadingMoreItems,
+    loadMore: loadMoreItems
+  } = useKnowledgeItems(selectedBaseId)
   const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -44,6 +51,7 @@ const KnowledgePageDetailSection = () => {
         onOpenRecallTest={openRecallTestDrawer}
         onRenameBase={openRenameBaseDialog}
         onDeleteBase={deleteBase}
+        onRebuild={() => openRestoreBaseDialog(selectedBase)}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-background">
@@ -52,7 +60,11 @@ const KnowledgePageDetailSection = () => {
         ) : (
           <DataSourcePanel
             items={selectedBaseItems}
+            total={selectedBaseItemsTotal}
             isLoading={isItemsLoading}
+            hasMore={hasMoreItems}
+            isLoadingMore={isLoadingMoreItems}
+            onLoadMore={loadMoreItems}
             updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}

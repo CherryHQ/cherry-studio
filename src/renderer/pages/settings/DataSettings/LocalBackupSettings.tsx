@@ -6,14 +6,14 @@ import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
-import type { AppInfo } from '@renderer/types'
+import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
+import type { AppInfo } from '@renderer/types/app'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
@@ -42,7 +42,7 @@ const LocalBackupSettings: React.FC = () => {
 
   const { t } = useTranslation()
 
-  const { localBackupSync } = useAppSelector((state) => state.backup)
+  const { localBackupSync } = getBackupSyncState()
 
   const onSyncIntervalChange = (value: number) => {
     void setLocalBackupSyncInterval(value)

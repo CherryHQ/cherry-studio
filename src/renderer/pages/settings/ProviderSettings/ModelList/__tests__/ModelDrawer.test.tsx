@@ -115,7 +115,7 @@ vi.mock('@renderer/components/Icons/CopyIcon', () => ({
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ open, title, children, footer }: any) =>
     open ? (
-      <div data-testid="provider-settings-drawer" className="provider-settings-default-scope">
+      <div data-testid="provider-settings-drawer">
         <div>{title}</div>
         {children}
         {footer}
@@ -144,9 +144,7 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
 
     expect(screen.getByTestId('provider-settings-drawer')).toBeInTheDocument()
-    expect(
-      screen.getByTestId('provider-settings-model-add-drawer-content').closest('.provider-settings-default-scope')
-    ).not.toBeNull()
+    expect(screen.getByTestId('provider-settings-model-add-drawer-content')).toBeInTheDocument()
     expect(screen.queryByText('settings.models.add.endpoint_type.tooltip')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
@@ -259,9 +257,7 @@ describe('Model drawers', () => {
     )
 
     expect(screen.getByLabelText('settings.models.add.model_name.label')).toHaveValue('claude-4-sonnet')
-    expect(
-      screen.getByTestId('provider-settings-model-edit-drawer-content').closest('.provider-settings-default-scope')
-    ).not.toBeNull()
+    expect(screen.getByTestId('provider-settings-model-edit-drawer-content')).toBeInTheDocument()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /settings\.moresetting\.label/i }))

@@ -10,11 +10,15 @@ Everything in `@shared` must satisfy **both**, or it does not belong here.
 
 ### 1.1 Cross-process
 
-A module belongs in `@shared` only if **both** `main` and `renderer` actually use it — types included, no exceptions.
+A module belongs in `@shared` only if **both** `main` and `renderer` actually use it — types included, with one deliberate carve-out: the Cache schema registry (§1.1.1).
 
 - **Why**: `@shared` is the single source of truth shared across the process boundary; single-process code already has a process to live in.
 - Reachable from only one process → it lives in that process's own layer (`src/main/*` or `src/renderer/{utils,hooks,services}`).
 - **No speculative placement.** If something only *might* become cross-process, write it in `main`/`renderer` first and move it here once it actually crosses. Do not park it in `@shared` for a possibility — the common failure is a type or util added "in case", then never used cross-process and left as cruft.
+
+#### 1.1.1 Carve-out: the Cache schema registry
+
+The Cache subsystem is the one exception to §1.1. Every Cache **key schema and its value type** lives in `@shared/data/cache/` (`cacheSchemas.ts` + `cacheValueTypes.ts`) **regardless of which process consumes it** — including renderer-only types (`Tab`, `ChatScrollAnchor`, `AgentOpenExternalAppTarget`, …). A renderer-only cache value type here is **compliant, not a §1.1 violation** — do not flag or relocate it. Cache subsystem only; §1.1 holds everywhere else.
 
 ### 1.2 No mutable runtime state
 
@@ -80,25 +84,28 @@ A stateful class's **definition** is pure code, so it rides in its topic module 
 
 Two gates, in order, then categorize:
 
-1. **Cross-process?** Reached by both processes — no → it goes to a process layer (`src/main/*` or `src/renderer/*`).
+1. **Cross-process?** Reached by both processes — no → it goes to a process layer (`src/main/*` or `src/renderer/*`). *(Carve-out: a Cache key's schema entry + value type stay in `@shared/data/cache/` even when single-process — §1.1.1.)*
 2. **Stateless / immutable?** No exported instance, no mutable state — no → only the blueprint and static data stay; the **instance** goes per-process.
 3. **Categorize**: core domain (`ai`) / infra (`data`, `ipc`) / shape (`types`, `utils`). Not one of the first two → decompose by shape into `types` / `utils`; **never** open a new top-level dir.
 
 ## 5. Anti-Patterns
 
 - **Exported instance singleton** — `export const x = new XService()`, or any registry / manager / service instance. Violates Invariant 1.2.
-- **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Former epicenter: the now-dissolved `config/constant.ts` — §6.)*
+- **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Former epicenter: the now-dissolved `config/constant.ts` — §6. The Cache schema registry is the one sanctioned exception — §1.1.1.)*
 - **Junk-drawer file or dir** — a `config/` bucket or a `constant.ts` accumulating unrelated globals across domains and processes. Decompose by domain + process; do not relocate as a blob.
 - **A new top-level dir per capability** — every capability decomposes by shape; the top level is closed (§2).
 - **A stateful "service" in `@shared`** — state has no coherent shared owner; it belongs to `main` or `renderer`.
 
 ## 6. Migration (target vs current — deferred, tracked)
 
-The structural decomposition is **done**: `command`, `file`, `shortcuts`, `externalApp`, and `config` were dissolved out of the top level — cross-process slices into `types/` + `utils/` by shape, single-process code back into `main`/`renderer` (Invariant 1.1) — and `menuRegistry`'s exported instance was replaced by the pure `resolveMenu` (Invariant 1.2). `config`'s ~82-importer `constant.ts` was decomposed by domain + process (file-ext lists → `utils/file/`, `KB`/`MB`/`GB`/`APP_NAME` → `utils/constants.ts`, terminal/update/OAuth/timeout/window-sizing blocks back to their owning `main`/`renderer` modules); the actual consumer process was confirmed per item rather than trusted from a directional plan (e.g. `API_SERVER_DEFAULTS` proved renderer-only, `MIN_WINDOW_*` cross-process, `providers.ts` renderer-only). Remaining deviations:
+The structural decomposition is **done**: `command`, `file`, `shortcuts`, `externalApp`, and `config` were dissolved out of the top level — cross-process slices into `types/` + `utils/` by shape, single-process code back into `main`/`renderer` (Invariant 1.1) — and `menuRegistry`'s exported instance was replaced by the pure `resolveMenu` (Invariant 1.2). `config`'s ~82-importer `constant.ts` was decomposed by domain + process (file-ext lists → `utils/file/`, `KB`/`MB`/`GB`/`APP_NAME` → `utils/constants.ts`, terminal/update/OAuth/timeout/window-sizing blocks back to their owning `main`/`renderer` modules); the actual consumer process was confirmed per item rather than trusted from a directional plan (e.g. `API_SERVER_DEFAULTS` proved renderer-only, `MIN_WINDOW_*` cross-process, `providers.ts` renderer-only). The `utils/index.ts` bucket-root barrel was later split into topic files (§3.1). A subsequent `types`/`utils` audit confirmed the single-process residue in the table below and removed dead code (`types/codeTools.ts`'s unused `LoaderReturn`, which also dragged a `@types` renderer import into `@shared` — a layering violation now gone); `keywordSearch` and `SerializableSchema` looked main-only/dead on `main` but proved cross-process against the `feat/chat-page` truth branch (renderer `GlobalSearch`, `renderer/types/serialize.ts`) and correctly stay. Remaining deviations:
 
 | Area | Current | Target |
 |---|---|---|
-| `utils/index.ts` | misc utilities implemented in a bucket-root file | split into topic files (`utils/<topic>.ts`); no bucket-root `index.ts` (§3.1) |
+| `utils/searchSnippet.ts` (+ test) | main-only (FTS in `main/data/services`); the cross-process `keywordSearch` it imports stays | move to `src/main/data/services/utils/` (Invariant 1.1) |
+| `utils/pdf.ts` (+ test) | main-only (`pdfCompatibility`, main `ipc.ts`) | move to `src/main/utils/pdf.ts` (Invariant 1.1) |
+| `utils/externalApp.ts` — `EXTERNAL_APPS` const | main-only (`ExternalAppsService`); the `ExternalAppConfig` type stays cross-process | move the const to `main`; keep `@shared/types/externalApp` |
+| error/serializable cluster — `types/error.ts`, `utils/error.ts`, `types/ProviderSpecificError.ts` | intended cross-process, but in prod only `main/ai` consumes it (`serializeError`); renderer keeps a full parallel copy (`renderer/types/error.ts`, `renderer/utils/error.ts`; ~64 importers) and the ~20 `isSerialized*` guards in `utils/error.ts` are dead on the `@shared` side | decide direction: consolidate renderer onto `@shared` (delete the renderer duplicate, re-point importers) **or** relocate the `@shared` unit into `src/main/ai/` |
 | `IpcChannel.ts` | 18 KB v1 channel enum at the root | v1 legacy; folded into `ipc/` as the IpcApi migration retires channels — not part of this governance |
 
 ## 7. Related

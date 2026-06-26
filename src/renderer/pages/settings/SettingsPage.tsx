@@ -1,7 +1,6 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isDev } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -11,7 +10,6 @@ import {
   Cloud,
   Command,
   FileCode,
-  FlaskConical,
   HardDrive,
   Info,
   Package,
@@ -51,11 +49,7 @@ const SettingsPage: FC = () => {
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
-        <div
-          className={cn(
-            'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
-            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
-          )}>
+        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
@@ -195,21 +189,11 @@ const SettingsPage: FC = () => {
                 active={isActive('/settings/about')}
                 onClick={() => go('/settings/about')}
               />
-              {isDev && (
-                <MenuItem
-                  className={settingsSubmenuItemClassName}
-                  labelClassName={settingsSubmenuItemLabelClassName}
-                  icon={<FlaskConical />}
-                  label={t('settings.componentLab.label')}
-                  active={isActive('/settings/component-lab')}
-                  onClick={() => go('/settings/component-lab')}
-                />
-              )}
             </MenuList>
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border-border/40 border-l bg-white text-foreground dark:bg-background">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
             <Outlet />
           </div>
         </div>
