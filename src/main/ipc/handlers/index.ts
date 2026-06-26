@@ -7,7 +7,6 @@ import { binaryHandlers } from './binary'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
-import { obsidianHandlers } from './obsidian'
 import { selectionHandlers } from './selection'
 import { systemHandlers } from './system'
 import { webSearchHandlers } from './webSearch'
@@ -29,7 +28,6 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
-  ...obsidianHandlers,
   ...selectionHandlers,
   ...systemHandlers,
   ...webSearchHandlers,

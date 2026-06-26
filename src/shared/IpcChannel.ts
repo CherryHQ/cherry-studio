@@ -120,7 +120,9 @@ export enum IpcChannel {
   // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
   CherryIN_OAuthResult = 'cherryin:oauth-result',
 
-  // obsidian: migrated to IpcApi (obsidian.* routes)
+  // obsidian
+  Obsidian_GetVaults = 'obsidian:get-vaults',
+  Obsidian_GetFiles = 'obsidian:get-files',
 
   // nutstore
   Nutstore_GetSsoUrl = 'nutstore:get-sso-url',

@@ -26,6 +26,7 @@ import FileService from './services/FileSystemService'
 import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
+import ObsidianVaultService from './services/ObsidianVaultService'
 import { vertexAiService } from './services/VertexAiService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -38,6 +39,7 @@ const logger = loggerService.withContext('IPC')
 
 const backupManager = new LegacyBackupManager()
 const exportService = new ExportService()
+const obsidianVaultService = new ObsidianVaultService()
 
 export async function registerIpc() {
   const notificationService = new NotificationService()
@@ -417,7 +419,14 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
 
-  // Obsidian: migrated to IpcApi (obsidian.* — src/main/ipc/handlers/obsidian.ts)
+  // Obsidian service
+  ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
+    return obsidianVaultService.getVaults()
+  })
+
+  ipcMain.handle(IpcChannel.Obsidian_GetFiles, (_event, vaultName) => {
+    return obsidianVaultService.getFilesByVaultName(vaultName)
+  })
 
   // nutstore
   ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))

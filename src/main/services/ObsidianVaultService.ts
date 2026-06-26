@@ -221,8 +221,4 @@ class ObsidianVaultService {
   }
 }
 
-/**
- * Direct-import singleton (non-lifecycle service): stateless apart from a lazily
- * cached config path. Consumed by the `obsidian.*` IpcApi handlers.
- */
-export const obsidianVaultService = new ObsidianVaultService()
+export default ObsidianVaultService

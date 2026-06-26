@@ -22,7 +22,6 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import { ipcApi } from '@renderer/ipc'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import {
@@ -215,7 +214,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await ipcApi.request('obsidian.get_vaults')
+        const vaultsData = await window.api.obsidian.getVaults()
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
@@ -242,7 +241,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         try {
           setLoading(true)
           setError(null)
-          const filesData = await ipcApi.request('obsidian.get_files', { vaultName: selectedVault })
+          const filesData = await window.api.obsidian.getFiles(selectedVault)
           setFiles(filesData)
         } catch (error) {
           logger.error('获取Obsidian文件失败:', error as Error)
