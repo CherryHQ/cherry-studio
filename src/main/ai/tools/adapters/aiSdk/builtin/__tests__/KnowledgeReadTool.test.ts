@@ -125,6 +125,21 @@ describe('kb_read', () => {
     expect(result.error).toContain('conceptId')
   })
 
+  it('steers a missing-base NOT_FOUND to kb_list instead of blaming the conceptId', async () => {
+    // The base check runs before the concept lookup, so a gone base surfaces as a 'KnowledgeBase'
+    // NOT_FOUND — it must not be reported as a bad conceptId (it would send the model re-checking ids).
+    readConcept.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeBase', 'kb-gone'))
+
+    const result = (await callExecute(
+      { baseId: 'kb-gone', conceptId: 'docs/intro.md' },
+      { assistant: makeAssistant({ knowledgeBaseIds: [] }) }
+    )) as { error: string }
+
+    expect(result.error).toContain('kb-gone')
+    expect(result.error).toContain('kb_list')
+    expect(result.error).not.toContain('conceptId')
+  })
+
   it('surfaces a service error message', async () => {
     readConcept.mockRejectedValue(new Error('vector store down'))
 

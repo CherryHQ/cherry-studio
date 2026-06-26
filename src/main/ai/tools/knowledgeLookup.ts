@@ -46,6 +46,13 @@ const logger = loggerService.withContext('KnowledgeLookup')
 const SAMPLE_LIMIT = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
 
+/**
+ * `DataApiError.details.resource` value KnowledgeBaseService.getById stamps on a missing-base
+ * NOT_FOUND. The deep-read tools use it to tell "the base is gone" apart from "the conceptId is bad"
+ * so they can steer to kb_list instead of always blaming the conceptId (see {@link conceptLookupError}).
+ */
+const KNOWLEDGE_BASE_NOT_FOUND_RESOURCE = 'KnowledgeBase'
+
 export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
 
 Use this when:
@@ -298,6 +305,14 @@ function conceptLookupError(
   verb: 'read' | 'grep'
 ): KnowledgeLookupError {
   if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+    // resolveConcept checks the base (assertBaseCanRunRuntimeOperation) before the concept lookup, so
+    // a NOT_FOUND can mean the base itself is gone. Steer that to kb_list — matching kb_tree / kb_manage
+    // — rather than blaming the conceptId for a base the model picked from a stale/hallucinated id.
+    // (`'resource' in` narrows the distributed details union: `error.code` does not re-parameterize the
+    // DataApiError generic, so `details` here is the union of all per-code shapes.)
+    if (error.details && 'resource' in error.details && error.details.resource === KNOWLEDGE_BASE_NOT_FOUND_RESOURCE) {
+      return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
+    }
     return {
       error:
         `No document with conceptId "${conceptId}" in knowledge base "${baseId}". ` +

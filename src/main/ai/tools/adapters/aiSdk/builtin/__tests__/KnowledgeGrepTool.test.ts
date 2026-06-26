@@ -115,6 +115,21 @@ describe('kb_grep', () => {
     expect(result.error).toContain('Invalid kb_grep regular expression')
   })
 
+  it('steers a missing-base NOT_FOUND to kb_list instead of blaming the conceptId', async () => {
+    // A gone base surfaces as a 'KnowledgeBase' NOT_FOUND from the pre-lookup base check; it must not
+    // be reported as a bad conceptId, which would send the model re-checking ids that were never wrong.
+    grepConcept.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeBase', 'kb-gone'))
+
+    const result = (await callExecute(
+      { baseId: 'kb-gone', conceptId: 'docs/intro.md', pattern: 'x' },
+      { assistant: makeAssistant({ knowledgeBaseIds: [] }) }
+    )) as { error: string }
+
+    expect(result.error).toContain('kb-gone')
+    expect(result.error).toContain('kb_list')
+    expect(result.error).not.toContain('conceptId')
+  })
+
   describe('toModelOutput', () => {
     const toModelOutput = entry.tool.toModelOutput as (opts: {
       toolCallId: string
