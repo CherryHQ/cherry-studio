@@ -1,5 +1,3 @@
-import '@renderer/databases'
-
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -11,9 +9,7 @@ import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import store from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Provider } from 'react-redux'
 
 const logger = loggerService.withContext('MainApp')
 
@@ -33,31 +29,27 @@ function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
   return (
-    // [v1→v2 tail — deprecated] The Redux store is mounted only for the few remaining legacy
-    // consumers (useCopilot, ImportService). Remove this Provider once those tails are migrated.
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TabsProvider>
-                        <TopViewContainer>
-                          <AppShell />
-                        </TopViewContainer>
-                      </TabsProvider>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
-      </QueryClientProvider>
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <StyleSheetManager>
+        <ThemeProvider>
+          <AntdProvider>
+            <NotificationProvider>
+              <CodeStyleProvider>
+                <CommandContextKeyProvider>
+                  <CommandProvider>
+                    <TabsProvider>
+                      <TopViewContainer>
+                        <AppShell />
+                      </TopViewContainer>
+                    </TabsProvider>
+                  </CommandProvider>
+                </CommandContextKeyProvider>
+              </CodeStyleProvider>
+            </NotificationProvider>
+          </AntdProvider>
+        </ThemeProvider>
+      </StyleSheetManager>
+    </QueryClientProvider>
   )
 }
 

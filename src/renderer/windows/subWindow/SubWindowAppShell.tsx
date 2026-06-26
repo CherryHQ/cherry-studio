@@ -1,5 +1,3 @@
-import '@renderer/databases'
-
 import { type WindowFrame, WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { SubWindowControls } from '@renderer/components/layout/SubWindowControls'
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
