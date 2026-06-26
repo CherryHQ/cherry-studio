@@ -79,13 +79,14 @@ const PaintingPage: FC = () => {
     if (primary) cancelGeneration(primary.id)
   }, [cancelGeneration, inflightCards])
 
-  // Generating forks (or, for a retry, fills) a card; afterward the draft returns
-  // to a fresh waiting-to-create state on the same provider.
+  // Generating forks (or, for a retry, fills) a card. Afterward the composer
+  // keeps its model / params / prompt / input images so the next generation
+  // reuses them — only the retry target is dropped so the next send forks a new
+  // card instead of refilling the same one.
   const onGenerate = useCallback(async () => {
-    const { providerId } = draft
     await submit()
-    setDraft(createDraft(providerId))
-  }, [submit, draft])
+    patchDraft({ targetCardId: undefined })
+  }, [submit, patchDraft])
 
   // Select = highlight only; the composer keeps its own draft untouched. The id
   // may be a painting/group id or a group child image id (`${pid}::${fid}`).
