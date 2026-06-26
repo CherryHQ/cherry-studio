@@ -10,6 +10,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,7 +33,7 @@ const ObsidianSettings: FC = () => {
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.api.obsidian.getVaults()
+        const vaultsData = await ipcApi.request('obsidian.get_vaults')
 
         if (vaultsData.length === 0) {
           setError(t('settings.data.obsidian.default_vault_no_vaults'))
