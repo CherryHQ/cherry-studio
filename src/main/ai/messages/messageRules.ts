@@ -1,36 +1,13 @@
 /**
- * Message normalization rules.
+ * `UIMessage[]` → provider-ready `ModelMessage[]` for `Agent.stream`, plus its steps.
  *
- * - UIMessage-level rules (`normalizeUIMessages`) run before `convertToModelMessages`.
- * - The ModelMessage-level `coalesceConsecutiveSameRole` runs after it.
- *
- * Rules are pure, named, and return the same array reference when they change
- * nothing.
+ * Kept as one exported pipeline (`toModelMessages`) so the whole chain is testable
+ * end-to-end. Each step is pure and preserves element references when it changes nothing.
  */
 
-import type { ModelMessage, UIMessage } from 'ai'
+import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
-
-/** Context shared by every UIMessage normalization rule. */
-export interface NormalizeContext {
-  mediaCapabilities?: MediaCapabilities
-}
-
-type MessageRule = <T extends UIMessage>(messages: T[], ctx: Required<NormalizeContext>) => T[]
-
-/** Drop media the model can't accept — see `stripUnsupportedMedia` in `messageCapabilities.ts`. */
-function gateUnsupportedMedia<T extends UIMessage = UIMessage>(messages: T[], ctx: Required<NormalizeContext>): T[] {
-  return stripUnsupportedMedia(messages, ctx.mediaCapabilities)
-}
-
-const RULES: readonly MessageRule[] = [gateUnsupportedMedia]
-
-/** Apply every UIMessage normalization rule in order, before `convertToModelMessages`. */
-export function normalizeUIMessages<T extends UIMessage = UIMessage>(messages: T[], ctx: NormalizeContext = {}): T[] {
-  const resolved: Required<NormalizeContext> = { mediaCapabilities: ctx.mediaCapabilities ?? ALL_MEDIA }
-  return RULES.reduce<T[]>((acc, rule) => rule(acc, resolved), messages)
-}
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
 function contentToParts(content: unknown): unknown[] {
@@ -39,17 +16,12 @@ function contentToParts(content: unknown): unknown[] {
 }
 
 /**
- * Merge adjacent same-role messages into one (concatenate content). Apply AFTER
- * `convertToModelMessages`.
+ * Merge adjacent same-role messages into one (concatenate content). Cleans up the
+ * adjacency left when `convertToModelMessages` drops an empty turn.
  *
- * Any rule that deletes a whole message — capability gating, or future context
- * pruning — can leave two adjacent same-role turns. Merging yields the
- * lowest-common-denominator shape every provider accepts: some require strict
- * alternation (Anthropic), the rest tolerate adjacency or merge it themselves
- * (`@ai-sdk/anthropic` does, so this is idempotent there; `@ai-sdk/google` does
- * not, so this is what makes it safe). It is a normalization, not a validation —
- * it never throws, and never merges across different roles (so assistant↔tool
- * stays intact).
+ * A normalization, not a validation — never throws, never merges across roles (so
+ * assistant↔tool stays intact). `@ai-sdk/anthropic` merges same-role anyway (so this
+ * is idempotent there); `@ai-sdk/google` does not (so this is what makes it safe).
  */
 export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMessage[] {
   const out: ModelMessage[] = []
@@ -77,11 +49,10 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
 /**
  * Replace an assistant message that converted to empty content with a placeholder.
  *
- * `convertToModelMessages` emits `{ role: 'assistant', content: [] }` for a turn
- * whose only parts don't convert to model content (e.g. a persisted `data-error`),
- * which Gemini rejects (HTTP 400). Apply after `convertToModelMessages` — observing
- * the actual converted shape is more robust than predicting it from UI part types.
- * See #16195.
+ * `convertToModelMessages` emits `{ role: 'assistant', content: [] }` for a turn whose
+ * only parts don't convert to model content (e.g. a persisted `data-error`), which
+ * Gemini rejects (HTTP 400). Observing the converted shape covers every non-content
+ * part type (`data-*`, `source-*`, …) without predicting the SDK's conversion. See #16195.
  */
 export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelMessage[] {
   return messages.map((m) =>
@@ -89,4 +60,18 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
       ? { ...m, content: [{ type: 'text', text: '...' }] }
       : m
   )
+}
+
+/**
+ * The message-shaping pipeline `Agent.stream` runs on its conversion input
+ * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
+ *
+ * strip media the model can't accept → convert, dropping incomplete tool calls that
+ * would otherwise dangle without a result → merge adjacent same-role turns left by
+ * drops → placeholder any turn that still converted to empty content. See #16195.
+ */
+export async function toModelMessages(messages: UIMessage[], caps?: MediaCapabilities): Promise<ModelMessage[]> {
+  const shaped = stripUnsupportedMedia(messages, caps ?? ALL_MEDIA)
+  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true })
+  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
 }

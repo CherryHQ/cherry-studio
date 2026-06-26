@@ -1,17 +1,68 @@
-import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
+import type { ModelMessage, UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, normalizeUIMessages } from '../messageRules'
+import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
 
-describe('normalizeUIMessages', () => {
-  it('applies media gating as part of the pipeline', () => {
-    const msgs: UIMessage[] = [
-      ui('user', [{ type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }])
-    ]
-    const [out] = normalizeUIMessages(msgs, { mediaCapabilities: { image: false, video: true, audio: true } })
-    expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('image attachment omitted') }])
+// toModelMessages runs the exact Agent.stream order; these guard each step so deleting
+// one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
+describe('toModelMessages', () => {
+  it('rescues a data-error-only assistant turn (#16195)', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [{ type: 'data-error', data: {} }], 'a1'),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: '...' }] },
+      { role: 'user', content: [{ type: 'text', text: '继续' }] }
+    ])
+  })
+
+  it('drops an empty-parts assistant turn and coalesces the surrounding user turns', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [], 'a1'),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Q' },
+          { type: 'text', text: '继续' }
+        ]
+      }
+    ])
+  })
+
+  it('drops an incomplete tool call (ignoreIncompleteToolCalls)', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [{ type: 'tool-test', toolCallId: '1', state: 'input-available', input: {} }], 'a1'),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Q' },
+          { type: 'text', text: '继续' }
+        ]
+      }
+    ])
+  })
+
+  it('strips media the model cannot accept', async () => {
+    const model = await toModelMessages(
+      [ui('user', [{ type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }])],
+      { image: false, video: true, audio: true }
+    )
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('image attachment omitted') }] }
+    ])
   })
 })
 
@@ -31,32 +82,6 @@ describe('ensureNonEmptyAssistantContent', () => {
     expect(out[0]).toBe(msgs[0])
     expect(out[1]).toBe(msgs[1])
   })
-
-  it('a data-error-only assistant turn converts to empty content, then gets rescued (#16195)', async () => {
-    const msg = ui('assistant', [{ type: 'data-error', data: { message: 'boom' } }])
-    const converted = await convertToModelMessages(normalizeUIMessages([msg]))
-    expect(converted).toEqual([{ role: 'assistant', content: [] }]) // the Gemini-400 shape
-    expect(ensureNonEmptyAssistantContent(converted)).toEqual([
-      { role: 'assistant', content: [{ type: 'text', text: '...' }] }
-    ])
-  })
-
-  it('the full pipeline produces no empty assistant content for the #16195 interrupted-reply flow', async () => {
-    // user Q → interrupted assistant turn persisted as data-error → user 继续
-    const messages: UIMessage[] = [
-      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
-      ui('assistant', [{ type: 'data-error', data: {} }], 'a1'),
-      ui('user', [{ type: 'text', text: '继续' }], 'u2')
-    ]
-    const model = ensureNonEmptyAssistantContent(
-      coalesceConsecutiveSameRole(await convertToModelMessages(normalizeUIMessages(messages)))
-    )
-    expect(model).toEqual([
-      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
-      { role: 'assistant', content: [{ type: 'text', text: '...' }] },
-      { role: 'user', content: [{ type: 'text', text: '继续' }] }
-    ])
-  })
 })
 
 describe('coalesceConsecutiveSameRole', () => {
@@ -74,14 +99,6 @@ describe('coalesceConsecutiveSameRole', () => {
         ]
       }
     ])
-  })
-
-  it('leaves an alternating sequence unchanged', () => {
-    const msgs = [
-      { role: 'user', content: [{ type: 'text', text: 'a' }] },
-      { role: 'assistant', content: [{ type: 'text', text: 'b' }] }
-    ] as ModelMessage[]
-    expect(coalesceConsecutiveSameRole(msgs)).toHaveLength(2)
   })
 
   it('does not merge across an intervening tool message', () => {

@@ -29,6 +29,16 @@ describe('stripUnsupportedMedia', () => {
     expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('image attachment omitted') }])
   })
 
+  it('replaces a video file part when the model has no video', () => {
+    const [out] = stripUnsupportedMedia([fileMsg('video/mp4')], { image: true, video: false, audio: true })
+    expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('video attachment omitted') }])
+  })
+
+  it('replaces an audio file part when the model has no audio', () => {
+    const [out] = stripUnsupportedMedia([fileMsg('audio/mpeg')], { image: true, video: true, audio: false })
+    expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('audio attachment omitted') }])
+  })
+
   it('leaves the part untouched when the modality is supported (same reference)', () => {
     const msg = fileMsg('image/png')
     expect(stripUnsupportedMedia([msg], { image: true, video: true, audio: true })[0]).toBe(msg)
