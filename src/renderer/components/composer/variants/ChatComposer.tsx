@@ -18,6 +18,7 @@ import {
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AssistantSelector } from '@renderer/components/resource'
+import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { ModelSelector } from '@renderer/components/Selector'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -80,6 +81,11 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
+const ResourceEditDialogHost = React.lazy(() =>
+  import('@renderer/components/resource/dialogs/ResourceEditDialogHost').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 
@@ -128,6 +134,9 @@ interface ChatComposerContextControlsProps {
   shouldAutoSelectCreatedAssistant: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  // 'edit' repurposes the assistant trigger to open the edit dialog instead of the switcher
+  // (old/传统 view, where the left rail already handles switching).
+  assistantTriggerMode?: 'selector' | 'edit'
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
@@ -152,6 +161,7 @@ const ChatComposerContextControls = ({
   shouldAutoSelectCreatedAssistant,
   side,
   iconOnly = false,
+  assistantTriggerMode = 'selector',
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
@@ -179,6 +189,7 @@ const ChatComposerContextControls = ({
     : selectModelLabel
   const modelLabel = assistantModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
+  const [assistantEditDialogTarget, setAssistantEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
@@ -193,27 +204,50 @@ const ChatComposerContextControls = ({
     [onMentionedModelMultiSelectModeChange]
   )
 
+  const assistantTrigger = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={compactTriggerClassName}
+      disabled={assistantTriggerMode === 'edit' && !assistantId}
+      onClick={
+        assistantTriggerMode === 'edit' && assistantId
+          ? () => setAssistantEditDialogTarget({ kind: 'assistant', id: assistantId })
+          : undefined
+      }>
+      {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
+      <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
+    </Button>
+  )
+
   return (
     <>
-      <AssistantSelector
-        multi={false}
-        value={assistantId}
-        onChange={onAssistantChange}
-        autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
-        side={side}
-        align="start"
-        mountStrategy="lazy-keep"
-        trigger={
-          <Button variant="ghost" size="sm" className={compactTriggerClassName}>
-            {assistantIcon ? (
-              <EmojiIcon emoji={assistantIcon} size={20} />
-            ) : iconOnly ? (
-              <Bot size={16} aria-hidden />
-            ) : null}
-            <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
-          </Button>
-        }
-      />
+      {assistantTriggerMode === 'edit' ? (
+        <>
+          {assistantTrigger}
+          {assistantEditDialogTarget ? (
+            <React.Suspense fallback={null}>
+              <ResourceEditDialogHost
+                target={assistantEditDialogTarget}
+                onOpenChange={(open) => {
+                  if (!open) setAssistantEditDialogTarget(null)
+                }}
+              />
+            </React.Suspense>
+          ) : null}
+        </>
+      ) : (
+        <AssistantSelector
+          multi={false}
+          value={assistantId}
+          onChange={onAssistantChange}
+          autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
+          side={side}
+          align="start"
+          mountStrategy="lazy-keep"
+          trigger={assistantTrigger}
+        />
+      )}
       {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
         <SelectedModelsTrigger
           className={mentionedModelTriggerClassName}
@@ -304,7 +338,14 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
   renderBelowControls: () => (
     <ComposerBelowControls
       renderContextControls={({ side, iconOnly }) => (
-        <ChatComposerContextControls {...props} side={side} useMentionedModelSelector iconOnly={iconOnly} />
+        // Draft/home always picks the assistant via the switcher, regardless of view mode.
+        <ChatComposerContextControls
+          {...props}
+          side={side}
+          useMentionedModelSelector
+          iconOnly={iconOnly}
+          assistantTriggerMode="selector"
+        />
       )}
     />
   )
@@ -420,6 +461,8 @@ const ChatComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Old/传统 view has a left assistant rail, so the toolbar trigger edits the assistant instead of switching.
+  const [conversationView] = usePreference('chat.conversation_view')
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -909,6 +952,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
+    assistantTriggerMode: conversationView === 'old' ? 'edit' : 'selector',
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,

@@ -49,7 +49,8 @@ const mocks = vi.hoisted(() => ({
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
-  files: undefined as any[] | undefined
+  files: undefined as any[] | undefined,
+  conversationView: undefined as string | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -327,6 +328,16 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+  ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
+    <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close edit dialog
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/config/models', () => ({
   getThinkModelType: () => 'default',
   isEmbeddingModel: () => false,
@@ -355,7 +366,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter'
+      'chat.input.send_message_shortcut': 'Enter',
+      'chat.conversation_view': mocks.conversationView
     }
     return [values[key]]
   }
@@ -593,6 +605,7 @@ describe('ChatComposer', () => {
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
+    mocks.conversationView = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -900,6 +913,31 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('edits the active assistant from the toolbar trigger in old/传统 view instead of switching', async () => {
+    mocks.conversationView = 'old'
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // Old/传统 view has a left assistant rail, so the toolbar trigger edits rather than switches.
+    expect(screen.queryByTestId('assistant-selector')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Assistant 1').closest('button')!)
+
+    const dialog = await screen.findByTestId('resource-edit-dialog-host')
+    expect(dialog).toHaveAttribute('data-kind', 'assistant')
+    expect(dialog).toHaveAttribute('data-id', 'assistant-1')
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('keeps the assistant switcher in the toolbar in the efficiency (new) view', () => {
+    mocks.conversationView = 'new'
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {
