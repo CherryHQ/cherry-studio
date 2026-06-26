@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "Aktionen",
     "all": "Alle Dateien",
+    "audio": "Audio",
     "batch_delete": "Stapellöschung",
     "batch_operation": "Alle auswählen",
     "count": "Dateien",
@@ -2358,22 +2359,52 @@
       },
       "title": "Datei löschen"
     },
+    "delete_or_remove": "Löschen / entfernen",
     "document": "Dokument",
+    "drag_upload": "Dateien hierher ziehen zum Hochladen",
     "edit": "Bearbeiten",
+    "empty": {
+      "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
+      "no_match_title": "Keine passenden Dateien gefunden"
+    },
     "error": {
-      "open_path": "Pfad konnte nicht geöffnet werden: {{path}}"
+      "delete_failed": "Fehler beim Löschen der Dateien",
+      "delete_partial_failed": "Einige Dateien konnten nicht gelöscht werden",
+      "import_failed": "Fehler beim Importieren der Dateien",
+      "import_partial_failed": "Einige Dateien konnten nicht importiert werden",
+      "open_path": "Pfad konnte nicht geöffnet werden: {{path}}",
+      "rename_failed": "Fehler beim Umbenennen der Datei",
+      "restore_failed": "Fehler beim Wiederherstellen der Dateien",
+      "restore_partial_failed": "Einige Dateien konnten nicht wiederhergestellt werden."
     },
     "file": "Datei",
+    "footer_count": "{{count}} Dateien",
+    "footer_selected_count": "{{count}} ausgewählt",
     "image": "Bild",
+    "missing": "Fehlt",
+    "modified_at": "Geändert am",
     "name": "Dateiname",
     "open": "Öffnen",
+    "other": "Andere",
+    "permanent_delete": "Dauerhaft löschen",
+    "permanent_delete_confirm": {
+      "description": "Dies wird {{count}} Datei(en) dauerhaft entfernen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "title": "Dateien dauerhaft löschen?"
+    },
     "preview": {
       "error": "Datei konnte nicht geöffnet werden"
     },
+    "remove_from_library": "Aus der Bibliothek entfernen",
+    "rename": "Umbenennen",
+    "restore": "Wiederherstellen",
+    "selected_count": "{{count}} Dateien ausgewählt",
+    "show_in_folder": "Im Ordner anzeigen",
     "size": "Größe",
     "text": "Text",
     "title": "Dateien",
-    "type": "Typ"
+    "trash": "Müll",
+    "type": "Typ",
+    "video": "Video"
   },
   "globalSearch": {
     "clear": "Suche löschen",
@@ -2496,25 +2527,25 @@
         "title": "Ausgewählte Konversationen verschieben"
       },
       "empty": {
-        "description": "[to be translated]:No conversations for the current filters.",
-        "sessionsDescription": "[to be translated]:No tasks for the current filters.",
+        "description": "Keine Gespräche für die aktuellen Filter.",
+        "sessionsDescription": "Keine Aufgaben für die aktuellen Filter.",
         "sessionsTitle": "Keine Aufgaben",
-        "title": "[to be translated]:No conversations"
+        "title": "Keine Gespräche"
       },
       "loading": {
-        "description": "[to be translated]:Loading conversation list.",
-        "sessionsDescription": "[to be translated]:Loading task list.",
-        "sessionsTitle": "[to be translated]:Loading tasks",
-        "title": "[to be translated]:Loading conversations"
+        "description": "Unterhaltungsliste wird geladen.",
+        "sessionsDescription": "Aufgabenliste wird geladen.",
+        "sessionsTitle": "Aufgaben laden",
+        "title": "Konversationen werden geladen"
       },
       "resultCount": "{{count}} Ergebnisse",
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
       "sidebar": {
-        "searchAssistant": "[to be translated]:Search assistants...",
-        "status": "[to be translated]:Status",
-        "unknownAssistant": "[to be translated]:Unlinked assistant"
+        "searchAssistant": "Suchassistenten...",
+        "status": "Status",
+        "unknownAssistant": "Unverknüpfter Assistent"
       },
       "status": {
         "completed": "Abgeschlossen",
@@ -2767,8 +2798,8 @@
       "chunk_overlap_invalid": "Der Chunk-Überlapp muss größer oder gleich 0 sein",
       "chunk_overlap_must_be_smaller": "Der Chunk-Overlap muss kleiner als die Chunk-Größe sein.",
       "chunk_overlap_requires_chunk_size": "Chunk-Größe ist erforderlich, wenn Chunk-Überlappung festgelegt ist",
-      "chunk_separator": "[to be translated]:Separator",
-      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
+      "chunk_separator": "Trennzeichen",
+      "chunk_separator_required": "Trennzeichen ist erforderlich, wenn Smart-Chunking deaktiviert ist.",
       "chunk_size": "Chunk-Größe",
       "chunk_size_change_warning": "Änderungen an Chunk-Größe und Überlappung gelten nur für neu hinzugefügte Inhalte.",
       "chunk_size_invalid": "Die Chunk-Größe muss größer als 0 sein",
@@ -2781,7 +2812,7 @@
       "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
-        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
+        "chunk_separator": "Trennzeichen, an dem der Text aufgeteilt wird, in maskierter Form. Bei aktivierter intelligenter Segmentierung fügt es einen Trennpunkt hinzu; bei deaktivierter Segmentierung wird der Text nur an diesem Trennzeichen aufgeteilt.",
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
@@ -2789,7 +2820,7 @@
         "processor": "Parser, der beim Import von Dateien verwendet wird, um Fließtext, Tabellen und verwandte Inhalte zu extrahieren.",
         "rerank_model": "Modell zur Neusortierung der anfänglichen Abrufergebnisse und zur Verbesserung der Relevanz der endgültigen Blöcke.",
         "search_mode": "Wählen Sie einen Abrufmodus: Vektorsuche für semantisches Matching, Volltextsuche für Schlüsselwörter oder hybride Suche für beides.",
-        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
+        "smart_chunking": "Automatisch entlang der Markdown-Struktur (Überschriften, Codeblöcke, Absätze) aufteilen und niemals innerhalb eines Codeblocks aufteilen. Ausschalten, um rein nach dem Trennzeichen zu unterteilen.",
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger.",
         "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
       },
@@ -2809,7 +2840,7 @@
         "vector": "Vektorsuche"
       },
       "separator_rule": "Trennregel",
-      "smart_chunking": "[to be translated]:Smart Chunking",
+      "smart_chunking": "Intelligentes Chunking",
       "threshold": "Ähnlichkeitsschwelle",
       "tokens_unit": "Token"
     },
@@ -6738,7 +6769,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Zeige {{count}} weitere Modelle",
-        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
+        "model_in_use_by_knowledge_base": "Dieses Modell wird von einer Wissensbasis verwendet und kann nicht gelöscht werden.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Modellliste erneut abrufen",
         "reload_catalog": "Refresh list",
@@ -6873,14 +6904,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Noch keine benutzerdefinierten Tools. Fügen Sie eines hinzu, um loszulegen.",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Installieren",
       "installError": "Failed to install tool",
       "installing": "Installiere...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",

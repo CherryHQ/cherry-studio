@@ -1,8 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import type { Assistant } from '@renderer/types/assistant'
-import { getLeadingEmoji } from '@renderer/utils'
+import { getLeadingEmoji } from '@renderer/utils/naming'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 
@@ -15,7 +15,7 @@ interface AssistantAvatarProps {
 }
 
 const AssistantAvatar: FC<AssistantAvatarProps> = ({ assistant, size = 24, className }) => {
-  const { assistantIconType } = useSettings()
+  const [assistantIconType] = usePreference('assistant.icon_type')
   const { model } = useAssistant(assistant.id)
 
   const assistantName = useMemo(() => assistant.name || '', [assistant.name])

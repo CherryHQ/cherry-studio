@@ -15,7 +15,7 @@ vi.mock('@mozilla/readability', () => ({
     }))
   }))
 }))
-vi.mock('@reduxjs/toolkit', () => ({
+vi.mock('nanoid', () => ({
   nanoid: vi.fn(() => 'test-id')
 }))
 

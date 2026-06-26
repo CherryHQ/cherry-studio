@@ -1,119 +1,144 @@
-import { DeleteIcon } from '@renderer/components/Icons'
-import ImageViewer from '@renderer/components/ImageViewer'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { handleDelete } from '@renderer/services/FileAction'
-import FileManager from '@renderer/services/FileManager'
-import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
-import { formatFileSize } from '@renderer/utils'
-import { t } from 'i18next'
-import { CircleAlert } from 'lucide-react'
-import React, { memo, useCallback } from 'react'
+import { Button } from '@cherrystudio/ui'
+import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
+import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import FileItem from './FileItem'
+import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
+import type { FileItem } from './fileDisplay'
+import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
+import { InlineRename } from './InlineRename'
 
-interface FileItemProps {
-  id: FileType | 'all' | string
-  list: {
-    key: FileType | 'all' | string
-    file: React.ReactNode
-    files?: FileMetadata[]
-    count?: number
-    size: string
-    ext: string
-    created_at: string
-    actions: React.ReactNode
-  }[]
-  files?: FileMetadata[]
-}
+export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
+export type SortDir = 'asc' | 'desc'
 
-const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
-  const estimateSize = useCallback(() => 75, [])
-
-  if (id === FILE_TYPE.IMAGE && files?.length && files?.length > 0) {
-    const previewItems = files.map((file) => ({
-      alt: FileManager.formatFileName(file),
-      id: file.id,
-      src: FileManager.getFileUrl(file)
-    }))
-
-    return (
-      <div className="overflow-y-auto p-4">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4">
-          {files.map((file, index) => (
-            <div
-              className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-background-subtle"
-              key={file.id}>
-              <div className="absolute inset-0 flex items-center justify-center bg-background-subtle">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white/90" />
-              </div>
-              <ImageViewer
-                alt={FileManager.formatFileName(file)}
-                className="h-full w-full cursor-pointer object-cover opacity-0 transition-[opacity,transform] duration-300 [&.loaded]:opacity-100 group-hover:[&.loaded]:scale-105"
-                preview={{
-                  defaultActiveIndex: index,
-                  items: previewItems
-                }}
-                src={FileManager.getFileUrl(file)}
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement
-                  img.classList.add('loaded')
-                }}
-              />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/60 px-2 py-[5px] text-white text-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                <div className="truncate">{formatFileSize(file.size)}</div>
-              </div>
-              <button
-                className="absolute top-2 right-2 z-[1] flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity duration-300 hover:bg-red-600/80 group-hover:opacity-100"
-                title={t('files.delete.title')}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  window.modal.confirm({
-                    title: t('files.delete.title'),
-                    content: t('files.delete.content'),
-                    okText: t('common.confirm'),
-                    cancelText: t('common.cancel'),
-                    centered: true,
-                    onOk: () => {
-                      void handleDelete(file.id, t)
-                    },
-                    icon: <CircleAlert className="size-4 text-red-500" />
-                  })
-                }}>
-                <DeleteIcon size={14} className="lucide-custom" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
+function SortHeader({
+  label,
+  field,
+  sortKey,
+  sortDir,
+  onSort,
+  className: cn
+}: {
+  label: string
+  field: SortKey
+  sortKey: SortKey
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
+  className?: string
+}) {
+  const active = sortKey === field
+  const SortIcon = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
+  const iconClass = active ? 'shrink-0' : 'shrink-0 text-muted-foreground/30'
   return (
-    <DynamicVirtualList
-      list={list}
-      estimateSize={estimateSize}
-      overscan={2}
-      scrollerStyle={{
-        padding: '0 16px 16px 16px'
-      }}
-      itemContainerStyle={{
-        height: '75px',
-        paddingTop: '12px'
-      }}>
-      {(item) => (
-        <FileItem
-          key={item.key}
-          fileInfo={{
-            name: item.file,
-            ext: item.ext,
-            extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
-            actions: item.actions
-          }}
-        />
-      )}
-    </DynamicVirtualList>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => onSort(field)}
+      className={`inline-flex w-fit items-center justify-start gap-0.5 p-0 text-xs uppercase tracking-wider transition-colors ${
+        active ? 'text-muted-foreground' : 'text-muted-foreground/40 hover:text-foreground'
+      } ${cn || ''}`}>
+      <span>{label}</span>
+      <SortIcon size={9} className={iconClass} />
+    </Button>
   )
 }
 
-export default memo(FileList)
+export const FileList = memo(function FileList({
+  files,
+  selectedIds,
+  onSelect,
+  onContextMenuOpen,
+  onOpen,
+  isTrash,
+  menuActions,
+  sortKey,
+  sortDir,
+  onSort,
+  renamingId,
+  onRenameConfirm,
+  onRenameCancel
+}: {
+  files: FileItem[]
+  selectedIds: Set<string>
+  onSelect: (id: string, multi: boolean) => void
+  onContextMenuOpen: (id: string) => void
+  onOpen: (file: FileItem) => void
+  isTrash: boolean
+  menuActions: FileContextMenuActions
+  sortKey: SortKey
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
+  renamingId: string | null
+  onRenameConfirm: (id: string, name: string) => void
+  onRenameCancel: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex flex-col">
+      <div className="sticky top-0 z-10 flex items-center gap-2 border-border/30 border-b bg-background px-4 py-1.5">
+        <div className="min-w-0 flex-1">
+          <SortHeader label={t('files.name')} field="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+        </div>
+        <div className="w-[70px]">
+          <SortHeader label={t('files.size')} field="size" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+        </div>
+        <div className="w-[55px]">
+          <SortHeader label={t('files.type')} field="type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+        </div>
+        <div className="w-[110px]">
+          <SortHeader
+            label={t('files.modified_at')}
+            field="updatedAt"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={onSort}
+          />
+        </div>
+      </div>
+      {files.map((file) => {
+        const selected = selectedIds.has(file.id)
+        const Icon = typeIcons[file.type]
+        const isRenaming = renamingId === file.id
+        return (
+          <FileContextMenu key={file.id} file={file} isTrash={isTrash} onOpen={onContextMenuOpen} actions={menuActions}>
+            <div
+              onClick={(e) => {
+                if (!isRenaming) onSelect(file.id, e.metaKey || e.ctrlKey)
+              }}
+              onDoubleClick={() => {
+                if (!isRenaming && !file.isMissing) onOpen(file)
+              }}
+              className={`flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
+                selected ? 'bg-accent/50' : 'hover:bg-accent/50'
+              }`}>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Icon size={13} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
+                {isRenaming ? (
+                  <InlineRename
+                    value={file.name}
+                    onConfirm={(v) => onRenameConfirm(file.id, v)}
+                    onCancel={onRenameCancel}
+                    className="flex-1 px-2"
+                  />
+                ) : (
+                  <>
+                    <span className="truncate text-foreground text-sm">{file.name}</span>
+                    {file.isMissing && (
+                      <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive/70">
+                        {t('files.missing')}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+              <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
+              <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
+              <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
+            </div>
+          </FileContextMenu>
+        )
+      })}
+    </div>
+  )
+})

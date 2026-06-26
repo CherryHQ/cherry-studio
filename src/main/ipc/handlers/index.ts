@@ -1,8 +1,10 @@
 import type { IpcRequestSchemas } from '@shared/ipc/schemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
+import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
+import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { oauthHandlers } from './oauth'
@@ -20,8 +22,10 @@ import { windowHandlers } from './window'
  * exposure surface.
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
+  ...aiHandlers,
   ...appHandlers,
   ...binaryHandlers,
+  ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
   ...oauthHandlers,

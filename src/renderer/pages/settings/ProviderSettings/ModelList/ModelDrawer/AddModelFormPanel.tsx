@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { getDefaultGroupName } from '@renderer/utils'
+import { getDefaultGroupName } from '@renderer/utils/naming'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp } from 'lucide-react'

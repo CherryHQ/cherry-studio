@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "操作",
     "all": "すべてのファイル",
+    "audio": "オーディオ",
     "batch_delete": "一括削除",
     "batch_operation": "すべて選択",
     "count": "ファイル",
@@ -2358,22 +2359,52 @@
       },
       "title": "ファイルを削除"
     },
+    "delete_or_remove": "削除",
     "document": "ドキュメント",
+    "drag_upload": "ファイルをここにドラッグしてアップロード",
     "edit": "編集",
+    "empty": {
+      "no_match_description": "現在のフィルターに一致するファイルはありません",
+      "no_match_title": "一致するファイルが見つかりません"
+    },
     "error": {
-      "open_path": "パスを開けません: {{path}}"
+      "delete_failed": "ファイルの削除に失敗しました",
+      "delete_partial_failed": "一部のファイルを削除できませんでした",
+      "import_failed": "ファイルのインポートに失敗しました",
+      "import_partial_failed": "一部のファイルをインポートできませんでした。",
+      "open_path": "パスを開けません: {{path}}",
+      "rename_failed": "ファイルの名前変更に失敗しました",
+      "restore_failed": "ファイルの復元に失敗しました",
+      "restore_partial_failed": "一部のファイルを復元できませんでした。"
     },
     "file": "ファイル",
+    "footer_count": "{{count}} ファイル",
+    "footer_selected_count": "{{count}} 個選択済み",
     "image": "画像",
+    "missing": "欠落",
+    "modified_at": "更新日時",
     "name": "名前",
     "open": "開く",
+    "other": "その他",
+    "permanent_delete": "完全に削除",
+    "permanent_delete_confirm": {
+      "description": "これにより、{{count}}個のファイルが永久に削除されます。この操作は元に戻せません。",
+      "title": "ファイルを完全に削除しますか？"
+    },
     "preview": {
       "error": "ファイルを開くのに失敗しました"
     },
+    "remove_from_library": "ライブラリから削除",
+    "rename": "名前を変更",
+    "restore": "復元",
+    "selected_count": "{{count}}個のファイルが選択されています",
+    "show_in_folder": "フォルダーに表示",
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",
-    "type": "タイプ"
+    "trash": "ゴミ",
+    "type": "タイプ",
+    "video": "ビデオ"
   },
   "globalSearch": {
     "clear": "検索をクリア",
@@ -2767,8 +2798,8 @@
       "chunk_overlap_invalid": "チャンクオーバーラップは0以上でなければなりません",
       "chunk_overlap_must_be_smaller": "チャンクのオーバーラップはチャンクサイズより小さくする必要があります",
       "chunk_overlap_requires_chunk_size": "チャンクオーバーラップが設定されている場合、チャンクサイズの指定が必要です",
-      "chunk_separator": "[to be translated]:Separator",
-      "chunk_separator_required": "[to be translated]:Separator is required when smart chunking is off",
+      "chunk_separator": "セパレータ",
+      "chunk_separator_required": "スマートチャンキングが無効の場合、セパレータが必要です",
       "chunk_size": "チャンクサイズ",
       "chunk_size_change_warning": "チャンクサイズとオーバーラップの変更は、新しく追加されるコンテンツにのみ適用されます",
       "chunk_size_invalid": "チャンクサイズは0より大きくなければなりません",
@@ -2781,7 +2812,7 @@
       "file_processing_hint": "ファイルの処理はドキュメントのインポート時に自動的に実行されます。適切なプロバイダーを選択することで、ドキュメントの解析品質を向上させることができます。",
       "hints": {
         "chunk_overlap": "隣接するチャンク間でセマンティックな途切れを減らすために保持される重複トークンの数。",
-        "chunk_separator": "[to be translated]:Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
+        "chunk_separator": "テキストを分割するデリミタ（エスケープ済み）。スマートチャンキングが有効な場合は区切り点として機能し、無効な場合はこのデリミタのみでテキストが分割されます。",
         "chunk_size": "各ドキュメントチャンクのターゲットトークン数。これは検索の粒度とコンテキスト長に影響します。",
         "document_count": "各検索ごとに返されるドキュメントチャンクの最大数。値を大きくするとより多くのコンテンツをカバーできますが、より多くのコンテキストを使用します。",
         "embedding_model": "ナレッジベースのコンテンツをベクトルに変換するために使用されます。モデルを変更すると、通常は既存のコンテンツの再インデックスが必要になります。",
@@ -2789,7 +2820,7 @@
         "processor": "ファイルをインポートする際に本文、表、および関連コンテンツを抽出するために使用されるパーサー。",
         "rerank_model": "初期検索結果を再ランキングし、最終チャンクの関連性を向上させるために使用されるモデル。",
         "search_mode": "検索モードを選択してください：セマンティックマッチングにはベクトル検索、キーワードには全文検索、両方にはハイブリッド検索をお使いください。",
-        "smart_chunking": "[to be translated]:Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
+        "smart_chunking": "Markdownの構造（見出し、コードブロック、段落）に沿って自動的に分割し、コードブロックの内部では決して分割しません。オフにすると、セパレータに基づいてのみ分割されます。",
         "threshold": "低関連度チャンクをフィルタリングするための類似度閾値。値を高くすると検索がより厳格になります。",
         "threshold_disabled": "この検索モードは順序付けられた結果を返し、類似度の閾値は使用しません。"
       },
@@ -2809,7 +2840,7 @@
         "vector": "ベクトル検索"
       },
       "separator_rule": "セパレータルール",
-      "smart_chunking": "[to be translated]:Smart Chunking",
+      "smart_chunking": "スマートチャンキング",
       "threshold": "類似度閾値",
       "tokens_unit": "トークン"
     },
@@ -6738,7 +6769,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "さらに {{count}} 件のモデルを表示",
-        "model_in_use_by_knowledge_base": "[to be translated]:This model is used by a knowledge base and cannot be deleted.",
+        "model_in_use_by_knowledge_base": "このモデルはナレッジベースによって使用されており、削除できません。",
         "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
         "reload_catalog": "Refresh list",
@@ -6873,14 +6904,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
       "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "インストール",
       "installError": "Failed to install tool",
       "installing": "インストール中...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "無効なツール名またはキー",
       "notInstalled": "インストールされていません",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",

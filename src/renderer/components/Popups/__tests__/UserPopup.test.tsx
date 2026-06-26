@@ -107,8 +107,11 @@ vi.mock('@renderer/services/ImageStorage', () => ({
   }
 }))
 
-vi.mock('@renderer/utils', () => ({
-  fileToAvatarDataUrl: vi.fn(async () => 'data:image/png;base64,avatar'),
+vi.mock('@renderer/utils/image', () => ({
+  fileToAvatarDataUrl: vi.fn(async () => 'data:image/png;base64,avatar')
+}))
+
+vi.mock('@renderer/utils/naming', () => ({
   isEmoji: (value: string) => value === '🙂'
 }))
 

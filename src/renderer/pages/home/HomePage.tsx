@@ -8,10 +8,10 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
-import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
@@ -23,11 +23,12 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
-import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -278,7 +279,7 @@ const HomePage: FC = () => {
       const topic = await createTopic({
         ...(current.assistantId ? { assistantId: current.assistantId } : {})
       })
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
