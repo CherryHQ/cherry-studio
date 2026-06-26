@@ -280,6 +280,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
       if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
+      if (key === 'chat.topics.export.html') return 'Export as HTML'
       if (key === 'common.delete') return 'Delete'
       if (key === 'common.more') return 'More'
       if (key === 'common.open_in_new_tab') return 'Open in new tab'
@@ -539,6 +540,7 @@ describe('Topics', () => {
       'data.export.menus.obsidian': true,
       'data.export.menus.plain_text': true,
       'data.export.menus.siyuan': true,
+      'data.export.menus.html': true,
       'data.export.menus.yuque': true
     })
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
@@ -858,7 +860,7 @@ describe('Topics', () => {
       '',
       'Save to notes',
       'Save to knowledge base',
-      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
+      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to SiyuanExport as HTML',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
       'Delete'
