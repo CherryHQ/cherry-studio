@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { assertSafeForDefaultOpen } = await import('../openGuard')
+const { assertSafeForDefaultOpen, assertSafePathForDefaultOpen } = await import('../openGuard')
 const { open, showInFolder } = await import('../shell')
 
 describe('internal/system/shell', () => {
@@ -41,6 +41,15 @@ describe('internal/system/shell', () => {
 
     try {
       assertSafeForDefaultOpen(entry, physicalPath as FilePath)
+      throw new Error('expected unsafe default-open to be blocked')
+    } catch (error) {
+      expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
+    }
+  })
+
+  it('path default-open guard blocks dangerous fallback extension', () => {
+    try {
+      assertSafePathForDefaultOpen('/tmp/payload.cmd' as FilePath)
       throw new Error('expected unsafe default-open to be blocked')
     } catch (error) {
       expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })

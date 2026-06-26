@@ -20,10 +20,6 @@ const fileEntryIdsInputSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_IPC_MAX_BATCH_IDS)
 })
 
-const fileEntryIdInputSchema = z.strictObject({
-  id: FileEntryIdSchema
-})
-
 const batchGetMetadataInputSchema = z.strictObject({
   items: z.array(z.strictObject({ key: z.string().min(1), handle: FileHandleSchema })).max(FILE_IPC_MAX_BATCH_IDS)
 })
@@ -91,6 +87,6 @@ export const fileRequestSchemas = {
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
   }),
-  'file.open': defineRoute({ input: fileEntryIdInputSchema, output: z.void() }),
-  'file.show_in_folder': defineRoute({ input: fileEntryIdInputSchema, output: z.void() })
+  'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() })
 }
