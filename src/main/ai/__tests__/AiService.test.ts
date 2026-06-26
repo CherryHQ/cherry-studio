@@ -244,6 +244,44 @@ describe('AiService', () => {
     const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
     expect(callOptions).not.toHaveProperty('size')
   })
+
+  it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'silicon::Kwai-Kolors/Kolors',
+      prompt: 'a fox',
+      // numImages is native (→ imageParams.n); the rest form the silicon vendor body.
+      paramValues: {
+        numImages: 2,
+        seed: 42,
+        negativePrompt: 'low quality',
+        numInferenceSteps: 25,
+        guidanceScale: 4.5,
+        cfg: 7.5
+      }
+    })
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      'silicon',
+      {},
+      expect.objectContaining({
+        n: 2,
+        // Byte-identical to the old buildImageProviderOptions diffusion bag.
+        providerOptions: {
+          silicon: { negative_prompt: 'low quality', seed: 42, num_inference_steps: 25, guidance_scale: 4.5, cfg: 7.5 }
+        }
+      })
+    )
+  })
 })
 
 describe('AiService tool approval', () => {

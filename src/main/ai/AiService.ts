@@ -35,6 +35,8 @@ import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import { buildImageRequest } from './provider/custom/wire/buildImageRequest'
+import { WIRE_PROFILES } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
@@ -443,13 +445,20 @@ export class AiService extends BaseService {
     // vendor bag rides under `providerOptions[providerId]` exactly as the renderer
     // used to send it pre-collapse.
     const { structured, vendorBag } = splitParamValues(request.paramValues)
-    const providerOptions = Object.keys(vendorBag).length ? { [sdkConfig.providerId]: vendorBag } : undefined
 
-    // Map the canonical params onto each vendor's real image-API field names
-    // (negative_prompt / seed / imageConfig / …). AI SDK image models spread
-    // `providerOptions[<providerId>]` into the request body, so this is how
-    // negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
-    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, { ...structured, providerOptions })
+    // Vendor body (`providerOptions[providerId]`): the WireProfile engine when the
+    // provider has a profile (silicon today), else the legacy buildImageProviderOptions
+    // emitter. Both produce a byte-identical bag (see wire/buildImageRequest.test.ts).
+    // Native params (n/size/seed/aspectRatio) flow via `structured` into imageParams below.
+    let imageProviderOptions: ReturnType<typeof buildImageProviderOptions>
+    const wireProfile = WIRE_PROFILES[sdkConfig.providerId]
+    if (wireProfile) {
+      const body = buildImageRequest(request.paramValues, wireProfile)
+      imageProviderOptions = Object.keys(body).length ? { [sdkConfig.providerId]: body } : {}
+    } else {
+      const providerOptions = Object.keys(vendorBag).length ? { [sdkConfig.providerId]: vendorBag } : undefined
+      imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, { ...structured, providerOptions })
+    }
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
     // a restart (resumes the same remote task instead of re-submitting). Other
