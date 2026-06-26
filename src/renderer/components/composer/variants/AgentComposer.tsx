@@ -16,6 +16,7 @@ import { getComposerToolConfig } from '@renderer/components/composer/tools/regis
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
+import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { ModelSelector } from '@renderer/components/Selector'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -83,6 +84,11 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 
 const logger = loggerService.withContext('AgentComposer')
+const ResourceEditDialogHost = React.lazy(() =>
+  import('@renderer/components/resource/dialogs/ResourceEditDialogHost').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 
@@ -253,7 +259,7 @@ interface AgentComposerContextControlsProps {
   shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
-  hideAgentSelector?: boolean
+  agentTriggerMode?: 'selector' | 'edit'
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
 }
@@ -280,7 +286,7 @@ const AgentComposerContextControls = ({
   shouldAutoSelectCreatedAgent,
   side,
   iconOnly = false,
-  hideAgentSelector = false,
+  agentTriggerMode = 'selector',
   onAgentChange,
   onModelSelect
 }: AgentComposerContextControlsProps) => {
@@ -292,10 +298,55 @@ const AgentComposerContextControls = ({
   const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const modelChevronClassName = cn('text-muted-foreground', iconOnly && model && 'hidden')
   const [agentModelSelectorOpen, setAgentModelSelectorOpen] = useState(false)
+  const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+
+  const agentTrigger = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={triggerClassName}
+      disabled={agentChanging || (agentTriggerMode === 'edit' && !agent)}
+      onClick={
+        agentTriggerMode === 'edit' && agent
+          ? () => setAgentEditDialogTarget({ kind: 'agent', id: agent.id })
+          : undefined
+      }>
+      {agent ? (
+        <AgentLabel
+          agent={agent}
+          classNames={{
+            name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
+            avatar: 'h-4.5 w-4.5',
+            container: 'gap-1.5'
+          }}
+        />
+      ) : (
+        <>
+          {iconOnly ? <Bot size={16} aria-hidden /> : null}
+          <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
+        </>
+      )}
+      {agentTriggerMode === 'selector' ? <ChevronDown size={14} className={chevronClassName} /> : null}
+    </Button>
+  )
 
   return (
     <>
-      {!hideAgentSelector && (
+      {agentTriggerMode === 'edit' ? (
+        <>
+          {agentTrigger}
+          {agentEditDialogTarget ? (
+            <React.Suspense fallback={null}>
+              <ResourceEditDialogHost
+                target={agentEditDialogTarget}
+                onOpenChange={(open) => {
+                  if (!open) setAgentEditDialogTarget(null)
+                }}
+              />
+            </React.Suspense>
+          ) : null}
+        </>
+      ) : (
         <AgentSelector
           value={agent?.id ?? null}
           onChange={onAgentChange}
@@ -303,26 +354,7 @@ const AgentComposerContextControls = ({
           side={side}
           align="start"
           mountStrategy="lazy-keep"
-          trigger={
-            <Button variant="ghost" size="sm" className={triggerClassName} disabled={agentChanging}>
-              {agent ? (
-                <AgentLabel
-                  agent={agent}
-                  classNames={{
-                    name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
-                    avatar: 'h-4.5 w-4.5',
-                    container: 'gap-1.5'
-                  }}
-                />
-              ) : (
-                <>
-                  {iconOnly ? <Bot size={16} aria-hidden /> : null}
-                  <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
-                </>
-              )}
-              <ChevronDown size={14} className={chevronClassName} />
-            </Button>
-          }
+          trigger={agentTrigger}
         />
       )}
       {agent ? (
@@ -472,14 +504,13 @@ type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
-// Active agent sessions are bound to their agent, so the in-composer agent switcher is hidden here
-// (the model selector stays). Agent selection lives in the home/draft composers below.
+// Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
       renderContextControls={({ side, iconOnly }) => (
-        <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} hideAgentSelector />
+        <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
       )}
     />
   )

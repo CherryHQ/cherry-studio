@@ -355,6 +355,16 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+  ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
+    <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close edit dialog
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>,
   isSoulModeEnabled: () => false
@@ -1292,7 +1302,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
-  it('hides the agent selector in the active session toolbar while keeping the model selector', () => {
+  it('opens the active session agent edit dialog from the toolbar trigger while keeping the model selector', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1303,11 +1313,16 @@ describe('AgentComposer', () => {
       />
     )
 
-    // Active sessions are bound to their agent: no in-composer agent switcher.
+    // Active sessions are bound to their agent: the trigger edits, it does not switch.
     expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
     expect(screen.queryByText('select agent 2')).not.toBeInTheDocument()
-    // The model selector stays available in the active session toolbar.
+
+    fireEvent.click(screen.getByText('Agent').closest('button')!)
+
+    const dialog = await screen.findByTestId('resource-edit-dialog-host')
+    expect(dialog).toHaveAttribute('data-kind', 'agent')
+    expect(dialog).toHaveAttribute('data-id', 'agent-1')
+    expect(mocks.updateSession).not.toHaveBeenCalled()
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
   })
 
@@ -1362,11 +1377,13 @@ describe('AgentComposer', () => {
       />
     )
 
+    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
 
     await notifyComposerBottomToolbarWidth(420)
 
     await waitFor(() => {
+      expect(screen.getByText('Agent')).toHaveClass('sr-only')
       expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
     })
   })
@@ -1384,6 +1401,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420, 420)
 
+    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
   })
 

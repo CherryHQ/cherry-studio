@@ -13,7 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Loader2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type ConversationPickerItem = {
   id: string
@@ -31,14 +31,26 @@ export type ConversationPickerLabels = {
   loadingText: string
 }
 
+/** A fixed "create new" row pinned at the top of the list (e.g. "New assistant" / "New agent"). */
+export type ConversationPickerCreateAction = {
+  label: string
+  icon?: ReactNode
+  onSelect: () => void
+}
+
 type ConversationPickerDialogProps<T extends ConversationPickerItem> = {
   open: boolean
   onOpenChange: (open: boolean) => void
   items: readonly T[]
   labels: ConversationPickerLabels
   onSelect: (item: T) => void | Promise<void>
+  createAction?: ConversationPickerCreateAction
+  /** Rendered between the search box and the list — e.g. a source toggle. */
+  toolbar?: ReactNode
   /** Cap the number of rows shown before any search; the full list stays searchable. */
   previewLimit?: number
+  /** When set, the list renders this many rows at a time and grows by `pageSize` on scroll-to-bottom. */
+  pageSize?: number
   isLoading?: boolean
   showCloseButton?: boolean
 }
@@ -56,21 +68,44 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
   items,
   labels,
   onSelect,
+  createAction,
+  toolbar,
   previewLimit,
+  pageSize,
   isLoading = false,
   showCloseButton = true
 }: ConversationPickerDialogProps<T>) {
   const [query, setQuery] = useState('')
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [visibleCount, setVisibleCount] = useState(pageSize ?? 0)
 
   useEffect(() => {
     if (!open) setQuery('')
   }, [open])
 
+  const matchedItems = useMemo(() => items.filter((item) => itemMatchesQuery(item, query)), [items, query])
+
+  // Reset the paged window whenever the query or source list changes (e.g. switching tabs) or on reopen.
+  useEffect(() => {
+    if (pageSize) setVisibleCount(pageSize)
+  }, [pageSize, query, items, open])
+
   const visibleItems = useMemo(() => {
-    const matched = items.filter((item) => itemMatchesQuery(item, query))
-    if (query.trim() || !previewLimit || previewLimit <= 0) return matched
-    return matched.slice(0, previewLimit)
-  }, [items, previewLimit, query])
+    if (pageSize) return matchedItems.slice(0, visibleCount)
+    if (query.trim() || !previewLimit || previewLimit <= 0) return matchedItems
+    return matchedItems.slice(0, previewLimit)
+  }, [matchedItems, pageSize, previewLimit, query, visibleCount])
+
+  const hasMore = Boolean(pageSize) && visibleItems.length < matchedItems.length
+
+  const handleScroll = useCallback(() => {
+    if (!pageSize || !hasMore) return
+    const el = scrollRef.current
+    if (!el) return
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
+      setVisibleCount((count) => count + pageSize)
+    }
+  }, [hasMore, pageSize])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,17 +119,37 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
 
         <Command
           shouldFilter={false}
-          className="min-h-0 flex-1 bg-card [&_[data-slot=command-input-wrapper]>svg]:size-8 [&_[data-slot=command-input-wrapper]>svg]:rounded-full [&_[data-slot=command-input-wrapper]>svg]:bg-secondary [&_[data-slot=command-input-wrapper]>svg]:p-2 [&_[data-slot=command-input-wrapper]>svg]:text-foreground-muted [&_[data-slot=command-input-wrapper]>svg]:opacity-100 [&_[data-slot=command-input-wrapper]]:h-[38px] [&_[data-slot=command-input-wrapper]]:gap-2.5 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input]]:h-full [&_[data-slot=command-input]]:py-0 [&_[data-slot=command-input]]:text-foreground [&_[data-slot=command-input]]:text-sm">
-          <CommandInput
-            value={query}
-            onValueChange={setQuery}
-            placeholder={labels.searchPlaceholder}
-            className="placeholder:text-foreground-muted"
-          />
-          <Scrollbar className="min-h-0 flex-1 px-2.5 py-3">
+          className="min-h-0 flex-1 bg-card [&_[data-slot=command-input-wrapper]>svg]:size-8 [&_[data-slot=command-input-wrapper]>svg]:rounded-full [&_[data-slot=command-input-wrapper]>svg]:bg-secondary [&_[data-slot=command-input-wrapper]>svg]:p-2 [&_[data-slot=command-input-wrapper]>svg]:text-foreground-muted [&_[data-slot=command-input-wrapper]>svg]:opacity-100 [&_[data-slot=command-input-wrapper]]:h-[38px] [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=command-input-wrapper]]:gap-2.5 [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input]]:h-full [&_[data-slot=command-input]]:py-0 [&_[data-slot=command-input]]:text-foreground [&_[data-slot=command-input]]:text-sm">
+          <div className="flex items-center gap-2 border-border border-b pr-3">
+            <CommandInput
+              value={query}
+              onValueChange={setQuery}
+              placeholder={labels.searchPlaceholder}
+              className="placeholder:text-foreground-muted"
+            />
+            {toolbar ? <div className="flex shrink-0 items-center">{toolbar}</div> : null}
+          </div>
+          <Scrollbar ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 px-2.5 py-3">
             {/* Scrollbar is the scroll viewport; the cmdk list itself must not scroll so keyboard
                 navigation's scroll-into-view bubbles up to the styled Scrollbar instead. */}
             <CommandList className="max-h-none overflow-x-visible overflow-y-visible">
+              {/* Pinned at the top, but hidden while searching so the query's first match keeps the
+                  default keyboard highlight instead of this row. */}
+              {createAction && !query.trim() ? (
+                <CommandGroup className="px-0 py-0">
+                  <CommandItem
+                    value="__conversation_picker_create_new__"
+                    className="group h-[42px] gap-2.5 rounded-md px-3"
+                    onSelect={() => createAction.onSelect()}>
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
+                      {createAction.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
+                      {createAction.label}
+                    </span>
+                  </CommandItem>
+                </CommandGroup>
+              ) : null}
               {isLoading ? (
                 <div
                   role="status"

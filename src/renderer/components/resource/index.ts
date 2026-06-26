@@ -15,6 +15,7 @@ export {
   type AssistantSelectorSingleItemProps
 } from './AssistantSelector'
 export {
+  type ConversationPickerCreateAction,
   ConversationPickerDialog,
   type ConversationPickerItem,
   type ConversationPickerLabels
