@@ -250,7 +250,7 @@ flowchart LR
   F --> G[运行时 finalize 再校验 兜底]
 ```
 
-生成产物：`DB_TABLES`、`DB_COLUMNS_BY_TABLE`（camelCase property name；物理列由 `casing:'snake_case'` 转 snake_case）、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS`（含 uuid-v4/v7 判定与 ambiguous 标注）、`DB_FOREIGN_KEYS`（多列 FK + onDelete，供不变量 19/24/25 校验）、`DB_FTS_VIRTUAL_TABLES`（FTS5 虚表→content table，供 restore 后 FTS 重建）。手写 as DbTableName 不算认证路径，须走 helper。
+生成产物：`DB_TABLES`、`DB_COLUMNS_BY_TABLE`（camelCase property name；物理列由 `casing:'snake_case'` 转 snake_case）、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS`（含 uuid-v4/v7 判定与 ambiguous 标注）、`DB_FOREIGN_KEYS`（多列 FK + onDelete，供不变量 19/24/25 校验）、`DB_FTS_VIRTUAL_TABLES`（FTS5 虚表→content table；ftsTable 的 ALWAYS_STRIP 排除由不变量 #4、contentTable 的 owner 由不变量 #2 保证，供 restore 后 FTS 重建）。手写 as DbTableName 不算认证路径，须走 helper。
 
 | 四层保护 | 失败时机 |
 |---|---|
@@ -359,6 +359,7 @@ flowchart TB
 - 不变量 19 / 24 须 codegen 生成 `DB_FOREIGN_KEYS`（`getTableConfig()` 读 FK 信息）作数据源
 - 不变量 5 取决于 `job_schedule` 的 row-scope 覆盖
 - 不变量 14/15 派生自 owning references（§6.2 `AggregateBoundary` 派生公式）
+- DB_FTS_VIRTUAL_TABLES 由 #2/#4 覆盖（**无独立 FTS 不变量**）：contentTable（value，如 message）∈ DB_TABLES 由 #2 校验 owner、FTS 虚表（key，如 message_fts）∈ ALWAYS_STRIP 由 #4 校验排除——避免与 #2/#4 冗余的新增不变量
 
 ### 9. 恢复前快照与撤销恢复（恢复编排层）
 
@@ -380,12 +381,14 @@ flowchart TB
 
 本方案将 RestoreRecoveryPoint（整库 DB pre-snapshot + restore journal + 受影响文件快照）作为 in-scope 必交付项（现状 createSnapshot 已用 VACUUM INTO 建 pre-restore-snapshot，但仅创建不使用：失败仅 warn 继续、无回滚/撤销/journal/文件快照；本方案补齐持锁快照 + 回滚 + journal + 文件快照 + 失败阻塞）。**snapshot 创建失败 SHALL 阻塞恢复**（现状 warn 继续，属 breaking）。**合并语义下首要价值是「撤销成功恢复」**（用户回退），其次才是失败回滚。contributor 不负责整库快照与回滚。
 
+**Owner 切割**（recovery point 生命周期，详见 backup-restore-safety specs）：`barrier` + `createRecoveryPoint`/`commit`/`rollback` 归 `RestoreSafetyManager`（RESTORE BARRIER owner 须中立、不写 DB，防「既裁判又运动员」自指）；`RestoreRecoveryPointStore` + GC + `BackupV2_*` IPC（含 undo 编排）归 `BackupService`；`undoRestore` 是 `BackupService` 编排方法（查 store + 委托 `RestoreSafetyManager.rollback`）；on-boot crash recovery gate 独立在 `DbService.onInit`（BeforeReady）。
+
 > [!IMPORTANT]
 > 恢复写事务内 PRAGMA defer_foreign_keys=ON（非 foreign_keys=OFF——后者在事务内是 SQLite 文档明确的 no-op，且 DbService 每次 reconnect 重放 foreign_keys=ON）。`defer_foreign_keys` 仅延迟 FK 约束 *enforcement* 到 COMMIT（COMMIT 前 `foreign_key_check` 验证整图一致），**不**禁用 ON DELETE *actions*（CASCADE/SET NULL 仍立即触发）——故 importer 须遵守「OVERWRITE 行级整替换走 **upsert（`ON CONFLICT(identityKey) DO UPDATE`）**、不 DELETE parent 行；显式 cascade（DELETE_ROW）只删 **leaf/junction 行**（其下无 ON DELETE child action）」，避免与 SQLite ON DELETE 双触发。ReferenceKind 须忠实复刻 schema onDelete（cascade/restrict 转 owning/junction、set null/no action 转 optional、set default 拒绝），由 不变量 19 校验。（注：ON DELETE RESTRICT 不可被 defer_foreign_keys 推迟、永远立即报错，与 NO ACTION 不同；本架构 importer 只删 leaf/junction，RESTRICT 实践中不触发。）DB 写走 DbService.withWriteTx（fn 内仅 DB ops，文件恢复已在事务外）。
 >
 > **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门；**recoverOnBoot 作为 `DbService.onInit` 内 `migrateDb` 之前的 gate**（目标态：在 `DbService.ts:139` onInit 中插入 recovery gate，使顺序为 configurePragmas → **recovery gate** → migrateDb → seeders；当前 onInit 仅前三步无 gate）——journal 存在非终态条目时先跑补偿回滚（从 snapshot 恢复 live DB + 删 touched files）再放行 migrateDb，避免 migrateDb/seeders 碰半恢复 DB；回滚快照 schema 可能旧于 consumer，放行后 migrateDb 复用 step 0 migrate-forward 机制推进。
 >
-> **Upstream prerequisites（gating）**：依赖 DbService 新增 withExclusiveAccess/closeAllConnections/checkpointAndClose/reconnect + PreferenceService.reloadFromDb，须先合 upstream API PR 再合 backup 实现。
+> **Upstream prerequisites（gating）**：依赖 DbService 新增 withExclusiveAccess/closeAllConnections/checkpointAndClose/reconnect + PreferenceService.reloadFromDb + DataApiService.armMutationGate/disarmMutationGate + PreferenceService.armWriteGate/disarmWriteGate（RESTORE BARRIER 阻塞 renderer mutation 的 gate），须先合 upstream API PR 再合 backup 实现。
 >
 > **Preference cache 一致性**（M1）：`PreferenceService` 启动一次性 load DB 进内存 cache 后不再 re-read；故 PREFERENCES 域 `afterImport` 须触发 `PreferenceService.reloadFromDb()+rebroadcast` 使 main + 各 renderer cache 失效重载；整库回滚（live DB 已换）后同样触发（所有 cache 失效）。否则恢复/回滚的偏好对运行态静默不生效，直至重启。
 
