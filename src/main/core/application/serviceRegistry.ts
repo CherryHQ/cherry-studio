@@ -15,6 +15,7 @@ import { TraceStorageService } from '@main/ai/observability/storage/TraceStorage
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
+import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
@@ -25,6 +26,7 @@ import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -34,9 +36,8 @@ import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
-import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
-import { ProxyManager } from '@main/services/ProxyManager'
+import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
@@ -92,7 +93,7 @@ export const services = {
   FileManager,
   DirectoryTreeManager,
   FileProcessingService,
-  PowerMonitorService,
+  PowerService,
   SelectionService,
   SettingsWindowService,
   ShortcutService,
@@ -102,7 +103,7 @@ export const services = {
   ClaudeCodeTraceBridgeService,
   OvmsManager,
   ProtocolService,
-  ProxyManager,
+  ProxyService,
   StorageMonitorService,
   PythonService,
   TrayService,
@@ -114,6 +115,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  BinaryManager,
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,

@@ -37,11 +37,6 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-vi.mock('@renderer/store', () => ({
-  useAppDispatch: () => vi.fn(),
-  useAppSelector: () => false
-}))
-
 vi.mock('@renderer/utils/api', () => ({
   formatApiHost: vi.fn((host) => {
     if (!host) return ''

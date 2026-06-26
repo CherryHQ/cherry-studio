@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "app.power.prevent_sleep_when_busy",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
@@ -43,14 +50,14 @@
     {
       "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
-      "defaultValue": null,
+      "defaultValue": "exa-mcp",
       "status": "classified",
       "description": "Default Web Search provider for keyword search capability"
     },
     {
       "targetKey": "chat.web_search.default_fetch_urls_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
-      "defaultValue": null,
+      "defaultValue": "jina",
       "status": "classified",
       "description": "Default Web Search provider for URL fetch capability"
     },
@@ -203,6 +210,13 @@
       "defaultValue": "zh-cn",
       "status": "classified",
       "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.binary.tools",
+      "type": "PreferenceTypes.ManagedBinary[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
+      "status": "classified",
+      "description": "List of tools to install via BinaryManager"
     },
     {
       "targetKey": "shortcut.app.fullscreen.exit",

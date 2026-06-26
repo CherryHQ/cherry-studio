@@ -1,6 +1,6 @@
 import '@xyflow/react/dist/style.css'
 
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import {
   Controls,
   MiniMap,

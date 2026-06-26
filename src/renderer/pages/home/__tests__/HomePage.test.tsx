@@ -1,6 +1,5 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
-import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -73,6 +72,15 @@ const homeMocks = vi.hoisted(() => ({
   setShowSidebar: vi.fn(),
   isActiveTab: false,
   streamOpen: vi.fn()
+}))
+
+// The send path calls ipcApi.request('ai.stream_open', …); route it to homeMocks.streamOpen.
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.stream_open' ? homeMocks.streamOpen(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -155,7 +163,7 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
+vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   ChatPlacementComposer: ({
     assistantId,
     isHome,
@@ -247,15 +255,16 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       passive?: boolean
     }) => {
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(options.initialTopic)
+      const commitActiveTopicId = options.setActiveTopicId
       const setActiveTopicId = React.useCallback(
         (id: string | null) => {
           if (id === null) {
             homeMocks.activeTopicOverride = undefined
             setActiveTopic(undefined)
           }
-          options.setActiveTopicId(id)
+          commitActiveTopicId(id)
         },
-        [options.setActiveTopicId]
+        [commitActiveTopicId]
       )
       const setActiveTopicValue = React.useCallback((topic: Topic) => {
         homeMocks.activeTopicOverride = topic
@@ -370,9 +379,22 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ revealRequest }: any) => (
-    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs" />
+  default: ({ onOpenHistoryRecords, revealRequest }: any) => (
+    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+      <button type="button" onClick={() => onOpenHistoryRecords?.()}>
+        Open history records
+      </button>
+    </div>
   )
+}))
+
+vi.mock('../../history/HistoryRecordsPage', () => ({
+  default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
+    open ? (
+      <button type="button" onClick={() => onRecordSelect?.(null)}>
+        Clear history selection
+      </button>
+    ) : null
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -390,6 +412,7 @@ vi.mock('@renderer/services/EventService', () => ({
 
 import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { Topic } from '@renderer/types/topic'
 
 import HomePage from '../HomePage'
 
@@ -424,9 +447,6 @@ describe('HomePage', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ai: {
-          streamOpen: homeMocks.streamOpen
-        },
         window: {
           resetMinimumSize: vi.fn().mockResolvedValue(undefined),
           setMinimumSize: vi.fn().mockResolvedValue(undefined)
@@ -473,6 +493,18 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('starts a draft assistant selection when history clears the selected topic', async () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear history selection' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-default')
+    })
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {

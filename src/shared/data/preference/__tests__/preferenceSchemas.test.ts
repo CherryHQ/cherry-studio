@@ -15,11 +15,17 @@ describe('DefaultPreferences', () => {
     expect('feature.file_processing.default.image_to_text' in DefaultPreferences.default).toBe(false)
   })
 
-  it('requires users to choose URL fetch web search provider by default', () => {
-    const fetchUrlsDefault: PreferenceSchemas['default']['chat.web_search.default_fetch_urls_provider'] = null
+  it('defaults the URL fetch web search provider to jina', () => {
+    const fetchUrlsDefault: PreferenceSchemas['default']['chat.web_search.default_fetch_urls_provider'] = 'jina'
 
-    expect(fetchUrlsDefault).toBeNull()
-    expect(DefaultPreferences.default['chat.web_search.default_fetch_urls_provider']).toBeNull()
+    expect(DefaultPreferences.default['chat.web_search.default_fetch_urls_provider']).toBe(fetchUrlsDefault)
+  })
+
+  it('defaults the keyword search web search provider to exa-mcp', () => {
+    const searchKeywordsDefault: PreferenceSchemas['default']['chat.web_search.default_search_keywords_provider'] =
+      'exa-mcp'
+
+    expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
   })
 
   it('groups agent sessions by agent for new users', () => {

@@ -11,7 +11,6 @@ import {
   SIDEBAR_ICON_ORDER
 } from '@renderer/config/sidebar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import type { SidebarFavorite, SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
@@ -70,7 +69,7 @@ function getSidebarFavoritesWithPinnedState({
 export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { defaultPaintingProvider } = useSettings()
+  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
   const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
 

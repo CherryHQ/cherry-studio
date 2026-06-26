@@ -1,3 +1,5 @@
+import { dataApiService } from '@data/DataApiService'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +13,7 @@ vi.mock('@renderer/services/EventService', () => ({
 
 describe('useTopicMutations', () => {
   beforeEach(() => {
+    MockDataApiUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
   })
@@ -33,5 +36,29 @@ describe('useTopicMutations', () => {
     const { result } = renderHook(() => useTopicMutations())
 
     expect(result.current.isDeleting).toBe(true)
+  })
+
+  it('batch updates topics and returns per-topic settled results', async () => {
+    const failed = new Error('move failed')
+    vi.mocked(dataApiService.patch)
+      .mockResolvedValueOnce({ id: 'topic-a' } as never)
+      .mockRejectedValueOnce(failed)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const settled = await act(async () =>
+      result.current.batchUpdateTopics([
+        { id: 'topic-a', dto: { assistantId: 'assistant-next' } },
+        { id: 'topic-b', dto: { assistantId: 'assistant-next' } }
+      ])
+    )
+
+    expect(dataApiService.patch).toHaveBeenNthCalledWith(1, '/topics/topic-a', {
+      body: { assistantId: 'assistant-next' }
+    })
+    expect(dataApiService.patch).toHaveBeenNthCalledWith(2, '/topics/topic-b', {
+      body: { assistantId: 'assistant-next' }
+    })
+    expect(settled[0]?.status).toBe('fulfilled')
+    expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
   })
 })

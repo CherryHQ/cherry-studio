@@ -140,9 +140,12 @@ export function ImagePreviewDialog({
             showNext()
           }
         }}
-        overlayClassName={cn('bg-background/70 backdrop-blur-xl dark:bg-background/65', overlayClassName)}
         onPointerDownOutside={close}
         showCloseButton={false}>
+        <div
+          aria-hidden="true"
+          className={cn('pointer-events-none fixed inset-0 z-0 bg-background/80 dark:bg-black/70', overlayClassName)}
+        />
         <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>
         <div
           className={cn(

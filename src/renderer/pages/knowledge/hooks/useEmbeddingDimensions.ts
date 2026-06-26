@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { useCallback, useState } from 'react'
 
@@ -22,7 +23,7 @@ const getEmbeddingDimensions = (embeddings: number[][]): number => {
 const fetchEmbeddingDimensions = async (uniqueModelId: string): Promise<number> => {
   try {
     const parsedModelId = UniqueModelIdSchema.parse(uniqueModelId)
-    const { embeddings } = await window.api.ai.embedMany({
+    const { embeddings } = await ipcApi.request('ai.embed_many', {
       uniqueModelId: parsedModelId,
       values: [EMBEDDING_DIMENSION_PROBE_TEXT]
     })

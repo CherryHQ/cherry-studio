@@ -18,6 +18,22 @@ vi.mock('../../TopView', () => ({
   }
 }))
 
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPanel', async () => {
+  const React = await vi.importActual<typeof ReactModule>('react')
+
+  return {
+    GlobalSearchPanel: () => {
+      const inputRef = React.useRef<HTMLInputElement>(null)
+
+      React.useEffect(() => {
+        inputRef.current?.focus()
+      }, [])
+
+      return <input ref={inputRef} aria-label="Search input" />
+    }
+  }
+})
+
 vi.mock('@cherrystudio/ui', async () => {
   const React = await vi.importActual<typeof ReactModule>('react')
   const DialogContext = React.createContext<{ onOpenChange?: (open: boolean) => void } | null>(null)
@@ -47,7 +63,8 @@ vi.mock('@cherrystudio/ui', async () => {
             {...overlayProps}
             onClick={(event) => {
               overlayProps?.onClick?.(event)
-              if (closeOnOverlayClick !== false) {
+              // Match the real DialogContent: the overlay only closes when closeOnOverlayClick is set.
+              if (closeOnOverlayClick) {
                 context?.onOpenChange?.(false)
               }
             }}
@@ -75,18 +92,29 @@ afterEach(() => {
 })
 
 describe('SearchPopup', () => {
+  it('allows the search panel to autofocus the search input when opened', async () => {
+    mocks.show.mockImplementation((element: ReactElement) => {
+      render(element)
+    })
+
+    void SearchPopup.show()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Search input')).toHaveFocus()
+    })
+  })
+
   it('closes when the blank overlay area is clicked', async () => {
     mocks.show.mockImplementation((element: ReactElement) => {
       render(element)
     })
 
     void SearchPopup.show()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Search input')).not.toBeInTheDocument()
     })
   })
 })

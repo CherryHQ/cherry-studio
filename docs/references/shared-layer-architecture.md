@@ -10,11 +10,15 @@ Everything in `@shared` must satisfy **both**, or it does not belong here.
 
 ### 1.1 Cross-process
 
-A module belongs in `@shared` only if **both** `main` and `renderer` actually use it — types included, no exceptions.
+A module belongs in `@shared` only if **both** `main` and `renderer` actually use it — types included, with one deliberate carve-out: the Cache schema registry (§1.1.1).
 
 - **Why**: `@shared` is the single source of truth shared across the process boundary; single-process code already has a process to live in.
 - Reachable from only one process → it lives in that process's own layer (`src/main/*` or `src/renderer/{utils,hooks,services}`).
 - **No speculative placement.** If something only *might* become cross-process, write it in `main`/`renderer` first and move it here once it actually crosses. Do not park it in `@shared` for a possibility — the common failure is a type or util added "in case", then never used cross-process and left as cruft.
+
+#### 1.1.1 Carve-out: the Cache schema registry
+
+The Cache subsystem is the one exception to §1.1. Every Cache **key schema and its value type** lives in `@shared/data/cache/` (`cacheSchemas.ts` + `cacheValueTypes.ts`) **regardless of which process consumes it** — including renderer-only types (`Tab`, `ChatScrollAnchor`, `AgentOpenExternalAppTarget`, …). A renderer-only cache value type here is **compliant, not a §1.1 violation** — do not flag or relocate it. Cache subsystem only; §1.1 holds everywhere else.
 
 ### 1.2 No mutable runtime state
 
@@ -80,14 +84,14 @@ A stateful class's **definition** is pure code, so it rides in its topic module 
 
 Two gates, in order, then categorize:
 
-1. **Cross-process?** Reached by both processes — no → it goes to a process layer (`src/main/*` or `src/renderer/*`).
+1. **Cross-process?** Reached by both processes — no → it goes to a process layer (`src/main/*` or `src/renderer/*`). *(Carve-out: a Cache key's schema entry + value type stay in `@shared/data/cache/` even when single-process — §1.1.1.)*
 2. **Stateless / immutable?** No exported instance, no mutable state — no → only the blueprint and static data stay; the **instance** goes per-process.
 3. **Categorize**: core domain (`ai`) / infra (`data`, `ipc`) / shape (`types`, `utils`). Not one of the first two → decompose by shape into `types` / `utils`; **never** open a new top-level dir.
 
 ## 5. Anti-Patterns
 
 - **Exported instance singleton** — `export const x = new XService()`, or any registry / manager / service instance. Violates Invariant 1.2.
-- **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Former epicenter: the now-dissolved `config/constant.ts` — §6.)*
+- **Single-process code in `@shared`** — main-only or renderer-only logic placed here for convenience. Violates Invariant 1.1. *(Former epicenter: the now-dissolved `config/constant.ts` — §6. The Cache schema registry is the one sanctioned exception — §1.1.1.)*
 - **Junk-drawer file or dir** — a `config/` bucket or a `constant.ts` accumulating unrelated globals across domains and processes. Decompose by domain + process; do not relocate as a blob.
 - **A new top-level dir per capability** — every capability decomposes by shape; the top level is closed (§2).
 - **A stateful "service" in `@shared`** — state has no coherent shared owner; it belongs to `main` or `renderer`.

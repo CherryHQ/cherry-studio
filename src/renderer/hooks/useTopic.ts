@@ -24,8 +24,8 @@ import {
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic as RendererTopic } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { ErrorCode } from '@shared/data/api/apiErrors'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
@@ -335,9 +335,12 @@ export function useTopicMutations() {
   )
 
   const batchUpdateTopics = useCallback(
-    async (topics: Array<{ id: string; dto: UpdateTopicDto }>): Promise<void> => {
-      await Promise.allSettled(topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto })))
+    async (topics: Array<{ id: string; dto: UpdateTopicDto }>) => {
+      const results = await Promise.allSettled(
+        topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto }))
+      )
       await refreshTopics()
+      return results
     },
     [refreshTopics]
   )

@@ -1,5 +1,5 @@
 import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
-import type { InstalledSkill } from '@types'
+import type { InstalledSkill } from '@shared/types/skill'
 import type { TFunction } from 'i18next'
 import { Clock, Zap } from 'lucide-react'
 import type { FC } from 'react'

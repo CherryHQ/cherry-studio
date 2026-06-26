@@ -1,4 +1,4 @@
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { chooseTool } from './chooseTool'
 

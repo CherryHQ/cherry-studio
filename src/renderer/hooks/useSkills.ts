@@ -1,7 +1,7 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { searchSkills } from '@renderer/services/SkillSearchService'
-import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@types'
+import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useSkills')

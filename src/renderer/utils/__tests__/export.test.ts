@@ -117,8 +117,7 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 })
 
 // Import the functions to test AFTER setting up mocks
-import type { Topic } from '@renderer/types'
-import { TopicType } from '@renderer/types'
+import { type Topic, TopicType } from '@renderer/types/topic'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import { copyMessageAsPlainText } from '../copy'
@@ -243,15 +242,6 @@ beforeEach(() => {
   vi.mock('i18next', () => ({
     default: {
       t: vi.fn((key) => key)
-    }
-  }))
-
-  // Mock store - primarily for settings
-  vi.doMock('@renderer/store', () => ({
-    default: {
-      getState: () => ({
-        settings: { forceDollarMathInMarkdown: false }
-      })
     }
   }))
 
@@ -714,14 +704,6 @@ describe('export', () => {
   describe('topicToPlainText', () => {
     beforeEach(() => {
       vi.clearAllMocks() // Clear mocks before each test in this suite
-      // Mock store for settings if not already done globally or if specific settings are needed
-      vi.doMock('@renderer/store', () => ({
-        default: {
-          getState: () => ({
-            settings: { forceDollarMathInMarkdown: false } // Default or specific settings
-          })
-        }
-      }))
     })
 
     it('should handle empty content in topic messages', async () => {

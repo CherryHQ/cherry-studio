@@ -8,10 +8,14 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
-import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
+import {
+  createRecentTopicEntryFromTopic,
+  upsertGlobalSearchRecentEntry
+} from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -19,10 +23,12 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { FileMetadata, Topic } from '@renderer/types'
-import { cn } from '@renderer/utils'
+import type { FileMetadata } from '@renderer/types/file'
+import type { Topic } from '@renderer/types/topic'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -31,6 +37,7 @@ import type { FC, HTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
 import ChatNavbar from './components/ChatNavbar'
 import { parseChatRouteSearch } from './routeSearch'
@@ -67,8 +74,11 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -245,6 +255,20 @@ const HomePage: FC = () => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
   }, [activeTopic])
 
+  useEffect(() => {
+    if (isMessageOnlyView) return
+    if (!activeTopic) return
+    const signature = `${activeTopic.id}:${activeTopic.name}`
+    if (lastRecordedRecentTopicRef.current === signature) return
+
+    const currentRecentItems = recentItems ?? []
+    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
+    lastRecordedRecentTopicRef.current = signature
+    if (nextItems !== currentRecentItems) {
+      setRecentItems(nextItems)
+    }
+  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems])
+
   const sendDraftMessage = useCallback(
     async (text: string, options?: DraftChatSendOptions) => {
       const current = draftAssistantSelectionRef.current
@@ -255,7 +279,7 @@ const HomePage: FC = () => {
       const topic = await createTopic({
         ...(current.assistantId ? { assistantId: current.assistantId } : {})
       })
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
@@ -390,6 +414,24 @@ const HomePage: FC = () => {
     },
     [setActiveTopicAndDiscardDraft, setResourceListOpen]
   )
+  const closeHistoryRecords = useCallback(() => {
+    setHistoryRecordsOpen(false)
+  }, [])
+  const openHistoryRecords = useCallback(() => {
+    setHistoryRecordsOpen(true)
+  }, [])
+  const handleHistoryRecordsTopicSelect = useCallback(
+    (topic: Topic | null) => {
+      closeHistoryRecords()
+      if (!topic) {
+        startDraftAssistantSelection()
+        return
+      }
+
+      handleHistoryTopicSelect(topic)
+    },
+    [closeHistoryRecords, handleHistoryTopicSelect, startDraftAssistantSelection]
+  )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
   })
@@ -440,7 +482,17 @@ const HomePage: FC = () => {
       activeTopic={visibleTopic}
       setActiveTopic={setActiveTopicAndDiscardDraft}
       onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+      onOpenHistoryRecords={openHistoryRecords}
       revealRequest={topicRevealRequest}
+    />
+  )
+  const historyRecordsOverlay = (
+    <HistoryRecordsPage
+      mode="assistant"
+      open={historyRecordsOpen && !isMessageOnlyView && !isWindowFrame}
+      activeRecordId={activeTopicId}
+      onClose={closeHistoryRecords}
+      onRecordSelect={handleHistoryRecordsTopicSelect}
     />
   )
 
@@ -464,6 +516,7 @@ const HomePage: FC = () => {
             welcomeText={t('chat.home.welcome_title')}
           />
         </ContentContainer>
+        {historyRecordsOverlay}
       </Container>
     )
   }
@@ -488,6 +541,7 @@ const HomePage: FC = () => {
           onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
+      {historyRecordsOverlay}
     </Container>
   )
 }

@@ -14,7 +14,6 @@ import {
 } from '@renderer/config/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -42,7 +41,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
-  const { defaultPaintingProvider } = useSettings()
+  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
   // intermediate 50-120px range uses a local preview width so the UI can
