@@ -3,9 +3,7 @@ import { type CliProviderConfig, type CliProviderConfigMap, codeCLI } from '@sha
 import { writeClaudeCodeConfig } from './claudeCodeConfig'
 import { writeCodexConfig } from './codexConfig'
 import { writeHermesConfig } from './hermesConfig'
-import { writeOpenClawConfig } from './openclawConfig'
 import { writeOpenCodeConfig } from './openCodeConfig'
-// @legacy — removed in v2: writeGeminiConfig, writeKimiConfig, writeQwenConfig
 
 type CliConfigWriters = {
   [K in keyof CliProviderConfigMap]: (config: CliProviderConfigMap[K]) => Promise<void>
@@ -13,12 +11,12 @@ type CliConfigWriters = {
 
 /**
  * Writers for the CLIs that persist their provider selection to a native config file.
+ * OpenClaw is gateway-mode: its config is owned by OpenClawService, not this writer map.
  */
 const CLI_CONFIG_WRITERS: CliConfigWriters = {
   [codeCLI.claudeCode]: writeClaudeCodeConfig,
   [codeCLI.openaiCodex]: writeCodexConfig,
   [codeCLI.openCode]: writeOpenCodeConfig,
-  [codeCLI.openclaw]: writeOpenClawConfig,
   [codeCLI.hermes]: writeHermesConfig
 }
 

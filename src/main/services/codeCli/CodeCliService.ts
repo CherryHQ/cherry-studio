@@ -125,7 +125,6 @@ export class CodeCliService extends BaseService {
 
   // npm package name used only for version registry lookups (not installation)
   private async getPackageName(cliTool: string) {
-    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return '@anthropic-ai/claude-code'
@@ -143,7 +142,6 @@ export class CodeCliService extends BaseService {
   }
 
   private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
-    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return { name: 'claude', tool: 'claude' }
@@ -161,7 +159,6 @@ export class CodeCliService extends BaseService {
   }
 
   public async getCliExecutableName(cliTool: string) {
-    // @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return 'claude'
@@ -739,8 +736,6 @@ export class CodeCliService extends BaseService {
 
     const executablePath = await getBinaryPath(executableName)
     let baseCommand = `"${executablePath}"`
-
-    // @legacy — qwen-code --auth-type openai handling removed in v2
 
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.
