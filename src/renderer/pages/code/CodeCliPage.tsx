@@ -3,6 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
+import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -17,13 +18,12 @@ import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } f
 import type { TerminalConfig } from '@shared/types/codeCli'
 import { codeCLI } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isAnthropicProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, isOpenCodeProvider, OPENAI_CODEX_SUPPORTED_PROVIDERS } from '.'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS } from '.'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
 import { ConfigCard } from './components/ConfigCard'
 import { ConfigEditPanel } from './components/ConfigEditPanel'
@@ -123,55 +123,13 @@ const CodeCliPage: FC = () => {
         return false
       }
 
-      const provider = providerMap.get(m.providerId)
-      if (!provider) {
-        return false
-      }
-
-      const eps = m.endpointTypes ?? []
-      const id = m.apiModelId ?? parseUniqueModelId(m.id as UniqueModelId).modelId
-
-      if (selectedCliTool === CodeCli.CLAUDE_CODE) {
-        if (eps.length) {
-          return eps.includes('anthropic-messages')
-        }
-        if (isAnthropicProvider(provider)) {
-          return true
-        }
-        return id.includes('claude')
-      }
-
-      if (selectedCliTool === CodeCli.OPENAI_CODEX) {
-        if (eps.length) {
-          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
-        }
-        if (isOpenAIProvider(provider)) {
-          return true
-        }
-        return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
-      }
-
-      if (selectedCliTool === codeCLI.openCode || selectedCliTool === codeCLI.openclaw) {
-        if (eps.length) {
-          return (
-            eps.includes('openai-chat-completions') ||
-            eps.includes('openai-responses') ||
-            eps.includes('anthropic-messages')
-          )
-        }
-        return isOpenCodeProvider(provider)
-      }
-
-      if (selectedCliTool === codeCLI.hermes) {
-        if (eps.length) {
-          return eps.includes('openai-chat-completions') || eps.includes('anthropic-messages')
-        }
-        return isOpenAICompatibleProvider(provider) || isOpenAIProvider(provider) || isAnthropicProvider(provider)
-      }
-
-      return true
+      // Compatibility is decided at the provider level (CLI_TOOL_PROVIDER_MAP →
+      // allowedProviderIds); here we only keep chat-capable models. Endpoint-type
+      // narrowing was dropped because it hid relayed models that speak the target
+      // API via the gateway even when their catalog endpointTypes don't list it.
+      return providerMap.has(m.providerId)
     },
-    [selectedCliTool, providerMap]
+    [providerMap]
   )
 
   const availableProviders = useMemo(() => {
@@ -190,18 +148,20 @@ const CodeCliPage: FC = () => {
   )
 
   // Resolve display names for each config (provider/model)
+  const { models: allModels } = useModels({ enabled: true })
+  const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
   const resolveConfigMeta = useCallback(
     (config: CliNamedConfig) => {
       if (!isUniqueModelId(config.modelId)) return { providerName: undefined, modelName: undefined }
       const { providerId, modelId: rawId } = parseUniqueModelId(config.modelId)
       const provider = providerMap.get(providerId)
-      const model = provider?.models?.find((m) => m.id === rawId)
+      const model = modelById.get(config.modelId)
       return {
         providerName: provider ? getProviderDisplayName(provider) : providerId,
         modelName: model?.name || rawId
       }
     },
-    [providerMap]
+    [providerMap, modelById]
   )
 
   const checkBunInstallation = useCallback(async () => {
