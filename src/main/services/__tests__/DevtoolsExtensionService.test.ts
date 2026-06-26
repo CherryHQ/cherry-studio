@@ -1,7 +1,7 @@
+import { getConditions } from '@main/core/lifecycle'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { platformState, applicationMock, loggerMock, loadExtensionMock, installExtensionMock } = vi.hoisted(() => {
-  const platformState = { isDev: false }
+const { applicationMock, loggerMock, loadExtensionMock, installExtensionMock } = vi.hoisted(() => {
   const applicationMock = {
     getPath: vi.fn((key: string) => `/mock/${key}`)
   }
@@ -11,14 +11,8 @@ const { platformState, applicationMock, loggerMock, loadExtensionMock, installEx
   }
   const loadExtensionMock = vi.fn()
   const installExtensionMock = vi.fn()
-  return { platformState, applicationMock, loggerMock, loadExtensionMock, installExtensionMock }
+  return { applicationMock, loggerMock, loadExtensionMock, installExtensionMock }
 })
-
-vi.mock('@main/core/platform', () => ({
-  get isDev() {
-    return platformState.isDev
-  }
-}))
 
 vi.mock('@application', () => ({
   application: applicationMock
@@ -53,22 +47,28 @@ describe('DevtoolsExtensionService', () => {
   })
 
   beforeEach(() => {
-    platformState.isDev = false
     vi.clearAllMocks()
     installExtensionMock.mockResolvedValue('React Developer Tools')
     loadExtensionMock.mockResolvedValue({ name: 'DataApi DevTools' })
   })
 
-  it('does not install extensions outside development mode', async () => {
-    await (service as any).onReady()
+  it('is conditional on development mode', () => {
+    const conditions = getConditions(DevtoolsExtensionService)
 
-    expect(installExtensionMock).not.toHaveBeenCalled()
-    expect(loadExtensionMock).not.toHaveBeenCalled()
+    expect(conditions).toHaveLength(1)
+    expect(conditions?.[0].description).toBe('requires env NODE_ENV=development')
+    expect(conditions?.[0].matches({ platform: 'darwin', arch: 'arm64', cpuModel: 'Apple M', env: {} })).toBe(false)
+    expect(
+      conditions?.[0].matches({
+        platform: 'darwin',
+        arch: 'arm64',
+        cpuModel: 'Apple M',
+        env: { NODE_ENV: 'development' }
+      })
+    ).toBe(true)
   })
 
-  it('installs React and DataApi devtools in development mode', async () => {
-    platformState.isDev = true
-
+  it('installs React and DataApi devtools', async () => {
     await (service as any).onReady()
 
     expect(installExtensionMock).toHaveBeenCalledWith('react-devtools')
@@ -78,7 +78,6 @@ describe('DevtoolsExtensionService', () => {
   })
 
   it('logs install failures without throwing', async () => {
-    platformState.isDev = true
     const reactError = new Error('react failed')
     const dataApiError = new Error('data api failed')
     installExtensionMock.mockRejectedValue(reactError)
