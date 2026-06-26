@@ -253,6 +253,7 @@ interface AgentComposerContextControlsProps {
   shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  hideAgentSelector?: boolean
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
 }
@@ -279,6 +280,7 @@ const AgentComposerContextControls = ({
   shouldAutoSelectCreatedAgent,
   side,
   iconOnly = false,
+  hideAgentSelector = false,
   onAgentChange,
   onModelSelect
 }: AgentComposerContextControlsProps) => {
@@ -293,34 +295,36 @@ const AgentComposerContextControls = ({
 
   return (
     <>
-      <AgentSelector
-        value={agent?.id ?? null}
-        onChange={onAgentChange}
-        autoSelectOnCreate={shouldAutoSelectCreatedAgent}
-        side={side}
-        align="start"
-        mountStrategy="lazy-keep"
-        trigger={
-          <Button variant="ghost" size="sm" className={triggerClassName} disabled={agentChanging}>
-            {agent ? (
-              <AgentLabel
-                agent={agent}
-                classNames={{
-                  name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
-                  avatar: 'h-4.5 w-4.5',
-                  container: 'gap-1.5'
-                }}
-              />
-            ) : (
-              <>
-                {iconOnly ? <Bot size={16} aria-hidden /> : null}
-                <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
-              </>
-            )}
-            <ChevronDown size={14} className={chevronClassName} />
-          </Button>
-        }
-      />
+      {!hideAgentSelector && (
+        <AgentSelector
+          value={agent?.id ?? null}
+          onChange={onAgentChange}
+          autoSelectOnCreate={shouldAutoSelectCreatedAgent}
+          side={side}
+          align="start"
+          mountStrategy="lazy-keep"
+          trigger={
+            <Button variant="ghost" size="sm" className={triggerClassName} disabled={agentChanging}>
+              {agent ? (
+                <AgentLabel
+                  agent={agent}
+                  classNames={{
+                    name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
+                    avatar: 'h-4.5 w-4.5',
+                    container: 'gap-1.5'
+                  }}
+                />
+              ) : (
+                <>
+                  {iconOnly ? <Bot size={16} aria-hidden /> : null}
+                  <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
+                </>
+              )}
+              <ChevronDown size={14} className={chevronClassName} />
+            </Button>
+          }
+        />
+      )}
       {agent ? (
         <ModelSelector
           multiple={false}
@@ -468,12 +472,14 @@ type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
+// Active agent sessions are bound to their agent, so the in-composer agent switcher is hidden here
+// (the model selector stays). Agent selection lives in the home/draft composers below.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
       renderContextControls={({ side, iconOnly }) => (
-        <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+        <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} hideAgentSelector />
       )}
     />
   )

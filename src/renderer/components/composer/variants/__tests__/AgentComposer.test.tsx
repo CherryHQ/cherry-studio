@@ -1292,7 +1292,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
-  it('updates the active session agent from the composer toolbar', () => {
+  it('hides the agent selector in the active session toolbar while keeping the model selector', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1303,46 +1303,12 @@ describe('AgentComposer', () => {
       />
     )
 
-    fireEvent.click(screen.getByText('select agent 2'))
-
-    expect(mocks.updateSession).toHaveBeenCalledWith(
-      { id: 'session-1', agentId: 'agent-2' },
-      { showSuccessToast: false }
-    )
-  })
-
-  it('does not auto-select agents created from a persisted session', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'false')
-  })
-
-  it('releases draft session agent changes to the provided handler', () => {
-    const onAgentChange = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onAgentChange={onAgentChange}
-        isStreaming={false}
-      />
-    )
-
-    fireEvent.click(screen.getByText('select agent 2'))
-
-    expect(onAgentChange).toHaveBeenCalledWith('agent-2')
-    expect(mocks.updateSession).not.toHaveBeenCalled()
+    // Active sessions are bound to their agent: no in-composer agent switcher.
+    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
+    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+    expect(screen.queryByText('select agent 2')).not.toBeInTheDocument()
+    // The model selector stays available in the active session toolbar.
+    expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
   })
 
   it('updates the active agent model from the composer toolbar', () => {
@@ -1396,13 +1362,11 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
 
     await notifyComposerBottomToolbarWidth(420)
 
     await waitFor(() => {
-      expect(screen.getByText('Agent')).toHaveClass('sr-only')
       expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
     })
   })
@@ -1420,7 +1384,6 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420, 420)
 
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
   })
 
