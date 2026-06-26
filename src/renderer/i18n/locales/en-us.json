@@ -6521,8 +6521,8 @@
       "use_serif_font": "Use serif font",
       "view": {
         "conversation": "Conversation view",
-        "new": "New view",
-        "old": "Old view",
+        "new": "Efficient",
+        "old": "Classic",
         "work": "Work view"
       },
       "wide_mode": "Wide layout mode"

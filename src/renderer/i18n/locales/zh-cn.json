@@ -6521,8 +6521,8 @@
       "use_serif_font": "使用衬线字体",
       "view": {
         "conversation": "对话视图",
-        "new": "新视图",
-        "old": "旧视图",
+        "new": "效率",
+        "old": "传统",
         "work": "工作视图"
       },
       "wide_mode": "宽布局模式"

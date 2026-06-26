@@ -6,7 +6,7 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { CodeStyleVarious } from '@renderer/types/app'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import type { ChatViewMode, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -27,8 +27,6 @@ type SelectOption<T extends string = string> = {
 
 const ChatPreferenceSections: FC = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
-  const [conversationView, setConversationView] = usePreference('chat.conversation_view')
-  const [workView, setWorkView] = usePreference('chat.work_view')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -81,14 +79,6 @@ const ChatPreferenceSections: FC = () => {
     () => [
       { value: 'plain', label: t('message.message.style.plain') },
       { value: 'bubble', label: t('message.message.style.bubble') }
-    ],
-    [t]
-  )
-
-  const viewModeItems = useMemo<SelectOption<ChatViewMode>[]>(
-    () => [
-      { value: 'new', label: t('settings.messages.view.new') },
-      { value: 'old', label: t('settings.messages.view.old') }
     ],
     [t]
   )
@@ -202,38 +192,6 @@ const ChatPreferenceSections: FC = () => {
         <>
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.view.conversation')}</SettingRowTitleSmall>
-            <Select value={conversationView} onValueChange={(value) => setConversationView(value as ChatViewMode)}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {viewModeItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.view.work')}</SettingRowTitleSmall>
-            <Select value={workView} onValueChange={(value) => setWorkView(value as ChatViewMode)}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {viewModeItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
