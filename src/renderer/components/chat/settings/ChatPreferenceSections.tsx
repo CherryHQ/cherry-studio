@@ -6,7 +6,7 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { CodeStyleVarious } from '@renderer/types/app'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ChatViewMode, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -24,7 +24,6 @@ type SelectOption<T extends string = string> = {
   value: T
   label: string
 }
-type ChatViewMode = 'new' | 'old'
 
 const ChatPreferenceSections: FC = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
