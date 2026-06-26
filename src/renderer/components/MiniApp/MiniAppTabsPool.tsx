@@ -58,7 +58,7 @@ const MiniAppTabsPool: React.FC = () => {
     openedKeepAliveMiniApps
       .map((a) => a.appId)
       .sort()
-      .join('\u0000')
+      .join('|')
   ])
 
   /** 设置 ref 回调 */
