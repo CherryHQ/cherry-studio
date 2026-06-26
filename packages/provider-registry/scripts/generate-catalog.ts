@@ -18,17 +18,8 @@ import type { ZodType } from 'zod'
 import { LABS } from '../src/labs'
 import { PROVIDERS } from '../src/provider'
 import type { ProviderEntry } from '../src/provider/types'
-import {
-  expandKnownPrefixes,
-  normalizeVersionSeparators,
-  stripAggregatorPrefixes,
-  stripBedrockRevision,
-  stripBedrockVendorPrefix,
-  stripDateSnapshot,
-  stripHostReprefix,
-  stripQuantization,
-  stripVariantSuffixes
-} from '../src/utils/normalize'
+import { stripHostReprefix } from '../src/utils/normalize'
+import { canonOf, prefixHit } from './canonicalize'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -51,29 +42,8 @@ const REPORT = process.argv.includes('--report')
 // live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to a local file to cache it during dev.
 const VERSION = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
 
-// ── canonicalization (shares the runtime resolver's normalizeModelId helpers) ──
-// strip the same org/host routing prefixes the runtime resolver does (zai-org-, databricks-, …),
-// so a host that flattens `zai-org/glm-5` → `zai-org-glm-5` folds into the real `glm-5`; then peel the
-// bedrock cross-vendor `[region.]vendor.` / `vendor-` prefix (shared with the runtime).
-const base = (id: string) => stripBedrockVendorPrefix(stripAggregatorPrefixes(id.toLowerCase().split('/').pop()!))
-// Minus param-size stripping — the catalog keeps `qwen3-235b` ≠ `qwen3-30b`. Order matters: strip the
-// `-thinking`/`-free` variant BEFORE the date so the date ends the token.
-const canonOf = (id: string) => {
-  let s = base(id) // split('/').pop, lowercase, strip aggregator + bedrock-vendor prefix
-  s = stripBedrockRevision(s) // bedrock arn revision: claude-…-v1:0 / …:0 (keeps whisper-v3)
-  s = expandKnownPrefixes(s) // mm- → minimax-
-  s = stripVariantSuffixes(s) // -free / -thinking / -tee / -low / :free / (free) …
-  s = stripQuantization(s) // -fp8 / -fp16 / -awq …
-  s = stripDateSnapshot(s) // trailing release-date stamps + @tag (shared with the runtime resolver)
-  s = normalizeVersionSeparators(s) // 4.6 → 4-6
-  return s
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-// a `-` OR a digit ends the prefix word, so `qwen` claims both `qwen-max` and `qwen3-30b-a3b`
-const prefixHit = (id: string, p: string) =>
-  id === p || id.startsWith(`${p}-`) || (id.startsWith(p) && /\d/.test(id[p.length] ?? ''))
+// Canonicalization (`canonOf`) + prefix matching (`prefixHit`) live in `./canonicalize` so they can be
+// unit-tested / reused without running this script's generation IIFE.
 
 // A host listing (e.g. amazon-bedrock) re-lists OTHER creators' models as `[region.]vendor.model` arns.
 // Almost all canonicalize fine — stripping the vendor leaves an id the creator's own idPrefix reclaims
