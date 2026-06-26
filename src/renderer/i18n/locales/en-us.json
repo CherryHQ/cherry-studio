@@ -1938,14 +1938,19 @@
     "adv": {
       "claude": {
         "auto_compact_window": "Auto Compact Window",
+        "disable_experimental_betas": "Disable Experimental Betas",
+        "disable_nonessential_traffic": "Disable Nonessential Traffic",
         "effort_level": "Reasoning Effort",
         "enable_tool_search": "Enable Tool Search",
+        "haiku_model": "Haiku Model",
         "include_co_authored_by": "Include Co-authored-by",
         "max_output_tokens": "Max Output Tokens",
+        "model_roles": "Model Role Mapping",
+        "model_roles_hint": "Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
+        "opus_model": "Opus Model",
         "skip_web_fetch_preflight": "Skip Web Fetch Preflight",
-        "timeout_ms": "API Timeout (ms)",
-        "disable_nonessential_traffic": "Disable Nonessential Traffic",
-        "disable_experimental_betas": "Disable Experimental Betas"
+        "sonnet_model": "Sonnet Model",
+        "timeout_ms": "API Timeout (ms)"
       },
       "codex": {
         "auto_compact_token_limit": "Auto Compact Token Limit",
@@ -1983,6 +1988,7 @@
     "can_upgrade": "Upgrade available",
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "config_json_hint": "Paste or edit raw JSON; it stays in sync with the fields above",
     "config_name": "Name",
     "config_name_placeholder": "e.g. Work Claude",
     "configure": "Configure",
@@ -2005,6 +2011,7 @@
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
+    "format_json": "Format",
     "hero_tagline": "Pick a CLI tool to configure",
     "install": "Install",
     "install_bun": "Install Bun",
@@ -2033,6 +2040,7 @@
     "no_tools": "No tools available",
     "not_installed": "Not installed",
     "providers": "Providers",
+    "raw_config": "Raw Config (JSON)",
     "search_cli_placeholder": "Search CLI…",
     "select_folder": "Select Folder",
     "select_tool_to_start": "Select a CLI tool from the left to start configuring",
@@ -2049,13 +2057,13 @@
       "openclaw": "Multi-channel personal AI assistant with gateway service",
       "opencode": "Open-source multi-model coding agent"
     },
+    "tool_parameters": "Tool Parameters",
     "update_options": "Update Options",
     "upgrade": "Upgrade",
     "upgrade_error": "Upgrade failed",
     "upgrade_success": "Upgrade successful",
     "working_directory": "Working Directory",
-    "working_directory_hint": "The working directory that the CLI tool launches in",
-    "advanced_config": "Advanced Config"
+    "working_directory_hint": "The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Collapse",

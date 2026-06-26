@@ -1938,14 +1938,19 @@
     "adv": {
       "claude": {
         "auto_compact_window": "自动压缩窗口",
+        "disable_experimental_betas": "禁用实验性 Beta",
+        "disable_nonessential_traffic": "禁用非必要流量",
         "effort_level": "推理努力程度",
         "enable_tool_search": "启用工具搜索",
+        "haiku_model": "Haiku 模型",
         "include_co_authored_by": "包含共同作者",
         "max_output_tokens": "最大输出 Token",
+        "model_roles": "模型角色映射",
+        "model_roles_hint": "覆盖后台子任务（如压缩、标题）使用的模型，留空则跟随主模型",
+        "opus_model": "Opus 模型",
         "skip_web_fetch_preflight": "跳过 Web 预检",
-        "timeout_ms": "API 超时 (ms)",
-        "disable_nonessential_traffic": "禁用非必要流量",
-        "disable_experimental_betas": "禁用实验性 Beta"
+        "sonnet_model": "Sonnet 模型",
+        "timeout_ms": "API 超时 (ms)"
       },
       "codex": {
         "auto_compact_token_limit": "自动压缩 Token 限制",
@@ -1983,6 +1988,7 @@
     "can_upgrade": "可升级",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "config_json_hint": "粘贴或编辑原始 JSON，可与上方参数双向同步",
     "config_name": "名称",
     "config_name_placeholder": "例如：工作 Claude",
     "configure": "配置",
@@ -2005,6 +2011,7 @@
     "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",
+    "format_json": "格式化",
     "hero_tagline": "选一个 CLI 工具开始配置",
     "install": "安装",
     "install_bun": "安装 Bun",
@@ -2033,6 +2040,7 @@
     "no_tools": "暂无工具",
     "not_installed": "未安装",
     "providers": "服务商",
+    "raw_config": "原始配置 (JSON)",
     "search_cli_placeholder": "搜索 CLI…",
     "select_folder": "选择文件夹",
     "select_tool_to_start": "从左侧选择一个 CLI 工具开始配置",
@@ -2049,13 +2057,13 @@
       "openclaw": "多通道个人 AI 助手，支持 Gateway 常驻服务",
       "opencode": "开源社区的多模型代码 Agent"
     },
+    "tool_parameters": "工具参数",
     "update_options": "更新选项",
     "upgrade": "升级",
     "upgrade_error": "升级失败",
     "upgrade_success": "升级成功",
     "working_directory": "工作目录",
-    "working_directory_hint": "CLI 工具启动时的工作目录",
-    "advanced_config": "高级配置"
+    "working_directory_hint": "CLI 工具启动时的工作目录"
   },
   "code_block": {
     "collapse": "收起",
