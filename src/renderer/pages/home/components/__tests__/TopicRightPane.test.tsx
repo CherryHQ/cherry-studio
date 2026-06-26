@@ -150,6 +150,67 @@ describe('TopicRightPane', () => {
     expect(screen.getByRole('button', { name: /chat\.topics\.title/ })).toBeInTheDocument()
   })
 
+  it('resets the open resource tab when the resource pane is removed', () => {
+    const { rerender } = render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
+        defaultOpen>
+        <TopicRightPane.Host topicId="topic-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+
+    rerender(
+      <TopicRightPane>
+        <TopicRightPane.Host topicId="topic-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('resource-list')).toBeNull()
+  })
+
+  it('opens the resource pane on a locate reveal request', () => {
+    const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
+    const { rerender } = render(
+      <TopicRightPane resourcePane={resourcePane}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    rerender(
+      <TopicRightPane
+        resourcePane={resourcePane}
+        revealRequest={{ itemId: 'topic-a', requestId: 1, clearFilters: true, clearQuery: true }}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+  })
+
+  it('does not open the resource pane for a passive (non-locate) reveal request', () => {
+    const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
+    const { rerender } = render(
+      <TopicRightPane resourcePane={resourcePane}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    rerender(
+      <TopicRightPane resourcePane={resourcePane} revealRequest={{ itemId: 'topic-a', requestId: 2 }}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
   it('does not open the resource list pane when the owning tab is revealed', async () => {
     render(
       <TabIdProvider tabId="chat-tab">

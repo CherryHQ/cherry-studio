@@ -7,15 +7,17 @@ import {
   ResourcePaneTab,
   Shell,
   useResourcePane,
+  useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
+import { createContext, use, useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TopicBranchPanel from './TopicBranchPanel'
@@ -94,17 +96,45 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
+/**
+ * Opens the right resource pane when a *locate* request arrives (history records / global search),
+ * so the located topic is actually visible. Passive "reveal current topic" requests don't set
+ * `clearFilters`, so ordinary topic/tab switches never force the pane open. Old view only — outside it
+ * there is no resource pane to open.
+ */
+function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
+  const actions = useShellActions()
+  const resourcePane = useResourcePane()
+  const handledRequestIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!resourcePane || !revealRequest?.clearFilters) return
+    if (handledRequestIdRef.current === revealRequest.requestId) return
+    handledRequestIdRef.current = revealRequest.requestId
+    actions.openTab(RESOURCE_PANE_TAB)
+  }, [actions, resourcePane, revealRequest])
+
+  return null
+}
+
 function TopicRightPaneProvider({
   children,
   resourcePane,
-  defaultOpen = false
-}: PropsWithChildren<{ resourcePane?: ResourcePaneConfig | null; defaultOpen?: boolean }>) {
+  defaultOpen = false,
+  revealRequest
+}: PropsWithChildren<{
+  resourcePane?: ResourcePaneConfig | null
+  defaultOpen?: boolean
+  revealRequest?: ResourceListRevealRequest
+}>) {
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
+  const shellModeKey = resourcePane ? 'resource-pane' : 'branch-pane'
 
   return (
-    <Shell defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'branch'} defaultOpen={defaultOpen}>
+    <Shell key={shellModeKey} defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'branch'} defaultOpen={defaultOpen}>
       <ResourcePaneProvider value={resourcePane ?? null}>
+        <ResourcePaneLocateOpener revealRequest={revealRequest} />
         <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
       </ResourcePaneProvider>
     </Shell>
@@ -210,7 +240,6 @@ function TopicRightPaneToggle() {
       tab={resourcePane ? RESOURCE_PANE_TAB : 'branch'}
       command="topic.sidebar.toggle"
       commandEnabled={isActiveTab}
-      disabled={resourcePane?.disabled}
     />
   )
 }

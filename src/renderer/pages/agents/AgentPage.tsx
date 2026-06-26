@@ -372,6 +372,10 @@ const AgentPage = () => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
+      // Locate (history / global search) should reveal the target in the right work pane. The per-branch
+      // Shell re-seeds its open state from `workPaneOpen` on the next session remount; in new view this
+      // flag is ignored and reset by the isOldView effect, so setting it unconditionally is safe.
+      setWorkPaneOpen(true)
       setDraftSessionState(null)
       setMissingAgentDraft(false)
       setPendingLocateMessageId(messageId)
@@ -596,6 +600,12 @@ const AgentPage = () => {
   const panePosition = 'left'
   // Old view = entity rail + right session panel; new view = the classic sidebar (AgentSidePanel).
   const isOldView = workView === 'old'
+  useEffect(() => {
+    if (!isOldView && workPaneOpen) {
+      setWorkPaneOpen(false)
+    }
+  }, [isOldView, workPaneOpen])
+
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
   const pane = isOldView ? (
     <AgentResourceList

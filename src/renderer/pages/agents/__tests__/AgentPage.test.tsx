@@ -252,6 +252,7 @@ vi.mock('../AgentChat', () => ({
     paneOpen,
     resourcePane,
     showResourceListControls,
+    workPaneOpen,
     onPaneCollapse
   }: {
     activeSession?: { id: string } | null
@@ -278,6 +279,7 @@ vi.mock('../AgentChat', () => ({
     paneOpen?: boolean
     resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
+    workPaneOpen?: boolean
     onPaneCollapse?: () => void
   }) => (
     <section>
@@ -290,6 +292,7 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="missing-agent-draft">{String(Boolean(missingAgentDraft))}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="work-pane-open">{String(workPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
@@ -540,6 +543,27 @@ describe('AgentPage', () => {
     expect(agentPageMocks.focusExistingTab).toHaveBeenCalledWith('session-open', { excludeTabId: 'agent-tab' })
     expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+  })
+
+  it('opens the work pane when a global-search locate targets a session in the current tab', () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.focusExistingTab.mockReturnValue(false)
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('false')
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-locate', messageId: 'message-locate' })
+    })
+
+    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('true')
   })
 
   it('forwards a reveal request when navigation asks the current agent tab to reveal its selection', async () => {

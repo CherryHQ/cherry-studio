@@ -520,7 +520,9 @@ const HomePage: FC = () => {
       }
     : null
   const renderWithRightPane = (content: ReactNode) => (
-    <TopicRightPane resourcePane={resourcePane}>{content}</TopicRightPane>
+    <TopicRightPane resourcePane={resourcePane} revealRequest={topicRevealRequest}>
+      {content}
+    </TopicRightPane>
   )
   const historyRecordsOverlay = (
     <HistoryRecordsPage
