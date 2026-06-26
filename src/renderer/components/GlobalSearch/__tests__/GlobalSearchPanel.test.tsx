@@ -277,7 +277,12 @@ vi.mock('@renderer/components/VirtualList', async () => {
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) => [
     key === 'ui.global_search.recent_items' ? mocks.recentItems : mocks.persistCacheValues[key],
-    vi.fn()
+    (value: unknown) => {
+      if (key === 'ui.global_search.recent_items') {
+        mocks.recentItems = value as typeof mocks.recentItems
+      }
+      mocks.cacheSet(key, value)
+    }
   ]
 }))
 
@@ -369,14 +374,27 @@ vi.mock('@data/CacheService', () => ({
   cacheService: { set: mocks.cacheSet }
 }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: mocks.dataApiGet, put: mocks.dataApiPut }
-}))
+vi.mock('@data/DataApiService', () => {
+  // Default: any `/topics/:id` or `/agent-sessions/:id` call returns a stub
+  // entity with empty name so the panel's mount-time recent-title refresh
+  // is a benign no-op. Tests override per-call with mockImplementation /
+  // mockResolvedValueOnce / mockRejectedValueOnce.
+  const defaultStub = (path: string) => {
+    if (path.startsWith('/topics/')) return { name: '' }
+    if (path.startsWith('/agent-sessions/')) return { name: '' }
+    return undefined
+  }
+  mocks.dataApiGet.mockImplementation((path: string) => Promise.resolve(defaultStub(path)))
+  return {
+    dataApiService: { get: mocks.dataApiGet, put: mocks.dataApiPut }
+  }
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: mocks.loggerError
+      error: mocks.loggerError,
+      warn: mocks.loggerError
     })
   }
 }))
@@ -522,7 +540,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { GlobalSearchPanel } from '../GlobalSearchPanel'
+import { GlobalSearchPanel, testOnlyClearRefreshHistory } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
 afterEach(() => {
@@ -532,6 +550,7 @@ afterEach(() => {
 
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
+    testOnlyClearRefreshHistory()
     mocks.recentItems = [
       {
         kind: 'topic',
@@ -1684,6 +1703,9 @@ describe('GlobalSearchPanel', () => {
   it('logs and toasts when opening a message result fails', async () => {
     const user = userEvent.setup()
     const openError = new Error('missing session')
+    // The mount-time recent-title refresh fires once before the click action.
+    // Drain its expected stub first so the click rejection lands on the right call.
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Topic recent' } as never)
     mocks.dataApiGet.mockRejectedValueOnce(openError)
     mocks.sessionMessageQueryResult = {
       items: [
@@ -1957,5 +1979,306 @@ describe('GlobalSearchPanel', () => {
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE', 'knowledge-1')
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes recent topic titles from /topics/:id on open', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Stale snapshot',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' } as never)
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
+    await waitFor(() => {
+      expect(mocks.recentItems).toEqual([
+        {
+          kind: 'topic',
+          topicId: 'topic-1',
+          title: 'Fresh name from server',
+          lastAccessTime: 20
+        }
+      ])
+    })
+  })
+
+  it('keeps the cached title when /topics/:id fetch fails', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Untitled',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockRejectedValueOnce(new Error('network'))
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
+    expect(mocks.recentItems).toEqual([
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Untitled',
+        lastAccessTime: 20
+      }
+    ])
+  })
+
+  it('does not refetch when the cached title already matches', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Already fresh',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' } as never)
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
+    // Let the .then() handler complete its state update
+    await waitFor(() => {
+      expect(mocks.recentItems[0]?.title).toBe('Already fresh')
+    })
+    expect(mocks.recentItems).toEqual([
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Already fresh',
+        lastAccessTime: 20
+      }
+    ])
+  })
+
+  it('refreshes recent session titles from /agent-sessions/:id on open', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'session',
+        sessionId: 'session-1',
+        title: 'Stale session snapshot',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' } as never)
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/session-1')
+    })
+    await waitFor(() => {
+      expect(mocks.recentItems).toEqual([
+        {
+          kind: 'session',
+          sessionId: 'session-1',
+          title: 'Fresh session name from server',
+          lastAccessTime: 20
+        }
+      ])
+    })
+  })
+
+  it('keeps the cached title when /agent-sessions/:id fetch fails', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'session',
+        sessionId: 'session-1',
+        title: 'Untitled Session',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockRejectedValueOnce(new Error('network'))
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/session-1')
+    })
+    expect(mocks.recentItems).toEqual([
+      {
+        kind: 'session',
+        sessionId: 'session-1',
+        title: 'Untitled Session',
+        lastAccessTime: 20
+      }
+    ])
+  })
+
+  it('does not fetch when the entry kind is route', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/app/settings',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 20
+      }
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).not.toHaveBeenCalled()
+    })
+    expect(mocks.recentItems).toEqual([
+      {
+        kind: 'route',
+        url: '/app/settings',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 20
+      }
+    ])
+  })
+
+  it('only refreshes up to the display limit items ordered by lastAccessTime', async () => {
+    mocks.recentItems = Array.from({ length: 7 }, (_, index) => ({
+      kind: 'topic',
+      topicId: `topic-${index + 1}`,
+      title: `Stale ${index + 1}`,
+      lastAccessTime: 10 + index
+    }))
+
+    mocks.dataApiGet.mockImplementation((path: string) => {
+      const match = path.match(/\/topics\/topic-(\d+)/)
+      if (match) {
+        const id = match[1]
+        return Promise.resolve({ name: `Fresh ${id}` })
+      }
+      return Promise.resolve({ name: '' })
+    })
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledTimes(6)
+    })
+
+    expect(mocks.dataApiGet).not.toHaveBeenCalledWith('/topics/topic-1')
+
+    expect(mocks.recentItems).toEqual([
+      { kind: 'topic', topicId: 'topic-1', title: 'Stale 1', lastAccessTime: 10 },
+      { kind: 'topic', topicId: 'topic-2', title: 'Fresh 2', lastAccessTime: 11 },
+      { kind: 'topic', topicId: 'topic-3', title: 'Fresh 3', lastAccessTime: 12 },
+      { kind: 'topic', topicId: 'topic-4', title: 'Fresh 4', lastAccessTime: 13 },
+      { kind: 'topic', topicId: 'topic-5', title: 'Fresh 5', lastAccessTime: 14 },
+      { kind: 'topic', topicId: 'topic-6', title: 'Fresh 6', lastAccessTime: 15 },
+      { kind: 'topic', topicId: 'topic-7', title: 'Fresh 7', lastAccessTime: 16 }
+    ])
+  })
+
+  it('does not update recent items state if the panel component is unmounted before the fetch completes', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Stale',
+        lastAccessTime: 20
+      }
+    ]
+    let resolveFetch: (value: unknown) => void = () => {}
+    const fetchPromise = new Promise((resolve) => {
+      resolveFetch = resolve
+    })
+    mocks.dataApiGet.mockReturnValueOnce(fetchPromise)
+
+    const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
+
+    unmount()
+
+    resolveFetch({ name: 'Fresh name' })
+
+    // Let the cancelled .then() handler run; recentItems must remain untouched.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(mocks.recentItems).toEqual([
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Stale',
+        lastAccessTime: 20
+      }
+    ])
+  })
+
+  it('does not refresh when the item has been refreshed within the throttle cooling time', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Initial Title',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' } as never)
+
+    const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
+
+    mocks.dataApiGet.mockClear()
+    unmount()
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).not.toHaveBeenCalled()
+    })
+  })
+
+  it('bypasses refresh throttle when the item title is empty or default placeholder', async () => {
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Untitled',
+        lastAccessTime: 20
+      }
+    ]
+    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' } as never)
+
+    const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
+
+    mocks.dataApiGet.mockClear()
+    unmount()
+
+    // Reset back to empty to trigger the bypass logic even inside the cooling window
+    mocks.recentItems = [
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: '',
+        lastAccessTime: 20
+      }
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await waitFor(() => {
+      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1')
+    })
   })
 })
