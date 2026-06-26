@@ -199,6 +199,36 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
+  it('does not select the entity when a context-menu action is picked', () => {
+    const onSelect = vi.fn()
+    const onContextMenuAction = vi.fn()
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        getContextMenuActions={() => [EDIT_ACTION]}
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onContextMenuAction={onContextMenuAction}
+        onSelect={onSelect}
+      />
+    )
+
+    // The "more" menu portals its content out of the row, but React still bubbles the menu-item
+    // click up the React tree. Picking an action must run the action without selecting the row.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    expect(onContextMenuAction).toHaveBeenCalledWith(ITEMS[0], EDIT_ACTION)
+    expect(onSelect).not.toHaveBeenCalled()
+
+    requestAnimationFrameSpy.mockRestore()
+  })
+
   it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
     render(
       <ResourceEntityRail

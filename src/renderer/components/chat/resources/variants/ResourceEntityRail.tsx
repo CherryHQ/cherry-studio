@@ -141,7 +141,10 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             {item.name}
           </ResourceList.ItemTitle>
           {(onCreateItem || hasVisibleMenuActions) && (
-            <ResourceList.ItemActions>
+            // Stop clicks bubbling to the row's onClick: the "more" menu portals its content out of
+            // the DOM but React still routes the menu-item click up the React tree (…→ ItemActions →
+            // row), which would otherwise select the entity when a menu action (e.g. edit) is picked.
+            <ResourceList.ItemActions onClick={(event) => event.stopPropagation()}>
               {onCreateItem && createItemLabel && (
                 <Tooltip title={createItemLabel} delay={500}>
                   <ResourceList.GroupHeaderActionButton
