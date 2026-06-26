@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useMemo, useState } from 'react'
+import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const animationStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/animation.css'), 'utf8')
@@ -42,7 +43,7 @@ const dndMocks = vi.hoisted(() => ({
 // fallback) are deterministic regardless of the ambient i18next language. Readable labels in this
 // file are supplied as props, not via t(), so this only affects internal t() calls.
 vi.mock('react-i18next', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('react-i18next')>()),
+  ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
 }))
 

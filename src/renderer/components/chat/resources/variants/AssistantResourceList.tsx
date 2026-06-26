@@ -10,9 +10,10 @@ import {
   useResourceEntityRail
 } from '@renderer/components/chat/resources/variants/useResourceEntityRail'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
-import { mapApiTopicToRendererTopic, useTopicMutations, useTopics } from '@renderer/hooks/useTopic'
+import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import {
   type AssistantGroupAction,
   type AssistantGroupActionContext,
@@ -52,7 +53,7 @@ export function AssistantResourceList({
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
     error: topicsError
-  } = useTopics({ loadAll: true })
+  } = useAssistantTopicsSource()
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
   const {
     isLoading: isAssistantPinsLoading,
@@ -106,7 +107,6 @@ export function AssistantResourceList({
     entities,
     resources: topics,
     getResourceParentId: (topic) => topic.assistantId,
-    resourcesFullyLoaded: isTopicsFullyLoaded,
     activeEntityId: activeAssistantId,
     isLoading: isAssistantsLoading || isTopicsLoadingAll || !isTopicsFullyLoaded || isTopicPinsLoading,
     isError: !!(assistantsError || topicsError),

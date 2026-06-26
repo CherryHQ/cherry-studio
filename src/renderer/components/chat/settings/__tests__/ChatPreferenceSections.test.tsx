@@ -7,7 +7,8 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 const mocks = vi.hoisted(() => ({
   setPreference: vi.fn(),
   preferenceValues: {
-    'chat.resource_list.position': 'right',
+    'chat.conversation_view': 'new',
+    'chat.work_view': 'old',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',

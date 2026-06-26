@@ -5,6 +5,7 @@ import {
   getNestedValue,
   isNonEmptyString,
   isValidNumber,
+  mapTopicPositionToConversationView,
   migrateWebSearchProviders,
   normalizeWebSearchDefaultProvider
 } from '../PreferenceTransformers'
@@ -331,6 +332,26 @@ describe('PreferenceTransformers', () => {
       })
 
       expect(result['chat.web_search.provider_overrides']).toEqual({})
+    })
+  })
+
+  describe('mapTopicPositionToConversationView', () => {
+    it('maps legacy right to the new entity-rail view', () => {
+      expect(mapTopicPositionToConversationView({ topicPosition: 'right' })).toEqual({
+        'chat.conversation_view': 'new'
+      })
+    })
+
+    it('maps legacy left to the old sidebar view', () => {
+      expect(mapTopicPositionToConversationView({ topicPosition: 'left' })).toEqual({
+        'chat.conversation_view': 'old'
+      })
+    })
+
+    it('skips the key for missing or unknown values so the schema default applies', () => {
+      expect(mapTopicPositionToConversationView({})).toEqual({})
+      expect(mapTopicPositionToConversationView({ topicPosition: undefined })).toEqual({})
+      expect(mapTopicPositionToConversationView({ topicPosition: 'sideways' })).toEqual({})
     })
   })
 })

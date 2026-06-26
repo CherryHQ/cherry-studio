@@ -156,6 +156,8 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   /** In right mode the session list mounts as the first right-pane tab; null leaves files/status/flow. */
   resourcePane?: ResourcePaneConfig | null
   defaultOpen?: boolean
+  /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
+  onOpenChange?: (open: boolean) => void
   workspacePath?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -325,9 +327,12 @@ function AgentRightPaneStateProvider({
 }
 
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
-  const { children, resourcePane, defaultOpen = false, ...rest } = props
+  const { children, resourcePane, defaultOpen = false, onOpenChange, ...rest } = props
   return (
-    <Shell defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'files'} defaultOpen={defaultOpen}>
+    <Shell
+      defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
       </ResourcePaneProvider>

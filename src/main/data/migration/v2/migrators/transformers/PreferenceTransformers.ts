@@ -249,6 +249,27 @@ export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: s
 }
 
 /**
+ * Map the legacy assistant topic-list position into the v2 conversation view mode.
+ *
+ * v1 `topicPosition` only had `left`/`right`; v2 reframes the assistant chat layout
+ * as `old` (classic topic sidebar) vs `new` (entity rail + right topic panel):
+ * - v1 `right` -> `new`
+ * - v1 `left`  -> `old`
+ *
+ * Any other / missing value is skipped so the schema default (`old`) applies.
+ */
+export function mapTopicPositionToConversationView(sources: { topicPosition?: unknown }): TransformResult {
+  const topicPosition = sources.topicPosition
+  if (topicPosition !== 'left' && topicPosition !== 'right') {
+    return {}
+  }
+
+  return {
+    'chat.conversation_view': topicPosition === 'right' ? 'new' : 'old'
+  }
+}
+
+/**
  * WebSearch compression config source type
  * Matches the actual Redux websearch.compressionConfig structure
  */

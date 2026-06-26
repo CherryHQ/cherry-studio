@@ -6485,14 +6485,15 @@
         "label": "Navigation bar",
         "none": "None"
       },
-      "resource_list": {
-        "position": "Message list position",
-        "position_left": "Left",
-        "position_right": "Right"
-      },
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font",
+      "view": {
+        "conversation": "Conversation view",
+        "new": "New view",
+        "old": "Old view",
+        "work": "Work view"
+      },
       "wide_mode": "Wide layout mode"
     },
     "miniApps": {

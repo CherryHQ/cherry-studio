@@ -29,7 +29,8 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -391,7 +392,7 @@ const Sessions = ({
     reload,
     reorderSession,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 200 })
+  } = useAgentSessionsSource()
   const currentTabId = useCurrentTabId()
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)

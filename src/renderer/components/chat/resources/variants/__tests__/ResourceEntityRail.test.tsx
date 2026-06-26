@@ -1,12 +1,13 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
 
 vi.mock('react-i18next', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('react-i18next')>()),
+  ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
@@ -31,8 +32,6 @@ vi.mock('@renderer/components/command', () => {
 })
 
 vi.mock('@renderer/components/VirtualList', () => {
-  const React = require('react')
-
   type Group<TGroup, TItem, THeader = TGroup, TFooter = unknown> = {
     group: TGroup
     header?: THeader

@@ -22,6 +22,7 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -31,8 +32,7 @@ import {
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
-  useTopicMutations,
-  useTopics
+  useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -348,7 +348,7 @@ export function Topics({
   } = usePins('assistant', { enabled: isAssistantDisplayMode })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useTopics({ loadAll: true })
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAssistantTopicsSource()
   const {
     assistants,
     isLoading: isAssistantsLoading,

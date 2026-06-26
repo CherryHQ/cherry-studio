@@ -46,7 +46,7 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
 
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [resourceListPosition] = usePreference('chat.resource_list.position')
+  const [workView] = usePreference('chat.work_view')
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
@@ -65,6 +65,10 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
+  // Old-view (rail) work-pane open state, owned here so it survives the AgentChat draft→persistent
+  // remount (each branch mounts its own Shell). Mirrors Home, which keeps one page-level pane open
+  // across the handoff. Scoped to old view below so new (sidebar) view behavior is unchanged.
+  const [workPaneOpen, setWorkPaneOpen] = useState(false)
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -590,9 +594,10 @@ const AgentPage = () => {
   }, [])
 
   const panePosition = 'left'
-  const useResourceEntityList = resourceListPosition === 'right'
+  // Old view = entity rail + right session panel; new view = the classic sidebar (AgentSidePanel).
+  const isOldView = workView === 'old'
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
-  const pane = useResourceEntityList ? (
+  const pane = isOldView ? (
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
       onSelectSession={handleResourceSessionSelect}
@@ -609,10 +614,10 @@ const AgentPage = () => {
       setActiveSessionId={setActiveSessionAndDiscardDraft}
     />
   )
-  // In right mode the session list moves into the chat's right pane as a tab; AgentChat keeps the
+  // In old view the session list moves into the chat's right pane as a tab; AgentChat keeps the
   // pane provider per-branch (its Shell meta is bound to per-session runtime, unlike Home), so the
   // config is threaded into each branch rather than lifted to this page.
-  const resourcePane: ResourcePaneConfig | null = useResourceEntityList
+  const resourcePane: ResourcePaneConfig | null = isOldView
     ? {
         label: t('title.work'),
         node: (
@@ -660,6 +665,8 @@ const AgentPage = () => {
           replacingDraftAgent={replacingDraftAgent}
           replacingDraftWorkspace={replacingDraftWorkspace}
           resourcePane={resourcePane}
+          workPaneOpen={isOldView ? workPaneOpen : undefined}
+          onWorkPaneOpenChange={isOldView ? setWorkPaneOpen : undefined}
         />
       </div>
       <HistoryRecordsPage

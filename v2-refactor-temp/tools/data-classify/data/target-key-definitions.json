@@ -104,6 +104,20 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
+      "targetKey": "chat.conversation_view",
+      "type": "PreferenceTypes.ChatViewMode",
+      "defaultValue": "old",
+      "status": "classified",
+      "description": "Assistant conversation view: 'new' = entity rail + right topic panel, 'old' = classic topic sidebar (complex migration from v1 topicPosition: right->new, left->old)"
+    },
+    {
+      "targetKey": "chat.work_view",
+      "type": "PreferenceTypes.ChatViewMode",
+      "defaultValue": "old",
+      "status": "classified",
+      "description": "Agent work view: 'new' = entity rail + right session panel, 'old' = classic session sidebar (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavorite[]",
       "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],

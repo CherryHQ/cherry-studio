@@ -85,6 +85,8 @@ interface AgentChatProps {
   replacingDraftAgent?: boolean
   replacingDraftWorkspace?: boolean
   resourcePane?: ResourcePaneConfig | null
+  workPaneOpen?: boolean
+  onWorkPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChat = ({
@@ -113,7 +115,9 @@ const AgentChat = ({
   onVisibleWorkspaceChange,
   replacingDraftAgent,
   replacingDraftWorkspace,
-  resourcePane
+  resourcePane,
+  workPaneOpen,
+  onWorkPaneOpenChange
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
@@ -218,6 +222,8 @@ const AgentChat = ({
         workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}
+        defaultOpen={workPaneOpen}
+        onOpenChange={onWorkPaneOpenChange}
         resourcePane={resourcePane}>
         <ConversationShell
           className={messageStyle}
@@ -339,6 +345,8 @@ const AgentChat = ({
           agentId={draftAgentConversation.agentId}
           agentName={activeAgent?.name}
           agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+          defaultOpen={workPaneOpen}
+          onOpenChange={onWorkPaneOpenChange}
           resourcePane={resourcePane}>
           {shell}
         </AgentRightPane>
@@ -384,6 +392,8 @@ const AgentChat = ({
           statusEnabled={false}
           messages={EMPTY_MESSAGES}
           partsByMessageId={EMPTY_PARTS}
+          defaultOpen={workPaneOpen}
+          onOpenChange={onWorkPaneOpenChange}
           resourcePane={resourcePane}>
           {shell}
         </AgentRightPane>
@@ -446,6 +456,8 @@ const AgentChat = ({
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
       resourcePane={resourcePane}
+      workPaneOpen={workPaneOpen}
+      onWorkPaneOpenChange={onWorkPaneOpenChange}
       onNewSessionDraft={
         sessionAgentId && onStartDraftSession
           ? () =>
@@ -493,6 +505,8 @@ interface AgentChatSessionFrameProps {
   onPaneCollapse?: () => void
   onNewSessionDraft?: () => void | Promise<void>
   resourcePane?: ResourcePaneConfig | null
+  workPaneOpen?: boolean
+  onWorkPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChatSessionFrame = ({
@@ -519,7 +533,9 @@ const AgentChatSessionFrame = ({
   onLocateMessageHandled,
   onPaneCollapse,
   onNewSessionDraft,
-  resourcePane
+  resourcePane,
+  workPaneOpen,
+  onWorkPaneOpenChange
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
@@ -615,6 +631,8 @@ const AgentChatSessionFrame = ({
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       modelFallback={runtime.fallbackSnapshot}
+      defaultOpen={workPaneOpen}
+      onOpenChange={onWorkPaneOpenChange}
       resourcePane={resourcePane}>
       <ConversationShell
         className={className}

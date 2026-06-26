@@ -116,6 +116,9 @@ export enum UpgradeChannel {
 
 export type ChatMessageStyle = 'plain' | 'bubble'
 
+/** Chat resource-list layout: 'old' = classic sidebar, 'new' = entity rail + right resource panel. */
+export type ChatViewMode = 'new' | 'old'
+
 export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'

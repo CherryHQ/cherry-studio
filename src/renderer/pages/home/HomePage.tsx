@@ -81,7 +81,7 @@ const HomePage: FC = () => {
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [resourceListPosition] = usePreference('chat.resource_list.position')
+  const [conversationView] = usePreference('chat.conversation_view')
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
 
   const location = useLocation()
@@ -483,9 +483,10 @@ const HomePage: FC = () => {
     return <Container id="home-page" />
   }
 
-  const useResourceEntityList = resourceListPosition === 'right'
+  // Old view = entity rail + right topic panel; new view = the classic single sidebar (HomeTabs).
+  const isOldView = conversationView === 'old'
   const panePosition: ChatPanePosition = 'left'
-  const pane = useResourceEntityList ? (
+  const pane = isOldView ? (
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
       onSelectTopic={setActiveTopicAndDiscardDraft}
@@ -500,10 +501,10 @@ const HomePage: FC = () => {
       revealRequest={topicRevealRequest}
     />
   )
-  // In right mode the topic list moves into the chat's right pane as a tab; the single page-level
-  // provider owns the Shell for both modes so the rail and the right panel share its open/maximize
-  // state. Left mode passes a null config, leaving the pane as branch/trace only.
-  const resourcePane: ResourcePaneConfig | null = useResourceEntityList
+  // In old view the topic list moves into the chat's right pane as a tab; the single page-level
+  // provider owns the Shell for both views so the rail and the right panel share its open/maximize
+  // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
+  const resourcePane: ResourcePaneConfig | null = isOldView
     ? {
         label: t('chat.topics.title'),
         node: (

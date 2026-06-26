@@ -58,7 +58,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
   setShowSidebar: vi.fn(),
-  resourceListPosition: 'left' as 'left' | 'right',
+  workView: 'new' as 'new' | 'old',
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
@@ -92,8 +92,8 @@ vi.mock('@data/hooks/usePreference', async () => {
       const [value, setValue] = React.useState<unknown>(
         key === 'topic.tab.show'
           ? agentPageMocks.showSidebar
-          : key === 'chat.resource_list.position'
-            ? agentPageMocks.resourceListPosition
+          : key === 'chat.work_view'
+            ? agentPageMocks.workView
             : undefined
       )
       const setPreference = vi.fn(async (nextValue: unknown) => {
@@ -415,7 +415,7 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.focusExistingTab.mockReturnValue(false)
-    agentPageMocks.resourceListPosition = 'left'
+    agentPageMocks.workView = 'new'
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
@@ -443,7 +443,7 @@ describe('AgentPage', () => {
   })
 
   it('renders the agent resource list in the left pane', () => {
-    agentPageMocks.resourceListPosition = 'right'
+    agentPageMocks.workView = 'old'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 

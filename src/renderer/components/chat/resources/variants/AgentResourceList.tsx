@@ -11,7 +11,7 @@ import {
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useSessions } from '@renderer/hooks/agents/useSession'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { usePins } from '@renderer/hooks/usePins'
 import {
   type AgentGroupAction,
@@ -57,7 +57,7 @@ export function AgentResourceList({
     isPinsLoading,
     error: sessionsError,
     reload
-  } = useSessions(null, { loadAll: true, pageSize: 200 })
+  } = useAgentSessionsSource()
   const {
     isLoading: isAgentPinsLoading,
     isRefreshing: isAgentPinsRefreshing,
@@ -116,7 +116,6 @@ export function AgentResourceList({
     entities,
     resources: sessionItems,
     getResourceParentId: (session) => session.agentId,
-    resourcesFullyLoaded: isFullyLoaded,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),

@@ -81,11 +81,18 @@ export function useOptionalShellState(): ShellState | undefined {
 function ShellProvider({
   children,
   defaultTab,
-  defaultOpen = false
+  defaultOpen = false,
+  onOpenChange
 }: {
   children: ReactNode
   defaultTab: string
   defaultOpen?: boolean
+  /**
+   * Notified whenever the pane opens/closes. Owners that remount this provider across UI branches
+   * (e.g. the agent chat's draft→persistent handoff) use it to persist the open state into
+   * `defaultOpen` so the pane survives the remount instead of snapping shut.
+   */
+  onOpenChange?: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
@@ -94,6 +101,12 @@ function ShellProvider({
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const openRef = useRef(open)
   const closeCallbacksRef = useRef<Array<() => void>>([])
+  // Held in a ref so the open/close actions stay referentially stable (no memo churn for consumers).
+  const onOpenChangeRef = useRef(onOpenChange)
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange
+  }, [onOpenChange])
 
   useEffect(() => {
     openRef.current = open
@@ -116,6 +129,7 @@ function ShellProvider({
     setOpen(false)
     setMaximized(false)
     setPdfLayoutPending(false)
+    onOpenChangeRef.current?.(false)
   }, [])
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
@@ -124,6 +138,7 @@ function ShellProvider({
       if (!currentOpen) setPdfLayoutPending(true)
       return true
     })
+    onOpenChangeRef.current?.(true)
   }, [])
   const toggleMaximized = useCallback(() => {
     setPdfLayoutPending(false)

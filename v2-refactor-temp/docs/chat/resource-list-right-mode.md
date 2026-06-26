@@ -1,266 +1,157 @@
-# Resource List Right Mode Design
+# Chat View Modes (new / old)
 
-**Status:** implemented on the current `jd/resource-list-config` branch.
+**Status:** implemented on the `jd/resource-list-config` branch.
 
-This note records the agreed behavior for `chat.resource_list.position = right`.
-The current WIP direction that recreates a v1-style assistant/agent list is
-considered the wrong direction.
+This note records the shipped behavior for the assistant/agent chat view modes. Each
+surface has its own preference; the "old view" recreates a compact entity rail + a
+right-side resource panel, while the "new view" keeps the classic single sidebar.
 
-## Goal
+> Terminology: earlier drafts called the rail "right mode" and the sidebar "left
+> mode". The codebase now uses **new / old** everywhere — the **old** view is the
+> rail + right panel, the **new** view is the classic sidebar (preference values,
+> settings labels, the `isOldView` flag in the pages).
 
-When the resource list position is `right`, the layout becomes:
+## Preferences
+
+Two independent preferences, both `'new' | 'old'` (`PreferenceTypes.ChatViewMode`),
+both defaulting to `'old'`:
+
+- `chat.conversation_view` — assistant chats (Home). Migrated from the v1
+  `topicPosition` via a complex mapping: `right → new`, `left → old`
+  (`mapTopicPositionToConversationView`).
+- `chat.work_view` — agent chats. v2-only, no v1 source.
+
+Both are declared in `target-key-definitions.json` and generated into
+`preferenceSchemas.ts`; the conversation-view migration lives in
+`PreferenceTransformers.ts` + `ComplexPreferenceMappings.ts`. The settings UI
+(`ChatPreferenceSections`) exposes them as "Conversation view" and "Work view",
+each "New view" / "Old view".
+
+## Layout
+
+When the relevant preference is `old`:
 
 1. Left: a compact assistant/agent entity rail.
 2. Center: the existing chat surface.
-3. Right: an independently toggleable ResourceList panel for the current
-   assistant/agent's conversations or works.
+3. Right: an independently toggleable resource panel for the current
+   assistant/agent's conversations/works.
 
-When the resource list position is `left`, the existing behavior remains
-unchanged.
+When the preference is `new`, the classic sidebar behavior is unchanged
+(`HomeTabs` / `AgentSidePanel`).
 
-## Non-goals
+## State
 
-- Do not recreate the v1 full assistant/agent manager in the left pane.
-- Do not add new preference keys.
-- Do not add new DataApi query semantics for this feature.
-- Do not make the right panel share the branch/trace/files/status/flow content
-  shell. It may reuse the right panel chrome and layout mechanics only.
-- Do not change the startup selection strategy.
-
-## Preferences and state
-
-- `chat.resource_list.position` continues to select `left` or `right`.
-- `topic.tab.show` controls whether the left entity rail is expanded/collapsed in
-  right mode.
-- The right conversation/work panel is tab-scoped component state.
-- The right panel is closed by default.
-- Switching from `right` to `left`, then back to `right`, does not restore the old
-  right panel open state.
-- No new persisted setting is introduced for this design.
+- `chat.conversation_view` / `chat.work_view` select the mode per surface.
+- `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
+- The right panel is tab-scoped component state, closed by default.
+- Toggling a surface old → new → old does not restore the old right-panel open
+  state.
+- No other persisted setting is introduced.
 
 ## Left entity rail
 
-The left rail is an entity index, not a full resource list.
+`ResourceEntityRail` (presentational, generic) + `useResourceEntityRail` (shared
+behavior). The per-variant adapters `AssistantResourceList` / `AgentResourceList`
+own data fetching, pins, deletion, and context menus.
 
 ### Scope
 
-- Home shows assistants.
-- Agent shows agents.
-- Only entities that already have conversations/works are shown.
-- Assistants/agents with no topic/session are not shown.
-- Newly created assistants/agents are not temporarily shown until they have at
-  least one topic/session.
+- Home shows assistants; Agent shows agents.
+- Only entities that already own conversations/works are shown — visibility is
+  derived from the shared resource list (`getResourceParentId`), not a separate
+  query.
+- Newly created assistants/agents stay hidden until they have at least one
+  topic/session.
 
 ### Top action
 
-- The top action stays in the left rail:
-  - Home: add assistant.
-  - Agent: add agent.
-- The top action is fixed above the sortable entity list.
-- Entities cannot be dragged above the top action.
-- After creating a new assistant/agent, the main chat enters that entity's blank
-  state.
-- The new entity still does not appear in the left rail until it has a
-  topic/session.
-
-### Visual shape
-
-- No search in the left rail.
-- No count badges.
-- No tag/group sections.
-- Use the existing left-mode visual language:
-  - emoji/avatar + name,
-  - hover state,
-  - selected state,
-  - comparable width, row height, spacing, and typography.
-- Prefer reusing existing left-mode assistant/agent row behavior. If the current
-  rows are too tightly coupled to the old structure, extract a thinner shared row
-  instead of copying v1 structure.
+- Fixed above the sortable entity list: Home adds an assistant, Agent adds an
+  agent. Entities cannot be dragged above it.
+- After creating a new entity the main chat enters its blank state; the entity
+  still does not appear in the rail until it owns a topic/session.
 
 ### Selection and click behavior
 
-- Selection is determined by the current assistantId/agentId.
-- If the current entity is not visible because it has no resources, the left rail
-  has no selected row.
-- Clicking an entity enters the first topic/session under that entity according
-  to the right panel's time ordering:
-  - pinned items follow the existing time-mode rule if the current ResourceList
-    already prioritizes them,
-  - then most recent time order.
-- Clicking an entity does not open the right panel if it is currently closed.
-- If the right panel is already open, it stays open and switches to the newly
-  selected entity.
+- Selection follows the current assistantId/agentId; if the current entity has no
+  resources it has no selected row.
+- `handleSelect` enters the entity's first/most-recent resource (pinned then time
+  order via `sortResourcesForEntity`). Because a visible entity always owns at
+  least one *loaded* resource, this does **not** wait for the full load — there is
+  no dead-click window. The (effectively unreachable) no-resource case falls back
+  to a blank draft.
+- Clicking an entity does not open the right panel if it is closed; if it is open
+  it stays open and switches to the new entity.
 
-### Ordering
+### Ordering & context menu
 
-- The visible entity list is ordered by assistant/agent `orderKey`.
-- Drag sorting is supported.
-- Drag sorting updates the real assistant/agent `orderKey`.
-- The drag behavior should follow the existing left-mode ResourceList ordering
-  behavior.
+- Ordered by assistant/agent `orderKey`; drag reorders and persists the real
+  `orderKey` (optimistic, then refetch).
+- Entity rows keep their left-mode entity context menus (assistant grouped-row /
+  agent `AgentItem` behavior). Deleting the current entity, or clearing all its
+  resources, closes the right panel and leaves the main chat in that entity's
+  blank state.
 
-### Context menu
+## Right resource panel
 
-- Entity rows keep entity-level context menus.
-- Home follows the assistant context menu behavior from the left-mode grouped
-  assistant list.
-- Agent follows the existing left-mode `AgentItem` context menu behavior.
-- If an entity-level action deletes the current assistant/agent, the right panel
-  closes.
-- If an entity-level action clears all resources for the current entity, the
-  entity disappears from the left rail, the right panel closes, and the main chat
-  remains in that entity's blank state.
+The right panel reuses the existing `Shell` right-pane chrome. The topic/session
+list is injected as the first `resources` tab via `ResourcePaneProvider` /
+`useResourcePane` (a context, so the node + label + disabled flag are supplied
+once at the page level instead of prop-threaded).
 
-### Empty, loading, and error states
-
-- If no entities have resources, show only the top add action; no extra empty
-  explanation is needed.
-- During loading, do not temporarily show all assistants/agents. The rail must
-  only show confirmed entities with resources.
-- Do not add a new skeleton unless the existing left-mode behavior already
-  provides one.
-- Loading and error handling should follow the existing left-mode behavior.
-
-## Right ResourceList panel
-
-The right panel is the full resource list for the current entity.
-
-### Scope and labels
-
-- Home: topic list.
-- Agent: work list.
-- The Home top-right entry uses the existing product word "topic" / "话题";
-  Agent uses "work" / "工作".
-- The panel lists only resources under the current assistant/agent.
-- When there is no current assistant/agent context, the tool button is disabled
-  and its tooltip explains that an assistant/agent must be selected first.
-- In a newly created blank entity context, the button is enabled and the panel
-  can open to an empty list.
-
-### Entry and chrome
-
-- The open/close entry lives in the chat page's top-right tool area.
-- Do not add a separate outer topic/work entry button.
-- The existing right panel toggle opens the right panel.
-- In right mode, the first right panel tab is the topic/work ResourceList.
-- The same tool button toggles the panel open and closed.
-- The panel itself does not add a second close button.
-- The panel is mutually exclusive with existing right-side panels such as
-  branch/trace/files/status/flow.
-- Mutual exclusion is scoped to the current page/chat instance only; it does not
-  affect other pages, windows, or tabs.
-- Clicking the chat area or sending a message does not close the panel.
-- No new Escape-key close behavior is added.
-- The panel reuses the existing rightPanel chrome:
-  - border,
-  - background,
-  - resize handle,
-  - resize behavior,
-  - width state,
-  - min/max constraints,
-  - existing push/overlay layout behavior.
-- The inner content structure is a dedicated ResourceList composition, not the
-  existing branch/trace/files/status/flow shell.
-
-### List behavior
-
-- Fixed time grouping.
-- Groups are expanded by default.
-- Right mode does not read or write the left-mode group collapsed state.
-- Right mode does not follow existing group/section display options.
-- The header keeps only the new conversation/work item.
-- The header does not keep display options, history, or sidebar toggle controls.
-- Search is kept in the right list.
-- Search is scoped to the current assistant/agent's resources.
-- Switching assistant/agent clears right-list search and temporary UI state.
-- Switching topic/session within the same assistant/agent does not clear search.
-- Search empty state follows the existing ResourceList behavior.
-- Resource item context menus are kept.
-- Drag sorting and group movement are explicitly disabled in right mode, because
-  the right list is fixed time-grouped.
-- Clicking a topic/session keeps the panel open.
-
-### Deletion and disappearance
-
-- If deleting/moving/clearing resources causes the current entity to have no
-  conversations/works:
-  - the entity disappears from the left rail,
-  - the right panel closes,
-  - the main chat remains in the current entity's blank state.
-- If a new topic/session is later created for that blank entity:
-  - the entity reappears in the left rail,
-  - the right panel remains closed.
+- Home lists topics ("topic" / "话题"); Agent lists works ("work" / "工作").
+- Lists only the current entity's resources. With no current entity the toggle is
+  disabled; a blank new entity opens to an empty list.
+- The toggle lives in the chat top-right tool area; the same button toggles
+  open/closed. The panel is mutually exclusive with branch/trace/files/status/flow
+  (scoped to the current chat instance).
+- Fixed time grouping, groups expanded by default; does not read/write the
+  left-mode group-collapsed state or display options. Header keeps only the
+  new-item action; search is kept and scoped to the current entity. Drag/group
+  movement is disabled (the list is fixed time-grouped).
+- Switching assistant/agent clears the right-list search; switching topic/session
+  within the same entity does not.
 
 ## Data flow
 
-Do not add a new DataApi endpoint for filtering topics by assistantId.
+No DataApi endpoint filters topics/sessions by entity — both panes derive from one
+shared full list and filter in the frontend.
 
-The intended data flow is:
+- The entity rail and the right panel read the **same** source through
+  `useAssistantTopicsSource` / `useAgentSessionsSource`
+  (`src/renderer/hooks/resourceViewSources.ts`). These wrap
+  `useTopics({ loadAll: true })` / `useSessions(undefined, { loadAll: true,
+  pageSize })` so both sides resolve to one SWR key — one fetch, and the load
+  options can never drift between the two call sites.
+- `loadAll` is intentional and unavoidable: the rail must know which entities own
+  resources, and the panel filters the same list by the current entity. A single
+  fetch feeds both.
+- Create/delete/rename/clear/move use the existing left-mode mutation/invalidate
+  flow; after a mutation the shared source is refreshed once and both sides
+  re-derive. No local shadow copies.
+- Assistant/agent metadata supplies display data + operations (name, emoji/avatar,
+  `orderKey`, context-menu actions); topic/session data determines visibility.
 
-1. Lift the topics/sessions data source to the page or chat-instance level.
-2. Let the left entity rail and the right ResourceList derive from the same
-   shared data source.
-3. Filter by assistant/agent in the frontend.
-4. Avoid repeated fetches while switching entities.
+## Agent pane persistence across the draft→persistent handoff
 
-Notes:
+Home keeps a single page-level `Shell` (via `renderWithRightPane`), so its right
+pane stays open across the draft → persistent topic handoff. The agent chat mounts
+a fresh `AgentRightPane` (= a fresh `Shell`) per conversation branch
+(initializing / draft / missing-agent / persistent), so sending the first message
+in a draft session would otherwise remount the Shell and snap the work panel shut.
 
-- Sessions may already support agent-scoped querying, but right mode should
-  still be designed around shared page-level data so the left and right panes do
-  not independently refetch or diverge.
-- Topic/session create, delete, rename, clear, and move operations should use
-  the existing left-mode mutation/invalidate/update flow.
-- After a mutation, refresh/update the shared data source once and rederive both
-  sides from it.
-- Do not maintain local shadow copies of resources for the left or right panes.
-- Assistant/agent metadata supplies display data and operations:
-  - name,
-  - emoji/avatar,
-  - `orderKey`,
-  - context-menu actions.
-- Topic/session data determines entity visibility.
+To match Home, the `Shell` exposes an additive `onOpenChange` callback;
+`AgentPage` owns the open state (`workPaneOpen`) and threads
+`defaultOpen` + `onOpenChange` through `AgentChat` to every `AgentRightPane` mount
+site, so the open state survives the remount. This is scoped to old view
+(`isOldView`); new view passes `undefined` and is byte-for-byte unchanged.
 
-## Current WIP correction
+## Key files
 
-The following current-branch files represent the wrong direction and should be
-removed or heavily reworked:
-
-- `src/renderer/components/chat/resources/variants/AssistantResourceList.tsx`
-- `src/renderer/components/chat/resources/variants/AgentResourceList.tsx`
-- `src/renderer/components/chat/resources/variants/ResourceEntityList.tsx`
-
-Why:
-
-- They make right mode behave like a left-side v1-style assistant/agent list.
-- They do not introduce the agreed separate right ResourceList panel.
-- They do not preserve the required split between a compact entity rail and a
-  full current-entity resource panel.
-
-The existing changes in `HomePage.tsx` and `AgentPage.tsx` that map right mode
-to `AssistantResourceList` / `AgentResourceList` should also be replaced.
-
-Expected direction:
-
-- Left mode keeps using the current left-mode Topics/Sessions behavior.
-- Right mode renders the new entity rail on the left.
-- Right mode mounts the current-entity ResourceList into the existing rightPanel
-  container.
-- Shared ResourceList behavior should be factored out only where needed:
-  - row interactions,
-  - context menus,
-  - fixed time grouping,
-  - search,
-  - header new item,
-  - mutation refresh behavior.
-
-## Implementation checks
-
-Implementation verified the exact current code paths for:
-
-- assistant grouped row context menu behavior in left mode,
-- agent `AgentItem` context menu behavior,
-- assistant/agent reorder APIs and orderKey persistence,
-- existing rightPanel width/resize state ownership,
-- current ResourceList time-group sorting, especially pinned-item precedence,
-- current ResourceList search composition and how to scope it to one entity,
-- mutation invalidation/update paths for topic/session operations.
+- `components/chat/resources/variants/ResourceEntityRail.tsx`,
+  `useResourceEntityRail.ts` — rail component + shared behavior.
+- `components/chat/resources/variants/AssistantResourceList.tsx`,
+  `AgentResourceList.tsx` — per-variant data adapters.
+- `components/chat/panes/Shell/resourcePane.tsx` — `resources` tab injection.
+- `hooks/resourceViewSources.ts` — shared full-list sources.
+- `pages/home/HomePage.tsx`, `pages/agents/AgentPage.tsx`,
+  `pages/agents/AgentChat.tsx` — page wiring + agent pane persistence.

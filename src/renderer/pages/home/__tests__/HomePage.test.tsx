@@ -495,7 +495,7 @@ describe('HomePage', () => {
   })
 
   it('renders the assistant resource list with the resource pane closed by default', () => {
-    homeMocks.preferenceValues.set('chat.resource_list.position', 'right')
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
 
     render(<HomePage />)
 

@@ -23,6 +23,7 @@ import { loggerService } from '@logger'
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
   flattenCompressionConfig,
+  mapTopicPositionToConversationView,
   migrateWebSearchProviders,
   normalizeWebSearchDefaultProvider
 } from '../transformers/PreferenceTransformers'
@@ -98,6 +99,17 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // Assistant conversation view: legacy topicPosition (left/right) → v2 view mode (old/new)
+  {
+    id: 'topic_position_to_conversation_view',
+    description: 'Map legacy assistant topicPosition (left/right) to the v2 conversation view mode (old/new)',
+    sources: {
+      topicPosition: { source: 'redux', category: 'settings', key: 'topicPosition' }
+    },
+    targetKeys: ['chat.conversation_view'],
+    transform: mapTopicPositionToConversationView
+  },
+
   // WebSearch default provider normalization
   {
     id: 'websearch_default_provider_migrate',

@@ -16,7 +16,6 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   /** Every resource for the current scope; an entity is only visible while it owns at least one. */
   resources: readonly TResource[]
   getResourceParentId: (resource: TResource) => string | null | undefined
-  resourcesFullyLoaded: boolean
   activeEntityId?: string | null
   isLoading: boolean
   isError: boolean
@@ -47,7 +46,6 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   entities,
   resources,
   getResourceParentId,
-  resourcesFullyLoaded,
   activeEntityId,
   isLoading,
   isError,
@@ -92,8 +90,9 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
 
   const handleSelect = useCallback(
     (item: TEntity) => {
-      if (!resourcesFullyLoaded) return
-
+      // A visible rail entity always owns at least one loaded resource (rail visibility derives from
+      // `resources`), so enter its first/most-recent resource — no need to wait for the full load.
+      // Only the (effectively unreachable) no-resource case falls back to a blank draft.
       const entityResources = resources.filter((resource) => getResourceParentId(resource) === item.id)
       const first = sortResourcesForEntity(entityResources)[0]
       if (first) {
@@ -102,7 +101,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       }
       void onStartDraft(item.id)
     },
-    [getResourceParentId, onPickResource, onStartDraft, resources, resourcesFullyLoaded, sortResourcesForEntity]
+    [getResourceParentId, onPickResource, onStartDraft, resources, sortResourcesForEntity]
   )
 
   const handleReorder = useCallback(

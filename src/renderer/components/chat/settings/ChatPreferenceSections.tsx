@@ -24,11 +24,12 @@ type SelectOption<T extends string = string> = {
   value: T
   label: string
 }
-type ResourceListPosition = 'left' | 'right'
+type ChatViewMode = 'new' | 'old'
 
 const ChatPreferenceSections: FC = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
-  const [resourceListPosition, setResourceListPosition] = usePreference('chat.resource_list.position')
+  const [conversationView, setConversationView] = usePreference('chat.conversation_view')
+  const [workView, setWorkView] = usePreference('chat.work_view')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -85,10 +86,10 @@ const ChatPreferenceSections: FC = () => {
     [t]
   )
 
-  const resourceListPositionItems = useMemo<SelectOption<ResourceListPosition>[]>(
+  const viewModeItems = useMemo<SelectOption<ChatViewMode>[]>(
     () => [
-      { value: 'left', label: t('settings.messages.resource_list.position_left') },
-      { value: 'right', label: t('settings.messages.resource_list.position_right') }
+      { value: 'new', label: t('settings.messages.view.new') },
+      { value: 'old', label: t('settings.messages.view.old') }
     ],
     [t]
   )
@@ -205,15 +206,29 @@ const ChatPreferenceSections: FC = () => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.resource_list.position')}</SettingRowTitleSmall>
-            <Select
-              value={resourceListPosition}
-              onValueChange={(value) => setResourceListPosition(value as ResourceListPosition)}>
+            <SettingRowTitleSmall>{t('settings.messages.view.conversation')}</SettingRowTitleSmall>
+            <Select value={conversationView} onValueChange={(value) => setConversationView(value as ChatViewMode)}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-sm">
-                {resourceListPositionItems.map((item) => (
+                {viewModeItems.map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.view.work')}</SettingRowTitleSmall>
+            <Select value={workView} onValueChange={(value) => setWorkView(value as ChatViewMode)}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {viewModeItems.map((item) => (
                   <SelectItem className="text-sm" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>

@@ -1038,10 +1038,10 @@
         {
           "originalKey": "topicPosition",
           "type": "string",
-          "defaultValue": "right",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.resource_list.position"
+          "defaultValue": "left",
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "showTopicTime",

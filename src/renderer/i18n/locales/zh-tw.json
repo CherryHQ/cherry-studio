@@ -6485,14 +6485,15 @@
         "label": "訊息導覽",
         "none": "不顯示"
       },
-      "resource_list": {
-        "position": "訊息列表位置",
-        "position_left": "左側",
-        "position_right": "右側"
-      },
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",
+      "view": {
+        "conversation": "對話視圖",
+        "new": "新視圖",
+        "old": "舊視圖",
+        "work": "工作視圖"
+      },
       "wide_mode": "寬版面模式"
     },
     "miniApps": {

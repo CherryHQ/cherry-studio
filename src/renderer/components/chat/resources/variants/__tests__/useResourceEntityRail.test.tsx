@@ -34,7 +34,6 @@ function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<T
         entities: ENTITIES,
         resources: RESOURCES,
         getResourceParentId: (resource) => resource.entityId,
-        resourcesFullyLoaded: true,
         activeEntityId: 'assistant-a',
         isLoading: false,
         isError: false,
@@ -75,7 +74,6 @@ describe('useResourceEntityRail', () => {
       entities: ENTITIES,
       resources: RESOURCES,
       getResourceParentId: (resource) => resource.entityId,
-      resourcesFullyLoaded: true,
       activeEntityId: 'assistant-b',
       isLoading: true,
       isError: false,
@@ -90,5 +88,23 @@ describe('useResourceEntityRail', () => {
     expect(result.current.listStatus).toBe('idle')
     expect(result.current.selectedId).toBe('assistant-b')
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
+  })
+
+  it('enters the first/most-recent resource on select even while resources are still loading', () => {
+    const onPickResource = vi.fn()
+    const { result } = renderRail({ isLoading: true, onPickResource })
+
+    result.current.handleSelect(ENTITIES[0])
+
+    expect(onPickResource).toHaveBeenCalledWith(RESOURCES[0])
+  })
+
+  it('falls back to a blank draft when the entity has no resources yet', () => {
+    const onStartDraft = vi.fn()
+    const { result } = renderRail({ onStartDraft })
+
+    result.current.handleSelect({ id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' })
+
+    expect(onStartDraft).toHaveBeenCalledWith('assistant-c')
   })
 })
