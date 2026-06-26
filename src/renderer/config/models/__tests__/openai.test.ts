@@ -1,6 +1,6 @@
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { toSharedCompatModel } from '../bridge'
 import {
@@ -16,17 +16,6 @@ import {
   isSupportNoneReasoningEffortModel,
   isSupportVerbosityModel
 } from '../openai'
-
-// Mock store and settings to avoid initialization issues
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  }
-}))
 
 const createModel = (overrides: Partial<V1Model> = {}): Model =>
   toSharedCompatModel({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai', group: 'OpenAI', ...overrides } as V1Model)

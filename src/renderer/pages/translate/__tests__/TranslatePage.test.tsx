@@ -154,10 +154,16 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' '),
+vi.mock('@renderer/utils/style', () => ({
+  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+}))
+
+vi.mock('@renderer/utils/file', () => ({
   getFileExtension: fileMock.getFileExtension,
-  isTextFile: fileMock.isTextFile,
+  isTextFile: fileMock.isTextFile
+}))
+
+vi.mock('@renderer/utils/uuid', () => ({
   uuid: uuidMock
 }))
 

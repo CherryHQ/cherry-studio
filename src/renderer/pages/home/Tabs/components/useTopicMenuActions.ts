@@ -3,7 +3,7 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,

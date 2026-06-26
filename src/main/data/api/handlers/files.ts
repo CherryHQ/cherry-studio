@@ -28,7 +28,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
     GET: async ({ query }) => {
       const validated = ListFilesQuerySchema.parse(query ?? {})
-      return fileEntryService.listPaged(validated)
+      return fileEntryService.listCursor(validated)
     }
   },
 
@@ -37,6 +37,10 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
       const id = FileEntryIdSchema.parse(params.id)
       return fileEntryService.getById(id)
     }
+  },
+
+  '/files/entries/stats': {
+    GET: async () => fileEntryService.getStats()
   },
 
   '/files/entries/ref-counts': {

@@ -30,7 +30,8 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
+    'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+    'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
@@ -336,10 +337,6 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ defaultPaintingProvider: 'zhipu' })
-}))
-
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     miniApps: [...mocks.pinnedMiniApps, ...mocks.openedMiniApps],
@@ -400,7 +397,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -551,7 +548,8 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
+      'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+      'feature.paintings.default_provider': 'zhipu'
     }
     mocks.persistCacheValues = {
       'ui.chat.last_used_topic_id': undefined,

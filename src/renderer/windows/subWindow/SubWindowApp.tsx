@@ -1,18 +1,11 @@
-import '@renderer/databases'
-
 import { preferenceService } from '@data/PreferenceService'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import store from '@renderer/store'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Provider } from 'react-redux'
 
 void preferenceService.preloadAll()
 
@@ -28,29 +21,21 @@ const queryClient = new QueryClient({
 
 function SubWindowApp(): React.ReactElement {
   return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                        <TopViewContainer>
-                          <SubWindowAppShell />
-                        </TopViewContainer>
-                      </TabsProvider>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
-      </QueryClientProvider>
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                <TopViewContainer>
+                  <SubWindowAppShell />
+                </TopViewContainer>
+              </TabsProvider>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 

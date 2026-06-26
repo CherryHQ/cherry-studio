@@ -10,41 +10,8 @@ vi.mock('@renderer/services/AssistantService', () => ({
   })
 }))
 
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  },
-  useAppDispatch: vi.fn(),
-  useAppSelector: vi.fn()
-}))
-
-vi.mock('@renderer/store/settings', () => {
-  const noop = vi.fn()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (prop === 'initialState') {
-          return {}
-        }
-        return noop
-      }
-    }
-  )
-})
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
-
-import type { Model as V1Model } from '@renderer/types'
-import { SystemProviderIds } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
+import { SystemProviderIds } from '@renderer/types/provider'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 

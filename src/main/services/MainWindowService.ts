@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
+import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
@@ -9,7 +10,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
-import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
@@ -96,14 +96,12 @@ export class MainWindowService extends BaseService {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
     }
 
-    this.openMainWindow()
+    // Dev-only: load DevTools extensions before the main window's page loads so
+    // they attach to it. Fire-and-forget — a slow/failed install (React DevTools
+    // may download on first run) must never delay window creation. No-op in prod.
+    void installDevtoolsExtensions()
 
-    // Install React Developer Tools extension for debugging in development mode
-    if (isDev) {
-      installExtension(REACT_DEVELOPER_TOOLS)
-        .then((name) => logger.info(`Added Extension: ${name}`))
-        .catch((err) => logger.error('An error occurred: ', err))
-    }
+    this.openMainWindow()
   }
 
   private requireMainWindow(): BrowserWindow {

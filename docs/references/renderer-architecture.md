@@ -165,10 +165,8 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 | `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (§4.8) |
 | `context/` | redundant by-kind bucket (providers are components); mixes global and domain providers | dissolve: app-wide providers → shared tier (components), mounted by windows; domain providers → their owning domain; none → `services/` |
 | `config/` | by-kind bucket mixing app-global constants (`constant.ts` ~80 consumers, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | dissolve: app-global residue (`constant.ts`, `env.ts`) stays; domain config/data → its owning domain |
-| `types/` root barrel | `src/renderer/types/index.ts` (~950 lines) **defines ~114 types inline** *and* re-exports via 13 `export *`; imported bucket-root by ~210 `@renderer/types` + 15 `@types` consumers | no root `index.ts` (§5): each type in `types/<topic>.ts`, imported as `@renderer/types/<topic>`; a multi-file topic promotes to `types/<topic>/index.ts` (named exports, no `export *`) |
 | `utils/` root barrel | `src/renderer/utils/index.ts` (11 `export *`) imported bucket-root by ~127 `@renderer/utils` consumers; `utils/messageUtils/` is a multi-file topic subdir with **no `index.ts`** | drop the root barrel (import `@renderer/utils/<topic>`); give `messageUtils/` one curated `index.ts` (named exports, no `export *`) |
-| `@types` alias | `@types` resolves to the `src/renderer/types` root barrel (`tsconfig.web.json:28`, `electron.vite.config.ts:118`) — a redundant second path into the bucket root, used by 15 renderer files | dissolve `@types`; consumers import `@renderer/types/<topic>` directly (subsumed by the `types/` root-barrel removal above) |
-| `store/`, `databases/` | v1 Redux / Dexie | removed during the v2 refactor (do not model) |
+| `databases/` | v1 Dexie | removed during the v2 refactor (do not model) |
 | Boundary enforcement | none | `import/no-restricted-paths` zones (§5) |
 
 Known reverse/coupling edges at time of writing: ~35 `pages → pages` cross-imports (the command-driven `component`/`hook → feature` edges have been resolved). These are the violations the §5 lint rules are designed to catch and prevent.

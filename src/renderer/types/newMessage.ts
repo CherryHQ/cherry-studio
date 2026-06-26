@@ -1,23 +1,18 @@
 //TODO [v2] 类型将转移至 src/shared/data/types/message.ts。 转移后此文件将废弃(deprecated)
 
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ProviderMetadata } from 'ai'
 
-import type {
-  FileMetadata,
-  GenerateImageResponse,
-  KnowledgeReference,
-  McpServer,
-  McpToolResponse,
-  MemoryItem,
-  Metrics,
-  Model,
-  NormalToolResponse,
-  Usage,
-  WebSearchResponse,
-  WebSearchSource
-} from '.'
 import type { SerializedError } from './error'
+import type { FileMetadata } from './file'
+import type { GenerateImageResponse } from './image'
+import type { KnowledgeReference } from './knowledge'
+import type { McpToolResponse, NormalToolResponse } from './mcpTool'
+import type { MemoryItem } from './memory'
+import type { Metrics, Usage } from './message'
+import type { Model } from './model'
+import type { WebSearchResponse, WebSearchSource } from './webSearchProvider'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {

@@ -1,5 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 
 export type TopicImageActionType = 'copy' | 'export'
 

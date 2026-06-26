@@ -7,12 +7,12 @@ import { useMessagePlatformActions } from '@renderer/components/chat/messages/ho
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
-import type { TranslateLanguage } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { defaultLanguage } from '@shared/utils/languages'
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import WindowFooter from './WindowFooter'
+
 interface Props {
   action: SelectionActionItem
   scrollToBottom: () => void

@@ -1,4 +1,4 @@
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import type * as ReactI18next from 'react-i18next'

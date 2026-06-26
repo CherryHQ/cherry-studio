@@ -6,7 +6,7 @@ import type {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
-import { droppableReorder } from '@renderer/utils'
+import { droppableReorder } from '@renderer/utils/sort'
 import type { HTMLAttributes, Key } from 'react'
 import { useCallback } from 'react'
 

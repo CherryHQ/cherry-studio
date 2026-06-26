@@ -2,10 +2,10 @@ import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useTabs } from '@renderer/hooks/useTabs'
+import { cn } from '@renderer/utils/style'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
 import React, { useEffect, useMemo, useRef } from 'react'
-import styled from 'styled-components'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -39,11 +39,6 @@ const MiniAppTabsPool: React.FC = () => {
     return parts.length >= 3
   }, [tabs, activeTabId])
 
-  const appMetadataSignature = openedKeepAliveMiniApps
-    .map((a) => JSON.stringify([a.appId, a.url]))
-    .sort()
-    .join('|')
-
   // Render the pool in a stable order (by appId), independent of the LRU
   // ordering inside `openedKeepAliveMiniApps`. Order in the cache is correct
   // for eviction (oldest at the head) but using it as the render order causes
@@ -52,6 +47,11 @@ const MiniAppTabsPool: React.FC = () => {
   // (known platform limitation). A stable sort breaks that link: every
   // surviving webview keeps the same DOM position across reorders, so
   // switching tabs never re-loads.
+  const appMetadataSignature = openedKeepAliveMiniApps
+    .map((a) => JSON.stringify([a.appId, a.url]))
+    .sort()
+    .join('|')
+
   const apps = useMemo(() => {
     const sorted = [...openedKeepAliveMiniApps]
     sorted.sort((a, b) => (a.appId < b.appId ? -1 : a.appId > b.appId ? 1 : 0))
@@ -109,7 +109,8 @@ const MiniAppTabsPool: React.FC = () => {
   const toolbarHeight = 35 // Match MinimalToolbar height
 
   return (
-    <PoolContainer
+    <div
+      className="pointer-events-none absolute right-0 bottom-0 left-0 z-[1] w-full overflow-hidden rounded-b-md [&_webview]:pointer-events-auto"
       style={
         shouldShow
           ? {
@@ -122,7 +123,12 @@ const MiniAppTabsPool: React.FC = () => {
       data-mini-app-tabs-pool
       aria-hidden={!shouldShow}>
       {apps.map((app) => (
-        <WebviewWrapper key={app.appId} $active={app.appId === currentMiniAppId}>
+        <div
+          key={app.appId}
+          className={cn(
+            'absolute inset-0 h-full w-full',
+            app.appId === currentMiniAppId ? 'pointer-events-auto' : 'pointer-events-none'
+          )}>
           <WebviewContainer
             appid={app.appId}
             url={app.url}
@@ -130,35 +136,10 @@ const MiniAppTabsPool: React.FC = () => {
             onLoadedCallback={handleLoaded}
             onNavigateCallback={handleNavigate}
           />
-        </WebviewWrapper>
+        </div>
       ))}
-    </PoolContainer>
+    </div>
   )
 }
-
-const PoolContainer = styled.div`
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* top 在运行时通过 style 注入 (toolbarHeight) */
-  width: 100%;
-  overflow: hidden;
-  border-radius: 0 0 8px 8px;
-  z-index: 1;
-  pointer-events: none;
-  & webview {
-    pointer-events: auto;
-  }
-`
-
-const WebviewWrapper = styled.div<{ $active: boolean }>`
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  /* display is controlled on the inner webview element; keep the wrapper structure stable */
-  pointer-events: ${(props) => (props.$active ? 'auto' : 'none')};
-`
 
 export default MiniAppTabsPool

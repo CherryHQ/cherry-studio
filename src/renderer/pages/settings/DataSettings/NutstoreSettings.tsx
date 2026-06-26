@@ -1,4 +1,3 @@
-import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
@@ -12,14 +11,14 @@ import {
   backupToNutstore,
   checkConnection,
   createDirectory,
+  getNutstoreSyncState,
   restoreFromNutstore,
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
-import { useAppSelector } from '@renderer/store'
-import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
+import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +29,7 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { nutstoreSyncState } = useAppSelector((state) => state.nutstore)
+  const nutstoreSyncState = getNutstoreSyncState()
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
@@ -80,9 +79,14 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
-    const confirmedLogout = await modalConfirm({
-      title: t('settings.data.nutstore.logout.title'),
-      content: t('settings.data.nutstore.logout.content')
+    const confirmedLogout = await new Promise<boolean>((resolve) => {
+      window.modal.confirm({
+        centered: true,
+        title: t('settings.data.nutstore.logout.title'),
+        content: t('settings.data.nutstore.logout.content'),
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false)
+      })
     })
     if (confirmedLogout) {
       void setNutstoreToken('')
@@ -173,7 +177,7 @@ const NutstoreSettings: FC = () => {
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {nutstoreSyncState.syncing && <SyncOutlined spin />}
+        {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
@@ -214,9 +218,9 @@ const NutstoreSettings: FC = () => {
               onClick={handleCheckConnection}
               disabled={checkConnectionLoading}>
               {checkConnectionLoading ? (
-                <LoadingOutlined spin />
+                <Loader2 className="animate-spin" size={14} />
               ) : nsConnected ? (
-                <CheckOutlined />
+                <Check size={14} />
               ) : (
                 t('settings.data.nutstore.checkConnection.name')
               )}
@@ -252,7 +256,7 @@ const NutstoreSettings: FC = () => {
                 }}
               />
               <Button variant="outline" onClick={handleClickPathChange} size="icon">
-                <FolderOutlined />
+                <FolderOpen size={14} />
               </Button>
             </RowFlex>
           </SettingRow>

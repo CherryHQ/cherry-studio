@@ -1,5 +1,6 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
 import {
   Bot,
   DoorOpen,

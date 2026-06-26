@@ -1,5 +1,5 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Brain, Check, Code2, Filter, Gift, Globe, Grid2X2, Image, RotateCw, Wrench, X } from 'lucide-react'
 import type React from 'react'
 import { useMemo, useState } from 'react'
