@@ -1,6 +1,6 @@
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'

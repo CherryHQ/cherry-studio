@@ -149,6 +149,7 @@ This document describes the **target** architecture. The renderer has not yet be
 
 - `packages/ui` has no back-imports from `@renderer/*` (the primitive layer is clean).
 - The command capability is decomposed by shape with no `component`/`hook → feature` edges: the renderer cells (`utils/command`, `hooks/command`, `components/command`) are in place, and its cross-process cell is split into `@shared/utils/command` (logic + `ContextKeyService`/`MenuRegistry` blueprints) and `@shared/types/command` (types) per [Shared Layer Architecture](./shared-layer-architecture.md).
+- The `context/` by-kind bucket has been dissolved by shape: app-wide providers (`ThemeProvider`, `CodeStyleProvider`) sit in `components/` with their context objects and accessor hooks in `hooks/` (`useTheme`, `useCodeStyle`); the tab subsystem's behavior layer is decomposed into `hooks/tab/` (context + hooks, mirroring the `command` pattern), with the `TabsProvider`/`TabIdProvider` components co-located in the shell UI (`components/layout/`) pending the App-shell migration.
 
 **Pending (current deviations from the target):**
 
@@ -163,7 +164,6 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 | Cross-page imports | `pages/<domain>/` import each other (`pages → pages` coupling) | a page must not import another page; route shared needs through the shared layer |
 | `transport/` | a chat-domain capability (`IpcChatTransport`, `TopicStreamSubscription`) occupies its own top-level directory | belongs to its owning domain (chat); not its own top-level directory (§4.8) |
 | `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (§4.8) |
-| `context/` | redundant by-kind bucket (providers are components); mixes global and domain providers | dissolve: app-wide providers → shared tier (components), mounted by windows; domain providers → their owning domain; none → `services/` |
 | `config/` | by-kind bucket mixing app-global constants (`constant.ts` ~80 consumers, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | dissolve: app-global residue (`constant.ts`, `env.ts`) stays; domain config/data → its owning domain |
 | `utils/` root barrel | `src/renderer/utils/index.ts` (11 `export *`) imported bucket-root by ~127 `@renderer/utils` consumers; `utils/messageUtils/` is a multi-file topic subdir with **no `index.ts`** | drop the root barrel (import `@renderer/utils/<topic>`); give `messageUtils/` one curated `index.ts` (named exports, no `export *`) |
 | `databases/` | v1 Dexie | removed during the v2 refactor (do not model) |

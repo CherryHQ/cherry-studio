@@ -17,10 +17,20 @@
  * @see {@link CacheService} For implementation details
  */
 
+import fs from 'node:fs'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
-import type { InferSharedCacheValue, ProcessKey, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import type {
+  InferSharedCacheValue,
+  MainPersistCacheKey,
+  MainPersistCacheSchema,
+  ProcessKey,
+  SharedCacheKey
+} from '@shared/data/cache/cacheSchemas'
+import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -123,12 +133,12 @@ class CacheNotifier {
  * - Main process internal cache with TTL support
  * - IPC handlers for cross-window cache synchronization
  * - Broadcast mechanism for shared cache sync
- * - Minimal storage (persist cache interface reserved for future)
+ * - Independent JSON-backed persist cache (separate from the renderer localStorage relay)
  *
  * Responsibilities:
  * 1. Provide cache for Main process services
  * 2. Relay cache sync messages between renderer windows
- * 3. Reserve persist cache interface (not implemented yet)
+ * 3. Provide a main-authoritative, JSON-backed persist cache (independent from the renderer persist relay)
  */
 @Injectable('CacheService')
 @ServicePhase(Phase.BeforeReady)
@@ -147,6 +157,12 @@ export class CacheService extends BaseService {
   private gcInterval: Disposable | null = null
   private readonly GC_INTERVAL_MS = 10 * 60 * 1000
 
+  // Persist cache (main-authoritative, JSON-backed; independent from renderer persist)
+  private persistCache = new Map<string, unknown>()
+  private persistSaveTimer: ReturnType<typeof setTimeout> | null = null
+  private persistFilePath = ''
+  private readonly PERSIST_SAVE_DEBOUNCE_MS = 200
+
   constructor() {
     super()
   }
@@ -154,16 +170,22 @@ export class CacheService extends BaseService {
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
     this.startGarbageCollection()
+    this.persistFilePath = application.getPath('app.userdata', 'cache.json')
+    this.loadPersist()
     logger.info('CacheService initialized')
   }
 
   protected async onStop(): Promise<void> {
+    // Flush any pending debounced persist write before tearing down.
+    this.flushPersist()
+
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.gcInterval = null
 
     // Clear caches
     this.cache.clear()
     this.sharedCache.clear()
+    this.persistCache.clear()
 
     // Clear subscription notifiers — lifecycle end, subscribers should not fire
     this.internalNotifier.clear()
@@ -468,9 +490,114 @@ export class CacheService extends BaseService {
     return result
   }
 
-  // ============ Persist Cache Interface (Reserved) ============
+  // ============ Persist Cache (Main-authoritative, JSON-backed) ============
+  //
+  // Independent from the renderer persist cache: this tier is stored in a JSON
+  // file owned by the main process, never relayed to or readable by renderers.
+  // Fixed keys only, no delete, no TTL — values must tolerate a miss at any time
+  // (loseable contract; readers fall back to the schema default).
 
-  // TODO: Implement persist cache in future
+  /**
+   * Get a value from the main persist cache, falling back to the schema default.
+   */
+  getPersist<K extends MainPersistCacheKey>(key: K): MainPersistCacheSchema[K] {
+    if (this.persistCache.has(key)) {
+      return this.persistCache.get(key) as MainPersistCacheSchema[K]
+    }
+    return DefaultMainPersistCache[key]
+  }
+
+  /**
+   * Set a value in the main persist cache and schedule a debounced disk write.
+   * Same-value writes are skipped (deep equality), matching the other tiers.
+   */
+  setPersist<K extends MainPersistCacheKey>(key: K, value: MainPersistCacheSchema[K]): void {
+    if (this.persistCache.has(key) && isEqual(this.persistCache.get(key), value)) {
+      return
+    }
+    this.persistCache.set(key, value)
+    this.schedulePersistSave()
+  }
+
+  /**
+   * Whether the persist cache currently holds an entry for the key.
+   */
+  hasPersist<K extends MainPersistCacheKey>(key: K): boolean {
+    return this.persistCache.has(key)
+  }
+
+  /**
+   * Load the persisted JSON into memory, layered over schema defaults.
+   * A missing or corrupt file falls back to defaults — persist data is loseable.
+   */
+  private loadPersist(): void {
+    this.persistCache.clear()
+    for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
+      this.persistCache.set(key, DefaultMainPersistCache[key])
+    }
+
+    try {
+      if (!fs.existsSync(this.persistFilePath)) return
+
+      const parsed = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Adopt known schema keys only — unknown/stale keys are pruned so the
+        // "fixed keys only" contract holds and renamed keys don't linger on disk.
+        const record = parsed as Record<string, unknown>
+        for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
+          if (key in record) {
+            this.persistCache.set(key, record[key])
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to load persist cache from ${this.persistFilePath}, using defaults`, error as Error)
+    }
+  }
+
+  /**
+   * Schedule a debounced write; rapid writes coalesce into a single disk flush.
+   */
+  private schedulePersistSave(): void {
+    if (this.persistSaveTimer) {
+      clearTimeout(this.persistSaveTimer)
+    }
+    this.persistSaveTimer = setTimeout(() => {
+      this.persistSaveTimer = null
+      this.savePersistSync()
+    }, this.PERSIST_SAVE_DEBOUNCE_MS)
+  }
+
+  /**
+   * Synchronously write the whole persist map (atomic temp-file + rename).
+   * Failures are logged and swallowed — persist data is non-critical.
+   */
+  private savePersistSync(): void {
+    try {
+      const snapshot: Record<string, unknown> = {}
+      for (const [key, value] of this.persistCache.entries()) {
+        snapshot[key] = value
+      }
+
+      const content = JSON.stringify(snapshot, null, 2)
+      const tempPath = `${this.persistFilePath}.tmp`
+      fs.writeFileSync(tempPath, content, 'utf-8')
+      fs.renameSync(tempPath, this.persistFilePath)
+    } catch (error) {
+      logger.error(`Failed to save persist cache to ${this.persistFilePath}`, error as Error)
+    }
+  }
+
+  /**
+   * Cancel any pending debounced write and flush immediately (used on stop).
+   */
+  private flushPersist(): void {
+    if (this.persistSaveTimer) {
+      clearTimeout(this.persistSaveTimer)
+      this.persistSaveTimer = null
+      this.savePersistSync()
+    }
+  }
 
   // ============ IPC Handlers for Cache Synchronization ============
 

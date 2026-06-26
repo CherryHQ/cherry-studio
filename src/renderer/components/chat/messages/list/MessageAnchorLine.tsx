@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'

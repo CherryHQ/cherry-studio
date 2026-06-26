@@ -1,7 +1,7 @@
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'

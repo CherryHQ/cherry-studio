@@ -54,7 +54,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     openTab: mocks.openTab
   })

@@ -199,7 +199,7 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
-vi.mock('@renderer/context/TabIdContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => agentPageMocks.currentTab,
   useCurrentTabId: () => 'agent-tab',
   useIsActiveTab: () => agentPageMocks.isActiveTab,
@@ -376,7 +376,7 @@ vi.mock('../../history/HistoryRecordsPage', () => ({
     ) : null
 }))
 
-import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import AgentPage from '../AgentPage'

@@ -9,12 +9,12 @@ import {
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'

@@ -18,9 +18,10 @@ For user settings use [Preference](./preference-overview.md); for business data 
 | ---------- | --------------------------- | ---------------- | -------------------------------- | --------------------------------------- |
 | Memory     | Per-process                 | No               | Local to each process            | Computed results, API responses         |
 | Shared     | All renderer windows + Main | No               | Main (relays + conflict sink)    | Cross-window UI state                   |
-| Persist    | All renderer windows        | Yes (localStorage) | Each renderer (Main relays only) | Recent items, non-critical UI state     |
+| Persist (Renderer) | All renderer windows | Yes (localStorage) | Each renderer                | Recent items, non-critical UI state |
+| Persist (Main)     | Main process only    | Yes (JSON file)    | Main                         | Loseable main-process state         |
 
-Persist is renderer-only on disk — `src/main/data/CacheService.ts:477-479` reserves the interface but does not implement storage; Main only forwards `CacheSyncMessage { type: 'persist' }` to peers.
+Persist has two **independent** stores. Each **renderer** persists to its own `localStorage`; **Main** persists to its own JSON file (`{userData}/cache.json`) exposed as `getPersist` / `setPersist` / `hasPersist` on the Main `CacheService`. The two never share data — Main cannot read renderer persist and vice versa. Separately, Main still **relays** renderer-origin `CacheSyncMessage { type: 'persist' }` between windows (it forwards them; it does not store the renderer's persist).
 
 ## Key Types
 
@@ -64,7 +65,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 │                    CacheService (Main)                        │
 │   - Internal cache (Main-only)                                │
 │   - Shared cache (authoritative; relays to all windows)       │
-│   - Persist: IPC relay only (no Main-side store)              │
+│   - Persist: own JSON store + relays renderer persist         │
 │   - subscribeChange / subscribeSharedChange for Main services │
 └───────────────────────────────────────────────────────────────┘
 ```
@@ -75,7 +76,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 | ------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
 | Internal memory cache           | Yes (services' own scratch space)                | Yes (window-local)                                   |
 | Shared cache authority          | Yes                                              | Local copy; writes broadcast via IPC to Main         |
-| Persist cache storage           | No (relay only)                                  | Yes (localStorage, debounced 200ms, flush on unload) |
+| Persist cache storage           | Yes (own JSON file, debounced 200ms, flush on stop); also relays renderer persist sync | Yes (localStorage, debounced 200ms, flush on unload) |
 | Init sync for new windows       | Serves `getAllShared()`                          | Calls `getAllShared()` on startup                    |
 | `subscribeChange` / `subscribeSharedChange` | Main-only API; template-aware | —                                                    |
 | Hook refcounting                | —                                                | `registerHook` / `unregisterHook`                    |
@@ -100,6 +101,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 | ---------------------------------------------------- | ------- | ----------------------- |
 | `get` / `set` / `has` / `delete`                     | Internal | Free-form string        |
 | `getShared` / `setShared` / `hasShared` / `deleteShared` | Shared | Fixed + Template        |
+| `getPersist` / `setPersist` / `hasPersist`           | Persist (Main) | Fixed only        |
 | `subscribeChange<T>(key, cb)`                        | Internal | Exact key               |
 | `subscribeSharedChange<K>(key, cb)`                  | Shared  | Fixed + Template (fires for every matching concrete instance) |
 

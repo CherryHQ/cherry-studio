@@ -13,7 +13,7 @@ async function renderSubWindowAppShell(isMac: boolean) {
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => null
   }))
-  vi.doMock('@renderer/hooks/useTabs', () => ({
+  vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
       tabs,
       activeTabId: 'home',

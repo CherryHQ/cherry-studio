@@ -9,7 +9,7 @@ const useProviderOnboardingAutoEnableMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
     theme: 'light'
   })

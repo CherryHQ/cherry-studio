@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
+import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils/style'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'

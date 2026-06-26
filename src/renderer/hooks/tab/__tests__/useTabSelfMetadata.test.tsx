@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   updateTab: vi.fn()
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab/useTabsContext', () => ({
   useOptionalTabsContext: () => ({
     activeTabId: mocks.activeTabId,
     tabs: mocks.tabs,
@@ -20,11 +20,12 @@ vi.mock('@renderer/context/TabsContext', () => ({
   })
 }))
 
-vi.mock('@renderer/components/layout/tabIcons', () => ({
+vi.mock('@renderer/utils/tabIcons', () => ({
   emojiTabIcon: (emoji?: string | null) => (emoji ? `icon:${emoji}` : undefined)
 }))
 
-import { TabIdProvider, type TabSelfMetadata, useTabSelfMetadata } from '../TabIdContext'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { type TabSelfMetadata, useTabSelfMetadata } from '@renderer/hooks/tab/useTabSelfMetadata'
 
 function TabMetadataWriter({ children, ...metadata }: TabSelfMetadata & { children?: ReactNode }) {
   useTabSelfMetadata(metadata)
@@ -38,7 +39,7 @@ afterEach(() => {
   mocks.tabs = []
 })
 
-describe('TabIdContext', () => {
+describe('useTabSelfMetadata', () => {
   it('syncs tab self metadata while the tab still belongs to the instance app route', async () => {
     mocks.tabs = [
       {

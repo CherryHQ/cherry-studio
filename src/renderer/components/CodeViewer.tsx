@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
