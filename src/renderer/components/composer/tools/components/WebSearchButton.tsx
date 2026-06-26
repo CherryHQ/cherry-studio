@@ -21,7 +21,7 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId, apiHost?: string): boolean => {
+const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => {
   if (id === 'fetch' || id === 'searxng' || id === 'exa-mcp' || id === 'firecrawl') return false
   return true
 }
@@ -41,7 +41,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     const p = defaultSearchKeywordsProvider
     if (!p) return undefined
     const apiHost = p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim()
-    const available = webSearchProviderRequiresApiKey(p.id, apiHost)
+    const available = webSearchProviderRequiresApiKey(p.id)
       ? p.apiKeys.some((k) => k.trim().length > 0)
       : Boolean(apiHost)
     return available ? p.id : undefined
