@@ -14,22 +14,27 @@ import {
 import { dataApiService } from '@data/DataApiService'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+// Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
+// resolved by tsgo on main's program (resolves on feat's); transitional, reverts
+// to the barrel once main converges with feat.
+import { ModelSelector } from '@renderer/components/Selector/model'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@renderer/config/codeProviders'
 import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { EFFORT_RATIO } from '@renderer/types'
+import { EFFORT_RATIO } from '@renderer/types/reasoning'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'
-import type { TerminalConfig } from '@shared/config/constant'
-import { codeCLI, terminalApps } from '@shared/config/constant'
-import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import type { Provider } from '@shared/data/types/provider'
+import type { TerminalConfig } from '@shared/types/codeCli'
+import { codeCLI, terminalApps } from '@shared/types/codeCli'
 import {
   isEmbeddingModel,
   isReasoningModel,
@@ -39,7 +44,7 @@ import {
   isTextToImageModel
 } from '@shared/utils/model'
 import { isAnthropicProvider, isOpenAIProvider } from '@shared/utils/provider'
-import { Check, FolderOpen } from 'lucide-react'
+import { Check, ChevronDown, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,6 +53,7 @@ import {
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
+  isOpenCodeProvider,
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
@@ -65,12 +71,6 @@ const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   label: tool.label,
   icon: tool.icon
 })
-
-interface ModelItem {
-  id: string
-  model: Model
-  provider: Provider
-}
 
 interface TerminalItem {
   id: string
@@ -101,8 +101,7 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { maxTokens, reasoning_effort } = useMemo(() => defaultAssistant.settings, [defaultAssistant])
+  const { maxTokens, reasoning_effort } = DEFAULT_ASSISTANT_SETTINGS
 
   const [launchStatus, setLaunchStatus] = useState<LaunchStatus>('idle')
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -111,6 +110,7 @@ const CodeCliPage: FC = () => {
   const [terminalCustomPaths, setTerminalCustomPaths] = useState<Record<string, string>>({})
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [modelSelectorPortalContainer, setModelSelectorPortalContainer] = useState<HTMLDivElement | null>(null)
 
   const rawModelId = useCallback((m: Model) => m.apiModelId ?? parseUniqueModelId(m.id).modelId, [])
 
@@ -120,7 +120,7 @@ const CodeCliPage: FC = () => {
         return false
       }
 
-      if (m.providerId === 'cherryai') {
+      if (m.providerId === CHERRYAI_PROVIDER_ID) {
         return false
       }
 
@@ -162,11 +162,11 @@ const CodeCliPage: FC = () => {
         return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.githubCopilotCli) {
+      if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
         return false
       }
 
-      if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
+      if (selectedCliTool === codeCLI.qwenCode) {
         if (eps.length) {
           return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
@@ -181,7 +181,7 @@ const CodeCliPage: FC = () => {
             eps.includes('anthropic-messages')
           )
         }
-        return isOpenAIProvider(provider) || isAnthropicProvider(provider)
+        return isOpenCodeProvider(provider)
       }
 
       return true
@@ -194,18 +194,56 @@ const CodeCliPage: FC = () => {
     return filterFn ? filterFn(providers) : []
   }, [providers, selectedCliTool])
 
-  const modelItems = useMemo<ModelItem[]>(() => {
-    const allowed = new Set(availableProviders.map((p) => p.id))
-    const items: ModelItem[] = []
-    for (const m of models) {
-      if (!allowed.has(m.providerId)) continue
-      const provider = providerMap.get(m.providerId)
-      if (!provider) continue
-      if (!modelPredicate(m)) continue
-      items.push({ id: m.id, model: m, provider })
-    }
-    return items
-  }, [availableProviders, models, providerMap, modelPredicate])
+  const allowedProviderIds = useMemo(
+    () => new Set(availableProviders.map((provider) => provider.id)),
+    [availableProviders]
+  )
+
+  const codeCliModelFilter = useCallback(
+    (model: Model) => allowedProviderIds.has(model.providerId) && modelPredicate(model),
+    [allowedProviderIds, modelPredicate]
+  )
+
+  const selectedModelValue = useMemo(
+    () => (isUniqueModelId(selectedModel) ? selectedModel : undefined),
+    [selectedModel]
+  )
+
+  const selectedModelRecord = useMemo(
+    () =>
+      selectedModelValue
+        ? models.find((model) => model.id === selectedModelValue && codeCliModelFilter(model))
+        : undefined,
+    [codeCliModelFilter, models, selectedModelValue]
+  )
+
+  const selectedModelProvider = selectedModelRecord ? providerMap.get(selectedModelRecord.providerId) : undefined
+
+  const renderModelSelectorTrigger = () => (
+    <button
+      type="button"
+      className="group flex h-9 w-full items-center justify-between rounded-md border border-border-muted bg-transparent px-3 text-sm transition-colors hover:bg-muted/30 data-[state=open]:border-foreground! data-[state=open]:ring-1 data-[state=open]:ring-foreground/10!">
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+        {selectedModelRecord ? (
+          <>
+            <ModelAvatar model={selectedModelRecord} size={18} />
+            <span className="truncate text-foreground">{selectedModelRecord.name || selectedModelRecord.id}</span>
+            {selectedModelProvider && (
+              <span className="shrink-0 text-muted-foreground text-xs">
+                {getProviderDisplayName(selectedModelProvider)}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="truncate text-muted-foreground/50">{t('code.model_placeholder')}</span>
+        )}
+      </div>
+      <ChevronDown
+        size={12}
+        className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+      />
+    </button>
+  )
 
   const terminalItems = useMemo<TerminalItem[]>(
     () => availableTerminals.map((terminal) => ({ id: terminal.id, name: terminal.name })),
@@ -224,12 +262,12 @@ const CodeCliPage: FC = () => {
     [models]
   )
 
-  const handleModelChange = (value: string) => {
-    if (!value) {
+  const handleModelChange = (modelId: UniqueModelId | undefined) => {
+    if (!modelId) {
       setModel(null).catch((err) => logger.error('Failed to clear model:', err as Error))
       return
     }
-    setModel(value).catch((err) => logger.error('Failed to set model:', err as Error))
+    setModel(modelId).catch((err) => logger.error('Failed to set model:', err as Error))
   }
 
   const handleRemoveDirectory = (directory: string) => {
@@ -264,7 +302,7 @@ const CodeCliPage: FC = () => {
   const handleInstallBun = async () => {
     try {
       setIsInstallingBun(true)
-      await window.api.installBunBinary()
+      await ipcApi.request('binary.install_tool', { name: 'bun', tool: 'bun' })
       setIsBunInstalled(true)
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error) {
@@ -278,14 +316,16 @@ const CodeCliPage: FC = () => {
   }
 
   const validateLaunch = (): { isValid: boolean; message?: string } => {
-    if (!canLaunch || !isBunInstalled) {
+    // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
+    const needsBun = selectedCliTool !== codeCLI.qoderCli
+    if (!canLaunch || (needsBun && !isBunInstalled)) {
       return {
         isValid: false,
-        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
+        message: needsBun && !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
       }
     }
 
-    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli) {
+    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -295,7 +335,7 @@ const CodeCliPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
   } | null> => {
-    if (selectedCliTool === codeCLI.githubCopilotCli) {
+    if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
       return { env: userEnv }
     }
@@ -356,13 +396,13 @@ const CodeCliPage: FC = () => {
 
   const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
-    if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
+    if (selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && !resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
       window.toast.error(t('code.model_required'))
       return false
     }
     const modelId =
-      selectedCliTool === codeCLI.githubCopilotCli || !resolvedModel
+      selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || !resolvedModel
         ? ''
         : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
 
@@ -504,161 +544,151 @@ const CodeCliPage: FC = () => {
         {activeMeta && (
           <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
             <DialogContent aria-describedby={undefined}>
-              <DialogHeader>
-                <DialogTitle>{activeMeta.label}</DialogTitle>
-              </DialogHeader>
+              <div ref={setModelSelectorPortalContainer} className="contents">
+                <DialogHeader>
+                  <DialogTitle>{activeMeta.label}</DialogTitle>
+                </DialogHeader>
 
-              <div className="flex flex-col gap-4">
-                {selectedCliTool !== codeCLI.githubCopilotCli && (
-                  <div>
-                    <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
-                    <SelectDropdown
-                      items={modelItems}
-                      virtualize
-                      selectedId={selectedModel}
-                      onSelect={handleModelChange}
-                      placeholder={t('code.model_placeholder')}
-                      triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                      renderSelected={(item) => (
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <ModelAvatar model={item.model} size={18} />
-                          <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
-                        </div>
-                      )}
-                      renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
-                          <ModelAvatar model={item.model} size={18} />
-                          <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
-                          <span className="shrink-0 text-muted-foreground text-xs">
-                            {getProviderDisplayName(item.provider)}
-                          </span>
-                          {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-foreground" />}
-                        </div>
-                      )}
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <SelectDropdown
-                        items={directoryItems}
-                        selectedId={currentDirectory || null}
-                        onSelect={(id) => void setCurrentDir(id)}
-                        onRemove={handleRemoveDirectory}
-                        removeLabel={t('common.delete')}
-                        emptyText={t('common.none')}
-                        placeholder={t('code.folder_placeholder')}
-                        triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                        renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
-                        renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
-                        renderItem={(item, isSelected) => (
-                          <>
-                            <FolderOpen
-                              size={11}
-                              className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
-                            />
-                            <span className="flex-1 truncate font-mono">{item.id}</span>
-                            {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
-                          </>
-                        )}
+                <div className="flex flex-col gap-4">
+                  {selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && (
+                    <div>
+                      <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
+                      <ModelSelector
+                        multiple={false}
+                        selectionType="id"
+                        value={selectedModelValue}
+                        onSelect={handleModelChange}
+                        filter={codeCliModelFilter}
+                        showTagFilter={false}
+                        portalContainer={modelSelectorPortalContainer}
+                        trigger={renderModelSelectorTrigger()}
                       />
                     </div>
-                    <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
-                      {t('code.select_folder')}
-                    </Button>
-                  </div>
-                </div>
+                  )}
 
-                {(isMac || isWin) && terminalItems.length > 0 && (
                   <div>
-                    <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
-                    <SelectDropdown
-                      items={terminalItems}
-                      selectedId={selectedTerminal}
-                      onSelect={setTerminal}
-                      placeholder={t('code.terminal_placeholder')}
-                      triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                      renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
-                      renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
-                          <span className="flex-1">{item.name}</span>
-                          {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                    <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <SelectDropdown
+                          items={directoryItems}
+                          selectedId={currentDirectory || null}
+                          onSelect={(id) => void setCurrentDir(id)}
+                          onRemove={handleRemoveDirectory}
+                          removeLabel={t('common.delete')}
+                          emptyText={t('common.none')}
+                          placeholder={t('code.folder_placeholder')}
+                          triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
+                          renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
+                          renderSelected={(item) => (
+                            <span className="truncate font-mono text-foreground">{item.id}</span>
+                          )}
+                          renderItem={(item, isSelected) => (
+                            <>
+                              <FolderOpen
+                                size={11}
+                                className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
+                              />
+                              <span className="flex-1 truncate font-mono">{item.id}</span>
+                              {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                            </>
+                          )}
+                        />
+                      </div>
+                      <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
+                        {t('code.select_folder')}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(isMac || isWin) && terminalItems.length > 0 && (
+                    <div>
+                      <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
+                      <SelectDropdown
+                        items={terminalItems}
+                        selectedId={selectedTerminal}
+                        onSelect={setTerminal}
+                        placeholder={t('code.terminal_placeholder')}
+                        triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
+                        renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
+                        renderItem={(item, isSelected) => (
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1">{item.name}</span>
+                            {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                          </div>
+                        )}
+                      />
+                      {needsWindowsCustomPath && (
+                        <div className="mt-2 flex min-w-0 items-center gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleSetCustomPath(selectedTerminal)}
+                            className="text-muted-foreground shadow-none hover:text-foreground">
+                            <FolderOpen size={10} />
+                            {t('code.set_custom_path')}
+                          </Button>
+                          <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+                            {terminalCustomPaths[selectedTerminal]
+                              ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                              : t('code.custom_path_required')}
+                          </span>
                         </div>
                       )}
-                    />
-                    {needsWindowsCustomPath && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleSetCustomPath(selectedTerminal)}
-                          className="text-muted-foreground shadow-none hover:text-foreground">
-                          <FolderOpen size={10} />
-                          {t('code.set_custom_path')}
-                        </Button>
-                        <span className="truncate text-muted-foreground text-xs">
-                          {terminalCustomPaths[selectedTerminal]
-                            ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
-                            : t('code.custom_path_required')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
-                  <Textarea.Input
-                    value={environmentVariables}
-                    onValueChange={setEnvVars}
-                    rows={4}
-                    placeholder={'KEY1=value1\nKEY2=value2'}
-                    className="min-h-24 resize-none rounded-md border-input px-3 py-2 font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-foreground/10 md:text-xs [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <Checkbox
-                    id="code-cli-auto-update"
-                    size="sm"
-                    checked={autoUpdateToLatest}
-                    onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
-                    className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
-                  />
-                  <Label
-                    htmlFor="code-cli-auto-update"
-                    className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
-                    {t('code.auto_update_to_latest')}
-                  </Label>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline" disabled={isLaunching}>
-                    {t('common.cancel')}
-                  </Button>
-                </DialogClose>
-                <Button
-                  variant="emphasis"
-                  onClick={handleLaunch}
-                  loading={isLaunching}
-                  disabled={!canLaunch || !isBunInstalled || isLaunching}>
-                  {launchSuccess ? (
-                    <>
-                      <Check size={14} />
-                      <span>{t('code.launch.launched')}</span>
-                    </>
-                  ) : isLaunching ? (
-                    t('code.launching')
-                  ) : (
-                    t('code.launch.label')
+                    </div>
                   )}
-                </Button>
-              </DialogFooter>
+
+                  <div>
+                    <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
+                    <Textarea.Input
+                      value={environmentVariables}
+                      onValueChange={setEnvVars}
+                      rows={4}
+                      placeholder={'KEY1=value1\nKEY2=value2'}
+                      className="min-h-24 resize-none rounded-md border-input px-3 py-2 font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-foreground/10 md:text-xs [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <Checkbox
+                      id="code-cli-auto-update"
+                      size="sm"
+                      checked={autoUpdateToLatest}
+                      onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
+                      className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
+                    />
+                    <Label
+                      htmlFor="code-cli-auto-update"
+                      className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
+                      {t('code.auto_update_to_latest')}
+                    </Label>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline" disabled={isLaunching}>
+                      {t('common.cancel')}
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    variant="emphasis"
+                    onClick={handleLaunch}
+                    loading={isLaunching}
+                    disabled={!canLaunch || (selectedCliTool !== codeCLI.qoderCli && !isBunInstalled) || isLaunching}>
+                    {launchSuccess ? (
+                      <>
+                        <Check size={14} />
+                        <span>{t('code.launch.launched')}</span>
+                      </>
+                    ) : isLaunching ? (
+                      t('code.launching')
+                    ) : (
+                      t('code.launch.label')
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
             </DialogContent>
           </Dialog>
         )}

@@ -87,45 +87,18 @@ import type { Message, CreateMessageDto } from '@shared/data/api/schemas/message
 ## Pagination Types
 
 The API system supports two pagination modes with composable query parameters.
+This section is the **type reference** only — for mode selection (offset vs
+cursor), cursor exclusivity semantics, worked examples, and client-side
+derivations, see the [Pagination Guide](./data-pagination-guide.md).
 
 ### Request Parameters
 
 | Type | Fields | Use Case |
 |------|--------|----------|
 | `OffsetPaginationParams` | `page?`, `limit?` | Traditional page-based navigation |
-| `CursorPaginationParams` | `cursor?`, `limit?` | Infinite scroll, real-time feeds |
+| `CursorPaginationParams` | `cursor?`, `limit?` | Infinite scroll, real-time feeds. `cursor` is an exclusive boundary — the cursor item is not returned (see [Pagination Guide](./data-pagination-guide.md#3-wire-contract)) |
 | `SortParams` | `sortBy?`, `sortOrder?` | Sorting (combine as needed) |
 | `SearchParams` | `search?` | Text search (combine as needed) |
-
-### Cursor Semantics
-
-The `cursor` in `CursorPaginationParams` marks an **exclusive boundary** - the cursor item itself is never included in the response.
-
-**Common patterns:**
-
-| Pattern | Use Case | Behavior |
-|---------|----------|----------|
-| "after cursor" | Forward pagination, new items | Returns items AFTER cursor |
-| "before cursor" | Backward/historical loading | Returns items BEFORE cursor |
-
-The specific semantic depends on the API endpoint. For example:
-- `GET /topics/:id/messages` uses "before cursor" for loading historical messages
-- Other endpoints may use "after cursor" for forward pagination
-
-**Example: Loading historical messages**
-
-```typescript
-// First request - get most recent messages
-const res1 = await api.get('/topics/123/messages', { query: { limit: 20 } })
-// res1: { items: [msg80...msg99], nextCursor: 'msg80-id', activeNodeId: '...' }
-
-// Load more - get older messages before the cursor
-const res2 = await api.get('/topics/123/messages', {
-  query: { cursor: res1.nextCursor, limit: 20 }
-})
-// res2: { items: [msg60...msg79], nextCursor: 'msg60-id', activeNodeId: '...' }
-// Note: msg80 is NOT in res2 (cursor is exclusive)
-```
 
 ### Response Types
 
@@ -133,37 +106,7 @@ const res2 = await api.get('/topics/123/messages', {
 |------|--------|-------------|
 | `OffsetPaginationResponse<T>` | `items`, `total`, `page` | Page-based results |
 | `CursorPaginationResponse<T>` | `items`, `nextCursor?` | Cursor-based results |
-| `PaginationResponse<T>` | Union of both | When either mode is acceptable |
-
-### Usage Examples
-
-```typescript
-// Offset pagination with sort and search
-query?: OffsetPaginationParams & SortParams & SearchParams & {
-  type?: string
-}
-response: OffsetPaginationResponse<Item>
-
-// Cursor pagination for infinite scroll
-query?: CursorPaginationParams & {
-  userId: string
-}
-response: CursorPaginationResponse<Message>
-```
-
-### Client-side Calculations
-
-For `OffsetPaginationResponse`, clients can calculate:
-```typescript
-const pageCount = Math.ceil(total / limit)
-const hasNext = page * limit < total
-const hasPrev = page > 1
-```
-
-For `CursorPaginationResponse`:
-```typescript
-const hasNext = nextCursor !== undefined
-```
+| `PaginationResponse<T>` | Union of both | When either mode is acceptable; narrow with `isOffsetPaginationResponse` / `isCursorPaginationResponse` |
 
 ## Adding a New Domain Schema
 

@@ -1,88 +1,40 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanContext } from '@opentelemetry/api'
-import type {
-  AiAgentSessionWarmCloseRequest,
-  AiAgentSessionWarmRequest,
-  AiStreamAbortRequest,
-  AiStreamAttachRequest,
-  AiStreamAttachResponse,
-  AiStreamDetachRequest,
-  AiStreamOpenRequest,
-  AiStreamOpenResponse,
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamErrorPayload
-} from '@shared/ai/transport'
-import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/command'
-import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
-import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type {
-  CodeToolsRunResult,
-  LanClientEvent,
-  LanFileCompleteMessage,
-  LanHandshakeAckMessage,
-  LanTransferConnectPayload,
-  LanTransferState,
-  McpServerLogEntry,
-  OperationResult,
-  WebviewKeyEvent
-} from '@shared/config/types'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  FileProcessorFeature,
-  FileProcessorId,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
-  UnifiedPreferenceType,
-  UpgradeChannel
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
-import type {
-  CreateKnowledgeBaseDto,
-  KnowledgeAddItemInput,
-  KnowledgeBase,
-  KnowledgeItemChunk,
-  KnowledgeSearchResult as KnowledgeVectorSearchResult,
-  RestoreKnowledgeBaseDto
-} from '@shared/data/types/knowledge'
-import type { Model } from '@shared/data/types/model'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
-import type {
-  WebSearchCheckProviderRequest,
-  WebSearchCheckProviderResponse,
-  WebSearchFetchUrlsRequest,
-  WebSearchResponse,
-  WebSearchSearchKeywordsRequest
-} from '@shared/data/types/webSearch'
-import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
-import type { FileHandle } from '@shared/file/types/handle'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
+import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import type { GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
+import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
+import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { FilePath, PhysicalFileMetadata } from '@shared/types/file/common'
+import type { FileHandle } from '@shared/types/file/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
-} from '@shared/file/types/ipc'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import type { StorageHealth } from '@shared/types/storageMonitor'
+} from '@shared/types/file/ipc'
 import type {
-  ApiGatewayStatusResult,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  OcrResult,
-  S3Config,
-  SupportedOcrFile,
-  WebDavConfig
-} from '@types'
-import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
-
+  LanClientEvent,
+  LanFileCompleteMessage,
+  LanHandshakeAckMessage,
+  LanTransferConnectPayload,
+  LanTransferState
+} from '@shared/types/lanTransfer'
+import type { LogLevel, LogSourceWithContext } from '@shared/types/logger'
+import type { McpServerLogEntry } from '@shared/types/mcp'
+import type { Notification } from '@shared/types/notification'
+import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type {
   InstalledSkill,
   LocalSkill,
@@ -92,7 +44,15 @@ import type {
   SkillInstallOptions,
   SkillResult,
   SkillToggleOptions
-} from '../renderer/types/skill'
+} from '@shared/types/skill'
+import type { StorageHealth } from '@shared/types/storageMonitor'
+import type { WebviewKeyEvent } from '@shared/types/webview'
+import type { CommandId } from '@shared/utils/command'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file/tree'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
+
 import { ipcApi } from './ipc'
 
 // OpenClaw types
@@ -138,17 +98,13 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
-  checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
-  setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
-  setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
   // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
-  setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
@@ -158,7 +114,6 @@ const api = {
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
     ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
-  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   application: {
     quit: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_Quit),
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
@@ -338,27 +293,13 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  knowledge: {
-    createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_CreateBase, { base }),
-    restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_RestoreBase, dto),
-    deleteBase: (baseId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Knowledge_DeleteBase, { baseId }),
-    addItems: (baseId: string, items: KnowledgeAddItemInput[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_AddItems, { baseId, items }),
-    deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItems, { baseId, itemIds }),
-    reindexItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ReindexItems, { baseId, itemIds }),
-    search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_Search, { baseId, query }),
-    listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId })
-  },
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize),
+    // Pin/unpin the current sub-window (always-on-top).
+    setAlwaysOnTop: (pinned: boolean): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.SubWindow_SetAlwaysOnTop, pinned)
   },
   command: {
     showNativePopupMenu: (
@@ -506,9 +447,8 @@ const api = {
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
-  installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
-  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
+  // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
@@ -680,35 +620,9 @@ const api = {
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
-  ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
-    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
-  },
-  fileProcessing: {
-    startJob: (payload: {
-      feature: FileProcessorFeature
-      file: FileHandle
-      output?: FileProcessingOutputTarget
-      context?: {
-        dataId?: string
-      }
-      processorId?: FileProcessorId
-    }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
-    listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
-  },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
-  },
-  webSearch: {
-    searchKeywords: (request: WebSearchSearchKeywordsRequest): Promise<WebSearchResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_SearchKeywords, request),
-    fetchUrls: (request: WebSearchFetchUrlsRequest): Promise<WebSearchResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request),
-    checkProvider: (request: WebSearchCheckProviderRequest): Promise<WebSearchCheckProviderResponse> =>
-      ipcRenderer.invoke(IpcChannel.WebSearch_CheckProvider, request)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
@@ -794,99 +708,8 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.AgentSession_AutoRenamed, listener)
     }
   },
-  ai: {
-    // ── Stream push listeners ──
-    onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
-    },
-    onStreamDone: (callback: (data: StreamDonePayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamDonePayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
-    },
-    onStreamError: (callback: (data: StreamErrorPayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamErrorPayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
-    },
-
-    // ── Stream control ──
-    streamOpen: (req: AiStreamOpenRequest): Promise<AiStreamOpenResponse> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
-    streamAttach: (req: AiStreamAttachRequest): Promise<AiStreamAttachResponse> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
-    streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
-    streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
-    prewarmAgentSession: (req: AiAgentSessionWarmRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
-    closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_CloseWarm, req),
-
-    // ── Non-streaming operations ──
-    // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.
-    generateText: (request: {
-      assistantId?: string
-      uniqueModelId?: string
-      system?: string
-      prompt?: string
-      messages?: unknown[]
-      mcpToolIds?: string[]
-    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
-    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
-      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
-    embedMany: (request: {
-      uniqueModelId?: string
-      values: string[]
-    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
-    generateImage: async (
-      payload: {
-        uniqueModelId?: string
-        prompt: string
-        inputImages?: string[]
-        mask?: string
-        n?: number
-        size?: string
-        negativePrompt?: string
-        seed?: number
-        quality?: string
-        numInferenceSteps?: number
-        guidanceScale?: number
-        promptEnhancement?: boolean
-        personGeneration?: string
-        aspectRatio?: string
-        background?: string
-        moderation?: string
-        style?: string
-        providerOptions?: Record<string, Record<string, unknown>>
-      },
-      requestId: string
-    ): Promise<{ files: FileEntry[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, { requestId, payload }),
-    abortImage: (requestId: string): void => {
-      ipcRenderer.send(IpcChannel.Ai_AbortImage, { requestId })
-    },
-    listModels: (request: {
-      providerId?: string
-      assistantId?: string
-      throwOnError?: boolean
-    }): Promise<Partial<Model>[]> => ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
-
-    // ── Tool approval (v6 ToolUIPart native flow) ──
-    toolApproval: {
-      respond: (payload: {
-        approvalId: string
-        approved: boolean
-        reason?: string
-        updatedInput?: Record<string, unknown>
-        topicId?: string
-        anchorId?: string
-      }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
-    },
-    agent: {
-      runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)
-    }
-  },
+  // All `ai.*` capability IPC moved to IpcApi (`ipcApi.request('ai.*')` / `ipcApi.on('ai.stream_*')`):
+  // model ops, streaming chat, agent-session warm-up, tool approval and agent run-task.
   translate: {
     open: (req: {
       streamId: string

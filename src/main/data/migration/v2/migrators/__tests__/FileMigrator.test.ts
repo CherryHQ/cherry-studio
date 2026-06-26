@@ -278,6 +278,21 @@ describe('FileMigrator ext normalization', () => {
     expect(firstRow.ext).toBeNull()
   })
 
+  it.each([
+    ['trailing space', '.exe '],
+    ['trailing dot', '.exe.']
+  ])('normalizes OS-ignored %s in ext to the effective extension', async (_label, ext) => {
+    const row = makeInternalRow({ ext })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.ext).toBe('exe')
+  })
+
   it('ext containing path separator is rejected as malformed', async () => {
     const row = makeInternalRow({ id: '550e8400-e29b-41d4-a716-446655440099', ext: 'pdf/exe' })
     const { ctx } = createMockContext([row])

@@ -1,16 +1,15 @@
-import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
+import { occupiedDirs } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
-import type { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import { occupiedDirs } from '@shared/config/constant'
-import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { FolderInput, FolderOpen, FolderOutput, Loader2, SaveIcon, Wifi } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -220,7 +219,7 @@ const BasicDataSettings: React.FC = () => {
       className,
       width: 'min(600px, 90vw)',
       style: { minHeight: '400px' },
-      icon: <LoadingOutlined style={{ fontSize: 18 }} />,
+      icon: <Loader2 className="animate-spin" size={18} />,
       content: (
         <MigrationModalContent>
           <PathsContent />
@@ -459,7 +458,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
             <Button onClick={LanTransferPopup.show} variant="outline">
-              <WifiOutlined size={14} />
+              <Wifi size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
           </RowFlex>

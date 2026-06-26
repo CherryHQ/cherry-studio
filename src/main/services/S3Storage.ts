@@ -7,7 +7,7 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { loggerService } from '@logger'
-import type { S3Config } from '@types'
+import type { S3Config } from '@shared/types/backup'
 import * as net from 'net'
 import { Readable } from 'stream'
 

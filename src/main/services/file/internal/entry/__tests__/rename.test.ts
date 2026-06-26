@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -76,6 +76,21 @@ describe('internal/entry/rename', () => {
     const physical = path.join(filesDir, `${created.id}.txt`)
     const buf = await readFile(physical)
     expect(buf.length).toBe(1)
+  })
+
+  it('treats unchanged internal names as a no-op (no DB write)', async () => {
+    const created = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'same',
+      ext: 'txt'
+    })
+    const updateSpy = vi.spyOn(deps.fileEntryService, 'update')
+
+    const renamed = await rename(deps, created.id, 'same')
+
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(renamed.updatedAt).toBe(created.updatedAt)
   })
 
   it('renames external file on disk and updates DB externalPath + name', async () => {

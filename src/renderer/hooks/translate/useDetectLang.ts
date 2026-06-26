@@ -1,14 +1,15 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
+import { ipcApi } from '@renderer/ipc'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
-import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
+import { LANG_DETECT_PROMPT } from '@shared/ai/prompts'
 import {
   type AutoDetectionMethod,
   isTranslateLangCode,
   type TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { isQwenMTModel } from '@shared/utils/model'
 import { franc } from 'franc-min'
@@ -57,7 +58,7 @@ export const detectLanguageByLLM = async (
 
   const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
-  const { text: result } = await window.api.ai.generateText({
+  const { text: result } = await ipcApi.request('ai.generate_text', {
     uniqueModelId: model.id,
     system: systemPrompt,
     prompt: 'follow system prompt'

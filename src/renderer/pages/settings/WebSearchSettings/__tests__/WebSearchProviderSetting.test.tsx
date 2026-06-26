@@ -1,17 +1,16 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { WebSearchProviderMenuEntry } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WebSearchProviderSetting } from '../components/WebSearchProviderSetting'
-import type { WebSearchProviderMenuEntry } from '../utils/webSearchProviderMeta'
 
 const navigateMock = vi.fn()
-const searchKeywordsMock = vi.fn()
-const fetchUrlsMock = vi.fn()
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const showApiKeyListMock = vi.fn()
@@ -27,6 +26,12 @@ vi.mock('react-i18next', async (importOriginal) => {
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -99,21 +104,13 @@ describe('WebSearchProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.assign(window, {
-      api: {
-        ...window.api,
-        webSearch: {
-          searchKeywords: searchKeywordsMock,
-          fetchUrls: fetchUrlsMock
-        }
-      },
       toast: {
         ...window.toast,
         error: toastErrorMock,
         success: toastSuccessMock
       }
     })
-    searchKeywordsMock.mockResolvedValue({ results: [] })
-    fetchUrlsMock.mockResolvedValue({ results: [] })
+    ipcRequestMock.mockResolvedValue({ results: [] })
     showApiKeyListMock.mockResolvedValue(undefined)
   })
 
@@ -241,7 +238,10 @@ describe('WebSearchProviderSetting', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
-      expect(fetchUrlsMock).toHaveBeenCalledWith({ providerId: 'jina', urls: ['https://example.com'] })
+      expect(ipcRequestMock).toHaveBeenCalledWith('web_search.fetch_urls', {
+        providerId: 'jina',
+        urls: ['https://example.com']
+      })
     })
   })
 
@@ -294,6 +294,6 @@ describe('WebSearchProviderSetting', () => {
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
     })
-    expect(searchKeywordsMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalled()
   })
 })

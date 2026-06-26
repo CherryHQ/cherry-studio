@@ -18,7 +18,7 @@ import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agent
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { serializeError } from '@shared/types/error'
+import { serializeError } from '@shared/utils/error'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 

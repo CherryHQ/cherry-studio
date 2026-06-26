@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "đã trả lời",
+      "close": "Đóng",
       "customPlaceholder": "Nhập câu trả lời của bạn...",
       "loading": "Đang tải câu hỏi...",
       "multiSelect": "Chọn nhiều",
@@ -25,6 +26,8 @@
       "noQuestions": "Không có câu hỏi nào",
       "other": "Khác",
       "previous": "Trước",
+      "progress": "{{current}} trên {{total}}",
+      "skip": "Bỏ qua",
       "submit": "Gửi",
       "title": "Câu hỏi từ Đại lý"
     },
@@ -215,7 +218,11 @@
         "edit": "Chỉnh sửa",
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
         "error": {
-          "loadFailed": "Không tải được nhiệm vụ"
+          "createFailed": "Không thể tạo tác vụ",
+          "deleteFailed": "Không xóa được tác vụ",
+          "loadFailed": "Không tải được nhiệm vụ",
+          "runFailed": "Không thể chạy tác vụ",
+          "updateFailed": "Không thể cập nhật tác vụ"
         },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
@@ -326,6 +333,9 @@
       "success": "Git Bash đã được phát hiện thành công!",
       "tooltip": "Git Bash là bắt buộc để chạy các agent trên Windows. Cài đặt từ git-scm.com nếu chưa có."
     },
+    "home": {
+      "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
+    },
     "input": {
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",
       "soul_placeholder": "Giúp tôi kết nối với Telegram"
@@ -335,9 +345,119 @@
         "failed": "Không thể liệt kê các tác nhân."
       }
     },
+    "pin": {
+      "title": "Đại lý Ghim"
+    },
+    "preview_pane": {
+      "close": "Đóng xem trước",
+      "code": "Mã",
+      "code_unavailable": "Không có chế độ xem nguồn cho các tệp nhị phân",
+      "default_app": "Ứng dụng mặc định",
+      "empty": {
+        "description": "Bắt đầu trò chuyện với đại lý; mã được tạo và bản xem trước trực tiếp sẽ xuất hiện ở đây.",
+        "title": "Sẵn sàng"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "Tệp Excel này vượt quá giới hạn kích thước xem trước.",
+          "invalid_request": "Yêu cầu xem trước Excel không hợp lệ.",
+          "parse_failed": "Không thể đọc được tệp Excel này.",
+          "too_complex": "Tệp Excel này quá phức tạp để xem trước.",
+          "unsupported_extension": "Chỉ các tệp .xlsx và .xlsm mới có thể được xem trước.",
+          "unsupported_xls": "Các tệp .xls cũ không được Excel preview hỗ trợ."
+        },
+        "warnings": {
+          "generic": "Một số nội dung trong sổ làm việc có thể không được hiển thị đầy đủ.",
+          "title": "Thông báo xem trước",
+          "unsupported_images": "Hình ảnh vẫn chưa được hiển thị trong bản xem trước của Excel."
+        }
+      },
+      "file_tree": "Cây tệp",
+      "items_one": "{{count}} mục",
+      "items_other": "{{count}} mục",
+      "maximize": "Tối đa hóa",
+      "minimize": "Thu nhỏ",
+      "no_search_results": "Không có tệp nào khớp với tìm kiếm của bạn",
+      "office": {
+        "description": "Loại tệp này cần được mở bằng ứng dụng mặc định của hệ thống.",
+        "title": "Mở tệp {{extension}} ở đây hiện chưa được hỗ trợ"
+      },
+      "preview": "Xem trước",
+      "refresh": "Làm mới",
+      "search_placeholder": "Tìm kiếm tệp...",
+      "select_file": "Chọn một tệp để xem trước",
+      "toggle": "Hiển thị bảng xem trước",
+      "too_large": {
+        "description": "Tệp vượt quá giới hạn xem trước {{limit}}.",
+        "title": "Tệp quá lớn để xem trước"
+      },
+      "unavailable": {
+        "description": "Không thể mở tệp này — có thể tệp đã bị di chuyển hoặc xóa.",
+        "title": "Tệp không khả dụng"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "Không thể hiển thị tài liệu Word này.",
+          "read_failed": "Không thể đọc tài liệu Word này."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Không thể sắp xếp lại các tác nhân"
+      }
+    },
+    "right_pane": {
+      "close": "Đóng",
+      "flow": {
+        "empty": {
+          "description": "Chọn một lệnh gọi công cụ của agent để kiểm tra luồng thông điệp con của nó.",
+          "title": "Không có công cụ nào được chọn"
+        },
+        "no_messages": {
+          "description": "Cuộc gọi công cụ này không có luồng thông báo con nào được ghi lại.",
+          "title": "Không có tin nhắn"
+        }
+      },
+      "info": {
+        "artifacts": "Các sản phẩm giao nộp",
+        "context_categories": {
+          "autocompact_buffer": "Bộ đệm tự nén",
+          "custom_agents": "Tác nhân tùy chỉnh",
+          "free_space": "Dung lượng trống",
+          "mcp_tools": "Công cụ MCP",
+          "memory_files": "Tệp bộ nhớ",
+          "messages": "Tin nhắn",
+          "plugins": "Plugin",
+          "skills": "Kỹ năng",
+          "system_prompt": "Lời nhắc hệ thống",
+          "system_tools": "Công cụ hệ thống"
+        },
+        "context_usage": "Sử dụng ngữ cảnh",
+        "label": "Thông tin phiên",
+        "more": "+{{count}} nữa",
+        "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
+        "no_subagents": "Không có đại lý phụ",
+        "subagents": "Đại lý phụ"
+      },
+      "status": {
+        "activity": "Hoạt động",
+        "agent": "Đại lý",
+        "context": "Bối cảnh",
+        "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "selected_tool": "Công cụ đã chọn",
+        "task_count": "{{completed}} / {{total}} hoàn thành",
+        "tasks": "Nhiệm vụ",
+        "tools_active": "Hoạt động",
+        "tools_done": "Xong",
+        "tools_failed": "Thất bại",
+        "tools_total": "Tổng",
+        "workspace": "Không gian làm việc"
+      },
+      "tabs": {
+        "files": "Tệp",
+        "flow": "Dòng",
+        "status": "Trạng thái"
       }
     },
     "server": {
@@ -360,6 +480,16 @@
       "add": {
         "title": "Thêm một phiên"
       },
+      "agent": {
+        "delete": {
+          "content": "Xóa các nhiệm vụ của tác nhân này sẽ xóa tất cả các nhiệm vụ liên quan đến tác nhân này. Bản thân tác nhân sẽ không bị xóa.",
+          "error": {
+            "failed": "Không thể xóa các tác vụ của tác nhân"
+          },
+          "title": "Xóa nhiệm vụ của tác nhân",
+          "trigger": "Xóa nhiệm vụ của tác nhân"
+        }
+      },
       "allowed_tools": {
         "empty": "Không có công cụ nào khả dụng cho tác nhân này.",
         "helper": "Các công cụ được phê duyệt trước chạy mà không cần phê duyệt thủ công. Các công cụ không được chọn yêu cầu phê duyệt trước khi sử dụng.",
@@ -379,29 +509,94 @@
         },
         "title": "Xóa phiên"
       },
+      "display": {
+        "agent": "Đặc vụ",
+        "time": "Thời gian",
+        "title": "Chế độ hiển thị",
+        "workdir": "Thư mục làm việc"
+      },
       "edit": {
         "title": "Séance d'édition"
+      },
+      "empty": {
+        "description": "Các nhiệm vụ sẽ xuất hiện ở đây sau khi bạn bắt đầu một nhiệm vụ.",
+        "title": "Chưa có nhiệm vụ nào"
+      },
+      "file_manager": {
+        "file_explorer": "Trình quản lý tệp",
+        "files": "Tệp",
+        "finder": "Trình tìm kiếm"
       },
       "get": {
         "error": {
           "failed": "Không thể lấy phiên",
+          "not_found": "Không tìm thấy tác vụ",
           "null_id": "ID phiên là null"
         }
       },
+      "group": {
+        "collapse": "Thu gọn hiển thị",
+        "collapse_all": "Thu gọn tất cả",
+        "conversation": "Cuộc trò chuyện",
+        "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
+        "earlier": "Trước đó",
+        "expand_all": "Mở rộng tất cả",
+        "no_workdir": "Không có thư mục làm việc",
+        "show_more": "Mở rộng hiển thị",
+        "this_week": "Tuần này",
+        "today": "Hôm nay",
+        "unknown_agent": "Đại lý không xác định",
+        "yesterday": "Hôm qua"
+      },
       "label_one": "Phiên",
       "label_other": " sessions",
+      "list": {
+        "title": "Nhiệm vụ"
+      },
+      "pin": {
+        "title": "Ghim nhiệm vụ"
+      },
       "reorder": {
         "error": {
           "failed": "Không thể sắp xếp lại các phiên"
         }
       },
-      "tool": {
-        "disabled": "Công cụ {{toolName}} đã bị tắt cho agent này."
+      "search": {
+        "placeholder": "Tìm kiếm nhiệm vụ"
+      },
+      "unpin": {
+        "title": "Bỏ ghim nhiệm vụ"
       },
       "update": {
         "error": {
           "failed": "Không cập nhật được phiên"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "Việc xóa thư mục công việc này cũng sẽ xóa toàn bộ các tác vụ bên trong nó. Chỉ các bản ghi trong cơ sở dữ liệu bị xóa; thư mục thực tế trên đĩa sẽ không bị xóa.",
+          "error": {
+            "failed": "Không thể xóa thư mục làm việc"
+          },
+          "title": "Xóa thư mục làm việc",
+          "trigger": "Xóa thư mục làm việc"
+        },
+        "rename": {
+          "error": {
+            "failed": "Không thể đổi tên thư mục làm việc"
+          },
+          "title": "Đổi tên thư mục làm việc",
+          "trigger": "Đổi tên thư mục làm việc"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "Không thể thêm thư mục làm việc.",
+        "create_new": "Thêm thư mục làm việc mới",
+        "empty_text": "Không có thư mục làm việc",
+        "no_project": "Không có thư mục làm việc",
+        "placeholder": "Chọn thư mục làm việc",
+        "search_placeholder": "Tìm kiếm thư mục làm việc",
+        "select_failed": "Không thể chọn thư mục."
       },
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
@@ -698,8 +893,10 @@
         "showDetails": "Hiển thị chi tiết công cụ"
       },
       "button": {
+        "allow": "Cho phép",
         "allowAll": "Luôn Cho Phép",
         "cancel": "Hủy",
+        "deny": "Từ chối",
         "run": "Chạy"
       },
       "confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
@@ -727,17 +924,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "Lưu trữ và khôi phục bộ nhớ xuyên phiên",
+          "label": "Bộ nhớ"
+        },
         "Bash": {
-          "description": "Thực thi các lệnh shell trong môi trường của bạn"
+          "description": "Thực thi các lệnh shell trong môi trường của bạn",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "Tìm kiếm trong cơ sở kiến thức của bạn",
+          "label": "Tìm kiếm kiến thức"
+        },
+        "CherryWebFetch": {
+          "description": "Tìm nạp và đọc một trang web",
+          "label": "Tìm nạp Web"
+        },
+        "CherryWebSearch": {
+          "description": "Tìm kiếm trên web thông qua nhà cung cấp đã cấu hình của bạn",
+          "label": "Tìm kiếm web"
+        },
+        "ClawCron": {
+          "description": "Quản lý trình lên lịch trong ứng dụng",
+          "label": "Trình lập lịch"
         },
         "Edit": {
-          "description": "Thực hiện chỉnh sửa có mục tiêu trên các tập tin cụ thể"
+          "description": "Thực hiện chỉnh sửa có mục tiêu trên các tập tin cụ thể",
+          "label": "Chỉnh sửa"
         },
         "Glob": {
-          "description": "Tìm các tập tin dựa trên khớp mẫu"
+          "description": "Tìm các tập tin dựa trên khớp mẫu",
+          "label": "Trái Đất"
         },
         "Grep": {
-          "description": "Tìm kiếm các mẫu trong nội dung tập tin"
+          "description": "Tìm kiếm các mẫu trong nội dung tập tin",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "Thực hiện nhiều chỉnh sửa trên một tệp duy nhất một cách nguyên tử"
@@ -749,7 +970,8 @@
           "description": "Đọc và hiển thị nội dung Jupyter notebook"
         },
         "Read": {
-          "description": "Đọc nội dung của các tệp"
+          "description": "Đọc nội dung của các tệp",
+          "label": "Đọc"
         },
         "Task": {
           "description": "Chạy một phụ tác nhân để xử lý các nhiệm vụ phức tạp, nhiều bước"
@@ -766,14 +988,22 @@
         "WebSearch": {
           "description": "Thực hiện tìm kiếm web với bộ lọc tên miền"
         },
+        "Workflow": {
+          "description": "Chạy một quy trình đa bước điều phối các tác nhân phụ",
+          "label": "Quy trình làm việc"
+        },
         "Write": {
-          "description": "Tạo hoặc ghi đè lên các tệp"
+          "description": "Tạo hoặc ghi đè lên các tệp",
+          "label": "Viết"
         }
       }
     },
     "type": {
       "label": "Loại Tác nhân",
       "unknown": "Loại Không Xác Định"
+    },
+    "unpin": {
+      "title": "Bỏ ghim Đại lý"
     },
     "update": {
       "error": {
@@ -884,6 +1114,7 @@
     "abbr": "Trợ lý",
     "clear": {
       "content": "Xóa chủ đề sẽ xóa tất cả các chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn tiếp tục?",
+      "menu_title": "Xóa tất cả các cuộc trò chuyện với trợ lý",
       "title": "Temas claros"
     },
     "copy": {
@@ -905,6 +1136,9 @@
     "list": {
       "showByList": "Liste Görünümü",
       "showByTags": "Chế độ xem thẻ"
+    },
+    "pin": {
+      "title": "Trợ lý Ghim"
     },
     "presets": {
       "add": {
@@ -1000,6 +1234,11 @@
       },
       "title": "Thư viện Trợ lý"
     },
+    "reorder": {
+      "error": {
+        "failed": "Không thể sắp xếp lại các trợ lý"
+      }
+    },
     "save": {
       "success": "Đã lưu thành công",
       "title": "Lưu vào thư viện trợ lý"
@@ -1093,7 +1332,10 @@
       },
       "untagged": "Không được gắn thẻ"
     },
-    "title": "Trợ lý"
+    "title": "Trợ lý",
+    "unpin": {
+      "title": "Bỏ ghim Trợ lý"
+    }
   },
   "auth": {
     "error": "Failed to obtain API key automatically, please retrieve it manually",
@@ -1128,6 +1370,7 @@
     "download": "Tải xuống",
     "includes_user_questions": "Incluye Tus Preguntas",
     "manage": "Quản lý",
+    "select_assistant": "Chọn Trợ lý",
     "select_model": "Chọn Mô hình",
     "show": {
       "all": "Hiển thị tất cả"
@@ -1165,12 +1408,16 @@
             "content": "Lỗi khi mở trình duyệt ngoài."
           }
         }
-      }
+      },
+      "title": "Sản phẩm giao"
     },
     "assistant": {
       "search": {
         "placeholder": "Tìm kiếm"
       }
+    },
+    "conversation": {
+      "new": "Cuộc trò chuyện mới"
     },
     "deeply_thought": "Suy nghĩ sâu ({{seconds}} giây)",
     "default": {
@@ -1190,8 +1437,12 @@
       "user_node": "Người dùng",
       "view_full_content": "Xem Toàn Bộ Nội Dung"
     },
+    "home": {
+      "welcome_title": "Hôm nay chúng ta nên nói về điều gì?"
+    },
     "input": {
       "auto_resize": "Tự động điều chỉnh chiều cao",
+      "cancel_editing": "Hủy chỉnh sửa",
       "clear": {
         "content": "Bạn có muốn xóa tất cả tin nhắn của chủ đề hiện tại không?",
         "label": "Xóa {{Lệnh}}",
@@ -1201,6 +1452,8 @@
       "context_count": {
         "tip": "Ngữ cảnh / Ngữ cảnh tối đa"
       },
+      "editing": "Chỉnh sửa",
+      "editing_message": "Chỉnh sửa tin nhắn đã gửi",
       "estimated_tokens": {
         "tip": "Tokens estimados"
       },
@@ -1208,15 +1461,28 @@
       "file_error": "Lỗi khi xử lý tệp",
       "file_not_supported": "Mô hình không hỗ trợ loại tệp này",
       "file_not_supported_count": "{{count}} tệp không được hỗ trợ",
+      "followup_queue": {
+        "edit": "Chỉnh sửa",
+        "pause": "Tạm dừng gửi tự động",
+        "remove": "Xóa",
+        "resume": "Tiếp tục gửi tự động",
+        "steer": "Gửi vào lượt hiện tại",
+        "title": "Đã xếp hàng ({{count}})"
+      },
       "generate_image": "Tạo hình ảnh",
       "generate_image_not_supported": "Mô hình không hỗ trợ tạo hình ảnh.",
       "knowledge_base": "Cơ sở tri thức",
+      "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
+      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
+      "locate_editing_message": "Định vị thông điệp gốc",
+      "mcp_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
       "new": {
         "context": "Clear Context"
       },
       "new_session": "Phiên mới {{Command}}",
       "new_topic": "Chủ đề mới {{Command}}",
       "paste_text_file": "Dán vào ô nhập",
+      "pasted_text_file_name": "Pasted text.txt",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
@@ -1242,11 +1508,19 @@
       "send_failed": "Không gửi được tin nhắn",
       "settings": "Cài đặt",
       "slash_commands": {
+        "commands": {
+          "clear": "Xóa lịch sử cuộc trò chuyện",
+          "compact": "Cuộc trò chuyện gọn gàng với hướng dẫn tập trung tùy chọn",
+          "context": "Hình dung mức sử dụng ngữ cảnh hiện tại dưới dạng lưới màu",
+          "cost": "Hiển thị thống kê sử dụng token (xem hướng dẫn theo dõi chi phí để biết chi tiết cụ thể theo gói đăng ký)",
+          "todos": "Liệt kê các mục việc cần làm hiện tại"
+        },
         "description": "Lệnh gạch chéo phiên làm việc của tác nhân",
         "title": "Lệnh gạch chéo"
       },
       "thinking": {
         "budget_exceeds_max": "Ngân sách suy nghĩ vượt quá số lượng token tối đa",
+        "fixed_model": "Lý luận là cố định cho mô hình này",
         "label": "Pensamiento",
         "mode": {
           "custom": {
@@ -1260,7 +1534,8 @@
           "tokens": {
             "tip": "Đặt số lượng token suy nghĩ cần sử dụng."
           }
-        }
+        },
+        "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
       "tools": {
         "collapse": "Thu gọn",
@@ -1278,6 +1553,8 @@
       "upload": {
         "attachment": "Tải lên tập tin đính kèm",
         "document": "Tải lên tệp tài liệu (mô hình không hỗ trợ hình ảnh)",
+        "document_only": "Chỉ tài liệu",
+        "image_not_supported": "Mô hình này không hỗ trợ tải lên hình ảnh. Chỉ hỗ trợ tài liệu.",
         "image_or_document": "Tải lên tệp hình ảnh hoặc tài liệu",
         "upload_from_local": "Tải tệp tin cục bộ..."
       },
@@ -1313,6 +1590,20 @@
       }
     },
     "message": {
+      "editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
+      "flow": {
+        "branches": "chi nhánh",
+        "copy_topic": {
+          "created": "Đã sao chép sang một cuộc trò chuyện mới",
+          "label": "Sao chép thành Cuộc trò chuyện mới"
+        },
+        "nodes": "nút",
+        "status": {
+          "awaiting_input": "Đang chờ nhập liệu"
+        },
+        "title": "Quản lý Chi nhánh"
+      },
+      "more": "Thêm hành động",
       "new": {
         "branch": {
           "created": "Chi nhánh mới đã được tạo",
@@ -1422,6 +1713,7 @@
             "save_failed": "Không lưu được chủ đề, vui lòng kiểm tra cấu hình cơ sở kiến thức"
           },
           "loading": "Đang phân tích nội dung chủ đề...",
+          "menu_title": "Lưu vào Cơ sở Tri thức",
           "select": {
             "content": {
               "label": "Chọn các loại nội dung để lưu",
@@ -1494,6 +1786,7 @@
       "title": "Câu hỏi gợi ý"
     },
     "thinking": "Đang suy nghĩ ({{seconds}} giây)",
+    "thinking_tokens": "~{{tokens}} mã thông báo",
     "topics": {
       "auto_rename": "Umbenennen automatisieren",
       "clear": {
@@ -1508,14 +1801,25 @@
       "delete": {
         "shortcut": "Giữ {{key}} để xóa trực tiếp"
       },
+      "display": {
+        "assistant": "Trợ lý",
+        "tag": "Nhãn",
+        "time": "Thời gian",
+        "title": "Chế độ hiển thị"
+      },
       "edit": {
         "placeholder": "Masukkan nama baru",
         "title": "Chỉnh sửa Tên",
         "title_tip": "Astuces : Double-cliquez sur le nom du sujet pour le renommer directement sur place"
       },
+      "empty": {
+        "description": "Tạo một cuộc trò chuyện và nó sẽ được lưu lại ở đây để bạn có thể tiếp tục với ngữ cảnh của nó sau này.",
+        "title": "Chưa có cuộc trò chuyện nào"
+      },
       "export": {
         "failed": "Xuất khẩu thất bại",
         "image": "Xuất dưới dạng hình ảnh",
+        "image_exporting_keep_page": "Đang xuất ảnh. Vui lòng ở lại trang này.",
         "image_saved": "Hình ảnh đã được lưu thành công",
         "joplin": "Exporteren naar Joplin",
         "md": {
@@ -1562,6 +1866,17 @@
         "wait_for_title_naming": "Đang tạo tiêu đề...",
         "word": "Xuất ra Word",
         "yuque": "Xuất sang Yuque"
+      },
+      "group": {
+        "collapse": "Thu gọn hiển thị",
+        "collapse_all": "Thu gọn tất cả",
+        "earlier": "Trước đó",
+        "expand_all": "Mở rộng tất cả",
+        "show_more": "Mở rộng hiển thị",
+        "this_week": "Tuần này",
+        "today": "Hôm nay",
+        "unknown_assistant": "Trợ lý Không liên kết",
+        "yesterday": "Hôm qua"
       },
       "list": "Daftar Topik",
       "manage": {
@@ -1656,10 +1971,10 @@
       "claude_code": "Trợ lý lập trình AI dòng lệnh chính thức của Anthropic",
       "gemini_cli": "Trợ lý dòng lệnh chính thức Gemini của Google",
       "github_copilot_cli": "Trình đồng hành dòng lệnh chính thức của GitHub Copilot",
-      "iflow_cli": "Trợ lý dòng lệnh đa mô hình của iFlow",
       "kimi_cli": "Trợ lý dòng lệnh Kimi của Moonshot",
       "openai_codex": "CLI chính thức tạo mã của OpenAI",
       "opencode": "Đại lý lập trình đa mô hình mã nguồn mở",
+      "qoder_cli": "Công cụ lập trình dòng lệnh đại lý của Alibaba Qoder",
       "qwen_code": "Công cụ lập trình CLI nguồn mở của Alibaba Tongyi"
     },
     "update_options": "Tùy chọn Cập nhật",
@@ -1711,8 +2026,10 @@
     "add": "Thêm",
     "add_success": "Đã thêm thành công",
     "advanced_settings": "Cài đặt nâng cao",
+    "agent": "Đặc vụ",
     "agent_one": "Đại lý",
     "agent_other": "Đại lý",
+    "all": "Tất cả",
     "and": "và",
     "assistant": "Đại lý",
     "assistant_one": "Trợ lý",
@@ -1726,12 +2043,14 @@
     "clear_all": "Xóa tất cả",
     "click_to_replace": "Nhấp để thay thế",
     "close": "Đóng",
+    "close_sidebar": "Đóng thanh bên",
     "collapse": "Thu gọn",
     "completed": "Hoàn thành",
     "confirm": "Xác nhận",
     "copied": "Đã sao chép",
     "copy": "Sao chép",
     "copy_failed": "Sao chép thất bại",
+    "create_success": "Đã tạo thành công",
     "current": "Hiện tại",
     "cut": "Cắt",
     "default": "Mặc định",
@@ -1776,6 +2095,8 @@
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
     "loading": "Đang tải...",
+    "maximize": "Tối đa hóa",
+    "minimize": "Giảm thiểu",
     "model": "Mô hình",
     "models": "Mô hình",
     "more": "Thêm",
@@ -1788,6 +2109,8 @@
     "on": "On",
     "open": "Abierto",
     "open_in": "Mở trong {{name}}",
+    "open_in_new_tab": "Mở trong tab mới",
+    "open_sidebar": "Mở thanh bên",
     "paste": "Pasta",
     "placeholders": {
       "select": {
@@ -1807,6 +2130,7 @@
     "rename": "Đổi tên",
     "required_field": "Trường bắt buộc",
     "reset": "Đặt lại",
+    "resize_panel": "Thay đổi kích thước bảng",
     "retry": "Thử lại",
     "save": "Lưu",
     "save_failed": "Lưu thất bại",
@@ -1840,6 +2164,7 @@
     "upload_image": "Tải lên tệp hình ảnh",
     "uploaded_image": "Hình ảnh đã tải lên",
     "warning": "Cảnh báo",
+    "yesterday": "Hôm qua",
     "you": "Bạn"
   },
   "dialog": {
@@ -2020,6 +2345,7 @@
   "files": {
     "actions": "Hành động",
     "all": "Tất cả các tệp",
+    "audio": "Âm thanh",
     "batch_delete": "Xóa hàng loạt",
     "batch_operation": "Chọn tất cả",
     "count": "tệp tin",
@@ -2033,22 +2359,131 @@
       },
       "title": "Xóa Tệp"
     },
+    "delete_or_remove": "Xóa / loại bỏ",
     "document": "Tài liệu",
+    "drag_upload": "Kéo thả tệp vào đây để tải lên",
     "edit": "Chỉnh sửa",
+    "empty": {
+      "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
+      "no_match_title": "Không tìm thấy tệp phù hợp"
+    },
     "error": {
-      "open_path": "Không thể mở đường dẫn {{path}}"
+      "delete_failed": "Không thể xóa tệp",
+      "delete_partial_failed": "Một số tệp không thể bị xóa",
+      "import_failed": "Không thể nhập tệp",
+      "import_partial_failed": "Một số tệp không thể được nhập",
+      "open_path": "Không thể mở đường dẫn {{path}}",
+      "rename_failed": "Không đổi được tên tệp",
+      "restore_failed": "Không thể khôi phục các tệp",
+      "restore_partial_failed": "Một số tập tin không thể được khôi phục"
     },
     "file": "Tệp",
+    "footer_count": "{{count}} tệp",
+    "footer_selected_count": "{{count}} đã chọn",
     "image": "Hình ảnh",
+    "missing": "Thiếu",
+    "modified_at": "Đã chỉnh sửa lúc",
     "name": "Tên",
     "open": "Mở",
+    "other": "Khác",
+    "permanent_delete": "Xóa vĩnh viễn",
+    "permanent_delete_confirm": {
+      "description": "Thao tác này sẽ xóa vĩnh viễn {{count}} tệp. Không thể hoàn tác hành động này.",
+      "title": "Xóa vĩnh viễn tệp?"
+    },
     "preview": {
       "error": "Không thể mở tệp"
     },
+    "remove_from_library": "Xóa khỏi thư viện",
+    "rename": "Đổi tên",
+    "restore": "Khôi phục",
+    "selected_count": "{{count}} tệp đã được chọn",
+    "show_in_folder": "Hiển thị trong thư mục",
     "size": "Kích thước",
     "text": "Văn bản",
     "title": "Tập tin",
-    "type": "Kiểu"
+    "trash": "Rác",
+    "type": "Kiểu",
+    "video": "Video"
+  },
+  "globalSearch": {
+    "clear": "Xóa tìm kiếm",
+    "error": "Tìm kiếm thất bại",
+    "filters": {
+      "agent": "Đặc vụ",
+      "all": "Tất cả",
+      "assistant": "Trợ lý",
+      "conversation": "Cuộc trò chuyện",
+      "knowledge": "Kiến thức",
+      "label": "Loại tìm kiếm",
+      "session": "Nhiệm vụ",
+      "topic": "Cuộc trò chuyện"
+    },
+    "groups": {
+      "agent": "Đặc vụ",
+      "assistant": "Trợ lý",
+      "conversation": "Cuộc trò chuyện",
+      "knowledge-base": "Kiến thức",
+      "message": "Tin nhắn",
+      "recent": "Gần đây",
+      "session": "Nhiệm vụ",
+      "topic": "Cuộc trò chuyện"
+    },
+    "keyboard": {
+      "select": "Chọn"
+    },
+    "messageSearch": {
+      "entry": "Tin nhắn",
+      "hint": "Nhập để tìm kiếm nội dung tin nhắn",
+      "jumpToMessage": "Chuyển đến tin nhắn",
+      "more": "Hiển thị thêm {{count}} kết quả",
+      "open": "Tìm kiếm tin nhắn",
+      "roles": {
+        "assistant": "Trợ lý",
+        "system": "Hệ thống",
+        "tool": "Công cụ",
+        "user": "Người dùng"
+      },
+      "sourceLabel": "Nguồn tin nhắn",
+      "sources": {
+        "all": "Tất cả các tin nhắn",
+        "session": "Tin nhắn nhiệm vụ",
+        "topic": "Tin nhắn trò chuyện"
+      },
+      "viewMore": "Xem thêm trong Tin nhắn"
+    },
+    "no_recent": "Không có tuyến đường gần đây",
+    "open": "Mở tìm kiếm toàn cầu",
+    "open_failed": "Không thể mở kết quả tìm kiếm",
+    "placeholder": "Tìm kiếm cuộc trò chuyện, nhiệm vụ, trợ lý, tác nhân và kiến thức...",
+    "quickApps": {
+      "hide": "Ẩn {{name}}",
+      "manage": "Quản lý",
+      "manager_description": "Kéo để sắp xếp lại, nhấp vào biểu tượng mắt để ẩn hoặc hiện",
+      "manager_title": "Quản lý ứng dụng nhanh",
+      "reset": "Đặt lại",
+      "save_failed": "Không lưu được ứng dụng nhanh",
+      "show": "Hiển thị {{name}}",
+      "title": "Ứng dụng nhanh"
+    },
+    "recent_hint": "Nhập để tìm kiếm cuộc trò chuyện, nhiệm vụ, trợ lý, tác nhân và kiến thức",
+    "resultTypes": {
+      "agent": "Đặc vụ",
+      "assistant": "Trợ lý",
+      "knowledge-base": "Kiến thức",
+      "session": "Nhiệm vụ",
+      "topic": "Cuộc trò chuyện"
+    },
+    "showMore": "Hiển thị thêm {{count}}",
+    "timeFilters": {
+      "any": "Bất cứ lúc nào",
+      "label": "Thời gian cập nhật",
+      "messageLabel": "Thời gian tạo",
+      "month": "Tháng trước",
+      "quarter": "3 tháng qua",
+      "today": "Hôm nay",
+      "week": "7 ngày qua"
+    }
   },
   "gpustack": {
     "keep_alive_time": {
@@ -2065,6 +2500,67 @@
     },
     "locate": {
       "message": "Tìm tin nhắn"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} nhiệm vụ",
+      "agentTitle": "Lịch sử Đại lý",
+      "assistantSubtitle": "{{count}} cuộc trò chuyện",
+      "bulkDelete": "Xóa hàng loạt",
+      "bulkDeleteSessions": {
+        "description": "Xóa {{count}} công việc đã chọn?",
+        "title": "Xóa các tác vụ đã chọn"
+      },
+      "bulkDeleteTopics": {
+        "description": "Xóa {{count}} cuộc trò chuyện đã chọn?",
+        "title": "Xóa các cuộc trò chuyện đã chọn"
+      },
+      "bulkMove": "Di chuyển hàng loạt",
+      "bulkMoveTopics": {
+        "confirm": "Di chuyển",
+        "description": "Di chuyển {{count}} cuộc trò chuyện đã chọn đến trợ lý đích.",
+        "empty": "Không có trợ lý nào khả dụng",
+        "error": "Không thể di chuyển các cuộc trò chuyện",
+        "partialSuccess": "Đã chuyển {{moved}} trên {{total}} cuộc trò chuyện; {{failed}} thất bại",
+        "placeholder": "Chọn",
+        "success": "Đã chuyển {{count}} cuộc trò chuyện",
+        "target": "Trợ lý mục tiêu",
+        "title": "Di chuyển các cuộc trò chuyện đã chọn"
+      },
+      "empty": {
+        "description": "Không có cuộc trò chuyện nào cho các bộ lọc hiện tại.",
+        "sessionsDescription": "Không có nhiệm vụ nào cho các bộ lọc hiện tại.",
+        "sessionsTitle": "Không có nhiệm vụ",
+        "title": "Không có cuộc trò chuyện nào"
+      },
+      "loading": {
+        "description": "Đang tải danh sách cuộc trò chuyện.",
+        "sessionsDescription": "Đang tải danh sách công việc.",
+        "sessionsTitle": "Đang tải nhiệm vụ",
+        "title": "Đang tải các cuộc trò chuyện"
+      },
+      "resultCount": "{{count}} kết quả",
+      "searchSession": "Tìm kiếm nhiệm vụ...",
+      "searchTopic": "Tìm kiếm cuộc trò chuyện...",
+      "shortTitle": "Lịch sử",
+      "sidebar": {
+        "searchAssistant": "Trợ lý tìm kiếm...",
+        "status": "Trạng thái",
+        "unknownAssistant": "Trợ lý không liên kết"
+      },
+      "status": {
+        "completed": "Hoàn thành",
+        "failed": "Thất bại",
+        "running": "Chạy"
+      },
+      "table": {
+        "actions": "Hành động",
+        "emptyValue": "—",
+        "messages": "Tin nhắn",
+        "session": "Nhiệm vụ",
+        "time": "Thời gian",
+        "title": "Tiêu đề"
+      },
+      "title": "Lịch sử cuộc trò chuyện"
     },
     "search": {
       "match": {
@@ -2147,19 +2643,20 @@
         "view_chunks": "Xem các khối"
       },
       "add_dialog": {
-        "directory": {
-          "description": "Nhập đệ quy các tệp được hỗ trợ từ một thư mục",
-          "title": "Nhấp để chọn một thư mục"
+        "conflict_dialog": {
+          "description": "{{count}} nguồn bạn đang thêm có cùng tên với các mục hiện có. Chọn cách xử lý chúng.",
+          "keep_all": "Giữ Tất Cả",
+          "replace": "Thay thế",
+          "title": "Nguồn đã tồn tại"
         },
         "footer": {
-          "selected_directories": "{{count}} thư mục đã được chọn",
-          "selected_files": "{{count}} tệp đã được chọn",
           "selected_notes": "{{count}} ghi chú được chọn"
         },
         "note": {
           "description": "Chọn các ghi chú hiện có làm nguồn cơ sở tri thức",
           "empty_description": "Các ghi chú có thể chọn sẽ xuất hiện ở đây sau khi danh sách ghi chú thực tế được kết nối. Hiện tại, hãy sử dụng tệp, thư mục, URL hoặc sơ đồ trang web.",
-          "empty_title": "Các ghi chú chưa được kết nối"
+          "empty_title": "Các ghi chú chưa được kết nối",
+          "loading": "Đang tải ghi chú…"
         },
         "placeholder": {
           "supported_formats": "Hỗ trợ PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2176,6 +2673,8 @@
           "success": "Nguồn dữ liệu đã được thêm vào cơ sở kiến thức"
         },
         "title": "Thêm Nguồn Dữ Liệu",
+        "too_many_sources": "Bạn chỉ có thể thêm tối đa {{count}} nguồn cùng lúc. Giảm bớt lựa chọn và thử lại.",
+        "unsupported_files_skipped": "Đã bỏ qua {{count}} tệp không được hỗ trợ",
         "url": {
           "description": "Nhập URL của trang web:",
           "help": "Văn bản trang sẽ được tải, chia nhỏ và lập chỉ mục tự động",
@@ -2185,15 +2684,13 @@
         }
       },
       "bulk": {
-        "cancel": "Hủy",
         "delete": "Xóa",
         "delete_confirm_description": "Xóa {{count}} nguồn dữ liệu đã chọn? Thao tác này không thể hoàn tác.",
         "delete_confirm_title": "Xóa các Nguồn Dữ liệu Đã Chọn?",
+        "loaded_only_hint": "Chỉ áp dụng cho các mục đã tải (tổng cộng {{total}})",
         "reindex": "Lập chỉ mục lại",
         "selected_count": "{{count}} đã chọn"
       },
-      "chunk_delete_confirm_description": "Sau khi xóa, phần này sẽ không còn được sử dụng để truy xuất. Việc lập chỉ mục lại nguồn dữ liệu sẽ tạo ra nó một lần nữa.",
-      "chunk_delete_confirm_title": "Xóa đoạn?",
       "chunks_count": "{{count}} phần",
       "delete_confirm_description": "Nguồn dữ liệu này và dữ liệu chỉ mục của nó không thể được khôi phục sau khi xóa.",
       "delete_confirm_title": "Xóa Nguồn Dữ Liệu?",
@@ -2220,11 +2717,14 @@
         "note": "Ghi chú",
         "url": "URL"
       },
+      "list": {
+        "end_reached": "Không còn mục nào nữa",
+        "loading_more": "Đang tải thêm…"
+      },
       "preview": {
         "failed": "Không thể xem trước nguồn",
         "unavailable": "Nguồn dữ liệu này không có nguồn để xem trước"
       },
-      "ready_summary": "{{ready}}/{{total}} sẵn sàng",
       "reindex_failed": "Không thể lập chỉ mục lại nguồn dữ liệu",
       "status": {
         "chunking": "Chia nhỏ",
@@ -2234,6 +2734,7 @@
         "ready": "Sẵn sàng"
       },
       "table": {
+        "aria_label": "Nguồn dữ liệu",
         "columns": {
           "actions": "Hành động",
           "name": "Tên",
@@ -2242,32 +2743,30 @@
           "updated_at": "Đã cập nhật"
         },
         "select_all": "Chọn tất cả",
-        "select_row": "Chọn hàng"
+        "select_row": "Chọn hàng",
+        "view_chunks_row": "Xem các phần cho {{title}}"
       },
       "toolbar": {
-        "add": "Thêm Nguồn Dữ Liệu",
-        "no_search_results": "Không có nguồn dữ liệu phù hợp",
-        "search_placeholder": "Tìm kiếm nguồn dữ liệu"
+        "add": "Thêm Nguồn Dữ Liệu"
       }
     },
-    "dimensions": "Kích thước nhúng",
     "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
-    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
     "dimensions_size_placeholder": "Để trống để không truyền kích thước",
-    "drag_file": "Kéo tệp vào đây",
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
     "error": {
+      "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",
       "failed_base_unknown": "Cơ sở kiến thức này đã thất bại trong quá trình di chuyển. Hãy xây dựng lại và chọn một mô hình embedding mới.",
       "failed_to_create": "Không thể tạo cơ sở kiến thức",
       "failed_to_delete": "Không thể xóa cơ sở kiến thức",
       "failed_to_edit": "Không thể chỉnh sửa cơ sở kiến thức",
       "failed_to_move": "Không thể di chuyển cơ sở kiến thức",
+      "indexing_interrupted": "Việc lập chỉ mục bị gián đoạn vì ứng dụng đã đóng. Hãy lập chỉ mục lại mục này để hoàn tất.",
       "missing_embedding_model": "Mô hình embedding được sử dụng bởi cơ sở kiến thức này không được tìm thấy trong quá trình di chuyển. Hãy xây dựng lại cơ sở kiến thức và chọn một mô hình embedding mới.",
+      "missing_vector_store": "Kho kiến thức này không thể đọc được cửa hàng vector trong quá trình di chuyển (thiếu, trống hoặc bị khóa). Kho kiến thức đã được giữ lại; hãy lập chỉ mục lại để khôi phục.",
       "model_invalid": "Chưa chọn mô hình"
     },
-    "file_hint": "Hỗ trợ {{file_types}}",
     "groups": {
       "add": "Nhóm Mới",
       "create_base_here": "Tạo ở đây",
@@ -2299,12 +2798,13 @@
       "chunk_overlap_invalid": "Độ chồng lấn của đoạn phải lớn hơn hoặc bằng 0",
       "chunk_overlap_must_be_smaller": "Độ chồng lấn của chunk phải nhỏ hơn kích thước chunk",
       "chunk_overlap_requires_chunk_size": "Kích thước chunk là bắt buộc khi đặt chồng lấn chunk",
+      "chunk_separator": "Phân cách",
+      "chunk_separator_required": "Bắt buộc phải có bộ phân tách khi tính năng chia nhỏ thông minh bị tắt",
       "chunk_size": "Kích thước khối",
       "chunk_size_change_warning": "Kích thước chunk và chồng lấn chỉ áp dụng cho nội dung mới được thêm vào",
       "chunk_size_invalid": "Kích thước chunk phải lớn hơn 0",
       "chunking": "Phân đoạn",
       "default_separator": "Tự động (khuyên dùng)",
-      "dimensions": "Chiều của Véc-tơ",
       "document_count": "Số lượng tài liệu",
       "embedding_model": "Mô hình nhúng",
       "embedding_model_select": "Lựa chọn mô hình",
@@ -2312,21 +2812,20 @@
       "file_processing_hint": "Xử lý tệp chạy tự động trong quá trình nhập tài liệu. Việc chọn nhà cung cấp phù hợp có thể cải thiện chất lượng phân tích tài liệu.",
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
+        "chunk_separator": "Dấu phân cách mà văn bản được chia theo, ở dạng đã thoát. Khi bật tính năng chia khối thông minh, nó thêm một điểm ngắt; khi tắt tính năng này, văn bản chỉ được chia bằng dấu phân cách này.",
         "chunk_size": "Số lượng token mục tiêu cho mỗi đoạn tài liệu. Điều này ảnh hưởng đến độ chi tiết khi truy xuất và độ dài ngữ cảnh.",
-        "dimensions": "Kích thước chiều vectơ được đầu ra bởi mô hình nhúng hiện tại, dùng để tạo và khớp các chỉ mục vectơ.",
         "document_count": "Số lượng tối đa các đoạn tài liệu được trả về cho mỗi lần truy xuất. Giá trị cao hơn sẽ bao phủ nhiều nội dung hơn nhưng sử dụng nhiều ngữ cảnh hơn.",
         "embedding_model": "Dùng để chuyển nội dung cơ sở kiến thức thành các vector. Việc thay đổi mô hình thường đòi hỏi lập chỉ mục lại nội dung hiện có.",
         "hybrid_alpha": "Trọng số điểm vector trong truy xuất lai. Giá trị cao hơn ưu tiên khớp ngữ nghĩa.",
         "processor": "Trình phân tích được sử dụng khi nhập tệp để trích xuất văn bản chính, bảng và nội dung liên quan.",
         "rerank_model": "Mô hình được sử dụng để xếp hạng lại kết quả truy xuất ban đầu và cải thiện độ liên quan của đoạn cuối cùng.",
         "search_mode": "Chọn một chế độ truy xuất: tìm kiếm vector để khớp ngữ nghĩa, tìm kiếm toàn văn cho từ khóa, hoặc tìm kiếm lai cho cả hai.",
+        "smart_chunking": "Tự động chia theo cấu trúc Markdown (tiêu đề, khối mã, đoạn văn) và không bao giờ chia bên trong một khối mã. Tắt để chia hoàn toàn theo dấu phân cách.",
         "threshold": "Ngưỡng độ tương đồng để lọc các đoạn có độ liên quan thấp. Giá trị cao hơn sẽ làm cho việc truy xuất trở nên nghiêm ngặt hơn.",
         "threshold_disabled": "Chế độ truy xuất này trả về kết quả có thứ tự và không sử dụng ngưỡng độ tương đồng."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Chỉ có thể cấu hình trong chế độ truy xuất Hybrid",
       "processor": "Nhà cung cấp xử lý",
-      "refresh_dimensions": "Làm mới kích thước vector",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -2336,11 +2835,12 @@
       "saved": "Đã lưu",
       "search_mode": {
         "bm25": "Tìm kiếm toàn văn",
-        "default": "Tìm kiếm Vector",
         "hybrid": "Tìm kiếm kết hợp (khuyên dùng)",
-        "title": "Chế độ tìm kiếm"
+        "title": "Chế độ tìm kiếm",
+        "vector": "Tìm kiếm Vector"
       },
       "separator_rule": "Quy tắc phân cách",
+      "smart_chunking": "Phân đoạn thông minh",
       "threshold": "Ngưỡng Độ Tương Đồng",
       "tokens_unit": "mã thông báo"
     },
@@ -2369,6 +2869,8 @@
       "action": "Xây dựng lại cơ sở kiến thức",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Không thể xây dựng lại cơ sở kiến thức",
+      "skipped_missing_sources_one": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
+      "skipped_missing_sources_other": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "submit": "Xây dựng lại",
       "title": "Xây dựng lại Cơ sở Kiến thức"
     },
@@ -2416,7 +2918,9 @@
   "launchpad": {
     "apps": "Ứng dụng",
     "minapps": "Minapps",
-    "miniApps": "MiniApps"
+    "miniApps": "MiniApps",
+    "pin_to_sidebar": "Ghim vào thanh bên",
+    "unpin_from_sidebar": "Bỏ ghim khỏi thanh bên"
   },
   "library": {
     "action": {
@@ -2435,6 +2939,7 @@
       "browse_label": "Danh mục trợ lý",
       "empty_description": "Danh mục này hiện chưa có cài đặt trợ lý nào.",
       "empty_title": "Không có trợ lý nào để thêm",
+      "go_to_chat": "Đi tới trò chuyện",
       "mine": "Của tôi",
       "no_match_description": "Hãy thử từ khóa tìm kiếm khác",
       "no_match_title": "Không có trợ lý phù hợp",
@@ -2473,7 +2978,8 @@
           },
           "env_vars": {
             "help": "Một KEY=VALUE trên mỗi dòng",
-            "label": "Biến môi trường"
+            "label": "Biến môi trường",
+            "placeholder": "KEY=giá_trị\nANOTHER_KEY=giá_trị_khác"
           },
           "heartbeat_enabled": {
             "label": "Kiểm tra nhịp tim"
@@ -2552,6 +3058,14 @@
           },
           "tools": {
             "add": "Thêm",
+            "category": {
+              "context": "Bối cảnh",
+              "file": "Tập tin",
+              "media": "Truyền thông",
+              "orchestration": "Điều phối",
+              "search": "Tìm kiếm",
+              "shell": "Vỏ"
+            },
             "desc": "Các máy chủ MCP, công cụ được phép và cài đặt thời gian chạy",
             "label": "Công cụ & thời gian chạy",
             "no_builtin_enabled": "Không có công cụ tích hợp nào được kích hoạt",
@@ -2621,6 +3135,7 @@
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
+        "mcp_mode": "Chế độ MCP",
         "model": "Mô hình mặc định",
         "model_clear": "Rõ ràng",
         "model_not_found": "Không tìm thấy mô hình (có thể đã bị xóa): {{id}}",
@@ -2639,6 +3154,34 @@
         "unlimited": "Không giới hạn"
       },
       "breadcrumb": "Thư viện",
+      "dialogs": {
+        "create": {
+          "agent_title": "Đại lý mới",
+          "assistant_title": "Trợ lý mới",
+          "avatar_aria": "Chọn hình đại diện",
+          "description_placeholder": "Mô tả mục đích của nó...",
+          "dialog_description": "Tạo một trợ lý hoặc tác nhân nhẹ.",
+          "model_placeholder": "Chọn một mô hình",
+          "model_required": "Vui lòng chọn một mô hình",
+          "name_placeholder": "Nhập tên",
+          "name_required": "Vui lòng nhập tên",
+          "submit": "Tạo",
+          "submit_failed": "Tạo thất bại"
+        },
+        "edit": {
+          "advanced_tab": "Nâng cao",
+          "agent_description": "Nhanh chóng điều chỉnh các thiết yếu của đại lý này.",
+          "agent_title": "Chỉnh sửa Đại lý",
+          "assistant_description": "Nhanh chóng điều chỉnh các yếu tố thiết yếu của trợ lý này.",
+          "assistant_title": "Trợ lý chỉnh sửa",
+          "basic_tab": "Cơ bản",
+          "knowledge_tab": "Kiến thức",
+          "permission_tab": "Quyền",
+          "prompt_tab": "Lời nhắc",
+          "save_failed": "Lưu không thành công",
+          "tools_tab": "Công cụ"
+        }
+      },
       "knowledge": {
         "add": "Thêm cơ sở kiến thức",
         "desc": "Liên kết một hoặc nhiều cơ sở kiến thức; các đoạn trích liên quan sẽ được truy xuất trong quá trình trò chuyện",
@@ -2669,11 +3212,15 @@
           }
         },
         "generate": "Tạo lời nhắc",
+        "generate_failed_description": "Kiểm tra hoặc thay đổi mô hình mặc định, sau đó thử lại.",
+        "generate_failed_title": "Không thể tạo lời nhắc",
         "insert_variable": "Chèn biến",
         "label": "Lời nhắc hệ thống",
         "placeholder": "Nhập lời nhắc hệ thống. Các biến như {{date}} và {{model_name}} được hỗ trợ...",
         "title": "Lời nhắc",
         "tokens_label": "Mã thông báo:",
+        "variables_description": "Chèn các biến hệ thống này vào lời nhắc hệ thống; trước mỗi phản hồi của trợ lý, chúng sẽ được điền với thông tin hiện tại.",
+        "variables_example": "Ví dụ: Hôm nay là {{variable}}, và ngày hiện tại được sử dụng.",
         "variables_title": "Biến có sẵn",
         "vars": {
           "arch": "Kiến trúc CPU",
@@ -2857,6 +3404,7 @@
     "title": "Thư viện",
     "toolbar": {
       "add_tag_placeholder": "Tên thẻ...",
+      "all_tags": "Tất cả các thẻ",
       "new_resource": "Tài nguyên mới",
       "search_placeholder": "Tìm kiếm tài nguyên...",
       "tag_button": "Thẻ"
@@ -2953,6 +3501,7 @@
       "chunk_overlap_too_large": "Phần chồng chéo của khối không thể lớn hơn kích thước khối",
       "copy": "Sao chép thất bại",
       "dimension_too_large": "Kích thước nội dung quá lớn",
+      "dismiss_failed": "Không thể bỏ qua thông báo lỗi",
       "enter": {
         "api": {
           "host": "Vui lòng nhập máy chủ API của bạn trước",
@@ -3003,6 +3552,7 @@
         "no_api_key": "Notion ApiKey hoặc Notion DatabaseID chưa được cấu hình",
         "no_content": "No hay nada que exportar a Notion."
       },
+      "operation_unavailable": "Thao tác tin nhắn không khả dụng. Vui lòng thử lại.",
       "siyuan": {
         "export": "Không xuất được sang Siyuan Note, vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu",
         "no_config": "Địa chỉ API hoặc mã thông báo của Siyuan Note chưa được cấu hình"
@@ -3061,6 +3611,10 @@
         "bubble": "Bong bóng",
         "label": "Kiểu tin nhắn",
         "plain": "Trơn"
+      },
+      "user_content": {
+        "collapse": "Thu gọn",
+        "expand": "Mở rộng"
       },
       "video": {
         "error": {
@@ -3128,6 +3682,77 @@
     "tools": {
       "abort_failed": "Appel d'outil interrompu",
       "aborted": "Cuộc gọi công cụ đã bị hủy",
+      "activity": {
+        "archive": "lưu trữ",
+        "assistantTask": "nhiệm vụ",
+        "availableFeatures": "tính năng có sẵn",
+        "availableResources": "tài nguyên có sẵn",
+        "branch": "nhánh mã",
+        "build": "Xây dựng",
+        "building": "Xây dựng",
+        "check": "Kiểm tra",
+        "checking": "Kiểm tra",
+        "codeFiles": "tệp mã",
+        "codeHostInfo": "thông tin lưu trữ mã",
+        "commandName": "lệnh {{name}}",
+        "configFiles": "tài liệu dự án và các tệp cấu hình",
+        "copy": "Sao chép",
+        "copying": "Sao chép",
+        "create": "Tạo",
+        "creating": "Tạo",
+        "currentFolder": "thư mục hiện tại",
+        "delete": "Xóa",
+        "deleting": "Đang xóa",
+        "documentFiles": "tệp tài liệu",
+        "download": "Tải xuống",
+        "downloading": "Đang tải xuống",
+        "executeCommand": "Chạy lệnh",
+        "executingCommand": "Chạy lệnh",
+        "extract": "Trích xuất",
+        "extracting": "Trích xuất",
+        "file": "tệp",
+        "fileList": "danh sách tệp",
+        "folder": "thư mục",
+        "handle": "Xử lý",
+        "handling": "Xử lý",
+        "imageFiles": "tệp hình ảnh",
+        "install": "Cài đặt",
+        "installing": "Đang cài đặt",
+        "matchingFiles": "các tệp khớp",
+        "modify": "Sửa đổi",
+        "modifying": "Sửa đổi",
+        "move": "Di chuyển",
+        "moving": "Di chuyển",
+        "open": "Mở",
+        "opening": "Mở",
+        "plan": "kế hoạch thực thi",
+        "projectChanges": "thay đổi dự án",
+        "projectChecks": "kiểm tra dự án",
+        "projectDependencies": "các phụ thuộc của dự án",
+        "projectFiles": "tệp dự án",
+        "projectRootFiles": "tệp gốc dự án",
+        "projectTask": "nhiệm vụ dự án",
+        "relatedContent": "nội dung liên quan",
+        "repository": "kho lưu trữ mã nguồn",
+        "search": "Tìm",
+        "searching": "Tìm kiếm",
+        "switch": "Chuyển",
+        "switching": "Chuyển đổi",
+        "sync": "Đồng bộ",
+        "syncing": "Đang đồng bộ",
+        "taskId": "Nhiệm vụ {{id}}",
+        "taskList": "danh sách công việc",
+        "translationFiles": "tệp dịch",
+        "upload": "Tải lên",
+        "uploading": "Tải lên",
+        "view": "Xem",
+        "viewing": "Xem",
+        "webPage": "trang web",
+        "webSearch": "nội dung web",
+        "workspace": "không gian làm việc",
+        "write": "Lưu",
+        "writing": "Tiết kiệm"
+      },
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
@@ -3148,6 +3773,12 @@
         "search": "Tìm kiếm",
         "skill": "Kỹ năng",
         "task": "Nhiệm vụ",
+        "taskCreate": "Tạo nhiệm vụ",
+        "taskGet": "Xem nhiệm vụ",
+        "taskList": "Liệt kê các nhiệm vụ",
+        "taskOutput": "Xem kết quả nhiệm vụ",
+        "taskStop": "Dừng nhiệm vụ",
+        "taskUpdate": "Cập nhật nhiệm vụ",
         "todoWrite": "Viết",
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
@@ -3156,9 +3787,22 @@
       },
       "noData": "Không có dữ liệu nào cho công cụ này",
       "pending": "Đang chờ",
+      "placeholder": {
+        "elapsed": {
+          "days": "{{days}} ngày {{hours}} giờ {{minutes}} phút {{seconds}} giây",
+          "hours": "{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "{{minutes}}p {{seconds}}giây",
+          "seconds": "{{seconds}} giây"
+        },
+        "generating": "Viết phản hồi",
+        "preparing": "Chuẩn bị phản hồi",
+        "thinking": "Suy nghĩ",
+        "usingTools": "Đang làm việc trên nhiệm vụ"
+      },
       "preview": "Voorbeeld",
       "raw": "Raw",
       "runningCount": "{{count}} công cụ đang chạy",
+      "runningHeader": "Đang làm việc…",
       "sections": {
         "args": "Lập luận",
         "command": "Lệnh",
@@ -3180,6 +3824,7 @@
         "success": "Thành công"
       },
       "streaming": "Đang truyền",
+      "thinkingHeader": "Suy nghĩ",
       "truncated": "Đã cắt bớt đầu ra (bản gốc: {{size}})",
       "units": {
         "done_one": "{{count}} Hoàn thành",
@@ -3224,6 +3869,7 @@
     "websearch": {
       "cutoff": "Đang cắt ngắn nội dung tìm kiếm...",
       "fetch_complete": "{{count}} kết quả tìm kiếm",
+      "fetch_empty": "Không tìm thấy kết quả tìm kiếm",
       "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },
@@ -3366,6 +4012,14 @@
     "add_parameter": "Thêm tham số",
     "all": "Tất cả",
     "custom_parameters": "Tham số Tùy chỉnh",
+    "detail": {
+      "context_window": "Cửa sổ ngữ cảnh",
+      "image_modes": "Chế độ hình ảnh",
+      "max_input_tokens": "Đầu vào tối đa",
+      "max_output_tokens": "Đầu ra tối đa",
+      "model_id": "ID mô hình",
+      "provider": "Nhà cung cấp"
+    },
     "dimensions": "Kích thước {{dimensions}}",
     "edit": "Chỉnh sửa Mô hình",
     "embedding": "Nhúng",
@@ -3409,6 +4063,12 @@
     "search": {
       "placeholder": "Buscar modelos...",
       "tooltip": "Mô hình tìm kiếm"
+    },
+    "selection": {
+      "context_window": "Ngữ cảnh {{count}}",
+      "remove_model": "Xóa {{name}}",
+      "restore_default": "Khôi phục mô hình trợ lý",
+      "selected_models": "Các mô hình được chọn"
     },
     "stream_output": "Salida de transmisión",
     "type": {
@@ -3583,28 +4243,7 @@
     "tip": "Nếu phản hồi thành công, chỉ những tin nhắn vượt quá 30 giây mới kích hoạt lời nhắc"
   },
   "ocr": {
-    "builtin": {
-      "system": "Hệ thống OCR"
-    },
-    "error": {
-      "provider": {
-        "cannot_remove_builtin": "Không thể xóa nhà cung cấp tích hợp sẵn",
-        "existing": "Nhà cung cấp đã tồn tại",
-        "get_providers": "Không lấy được các nhà cung cấp khả dụng",
-        "not_found": "Nhà cung cấp OCR không tồn tại",
-        "update_failed": "Không thể cập nhật cấu hình"
-      },
-      "unknown": "Đã xảy ra lỗi trong quá trình OCR"
-    },
-    "file": {
-      "not_supported": "Loại tệp không được hỗ trợ {{type}}"
-    },
-    "processing": "Đang xử lý OCR...",
-    "warning": {
-      "provider": {
-        "fallback": "Đã hoàn nguyên về {{name}}, điều này có thể gây ra sự cố"
-      }
-    }
+    "processing": "Đang xử lý OCR..."
   },
   "ollama": {
     "keep_alive_time": {
@@ -4701,6 +5340,12 @@
       "sort_label": "Sắp xếp",
       "unpin": "Bỏ ghim"
     },
+    "create_dialog": {
+      "refresh_failed": "Đã tạo, nhưng không thể làm mới danh sách"
+    },
+    "edit_dialog": {
+      "refresh_failed": "Đã lưu, nhưng không làm mới được danh sách"
+    },
     "workspace": {
       "empty_text": "Chưa có không gian làm việc nào",
       "placeholder": "Chọn không gian làm việc"
@@ -4771,117 +5416,6 @@
     "channels": {
       "description": "Kết nối các tác nhân với các nền tảng nhắn tin như Telegram, Feishu, Discord và nhiều hơn nữa.",
       "title": "Kênh"
-    },
-    "componentLab": {
-      "agentSelector": {
-        "clearSelection": "Rõ ràng",
-        "configDescription": "Chuyển đổi props để xem trước hành vi của thành phần",
-        "configTitle": "Cấu hình",
-        "currentProps": "Props hiện tại",
-        "description": "AgentSelector hiện đọc dữ liệu DataApi /agents thực tế để xác minh hành vi chọn id/mục, ghim, sắp xếp và tìm kiếm.",
-        "emptyShellNotice": "Bản xem trước này sử dụng danh sách tác nhân thực được trả về bởi /agents DataApi.",
-        "lastOnChange": "Cập nhật mới nhất về onChange",
-        "previewDescription": "Nhấp vào công tắc để mở bộ chọn",
-        "previewTitle": "Xem trước",
-        "title": "Bộ chọn tác nhân",
-        "triggerPlaceholder": "Chọn một đại lý",
-        "valueProp": "Giá trị hiện tại"
-      },
-      "agentTodoList": {
-        "title": "Danh sách việc cần làm của đại lý"
-      },
-      "assistantSelector": {
-        "clearSelection": "Rõ ràng",
-        "configDescription": "Chuyển đổi props để xem trước hành vi của component",
-        "configTitle": "Cấu hình",
-        "currentProps": "Props hiện tại",
-        "description": "Gắn trực tiếp thành phần kinh doanh AssistantSelector để xác minh hành vi đa/đơn, id/mục, ghim, sắp xếp và tìm kiếm.",
-        "lastOnChange": "Cập nhật mới nhất về onChange",
-        "previewDescription": "Nhấp vào kích hoạt để mở bộ chọn",
-        "previewTitle": "Xem trước",
-        "title": "Trình chọn Trợ lý",
-        "triggerPlaceholder": "Chọn một trợ lý",
-        "triggerSelectedCount": "{{count}} trợ lý đã được chọn",
-        "valueProp": "Giá trị hiện tại"
-      },
-      "description": "Chỉ hiển thị trong quá trình phát triển để thử nghiệm trình chọn mô hình mới trực tiếp trong ứng dụng.",
-      "fileProcessing": {
-        "artifact": {
-          "file": "Tệp Markdown",
-          "text": "Kết quả văn bản"
-        },
-        "description": "Chạy mọi trình xử lý tệp đã cấu hình qua IPC xử lý tệp thực và so sánh kết quả.",
-        "duration": "{{seconds}} giây",
-        "jobId": "ID công việc",
-        "markdown": {
-          "description": "Chọn một tài liệu và chạy tất cả các bộ xử lý chuyển đổi tài liệu sang markdown.",
-          "fileFilterName": "Tài liệu",
-          "noFile": "Không có tài liệu nào được chọn",
-          "select": "Chọn tài liệu",
-          "start": "Kiểm tra đánh dấu",
-          "title": "Markdown"
-        },
-        "noProcessors": "Không có bộ xử lý nào hỗ trợ tính năng này.",
-        "ocr": {
-          "description": "Chọn một hình ảnh và chạy tất cả các bộ xử lý OCR.",
-          "fileFilterName": "Hình ảnh",
-          "noFile": "Chưa chọn hình ảnh",
-          "select": "Chọn hình ảnh",
-          "start": "Kiểm tra OCR",
-          "title": "OCR"
-        },
-        "processorCount": "{{count}} bộ xử lý",
-        "status": {
-          "cancelled": "Đã hủy",
-          "completed": "Hoàn thành",
-          "delayed": "Trì hoãn",
-          "failed": "Thất bại",
-          "idle": "Nhàn rỗi",
-          "pending": "Đang chờ",
-          "processing": "Đang xử lý",
-          "running": "Chạy",
-          "starting": "Bắt đầu"
-        },
-        "title": "Phân tích tài liệu"
-      },
-      "label": "Phòng thí nghiệm linh kiện",
-      "modelSelector": {
-        "behaviorConfig": "Cấu hình Hành vi & Hiển thị",
-        "callbackEmpty": "Chưa nhận được bất kỳ callback thành phần nào",
-        "clearSelection": "Xóa lựa chọn",
-        "configDescription": "Chuyển đổi các thuộc tính ModelSelector chính ở trên và kiểm tra giá trị đầu vào cùng với các payload callback bên dưới.",
-        "configTitle": "Sân chơi Đạo cụ",
-        "controlMultiSelectMode": "Chế độ chọn nhiều được kiểm soát",
-        "currentProps": "Props Hiện Tại",
-        "defaultMultiSelectMode": "chế độ chọn nhiều mặc định",
-        "description": "Trang này gắn trực tiếp thành phần kinh doanh ModelSelector hiện tại để chúng ta có thể xác minh hành vi lựa chọn, lọc, tìm kiếm và ghim.",
-        "empty": "Hiện không có mô hình nào khả dụng nên bộ chọn chưa thể hiển thị.",
-        "lastModeChangeReturn": "Cập nhật mới nhất về Return onMultiSelectModeChange",
-        "lastSelectReturn": "Mới nhất vềSelect Return",
-        "loading": "Đang tải mô hình...",
-        "modelId": "ID mô hình",
-        "multiSelectMode": "chế độ chọn nhiều",
-        "multiple": "nhiều",
-        "normalizedIds": "ID Đã Chọn Được Chuẩn Hóa",
-        "outputEmpty": "Chưa có dữ liệu để hiển thị",
-        "provider": "Nhà cung cấp",
-        "resetOutputs": "Đặt lại đầu ra",
-        "resultsDescription": "Điều này hiển thị giá trị đề xuất hiện tại, các id đã chọn được chuẩn hóa và đầu ra gọi lại mới nhất từ thành phần.",
-        "resultsTitle": "Đầu ra & Trạng thái",
-        "selected": "Lựa chọn hiện tại",
-        "selectedEmpty": "Chưa chọn mô hình nào",
-        "selectionConfig": "Cấu hình Giá trị Lựa chọn",
-        "selectionType": "loại lựa chọn",
-        "selectionTypeId": "Trả về ID mô hình",
-        "selectionTypeModel": "Trả về các đối tượng mô hình",
-        "showPinnedModels": "hiển thị các mô hình được ghim",
-        "showTagFilter": "hiển thịBộLọcThẻ",
-        "title": "Bộ chọn mô hình",
-        "triggerPlaceholder": "Chọn một mô hình",
-        "triggerSelectedCount": "{{count}} mô hình đã được chọn",
-        "valueProp": "Giá trị đề xuất hiện tại"
-      },
-      "title": "Phòng thí nghiệm Thành phần Phát triển"
     },
     "data": {
       "app_data": {
@@ -5577,7 +6111,19 @@
         "title": "Sao lưu và Khôi phục Dữ liệu"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "Bản địa",
+            "restart": {
+              "content": "Thay đổi kiểu menu yêu cầu khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+              "title": "Yêu cầu khởi động lại"
+            },
+            "title": "Kiểu menu ngữ cảnh"
+          }
+        },
         "sections": {
+          "chat_settings": "Cài đặt Trò chuyện",
           "custom_css": "CSS Tùy chỉnh",
           "display_language": "Hiển thị & Ngôn ngữ",
           "privacy_advanced": "Quyền riêng tư & Nâng cao",
@@ -5842,6 +6388,13 @@
         "text": "Văn bản",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "Đã kết nối",
+        "connecting": "Kết nối",
+        "disabled": "Vô hiệu hóa",
+        "error": "Lỗi",
+        "unavailable": "Không có sẵn"
+      },
       "search": {
         "placeholder": "Tìm kiếm máy chủ MCP...",
         "tooltip": "Tìm kiếm máy chủ MCP"
@@ -5947,8 +6500,6 @@
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
         "enable_quick_triggers": "Kích hoạt các kích hoạt / và @",
-        "paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
-        "paste_long_text_threshold": "I’m ready—please provide the long text you’d like translated.",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"
@@ -5964,10 +6515,10 @@
         "label": "Thanh điều hướng",
         "none": ""
       },
-      "prompt": "Mostrar indicación",
       "show_message_outline": "Hiển thị dàn bộ tin nhắn",
       "title": "Cài đặt tin nhắn",
-      "use_serif_font": "Dùng phông chữ có chân"
+      "use_serif_font": "Dùng phông chữ có chân",
+      "wide_mode": "Chế độ bố cục rộng"
     },
     "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
@@ -6066,6 +6617,7 @@
       "disabled": "Ứng dụng mini ẩn",
       "display_title": "Cài đặt hiển thị Mini App",
       "empty": "Nhấp vào biểu tượng ẩn của một ứng dụng bên trái và nó sẽ chuyển đến đây",
+      "hide_app": "Ẩn {{name}}",
       "open_link_external": {
         "title": "Mở liên kết cửa sổ mới trong trình duyệt"
       },
@@ -6077,6 +6629,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Đặt lại về mặc định",
+      "show_app": "Hiển thị {{name}}",
       "sidebar_description": "Hiển thị các mini app đang hoạt động trong thanh bên",
       "sidebar_title": "Hiển thị Ứng dụng Nhỏ Hoạt động trong Thanh bên",
       "title": "Cài đặt Mini Apps",
@@ -6215,6 +6768,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Hiển thị thêm {{count}} mô hình",
+        "model_in_use_by_knowledge_base": "Mô hình này đang được sử dụng bởi một cơ sở kiến thức và không thể bị xóa.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
@@ -6343,13 +6897,51 @@
         "title": "Tính dài dòng"
       }
     },
+    "parameter_settings": "Cài đặt tham số",
     "plugins": {
-      "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
       "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Cài đặt",
+      "installError": "Failed to install tool",
       "installing": "Đang cài đặt...",
+      "invalidTool": "Tên công cụ hoặc khóa không hợp lệ",
       "notInstalled": "Chưa cài đặt",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
       "title": "Phần bổ trợ",
-      "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
+    "power": {
+      "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
     },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
@@ -6371,13 +6963,15 @@
       },
       "title": "Quản lý Prompt",
       "titleLabel": "Tiêu đề",
-      "titlePlaceholder": "Nhập tiêu đề lời nhắc"
+      "titlePlaceholder": "Nhập tiêu đề lời nhắc",
+      "variablePlaceholder": "${biến}"
     },
     "provider": {
       "add": {
         "name": {
           "label": "Tên nhà cung cấp",
-          "placeholder": "Ví dụ: OpenAI"
+          "placeholder": "Ví dụ: OpenAI",
+          "required": "Vui lòng nhập tên nhà cung cấp"
         },
         "title": "Thêm Nhà cung cấp",
         "type": "Loại nhà cung cấp"
@@ -6488,7 +7082,8 @@
       "balance": "Cân bằng",
       "base_url": {
         "label": "URL cơ sở",
-        "placeholder": "https://api.example.com"
+        "placeholder": "https://api.example.com",
+        "required": "Vui lòng nhập URL cơ sở"
       },
       "basic_auth": {
         "label": "Xác thực HTTP",
@@ -6663,7 +7258,7 @@
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Chọn vị trí",
         "service_account": {
           "auth_success": "Tài khoản dịch vụ đã xác thực thành công",
           "client_email": "Email của khách hàng",
@@ -6680,9 +7275,9 @@
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
           "title": "Cấu hình Tài khoản Dịch vụ",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Chuyển đổi hiển thị email của khách hàng",
+          "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
+          "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
         }
       }
     },
@@ -6709,6 +7304,14 @@
       "close": "Đóng",
       "confirm": "Xác nhận",
       "forward": "Vooruit",
+      "mcp": {
+        "agentEmpty": "Không có máy chủ MCP nào được cấu hình cho agent này",
+        "assistantEmpty": "Không có máy chủ MCP nào được cấu hình cho trợ lý này",
+        "autoEmpty": "Không có máy chủ MCP nào được kích hoạt",
+        "description": "Xem trạng thái hiện tại của máy chủ MCP",
+        "disabled": "MCP đã bị vô hiệu hóa cho trợ lý này",
+        "unknownServer": "Máy chủ MCP không xác định"
+      },
       "multiple": "Chọn nhiều",
       "noResult": "Không tìm thấy kết quả",
       "page": "Trang",
@@ -6752,6 +7355,7 @@
       },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
+      "close_tab": "Đóng Tab",
       "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
@@ -6759,8 +7363,11 @@
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
+      "move_tab_to_first": "Di chuyển tab lên đầu tiên",
       "new_topic": "Chủ đề mới",
       "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
+      "open_tab_in_new_window": "Mở tab trong cửa sổ mới",
+      "pin_tab": "Chuyển đổi Ghim Tab",
       "press_shortcut": "Nhấn Phím tắt",
       "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
@@ -6851,10 +7458,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Xử lý tài liệu"
+            "title": "Xử lý tài liệu",
+            "tooltip": "Dùng để phân tích tài liệu trong cơ sở tri thức"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "Dùng để nhận dạng chữ trong hình ảnh cho tính năng dịch"
           }
         },
         "fields": {
@@ -7068,10 +7677,16 @@
       "title": "Zoom de página"
     }
   },
+  "subWindow": {
+    "back_to_main": "Quay lại Cửa sổ Chính",
+    "pin": "Giữ",
+    "unpin": "Hủy Giữ trên cùng"
+  },
   "tab": {
     "close": "Đóng Tab",
     "move_to_first": "Di chuyển lên đầu",
     "new": "Thẻ Mới",
+    "open_in_new_window": "Mở trong cửa sổ mới",
     "pin": "Ghim Tab",
     "unpin": "Gỡ ghim thẻ"
   },
@@ -7088,7 +7703,8 @@
     "paintings": "Tranh vẽ",
     "settings": "Cài đặt",
     "store": "Thư viện Trợ lý",
-    "translate": "Dịch"
+    "translate": "Dịch",
+    "work": "Công việc"
   },
   "trace": {
     "agent": "Đại lý",
@@ -7113,9 +7729,9 @@
     "serverName": "Tên Máy Chủ",
     "serverType": "Loại Máy Chủ",
     "spanDetail": "Chi tiết Span",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
+    "spendTime": "Thời gian xử lý",
+    "startTime": "Thời gian bắt đầu",
+    "status": "Trạng thái",
     "tag": "Thẻ",
     "tokenUsage": "Mức sử dụng Token",
     "toolCalls": "Cuộc gọi công cụ"
@@ -7195,6 +7811,7 @@
         "too_large": "Tập tin quá lớn",
         "unknown": "Không đọc được nội dung tệp"
       },
+      "ocr_completed": "OCR hình ảnh hoàn tất",
       "reading": "Đang đọc nội dung tệp...",
       "upload": "Thả hoặc nhấp để tải lên hình ảnh/tài liệu"
     },

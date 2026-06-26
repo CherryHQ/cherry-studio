@@ -8,14 +8,14 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
-import { runAsyncFunction } from '@renderer/utils'
+import { ipcApi } from '@renderer/ipc'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import { SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
@@ -46,7 +46,7 @@ const AboutSettings: FC = () => {
       updateAppUpdateState({ checking: true, manualCheck: true })
 
       try {
-        await window.api.checkForUpdate()
+        await ipcApi.request('app.updater.check_for_update')
       } catch {
         updateAppUpdateState({ manualCheck: false })
         window.toast.error(t('settings.about.updateError'))
@@ -149,13 +149,12 @@ const AboutSettings: FC = () => {
   }
 
   useEffect(() => {
-    void runAsyncFunction(async () => {
+    void (async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
-    })
-    void setAutoCheckUpdate(autoCheckUpdate)
-  }, [autoCheckUpdate, setAutoCheckUpdate])
+    })()
+  }, [])
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
@@ -283,11 +282,11 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
-            <Markdown>
+            <Streamdown mode="static">
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
                 : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Markdown>
+            </Streamdown>
           </div>
         </SettingGroup>
       )}

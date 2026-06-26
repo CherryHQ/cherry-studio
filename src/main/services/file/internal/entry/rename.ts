@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
@@ -29,6 +29,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // the service would reject anyway.
   SafeNameSchema.parse(newName)
   const entry = await deps.fileEntryService.getById(id)
+  if (entry.name === newName) return entry
   if (entry.origin === 'internal') {
     return deps.fileEntryService.update(id, { name: newName })
   }

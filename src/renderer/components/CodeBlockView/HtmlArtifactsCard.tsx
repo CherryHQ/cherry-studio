@@ -1,24 +1,26 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
 
-import HtmlArtifactsPopup from './HtmlArtifactsPopup'
+const HtmlArtifactsPopup = lazy(() => import('./HtmlArtifactsPopup'))
 
 const logger = loggerService.withContext('HtmlArtifactsCard')
 
 interface Props {
   html: string
   onSave?: (html: string) => void
+  editable?: boolean
   isStreaming?: boolean
 }
 
-const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => {
+const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreaming = false }) => {
   const { t } = useTranslation()
   const title = extractHtmlTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -27,19 +29,27 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
   const hasContent = htmlContent.trim().length > 0
 
   const handleOpenExternal = async () => {
-    const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
-    await window.api.file.write(tempPath, htmlContent)
-    window.api.openPath(tempPath).catch(() => {
-      logger.error(t('chat.artifacts.preview.openExternal.error.content'))
-    })
+    try {
+      const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
+      await window.api.file.write(tempPath, htmlContent)
+      await window.api.file.openPath(tempPath)
+    } catch (error) {
+      logger.error('Failed to open HTML artifact externally', error as Error)
+      window.toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
+    }
   }
 
   const handleDownload = async () => {
-    const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
-    const savedPath = await window.api.file.save(fileName, htmlContent)
-    if (!savedPath) return
+    try {
+      const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
+      const savedPath = await window.api.file.save(fileName, htmlContent)
+      if (!savedPath) return
 
-    window.toast.success(t('message.download.success'))
+      window.toast.success(t('message.download.success'))
+    } catch (error) {
+      logger.error('Failed to download HTML artifact', error as Error)
+      window.toast.error(formatErrorMessageWithPrefix(error, t('message.download.failed')))
+    }
   }
 
   return (
@@ -53,7 +63,11 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
                 ? 'bg-linear-to-br from-amber-500 to-amber-600 shadow-amber-500/30'
                 : 'bg-linear-to-br from-blue-500 to-blue-700 shadow-blue-500/30'
             )}>
-            {isStreaming ? <Sparkles size={20} /> : <Globe size={20} />}
+            {isStreaming ? (
+              <Sparkles size={20} className="lucide-custom text-white" />
+            ) : (
+              <Globe size={20} className="lucide-custom text-white" />
+            )}
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <span className="truncate font-['Ubuntu'] font-bold text-foreground text-sm leading-snug">{title}</span>
@@ -64,9 +78,9 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
           </div>
         </div>
 
-        <div className="bg-background">
+        <div>
           {isStreaming && !hasContent ? (
-            <div className="flex min-h-[78px] items-center justify-center gap-2 p-5">
+            <div className="flex min-h-19.5 items-center justify-center gap-2 p-5">
               <ClipLoader size={20} color="var(--color-primary)" />
               <div className="text-muted-foreground text-sm">
                 {t('html_artifacts.generating', 'Generating content...')}
@@ -78,7 +92,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
                 <div className="min-h-20 bg-muted p-3 text-[13px] text-foreground leading-relaxed dark:bg-neutral-900 dark:text-neutral-300">
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 font-bold text-green-700 dark:text-green-400">$</span>
-                    <span className="flex-1 whitespace-pre-wrap break-words bg-transparent text-foreground dark:text-neutral-300">
+                    <span className="wrap-break-word flex-1 whitespace-pre-wrap bg-transparent text-foreground dark:text-neutral-300">
                       {htmlContent.trim().split('\n').slice(-3).join('\n')}
                       <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-green-700 dark:bg-green-400" />
                     </span>
@@ -111,13 +125,18 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
         </div>
       </div>
 
-      <HtmlArtifactsPopup
-        open={isPopupOpen}
-        title={title}
-        html={htmlContent}
-        onSave={onSave}
-        onClose={() => setIsPopupOpen(false)}
-      />
+      {isPopupOpen ? (
+        <Suspense fallback={null}>
+          <HtmlArtifactsPopup
+            open={isPopupOpen}
+            title={title}
+            html={htmlContent}
+            onSave={onSave}
+            editable={editable}
+            onClose={() => setIsPopupOpen(false)}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
 }

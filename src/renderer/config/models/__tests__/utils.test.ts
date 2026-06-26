@@ -1,5 +1,5 @@
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,40 +31,6 @@ import {
 } from '../utils'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
 import { isOpenAIWebSearchChatCompletionOnlyModel } from '../websearch'
-
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  },
-  useAppDispatch: vi.fn(),
-  useAppSelector: vi.fn()
-}))
-
-vi.mock('@renderer/store/settings', () => {
-  const noop = vi.fn()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (prop === 'initialState') {
-          return {}
-        }
-        return noop
-      }
-    }
-  )
-})
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useNavbarPosition: vi.fn(() => ({ navbarPosition: 'left' })),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
 
 vi.mock('@renderer/config/models/embedding', () => ({
   isEmbeddingModel: vi.fn(),

@@ -2,8 +2,8 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import type { FileMetadata } from '@renderer/types'
-import { getFileDirectory } from '@renderer/utils'
+import type { FileMetadata } from '@renderer/types/file'
+import { getFileDirectory } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 
 const logger = loggerService.withContext('FileManager')

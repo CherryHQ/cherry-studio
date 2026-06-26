@@ -399,7 +399,7 @@ Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-vi
 - Footer: `mt-auto flex flex-col gap-2 p-4`
 - Title / description: `font-semibold text-foreground`; `text-sm text-muted-foreground`
 
-`Drawer` uses `bg-background` and edge attachment, not the floating `bg-card rounded-3xl shadow-xl` shell of `PageSidePanel`. New drawer work should use `PageSidePanel` or this shared `Drawer` primitive; legacy `antd` drawers are migration targets, not the design contract.
+`Drawer` uses `bg-background` and edge attachment, not the floating `bg-card rounded-3xl shadow-xl` shell of `PageSidePanel`. New drawer work should use `PageSidePanel` or this shared `Drawer` primitive.
 
 ### Cards
 
@@ -602,7 +602,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 ### Window Chrome
 
 - **Top chrome height**: `var(--app-top-chrome-height)` = 44px. Use this for the main window tab bar and any standalone macOS window top drag area that should visually align with the main app chrome.
-- **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)`. Only override it for legacy navbar-position modes or inner content calculations that intentionally do not include a top navbar.
+- **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)` for the fixed top-menu layout. Only override it for inner content calculations that intentionally do not include a top navbar.
 - Settings-style floating windows with a transparent macOS shell must keep the outer top inset tied to `var(--app-top-chrome-height)` instead of hard-coded pixel classes such as `h-11` or `h-[50px]`.
 - **Settings window sizing** (standalone settings window only): sized to 80% of the main window with a hard floor of 760×560 and a 1280px max width, centered on the main window. The 760×560 floor keeps the ~200px sidebar plus the detail column usable when the user shrinks the main window; the 1280px ceiling prevents 2K/4K displays from stretching settings into empty space. Canonical implementation: `SettingsWindowService` in `src/main/services/SettingsWindowService.ts`.
 

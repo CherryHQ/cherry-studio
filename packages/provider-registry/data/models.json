@@ -444,7 +444,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "file-input"],
       "contextWindow": 256000,
       "description": "Step 3.5 Flash is StepFun's most capable open-source foundation model. Built on a sparse Mixture of Experts (MoE) architecture, it selectively activates only 11B of its 196B parameters per token. It is a reasoning model that is incredibly speed efficient even at long contexts.",
       "family": "step",
@@ -1516,7 +1516,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning"],
       "contextWindow": 128000,
       "description": "DeepSeek-V3.2 is a large language model designed to harmonize high computational efficiency with strong reasoning and agentic tool-use performance. It introduces DeepSeek Sparse Attention (DSA), a fine-grained sparse attention mechanism that reduces training and inference cost while preserving quality in long-context scenarios. A scalable reinforcement learning post-training framework further improves reasoning, with reported performance in the GPT-5 class, and the model has demonstrated gold-medal results on the 2025 IMO and IOI. V3.2 also uses a large-scale agentic task synthesis pipeline to better integrate reasoning into tool-use settings, boosting compliance and generalization in interactive environments.\n\nUsers can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)",
       "family": "deepseek",
@@ -7104,14 +7104,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "structured-output",
-        "reasoning",
-        "image-recognition",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "structured-output", "reasoning", "file-input", "web-search"],
       "contextWindow": 200000,
       "description": "OpenAI o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding.\n\nThis model supports the `reasoning_effort` parameter, which can be set to \"high\", \"medium\", or \"low\" to control the thinking time of the model. The default is \"medium\". OpenRouter also offers the model slug `openai/o3-mini-high` to default the parameter to \"high\".\n\nThe model features three adjustable reasoning effort levels and supports key developer capabilities including function calling, structured outputs, and streaming, though it does not include vision processing capabilities.\n\nThe model demonstrates significant improvements over its predecessor, with expert testers preferring its responses 56% of the time and noting a 39% reduction in major errors on complex questions. With medium reasoning effort settings, o3-mini matches the performance of the larger o1 model on challenging reasoning evaluations like AIME and GPQA, while maintaining lower latency and cost.",
       "family": "o",
@@ -10620,7 +10613,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "file-input", "web-search"],
       "contextWindow": 127000,
       "family": "sonar-reasoning",
       "id": "sonar-reasoning",
@@ -24587,7 +24580,9 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "ownedBy": "baidu",
+      "family": "ernie"
     },
     {
       "capabilities": ["reasoning", "web-search"],
@@ -25553,7 +25548,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25571,7 +25568,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25589,7 +25588,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25607,7 +25608,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25625,7 +25628,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25643,7 +25648,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -25661,7 +25668,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["embedding"],
@@ -26283,7 +26292,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
@@ -26301,7 +26312,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["computer-use"],
@@ -27130,7 +27143,9 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "ownedBy": "bfl",
+      "family": "flux"
     },
     {
       "capabilities": ["function-call", "image-recognition", "image-generation", "web-search"],
@@ -41884,11 +41899,36 @@
       "ownedBy": "Kwai-Kolors"
     },
     {
-      "capabilities": ["image-generation"],
-      "description": "OpenAI gpt-image-2 — text-to-image generation via aihubmix.",
+      "capabilities": ["image-recognition", "image-generation"],
+      "description": "OpenAI GPT Image 2 — text-to-image generation and image-to-image editing with text guidance.",
+      "family": "gpt-image",
       "id": "gpt-image-2",
       "imageGeneration": {
         "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
           "generate": {
             "supports": {
               "background": {
@@ -41917,11 +41957,32 @@
       },
       "inputModalities": ["text", "image"],
       "name": "GPT-Image-2",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "openai",
+      "contextWindow": 0,
+      "maxOutputTokens": 0,
+      "openWeights": false,
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      },
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        },
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      }
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Google Imagen 4.0 (preview) via aihubmix — text-to-image with aspect-ratio and person-generation controls.",
+      "description": "Google Imagen 4.0 (preview) — text-to-image with aspect-ratio and person-generation controls.",
       "id": "imagen-4.0-generate-preview-06-06",
       "imageGeneration": {
         "modes": {
@@ -41948,11 +42009,13 @@
       },
       "inputModalities": ["text"],
       "name": "Imagen 4.0 Preview",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "google",
+      "family": "imagen"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Google Imagen 4.0 Ultra (preview) via aihubmix — single-image generation with aspect-ratio and person-generation controls.",
+      "description": "Google Imagen 4.0 Ultra (preview) — single-image generation with aspect-ratio and person-generation controls.",
       "id": "imagen-4.0-ultra-generate-preview-06-06",
       "imageGeneration": {
         "modes": {
@@ -41973,11 +42036,13 @@
       },
       "inputModalities": ["text"],
       "name": "Imagen 4.0 Ultra Preview",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "google",
+      "family": "imagen"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Black Forest Labs FLUX.1 Kontext Pro via aihubmix.",
+      "description": "Black Forest Labs FLUX.1 Kontext Pro.",
       "id": "FLUX.1-Kontext-pro",
       "imageGeneration": {
         "modes": {
@@ -41995,11 +42060,13 @@
       },
       "inputModalities": ["text"],
       "name": "FLUX.1 Kontext Pro",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bfl",
+      "family": "flux"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_3 via aihubmix.",
+      "description": "Ideogram V_3.",
       "id": "V_3",
       "imageGeneration": {
         "modes": {
@@ -42133,11 +42200,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_3",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2 via aihubmix.",
+      "description": "Ideogram V_2.",
       "id": "V_2",
       "imageGeneration": {
         "modes": {
@@ -42267,11 +42336,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2 Turbo via aihubmix.",
+      "description": "Ideogram V_2 Turbo.",
       "id": "V_2_TURBO",
       "imageGeneration": {
         "modes": {
@@ -42401,11 +42472,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2 Turbo",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2A via aihubmix.",
+      "description": "Ideogram V_2A.",
       "id": "V_2A",
       "imageGeneration": {
         "modes": {
@@ -42535,11 +42608,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2A",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_2A Turbo via aihubmix.",
+      "description": "Ideogram V_2A Turbo.",
       "id": "V_2A_TURBO",
       "imageGeneration": {
         "modes": {
@@ -42669,11 +42744,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_2A Turbo",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_1 via aihubmix.",
+      "description": "Ideogram V_1.",
       "id": "V_1",
       "imageGeneration": {
         "modes": {
@@ -42803,11 +42880,13 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_1",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["image-generation"],
-      "description": "Ideogram V_1 Turbo via aihubmix.",
+      "description": "Ideogram V_1 Turbo.",
       "id": "V_1_TURBO",
       "imageGeneration": {
         "modes": {
@@ -42937,7 +43016,9 @@
       },
       "inputModalities": ["text"],
       "name": "Ideogram V_1 Turbo",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "ideogram-ai",
+      "family": "ideogram-ai"
     },
     {
       "capabilities": ["function-call", "image-recognition", "web-search", "image-generation"],
@@ -43121,7 +43202,9 @@
       "id": "jimeng-txt2img-v3.1",
       "inputModalities": ["text"],
       "name": "即梦文生图 3.1",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "jimeng"
     },
     {
       "capabilities": ["image-generation"],
@@ -43129,7 +43212,9 @@
       "id": "jimeng-txt2img-v3.0",
       "inputModalities": ["text"],
       "name": "即梦文生图 3.0",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "jimeng"
     },
     {
       "capabilities": ["image-generation"],
@@ -43137,7 +43222,9 @@
       "id": "hunyuan-image-3",
       "inputModalities": ["text"],
       "name": "Hunyuan Image 3",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "tencent",
+      "family": "hunyuan"
     },
     {
       "capabilities": ["image-generation"],
@@ -43145,7 +43232,9 @@
       "id": "qwen-image-txt2img",
       "inputModalities": ["text"],
       "name": "Qwen-Image 文生图",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "family": "qwen"
     },
     {
       "capabilities": ["image-generation"],
@@ -43165,7 +43254,9 @@
       "id": "z-image-turbo-lora",
       "inputModalities": ["text"],
       "name": "Z Image Turbo LoRA",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "Tongyi-MAI",
+      "family": "Z-Image"
     },
     {
       "capabilities": ["image-generation"],
@@ -43173,7 +43264,9 @@
       "id": "seedream-5.0-lite",
       "inputModalities": ["text", "image"],
       "name": "Seedream 5.0 Lite",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "seedream"
     },
     {
       "capabilities": ["image-generation"],
@@ -43181,7 +43274,9 @@
       "id": "seedream-4.5",
       "inputModalities": ["text", "image"],
       "name": "Seedream 4.5",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "seedream"
     },
     {
       "capabilities": ["image-generation"],
@@ -43189,7 +43284,9 @@
       "id": "seedream-4.0",
       "inputModalities": ["text", "image"],
       "name": "Seedream 4.0",
-      "outputModalities": ["image"]
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "family": "seedream"
     },
     {
       "capabilities": ["image-generation"],
@@ -44420,7 +44517,7 @@
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "structured-output", "reasoning", "file-input"],
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       },
@@ -45103,7 +45200,7 @@
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "file-input"],
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       },
@@ -45525,7 +45622,7 @@
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "structured-output", "reasoning"],
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       },

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { validateApiHost } from '@renderer/utils'
+import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
@@ -50,6 +51,28 @@ type RelativeOrientation =
 @ServicePhase(Phase.WhenReady)
 export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
+
+  /** Latest desired running state — mirrors the `feature.selection.enabled` preference. */
+  private desiredEnabled = false
+  /**
+   * Converges the hook/toolbar running state to `desiredEnabled`. Sole caller of activate/deactivate
+   * (latest-wins, level-triggered against `isActivated`). The reachable race is the deferred startup
+   * warm-up (see onAllReady): a disable arriving before the `setImmediate` fires must win, instead of
+   * the warm-up activating unconditionally. The reconciler holds no OS resources and is a
+   * construct-once field NOT recreated on restart, so it is deliberately never disposed.
+   */
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+    name: 'selection',
+    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    isSettled: ({ desired, actual }) => desired === actual,
+    apply: async ({ desired }) => {
+      if (desired) {
+        await this.activate()
+      } else {
+        await this.deactivate()
+      }
+    }
+  })
 
   private initStatus: boolean = false
 
@@ -157,8 +180,9 @@ export class SelectionService extends BaseService implements Activatable {
     // Load native module if not yet loaded (lazy loading preserved across activation cycles)
     if (!this.initStatus) {
       if (!this.loadModuleAndCreateInstance()) {
-        // Setting preference to false triggers the subscription which calls deactivate(),
-        // but _activating guard in BaseService ensures the deactivate() is a safe no-op.
+        // Flip the preference off so the UI reflects the failure. This fires the subscription
+        // (desiredEnabled=false + reconciler.request()); the reconciler then converges to
+        // deactivated after this onActivate throws — no direct, racing deactivate() call.
         const preferenceService = application.get('PreferenceService')
         void preferenceService.set('feature.selection.enabled', false)
         throw new Error('Failed to load selection-hook module')
@@ -259,8 +283,8 @@ export class SelectionService extends BaseService implements Activatable {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
-        if (enabled) void this.activate()
-        else void this.deactivate()
+        this.desiredEnabled = enabled
+        this.reconciler.request()
       })
     })
   }
@@ -274,14 +298,16 @@ export class SelectionService extends BaseService implements Activatable {
 
     // Warm up off the boot critical path: onActivate() synchronously loads the native
     // addon and builds the toolbar + action windows (~120ms). setImmediate defers it
-    // past the WhenReady phase so the main window paints first. A pre-fire stop is safe
-    // — _doActivate() no-ops unless the service is Ready.
+    // past the WhenReady phase so the main window paints first.
+    //
+    // Drive the warm-up through the reconciler so a disable landing in the deferred gap is not
+    // clobbered: the old setImmediate activated unconditionally even if the user had just turned the
+    // feature off. Setting `desiredEnabled` makes the deferred request level-triggered — it re-reads
+    // the latest intent and stays deactivated if disabled meanwhile. A pre-fire stop is also safe
+    // (apply's activate() no-ops unless the service is Ready).
+    this.desiredEnabled = true
     this.logInfo('Selection feature enabled, scheduling selection-hook warm-up')
-    setImmediate(() => {
-      void this.activate().catch((error) => {
-        this.logError('Failed to activate selection feature on startup:', error as Error)
-      })
-    })
+    setImmediate(() => this.reconciler.request())
   }
 
   protected async onStop(): Promise<void> {

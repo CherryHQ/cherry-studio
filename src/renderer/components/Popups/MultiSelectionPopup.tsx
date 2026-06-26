@@ -1,67 +1,67 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
-import { useChatContext } from '@renderer/hooks/useChatContext'
-import type { Topic } from '@renderer/types'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Save, X } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  topic: Topic
+  selectedMessageIds: readonly string[]
+  isMultiSelectMode: boolean
+  onSave?: () => void
+  onCopy?: () => void
+  onDelete?: () => void
+  onClose: () => void
 }
 
-const MultiSelectActionPopup: FC<Props> = () => {
+const MultiSelectActionPopup: FC<Props> = ({
+  selectedMessageIds,
+  isMultiSelectMode,
+  onSave,
+  onCopy,
+  onDelete,
+  onClose
+}) => {
   const { t } = useTranslation()
-  const { toggleMultiSelectMode, selectedMessageIds, isMultiSelectMode, handleMultiSelectAction } = useChatContext()
-
-  const handleAction = (action: string) => {
-    void handleMultiSelectAction(action, selectedMessageIds)
-  }
-
-  const handleClose = () => {
-    toggleMultiSelectMode(false)
-  }
 
   if (!isMultiSelectMode) return null
 
-  // TODO: 视情况调整
-  // const isActionDisabled = selectedMessages.some((msg) => msg.role === 'user')
-  const isActionDisabled = false
+  const isActionDisabled = selectedMessageIds.length === 0
 
   return (
     <Container>
       <ActionBar>
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
-          <Tooltip content={t('common.save')}>
-            <Button
-              className="rounded-full"
-              variant="ghost"
-              disabled={isActionDisabled}
-              onClick={() => handleAction('save')}
-              size="icon">
-              <Save size={16} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('common.copy')}>
-            <Button
-              className="rounded-full"
-              variant="ghost"
-              disabled={isActionDisabled}
-              onClick={() => handleAction('copy')}
-              size="icon">
-              <CopyIcon size={16} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('common.delete')}>
-            <Button className="rounded-full" variant="ghost" onClick={() => handleAction('delete')} size="icon">
-              <DeleteIcon size={16} className="lucide-custom" />
-            </Button>
-          </Tooltip>
+          {onSave && (
+            <Tooltip content={t('common.save')}>
+              <Button className="rounded-full" variant="ghost" disabled={isActionDisabled} onClick={onSave} size="icon">
+                <Save size={16} />
+              </Button>
+            </Tooltip>
+          )}
+          {onCopy && (
+            <Tooltip content={t('common.copy')}>
+              <Button className="rounded-full" variant="ghost" disabled={isActionDisabled} onClick={onCopy} size="icon">
+                <CopyIcon size={16} />
+              </Button>
+            </Tooltip>
+          )}
+          {onDelete && (
+            <Tooltip content={t('common.delete')}>
+              <Button
+                className="rounded-full"
+                variant="ghost"
+                disabled={isActionDisabled}
+                onClick={onDelete}
+                size="icon">
+                <DeleteIcon size={16} className="lucide-custom" />
+              </Button>
+            </Tooltip>
+          )}
         </ActionButtons>
         <Tooltip content={t('chat.navigation.close')}>
-          <Button className="rounded-full" variant="ghost" onClick={handleClose} size="icon">
+          <Button className="rounded-full" variant="ghost" onClick={onClose} size="icon">
             <X size={16} />
           </Button>
         </Tooltip>
@@ -71,14 +71,14 @@ const MultiSelectActionPopup: FC<Props> = () => {
 }
 
 const Container: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('fixed inset-x-0 bottom-0 z-[1000] flex items-center justify-center p-4', className)} {...props} />
+  <div className={cn('fixed inset-x-0 bottom-0 z-300 flex items-center justify-center p-4', className)} {...props} />
 )
 
 const ActionBar: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'flex items-center justify-between gap-4 rounded-[99px] border-[0.5px] border-[var(--color-border)]',
-      'bg-[var(--color-background)] p-1 shadow-[0_2px_8px_0_rgb(128_128_128_/_20%)]',
+      'flex items-center justify-between gap-4 rounded-[99px] border-[0.5px] border-border',
+      'bg-background p-1 shadow-md',
       className
     )}
     {...props}

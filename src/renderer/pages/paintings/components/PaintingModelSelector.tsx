@@ -1,8 +1,8 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { getProviderDisplayName } from '@renderer/components/ModelSelector/utils'
+import { ModelSelector } from '@renderer/components/Selector/model'
+import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -20,9 +20,11 @@ interface PaintingModelSelectorProps {
   className?: string
   painting: PaintingData
   onSelect: (selection: { providerId: string; modelId: string }) => void
+  /** Drop the "Model" section title — used by the composer's bottom toolbar. */
+  hideTitle?: boolean
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect }) => {
+const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect, hideTitle }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
@@ -57,10 +59,12 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
   }, [painting.providerId, painting.model, selectedModel])
 
   return (
-    <div>
-      <PaintingSectionTitle>
-        <span className="min-w-0 truncate">{t('paintings.model')}</span>
-      </PaintingSectionTitle>
+    <div className={hideTitle ? 'contents' : undefined}>
+      {!hideTitle && (
+        <PaintingSectionTitle>
+          <span className="min-w-0 truncate">{t('paintings.model')}</span>
+        </PaintingSectionTitle>
+      )}
       <ModelSelector
         open={open}
         onOpenChange={setOpen}

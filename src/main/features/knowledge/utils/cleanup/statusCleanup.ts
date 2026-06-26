@@ -13,16 +13,6 @@ type MarkFailedInput = {
   logContextKey: string
 }
 
-export class KnowledgeFailedStatusCleanupError extends Error {
-  constructor(
-    message: string,
-    readonly unrecoveredItemIds: string[]
-  ) {
-    super(message)
-    this.name = 'KnowledgeFailedStatusCleanupError'
-  }
-}
-
 export async function markUnscheduledKnowledgeItemsFailed(input: MarkFailedInput): Promise<void> {
   const unrecoveredItemIds: string[] = []
 
@@ -67,9 +57,8 @@ export async function markUnscheduledKnowledgeItemsFailed(input: MarkFailedInput
   }
 
   if (unrecoveredItemIds.length > 0) {
-    throw new KnowledgeFailedStatusCleanupError(
-      `Failed to mark unscheduled knowledge items failed; unrecovered item ids: ${unrecoveredItemIds.join(', ')}`,
-      unrecoveredItemIds
+    throw new Error(
+      `Failed to mark unscheduled knowledge items failed; unrecovered item ids: ${unrecoveredItemIds.join(', ')}`
     )
   }
 }

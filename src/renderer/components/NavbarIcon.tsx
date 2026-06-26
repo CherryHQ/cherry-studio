@@ -1,11 +1,26 @@
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentProps } from 'react'
 
-const NavbarIcon = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => {
+type NavbarIconProps = Omit<ComponentProps<typeof Button>, 'variant' | 'size'> & {
+  active?: boolean
+  tone?: 'default' | 'conversation'
+}
+
+const NavbarIcon = ({ active, className, tone = 'default', type = 'button', ...props }: NavbarIconProps) => {
+  const conversation = tone === 'conversation'
+
   return (
-    <div
+    <Button
+      type={type}
+      variant={conversation && active ? 'secondary' : 'ghost'}
+      size="icon-navbar"
+      data-active={active || undefined}
       className={cn(
-        'flex h-[30px] cursor-pointer flex-row items-center justify-center rounded-[8px] px-[7px] transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-white [&_.anticon]:text-[16px] [&_.anticon]:text-[var(--color-icon)] [&_.icon-a-addchat]:text-[20px] [&_.icon-a-darkmode]:text-[20px] [&_.icon-appstore]:text-[20px] [&_.iconfont]:text-[18px] [&_.iconfont]:text-[var(--color-icon)]',
+        conversation
+          ? 'text-foreground/70! duration-150 ease-in-out [-webkit-app-region:none] hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-secondary data-[state=open]:bg-secondary data-[active=true]:text-secondary-foreground! data-[state=open]:text-secondary-foreground! [&_.lucide:not(.lucide-custom)]:text-current!'
+          : 'text-foreground/70! duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-foreground',
+        conversation && active && 'bg-secondary text-secondary-foreground!',
         className
       )}
       {...props}

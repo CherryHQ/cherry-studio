@@ -195,4 +195,73 @@ describe('LibsqlDriver', () => {
     // libsql-internal, not contractual — just let it settle either way.
     await first.catch(() => undefined)
   })
+
+  describe('serializedSingleConnection (manual transaction) mode', () => {
+    it('brackets the work with BEGIN IMMEDIATE / COMMIT and never opens a libsql interactive transaction', async () => {
+      // The leak fix: client.transaction('write') detaches and orphans a connection on commit, so
+      // manual mode must NOT call it — it brackets the work on the single connection instead.
+      const executed: string[] = []
+      const transactionSpy = vi.fn()
+      const fakeClient = {
+        execute: async (stmt: string | { sql: string }) => {
+          executed.push(typeof stmt === 'string' ? stmt : stmt.sql)
+          return { rows: [], columns: [] }
+        },
+        transaction: transactionSpy,
+        close: () => undefined
+      } as unknown as Client
+      const manualDriver = new LibsqlDriver(fakeClient, true)
+
+      await manualDriver.transaction(async (tx) => {
+        await tx.execute('INSERT INTO t (id) VALUES (1)')
+      })
+
+      expect(transactionSpy).not.toHaveBeenCalled()
+      expect(executed).toEqual(['BEGIN IMMEDIATE', 'INSERT INTO t (id) VALUES (1)', 'COMMIT'])
+    })
+
+    it('issues ROLLBACK and rethrows when the transaction body throws', async () => {
+      const executed: string[] = []
+      const fakeClient = {
+        execute: async (stmt: string | { sql: string }) => {
+          executed.push(typeof stmt === 'string' ? stmt : stmt.sql)
+          return { rows: [], columns: [] }
+        },
+        transaction: vi.fn(),
+        close: () => undefined
+      } as unknown as Client
+      const manualDriver = new LibsqlDriver(fakeClient, true)
+
+      await expect(
+        manualDriver.transaction(async () => {
+          throw new Error('boom')
+        })
+      ).rejects.toThrow('boom')
+      expect(executed).toEqual(['BEGIN IMMEDIATE', 'ROLLBACK'])
+    })
+
+    it('persists committed rows and discards rolled-back ones on a real store', async () => {
+      const manualDriver = await openLibsqlIndexDriver(join(tempDir, 'manual.sqlite'), {
+        serializedSingleConnection: true
+      })
+      try {
+        await manualDriver.execute('CREATE TABLE m (id INTEGER PRIMARY KEY)')
+        await manualDriver.transaction(async (tx) => {
+          await tx.execute('INSERT INTO m (id) VALUES (1)')
+          await tx.execute('INSERT INTO m (id) VALUES (2)')
+        })
+        await expect(
+          manualDriver.transaction(async (tx) => {
+            await tx.execute('INSERT INTO m (id) VALUES (3)')
+            throw new Error('boom')
+          })
+        ).rejects.toThrow('boom')
+
+        const count = await manualDriver.execute('SELECT COUNT(*) AS n FROM m')
+        expect(count.rows[0].n).toBe(2)
+      } finally {
+        await manualDriver.close()
+      }
+    })
+  })
 })

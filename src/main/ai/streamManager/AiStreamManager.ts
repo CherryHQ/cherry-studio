@@ -1,25 +1,22 @@
 import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
-  AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
-import { type SerializedError, serializeError } from '@shared/types/error'
+import type { SerializedError } from '@shared/types/error'
+import { serializeError } from '@shared/utils/error'
 import { type UIMessageChunk } from 'ai'
-import * as z from 'zod'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -45,22 +42,9 @@ import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
 
-// ── IPC boundary validation ─────────────────────────────────────────
-// Renderer payloads are untrusted; reject malformed shapes before they
-// reach dispatch/attach. `safeParse` keeps the handlers free of throws on
-// the common path and lets us return/throw a sanitized error.
-
-/** Every stream channel keys on a non-empty `topicId`. */
-const TopicIdRequestSchema = z.object({ topicId: z.string().min(1) })
-
-/** `Ai_Stream_Open` — validates the discriminated trigger and its required fields. */
-const StreamOpenRequestSchema = z.intersection(
-  TopicIdRequestSchema,
-  z.discriminatedUnion('trigger', [
-    z.object({ trigger: z.literal('submit-message'), userMessageParts: z.array(z.unknown()) }),
-    z.object({ trigger: z.literal('regenerate-message'), parentAnchorId: z.string().min(1) })
-  ])
-)
+// Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
+// router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
+// handlers in `src/main/ipc/handlers/ai.ts`, which delegate to the public methods below.
 
 /**
  * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
@@ -215,6 +199,19 @@ export class AiStreamManager extends BaseService {
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
+  /**
+   * Resolves once `reconcileStalePendingMessages` has run. `dispatch` awaits it before
+   * writing any fresh PENDING placeholder, so a stream that opens during boot can't have
+   * its placeholder wrongly marked errored by the still-pending crash-orphan reconcile.
+   * The old `Ai_Stream_Open` handler enforced this by registering *after* reconcile in
+   * `onInit`; the IpcApi handler registers earlier (IpcApiService, BeforeReady), so the
+   * ordering guarantee moves onto this gate.
+   */
+  private markReconciled!: () => void
+  private readonly reconciled = new Promise<void>((resolve) => {
+    this.markReconciled = resolve
+  })
+
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -225,58 +222,24 @@ export class AiStreamManager extends BaseService {
     // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     await this.reconcileStalePendingMessages()
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, rawReq: unknown) => {
-      const parsed = StreamOpenRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Open rejected: invalid request', { issues: parsed.error.issues })
-        throw new Error('Invalid Ai_Stream_Open request')
-      }
-      const req = rawReq as AiStreamOpenRequest
-      const subscriber = new WebContentsListener(event.sender, req.topicId)
-      return this.dispatch(subscriber, req)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, rawReq: unknown): AiStreamAttachResponse => {
-      const parsed = TopicIdRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Attach rejected: invalid topicId', { issues: parsed.error.issues })
-        return { status: 'not-found' }
-      }
-      return this.attach(event.sender, rawReq as AiStreamAttachRequest)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, rawReq: unknown) => {
-      const parsed = TopicIdRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Detach rejected: invalid topicId', { issues: parsed.error.issues })
-        return
-      }
-      this.detach(event.sender, rawReq as AiStreamDetachRequest)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, rawReq: unknown) => {
-      const parsed = TopicIdRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Abort rejected: invalid topicId', { issues: parsed.error.issues })
-        return
-      }
-      this.abort((rawReq as AiStreamAbortRequest).topicId, 'user-requested')
-    })
-
+    this.markReconciled()
     logger.info('AiStreamManager initialized')
   }
 
   /**
-   * Single locked dispatch entry point for chat streams. Both `Ai_Stream_Open`
-   * and the tool-approval continue path (`AiService.Ai_ToolApproval_Respond`)
+   * Single locked dispatch entry point for chat streams. Both `ai.stream_open`
+   * and the tool-approval continue path (`AiService.respondToolApproval`)
    * route through here so the per-topic `dispatchLock` serialises every dispatch
    * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
    * placeholder off a `hasLiveStream` snapshot; without one lock covering both
    * entry points, a concurrent open and approval-continue on the same topic could
    * both see "no live stream" and orphan a row.
    */
-  dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+  async dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
+    // No-op after boot (resolved promise); the only caller it can actually block is a
+    // stream opened in the boot window before reconcile finished.
+    await this.reconciled
     return this.withDispatchLock(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
   }
 

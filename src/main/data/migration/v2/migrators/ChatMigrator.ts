@@ -127,6 +127,29 @@ function* extractFileEntryIds(parts: CherryMessagePart[] | undefined): Iterable<
 }
 
 /**
+ * Build a topic's content-less virtual root row (`role = 'root'`, `parentId = null`).
+ * Mirrors `MessageService.createRootMessageTx` so migrated topics match freshly created
+ * ones. `createdAt` is the topic's creation time so the root sorts before its children.
+ */
+function buildVirtualRoot(id: string, topicId: string, createdAt: number): NewMessage {
+  return {
+    id,
+    parentId: null,
+    topicId,
+    role: 'root',
+    data: { parts: [] },
+    searchableText: '',
+    status: 'success',
+    siblingsGroupId: 0,
+    modelId: null,
+    modelSnapshot: null,
+    stats: null,
+    createdAt,
+    updatedAt: createdAt
+  }
+}
+
+/**
  * Assistant data from Redux for assistant lookup. Both `assistants[]` and the
  * standalone `defaultAssistant` slot can carry topics under `.topics[]` —
  * iterating only `assistants[]` (the previous behavior) silently dropped every
@@ -604,7 +627,9 @@ export class ChatMigrator extends BaseMigrator {
         }
       }
 
-      // Check for multi-root topics (topics with more than one root message)
+      // Invariant check: each topic must have exactly one virtual root (parentId IS NULL).
+      // The migrator inserts one per topic and reparents former physical roots onto it,
+      // so >1 here means a bug (the message_topic_root_uniq index would also reject it).
       const multiRootCheck = await db
         .select({ count: sql<number>`count(*)` })
         .from(sql`(SELECT topic_id FROM ${messageTable} WHERE parent_id IS NULL GROUP BY topic_id HAVING count(*) > 1)`)
@@ -1020,7 +1045,18 @@ export class ChatMigrator extends BaseMigrator {
       const idRemap = new Map<string, string>()
       const batchIds = new Set<string>()
       for (const data of batch) {
+        // Bring migrated topics into the virtual-root model: every topic gets one
+        // content-less `role = 'root'` row (parentId = null), and the former physical
+        // roots (parentId = null content messages) are reparented onto it. This makes
+        // the single-root invariant and `role = 'root'` ⇔ `parentId IS NULL` hold for
+        // migrated data exactly as for freshly created topics. Mirrors
+        // MessageService.createRootMessageTx.
+        const rootId = uuidv4()
+        batchMessages.push(buildVirtualRoot(rootId, data.topic.id, data.topic.createdAt))
         for (const msg of data.messages) {
+          if (msg.parentId === null) {
+            msg.parentId = rootId
+          }
           if (seenMessageIds.has(msg.id) || batchIds.has(msg.id)) {
             const newId = uuidv4()
             logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)

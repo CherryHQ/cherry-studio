@@ -186,6 +186,100 @@ describe('AgentSessionMessageService', () => {
     expect(result.nextCursor).toBe(`200:${ASSISTANT_MESSAGE_ID}`)
   })
 
+  it('anchors list pagination at messageId and continues older pages with cursor', async () => {
+    const older = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
+    const middle = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302'
+    const target = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d303'
+    const newer = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d304'
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: older,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'older' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: middle,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'middle' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: target,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'target' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: newer,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newer' }] },
+        status: 'success',
+        createdAt: 400,
+        updatedAt: 400
+      }
+    ])
+
+    const firstPage = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: target,
+      limit: 2
+    })
+    const secondPage = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: target,
+      cursor: firstPage.nextCursor,
+      limit: 2
+    })
+
+    expect(firstPage.items.map((item) => item.id)).toEqual([target, middle])
+    expect(firstPage.nextCursor).toBe(`200:${middle}`)
+    expect(secondPage.items.map((item) => item.id)).toEqual([older])
+    expect(secondPage.nextCursor).toBeUndefined()
+  })
+
+  it('falls back to the newest page when the anchor messageId is outside the requested session', async () => {
+    const otherSessionId = 'session-other'
+    const otherMessageId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d305'
+    const newestMessageId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d306'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: otherMessageId,
+        sessionId: otherSessionId,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'other' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: newestMessageId,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newest' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: otherMessageId
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual([newestMessageId])
+    expect(result.nextCursor).toBeUndefined()
+  })
+
   it('keeps searchable_text and FTS index in sync from message data', async () => {
     await dbh.db.insert(agentSessionMessageTable).values({
       id: USER_MESSAGE_ID,
@@ -209,7 +303,7 @@ describe('AgentSessionMessageService', () => {
     const thinkingMatches = await dbh.client.execute({
       sql: `SELECT m.id
             FROM agent_session_message m
-            JOIN agent_session_message_fts fts ON m.rowid = fts.rowid
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
             WHERE agent_session_message_fts MATCH ?`,
       args: ['thinking']
     })
@@ -223,14 +317,14 @@ describe('AgentSessionMessageService', () => {
     const staleMatches = await dbh.client.execute({
       sql: `SELECT m.id
             FROM agent_session_message m
-            JOIN agent_session_message_fts fts ON m.rowid = fts.rowid
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
             WHERE agent_session_message_fts MATCH ?`,
       args: ['thinking']
     })
     const targetMatches = await dbh.client.execute({
       sql: `SELECT m.id
             FROM agent_session_message m
-            JOIN agent_session_message_fts fts ON m.rowid = fts.rowid
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
             WHERE agent_session_message_fts MATCH ?`,
       args: ['target']
     })
@@ -417,7 +511,7 @@ describe('AgentSessionMessageService', () => {
     })
 
     const ftsRow = await dbh.client.execute({
-      sql: 'SELECT rowid, searchable_text FROM agent_session_message WHERE id = ?',
+      sql: 'SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = ?',
       args: ['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab']
     })
     await dbh.client.execute({

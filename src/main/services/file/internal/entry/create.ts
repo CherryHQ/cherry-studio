@@ -16,7 +16,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -102,22 +102,27 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
 }
 
 function basenameWithoutExt(p: string): string {
-  const base = p.split(/[\\/]/).pop() ?? p
+  const base = basenameForExtProjection(p)
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(0, dot) : base
 }
 
 function extWithoutDot(p: string): string | null {
-  const base = p.split(/[\\/]/).pop() ?? p
+  const base = basenameForExtProjection(p)
   const dot = base.lastIndexOf('.')
-  if (dot <= 0 || dot === base.length - 1) return null
+  if (dot <= 0) return null
   return base.slice(dot + 1).toLowerCase()
+}
+
+function basenameForExtProjection(p: string): string {
+  const base = p.split(/[\\/]/).pop() ?? p
+  return base.replace(/[\s.]+$/, '')
 }
 
 function urlTail(url: string): string {
   try {
     const u = new URL(url)
-    const last = u.pathname.split('/').pop() ?? ''
+    const last = basenameForExtProjection(u.pathname)
     const dot = last.lastIndexOf('.')
     return dot > 0 ? last.slice(0, dot) : last || u.hostname
   } catch {
@@ -149,8 +154,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       origin: 'internal',
       name: source.name,
       ext: source.ext,
-      size: stats.size,
-      externalPath: null
+      size: stats.size
     })
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })
@@ -240,7 +244,6 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
     origin: 'external',
     name,
     ext,
-    size: null,
     externalPath: canonical
   })
   // Reverse-index hook: subsequent watcher / opportunistic ops events for
@@ -253,9 +256,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
 }
 
 function defaultNameFromPath(p: string): string {
-  const base = p.split(/[\\/]/).pop() ?? p
-  const dot = base.lastIndexOf('.')
-  return dot > 0 ? base.slice(0, dot) : base
+  return basenameWithoutExt(p)
 }
 
 /**

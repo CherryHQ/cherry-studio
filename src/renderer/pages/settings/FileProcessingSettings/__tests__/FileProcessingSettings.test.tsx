@@ -10,7 +10,7 @@ import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
-const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const topViewShowMock = vi.hoisted(() => vi.fn())
 const topViewHideMock = vi.hoisted(() => vi.fn())
 const comboboxMockState = vi.hoisted(() => ({
@@ -40,6 +40,12 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
 }))
 
 vi.mock('@renderer/config/constant', async (importOriginal) => {
@@ -143,6 +149,19 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ),
     DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+    InfoTooltip: ({
+      content,
+      iconProps,
+      placement
+    }: {
+      content: React.ReactNode
+      iconProps?: { size?: number }
+      placement?: string
+    }) => (
+      <span data-testid="info-tooltip" data-icon-size={iconProps?.size} data-placement={placement}>
+        {content}
+      </span>
+    ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
     MenuItem: ({
@@ -234,17 +253,9 @@ describe('FileProcessingSettings', () => {
     loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     topViewShowMock.mockReset()
     topViewHideMock.mockReset()
-    listAvailableProcessorsMock.mockReset()
-    listAvailableProcessorsMock.mockResolvedValue({
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
-    })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        fileProcessing: {
-          listAvailableProcessors: listAvailableProcessorsMock
-        }
-      }
     })
     Object.defineProperty(window, 'modal', {
       configurable: true,
@@ -279,6 +290,8 @@ describe('FileProcessingSettings', () => {
 
     expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
     expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.tooltip')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.tooltip')).toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     ).toHaveLength(2)
@@ -319,7 +332,7 @@ describe('FileProcessingSettings', () => {
       screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
     ).not.toBeInTheDocument()
 
-    listAvailableProcessorsMock.mockResolvedValueOnce({
+    ipcRequestMock.mockResolvedValueOnce({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru', 'ovocr']
     })
 
@@ -333,7 +346,7 @@ describe('FileProcessingSettings', () => {
   })
 
   it('keeps OV OCR hidden and logs when available processor lookup fails', async () => {
-    listAvailableProcessorsMock.mockRejectedValueOnce(new Error('IPC failed'))
+    ipcRequestMock.mockRejectedValueOnce(new Error('IPC failed'))
 
     render(<FileProcessingSettings />)
 

@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import { AbsolutePathSchema } from '@shared/data/types/file'
 
 export interface KnowledgeFileItemData {

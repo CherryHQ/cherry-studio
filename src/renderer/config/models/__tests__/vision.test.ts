@@ -1,4 +1,4 @@
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,40 +29,6 @@ const isImageEnhancementModel = adapt(_isImageEnhancementModel)
 const isPureGenerateImageModel = adapt(_isPureGenerateImageModel)
 const isTextToImageModel = adapt(_isTextToImageModel)
 const isVisionModel = adapt(_isVisionModel)
-
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  },
-  useAppDispatch: vi.fn(),
-  useAppSelector: vi.fn()
-}))
-
-vi.mock('@renderer/store/settings', () => {
-  const noop = vi.fn()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (prop === 'initialState') {
-          return {}
-        }
-        return noop
-      }
-    }
-  )
-})
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useNavbarPosition: vi.fn(() => ({ navbarPosition: 'left' })),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
 
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),

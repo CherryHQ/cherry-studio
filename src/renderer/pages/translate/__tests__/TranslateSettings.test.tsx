@@ -1,4 +1,4 @@
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -27,7 +27,7 @@ vi.mock('@renderer/hooks/translate', () => ({
   useTranslateLanguages: () => translateLanguageMutationsMock
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 

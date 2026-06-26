@@ -159,7 +159,7 @@ import type {
   WebSearchProviderOverride,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT, normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
@@ -229,9 +229,9 @@ function isSupportedWebSearchProviderId(value: string): value is WebSearchProvid
  * Normalize the legacy default web search provider into the v2 keyword-search
  * default provider key.
  *
- * Unsupported legacy ids, removed local providers, and empty strings are all
- * treated as "no default provider selected" to keep the migrated Preference
- * compatible with the curated preset list.
+ * Unsupported legacy ids, removed local providers, and empty strings are skipped
+ * (left undefined) so the curated v2 schema default keyword-search provider applies
+ * instead of an unusable legacy value.
  */
 export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: string | null }): TransformResult {
   const defaultProvider = sources.defaultProvider?.trim()
@@ -244,7 +244,7 @@ export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: s
 
   return {
     'chat.web_search.default_search_keywords_provider':
-      defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
+      defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : undefined
   }
 }
 

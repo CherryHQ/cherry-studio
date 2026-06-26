@@ -98,8 +98,8 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
-import type { FilePath } from '@shared/file/types/common'
+import type { FilePath } from '@shared/types/file/common'
+import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
 import { SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'
@@ -231,8 +231,8 @@ const CommonEntryFields = {
    * File extension without leading dot (e.g. `'pdf'`, `'md'`). `null` for
    * extensionless files (e.g. Dockerfile).
    *
-   * Runtime validation is centralized in `SafeExtSchema`: no leading dot, no
-   * path separators, no null bytes, no whitespace-only value. The TS type
+   * Runtime validation is centralized in `SafeExtSchema`: no dots, no
+   * whitespace, no path separators, and no null bytes. The TS type
    * stays plain `string | null` (no brand); correctness is enforced at system
    * boundaries (IPC parse, DB row parse, factory `splitName`) rather than at
    * every assignment site. `FileEntrySchema.parse` is the authoritative check.

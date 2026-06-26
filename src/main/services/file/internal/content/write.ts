@@ -22,7 +22,7 @@ import {
   stat as fsStat
 } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
 import { resolvePhysicalPath } from '../../utils/pathResolver'

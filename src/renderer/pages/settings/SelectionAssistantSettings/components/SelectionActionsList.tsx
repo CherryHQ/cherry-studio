@@ -91,12 +91,14 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         </div>
       </DragDropContext>
 
-      <SelectionActionUserModal
-        isModalOpen={isUserModalOpen}
-        editingAction={userEditingAction}
-        onOk={handleUserModalOk}
-        onCancel={() => setIsUserModalOpen(false)}
-      />
+      {isUserModalOpen && (
+        <SelectionActionUserModal
+          isModalOpen={isUserModalOpen}
+          editingAction={userEditingAction}
+          onOk={handleUserModalOk}
+          onCancel={() => setIsUserModalOpen(false)}
+        />
+      )}
 
       <SelectionActionSearchModal
         isModalOpen={isSearchModalOpen}

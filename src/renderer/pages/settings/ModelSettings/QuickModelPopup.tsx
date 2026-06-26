@@ -104,7 +104,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
-      <DialogContent className="p-6" onPointerDownOutside={(event) => event.preventDefault()}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="p-6"
+        onPointerDownOutside={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t('settings.models.quick_model.setting_title')}</DialogTitle>
         </DialogHeader>

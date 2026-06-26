@@ -7,6 +7,11 @@ import RagConfigPanel from '../RagConfigPanel'
 
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
+// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
 
 const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
   return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
@@ -64,6 +69,23 @@ vi.mock('@cherrystudio/ui', async () => {
       <div {...props}>{children}</div>
     ),
     Input: (props: Record<string, unknown>) => <input {...props} />,
+    Switch: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+      [key: string]: unknown
+    }) => (
+      <input
+        type="checkbox"
+        role="switch"
+        checked={checked ?? false}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+        {...props}
+      />
+    ),
     Select: ({
       children,
       onValueChange
@@ -125,7 +147,42 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 vi.mock('../../../hooks', () => ({
-  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
+  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base),
+  useEmbeddingDimensions: () => ({
+    fetchDimensions: async (uniqueModelId: string) => {
+      const { embeddings } = await mockEmbedMany({
+        uniqueModelId,
+        values: ['test']
+      })
+      return embeddings[0]?.length ?? 0
+    },
+    isFetchingDimensions: false
+  })
+}))
+
+vi.mock('../../../components/KnowledgeModelSelect', () => ({
+  isEmbeddingModel: () => true,
+  isRerankModel: () => true,
+  KnowledgeModelSelect: ({
+    value,
+    placeholder,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <div>
+      <span>{value ?? placeholder}</span>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+    </div>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -141,9 +198,13 @@ vi.mock('react-i18next', () => ({
           'knowledge.embedding_model': '嵌入模型',
           'knowledge.embedding_model_required': '请选择嵌入模型',
           'knowledge.provider_not_found': '找不到提供商',
+          'knowledge.dimensions': '向量维度',
+          'message.error.get_embedding_dimensions': '获取嵌入维度失败',
           'knowledge.restore.action': '重建知识库',
           'knowledge.restore.submit': '重建',
           'knowledge.status.failed': '失败',
+          'knowledge.dimensions_error_invalid': '无效的嵌入维度',
+          'knowledge.rag.dimensions': '向量维度',
           'knowledge.rag.document_count': '请求文档片段数 (Top K)',
           'knowledge.rag.embedding_model': '嵌入模型',
           'knowledge.rag.embedding_model_select': '模型选择',
@@ -159,16 +220,19 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.threshold': '相似度阈值',
           'knowledge.rag.tokens_unit': 'tokens',
           'knowledge.rag.search_mode.title': '检索模式',
-          'knowledge.rag.search_mode.vector': '向量检索',
+          'knowledge.rag.search_mode.default': '向量检索',
           'knowledge.rag.search_mode.bm25': '全文检索',
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
           'knowledge.rag.hybrid_alpha': 'Hybrid Alpha',
+          'knowledge.rag.hybrid_alpha_hint': '仅在 Hybrid 检索模式下可配置',
+          'knowledge.rag.refresh_dimensions': '刷新向量维度',
           'knowledge.rag.rerank_disabled': '不使用',
           'knowledge.rag.rerank_model': '重排模型 (Rerank)',
           'knowledge.rag.reset_action': '恢复默认',
           'knowledge.rag.save_action': '保存',
           'knowledge.rag.saved': '已保存',
           'knowledge.rag.hints.embedding_model': '用于将知识库内容转换为向量。',
+          'knowledge.rag.hints.dimensions': '当前嵌入模型输出的向量维度。',
           'knowledge.rag.hints.processor': '导入文件时使用的解析处理服务。',
           'knowledge.rag.hints.chunk_size': '单个文档片段的目标 token 数。',
           'knowledge.rag.hints.chunk_overlap': '相邻文档片段之间保留的重叠 token 数。',
@@ -196,11 +260,14 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: 0.1,
   documentCount: 6,
   status: 'completed',
   error: null,
   searchMode: 'vector',
+  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -209,6 +276,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockEmbedMany.mockResolvedValue({ embeddings: [new Array(2048).fill(0)] })
     Object.assign(window, {
       toast: {
         success: vi.fn(),
@@ -221,6 +289,8 @@ describe('RagConfigPanel', () => {
         fileProcessorId: null,
         chunkSize: '512',
         chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
         documentCount: 6,
@@ -229,16 +299,11 @@ describe('RagConfigPanel', () => {
         hybridAlpha: null
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [
-        { value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' },
-        { value: 'voyage::voyage-3-large', label: 'voyage-3-large · voyage' }
-      ],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -264,7 +329,7 @@ describe('RagConfigPanel', () => {
     expect(screen.queryByText('文档处理')).not.toBeInTheDocument()
     expect(screen.queryByText('分块大小')).not.toBeInTheDocument()
     expect(screen.queryByText('嵌入模型')).not.toBeInTheDocument()
-    expect(screen.queryByText('检索模式')).not.toBeInTheDocument()
+    expect(screen.queryByText('请求文档片段数 (Top K)')).not.toBeInTheDocument()
     expect(mockUseKnowledgeRagConfig).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '重建知识库' }))
@@ -272,19 +337,19 @@ describe('RagConfigPanel', () => {
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1', status: 'failed' }))
   })
 
-  it('renders current chunk values and saves through the config hook', async () => {
+  it('renders current chunk values, hides hybrid alpha outside hybrid mode, and saves through the phase3 hook', async () => {
     renderRagConfigPanel()
 
     expect(screen.queryByText('separatorRule')).not.toBeInTheDocument()
     expect(screen.queryByText('分隔符规则')).not.toBeInTheDocument()
     expect(screen.getByText('文档处理')).toBeInTheDocument()
-    expect(screen.getByText('检索模式')).toBeInTheDocument()
     expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
     expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
+    expect(screen.getByText('不使用')).toBeInTheDocument()
+    expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
+    expect(screen.queryByText('Hybrid Alpha')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByDisplayValue('512'), { target: { value: '1024' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -373,7 +438,7 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase)
 
-    fireEvent.click(screen.getByRole('button', { name: 'voyage-3-large · voyage' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
     expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
@@ -391,6 +456,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByRole('tooltip', { name: '过滤低相关片段的相似度阈值。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '选择召回方式。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
+    expect(screen.queryByRole('tooltip', { name: '混合检索中向量得分的权重。' })).not.toBeInTheDocument()
   })
 
   it('hides threshold for hybrid search mode without rerank', () => {
@@ -399,6 +465,8 @@ describe('RagConfigPanel', () => {
         fileProcessorId: null,
         chunkSize: '512',
         chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
         documentCount: 6,
@@ -407,13 +475,11 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -436,6 +502,8 @@ describe('RagConfigPanel', () => {
         fileProcessorId: null,
         chunkSize: '512',
         chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: 'jina::rerank',
         documentCount: 6,
@@ -444,13 +512,11 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
