@@ -224,7 +224,12 @@
           "runFailed": "Αποτυχία εκτέλεσης εργασίας",
           "updateFailed": "Αποτυχία ενημέρωσης εργασίας"
         },
-        "intervalPlaceholder": "Διάστημα σε λεπτά",
+        "frequency": {
+          "everyPrefix": "Κάθε",
+          "everySuffix": "λεπτά",
+          "label": "Συχνότητα εκτέλεσης"
+        },
+        "intervalPlaceholder": "Τουλάχιστον 1",
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Διάστημα",
-          "label": "Τύπος χρονοδιαγράμματος",
           "once": "Μία φορά"
         },
-        "scheduleValue": "Τιμή χρονοδιαγράμματος",
         "status": {
           "active": "Ενεργή",
           "completed": "Ολοκληρώθηκε",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}μ πριν"
         },
         "timeout": {
-          "label": "Λήξη χρόνου",
+          "label": "Μέγιστος χρόνος εκτέλεσης",
           "placeholder": "Χωρίς όριο"
         },
         "title": "Προγραμματισμένες εργασίες"

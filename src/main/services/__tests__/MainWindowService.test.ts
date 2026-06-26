@@ -88,8 +88,6 @@ vi.mock('electron-window-state', () => ({
   default: vi.fn(() => ({ x: 0, y: 0, width: 960, height: 600, isMaximized: false, manage: vi.fn() }))
 }))
 
-vi.mock('electron-devtools-installer', () => ({ default: vi.fn(), REACT_DEVELOPER_TOOLS: 'react-devtools' }))
-
 vi.mock('@main/utils/windowUtil', () => ({
   getWindowsBackgroundMaterial: vi.fn(() => undefined),
   replaceDevtoolsFont: vi.fn()
