@@ -2,7 +2,16 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
 import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
-import { type FC, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  type FC,
+  type PointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
@@ -171,6 +180,10 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     setCurrentImageIndex(0)
     resetImageTransform()
   }, [painting.id, resetImageTransform])
+
+  useLayoutEffect(() => {
+    resetImageTransform()
+  }, [currentFile?.id, resetImageTransform])
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
