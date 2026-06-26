@@ -85,7 +85,7 @@ function runStep(command: string, args: string[], cwd: string): Promise<number> 
     const child = spawn(command, args, {
       cwd,
       stdio: 'inherit',
-      shell: process.platform === 'win32'
+      shell: false
     })
 
     child.on('error', reject)

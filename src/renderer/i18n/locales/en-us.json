@@ -7563,14 +7563,7 @@
           "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
         },
         "fetch_urls_provider": "Default URL fetch provider",
-        "firecrawl": {
-          "api_key": {
-            "label": "Firecrawl API Key",
-            "placeholder": "Enter Firecrawl API Key (optional within monthly free quota)"
-          },
-          "description": "Firecrawl is an API service designed for LLMs to crawl and search websites, returning clean Markdown formats.",
-          "title": "Firecrawl"
-        },
+        "firecrawl_api_key_placeholder": "Enter Firecrawl API Key (optional within monthly free quota)",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {

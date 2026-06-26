@@ -3,6 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
 import {
+  getWebSearchProviderApiKeyPlaceholderKey,
   getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderDescriptionKey,
   getWebSearchProviderOfficialWebsite,
@@ -153,10 +154,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const showApiKeySettings = provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng'
   const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
-  const apiKeyPlaceholder =
-    provider.id === 'firecrawl'
-      ? t('settings.tool.websearch.firecrawl.api_key.placeholder')
-      : t('settings.provider.api_key.label')
+  const customPlaceholderKey = getWebSearchProviderApiKeyPlaceholderKey(provider.id)
+  const apiKeyPlaceholder = customPlaceholderKey ? t(customPlaceholderKey) : t('settings.provider.api_key.label')
   const showApiKeyCheckButton = showApiKeySettings && !usesLlmProviderApiKey && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
   const showApiHostSetting = entry.providerCapability.apiHost !== undefined

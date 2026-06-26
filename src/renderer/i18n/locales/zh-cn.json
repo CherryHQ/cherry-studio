@@ -7563,14 +7563,7 @@
           "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
         },
         "fetch_urls_provider": "默认 URL 获取服务商",
-        "firecrawl": {
-          "api_key": {
-            "label": "Firecrawl API 密钥",
-            "placeholder": "请输入 Firecrawl API 密钥（每月免 key 额度内可留空）"
-          },
-          "description": "Firecrawl 是一个专为大语言模型设计的网页抓取与搜索工具，能够将整站或特定网页转换为干净的 Markdown 格式。",
-          "title": "Firecrawl"
-        },
+        "firecrawl_api_key_placeholder": "请输入 Firecrawl API 密钥（每月免 key 额度内可留空）",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {

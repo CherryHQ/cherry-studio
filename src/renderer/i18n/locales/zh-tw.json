@@ -7563,14 +7563,7 @@
           "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
         },
         "fetch_urls_provider": "預設 URL 擷取供應商",
-        "firecrawl": {
-          "api_key": {
-            "label": "Firecrawl API 金鑰",
-            "placeholder": "請輸入 Firecrawl API 金鑰（每月免 key 額度內可留空）"
-          },
-          "description": "Firecrawl 是一個專為大語言模型設計的網頁抓取與搜尋工具，能夠將整站或特定網頁轉換為乾淨的 Markdown 格式。",
-          "title": "Firecrawl"
-        },
+        "firecrawl_api_key_placeholder": "請輸入 Firecrawl API 金鑰（每月免 key 額度內可留空）",
         "free": "免費",
         "is_default": "預設",
         "local_provider": {

@@ -27,6 +27,7 @@ type WebSearchProviderDisplayMeta = {
   logo: CompoundIcon
   officialWebsite?: string
   apiKeyWebsite?: string
+  apiKeyPlaceholderKey?: string
 }
 
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
@@ -84,7 +85,8 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.firecrawl',
     logo: Firecrawl,
     officialWebsite: 'https://firecrawl.dev',
-    apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
+    apiKeyWebsite: 'https://firecrawl.dev/app/api-keys',
+    apiKeyPlaceholderKey: 'settings.tool.websearch.firecrawl_api_key_placeholder'
   }
 }
 
@@ -102,6 +104,10 @@ export function getWebSearchProviderOfficialWebsite(providerId: WebSearchProvide
 
 export function getWebSearchProviderApiKeyWebsite(providerId: WebSearchProviderId): string | undefined {
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].apiKeyWebsite
+}
+
+export function getWebSearchProviderApiKeyPlaceholderKey(providerId: WebSearchProviderId): string | undefined {
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].apiKeyPlaceholderKey
 }
 
 export function getWebSearchCapabilityTitleKey(capability: WebSearchCapability): string {
