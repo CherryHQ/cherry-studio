@@ -6,6 +6,10 @@ import path from 'node:path'
 import type { FilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { tryTestRipgrepPath } from './ripgrepTestUtils'
+
+const ripgrepAvailable = tryTestRipgrepPath() !== null
+
 // Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
 //   - `existsSync` drives ripgrep binary discovery
 //   - `promises.stat` drives the EACCES root-path branch
@@ -24,6 +28,22 @@ vi.mock('node:fs', async (importOriginal) => {
       ...actual.promises,
       stat: mockPromisesStat
     }
+  }
+})
+
+// Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
+// reads cherry.bin / mise shims — neither is populated under vitest. Point it
+// at the test ripgrep binary so scans spawn a real ripgrep; `existsSync` (mocked
+// above) still governs the "binary not available" branch.
+vi.mock('@main/utils/process', async () => {
+  const { tryTestRipgrepPath } = await import('./ripgrepTestUtils')
+  // When ripgrep is unavailable, return a non-existent sentinel path so
+  // `resolveRipgrepBinary`'s existsSync check (not testRipgrepPath) governs
+  // binary availability — keeping the error-path test's assertion correct.
+  const resolvedRgPath = tryTestRipgrepPath() ?? '/nonexistent/rg'
+  return {
+    getBinaryExecutionEnv: () => ({}),
+    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
   }
 })
 
@@ -51,7 +71,7 @@ const writeMany = async (root: string, count: number, prefix = 'file', ext = '.t
   return created
 }
 
-describe('listDirectory (list mode, no searchPattern)', () => {
+describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-list-'))
@@ -68,16 +88,13 @@ describe('listDirectory (list mode, no searchPattern)', () => {
     expect(results.length).toBe(75)
   })
 
-  it('locates the vendored @cherrystudio/ripgrep binary before PATH fallback', async () => {
+  it('uses the BinaryManager-resolved ripgrep path', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
 
     await listDirectory(tmp as FilePath)
 
     const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
-    expect(checkedPaths.some((p) => p.includes('node_modules/@cherrystudio/ripgrep/vendor/ripgrep/'))).toBe(true)
-    expect(checkedPaths.some((p) => p.includes('node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/'))).toBe(
-      false
-    )
+    expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
   })
 
   it('lists nested directories and files alongside top-level entries', async () => {
@@ -115,7 +132,7 @@ describe('listDirectory (list mode, no searchPattern)', () => {
   })
 })
 
-describe('listDirectory (search mode, fuzzy + maxEntries)', () => {
+describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntries)', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-search-'))
@@ -164,12 +181,12 @@ describe('listDirectory (error paths)', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('throws "Ripgrep binary not available" when the vendored binary cannot be located', async () => {
-    // Force the parent-walk in getRipgrepBinaryPath() to exhaust without
-    // ever finding the binary or its asar-unpacked sibling. `stat` keeps
-    // its passthrough so the directory check still succeeds — the throw
-    // must come from the binary-availability branch (search.ts:541-543),
-    // not from a stat failure masquerading as a missing binary.
+  it('throws "Ripgrep binary not available" when the test ripgrep binary cannot be located', async () => {
+    // Force `resolveRipgrepBinary()` to treat the resolved path as missing:
+    // `existsSync` returns false, so the binary check fails. `stat` keeps its
+    // passthrough so the directory check still succeeds — the throw must come
+    // from the binary-availability branch, not a stat failure masquerading as
+    // a missing binary.
     mockExistsSync.mockReturnValue(false)
 
     await expect(listDirectory(tmp as FilePath)).rejects.toThrow(/Ripgrep binary not available/)

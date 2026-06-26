@@ -1,5 +1,5 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState } from '@cherrystudio/ui'
-import type { InstalledSkill } from '@types'
+import type { InstalledSkill } from '@shared/types/skill'
 import { FolderOpen, Loader2, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'

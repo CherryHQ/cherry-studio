@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import type { FileMetadata } from '@renderer/types/file'
-import { formatFileSize } from '@renderer/utils'
+import { formatFileSize } from '@renderer/utils/file'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'

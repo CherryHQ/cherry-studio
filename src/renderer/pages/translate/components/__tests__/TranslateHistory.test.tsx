@@ -49,7 +49,7 @@ vi.mock('@renderer/hooks/translate', () => ({
   useTranslateHistory: () => translateHistoryMock.useTranslateHistory()
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 

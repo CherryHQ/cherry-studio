@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type React from 'react'
 import type { ReactNode } from 'react'
@@ -20,7 +20,7 @@ vi.mock('../MessageMenuBarToolbar', () => ({
   )
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: unknown[]) => values.filter(Boolean).join(' ')
 }))
 

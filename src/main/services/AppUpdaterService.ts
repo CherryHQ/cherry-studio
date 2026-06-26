@@ -1,10 +1,12 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { getIpCountry } from '@main/utils/ipService'
+import { regionService } from '@main/services/RegionService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { APP_NAME } from '@shared/utils/constants'
@@ -50,6 +52,28 @@ const LANG_MARKERS = {
   END: '<!--LANG:END-->'
 }
 
+// Auto update-check scheduling. The cadence lives in the main process (this
+// service), not the renderer, so it survives window close and runs exactly
+// once regardless of how many windows are open.
+const AUTO_UPDATE_SCHEDULE_ID = 'app-updater:auto-check'
+// Base interval between automatic checks.
+const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+// ± ratio of random jitter applied per cycle, so clients that launched around
+// the same time don't all hit the update server on the same beat.
+const CHECK_JITTER_RATIO = 0.15
+// Short delay before the first check after startup, letting boot I/O settle.
+const INITIAL_CHECK_DELAY_MS = 5_000
+// Backoff for consecutive check failures: 5/10/20/40min, capped at 60min — always
+// shorter than the normal cadence so a transient failure recovers sooner. Note
+// `computeBackoff` ignores `maxAttempts`; auto-check never gives up, so it is a
+// placeholder only to satisfy RetryPolicy's strictObject shape.
+const CHECK_RETRY_POLICY: RetryPolicy = {
+  maxAttempts: 1,
+  backoff: 'exponential',
+  baseDelayMs: 5 * 60 * 1000,
+  maxDelayMs: 60 * 60 * 1000
+}
+
 interface UpdateConfig {
   lastUpdated: string
   versions: {
@@ -74,10 +98,12 @@ interface ChannelConfig {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
+@DependsOn(['WindowManager', 'SchedulerService'])
 export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
+  // Consecutive scheduled-check failures, drives backoff; reset on success.
+  private updateCheckFailures = 0
 
   protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger
@@ -98,13 +124,34 @@ export class AppUpdaterService extends BaseService {
       ;(autoUpdater as NsisUpdater).installDirectory = application.getPath('app.install')
     }
 
-    this.registerIpcHandlers()
+    // Cancel an in-flight download when the test plan or channel changes — the
+    // download targets the previously selected channel. The v2 settings UI
+    // writes these preferences directly (no IPC), so react to the change here
+    // rather than in a now-removed `App_SetTestPlan`/`App_SetTestChannel` handler.
+    this.registerDisposable(
+      application
+        .get('PreferenceService')
+        .subscribeMultipleChanges(['app.dist.test_plan.enabled', 'app.dist.test_plan.channel'], () =>
+          this.cancelDownload()
+        )
+    )
+
+    // Stop the scheduled check when this service stops (it depends on
+    // SchedulerService, so SchedulerService is still alive at this point).
+    this.registerDisposable(() => application.get('SchedulerService').unregister(AUTO_UPDATE_SCHEDULE_ID))
   }
 
   protected async onAllReady(): Promise<void> {
     application.get('PowerService').registerShutdownHandler(() => {
       this.setAutoUpdate(false)
     })
+
+    // Dev builds and portable builds never auto-update; the manual "check for
+    // update" button still works in those cases.
+    if (!app.isPackaged || this.isPortable()) {
+      return
+    }
+    this.scheduleNextUpdateCheck(INITIAL_CHECK_DELAY_MS)
   }
 
   private registerAutoUpdaterListeners(): void {
@@ -143,23 +190,6 @@ export class AppUpdaterService extends BaseService {
     }
     autoUpdater.on('update-downloaded', onUpdateDownloaded)
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.App_CheckForUpdate, async () => this.checkForUpdates())
-    this.ipcHandle(IpcChannel.App_QuitAndInstall, () => this.quitAndInstall())
-    this.ipcHandle(IpcChannel.App_SetTestPlan, async (_e, isActive: boolean) => {
-      logger.info(`set test plan: ${isActive}`)
-      if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
-        this.cancelDownload()
-      }
-    })
-    this.ipcHandle(IpcChannel.App_SetTestChannel, async (_e, channel: UpgradeChannel) => {
-      logger.info(`set test channel: ${channel}`)
-      if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
-        this.cancelDownload()
-      }
-    })
   }
 
   public setAutoUpdate(isActive: boolean) {
@@ -298,7 +328,7 @@ export class AppUpdaterService extends BaseService {
     const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
 
     // Determine mirror based on IP country
-    const ipCountry = await getIpCountry()
+    const ipCountry = await regionService.getCountry()
     const mirror = ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
 
     logger.info(
@@ -339,35 +369,51 @@ export class AppUpdaterService extends BaseService {
     }
   }
 
-  public async checkForUpdates() {
+  private isPortable(): boolean {
+    return isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env
+  }
+
+  /**
+   * Throwing core of the update check: feed-url setup → check → (manual) download
+   * trigger. A check/network failure REJECTS so callers that need a failure
+   * signal — the scheduler's backoff — can observe it. The public IPC entry
+   * `checkForUpdates()` wraps this and swallows the error to preserve its
+   * event-driven contract: errors reach the renderer via the `UpdateError`
+   * broadcast (see `registerAutoUpdaterListeners`), not the return value.
+   */
+  private async _runUpdateCheck() {
     void application.get('AnalyticsService').trackAppUpdate()
 
-    if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
+    if (this.isPortable()) {
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
       }
     }
 
+    await this._setFeedUrl()
+
+    this.updateCheckResult = await autoUpdater.checkForUpdates()
+    logger.info(
+      `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${autoUpdater.channel}, currentVersion: ${autoUpdater.currentVersion}`
+    )
+
+    if (this.updateCheckResult?.isUpdateAvailable && !autoUpdater.autoDownload) {
+      // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
+      // do not use await, because it will block the return of this function
+      logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
+      void autoUpdater.downloadUpdate(this.cancellationToken)
+    }
+
+    return {
+      currentVersion: autoUpdater.currentVersion,
+      updateInfo: this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult?.updateInfo : null
+    }
+  }
+
+  public async checkForUpdates() {
     try {
-      await this._setFeedUrl()
-
-      this.updateCheckResult = await autoUpdater.checkForUpdates()
-      logger.info(
-        `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${autoUpdater.channel}, currentVersion: ${autoUpdater.currentVersion}`
-      )
-
-      if (this.updateCheckResult?.isUpdateAvailable && !autoUpdater.autoDownload) {
-        // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
-        // do not use await, because it will block the return of this function
-        logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
-        void autoUpdater.downloadUpdate(this.cancellationToken)
-      }
-
-      return {
-        currentVersion: autoUpdater.currentVersion,
-        updateInfo: this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult?.updateInfo : null
-      }
+      return await this._runUpdateCheck()
     } catch (error) {
       logger.error('Failed to check for update:', error as Error)
       return {
@@ -375,6 +421,45 @@ export class AppUpdaterService extends BaseService {
         updateInfo: null
       }
     }
+  }
+
+  /**
+   * Arm the next automatic check on SchedulerService as a one-shot `delayMs`
+   * from now. Re-registering the same id replaces the prior timer, so the
+   * callback re-arming itself with a freshly computed delay (jitter on success,
+   * backoff on failure) forms the recurring loop. The returned Disposable is
+   * discarded; cleanup is the single `unregister` registered in `onInit`.
+   */
+  private scheduleNextUpdateCheck(delayMs: number): void {
+    application
+      .get('SchedulerService')
+      .registerSchedule(AUTO_UPDATE_SCHEDULE_ID, { kind: 'once', at: Date.now() + delayMs }, () =>
+        this.runScheduledUpdateCheck()
+      )
+  }
+
+  private async runScheduledUpdateCheck(): Promise<void> {
+    try {
+      // Gate per tick rather than subscribing to the preference: when disabled
+      // the loop keeps ticking (harmless no-op) and resumes automatically once
+      // re-enabled. Only the detection failure of `_runUpdateCheck` drives
+      // backoff — the manual download trigger is fire-and-forget and surfaces
+      // its own errors via the `UpdateError` event.
+      if (application.get('PreferenceService').get('app.dist.auto_update.enabled')) {
+        await this._runUpdateCheck()
+      }
+      this.updateCheckFailures = 0
+      this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
+    } catch {
+      this.updateCheckFailures++
+      const backoffMs = computeBackoff(CHECK_RETRY_POLICY, this.updateCheckFailures)
+      logger.warn(`scheduled update check failed, backing off for ${backoffMs}ms`)
+      this.scheduleNextUpdateCheck(backoffMs)
+    }
+  }
+
+  private nextUpdateCheckDelayMs(): number {
+    return Math.round(CHECK_INTERVAL_MS * (1 + (Math.random() * 2 - 1) * CHECK_JITTER_RATIO))
   }
 
   public quitAndInstall() {

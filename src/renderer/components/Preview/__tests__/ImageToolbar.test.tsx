@@ -35,7 +35,7 @@ vi.mock('@renderer/components/Icons', () => ({
 }))
 
 // Mock utils
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...args: any[]) => args.filter(Boolean).join(' ')
 }))
 

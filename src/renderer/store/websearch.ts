@@ -17,7 +17,9 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { WEB_SEARCH_PROVIDERS } from '@renderer/config/webSearchProviders'
-import type { Model, WebSearchProvider } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
+import type { WebSearchProvider } from '@renderer/types/webSearchProvider'
+
 export interface SubscribeSource {
   key: number
   url: string

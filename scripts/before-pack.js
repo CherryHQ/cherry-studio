@@ -65,13 +65,10 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
-  // Download rtk binary for the target platform
-  try {
-    console.log(`Downloading rtk binary for ${platform}-${arch}...`)
-    execSync(`node "${path.join(__dirname, 'download-rtk-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
-  } catch (error) {
-    console.warn(`Warning: rtk binary download failed (non-fatal): ${error.message}`)
-  }
+  console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
+  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
+  // Fail the build rather than ship a half-empty resources/binaries/<platform>.
+  require('./download-binaries').verifyBundledBinaries(platform, arch)
 
   const downloadPackages = async () => {
     // Skip if target platform and architecture match current system
@@ -132,26 +129,15 @@ exports.default = async function (context) {
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
-  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'x64-darwin', 'x64-linux', 'x64-win32']
-    .filter((f) => {
-      // On Windows ARM64, also keep x64-win32 for emulation compatibility
-      if (platform === 'win32' && context.arch === Arch.arm64 && f === 'x64-win32') {
-        return false
-      }
-      return f !== `${arch}-${platform}`
-    })
-    .map((f) => '!node_modules/@cherrystudio/ripgrep/vendor/ripgrep/' + f + '/**')
-
-  // Exclude rtk binaries for other platform-arch combinations
   const currentPlatformKey = `${platform}-${arch}`
-  const allRtkPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
-  const excludeRtkFilters = allRtkPlatforms
+  const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
+  const excludeBundledBinaryFilters = allBinaryPlatforms
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
+    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
+    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
   }
 }

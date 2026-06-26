@@ -1,5 +1,5 @@
 import { ResetIcon } from '@renderer/components/Icons'
-import { classNames } from '@renderer/utils'
+import { classNames } from '@renderer/utils/style'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

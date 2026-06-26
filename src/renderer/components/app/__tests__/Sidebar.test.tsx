@@ -59,10 +59,6 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
   default: () => undefined
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ defaultPaintingProvider: undefined })
-}))
-
 vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (icon: string) =>
     ({

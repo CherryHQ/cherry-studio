@@ -1,4 +1,3 @@
-import type { Model as V1Model } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -90,6 +89,8 @@ const isZhipuReasoningModel = A(_isZhipuReasoningModel)
 const isOpenAIReasoningModel = A(_isOpenAIReasoningModel)
 const isSupportedReasoningEffortOpenAIModel = A(_isSupportedReasoningEffortOpenAIModel)
 const isGemini3ThinkingTokenModel = A(_isGemini3ThinkingTokenModel)
+import type { Model as V1Model } from '@renderer/types/model'
+
 import { isTextToImageModel } from '../vision'
 
 vi.mock('@renderer/store', () => ({

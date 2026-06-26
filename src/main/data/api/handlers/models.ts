@@ -16,6 +16,7 @@ import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   BulkUpdateModelsSchema,
   CreateModelsSchema,
+  DeleteModelsQuerySchema,
   ListModelsQuerySchema,
   type ModelSchemas,
   ReconcileProviderModelsSchema,
@@ -108,6 +109,13 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
         patch: item.patch
       }))
       return await modelService.bulkUpdate(items)
+    },
+
+    DELETE: async ({ query }) => {
+      const parsed = DeleteModelsQuerySchema.parse(query)
+      const items = parsed.ids.map((uniqueModelId) => parseOrValidationError(uniqueModelId))
+      await modelService.bulkDelete(items)
+      return undefined
     }
   },
 

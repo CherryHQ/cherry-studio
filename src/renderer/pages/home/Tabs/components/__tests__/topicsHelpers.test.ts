@@ -2,7 +2,7 @@ import type {
   ResourceListGroupReorderPayload,
   ResourceListItemReorderPayload
 } from '@renderer/components/chat/resources'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it } from 'vitest'
 
 import {

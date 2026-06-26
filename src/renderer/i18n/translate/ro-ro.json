@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "Acțiuni",
     "all": "Toate fișierele",
+    "audio": "Audio",
     "batch_delete": "Ștergere în lot",
     "batch_operation": "Selectează tot",
     "count": "fișiere",
@@ -2358,22 +2359,52 @@
       },
       "title": "Șterge fișier"
     },
+    "delete_or_remove": "Șterge / elimină",
     "document": "Document",
+    "drag_upload": "Trageți fișierele aici pentru încărcare",
     "edit": "Editează",
+    "empty": {
+      "no_match_description": "Niciun fișier nu corespunde filtrelor curente",
+      "no_match_title": "Nu au fost găsite fișiere potrivite"
+    },
     "error": {
-      "open_path": "Nu s-a putut deschide calea {{path}}"
+      "delete_failed": "Nu s-au putut șterge fișierele",
+      "delete_partial_failed": "Anumite fișiere nu au putut fi șterse",
+      "import_failed": "Importarea fișierelor a eșuat",
+      "import_partial_failed": "Unele fișiere nu au putut fi importate",
+      "open_path": "Nu s-a putut deschide calea {{path}}",
+      "rename_failed": "Nu s-a putut redenumi fișierul",
+      "restore_failed": "Nu s-au putut restabili fișierele",
+      "restore_partial_failed": "Anumite fișiere nu au putut fi restaurate"
     },
     "file": "Fișier",
+    "footer_count": "{{count}} fișiere",
+    "footer_selected_count": "{{count}} selectat",
     "image": "Imagine",
+    "missing": "Lipsă",
+    "modified_at": "Modificat la",
     "name": "Nume",
     "open": "Deschide",
+    "other": "Altele",
+    "permanent_delete": "Șterge definitiv",
+    "permanent_delete_confirm": {
+      "description": "Aceasta va elimina permanent {{count}} fișier(e). Această acțiune nu poate fi anulată.",
+      "title": "Șterge permanent fișierele?"
+    },
     "preview": {
       "error": "Nu s-a putut deschide fișierul"
     },
+    "remove_from_library": "Elimină din bibliotecă",
+    "rename": "Redenumește",
+    "restore": "Restaurează",
+    "selected_count": "{{count}} fișiere selectate",
+    "show_in_folder": "Afișează în folder",
     "size": "Dimensiune",
     "text": "Text",
     "title": "Fișiere",
-    "type": "Tip"
+    "trash": "Gunoi",
+    "type": "Tip",
+    "video": "Video"
   },
   "globalSearch": {
     "clear": "Șterge căutarea",
@@ -2767,6 +2798,8 @@
       "chunk_overlap_invalid": "Suprapunerea fragmentelor trebuie să fie mai mare sau egală cu 0",
       "chunk_overlap_must_be_smaller": "Suprapunerea fragmentelor trebuie să fie mai mică decât dimensiunea fragmentului",
       "chunk_overlap_requires_chunk_size": "Dimensiunea chunk-ului este obligatorie când suprapunerea chunk-ului este setată",
+      "chunk_separator": "Separator",
+      "chunk_separator_required": "Separatorul este necesar când fragmentarea inteligentă este dezactivată",
       "chunk_size": "Dimensiunea blocului",
       "chunk_size_change_warning": "Modificările dimensiunii și suprapunerii blocurilor se aplică doar conținutului nou adăugat",
       "chunk_size_invalid": "Dimensiunea fragmentului trebuie să fie mai mare decât 0",
@@ -2779,6 +2812,7 @@
       "file_processing_hint": "Procesarea fișierelor se execută automat în timpul importului documentului. Alegerea furnizorului potrivit poate îmbunătăți calitatea analizei documentelor.",
       "hints": {
         "chunk_overlap": "Numărul de token-uri suprapuse păstrate între fragmentele adiacente pentru a reduce rupturile semantice.",
+        "chunk_separator": "Delimitatorul pe care este împărțit textul, în formă evadată. Cu fragmentarea inteligentă activată, adaugă un punct de întrerupere; cu ea dezactivată, textul este împărțit doar de acest delimitator.",
         "chunk_size": "Numărul țintă de tokeni pentru fiecare fragment de document. Acest lucru afectează granularitatea recuperării și lungimea contextului.",
         "document_count": "Numărul maxim de fragmente de document returnate pentru fiecare recuperare. Valori mai mari acoperă mai mult conținut, dar folosesc mai mult context.",
         "embedding_model": "Folosit pentru a converti conținutul bazei de cunoștințe în vectori. Schimbarea modelului necesită de obicei reindexarea conținutului existent.",
@@ -2786,6 +2820,7 @@
         "processor": "Parser utilizat la importul fișierelor pentru extragerea textului principal, tabelelor și conținutului aferent.",
         "rerank_model": "Model folosit pentru reordonarea rezultatelor inițiale de recuperare și îmbunătățirea relevanței fragmentelor finale.",
         "search_mode": "Alegeți un mod de recuperare: căutare vectorială pentru potrivire semantică, căutare text complet pentru cuvinte cheie sau căutare hibridă pentru ambele.",
+        "smart_chunking": "Împarte automat în funcție de structura Markdown (titluri, blocuri de cod, paragrafe) și nu împărți niciodată în interiorul unui bloc de cod. Dezactivează pentru a împărți pur și simplu după separator.",
         "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă.",
         "threshold_disabled": "Acest mod de recuperare returnează rezultate ordonate și nu utilizează un prag de similaritate."
       },
@@ -2805,6 +2840,7 @@
         "vector": "Căutare Vectorială"
       },
       "separator_rule": "Regula Separator",
+      "smart_chunking": "Fragmentare inteligentă",
       "threshold": "Prag de similaritate",
       "tokens_unit": "tokeni"
     },
@@ -3707,15 +3743,15 @@
         "taskId": "Sarcina {{id}}",
         "taskList": "lista de sarcini",
         "translationFiles": "fișiere de traducere",
-        "upload": "[to be translated]:Upload",
+        "upload": "Încărcare",
         "uploading": "Încărcare",
-        "view": "[to be translated]:View",
-        "viewing": "[to be translated]:Viewing",
-        "webPage": "[to be translated]:web page",
-        "webSearch": "[to be translated]:web content",
-        "workspace": "[to be translated]:workspace",
-        "write": "[to be translated]:Save",
-        "writing": "[to be translated]:Saving"
+        "view": "Vizualizare",
+        "viewing": "Vizualizare",
+        "webPage": "pagină web",
+        "webSearch": "conținut web",
+        "workspace": "spațiu de lucru",
+        "write": "Salvează",
+        "writing": "Salvare"
       },
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
@@ -6464,8 +6500,6 @@
         "confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
         "confirm_regenerate_message": "Confirmă înainte de regenerarea mesajelor",
         "enable_quick_triggers": "Activează declanșatoarele / și @",
-        "paste_long_text_as_file": "Lipește text lung ca fișier",
-        "paste_long_text_threshold": "Lungime lipire text lung",
         "send_shortcuts": "Comenzi rapide trimitere",
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
@@ -6734,6 +6768,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Afișează încă {{count}} modele",
+        "model_in_use_by_knowledge_base": "Acest model este utilizat de o bază de cunoștințe și nu poate fi șters.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Reîmprospătează lista modelelor",
         "reload_catalog": "Refresh list",
@@ -6864,12 +6899,46 @@
     },
     "parameter_settings": "Setări de parametri",
     "plugins": {
-      "bunDescription": "Runtime JavaScript folosit de serviciile MCP și de toolchain-urile aferente.",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Nu există încă instrumente personalizate. Adaugă unul pentru a începe.",
       "description": "Gestionați instrumentele binare și dependențele de runtime necesare aplicației.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Instalează",
+      "installError": "Failed to install tool",
       "installing": "Se instalează...",
+      "invalidTool": "Nume de instrument sau cheie invalid",
       "notInstalled": "Neinstalat",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
       "title": "Dependențe de mediu",
-      "uvDescription": "Manager de pachete Python pentru serviciile MCP și instalarea dependențelor."
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
     },
     "power": {
       "prevent_sleep_when_busy": "Menține sistemul activ cât timp rulează sarcinile"

@@ -1,5 +1,5 @@
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import type { Topic } from '@renderer/types'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import type { Topic } from '@renderer/types/topic'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +7,7 @@ import ChatComposerSlot from '../ChatComposerSlot'
 
 // The real fallback composer pulls in the whole input toolbar; swap it for a
 // sentinel so the test exercises only the override-forwarding wire.
-vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
+vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   ChatPlacementComposer: () => <div data-testid="chat-fallback-composer">fallback</div>
 }))
 

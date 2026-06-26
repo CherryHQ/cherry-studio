@@ -1,10 +1,11 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import type { MessageListItem } from '@renderer/components/chat/messages'
-import type { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 
 import Messages from './components/Messages'
+
 interface Props {
   route: string
   assistant: Assistant | null
