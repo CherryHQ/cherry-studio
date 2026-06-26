@@ -38,6 +38,9 @@ interface DataApiDevtoolsGlobal {
   setOptions: (options: Partial<DataApiDevtoolsOptions>) => DataApiDevtoolsOptions
 }
 
+type DataApiDevtoolsEventIdentity = Pick<DataApiDevtoolsEvent, 'requestId' | 'method' | 'path'>
+type DataApiDevtoolsEventPatch = Partial<DataApiDevtoolsEvent> & Pick<DataApiDevtoolsEvent, 'state'>
+
 declare global {
   interface Window {
     __CHERRY_DATA_API_DEVTOOLS__?: DataApiDevtoolsGlobal
@@ -53,31 +56,51 @@ const MAX_STRING_LENGTH = 1000
 const MAX_ARRAY_LENGTH = 50
 const MAX_OBJECT_KEYS = 100
 const MAX_DEPTH = 5
-const SENSITIVE_KEY_PATTERN = /authorization|api[-_]?key|token|secret|password|credential/i
 
 let options: DataApiDevtoolsOptions = { ...DEFAULT_OPTIONS }
 const events: DataApiDevtoolsEvent[] = []
+const eventIndex = new Map<string, DataApiDevtoolsEvent>()
 const startTimes = new Map<string, number>()
 
 function isEnabled(): boolean {
   return isDev && typeof window !== 'undefined'
 }
 
-function findEvent(requestId: string): DataApiDevtoolsEvent | undefined {
-  return events.find((event) => event.requestId === requestId)
+function prepareRecording(): boolean {
+  if (!isEnabled()) return false
+  installGlobal()
+  return true
 }
 
-function pushEvent(
+function snapshotEvents(): DataApiDevtoolsEvent[] {
+  return [...events]
+}
+
+function clearEvents(): void {
+  events.length = 0
+  eventIndex.clear()
+  startTimes.clear()
+}
+
+function setDevtoolsOptions(nextOptions: Partial<DataApiDevtoolsOptions>): DataApiDevtoolsOptions {
+  options = {
+    capturePayloads: nextOptions.capturePayloads ?? options.capturePayloads
+  }
+  return { ...options }
+}
+
+function appendEvent(
   event: Omit<DataApiDevtoolsEvent, 'id' | 'timestamp'>,
   pushOptions?: { trackStart?: boolean }
 ): void {
-  if (!isEnabled()) return
-
-  events.push({
+  const nextEvent = {
     ...event,
     id: event.requestId,
     timestamp: Date.now()
-  })
+  }
+
+  events.push(nextEvent)
+  eventIndex.set(nextEvent.requestId, nextEvent)
   if (pushOptions?.trackStart) {
     startTimes.set(event.requestId, performance.now())
   }
@@ -85,9 +108,23 @@ function pushEvent(
   pruneEvents()
 }
 
+function updateEvent(requestId: string, patch: Partial<DataApiDevtoolsEvent>): boolean {
+  const event = eventIndex.get(requestId)
+  if (!event) return false
+
+  Object.assign(event, patch)
+  return true
+}
+
+function upsertEvent(input: DataApiDevtoolsEventIdentity, patch: DataApiDevtoolsEventPatch): void {
+  if (updateEvent(input.requestId, patch)) return
+  appendEvent({ ...input, ...patch })
+}
+
 function pruneEvents(): void {
   if (events.length <= MAX_ENTRIES) return
   for (const removed of events.splice(0, events.length - MAX_ENTRIES)) {
+    eventIndex.delete(removed.requestId)
     startTimes.delete(removed.requestId)
   }
 }
@@ -125,7 +162,7 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
   const result: Record<string, unknown> = {}
   const entries = Object.entries(value as Record<string, unknown>)
   for (const [key, item] of entries.slice(0, MAX_OBJECT_KEYS)) {
-    result[key] = SENSITIVE_KEY_PATTERN.test(key) ? '<redacted>' : sanitizeValue(item, depth + 1)
+    result[key] = sanitizeValue(item, depth + 1)
   }
   if (entries.length > MAX_OBJECT_KEYS) {
     result.__truncatedKeys = entries.length - MAX_OBJECT_KEYS
@@ -134,38 +171,36 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
 }
 
 function serializeError(error: unknown): DataApiDevtoolsEvent['error'] {
+  const serializeMessage = (message: unknown): string => {
+    if (!options.capturePayloads) return '<payload capture disabled>'
+    const sanitized = sanitizeValue(typeof message === 'string' ? message : String(message))
+    return typeof sanitized === 'string' ? sanitized : String(sanitized)
+  }
+
   if (error && typeof error === 'object') {
     const record = error as Record<string, unknown>
     return {
       name: typeof record.name === 'string' ? record.name : undefined,
       code: typeof record.code === 'string' ? record.code : undefined,
-      message: typeof record.message === 'string' ? record.message : String(error),
+      message: serializeMessage(typeof record.message === 'string' ? record.message : error),
       status: typeof record.status === 'number' ? record.status : undefined,
       isRetryable: typeof record.isRetryable === 'boolean' ? record.isRetryable : undefined
     }
   }
-  return { message: String(error) }
+  return { message: serializeMessage(error) }
 }
 
 function installGlobal(): void {
   if (!isEnabled() || window.__CHERRY_DATA_API_DEVTOOLS__) return
 
   window.__CHERRY_DATA_API_DEVTOOLS__ = {
-    snapshot: () => [...events],
-    clear: () => {
-      events.length = 0
-      startTimes.clear()
-    },
-    setOptions: (nextOptions) => {
-      options = {
-        capturePayloads: nextOptions.capturePayloads ?? options.capturePayloads
-      }
-      return { ...options }
-    }
+    snapshot: snapshotEvents,
+    clear: clearEvents,
+    setOptions: setDevtoolsOptions
   }
 }
 
-export function recordDataApiStart(input: {
+function recordStart(input: {
   requestId: string
   method: HttpMethod
   path: string
@@ -173,9 +208,8 @@ export function recordDataApiStart(input: {
   body?: unknown
   retryAttempt: number
 }): void {
-  if (!isEnabled()) return
-  installGlobal()
-  pushEvent(
+  if (!prepareRecording()) return
+  appendEvent(
     {
       state: 'pending',
       requestId: input.requestId,
@@ -189,31 +223,10 @@ export function recordDataApiStart(input: {
   )
 }
 
-export function recordDataApiSuccess(input: {
-  requestId: string
-  method: HttpMethod
-  path: string
-  response: DataResponse
-}): void {
-  if (!isEnabled()) return
-  installGlobal()
-  const event = findEvent(input.requestId)
-  if (!event) {
-    pushEvent({
-      state: 'success',
-      requestId: input.requestId,
-      method: input.method,
-      path: input.path,
-      status: input.response.status,
-      response: sanitizeValue(input.response.data),
-      mainDuration: input.response.metadata?.duration,
-      handlerDuration: input.response.metadata?.handlerDuration,
-      completedAt: Date.now()
-    })
-    return
-  }
+function recordSuccess(input: { requestId: string; method: HttpMethod; path: string; response: DataResponse }): void {
+  if (!prepareRecording()) return
 
-  Object.assign(event, {
+  upsertEvent(input, {
     state: 'success',
     completedAt: Date.now(),
     status: input.response.status,
@@ -221,10 +234,10 @@ export function recordDataApiSuccess(input: {
     clientDuration: consumeClientDuration(input.requestId),
     mainDuration: input.response.metadata?.duration,
     handlerDuration: input.response.metadata?.handlerDuration
-  } satisfies Partial<DataApiDevtoolsEvent>)
+  })
 }
 
-export function recordDataApiError(input: {
+function recordError(input: {
   requestId: string
   method: HttpMethod
   path: string
@@ -232,78 +245,53 @@ export function recordDataApiError(input: {
   status?: number
   metadata?: DataResponse['metadata']
 }): void {
-  if (!isEnabled()) return
-  installGlobal()
+  if (!prepareRecording()) return
+
   const timingFields: Partial<DataApiDevtoolsEvent> = {
     mainDuration: input.metadata?.duration,
     handlerDuration: input.metadata?.handlerDuration
   }
-  const event = findEvent(input.requestId)
-  if (!event) {
-    pushEvent({
-      state: 'error',
-      requestId: input.requestId,
-      method: input.method,
-      path: input.path,
-      status: input.status,
-      ...timingFields,
-      error: serializeError(input.error),
-      completedAt: Date.now()
-    })
-    return
-  }
-
-  Object.assign(event, {
+  upsertEvent(input, {
     state: 'error',
     completedAt: Date.now(),
     status: input.status,
     clientDuration: consumeClientDuration(input.requestId),
     ...timingFields,
     error: serializeError(input.error)
-  } satisfies Partial<DataApiDevtoolsEvent>)
+  })
 }
 
-export function recordDataApiRetry(input: {
+function recordRetry(input: {
   requestId: string
   method: HttpMethod
   path: string
   retryAttempt: number
   error: unknown
 }): void {
-  if (!isEnabled()) return
-  installGlobal()
-  const event = findEvent(input.requestId)
-  if (!event) {
-    pushEvent({
-      state: 'retry',
-      requestId: input.requestId,
-      method: input.method,
-      path: input.path,
-      retryAttempt: input.retryAttempt,
-      error: serializeError(input.error),
-      completedAt: Date.now()
-    })
-    return
-  }
+  if (!prepareRecording()) return
 
-  Object.assign(event, {
+  upsertEvent(input, {
     state: 'retry',
     completedAt: Date.now(),
     retryAttempt: input.retryAttempt,
     error: serializeError(input.error)
-  } satisfies Partial<DataApiDevtoolsEvent>)
+  })
+}
+
+export const DataApiDevtools = {
+  recordStart,
+  recordSuccess,
+  recordError,
+  recordRetry
 }
 
 export const dataApiDevtoolsTesting = {
   sanitizeValue,
   reset: () => {
     options = { ...DEFAULT_OPTIONS }
-    events.length = 0
-    startTimes.clear()
+    clearEvents()
     if (typeof window !== 'undefined') {
       delete window.__CHERRY_DATA_API_DEVTOOLS__
     }
   }
 }
-
-installGlobal()

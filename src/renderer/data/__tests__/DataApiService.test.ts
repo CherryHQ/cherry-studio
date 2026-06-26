@@ -30,7 +30,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  const { dataApiDevtoolsTesting } = await import('../dataApiDevtools')
+  const { dataApiDevtoolsTesting } = await import('../utils/dataApiDevtools')
   dataApiDevtoolsTesting.reset()
   vi.restoreAllMocks()
 })
@@ -41,7 +41,7 @@ async function createService() {
 }
 
 describe('DataApiService devtools instrumentation', () => {
-  it('records a successful request with sanitized request and response previews', async () => {
+  it('records a successful request with truncated request and response previews', async () => {
     request.mockImplementationOnce(async (req) => ({
       id: req.id,
       status: 200,
@@ -61,7 +61,10 @@ describe('DataApiService devtools instrumentation', () => {
       query: { authorization: 'Bearer secret' } as any,
       body: {
         apiKey: 'request-key',
+        cookie: 'session-cookie',
         nested: { token: 'nested-token' },
+        privateKey: 'private-key',
+        sessionId: 'session-id',
         longText: 'x'.repeat(1005)
       } as any
     })
@@ -73,13 +76,16 @@ describe('DataApiService devtools instrumentation', () => {
       state: 'success',
       method: 'POST',
       path: '/providers',
-      query: { authorization: '<redacted>' },
+      query: { authorization: 'Bearer secret' },
       body: {
-        apiKey: '<redacted>',
-        nested: { token: '<redacted>' }
+        apiKey: 'request-key',
+        cookie: 'session-cookie',
+        nested: { token: 'nested-token' },
+        privateKey: 'private-key',
+        sessionId: 'session-id'
       },
       status: 200,
-      response: { ok: true, token: '<redacted>' },
+      response: { ok: true, token: 'response-token' },
       mainDuration: 7,
       handlerDuration: 5
     })
@@ -117,6 +123,46 @@ describe('DataApiService devtools instrumentation', () => {
         name: 'DataApiError',
         code: 'VALIDATION_ERROR',
         message: 'Invalid provider',
+        isRetryable: false
+      }
+    })
+  })
+
+  it('omits error messages when payload capture is disabled', async () => {
+    const { DataApiDevtools } = await import('../utils/dataApiDevtools')
+    DataApiDevtools.recordStart({
+      requestId: 'setup',
+      method: 'GET',
+      path: '/setup',
+      retryAttempt: 0
+    })
+    window.__CHERRY_DATA_API_DEVTOOLS__?.clear()
+    window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: false })
+
+    const error = DataApiErrorFactory.validation({ name: ['Required'] }, 'Invalid provider token=secret')
+    request.mockImplementationOnce(async (req) => ({
+      id: req.id,
+      status: error.status,
+      error: error.toJSON(),
+      metadata: {
+        timestamp: Date.now(),
+        duration: 9,
+        handlerDuration: 6
+      }
+    }))
+
+    const service = await createService()
+
+    await expect(service.get('/providers' as any)).rejects.toThrow('Invalid provider token=secret')
+
+    const events = window.__CHERRY_DATA_API_DEVTOOLS__?.snapshot() ?? []
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      state: 'error',
+      error: {
+        name: 'DataApiError',
+        code: 'VALIDATION_ERROR',
+        message: '<payload capture disabled>',
         isRetryable: false
       }
     })

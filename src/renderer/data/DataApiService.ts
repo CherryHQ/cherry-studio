@@ -43,7 +43,7 @@ import type {
   SubscriptionOptions
 } from '@shared/data/api/apiTypes'
 
-import { recordDataApiError, recordDataApiRetry, recordDataApiStart, recordDataApiSuccess } from './dataApiDevtools'
+import { DataApiDevtools } from './utils/dataApiDevtools'
 
 const logger = loggerService.withContext('DataApiService')
 
@@ -125,7 +125,7 @@ export class DataApiService implements ApiClient {
       throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'Data API not available')
     }
     let errorMetadata: DataResponse['metadata'] | undefined
-    recordDataApiStart({
+    DataApiDevtools.recordStart({
       requestId: request.id,
       method: request.method,
       path: request.path,
@@ -159,7 +159,7 @@ export class DataApiService implements ApiClient {
         throw DataApiError.fromJSON(response.error)
       }
 
-      recordDataApiSuccess({
+      DataApiDevtools.recordSuccess({
         requestId: request.id,
         method: request.method,
         path: request.path,
@@ -177,7 +177,7 @@ export class DataApiService implements ApiClient {
       const apiError =
         error instanceof DataApiError ? error : toDataApiError(error, `${request.method} ${request.path}`)
 
-      recordDataApiError({
+      DataApiDevtools.recordError({
         requestId: request.id,
         method: request.method,
         path: request.path,
@@ -190,7 +190,7 @@ export class DataApiService implements ApiClient {
 
       // Check if should retry using the error's built-in isRetryable getter
       if (retryCount < this.defaultRetryOptions.maxRetries && apiError.isRetryable) {
-        recordDataApiRetry({
+        DataApiDevtools.recordRetry({
           requestId: request.id,
           method: request.method,
           path: request.path,
