@@ -9,6 +9,7 @@ import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { obsidianHandlers } from './obsidian'
 import { selectionHandlers } from './selection'
+import { systemHandlers } from './system'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
 
@@ -30,6 +31,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...knowledgeHandlers,
   ...obsidianHandlers,
   ...selectionHandlers,
+  ...systemHandlers,
   ...webSearchHandlers,
   ...windowHandlers
 }

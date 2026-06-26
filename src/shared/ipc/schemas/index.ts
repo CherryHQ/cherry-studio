@@ -7,6 +7,7 @@ import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { obsidianRequestSchemas } from './obsidian'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { systemRequestSchemas } from './system'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
@@ -26,6 +27,7 @@ export const ipcRequestSchemas = {
   ...knowledgeRequestSchemas,
   ...obsidianRequestSchemas,
   ...selectionRequestSchemas,
+  ...systemRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>

@@ -8,14 +8,7 @@ import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { regionService } from '@main/services/RegionService'
-import {
-  autoDiscoverGitBash,
-  getBinaryPath,
-  getGitBashPathInfo,
-  isBinaryExists,
-  runInstallScript,
-  validateGitBashPath
-} from '@main/utils/process'
+import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@shared/types/notification'
@@ -299,66 +292,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
   ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
   ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, async () => {
-    if (!isWin) {
-      return true // Non-Windows systems don't need Git Bash
-    }
-
-    try {
-      // Use autoDiscoverGitBash to handle auto-discovery and persistence
-      const bashPath = await autoDiscoverGitBash()
-      if (bashPath) {
-        logger.info('Git Bash is available', { path: bashPath })
-        return true
-      }
-
-      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
-      return false
-    } catch (error) {
-      logger.error('Unexpected error checking Git Bash', error as Error)
-      return false
-    }
-  })
-
-  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
-    if (!isWin) {
-      return null
-    }
-
-    return application.get('PreferenceService').get('feature.code_cli.git_bash_path')
-  })
-
-  // Returns { path, source } where source is 'manual' | 'auto' | null
-  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
-    return getGitBashPathInfo()
-  })
-
-  ipcMain.handle(IpcChannel.System_SetGitBashPath, async (_, newPath: string | null) => {
-    if (!isWin) {
-      return false
-    }
-
-    const preferenceService = application.get('PreferenceService')
-
-    if (!newPath) {
-      // Clear manual setting and re-run auto-discovery
-      await preferenceService.set('feature.code_cli.git_bash_path', null)
-      await preferenceService.set('feature.code_cli.git_bash_path_source', null)
-      // Re-run auto-discovery to restore auto-discovered path if available
-      await autoDiscoverGitBash()
-      return true
-    }
-
-    const validated = validateGitBashPath(newPath)
-    if (!validated) {
-      return false
-    }
-
-    // Set path with 'manual' source
-    await preferenceService.set('feature.code_cli.git_bash_path', validated)
-    await preferenceService.set('feature.code_cli.git_bash_path_source', 'manual')
-    return true
-  })
+  // Git Bash: migrated to IpcApi (system.git_bash.* — src/main/ipc/handlers/system.ts)
 
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
