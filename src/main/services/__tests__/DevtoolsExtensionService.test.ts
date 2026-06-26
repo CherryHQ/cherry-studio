@@ -1,4 +1,5 @@
 import { getConditions, getPhase, Phase } from '@main/core/lifecycle'
+import { readFileSync } from 'fs'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { applicationMock, loggerMock, loadExtensionMock, installExtensionMock } = vi.hoisted(() => {
@@ -52,8 +53,16 @@ describe('DevtoolsExtensionService', () => {
     loadExtensionMock.mockResolvedValue({ name: 'DataApi DevTools' })
   })
 
-  it('runs in the background phase', () => {
-    expect(getPhase(DevtoolsExtensionService)).toBe(Phase.Background)
+  it('runs before the main window opens', () => {
+    expect(getPhase(DevtoolsExtensionService)).toBe(Phase.WhenReady)
+
+    const serviceRegistrySource = readFileSync(
+      new URL('../../core/application/serviceRegistry.ts', import.meta.url),
+      'utf8'
+    )
+    expect(serviceRegistrySource.indexOf('DevtoolsExtensionService,')).toBeLessThan(
+      serviceRegistrySource.indexOf('MainWindowService,')
+    )
   })
 
   it('is conditional on development mode', () => {
