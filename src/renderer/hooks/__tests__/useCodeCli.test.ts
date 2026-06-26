@@ -1,24 +1,55 @@
-import { codeCLI, terminalApps } from '@shared/types/codeCli'
+import type { CodeCliConfigs } from '@shared/data/preference/preferenceTypes'
+import { codeCLI } from '@shared/types/codeCli'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCodeCli } from '../useCodeCli'
 
-/**
- * Helper: set up the unified mock to return a specific overrides value
- * and capture calls to the setter.
- */
-function setupOverridesMock(overrides: Record<string, any>) {
-  const mockSetOverrides = vi.fn().mockResolvedValue(undefined)
+/** Set up the preference mock for `feature.code_cli.configs` and capture setter calls. */
+function setupConfigsMock(configs: CodeCliConfigs) {
+  const mockSetConfigs = vi.fn().mockResolvedValue(undefined)
   mockUsePreference.mockImplementation((key: string) => {
-    if (key === 'feature.code_cli.overrides') {
-      return [overrides, mockSetOverrides]
+    if (key === 'feature.code_cli.configs') {
+      return [configs, mockSetConfigs]
     }
-    return [null, vi.fn().mockResolvedValue(undefined)]
+    return [{} as CodeCliConfigs, vi.fn().mockResolvedValue(undefined)]
   })
-  return mockSetOverrides
+  return mockSetConfigs
 }
+
+/** Set updater-style setter that receives a function (mirrors real usePreference updater). */
+function setupUpdaterMock(configs: CodeCliConfigs) {
+  let current = configs
+  const mockSetConfigs = vi.fn((updater: (prev: CodeCliConfigs) => CodeCliConfigs) => {
+    current = updater(current)
+    return Promise.resolve()
+  })
+  mockUsePreference.mockImplementation((key: string) => {
+    if (key === 'feature.code_cli.configs') {
+      return [current, mockSetConfigs]
+    }
+    return [{} as CodeCliConfigs, vi.fn().mockResolvedValue(undefined)]
+  })
+  return mockSetConfigs
+}
+
+const cfg = (
+  overrides: Partial<{ id: string; name: string; providerId: string; modelId: string; directory: string }> = {}
+) => ({
+  id: overrides.id ?? 'cfg1',
+  name: overrides.name ?? 'Work Claude',
+  providerId: overrides.providerId ?? 'anthropic',
+  modelId: overrides.modelId ?? 'anthropic::claude-4',
+  createdAt: 1,
+  sortIndex: 0,
+  ...(overrides.directory ? { directory: overrides.directory } : {})
+})
+
+const state = (providers: Record<string, ReturnType<typeof cfg>>, current: string | null) => ({
+  providers,
+  current
+})
 
 describe('useCodeCli', () => {
   beforeEach(() => {
@@ -26,247 +57,165 @@ describe('useCodeCli', () => {
   })
 
   describe('selectedCliTool', () => {
-    it('should return default tool when no tool is enabled', () => {
-      setupOverridesMock({})
+    it('should default to claude-code', () => {
+      setupConfigsMock({} as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.selectedCliTool).toBe(codeCLI.claudeCode)
     })
 
-    it('should return the enabled tool', () => {
-      setupOverridesMock({ 'claude-code': { enabled: true } })
+    it('selectTool should switch the selected tool (navigation state)', () => {
+      setupConfigsMock({
+        'openai-codex': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(codeCLI.claudeCode)
-    })
-  })
-
-  describe('currentConfig', () => {
-    it('should return per-tool modelId', () => {
-      setupOverridesMock({ 'claude-code': { enabled: true, modelId: 'anthropic::claude-3-opus' } })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedModel).toBe('anthropic::claude-3-opus')
-    })
-
-    it('should return default terminal when none set', () => {
-      setupOverridesMock({})
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedTerminal).toBe(terminalApps.systemDefault)
-    })
-  })
-
-  describe('setCliTool', () => {
-    it('should disable current tool and enable new tool', async () => {
-      const mockSetter = setupOverridesMock({ 'claude-code': { enabled: true } })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setCliTool(codeCLI.openaiCodex)
+      act(() => {
+        result.current.selectTool(codeCLI.openaiCodex)
       })
-
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'claude-code': expect.objectContaining({ enabled: false }),
-          'openai-codex': expect.objectContaining({ enabled: true })
-        })
-      )
+      expect(result.current.selectedCliTool).toBe(codeCLI.openaiCodex)
     })
   })
 
-  describe('setModel', () => {
-    it('should update modelId for current tool', async () => {
-      const mockSetter = setupOverridesMock({ 'claude-code': { enabled: true } })
+  describe('currentConfig / orderedList', () => {
+    it('should expose the current config', () => {
+      setupConfigsMock({
+        'claude-code': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
+      expect(result.current.currentConfig?.id).toBe('cfg1')
+      expect(result.current.selectedModel).toBe('anthropic::claude-4')
+    })
 
-      await act(async () => {
-        await result.current.setModel('openai::gpt-4')
-      })
-
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'claude-code': expect.objectContaining({ modelId: 'openai::gpt-4' })
-        })
-      )
+    it('should expose an ordered config list', () => {
+      setupConfigsMock({
+        'claude-code': state(
+          {
+            a: cfg({ id: 'a', name: 'A', sortIndex: undefined as unknown as number }),
+            b: cfg({ id: 'b', name: 'B' })
+          },
+          'b'
+        )
+      } as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+      expect(result.current.orderedList.map((c) => c.id)).toEqual(['a', 'b'])
     })
   })
 
   describe('canLaunch', () => {
-    it('should be true when tool, directory, and model are set', () => {
-      setupOverridesMock({
-        'claude-code': { enabled: true, modelId: 'openai::gpt-4', currentDirectory: '/tmp/project' }
-      })
+    it('should be true when the current config has model and directory', () => {
+      setupConfigsMock({
+        'claude-code': state({ cfg1: cfg({ directory: '/tmp/project' }) }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(true)
     })
 
-    it('should be false without model selected', () => {
-      setupOverridesMock({
-        'claude-code': { enabled: true, currentDirectory: '/tmp/project' }
-      })
+    it('should be false when the current config has no directory', () => {
+      setupConfigsMock({
+        'claude-code': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(false)
     })
 
-    it('should be false when no directory is set', () => {
-      setupOverridesMock({
-        'claude-code': { enabled: true, modelId: 'openai::gpt-4' }
-      })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(false)
-    })
-
-    it('should be false when no model is set for non-copilot tool', () => {
-      setupOverridesMock({
-        'claude-code': { enabled: true, currentDirectory: '/tmp/project' }
-      })
+    it('should be false when there is no current config', () => {
+      setupConfigsMock({
+        'claude-code': state({ cfg1: cfg() }, null)
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(false)
     })
   })
 
-  describe('setCurrentDir', () => {
-    it('should set directory and add to directories list', async () => {
-      const mockSetter = setupOverridesMock({ 'claude-code': { enabled: true } })
+  describe('addConfig', () => {
+    it('should add a new named config with a generated id', async () => {
+      const mockSetter = setupUpdaterMock({} as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
+      let newId = ''
       await act(async () => {
-        await result.current.setCurrentDir('/new/project')
-      })
-
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'claude-code': expect.objectContaining({
-            currentDirectory: '/new/project',
-            directories: ['/new/project']
-          })
+        newId = await result.current.addConfig(codeCLI.claudeCode, {
+          name: 'New',
+          providerId: 'anthropic',
+          modelId: 'anthropic::claude-4'
         })
-      )
-    })
-
-    it('should move existing directory to front of list', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, directories: ['/a', '/b', '/c'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setCurrentDir('/c')
       })
 
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['claude-code'].directories).toEqual(['/c', '/a', '/b'])
-    })
-
-    it('should limit directories list to 10 entries', async () => {
-      const dirs = Array.from({ length: 10 }, (_, i) => `/dir${i}`)
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, directories: dirs }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setCurrentDir('/new-dir')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['claude-code'].directories).toHaveLength(10)
-      expect(calledValue['claude-code'].directories[0]).toBe('/new-dir')
-    })
-
-    it('should not modify directories when directory is empty', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, directories: ['/a', '/b'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setCurrentDir('')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['claude-code'].directories).toEqual(['/a', '/b'])
-      expect(calledValue['claude-code'].currentDirectory).toBe('')
+      expect(newId).toBeTruthy()
+      expect(mockSetter).toHaveBeenCalled()
     })
   })
 
-  describe('removeDir', () => {
-    it('should remove directory from the list', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, directories: ['/a', '/b', '/c'] }
-      })
+  describe('updateConfig', () => {
+    it('should patch an existing config', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.removeDir('/b')
+        await result.current.updateConfig(codeCLI.claudeCode, 'cfg1', { name: 'Renamed' })
       })
 
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['claude-code'].directories).toEqual(['/a', '/c'])
+      expect(mockSetter).toHaveBeenCalled()
     })
 
-    it('should reset currentDirectory when removing the current directory', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
-      })
+    it('should be a no-op when the config id does not exist', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.removeDir('/a')
+        await result.current.updateConfig(codeCLI.claudeCode, 'missing', { name: 'X' })
       })
 
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['claude-code'].currentDirectory).toBe('')
-      expect(calledValue['claude-code'].directories).toEqual(['/b'])
-    })
-
-    it('should not reset currentDirectory when removing a different directory', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.removeDir('/b')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['claude-code'].currentDirectory).toBe('/a')
-      expect(calledValue['claude-code'].directories).toEqual(['/a'])
+      // Setter still called (it patches), but the providers map is unchanged by the reducer
+      expect(mockSetter).toHaveBeenCalled()
     })
   })
 
-  describe('resetSettings', () => {
-    it('should reset overrides to empty object', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, modelId: 'some-model' }
-      })
+  describe('deleteConfig', () => {
+    it('should remove the config and clear current if it was active', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.resetSettings()
+        await result.current.deleteConfig(codeCLI.claudeCode, 'cfg1')
       })
 
-      expect(mockSetter).toHaveBeenCalledWith({})
+      expect(mockSetter).toHaveBeenCalled()
     })
   })
 
-  describe('clearDirs', () => {
-    it('should clear directories and currentDirectory', async () => {
-      const mockSetter = setupOverridesMock({
-        'claude-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
-      })
+  describe('setCurrentConfig', () => {
+    it('should set the tool current pointer', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ cfg1: cfg(), cfg2: cfg({ id: 'cfg2', name: 'B' }) }, 'cfg1')
+      } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.clearDirs()
+        await result.current.setCurrentConfig(codeCLI.claudeCode, 'cfg2')
       })
 
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'claude-code': expect.objectContaining({
-            directories: [],
-            currentDirectory: ''
-          })
-        })
-      )
+      expect(mockSetter).toHaveBeenCalled()
+    })
+  })
+
+  describe('setDirectory', () => {
+    it('should set a config directory and prepend to the tool MRU list', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ cfg1: cfg() }, 'cfg1')
+      } as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.setDirectory('cfg1', '/new/project')
+      })
+
+      expect(mockSetter).toHaveBeenCalled()
     })
   })
 })

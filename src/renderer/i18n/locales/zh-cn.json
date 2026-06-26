@@ -1930,34 +1930,86 @@
     }
   },
   "code": {
-    "auto_update_to_latest": "检查更新并安装最新版本",
+    "add_config": "添加",
     "add_provider_hint": "在 设置 → 模型服务 添加服务商",
+    "adv": {
+      "claude": {
+        "auto_compact_window": "自动压缩窗口",
+        "effort_level": "推理努力程度",
+        "enable_tool_search": "启用工具搜索",
+        "include_co_authored_by": "包含共同作者",
+        "max_output_tokens": "最大输出 Token",
+        "skip_web_fetch_preflight": "跳过 Web 预检",
+        "timeout_ms": "API 超时 (ms)",
+        "disable_nonessential_traffic": "禁用非必要流量",
+        "disable_experimental_betas": "禁用实验性 Beta"
+      },
+      "codex": {
+        "auto_compact_token_limit": "自动压缩 Token 限制",
+        "context_window": "上下文窗口",
+        "disable_response_storage": "禁用响应存储",
+        "personality": "个性",
+        "reasoning_effort": "推理努力程度",
+        "review_model": "审查模型",
+        "verbosity": "详细程度"
+      },
+      "effort": {
+        "high": "高",
+        "low": "低",
+        "medium": "中"
+      },
+      "hermes": {
+        "context_length": "上下文长度",
+        "max_tokens": "最大 Token"
+      },
+      "openclaw": {
+        "context_window": "上下文窗口",
+        "max_tokens": "最大 Token",
+        "reasoning": "启用推理"
+      },
+      "opencode": {
+        "budget_tokens": "推理预算 Token",
+        "context_limit": "上下文限制",
+        "output_limit": "输出限制"
+      },
+      "select_placeholder": "请选择…"
+    },
+    "auto_update_to_latest": "检查更新并安装最新版本",
+    "basic_info": "基本信息",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "can_upgrade": "可升级",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "config_name": "名称",
+    "config_name_placeholder": "例如：工作 Claude",
     "configure": "配置",
     "configuring_provider": "配置 {{provider}}",
     "count_one": "{{count}} 个",
     "count_other": "{{count}} 个",
+    "current_config": "当前",
+    "current_config_settings": "当前配置",
     "custom_path": "自定义路径",
     "custom_path_error": "设置自定义终端路径失败",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
-    "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
+    "duplicate": "复制",
+    "duplicate_success": "已复制",
+    "edit_config": "编辑配置",
     "enable": "启用",
     "enabled": "已启用",
     "endpoint_key_in_model_service": "端点 / Key 在 模型服务",
+    "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",
     "hero_tagline": "选一个 CLI 工具开始配置",
-    "install_bun": "安装 Bun",
     "install": "安装",
+    "install_bun": "安装 Bun",
     "install_error": "安装失败",
     "install_success": "安装成功",
     "installing": "安装中…",
     "installing_bun": "安装中...",
+    "latest": "最新",
     "launch": {
       "bun_required": "请先安装 Bun 环境再启动 CLI 工具",
       "error": "启动失败，请重试",
@@ -1967,12 +2019,13 @@
       "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
     },
     "launching": "启动中...",
-    "latest": "最新",
     "model": "模型",
     "model_hint": "为 CLI 工具选择要使用的 AI 模型",
     "model_hint_config": "选择要使用的模型",
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
+    "no_configs_description": "添加命名配置以管理此 CLI 工具的多个供应商/模型",
+    "no_configs_title": "暂无配置",
     "no_matching_tools": "没有匹配的工具",
     "no_tools": "暂无工具",
     "not_installed": "未安装",
@@ -1998,7 +2051,8 @@
     "upgrade_error": "升级失败",
     "upgrade_success": "升级成功",
     "working_directory": "工作目录",
-    "working_directory_hint": "CLI 工具启动时的工作目录"
+    "working_directory_hint": "CLI 工具启动时的工作目录",
+    "advanced_config": "高级配置"
   },
   "code_block": {
     "collapse": "收起",

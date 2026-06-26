@@ -94,10 +94,9 @@ describe('ComplexPreferenceMappings', () => {
       expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
     })
 
-    it('should contain the code_cli_overrides mapping', () => {
+    it('should NOT migrate code_cli (fresh v2 key, v1 throwaway)', () => {
       const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
-      expect(codeToolsMapping).toBeDefined()
-      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
+      expect(codeToolsMapping).toBeUndefined()
     })
   })
 
@@ -111,7 +110,6 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
       expect(keys).toContain('chat.web_search.default_search_keywords_provider')
-      expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')
       expect(keys).toContain('topic.naming.model_id')

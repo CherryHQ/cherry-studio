@@ -16,7 +16,7 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
     directories: [],
     currentDirectory: '',
     canLaunch: true,
-    setCliTool: vi.fn(),
+    selectTool: vi.fn(),
     setModel: vi.fn(),
     setTerminal: vi.fn(),
     setEnvVars: vi.fn(),
