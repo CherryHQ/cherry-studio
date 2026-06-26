@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
+import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
@@ -94,6 +95,11 @@ export class MainWindowService extends BaseService {
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
     }
+
+    // Dev-only: load DevTools extensions before the main window's page loads so
+    // they attach to it. Fire-and-forget — a slow/failed install (React DevTools
+    // may download on first run) must never delay window creation. No-op in prod.
+    void installDevtoolsExtensions()
 
     this.openMainWindow()
   }
