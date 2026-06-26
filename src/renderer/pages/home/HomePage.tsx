@@ -23,12 +23,14 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
+import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -41,6 +43,10 @@ import { useTranslation } from 'react-i18next'
 
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
+import {
+  AssistantConversationPickerDialog,
+  type AssistantConversationSelection
+} from './components/AssistantConversationPickerDialog'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
@@ -84,6 +90,7 @@ const HomePage: FC = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [conversationView] = usePreference('chat.conversation_view')
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
+  const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -116,7 +123,8 @@ const HomePage: FC = () => {
     assistants,
     hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
-    isRefreshing: isAssistantsRefreshing
+    isRefreshing: isAssistantsRefreshing,
+    addAssistant
   } = useAssistants()
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const validLastUsedAssistantId =
@@ -399,6 +407,44 @@ const HomePage: FC = () => {
     [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
   )
 
+  const resolveAssistantIdForSelection = useCallback(
+    async (selection: AssistantConversationSelection) => {
+      if (selection.type === 'assistant') return selection.assistantId
+
+      // Reuse an assistant already created from this preset (matched by name, the only persistent
+      // link we have) instead of creating a duplicate every time the preset is picked.
+      const presetName = selection.preset.name.trim()
+      const existing = assistants.find((assistant) => assistant.name === presetName)
+      if (existing) return existing.id
+
+      return (await addAssistant(toCreateAssistantDtoFromCatalogPreset(selection.preset))).id
+    },
+    [addAssistant, assistants]
+  )
+
+  const handleAssistantConversationSelect = useCallback(
+    async (selection: AssistantConversationSelection) => {
+      // The picker stays open with its submitting spinner while we create the topic, then closes on
+      // success — the spinner masks the topic/assistant churn so the list underneath can't flash.
+      try {
+        const assistantId = await resolveAssistantIdForSelection(selection)
+        const topic = await createTopic({ assistantId })
+        const rendererTopic = mapApiTopicToRendererTopic(topic)
+
+        setDraftAssistantSelectionState(undefined)
+        setActiveTopic(rendererTopic)
+        setAssistantPickerOpen(false)
+        void refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
+        })
+      } catch (err) {
+        logger.error('Failed to create assistant conversation from old-view picker', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      }
+    },
+    [createTopic, refreshTopics, resolveAssistantIdForSelection, setActiveTopic, setDraftAssistantSelectionState, t]
+  )
+
   useEffect(() => {
     void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
@@ -490,6 +536,7 @@ const HomePage: FC = () => {
   const pane = isOldView ? (
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
+      onAddAssistant={() => setAssistantPickerOpen(true)}
       onSelectTopic={setActiveTopicAndDiscardDraft}
       onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
     />
@@ -534,6 +581,15 @@ const HomePage: FC = () => {
       onRecordSelect={handleHistoryRecordsTopicSelect}
     />
   )
+  const assistantPickerDialog = isOldView ? (
+    <AssistantConversationPickerDialog
+      open={assistantPickerOpen}
+      onOpenChange={setAssistantPickerOpen}
+      assistants={assistants}
+      assistantsLoading={isAssistantsLoading || isAssistantsRefreshing}
+      onSelect={handleAssistantConversationSelect}
+    />
+  ) : null
 
   if (draftAssistantSelectionSnapshot) {
     return renderWithRightPane(
@@ -555,6 +611,7 @@ const HomePage: FC = () => {
             welcomeText={t('chat.home.welcome_title')}
           />
         </ContentContainer>
+        {assistantPickerDialog}
         {historyRecordsOverlay}
       </Container>
     )
@@ -580,6 +637,7 @@ const HomePage: FC = () => {
           onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
+      {assistantPickerDialog}
       {historyRecordsOverlay}
     </Container>
   )

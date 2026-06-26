@@ -8,6 +8,7 @@ import {
   type ResourceEntityRailReorderAnchor,
   useResourceEntityRail
 } from '@renderer/components/chat/resources/variants/useResourceEntityRail'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
@@ -34,6 +35,7 @@ const logger = loggerService.withContext('AgentResourceList')
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  onAddAgent?: () => void | Promise<void>
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
@@ -41,6 +43,7 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  onAddAgent,
   onSelectSession,
   onStartDraftAgent,
   onStartMissingAgentDraft
@@ -85,7 +88,14 @@ export function AgentResourceList({
         name: agent.name,
         orderKey: agent.orderKey,
         pinned: agentPinnedIdSet.has(agent.id),
-        icon: <span className="text-base leading-none">{getAgentAvatarFromConfiguration(agent.configuration)}</span>
+        icon: (
+          <EmojiIcon
+            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
+            size={24}
+            fontSize={14}
+            className="mr-0"
+          />
+        )
       })),
     [agents, agentPinnedIdSet]
   )
@@ -235,7 +245,7 @@ export function AgentResourceList({
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
         createItemLabel={t('chat.conversation.new')}
-        onAdd={() => onStartMissingAgentDraft?.()}
+        onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
         onCreateItem={(item) => onStartDraftAgent(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}

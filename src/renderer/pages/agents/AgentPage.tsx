@@ -34,6 +34,7 @@ import { useTranslation } from 'react-i18next'
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
+import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
 import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
@@ -93,6 +94,7 @@ const AgentPage = () => {
   const [replacingDraftAgent, setReplacingDraftAgent] = useState(false)
   const [replacingDraftWorkspace, setReplacingDraftWorkspace] = useState(false)
   const [missingAgentDraft, setMissingAgentDraft] = useState(false)
+  const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const pendingSelectedSession =
@@ -261,8 +263,8 @@ const AgentPage = () => {
     [t]
   )
 
-  const startDraftSession = useCallback(
-    async (defaults: DraftAgentSessionDefaults) => {
+  const resolveDraftWorkspaceSource = useCallback(
+    (defaults: DraftAgentSessionDefaults) => {
       const isSystemWorkspaceMode =
         defaults.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM || defaults.workspaceMode === 'system'
       const rememberedWorkspaceId =
@@ -276,6 +278,54 @@ const AgentPage = () => {
         : rememberedWorkspaceId
           ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: rememberedWorkspaceId }
           : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
+      return { rememberedWorkspaceId, workspaceSource }
+    },
+    [lastUsedWorkspaceId]
+  )
+
+  const buildDraftSessionWithFallback = useCallback(
+    async (
+      defaults: DraftAgentSessionDefaults,
+      workspaceSource: AgentSessionWorkspaceSource,
+      rememberedWorkspaceId?: string
+    ) => {
+      if (!defaults.agentId) return null
+
+      try {
+        return await buildDraftSession({
+          agentId: defaults.agentId,
+          workspaceSource
+        })
+      } catch (err) {
+        if (!rememberedWorkspaceId || defaults.workspaceId || defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
+          throw err
+        }
+
+        logger.warn('Failed to start draft session with remembered workspace', err as Error, {
+          workspaceId: rememberedWorkspaceId
+        })
+        setLastUsedWorkspaceId(null)
+        return buildDraftSession({
+          agentId: defaults.agentId,
+          workspaceSource: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        })
+      }
+    },
+    [buildDraftSession, setLastUsedWorkspaceId]
+  )
+
+  const rememberLastUsedSession = useCallback(
+    (agentId: string, userWorkspaceId?: string) => {
+      setLastUsedAgentId(agentId)
+      if (userWorkspaceId) setLastUsedWorkspaceId(userWorkspaceId)
+    },
+    [setLastUsedAgentId, setLastUsedWorkspaceId]
+  )
+
+  const startDraftSession = useCallback(
+    async (defaults: DraftAgentSessionDefaults) => {
+      const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
 
       if (
         visibleDraftSession &&
@@ -293,45 +343,73 @@ const AgentPage = () => {
         return
       }
 
-      if (!defaults.agentId) return
+      const started = await buildDraftSessionWithFallback(defaults, workspaceSource, rememberedWorkspaceId)
+      if (!started) return
 
-      let started: DraftAgentSession
-      try {
-        started = await buildDraftSession({
-          agentId: defaults.agentId,
-          workspaceSource
-        })
-      } catch (err) {
-        if (!rememberedWorkspaceId || defaults.workspaceId || defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
-          throw err
-        }
-
-        logger.warn('Failed to start draft session with remembered workspace', err as Error, {
-          workspaceId: rememberedWorkspaceId
-        })
-        setLastUsedWorkspaceId(null)
-        started = await buildDraftSession({
-          agentId: defaults.agentId,
-          workspaceSource: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        })
-      }
       pendingSelectedSessionRef.current = null
       setDraftSessionState(started)
-      setLastUsedAgentId(started.agentId)
-      if (started.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
-        setLastUsedWorkspaceId(started.workspaceSource.workspaceId)
-      }
+      rememberLastUsedSession(
+        started.agentId,
+        started.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER ? started.workspaceSource.workspaceId : undefined
+      )
       setMissingAgentDraft(false)
       setActiveSessionId(null)
     },
     [
-      buildDraftSession,
-      lastUsedWorkspaceId,
+      buildDraftSessionWithFallback,
+      rememberLastUsedSession,
+      resolveDraftWorkspaceSource,
       setActiveSessionId,
       setDraftSessionState,
-      setLastUsedAgentId,
       setLastUsedWorkspaceId,
       visibleDraftSession
+    ]
+  )
+
+  const handleAgentConversationSelect = useCallback(
+    async (agentId: string) => {
+      // The picker stays open with its submitting spinner while we create the session, then closes on
+      // success — the spinner masks the session/state churn so the list underneath can't flash.
+      try {
+        const defaults = { agentId }
+        const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
+        const started = await buildDraftSessionWithFallback(defaults, workspaceSource, rememberedWorkspaceId)
+        if (!started) return
+
+        const session = await dataApiService.post('/agent-sessions', {
+          body: {
+            agentId: started.agentId,
+            name: t('common.unnamed'),
+            workspace: started.workspaceSource
+          }
+        })
+
+        setPendingLocateMessageId(undefined)
+        pendingSelectedSessionRef.current = session
+        setDraftSessionState(null)
+        setMissingAgentDraft(false)
+        rememberLastUsedSession(
+          session.agentId ?? started.agentId,
+          isUserWorkspaceSession(session) ? session.workspaceId : undefined
+        )
+        setActiveSessionId(session.id)
+        setAgentPickerOpen(false)
+        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
+          logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
+        })
+      } catch (err) {
+        logger.error('Failed to create agent session from old-view picker', err as Error, { agentId })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      }
+    },
+    [
+      buildDraftSessionWithFallback,
+      invalidateCache,
+      rememberLastUsedSession,
+      resolveDraftWorkspaceSource,
+      setActiveSessionId,
+      setDraftSessionState,
+      t
     ]
   )
 
@@ -610,6 +688,7 @@ const AgentPage = () => {
   const pane = isOldView ? (
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
+      onAddAgent={() => setAgentPickerOpen(true)}
       onSelectSession={handleResourceSessionSelect}
       onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
       onStartMissingAgentDraft={startMissingAgentDraft}
@@ -686,6 +765,15 @@ const AgentPage = () => {
         onClose={closeHistoryRecords}
         onRecordSelect={handleHistoryRecordsSessionSelect}
       />
+      {isOldView && (
+        <AgentConversationPickerDialog
+          open={agentPickerOpen}
+          onOpenChange={setAgentPickerOpen}
+          agents={agents}
+          agentsLoading={isAgentsLoading}
+          onSelect={handleAgentConversationSelect}
+        />
+      )}
     </Container>
   )
 }

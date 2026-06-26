@@ -1006,6 +1006,10 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     expect(screen.getByRole('button', { name: /Alpha agent/ })).toHaveTextContent('🤖')
+    expect(
+      screen.getByRole('button', { name: /Alpha agent/ }).querySelector('[data-resource-list-leading-slot="true"]')
+        ?.firstElementChild
+    ).toHaveClass('rounded-full')
   })
 
   it('keeps system workspace sessions inside agent groups in agent display mode', () => {

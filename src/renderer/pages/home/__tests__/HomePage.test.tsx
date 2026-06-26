@@ -50,9 +50,10 @@ const homeMocks = vi.hoisted(() => ({
       }
     | undefined,
   cacheSetPersist: vi.fn(),
+  addAssistant: vi.fn(),
   createTopic: vi.fn(),
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
-  assistants: [{ id: 'assistant-default' }] as Array<{ id: string }>,
+  assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
   assistantsLoading: false,
@@ -226,7 +227,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isRefreshing: homeMocks.assistantsRefreshing,
     error: homeMocks.assistantsError,
     refetch: vi.fn(),
-    addAssistant: vi.fn(),
+    addAssistant: homeMocks.addAssistant,
     removeAssistant: vi.fn(),
     updateAssistant: vi.fn()
   }),
@@ -428,9 +429,46 @@ vi.mock('../components/TopicRightPane', () => {
 })
 
 vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', () => ({
-  AssistantResourceList: ({ activeAssistantId }: { activeAssistantId?: string | null }) => (
-    <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list" />
+  AssistantResourceList: ({
+    activeAssistantId,
+    onAddAssistant
+  }: {
+    activeAssistantId?: string | null
+    onAddAssistant?: () => void | Promise<void>
+  }) => (
+    <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
+      <button type="button" onClick={() => void onAddAssistant?.()}>
+        Open assistant picker
+      </button>
+    </div>
   )
+}))
+
+vi.mock('../components/AssistantConversationPickerDialog', () => ({
+  AssistantConversationPickerDialog: ({ open, onSelect }: { open?: boolean; onSelect?: (selection: any) => void }) =>
+    open ? (
+      <div data-testid="assistant-conversation-picker">
+        <button type="button" onClick={() => onSelect?.({ type: 'assistant', assistantId: 'assistant-2' })}>
+          Select my assistant
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSelect?.({
+              type: 'catalog',
+              preset: {
+                id: 'preset-product',
+                name: 'Catalog Preset',
+                prompt: 'Preset prompt',
+                description: 'Preset description',
+                emoji: '📦'
+              }
+            })
+          }>
+          Select catalog assistant
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('../../history/HistoryRecordsPage', () => ({
@@ -477,6 +515,10 @@ describe('HomePage', () => {
     homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
     homeMocks.focusExistingTab.mockReturnValue(false)
+    homeMocks.addAssistant.mockResolvedValue({
+      id: 'assistant-created',
+      name: 'Catalog Preset'
+    })
     homeMocks.isActiveTab = false
     homeMocks.createTopic.mockResolvedValue(createdTopic)
     homeMocks.refreshTopics.mockResolvedValue(undefined)
@@ -511,6 +553,57 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('creates and activates an empty topic after selecting an existing assistant from the old-view picker', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(homeMocks.addAssistant).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('adds a catalog assistant before creating an empty topic from the old-view picker', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-created' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog assistant' }))
+
+    await waitFor(() =>
+      expect(homeMocks.addAssistant).toHaveBeenCalledWith({
+        name: 'Catalog Preset',
+        prompt: 'Preset prompt',
+        description: 'Preset description',
+        emoji: '📦'
+      })
+    )
+    expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-created' })
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-created')
+  })
+
+  it('reuses an existing assistant whose name matches the catalog preset instead of duplicating it', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-existing', name: 'Catalog Preset' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-existing' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-existing' }))
+    expect(homeMocks.addAssistant).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-existing')
   })
 
   it('forwards a reveal request when navigation asks the current chat tab to reveal its selection', async () => {

@@ -859,7 +859,9 @@ export function Topics({
         return defaultAssistant.emoji ? (
           <EmojiIcon emoji={defaultAssistant.emoji} size={24} fontSize={14} className="mr-0" />
         ) : (
-          <Bot size={14} />
+          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+            <Bot size={14} />
+          </span>
         )
       }
 
@@ -870,7 +872,9 @@ export function Topics({
       return assistant.emoji ? (
         <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
       ) : (
-        <Bot size={14} />
+        <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+          <Bot size={14} />
+        </span>
       )
     },
     [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
@@ -1343,7 +1347,8 @@ function TopicRow({
   const rowState = useResourceListRowState(topic.id)
   const streamStatus = useTopicListStreamStatus(topic.id)
   const isActive = topic.id === activeTopic?.id
-  const topicName = topic.name.replace('`', '')
+  const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
+  const topicName = topicDisplayName.replace('`', '')
   const nameAnimationClassName = isRenaming(topic.id)
     ? 'animation-shimmer'
     : isNewlyRenamed(topic.id)

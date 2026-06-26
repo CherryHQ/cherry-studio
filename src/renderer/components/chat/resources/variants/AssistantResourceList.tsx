@@ -9,6 +9,7 @@ import {
   type ResourceEntityRailReorderAnchor,
   useResourceEntityRail
 } from '@renderer/components/chat/resources/variants/useResourceEntityRail'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -31,12 +32,14 @@ const logger = loggerService.withContext('AssistantResourceList')
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
+  onAddAssistant?: () => void | Promise<void>
   onSelectTopic: (topic: Topic) => void | boolean
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
 }
 
 export function AssistantResourceList({
   activeAssistantId,
+  onAddAssistant,
   onSelectTopic,
   onStartDraftAssistant
 }: AssistantResourceListProps) {
@@ -84,7 +87,13 @@ export function AssistantResourceList({
         name: assistant.name,
         orderKey: assistant.orderKey,
         pinned: assistantPinnedIdSet.has(assistant.id),
-        icon: assistant.emoji ? <span className="text-base leading-none">{assistant.emoji}</span> : <Bot size={14} />
+        icon: assistant.emoji ? (
+          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+        ) : (
+          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+            <Bot size={14} />
+          </span>
+        )
       })),
     [assistants, assistantPinnedIdSet]
   )
@@ -233,7 +242,7 @@ export function AssistantResourceList({
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         createItemLabel={t('chat.conversation.new')}
-        onAdd={() => onStartDraftAssistant(null)}
+        onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
         onCreateItem={(item) => onStartDraftAssistant(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}

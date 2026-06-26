@@ -379,9 +379,30 @@ vi.mock('../AgentSidePanel', () => ({
 }))
 
 vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => ({
-  AgentResourceList: ({ activeAgentId }: { activeAgentId?: string | null }) => (
-    <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list" />
+  AgentResourceList: ({
+    activeAgentId,
+    onAddAgent
+  }: {
+    activeAgentId?: string | null
+    onAddAgent?: () => void | Promise<void>
+  }) => (
+    <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
+      <button type="button" onClick={() => void onAddAgent?.()}>
+        Open agent picker
+      </button>
+    </div>
   )
+}))
+
+vi.mock('../components/AgentConversationPickerDialog', () => ({
+  AgentConversationPickerDialog: ({ open, onSelect }: { open?: boolean; onSelect?: (agentId: string) => void }) =>
+    open ? (
+      <div data-testid="agent-conversation-picker">
+        <button type="button" onClick={() => onSelect?.('agent-b')}>
+          Select resource agent
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('../components/Sessions', () => ({
@@ -456,6 +477,78 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
+  })
+
+  it('creates and activates an empty session after selecting an agent from the old-view picker', async () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-picker',
+      agentId: 'agent-b',
+      workspaceId: undefined,
+      workspace: {
+        type: 'system',
+        name: 'No project',
+        path: ''
+      }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: 'common.unnamed',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-picker')
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-picker')
+    expect(screen.getByTestId('draft-session')).toHaveTextContent('')
+  })
+
+  it('uses the remembered workspace when creating an empty session from the old-view picker', async () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-picker-workspace',
+      agentId: 'agent-b',
+      workspaceId: 'workspace-remembered',
+      workspace: { ...agentPageMocks.workspaceNext, id: 'workspace-remembered' }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-remembered')
+    )
+    expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+      body: {
+        agentId: 'agent-b',
+        name: 'common.unnamed',
+        workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-remembered' }
+      }
+    })
+    expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-remembered')
   })
 
   it('uses tab metadata as the session entry when the URL is the agents route', () => {
