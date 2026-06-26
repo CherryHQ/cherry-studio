@@ -6,6 +6,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
 
+// The send path calls ipcApi.request('ai.stream_open', …); route it to the per-test
+// `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
+// re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
+const { ipcMock } = vi.hoisted(() => ({
+  ipcMock: {
+    request: (() => Promise.resolve(undefined)) as (route: string, input: unknown) => unknown,
+    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+  }
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => ipcMock.request(route, input),
+    on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)
+  }
+}))
+
 const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
@@ -68,7 +84,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
+vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   default: ({
     onSend,
     sendDisabled,
@@ -135,7 +151,7 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
@@ -219,9 +235,14 @@ describe('ChatContent', () => {
   } as any
 
   const originalApi = window.api as any
+  let streamOpen: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    const streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
+    streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
+    // Route ai.stream_open through the spy; other stream routes/events are inert here
+    // (useChatWithHistory is mocked, so the real transport never runs).
+    ipcMock.request = (route, input) => (route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined))
+    ipcMock.on = () => () => {}
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockUseMutation.mockImplementation((method: string) => ({
       trigger: vi.fn(async () => {
@@ -268,15 +289,7 @@ describe('ChatContent', () => {
     }
     mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
 
-    ;(window as any).api = {
-      ...originalApi,
-      ai: {
-        ...originalApi?.ai,
-        streamOpen,
-        onStreamDone: vi.fn(() => () => {}),
-        onStreamError: vi.fn(() => () => {})
-      }
-    }
+    ;(window as any).api = { ...originalApi }
   })
 
   afterEach(() => {
@@ -308,7 +321,7 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+      expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
           trigger: 'submit-message',
           topicId: 'topic-1',
@@ -334,7 +347,7 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+      expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
           parentAnchorId: 'assistant-old',
           topicId: 'topic-1'
@@ -347,7 +360,7 @@ describe('ChatContent', () => {
 
   it('keeps a branch draft anchor when stream open fails', async () => {
     const clearBranchDraft = vi.fn()
-    ;(window.api.ai.streamOpen as any).mockRejectedValueOnce(new Error('open failed'))
+    streamOpen.mockRejectedValueOnce(new Error('open failed'))
 
     render(
       <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={() => 'assistant-old'} />
@@ -381,7 +394,7 @@ describe('ChatContent', () => {
     } as CherryUIMessage
     const regenerate = vi.fn().mockResolvedValue(undefined)
 
-    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+    streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedAssistant]
     })
@@ -411,7 +424,7 @@ describe('ChatContent', () => {
       await mockChatWriteValue.current?.resend('history-user')
     })
 
-    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+    expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 'topic-1',
@@ -557,7 +570,7 @@ describe('ChatContent', () => {
       parts: [{ type: 'text', text: 'partial stream preview' }]
     } as CherryUIMessage
 
-    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+    streamOpen.mockResolvedValueOnce({
       mode: 'started',
       userMessageId: 'reserved-user',
       reservedMessages: [reservedUser, reservedAssistant]
@@ -742,7 +755,7 @@ describe('ChatContent', () => {
     } as CherryUIMessage
     const setMessages = vi.fn()
     const regenerate = vi.fn().mockResolvedValue(undefined)
-    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+    streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedAssistant]
     })
@@ -784,7 +797,7 @@ describe('ChatContent', () => {
     })
     expect(refresh).toHaveBeenCalled()
     expect(setMessages).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'forked-user' })]))
-    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+    expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 'topic-1',
@@ -898,7 +911,7 @@ describe('ChatContent', () => {
     })
     const refresh = vi.fn().mockResolvedValue([])
 
-    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     mockUseMutation.mockImplementation((method: string, path: string) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
       isLoading: false,
@@ -930,7 +943,7 @@ describe('ChatContent', () => {
       await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
     })
 
-    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+    expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 'topic-1',
@@ -989,7 +1002,7 @@ describe('ChatContent', () => {
         }
       } as CherryUIMessage
     ])
-    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+    streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [
         {
@@ -1045,14 +1058,14 @@ describe('ChatContent', () => {
     expect(setMessages).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ id: 'forked-root-user', parts: editedParts })])
     )
-    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+    expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 'topic-1',
         parentAnchorId: 'forked-root-user'
       })
     )
-    expect((window.api.ai.streamOpen as any).mock.calls.at(-1)?.[0]).not.toHaveProperty('mentionedModelIds')
+    expect(streamOpen.mock.calls.at(-1)?.[0]).not.toHaveProperty('mentionedModelIds')
     expect(regenerate).not.toHaveBeenCalled()
   })
 
@@ -1112,7 +1125,7 @@ describe('ChatContent', () => {
       }
     } as CherryUIMessage
 
-    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+    streamOpen.mockResolvedValueOnce({
       mode: 'started',
       userMessageId: 'reserved-user',
       reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB]

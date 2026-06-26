@@ -3,8 +3,6 @@ import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { ipcApi } from '@renderer/ipc'
-// [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-// import { handleSaveData } from '@renderer/store'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

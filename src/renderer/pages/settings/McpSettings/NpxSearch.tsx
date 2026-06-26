@@ -1,7 +1,7 @@
 import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import { getMcpConfigSampleFromReadme } from '@renderer/utils'
+import { getMcpConfigSampleFromReadme } from '@renderer/utils/mcp'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { Check, Plus } from 'lucide-react'
 import { npxFinder } from 'npx-scope-finder'

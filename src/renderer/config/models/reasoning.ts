@@ -4,7 +4,7 @@ import type {
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types/reasoning'
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 import type { Model } from '@shared/data/types/model'
 import {
   DOUBAO_THINKING_AUTO_MODEL_REGEX as SHARED_DOUBAO_THINKING_AUTO_MODEL_REGEX,

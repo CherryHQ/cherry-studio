@@ -30,7 +30,8 @@ import { toSharedCompatModel } from '@renderer/config/models/bridge'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
-import db from '@renderer/databases'
+// [v2] Dexie retired — only fed the disabled write-back in migrator '34' below.
+// import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
@@ -46,7 +47,8 @@ import {
   SystemProviderIds
 } from '@renderer/types/provider'
 import type { WebSearchProvider } from '@renderer/types/webSearchProvider'
-import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import { getDefaultGroupName, getLeadingEmoji } from '@renderer/utils/naming'
+import { uuid } from '@renderer/utils/uuid'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isBuiltinMcpServer } from '@shared/utils/mcp'
@@ -700,16 +702,18 @@ const migrateConfig = {
       state.assistants.assistants.forEach((assistant) => {
         assistant.topics.forEach((topic) => {
           topic.assistantId = assistant.id
-          void runAsyncFunction(async () => {
-            const _topic = await db.topics.get(topic.id)
-            if (_topic) {
-              const messages = (_topic?.messages || []).map((message) => ({
-                ...message,
-                assistantId: assistant.id
-              }))
-              void db.topics.put({ ..._topic, messages }, topic.id)
-            }
-          })
+          // [v2] Dexie write-back disabled: v1 IndexedDB is being retired and v2 never
+          // reads db.topics, so this migrator no longer mutates the legacy store.
+          // void (async () => {
+          //   const _topic = await db.topics.get(topic.id)
+          //   if (_topic) {
+          //     const messages = (_topic?.messages || []).map((message) => ({
+          //       ...message,
+          //       assistantId: assistant.id
+          //     }))
+          //     void db.topics.put({ ..._topic, messages }, topic.id)
+          //   }
+          // })()
         })
       })
       return state

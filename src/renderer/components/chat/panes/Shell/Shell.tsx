@@ -5,7 +5,7 @@ import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/comp
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { isMac } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command/definitions'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'

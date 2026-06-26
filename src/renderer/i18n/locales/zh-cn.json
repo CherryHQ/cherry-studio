@@ -2346,6 +2346,7 @@
   "files": {
     "actions": "操作",
     "all": "所有文件",
+    "audio": "音频",
     "batch_delete": "批量删除",
     "batch_operation": "全选",
     "count": "个文件",
@@ -2359,22 +2360,52 @@
       },
       "title": "删除文件"
     },
+    "delete_or_remove": "删除/移除",
     "document": "文档",
+    "drag_upload": "拖拽文件到此处上传",
     "edit": "编辑",
+    "empty": {
+      "no_match_description": "当前筛选条件下没有文件",
+      "no_match_title": "没有找到匹配的文件"
+    },
     "error": {
-      "open_path": "无法打开路径: {{path}}"
+      "delete_failed": "删除文件失败",
+      "delete_partial_failed": "部分文件删除失败",
+      "import_failed": "导入文件失败",
+      "import_partial_failed": "部分文件导入失败",
+      "open_path": "无法打开路径: {{path}}",
+      "rename_failed": "重命名文件失败",
+      "restore_failed": "恢复文件失败",
+      "restore_partial_failed": "部分文件恢复失败"
     },
     "file": "文件",
+    "footer_count": "{{count}} 个文件",
+    "footer_selected_count": "{{count}} 个已选",
     "image": "图片",
+    "missing": "缺失",
+    "modified_at": "修改时间",
     "name": "文件名",
     "open": "打开",
+    "other": "其他",
+    "permanent_delete": "永久删除",
+    "permanent_delete_confirm": {
+      "description": "将永久删除 {{count}} 个文件，此操作无法撤销。",
+      "title": "永久删除文件？"
+    },
     "preview": {
       "error": "打开文件失败"
     },
+    "remove_from_library": "从库中移除",
+    "rename": "重命名",
+    "restore": "恢复",
+    "selected_count": "已选择 {{count}} 个文件",
+    "show_in_folder": "打开所在文件夹",
     "size": "大小",
     "text": "文本",
     "title": "文件",
-    "type": "类型"
+    "trash": "回收站",
+    "type": "类型",
+    "video": "视频"
   },
   "globalSearch": {
     "clear": "清空搜索",
@@ -6760,6 +6791,7 @@
         "sync_added_metric": "{{count}} 个新增模型",
         "sync_added_section": "新增模型",
         "sync_apply_changes": "确认应用",
+        "sync_apply_default_in_use": "部分模型正被用作默认模型，无法删除。",
         "sync_apply_result": "已新增 {{added}} 个，标记弃用 {{deprecated}} 个，删除 {{deleted}} 个。",
         "sync_empty_added": "没有发现新增的上游模型。",
         "sync_empty_missing": "没有发现已失效的本地模型。",

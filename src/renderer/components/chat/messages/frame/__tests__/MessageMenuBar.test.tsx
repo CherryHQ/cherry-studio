@@ -20,7 +20,7 @@ vi.mock('../MessageMenuBarToolbar', () => ({
   )
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: unknown[]) => values.filter(Boolean).join(' ')
 }))
 
