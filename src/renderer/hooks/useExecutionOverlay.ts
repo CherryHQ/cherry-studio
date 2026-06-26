@@ -54,8 +54,14 @@ export interface ExecutionOverlayApi {
 }
 
 interface ReaderHandle {
+  executionId: UniqueModelId
+  anchorMessageId?: string
   cancel: () => void
   unregister: () => void
+}
+
+function executionKey(executionId: UniqueModelId, anchorMessageId?: string): string {
+  return JSON.stringify([executionId, anchorMessageId ?? null])
 }
 
 function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): CherryUIMessage | undefined {
@@ -88,7 +94,7 @@ export function useExecutionOverlay(
   uiMessagesRef.current = uiMessages
   const onFinishRef = useRef(options.onFinish)
   onFinishRef.current = options.onFinish
-  const readersRef = useRef<Map<UniqueModelId, ReaderHandle>>(new Map())
+  const readersRef = useRef<Map<string, ReaderHandle>>(new Map())
 
   // Topic switch → tear down the previous topic's readers and drop all stale
   // overlay state. Runs as an effect (not in the render body) so the teardown
@@ -106,19 +112,20 @@ export function useExecutionOverlay(
 
   useEffect(() => {
     const readers = readersRef.current
-    const live = new Set(activeExecutions.map((e) => e.executionId))
+    const live = new Set(activeExecutions.map((e) => executionKey(e.executionId, e.anchorMessageId)))
 
-    for (const [executionId, handle] of [...readers]) {
-      if (live.has(executionId)) continue
+    for (const [key, handle] of [...readers]) {
+      if (live.has(key)) continue
       handle.cancel()
       handle.unregister()
-      readers.delete(executionId)
+      readers.delete(key)
     }
 
     for (const { executionId, anchorMessageId } of activeExecutions) {
-      if (readers.has(executionId)) continue
+      const key = executionKey(executionId, anchorMessageId)
+      if (readers.has(key)) continue
 
-      const branch = sub.register(executionId)
+      const branch = sub.register(executionId, anchorMessageId)
       // New turn for this execution: clear any retained prior snapshot.
       setSnapshots((prev) => {
         if (!(executionId in prev)) return prev
@@ -130,17 +137,21 @@ export function useExecutionOverlay(
       let cancelled = false
       let terminal: { isAbort: boolean; isError: boolean } | undefined
       const offTerminal = sub.onExecutionTerminal((id, t) => {
-        if (id === executionId) terminal = t
+        if (id !== executionId) return
+        if (t.anchorMessageId !== undefined && t.anchorMessageId !== anchorMessageId) return
+        terminal = t
       })
       const seed = pickSeed(uiMessagesRef.current, anchorMessageId)
 
-      readers.set(executionId, {
+      readers.set(key, {
+        executionId,
+        anchorMessageId,
         cancel: () => {
           cancelled = true
         },
         unregister: () => {
           offTerminal()
-          sub.unregister(executionId)
+          sub.unregister(executionId, anchorMessageId)
         }
       })
 
