@@ -315,6 +315,9 @@ function renderPart(
   switch (partType) {
     case 'reasoning': {
       const reasoningPart = part
+      // Empty/whitespace-only reasoning renders nothing (ThinkingBlock returns null);
+      // skip it so no invisible block-wrapper is emitted around it.
+      if (!reasoningPart.text?.trim()) return null
       const cherryMeta = getCherryMeta(part)
       const metadataBlock =
         'providerMetadata' in part && part.providerMetadata
@@ -365,6 +368,9 @@ function renderPart(
     }
 
     case 'text': {
+      // Empty/whitespace-only text renders an invisible (zero-height) markdown
+      // block-wrapper that still adds phantom spacing; skip it.
+      if (!part.text?.trim()) return null
       const cherryMeta = getCherryMeta(part)
       const citations = cherryMeta?.references
         ? convertReferencesToCitations(cherryMeta.references as ContentReference[])

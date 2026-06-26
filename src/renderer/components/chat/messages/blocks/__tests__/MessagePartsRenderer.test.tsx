@@ -871,6 +871,40 @@ describe('MessagePartsRenderer', () => {
     expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
+  it('does not render an invisible wrapper for an empty text part', () => {
+    const { container } = renderParts([{ type: 'text', text: '' }] as unknown as CherryMessagePart[])
+
+    expect(screen.queryByTestId('mock-markdown')).toBeNull()
+    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(0)
+  })
+
+  it('does not render an invisible wrapper for a whitespace-only text part', () => {
+    const { container } = renderParts([{ type: 'text', text: '   \n  ' }] as unknown as CherryMessagePart[])
+
+    expect(screen.queryByTestId('mock-markdown')).toBeNull()
+    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(0)
+  })
+
+  it('does not render an invisible wrapper for an empty reasoning part', () => {
+    const { container } = renderParts([
+      { type: 'reasoning', text: '', state: 'done' }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(0)
+  })
+
+  it('skips a trailing empty text part next to a thinking block', () => {
+    const { container } = renderParts([
+      { type: 'reasoning', text: 'real thought', state: 'done' },
+      { type: 'text', text: '' }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('real thought')
+    expect(screen.queryByTestId('mock-markdown')).toBeNull()
+    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(1)
+  })
+
   it('shows a live header on the collapsed outer fold while the turn is streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
