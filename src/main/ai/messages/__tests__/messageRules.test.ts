@@ -16,6 +16,16 @@ describe('ensureNonEmptyAssistantParts', () => {
     expect(out.parts).toEqual([{ type: 'step-start' }, { type: 'text', text: '...' }])
   })
 
+  it('treats a data-only assistant message as empty — it converts to no model content (#16195)', async () => {
+    const msg = ui('assistant', [{ type: 'data-error', data: { message: 'boom' } }])
+    const [out] = ensureNonEmptyAssistantParts([msg])
+    expect(out.parts).toEqual([{ type: 'data-error', data: { message: 'boom' } }, { type: 'text', text: '...' }])
+    // end-to-end: without the placeholder this would be { role: 'assistant', content: [] }
+    expect(await convertToModelMessages(normalizeUIMessages([msg]))).toEqual([
+      { role: 'assistant', content: [{ type: 'text', text: '...' }] }
+    ])
+  })
+
   it('leaves an assistant message with content parts untouched (same reference)', () => {
     const msg = ui('assistant', [{ type: 'text', text: 'hi' }])
     expect(ensureNonEmptyAssistantParts([msg])[0]).toBe(msg)

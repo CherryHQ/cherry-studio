@@ -8,7 +8,7 @@
  * nothing.
  */
 
-import type { ModelMessage, UIMessage } from 'ai'
+import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, type ModelMessage, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
 
@@ -37,8 +37,10 @@ export function ensureNonEmptyAssistantParts<T extends UIMessage = UIMessage>(me
   return messages.map((message) => {
     if (message.role !== 'assistant') return message
     const parts = message.parts ?? []
-    // `step-start` carries no content; any other part is real content to keep.
-    if (parts.some((part) => part.type !== 'step-start')) return message
+    // Only parts the AI SDK converts to model content count. data-*, source-*, and
+    // step-start produce nothing, so a turn with only those converts to `content: []`
+    // (Gemini 400) — give it a placeholder instead. See #16195.
+    if (parts.some((p) => isTextUIPart(p) || isReasoningUIPart(p) || isFileUIPart(p) || isToolUIPart(p))) return message
     return { ...message, parts: [...parts, { type: 'text', text: '...' }] } as T
   })
 }
