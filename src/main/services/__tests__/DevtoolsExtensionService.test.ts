@@ -52,8 +52,8 @@ describe('DevtoolsExtensionService', () => {
     loadExtensionMock.mockResolvedValue({ name: 'DataApi DevTools' })
   })
 
-  it('runs in the background phase', () => {
-    expect(getPhase(DevtoolsExtensionService)).toBe(Phase.Background)
+  it('runs before the main window opens', () => {
+    expect(getPhase(DevtoolsExtensionService)).toBe(Phase.WhenReady)
   })
 
   it('is conditional on development mode', () => {
