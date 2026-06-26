@@ -9,7 +9,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
-import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
@@ -97,13 +96,6 @@ export class MainWindowService extends BaseService {
     }
 
     this.openMainWindow()
-
-    // Install React Developer Tools extension for debugging in development mode
-    if (isDev) {
-      installExtension(REACT_DEVELOPER_TOOLS)
-        .then((name) => logger.info(`Added Extension: ${name}`))
-        .catch((err) => logger.error('An error occurred: ', err))
-    }
   }
 
   private requireMainWindow(): BrowserWindow {

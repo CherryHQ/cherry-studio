@@ -224,7 +224,12 @@
           "runFailed": "Không thể chạy tác vụ",
           "updateFailed": "Không thể cập nhật tác vụ"
         },
-        "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
+        "frequency": {
+          "everyPrefix": "Mỗi",
+          "everySuffix": "phút",
+          "label": "Tần suất thực thi"
+        },
+        "intervalPlaceholder": "Tối thiểu 1",
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Tipo de Horario",
           "once": "Một khi"
         },
-        "scheduleValue": "Giá trị theo lịch trình",
         "status": {
           "active": "Hoạt động",
           "completed": "Hoàn thành",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}} m pli frue"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Thời gian thực thi tối đa",
           "placeholder": "Keine Grenzen"
         },
         "title": "Các Tác Vụ Đã Lên Lịch"
