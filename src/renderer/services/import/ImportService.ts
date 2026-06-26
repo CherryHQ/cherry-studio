@@ -1,12 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import { uuid } from '@renderer/utils/uuid'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 
 import { availableImporters } from './importers'
 import type { ConversationImporter, ImportResponse } from './types'
-import { saveImportToDatabase } from './utils/database'
+import { persistImport } from './utils/persist'
 
 const logger = loggerService.withContext('ImportService')
 
@@ -100,16 +99,6 @@ class ImportServiceClass {
         }
       }
 
-      // Create assistant
-      const assistantId = uuid()
-
-      // Parse conversations
-      const result = await importer.parse(fileContent, assistantId)
-
-      // Save to database
-      await saveImportToDatabase(result)
-
-      // Create assistant
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
       const dto: CreateAssistantDto = {
         name: i18n.t(importerKey, {
@@ -118,6 +107,9 @@ class ImportServiceClass {
         emoji: importer.emoji
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
+
+      const result = await importer.parse(fileContent, assistant.id)
+      await persistImport(result)
 
       logger.info(
         `Import completed: ${result.topics.length} conversations, ${result.messages.length} messages imported`
