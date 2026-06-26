@@ -8,7 +8,7 @@ import { join } from 'path'
 const logger = loggerService.withContext('DevtoolsExtensionService')
 
 @Injectable('DevtoolsExtensionService')
-@ServicePhase(Phase.WhenReady)
+@ServicePhase(Phase.Background)
 @Conditional(onEnvVar('NODE_ENV', 'development'))
 export class DevtoolsExtensionService extends BaseService {
   protected async onReady() {

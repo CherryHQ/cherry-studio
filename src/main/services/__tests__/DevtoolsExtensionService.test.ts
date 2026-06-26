@@ -1,4 +1,4 @@
-import { getConditions } from '@main/core/lifecycle'
+import { getConditions, getPhase, Phase } from '@main/core/lifecycle'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { applicationMock, loggerMock, loadExtensionMock, installExtensionMock } = vi.hoisted(() => {
@@ -50,6 +50,10 @@ describe('DevtoolsExtensionService', () => {
     vi.clearAllMocks()
     installExtensionMock.mockResolvedValue('React Developer Tools')
     loadExtensionMock.mockResolvedValue({ name: 'DataApi DevTools' })
+  })
+
+  it('runs in the background phase', () => {
+    expect(getPhase(DevtoolsExtensionService)).toBe(Phase.Background)
   })
 
   it('is conditional on development mode', () => {
