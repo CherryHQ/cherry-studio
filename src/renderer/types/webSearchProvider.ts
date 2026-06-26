@@ -14,7 +14,8 @@ export const WebSearchProviderIds = {
   bocha: 'bocha',
   querit: 'querit',
   fetch: 'fetch',
-  jina: 'jina'
+  jina: 'jina',
+  firecrawl: 'firecrawl'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
