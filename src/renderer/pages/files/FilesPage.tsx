@@ -11,7 +11,7 @@ import {
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { safeOpen } from '@renderer/services/safeOpen'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'

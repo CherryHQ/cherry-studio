@@ -19,7 +19,7 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: mockUseExternalApps
 }))
 
-vi.mock('@renderer/services/safeOpen', () => ({
+vi.mock('@renderer/utils/file/safeOpen', () => ({
   safeOpen: mockSafeOpen
 }))
 
