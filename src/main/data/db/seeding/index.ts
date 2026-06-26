@@ -1,6 +1,7 @@
 import type { ISeeder } from '../types'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
+import { LocalEmbeddingSeeder } from './seeders/localEmbeddingSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
@@ -22,5 +23,6 @@ export const seeders: ISeeder[] = [
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
+  new LocalEmbeddingSeeder(),
   new MiniAppSeeder()
 ]
