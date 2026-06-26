@@ -39,7 +39,7 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
         with:
-          github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          github-token: ${{ github.token }}
           script: |
             const ORIGINAL_SUMMARY = '<summary>Original Content</summary>'
 
