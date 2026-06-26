@@ -34,24 +34,18 @@ import {
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
-import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
-import {
-  BuiltinMcpServerNames,
-  type GetResourceResponse,
-  isBuiltinMcpServer,
-  type McpCallToolResponse,
-  type McpPrompt,
-  type McpResource,
-  type McpServer
-} from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
+import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
@@ -59,6 +53,7 @@ import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
+import type { GetResourceResponse, McpCallToolResponse } from './types'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -980,8 +975,12 @@ export class McpRuntimeService extends BaseService {
       source: 'client'
     })
     await this.closeClientsForServer(server.id)
-    // Clear cache before restarting to ensure fresh data
+    // Clear caches before restarting to ensure fresh data. Drop the shared
+    // `mcp.tools.<serverId>` cache too: `McpCatalogService.listTools` is cache-only, so a
+    // restart that fails (e.g. a bad new config) must not leave the old config's tools
+    // visible to agents/chat. `refreshTools` repopulates it on success. (issue #16242)
     this.clearServerCache(server)
+    application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
       await this.getOrCreateClient(server)
       await application.get('McpCatalogService').refreshTools(server.id)

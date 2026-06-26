@@ -1,7 +1,8 @@
 import { FILE_TYPE } from '@shared/data/types/file'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
-  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
+  KNOWLEDGE_NOTE_CONTENT_MAX
 } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
@@ -18,10 +19,11 @@ const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
 
-// Keep the three filename-bearing fields distinct so each assertion below can
-// independently tell where a value came from: `name` (v1 storage name) feeds
-// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, and
-// `path` (stale column) feeds `data.source`. A crossed wiring fails the asserts.
+// Keep the filename-bearing fields distinct so each assertion below can independently tell
+// where a value came from: `id`+`ext` (the v1 storage name `{id}{ext}`) feeds
+// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, `path` (stale column)
+// feeds `data.source`, and `name` is a deliberate DISTRACTOR that must NOT feed storageName
+// (v1's dedup path emits a malformed double-extension `name`). A crossed wiring fails the asserts.
 const fileMetadata = {
   id: LEGACY_FILE_ID,
   name: 'stored-019606a0.pdf',
@@ -287,6 +289,60 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem keeps note content unchanged when within the read-side max', () => {
+    const warnings: string[] = []
+    const content = 'short note body'
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-1', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.value.data).toMatchObject({ content })
+    expect(warnings).toEqual([])
+  })
+
+  it('transformKnowledgeItem clamps over-long note content to the read-side max and warns', () => {
+    // v1 notes had no length cap; the v2 read path enforces .max(KNOWLEDGE_NOTE_CONTENT_MAX), so a
+    // longer note would parse-fail and poison the whole base's item-list query. It must be
+    // truncated (not dropped) and the truncation surfaced as a warning.
+    const warnings: string[] = []
+    const content = 'a'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX + 10)
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-long', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || !('content' in result.value.data)) throw new Error('expected a note result')
+    expect(result.value.data.content).toHaveLength(KNOWLEDGE_NOTE_CONTENT_MAX)
+    expect(result.value.data.content).toBe('a'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('note-long')
+    expect(warnings[0]).toContain('truncated')
+  })
+
+  it('transformKnowledgeItem keeps note content exactly at the max without warning (boundary)', () => {
+    const warnings: string[] = []
+    const content = 'b'.repeat(KNOWLEDGE_NOTE_CONTENT_MAX)
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'note-exact', type: 'note', content, sourceUrl: 'https://example.com' },
+      { noteById: new Map(), filesById: new Map() },
+      (message) => warnings.push(message)
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || !('content' in result.value.data)) throw new Error('expected a note result')
+    expect(result.value.data.content).toHaveLength(KNOWLEDGE_NOTE_CONTENT_MAX)
+    expect(warnings).toEqual([])
+  })
+
   it('transformKnowledgeItem skips a note with neither sourceUrl nor content', () => {
     // Sibling branches (file/url/directory) all guard their source, but the
     // note branch let `source: ''` through — the read path requires
@@ -412,7 +468,7 @@ describe('KnowledgeMappings', () => {
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       },
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
   })
 
@@ -450,7 +506,7 @@ describe('KnowledgeMappings', () => {
           relativePath: 'stored-019606a0.pdf'
         }
       }),
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
     // The fallback leaves a diagnostic trail in the migration log.
     expect(warnings).toHaveLength(1)
@@ -500,7 +556,7 @@ describe('KnowledgeMappings', () => {
         status: 'completed',
         error: null
       }),
-      fileCopy: { storageName: 'stored-019606a0.pdf' }
+      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
     })
   })
 

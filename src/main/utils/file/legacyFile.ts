@@ -5,11 +5,12 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileType } from '@shared/types/file'
+import { FILE_TYPE } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { sanitizeFilename, validateFileName } from '@shared/utils/file/filename'
-import type { FileMetadata, FileType } from '@types'
-import { FILE_TYPE } from '@types'
 
 // Re-export the promoted utilities so existing import sites
 // (`@main/utils/file → sanitizeFilename / validateFileName`) keep working.

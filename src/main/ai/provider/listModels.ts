@@ -27,7 +27,7 @@ import {
   isVertexProvider,
   matchesPreset
 } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
 import { defaultHeaders, getBaseUrl } from '../utils/provider'
@@ -328,16 +328,18 @@ const githubFetcher: ModelFetcher = {
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
-    const headers = {
+    const copilotHeaders = {
       ...COPILOT_DEFAULT_HEADERS,
-      ...(await defaultHeaders(provider)),
       ...provider.settings.extraHeaders
     }
-    const { token } = await copilotService.getToken(null as any, headers)
+    // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
+    // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
+    // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
+    const { token } = await copilotService.getToken(null as any, copilotHeaders)
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
       headers: {
-        ...headers,
+        ...copilotHeaders,
         Authorization: `Bearer ${token}`
       },
       responseSchema: CopilotModelsResponseSchema,

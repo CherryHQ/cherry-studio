@@ -55,7 +55,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
-import { CommandShortcut, CommandTooltip } from '../CommandControls'
+import { CommandHint, CommandShortcut, CommandTooltip } from '../CommandControls'
 import * as commandExports from '../index'
 
 function renderShortcut() {
@@ -114,6 +114,32 @@ describe('CommandShortcut', () => {
     expect(screen.getByText('⌘N').className).toContain('bg-transparent')
     expect(screen.getByText('⌘N').className).toContain('rounded-none')
     expect(screen.getByText('⌘N').className).toContain('[font:inherit]')
+  })
+
+  it('renders the shortcut inline as a hover-revealed kbd without a tooltip', () => {
+    render(
+      <CommandContextKeyProvider>
+        <CommandHint command="topic.create" />
+      </CommandContextKeyProvider>
+    )
+
+    const hint = screen.getByText('⌘N')
+
+    expect(hint.tagName).toBe('KBD')
+    expect(hint.className).toContain('group-hover:opacity-100')
+    expect(screen.queryByTestId('tooltip-content')).toBeNull()
+  })
+
+  it('renders nothing when the command has no shortcut', () => {
+    preferenceValues['shortcut.topic.create'] = { binding: [], enabled: true }
+
+    const { container } = render(
+      <CommandContextKeyProvider>
+        <CommandHint command="topic.create" />
+      </CommandContextKeyProvider>
+    )
+
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('does not expose the low-level shortcut label hook from the commands barrel', () => {

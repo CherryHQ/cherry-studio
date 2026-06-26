@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -42,7 +41,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   const [actualTheme, setActualTheme] = useState<ThemeMode>(getSystemTheme)
   const { initUserTheme } = useUserTheme()
-  const { navbarPosition } = useNavbarPosition()
 
   const toggleTheme = () => {
     const nextTheme = {
@@ -63,7 +61,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.classList.remove('dark')
       document.body.classList.add('light')
     }
-    document.body.setAttribute('navbar-position', navbarPosition)
     document.documentElement.lang = language || navigator.language
 
     // if theme is old auto, then set theme to system
@@ -78,7 +75,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     return window.electron.ipcRenderer.on(IpcChannel.NativeThemeUpdated, (_, actualTheme: ThemeMode) => {
       setActualTheme(actualTheme)
     })
-  }, [actualTheme, initUserTheme, language, navbarPosition, setSettedTheme, settedTheme])
+  }, [actualTheme, initUserTheme, language, setSettedTheme, settedTheme])
 
   useEffect(() => {
     tailwindThemeChange(actualTheme)

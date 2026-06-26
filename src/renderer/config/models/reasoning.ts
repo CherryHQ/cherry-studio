@@ -1,18 +1,10 @@
-/**
- * Reasoning / thinking-mode model checks and reasoning-effort configuration.
- *
- * Pure family/variant checks delegate to `@shared/utils/model`. Renderer-only
- * concerns (`ThinkingOptionConfig` mapping, `getThinkModelType`) stay here.
- * v2 `Model.capabilities` is authoritative (registry inference + baked-in
- * user overrides merged by `ModelService`).
- */
 import type {
   ReasoningEffortConfig,
   ReasoningEffortOption,
   ThinkingModelType,
   ThinkingOptionConfig
-} from '@renderer/types'
-import { getLowerBaseModelName } from '@renderer/utils'
+} from '@renderer/types/reasoning'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 import type { Model } from '@shared/data/types/model'
 import {
   DOUBAO_THINKING_AUTO_MODEL_REGEX as SHARED_DOUBAO_THINKING_AUTO_MODEL_REGEX,

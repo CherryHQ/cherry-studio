@@ -33,11 +33,13 @@ Thumbs.db
 
 # Project
 node_modules
+.pnpm-store/
 dist
 out
 mcp_server
 stats.html
 .eslintcache
+# Downloaded native binaries (mise, etc.)
 resources/binaries/
 
 # ENV

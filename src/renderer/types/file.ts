@@ -1,67 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
-import type { File } from '@google/genai'
-import type { FileSchema } from '@mistralai/mistralai/models/components'
-import { objectValues } from '@types'
+import { objectValues } from '@renderer/utils/object'
 import * as z from 'zod'
-
-export type RemoteFile =
-  | {
-      type: 'gemini'
-      file: File
-    }
-  | {
-      type: 'mistral'
-      file: FileSchema
-    }
-  | {
-      type: 'openai'
-      file: OpenAI.Files.FileObject
-    }
-
-/**
- * Type guard to check if a RemoteFile is a Gemini file
- * @param file - The RemoteFile to check
- * @returns True if the file is a Gemini file (file property is of type File)
- */
-export const isGeminiFile = (file: RemoteFile): file is { type: 'gemini'; file: File } => {
-  return file.type === 'gemini'
-}
-
-/**
- * Type guard to check if a RemoteFile is a Mistral file
- * @param file - The RemoteFile to check
- * @returns True if the file is a Mistral file (file property is of type FileSchema)
- */
-export const isMistralFile = (file: RemoteFile): file is { type: 'mistral'; file: FileSchema } => {
-  return file.type === 'mistral'
-}
-
-/** Type guard to check if a RemoteFile is an OpenAI file
- * @param file - The RemoteFile to check
- * @returns True if the file is an OpenAI file (file property is of type OpenAI.Files.FileObject)
- */
-export const isOpenAIFile = (file: RemoteFile): file is { type: 'openai'; file: OpenAI.Files.FileObject } => {
-  return file.type === 'openai'
-}
-
-export type FileStatus = 'success' | 'processing' | 'failed' | 'unknown'
-
-export interface FileUploadResponse {
-  fileId: string
-  displayName: string
-  status: FileStatus
-  originalFile?: RemoteFile
-}
-
-export interface FileListResponse {
-  files: Array<{
-    id: string
-    displayName: string
-    size?: number
-    status: FileStatus
-    originalFile: RemoteFile
-  }>
-}
 
 export const FILE_TYPE = {
   IMAGE: 'image',
@@ -75,6 +14,12 @@ export const FILE_TYPE = {
 const FileTypeSchema = z.enum(objectValues(FILE_TYPE))
 
 export type FileType = z.infer<typeof FileTypeSchema>
+
+export const COMPOSER_FILE_KIND = {
+  PASTED_TEXT: 'pasted-text'
+} as const
+
+export type ComposerFileKind = (typeof COMPOSER_FILE_KIND)[keyof typeof COMPOSER_FILE_KIND]
 
 /**
  * @interface
@@ -125,21 +70,32 @@ export interface FileMetadata {
    * 该文件的用途
    */
   purpose?: OpenAI.FilePurpose
+  /**
+   * 输入框内部使用的文件来源类型
+   */
+  composerFileKind?: ComposerFileKind
+  /**
+   * Association identity that links a composer file token to its file metadata.
+   * It is not a file path, display name, or file storage identity.
+   */
+  fileTokenSourceId?: string
 }
 
-export type ImageFileMetadata = FileMetadata & {
-  type: typeof FILE_TYPE.IMAGE
+export type PastedTextFileMetadata = FileMetadata & {
+  composerFileKind: typeof COMPOSER_FILE_KIND.PASTED_TEXT
 }
 
 export type PdfFileMetadata = FileMetadata & {
   ext: '.pdf'
 }
 
-/**
- * 类型守卫函数，用于检查一个 FileMetadata 是否为图片文件元数据
- * @param file - 要检查的文件元数据
- * @returns 如果文件是图片类型则返回 true
- */
-export const isImageFileMetadata = (file: FileMetadata): file is ImageFileMetadata => {
-  return file.type === FILE_TYPE.IMAGE
+export type { ImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+export { isImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+
+export const isPastedTextFileMetadata = (file: unknown): file is PastedTextFileMetadata => {
+  return (
+    typeof file === 'object' &&
+    file !== null &&
+    (file as { composerFileKind?: unknown }).composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT
+  )
 }

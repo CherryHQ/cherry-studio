@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { WebDavConfig } from '@types'
+import type { WebDavConfig } from '@shared/types/backup'
 import https from 'https'
 import path from 'path'
 import type Stream from 'stream'

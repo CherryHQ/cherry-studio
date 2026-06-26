@@ -1,13 +1,14 @@
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -28,6 +29,8 @@ import {
   SettingTitle
 } from '..'
 import { TopicNamingSettings } from './QuickModelPopup'
+
+const logger = loggerService.withContext('ModelSettings')
 
 interface ModelSettingsProps {
   showSettingsButton?: boolean
@@ -145,9 +148,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const onSelectDefault = useCallback(
     (selected: Model | undefined) => {
       if (!selected) return
-      void setDefaultModel(selected)
+      void setDefaultModel(selected).catch((error) => {
+        logger.error('Failed to set default model', { modelId: selected.id, error })
+        window.toast.error(t('settings.models.manage.operation_failed'))
+      })
     },
-    [setDefaultModel]
+    [setDefaultModel, t]
   )
 
   const onSelectQuick = useCallback(

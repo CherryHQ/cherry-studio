@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types'
+import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'

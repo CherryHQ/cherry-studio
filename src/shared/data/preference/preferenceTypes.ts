@@ -82,6 +82,10 @@ export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Comm
 
 export type AssistantTabSortType = 'tags' | 'list'
 
+export type TopicDisplayMode = 'time' | 'assistant'
+
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
 export type SidebarFavorite =
   | 'assistants'
   | 'agents'
@@ -103,8 +107,6 @@ export type AssistantIconType = 'model' | 'emoji' | 'none'
 export type ProxyMode = 'system' | 'custom' | 'none'
 
 export type MultiModelFoldDisplayMode = 'expanded' | 'compact'
-
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
@@ -323,3 +325,18 @@ export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcess
 export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
+
+export type ManagedBinary = {
+  name: string
+  tool: string
+  version?: string
+}
+
+export interface ToolInstallState {
+  tool: string
+  version: string
+}
+
+export interface BinaryState {
+  tools: Record<string, ToolInstallState>
+}

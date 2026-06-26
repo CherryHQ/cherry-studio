@@ -1,125 +1,43 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
-import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
+import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import { gte as semverGte } from 'semver'
-
-import { toAsarUnpackedPath } from '.'
 
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('Utils:Rtk')
 
-const RTK_BINARY = isWin ? 'rtk.exe' : 'rtk'
-const RTK_VERSION_FILE = '.rtk-version'
 const RTK_MIN_VERSION = '0.23.0'
 const REWRITE_TIMEOUT_MS = 3000
-
-// rtk is not available for these platforms
-const UNSUPPORTED_PLATFORMS = new Set(['win32-arm64'])
+// Re-probe rtk availability periodically so that installing or uninstalling rtk
+// via BinaryManager takes effect without restarting the app. The probe itself
+// is cheap (one execFile + version parse) and only runs at most once per minute.
+const RTK_PROBE_TTL_MS = 60_000
 
 let rtkPath: string | null = null
 let rtkAvailable: boolean | null = null
-
-function getPlatformKey(): string {
-  return `${process.platform}-${process.arch}`
-}
-
-function isPlatformSupported(): boolean {
-  return !UNSUPPORTED_PLATFORMS.has(getPlatformKey())
-}
-
-function getBundledBinariesDir(): string {
-  const dir = path.join(application.getPath('app.root.resources.binaries'), getPlatformKey())
-  return toAsarUnpackedPath(dir)
-}
-
-function getUserBinDir(): string {
-  return application.getPath('cherry.bin')
-}
-
-/**
- * Extract bundled rtk binary to ~/.cherrystudio/bin/ if not already present or outdated.
- * Invoked during agent subsystem bootstrap.
- */
-export async function extractRtkBinaries(): Promise<void> {
-  if (!isPlatformSupported()) {
-    logger.debug('rtk not supported on this platform', { platform: getPlatformKey() })
-    return
-  }
-
-  const bundledDir = getBundledBinariesDir()
-  if (!fs.existsSync(bundledDir)) {
-    logger.debug('No bundled rtk binaries found for this platform', { dir: bundledDir })
-    return
-  }
-
-  const userBinDir = getUserBinDir()
-  fs.mkdirSync(userBinDir, { recursive: true })
-
-  const src = path.join(bundledDir, RTK_BINARY)
-  const dest = path.join(userBinDir, RTK_BINARY)
-
-  if (!fs.existsSync(src)) {
-    return
-  }
-
-  // Use a version file to detect upgrades instead of comparing file sizes
-  const bundledVersionFile = path.join(bundledDir, RTK_VERSION_FILE)
-  const installedVersionFile = path.join(userBinDir, RTK_VERSION_FILE)
-  const bundledVersion = fs.existsSync(bundledVersionFile) ? fs.readFileSync(bundledVersionFile, 'utf8').trim() : ''
-  const installedVersion = fs.existsSync(installedVersionFile)
-    ? fs.readFileSync(installedVersionFile, 'utf8').trim()
-    : ''
-
-  const shouldCopy = !fs.existsSync(dest) || (bundledVersion && bundledVersion !== installedVersion)
-
-  if (shouldCopy) {
-    fs.copyFileSync(src, dest)
-    if (!isWin) {
-      fs.chmodSync(dest, 0o755)
-    }
-    if (bundledVersion) {
-      fs.writeFileSync(installedVersionFile, bundledVersion, 'utf8')
-    }
-    logger.info('Extracted rtk binary to user bin dir', { dest, version: bundledVersion || 'unknown' })
-  }
-}
-
-function resolveRtkPath(): string | null {
-  const userBinPath = path.join(getUserBinDir(), RTK_BINARY)
-  if (fs.existsSync(userBinPath)) {
-    return userBinPath
-  }
-
-  const bundledPath = path.join(getBundledBinariesDir(), RTK_BINARY)
-  if (fs.existsSync(bundledPath)) {
-    return bundledPath
-  }
-
-  return null
-}
+let rtkProbedAt = 0
 
 async function checkRtkAvailable(): Promise<boolean> {
-  if (rtkAvailable !== null) return rtkAvailable
+  if (rtkAvailable !== null && Date.now() - rtkProbedAt < RTK_PROBE_TTL_MS) {
+    return rtkAvailable
+  }
+  rtkProbedAt = Date.now()
 
-  if (!isPlatformSupported()) {
+  const resolved = await getBinaryPath('rtk')
+  if (!fs.existsSync(resolved)) {
+    rtkPath = null
     rtkAvailable = false
+    logger.warn('rtk binary not found; command rewrite disabled until RTK is installed from Settings → Plugins')
     return false
   }
-
-  rtkPath = resolveRtkPath()
-  if (!rtkPath) {
-    rtkAvailable = false
-    logger.debug('rtk binary not found')
-    return false
-  }
+  rtkPath = resolved
 
   try {
     const { stdout } = await execFileAsync(rtkPath, ['--version'], {
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       timeout: REWRITE_TIMEOUT_MS
     })
     const match = stdout.match(/(\d+\.\d+\.\d+)/)
@@ -154,6 +72,7 @@ export async function rtkRewrite(command: string): Promise<string | null> {
 
   try {
     const { stdout } = await execFileAsync(rtkPath, ['rewrite', command], {
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       timeout: REWRITE_TIMEOUT_MS
     })
     const rewritten = stdout.trim()

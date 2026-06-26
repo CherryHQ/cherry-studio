@@ -1,4 +1,4 @@
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,13 +56,6 @@ vi.mock('@renderer/store/settings', () => {
     }
   )
 })
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useNavbarPosition: vi.fn(() => ({ navbarPosition: 'left' })),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
 
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),

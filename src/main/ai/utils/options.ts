@@ -28,7 +28,7 @@ import {
   isSupportVerbosityModel
 } from '@shared/utils/model'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
 import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'

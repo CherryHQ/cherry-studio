@@ -18,9 +18,10 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@renderer/config/constant'
-import type { ApiGatewayConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
+import type { ApiGatewayConfig } from '@renderer/types/apiGateway'
+import type { CodeStyleVarious, MathEngine } from '@renderer/types/app'
+import type { OpenAIServiceTier } from '@renderer/types/provider'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   AssistantIconType,
   AssistantTabSortType,
@@ -33,6 +34,7 @@ import type {
 import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import type { OpenAICompletionsStreamOptions, OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
+import type { S3Config } from '@shared/types/backup'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
@@ -41,6 +43,18 @@ import type { RemoteSyncState } from './backup'
 
 // Re-export for backward compatibility
 // export { DEFAULT_SIDEBAR_ICONS }
+
+const DEFAULT_LEGACY_SIDEBAR_ICONS = [
+  'assistants',
+  'store',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes'
+]
 
 export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
@@ -336,7 +350,8 @@ export const initialState: SettingsState = {
   customCss: '',
   topicNamingPrompt: '',
   sidebarIcons: {
-    visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
+    // @ts-ignore eslint-disable-next-line
+    visible: DEFAULT_LEGACY_SIDEBAR_ICONS,
     disabled: []
   },
   narrowMode: false,

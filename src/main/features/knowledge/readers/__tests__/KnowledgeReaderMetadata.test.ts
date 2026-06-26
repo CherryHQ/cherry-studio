@@ -47,8 +47,7 @@ vi.mock('../files/DraftsExportReader', () => ({ DraftsExportReader: class MockDr
 vi.mock('../files/EpubReader', () => ({ EpubReader: class MockEpubReader {} }))
 
 const { loadFileDocuments } = await import('../KnowledgeFileReader')
-const { loadNoteDocuments } = await import('../KnowledgeNoteReader')
-const { loadUrlDocuments } = await import('../KnowledgeUrlReader')
+const { loadSnapshotDocuments } = await import('../KnowledgeSnapshotReader')
 
 describe('knowledge reader metadata', () => {
   beforeEach(() => {
@@ -83,17 +82,20 @@ describe('knowledge reader metadata', () => {
       '---\ncherry:\n  type: url-snapshot\n  source: "https://example.com"\n---\n# Page\n\nbody [kept](https://example.com/link)\n'
     )
 
-    const documents = await loadUrlDocuments({
-      id: 'url-item-1',
-      baseId: 'kb-1',
-      groupId: null,
-      type: 'url',
-      data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example.md' },
-      status: 'idle',
-      error: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z'
-    })
+    const documents = await loadSnapshotDocuments(
+      {
+        id: 'url-item-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'url',
+        data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example.md' },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'URL'
+    )
 
     expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/raw/example.md')
     expect(documents).toHaveLength(1)
@@ -105,34 +107,40 @@ describe('knowledge reader metadata', () => {
 
   it('rejects a url item with no captured snapshot', async () => {
     await expect(
-      loadUrlDocuments({
-        id: 'url-item-1',
-        baseId: 'kb-1',
-        groupId: null,
-        type: 'url',
-        data: { source: 'https://example.com', url: 'https://example.com' },
-        status: 'idle',
-        error: null,
-        createdAt: '2026-04-08T00:00:00.000Z',
-        updatedAt: '2026-04-08T00:00:00.000Z'
-      })
+      loadSnapshotDocuments(
+        {
+          id: 'url-item-1',
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'url',
+          data: { source: 'https://example.com', url: 'https://example.com' },
+          status: 'idle',
+          error: null,
+          createdAt: '2026-04-08T00:00:00.000Z',
+          updatedAt: '2026-04-08T00:00:00.000Z'
+        },
+        'URL'
+      )
     ).rejects.toThrow('has no captured snapshot')
   })
 
   it('reads the note snapshot verbatim and tags the source', async () => {
     readFileMock.mockResolvedValueOnce('# Note title\n\nbody')
 
-    const documents = await loadNoteDocuments({
-      id: 'note-item-1',
-      baseId: 'kb-1',
-      groupId: null,
-      type: 'note',
-      data: { source: 'My note', content: '# Note title\n\nbody', relativePath: 'My note.md' },
-      status: 'idle',
-      error: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z'
-    })
+    const documents = await loadSnapshotDocuments(
+      {
+        id: 'note-item-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { source: 'My note', content: '# Note title\n\nbody', relativePath: 'My note.md' },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'note'
+    )
 
     expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/raw/My note.md')
     expect(documents).toHaveLength(1)
@@ -144,17 +152,20 @@ describe('knowledge reader metadata', () => {
 
   it('rejects a note item with no captured snapshot', async () => {
     await expect(
-      loadNoteDocuments({
-        id: 'note-item-1',
-        baseId: 'kb-1',
-        groupId: null,
-        type: 'note',
-        data: { source: 'My note', content: 'body' },
-        status: 'idle',
-        error: null,
-        createdAt: '2026-04-08T00:00:00.000Z',
-        updatedAt: '2026-04-08T00:00:00.000Z'
-      })
+      loadSnapshotDocuments(
+        {
+          id: 'note-item-1',
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'note',
+          data: { source: 'My note', content: 'body' },
+          status: 'idle',
+          error: null,
+          createdAt: '2026-04-08T00:00:00.000Z',
+          updatedAt: '2026-04-08T00:00:00.000Z'
+        },
+        'note'
+      )
     ).rejects.toThrow('has no captured snapshot')
   })
 })

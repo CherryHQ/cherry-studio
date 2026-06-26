@@ -286,7 +286,9 @@ describe('transformBlocksToParts', () => {
     expect(part.input).toEqual({ query: 'test' })
     // output comes from rawMcpToolResponse.response
     expect(part.output).toEqual({ content: [{ type: 'text', text: 'result' }] })
-    expect(part.callProviderMetadata).toBeUndefined()
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'mcp', serverId: 's1', serverName: 'search' }
+    })
     expect(readCherryMeta(part)?.tool).toMatchObject({
       type: 'mcp',
       serverId: 's1',
@@ -348,7 +350,9 @@ describe('transformBlocksToParts', () => {
     ])
 
     const part = parts[0] as DynamicToolUIPart
-    expect(part.callProviderMetadata).toBeUndefined()
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'builtin' }
+    })
     expect(readCherryMeta(part)?.tool).toEqual({ type: 'builtin' })
   })
 
@@ -457,7 +461,9 @@ describe('transformBlocksToParts', () => {
     expect(part.toolName).toBe('WebSearch')
     expect(part.toolCallId).toBe('raw-tool-call-id')
     expect(part.input).toEqual({ query: 'desktop clients' })
-    expect(part.callProviderMetadata).toBeUndefined()
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'provider' }
+    })
     expect(readCherryMeta(part)?.tool).toMatchObject({ type: 'provider' })
   })
 
