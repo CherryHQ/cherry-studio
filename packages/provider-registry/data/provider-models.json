@@ -15837,7 +15837,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.17
+          "perMillionTokens": 2.65
         }
       },
       "providerId": "openrouter"

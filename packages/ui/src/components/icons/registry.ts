@@ -34,15 +34,16 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // GPT image
   [/gpt-image-1\.5/i, 'gpt-image-1-5'],
   [/gpt-image/i, 'gpt-image-1'],
-  // Sora
-  [/(sora-|sora_)/i, 'sora'],
+  // Sora (bare `sora`, `sora-2`, `sora_x`, `sora2` — but not e.g. `pandora`)
+  [/(?:^|[-_/])sora(?:[-_\d]|$)/i, 'sora'],
   // Claude / Anthropic models
   [/(claude|anthropic-)/i, 'claude'],
   // Google models (nano-banana = Gemini 2.5 Flash Image)
   [/gemini|veo|imagen|nano-banana/i, 'gemini'],
   [/gemma/i, 'gemma'],
   // Chinese models
-  [/(qwen|qwq|qvq|wan|z-image)/i, 'qwen'],
+  // `wan` is delimiter-bounded so `taiwan-llm` doesn't misfire to the Qwen icon
+  [/qwen|qwq|qvq|(?:^|[-_/])wan(?:[-_\d]|$)|z-image/i, 'qwen'],
   [/glm/i, 'glm'],
   [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
   [/hunyuan/i, 'hunyuan'],
@@ -56,9 +57,11 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/ibm/i, 'ibm'],
   [/aya/i, 'aya'],
   [/trinity/i, 'trinity'],
+  // sensenova before nova: `sensenova-*` must not be preempted by the broader `nova`
+  [/sensenova/i, 'sensenova'],
   [/nova/i, 'nova'],
-  [/ling|ring/i, 'ling'],
-  [/sensenova/i, 'sensenova']
+  // delimiter-bounded so `spring-1t`, `ringo-v1`, `*-multilingual-*` don't misfire to the Ling icon
+  [/(?:^|[-_/])(?:ling|ring)(?:[-_]|$)/i, 'ling']
 ]
 
 /**

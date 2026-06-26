@@ -12,7 +12,8 @@ import {
   stripBedrockRevision,
   stripBedrockVendorPrefix,
   stripDateSnapshot,
-  stripQuantization
+  stripQuantization,
+  stripVariantSuffixes
 } from '../utils/normalize'
 
 describe('stripQuantization', () => {
@@ -29,23 +30,46 @@ describe('stripQuantization', () => {
 })
 
 describe('stripDateSnapshot', () => {
-  it('strips unambiguous trailing date stamps', () => {
+  it('strips full trailing date stamps (YYYY[-]MM[-]DD, YYMMDD)', () => {
     expect(stripDateSnapshot('claude-sonnet-4-5-20250929')).toBe('claude-sonnet-4-5')
     expect(stripDateSnapshot('gpt-4o-2024-08-06')).toBe('gpt-4o')
     expect(stripDateSnapshot('kimi-k2-250905')).toBe('kimi-k2')
   })
 
-  it('does NOT strip sizes, versions, or ambiguous 4-digit stamps', () => {
+  it('strips the short MMDD / YYMM stamps too (shared with the build canonicalizer)', () => {
+    expect(stripDateSnapshot('deepseek-v3-0324')).toBe('deepseek-v3') // MMDD
+    expect(stripDateSnapshot('qwen3-a22b-instruct-2507')).toBe('qwen3-a22b-instruct') // YYMM
+  })
+
+  it('drops a trailing @tag', () => {
+    expect(stripDateSnapshot('gemini-2-0-flash@001')).toBe('gemini-2-0-flash')
+  })
+
+  it('does NOT strip sizes, versions, or a date that is not at the end', () => {
     expect(stripDateSnapshot('glm-4-9b')).toBe('glm-4-9b')
     expect(stripDateSnapshot('qwen3-235b')).toBe('qwen3-235b')
-    expect(stripDateSnapshot('deepseek-v3-0324')).toBe('deepseek-v3-0324') // MMDD — reconciler's job
-    expect(stripDateSnapshot('qwen3-a22b-instruct-2507')).toBe('qwen3-a22b-instruct-2507') // YYMM
-    expect(stripDateSnapshot('gpt-4-0125-preview')).toBe('gpt-4-0125-preview')
+    expect(stripDateSnapshot('gpt-4-0125-preview')).toBe('gpt-4-0125-preview') // date not at end
   })
 
   it('does NOT strip a 6/8-digit suffix with an invalid month/day', () => {
     expect(stripDateSnapshot('foo-202413')).toBe('foo-202413') // month 24/13 invalid
     expect(stripDateSnapshot('foo-250001')).toBe('foo-250001') // month 00 invalid
+  })
+
+  it('build canonicalizer and runtime resolver agree on dated ids', () => {
+    // The two used to fork (build stripped MMDD/YYMM, runtime did not) — now one shared helper.
+    expect(normalizeModelId('gpt-4-0125')).toBe(normalizeModelId('gpt-4'))
+  })
+})
+
+describe('stripVariantSuffixes — protected compound prefixes are token-bounded', () => {
+  it('still strips a variant when the prefix is only a substring of the last word', () => {
+    expect(stripVariantSuffixes('volcano-free')).toBe('volcano')
+    expect(stripVariantSuffixes('inferno-search')).toBe('inferno')
+  })
+
+  it('still treats `-no` as a real token: routes to the full `-no-think` strip, not a dangling `-no`', () => {
+    expect(stripVariantSuffixes('qwen-no-think')).toBe('qwen')
   })
 })
 

@@ -37,7 +37,7 @@
       "default": "./dist/index.js"
     },
     "./node": {
-      "types": "./src/registry-loader.ts",
+      "types": "./dist/registry-loader.d.ts",
       "import": "./dist/registry-loader.mjs",
       "require": "./dist/registry-loader.js",
       "default": "./dist/registry-loader.js"

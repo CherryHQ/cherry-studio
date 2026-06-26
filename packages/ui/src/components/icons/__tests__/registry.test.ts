@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveModelToProviderIcon, resolveProviderIcon } from '../registry'
+import { MODEL_ICON_CATALOG } from '../models/catalog'
+import { resolveModelIcon, resolveModelToProviderIcon, resolveProviderIcon } from '../registry'
 
 describe('resolveProviderIcon', () => {
   const testCases = [
@@ -49,4 +50,25 @@ describe('resolveModelToProviderIcon', () => {
       }
     })
   }
+})
+
+describe('resolveModelIcon — pattern boundaries (#10, #11, #12)', () => {
+  it('sensenova is not preempted by the broader nova pattern (#10)', () => {
+    expect(resolveModelIcon('sensenova-v6')).toBe(MODEL_ICON_CATALOG.sensenova)
+    expect(resolveModelIcon('nova-pro')).toBe(MODEL_ICON_CATALOG.nova)
+  })
+
+  it('ling/ring only match as delimited tokens (#11)', () => {
+    expect(resolveModelIcon('ling-1t')).toBe(MODEL_ICON_CATALOG.ling)
+    expect(resolveModelIcon('spring-1t')).not.toBe(MODEL_ICON_CATALOG.ling)
+    expect(resolveModelIcon('ringo-v1')).not.toBe(MODEL_ICON_CATALOG.ling)
+    expect(resolveModelIcon('bge-multilingual-embedding')).not.toBe(MODEL_ICON_CATALOG.ling)
+  })
+
+  it('wan is delimiter-bounded; bare/dashed sora resolves (#12)', () => {
+    expect(resolveModelIcon('wan-2-1')).toBe(MODEL_ICON_CATALOG.qwen)
+    expect(resolveModelIcon('taiwan-llm')).not.toBe(MODEL_ICON_CATALOG.qwen)
+    expect(resolveModelIcon('sora')).toBe(MODEL_ICON_CATALOG.sora)
+    expect(resolveModelIcon('sora-2')).toBe(MODEL_ICON_CATALOG.sora)
+  })
 })

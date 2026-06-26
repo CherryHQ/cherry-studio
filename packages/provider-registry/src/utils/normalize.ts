@@ -108,14 +108,13 @@ const PARAMETER_SIZE_PATTERN = /-(\d+(?:\.\d+)?b)(?=-|$)/i
 export const QUANTIZATION_SUFFIXES = ['-fp8', '-fp16', '-bf16', '-awq', '-int4', '-int8', '-gguf', '-gptq']
 
 // Trailing release-date stamps (`claude-sonnet-4-5-20250929`, `gpt-4o-2024-08-06`,
-// `kimi-k2-250905`) denote the same model line. Strip only UNAMBIGUOUS forms — a
-// full YYYY[-]MM[-]DD or a YYMMDD with a valid month (01-12) and day (01-31) — so a
-// provider's dated id resolves to the bare canonical, while sizes/versions
-// (`glm-4-9b`, `qwen3-235b`) and ambiguous 4-digit stamps (YYMM `-2507`, MMDD
-// `-0324`) are left untouched. The 4-digit stamps are collapsed at build time by
-// the reconciler, which validates the stem against the real catalog first.
+// `kimi-k2-250905`) denote the same model line. This is the SINGLE definition shared by the build
+// canonicalizer (`generate-catalog.ts`) and the runtime resolver, so a provider's dated id and the
+// catalog row collapse to the same canonical. A trailing date may be a full YYYY[-]MM[-]DD, a YYMMDD,
+// a YYMM, or an MMDD — all requiring a valid month (01-12) and day (01-31), so sizes/versions
+// (`glm-4-9b`, `qwen3-235b`) are never touched. A leading `@…` tag is also dropped (`gemini-2-0@001`).
 const DATE_SNAPSHOT_PATTERN =
-  /-20\d{2}-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])$|-20\d{2}(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-2\d(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$/
+  /-20\d{2}-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])$|-20\d{2}(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-2\d(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-2\d(?:0[1-9]|1[0-2])$/
 
 // Bedrock re-lists other creators' models as cross-vendor ARNs: a leading region(s)+vendor DOTTED
 // prefix (`us.anthropic.`, `global.meta.`) and/or a vendor DASH prefix (`meta-llama`, `cohere-command`),
@@ -212,7 +211,9 @@ export function stripVariantSuffixes(
   for (const suffix of hyphenSuffixes) {
     if (modelId.endsWith(suffix)) {
       const remaining = modelId.slice(0, -suffix.length)
-      if (PROTECTED_COMPOUND_PREFIXES.some((p) => remaining.endsWith(p))) {
+      // Only protect when the prefix is its OWN token (`...-no-think` → keep), not a substring of the
+      // last word (`volcano-free`, `pino-search`, `inferno-search` must still strip).
+      if (PROTECTED_COMPOUND_PREFIXES.some((p) => remaining === p || remaining.endsWith(`-${p}`))) {
         continue
       }
       return remaining
@@ -247,7 +248,7 @@ export function stripQuantization(modelId: string): string {
 }
 
 export function stripDateSnapshot(modelId: string): string {
-  return modelId.replace(DATE_SNAPSHOT_PATTERN, '')
+  return modelId.replace(/@.*$/, '').replace(DATE_SNAPSHOT_PATTERN, '')
 }
 
 export function extractParameterSize(modelId: string): string | undefined {

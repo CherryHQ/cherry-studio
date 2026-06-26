@@ -26,21 +26,24 @@
 
 /**
  * Match raw model IDs to their vendor. Keys are vendor slugs; order is
- * not significant because matchers are mutually exclusive at the vendor
- * level (a model belongs to at most one vendor).
+ * not significant because every pattern is anchored to the start of the
+ * (namespace-stripped) id, so they stay mutually exclusive — a model
+ * belongs to at most one vendor. Keep new patterns anchored (`^…`) so a
+ * cross-vendor id like `deepseek-grok` resolves by its leading token, not
+ * by insertion order.
  */
 export const VENDOR_PATTERNS = {
   /** Anthropic / Claude family. Also matches the AWS Bedrock `anthropic.claude-*` prefix. */
   anthropic: /^(?:anthropic\.)?claude/i,
 
   /** Google Gemini family. */
-  gemini: /gemini|palm|veo|imagen|learnlm|lyria/i,
+  gemini: /^(?:gemini|palm|veo|imagen|learnlm|lyria)/i,
 
-  /** Google Gemma family (gemma-*, gemma4:* — matches the Ollama-style tag too). */
-  gemma: /gemma-|gemma4/i,
+  /** Google Gemma family (gemma-*, gemma2/3/4, and the Ollama-style `gemma:2b` tag). */
+  gemma: /^gemma(?:[-:\d]|$)/i,
 
   /** xAI Grok family. */
-  grok: /grok/i,
+  grok: /^grok/i,
 
   /** OpenAI (chat + reasoning + legacy). Matches GPT-n and bare o<digit>-series. */
   openai: /\bgpt\b|^o[134]/i,
@@ -49,16 +52,16 @@ export const VENDOR_PATTERNS = {
   qwen: /^qwen|^qwq|^qvq|^tongyi/i,
 
   /** ByteDance Doubao family. */
-  doubao: /doubao|seed|seedance|seedream|^ep-/i,
+  doubao: /^(?:doubao|skylark|seed|seedance|seedream|ep-)/i,
 
   /** Tencent Hunyuan family. */
-  hunyuan: /^hunyuan|hy-/i,
+  hunyuan: /^(?:hunyuan|hy-)/i,
 
   /** Moonshot / Kimi family. */
-  kimi: /kimi|moonshot/i,
+  kimi: /^(?:kimi|moonshot)/i,
 
   /** DeepSeek family. */
-  deepseek: /deepseek/i,
+  deepseek: /^deepseek/i,
 
   /** Perplexity (sonar family). */
   perplexity: /^sonar/i,
@@ -79,10 +82,10 @@ export const VENDOR_PATTERNS = {
   step: /^step-/i,
 
   /** Zhipu / GLM family. */
-  zhipu: /glm|cogview|cogvideo/i,
+  zhipu: /^(?:glm|chatglm|cogview|cogvideo|codegeex)/i,
 
   /** Mistral family */
-  mistral: /mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i
+  mistral: /^(?:mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral)/i
 } as const satisfies Record<string, RegExp>
 
 export type VendorKey = keyof typeof VENDOR_PATTERNS

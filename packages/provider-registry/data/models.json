@@ -643,11 +643,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 0.861
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 3.441
         }
       }
     },
@@ -825,11 +825,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.172
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 1.72
         }
       },
       "reasoning": {
@@ -1035,11 +1035,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.573
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.4
+          "perMillionTokens": 3.44
         }
       },
       "reasoning": {
@@ -1562,6 +1562,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.132
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.625
         },
         "input": {
           "currency": "USD",
@@ -5351,11 +5355,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.27
+          "perMillionTokens": 0.287
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 1.147
         }
       }
     },
@@ -5451,11 +5455,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.56
+          "perMillionTokens": 0.574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.68
+          "perMillionTokens": 1.721
         }
       }
     },
@@ -5614,7 +5618,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.27
         },
         "output": {
           "currency": "USD",
@@ -6855,6 +6859,10 @@
           "currency": "USD",
           "perMillionTokens": 0.03
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.383
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -7130,6 +7138,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.383
         },
         "input": {
           "currency": "USD",
@@ -10624,11 +10636,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2.294
         }
       }
     },
@@ -10658,11 +10670,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2.411
         }
       },
       "reasoning": {
@@ -10695,11 +10707,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 0.929
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 3.858
         }
       },
       "reasoning": {
@@ -15860,6 +15872,10 @@
           "currency": "USD",
           "perMillionTokens": 0.17
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.87
@@ -15890,13 +15906,17 @@
           "currency": "USD",
           "perMillionTokens": 0.2
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.86
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.2
+          "perMillionTokens": 3.15
         }
       },
       "reasoning": {
@@ -15919,6 +15939,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 2.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
         },
         "input": {
           "currency": "USD",
@@ -15987,6 +16011,10 @@
           "currency": "USD",
           "perMillionTokens": 0.11
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -16016,6 +16044,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.01
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
         },
         "input": {
           "currency": "USD",
@@ -16047,6 +16079,10 @@
           "currency": "USD",
           "perMillionTokens": 0.11
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -16076,6 +16112,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.3
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
         },
         "input": {
           "currency": "USD",
@@ -16176,6 +16216,10 @@
           "currency": "USD",
           "perMillionTokens": 0.24
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 1.2
@@ -16221,6 +16265,10 @@
           "currency": "USD",
           "perMillionTokens": 0.03
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.2
@@ -16257,11 +16305,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.07
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.4
         }
       },
       "reasoning": {
@@ -16283,6 +16331,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.24
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
         },
         "input": {
           "currency": "USD",

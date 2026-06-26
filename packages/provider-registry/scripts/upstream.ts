@@ -198,7 +198,9 @@ export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
     if (b[k]?.length) out[k] = [...new Set([...(a[k] ?? []), ...b[k]])]
   if (b.contextWindow) out.contextWindow = Math.max(a.contextWindow ?? 0, b.contextWindow)
   if (b.maxOutputTokens) out.maxOutputTokens = Math.max(a.maxOutputTokens ?? 0, b.maxOutputTokens)
-  if (b.pricing && (!a.pricing || (b.pricing.cacheRead && !a.pricing.cacheRead))) out.pricing = b.pricing
+  // Per-field union — never overwrite wholesale (a `{cacheRead}`-only source must not drop a's input/output).
+  // `a` (the earlier/curated source) wins per-field conflicts; `b` only fills fields `a` is missing.
+  if (b.pricing) out.pricing = { ...b.pricing, ...a.pricing }
   if (b.reasoning) {
     out.reasoning = { ...a.reasoning, ...b.reasoning }
     const ef = [...new Set([...(a.reasoning?.supportedEfforts ?? []), ...(b.reasoning.supportedEfforts ?? [])])]

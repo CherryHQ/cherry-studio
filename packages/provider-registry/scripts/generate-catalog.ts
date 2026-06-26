@@ -24,6 +24,7 @@ import {
   stripAggregatorPrefixes,
   stripBedrockRevision,
   stripBedrockVendorPrefix,
+  stripDateSnapshot,
   stripHostReprefix,
   stripQuantization,
   stripVariantSuffixes
@@ -55,14 +56,6 @@ const VERSION = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
 // so a host that flattens `zai-org/glm-5` → `zai-org-glm-5` folds into the real `glm-5`; then peel the
 // bedrock cross-vendor `[region.]vendor.` / `vendor-` prefix (shared with the runtime).
 const base = (id: string) => stripBedrockVendorPrefix(stripAggregatorPrefixes(id.toLowerCase().split('/').pop()!))
-const stripDate = (s: string) =>
-  s
-    .replace(/@.*$/, '')
-    .replace(/-20\d{2}-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])$/, '')
-    .replace(/-20\d{2}(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$/, '')
-    .replace(/-2\d(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$/, '')
-    .replace(/-(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$/, '')
-    .replace(/-2\d(?:0[1-9]|1[0-2])$/, '')
 // Minus param-size stripping — the catalog keeps `qwen3-235b` ≠ `qwen3-30b`. Order matters: strip the
 // `-thinking`/`-free` variant BEFORE the date so the date ends the token.
 const canonOf = (id: string) => {
@@ -71,7 +64,7 @@ const canonOf = (id: string) => {
   s = expandKnownPrefixes(s) // mm- → minimax-
   s = stripVariantSuffixes(s) // -free / -thinking / -tee / -low / :free / (free) …
   s = stripQuantization(s) // -fp8 / -fp16 / -awq …
-  s = stripDate(s) // trailing release-date stamps
+  s = stripDateSnapshot(s) // trailing release-date stamps + @tag (shared with the runtime resolver)
   s = normalizeVersionSeparators(s) // 4.6 → 4-6
   return s
     .replace(/[^a-z0-9-]/g, '-')
