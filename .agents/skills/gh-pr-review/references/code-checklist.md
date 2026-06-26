@@ -192,9 +192,9 @@ Coding standards and documentation consistency.
 
 ### C7. Accessibility
 - Images have meaningful alt text (empty alt for decorative images)
-- Form inputs have associated labels (Ant Design Form.Item)
+- Form inputs have associated labels
 - Interactive elements keyboard-navigable with semantic HTML
-- ARIA attributes used correctly with Ant Design components
+- ARIA attributes used correctly with the current component primitives
 
 ---
 
