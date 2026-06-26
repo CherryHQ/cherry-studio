@@ -5,10 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 
-const { mockUseExternalApps, mockPreview, mockFormatFileName, mockSafeOpen } = vi.hoisted(() => ({
+const { mockUseExternalApps, mockPreview, mockSafeOpen } = vi.hoisted(() => ({
   mockUseExternalApps: vi.fn(() => ({ data: [] })),
   mockPreview: vi.fn(),
-  mockFormatFileName: vi.fn(),
   mockSafeOpen: vi.fn()
 }))
 
@@ -20,12 +19,6 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: mockUseExternalApps
 }))
 
-vi.mock('@renderer/services/FileManager', () => ({
-  default: {
-    formatFileName: mockFormatFileName
-  }
-}))
-
 vi.mock('@renderer/services/safeOpen', () => ({
   safeOpen: mockSafeOpen
 }))
@@ -34,7 +27,6 @@ describe('useMessageLeafCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseExternalApps.mockReturnValue({ data: [] })
-    mockFormatFileName.mockReturnValue('display.pdf')
     mockSafeOpen.mockResolvedValue(undefined)
   })
 
@@ -94,7 +86,7 @@ describe('useMessageLeafCapabilities', () => {
     }
 
     expect(result.current.getFileView?.(file)).toEqual({
-      displayName: 'display.pdf',
+      displayName: 'file.pdf',
       previewUrl: 'file:///tmp/file.pdf'
     })
     expect(
@@ -104,9 +96,29 @@ describe('useMessageLeafCapabilities', () => {
         path: '/tmp/payload.exe'
       })
     ).toEqual({
-      displayName: 'display.pdf',
+      displayName: 'file.pdf',
       previewUrl: 'file:///tmp'
     })
-    expect(mockFormatFileName).toHaveBeenCalled()
+  })
+
+  it('keeps legacy pasted temp-file display behavior local to message attachments', () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.IMAGE,
+      ext: '.png',
+      path: '/tmp/temp_file_1_image.png',
+      origin_name: 'temp_file_1_image.png',
+      name: 'temp_file_1_image.png',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    expect(result.current.getFileView?.(file)).toEqual({
+      displayName: '2026-01-01 message.attachments.pasted_image.png',
+      previewUrl: 'file:///tmp/temp_file_1_image.png'
+    })
   })
 })
