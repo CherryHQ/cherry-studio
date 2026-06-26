@@ -68,8 +68,19 @@ function computeInitialSession(params: {
 
   // Detached windows never persist/restore a session.
   if (!includePinnedTabs) return freshSession
-  // Empty persisted session (incl. first-ever launch) → fresh default.
-  if (persistedNormalTabs.length === 0) return freshSession
+
+  const pinnedHasActive = !!persistedActiveTabId && pinnedTabs.some((t) => t.id === persistedActiveTabId)
+
+  // Empty persisted session (incl. first-ever launch) → fresh default. If the last active tab was a
+  // pinned one (no unpinned tabs were open), honor that selection — the default tab stays as a
+  // dormant fallback so the user lands back on the pinned tab they left.
+  if (persistedNormalTabs.length === 0) {
+    if (!pinnedHasActive) return freshSession
+    return {
+      normalTabs: freshSession.normalTabs.map((t) => ({ ...t, isDormant: t.id !== persistedActiveTabId })),
+      activeTabId: persistedActiveTabId
+    }
+  }
 
   // Cap to the most-recently-accessed `hardCap` tabs, always keeping the active one.
   let capped = persistedNormalTabs
@@ -86,14 +97,18 @@ function computeInitialSession(params: {
     logger.info('Restore capped tabs', { kept: capped.length, dropped: persistedNormalTabs.length - capped.length })
   }
 
-  // Only the active tab stays awake; everything else restores dormant.
-  const normalTabs = capped.map((t) => ({ ...t, isDormant: t.id !== persistedActiveTabId }))
-
-  const existsInSession =
-    pinnedTabs.some((t) => t.id === persistedActiveTabId) || normalTabs.some((t) => t.id === persistedActiveTabId)
-  const activeTabId = existsInSession
+  // Resolve the active tab id FIRST, then derive dormancy from it. Keying dormancy off the resolved
+  // id (not the raw persisted one) guarantees the active tab is always awake — otherwise an empty or
+  // stale persisted id leaves every tab dormant, AppShell mounts zero TabRouters, and the content
+  // area is blank until the user clicks a tab.
+  const activeInSession =
+    pinnedHasActive || (!!persistedActiveTabId && capped.some((t) => t.id === persistedActiveTabId))
+  const activeTabId = activeInSession
     ? persistedActiveTabId
-    : (normalTabs[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
+    : (capped[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
+
+  // Only the active tab stays awake; everything else restores dormant.
+  const normalTabs = capped.map((t) => ({ ...t, isDormant: t.id !== activeTabId }))
 
   return { normalTabs, activeTabId }
 }
@@ -206,8 +221,12 @@ export function TabsProvider({
   const [persistedNormalTabs, setPersistedNormalTabs] = usePersistCache('ui.tab.normal_tabs')
   const [persistedActiveTabId, setPersistedActiveTabId] = usePersistCache('ui.tab.active_tab_id')
 
-  // Compute the restored session once at mount. Persist cache is hydrated synchronously in the
-  // CacheService constructor, so these reads already hold last session's values on first render.
+  // Compute the restored session once at mount. This relies on the persist cache being hydrated
+  // SYNCHRONOUSLY in the CacheService constructor (loadPersistCache reads localStorage on
+  // construction), so these reads already hold last session's values on the first render. If persist
+  // ever switches to async hydration, the first render would see empty defaults AND the write-back
+  // effects below would immediately persist that empty session over the real one — restore would
+  // have to be reworked (e.g. re-seed when the hydrated value arrives) before that change lands.
   const initialSessionRef = useRef<InitialSession | null>(null)
   if (!initialSessionRef.current) {
     initialSessionRef.current = computeInitialSession({

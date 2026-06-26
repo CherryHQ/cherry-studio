@@ -218,6 +218,66 @@ describe('TabsContext', () => {
     expect(dump).toContain('b:awake')
   })
 
+  it('keeps the resolved active tab awake when the persisted active id is stale', async () => {
+    // Active id points at a tab that no longer exists in either the pinned or normal set. The
+    // resolved active tab (first normal tab) must still be awake, or AppShell renders no TabRouter.
+    const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
+    const tabB: Tab = { id: 'b', type: 'route', url: '/app/agents', title: '', lastAccessTime: 2, isDormant: false }
+    mockNormalSession = [[tabA, tabB], vi.fn()]
+    mockActiveSession = ['ghost', vi.fn()]
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('a'))
+    expect(screen.getByTestId('tabs').textContent ?? '').toContain('a:awake')
+  })
+
+  it('honors a pinned active tab when no unpinned tabs were open', async () => {
+    // Last session had zero normal tabs but the active tab was the pinned "files" tab — restore must
+    // reselect it (the default tab stays present but dormant) instead of falling back to default.
+    mockNormalSession = [[], vi.fn()]
+    mockActiveSession = ['files', vi.fn()]
+
+    render(
+      <TabsProvider>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('files'))
+    const dump = screen.getByTestId('tabs').textContent ?? ''
+    expect(dump).toContain('files:awake')
+    expect(dump).toContain('home:dormant')
+  })
+
+  it('does not restore a persisted session in a detached sub-window', async () => {
+    const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
+    mockNormalSession = [[tabA], vi.fn()]
+    mockActiveSession = ['a', vi.fn()]
+
+    const freshTab: Tab = {
+      id: 'fresh',
+      type: 'route',
+      url: '/app/chat',
+      title: '',
+      lastAccessTime: 0,
+      isDormant: false
+    }
+    render(
+      <TabsProvider initialDefaultTab={freshTab} includePinnedTabs={false}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('fresh'))
+    const ids = screen.getByTestId('ids').textContent ?? ''
+    expect(ids).not.toContain('a')
+  })
+
   it('caps the restored session to the LRU hard cap, dropping the oldest non-active tabs', async () => {
     const overflow = TAB_LIMITS.hardCap + 5
     // n0 is the OLDEST (lastAccessTime 0) yet is the active tab — it must survive the cap.
