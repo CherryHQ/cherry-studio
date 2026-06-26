@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
@@ -25,6 +26,11 @@ const PINNED_FILES_TAB: Tab = {
 // i18n.language dependency in the tabs useMemo.
 const STABLE_PINNED: [Tab[], () => void] = [[PINNED_FILES_TAB], vi.fn()]
 
+// Mutable persisted session for the normal-tabs / active-tab-id keys, set per test before render
+// and reset in beforeEach. Accessed lazily inside the mock factory (at render time), so no TDZ.
+let mockNormalSession: [Tab[], () => void] = [[], vi.fn()]
+let mockActiveSession: [string, () => void] = ['', vi.fn()]
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -36,7 +42,12 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => STABLE_PINNED
+  usePersistCache: (key: string) =>
+    key === 'ui.tab.normal_tabs'
+      ? mockNormalSession
+      : key === 'ui.tab.active_tab_id'
+        ? mockActiveSession
+        : STABLE_PINNED
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -80,6 +91,18 @@ function PinnedRouteTitle() {
   return <div data-testid="files-title">{tabs.find((tab) => tab.id === 'files')?.title}</div>
 }
 
+// Surfaces restored session state: active tab id, each tab's awake/dormant state, and the raw id list.
+function SessionInspector() {
+  const { tabs, activeTabId } = useTabsContext()
+  return (
+    <div>
+      <div data-testid="active">{activeTabId}</div>
+      <div data-testid="tabs">{tabs.map((tab) => `${tab.id}:${tab.isDormant ? 'dormant' : 'awake'}`).join(',')}</div>
+      <div data-testid="ids">{tabs.map((tab) => tab.id).join(',')}</div>
+    </div>
+  )
+}
+
 // Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
 function PinnedTabMaterializer() {
   const { tabs, openTab } = useTabsContext()
@@ -96,6 +119,8 @@ function PinnedTabMaterializer() {
 
 beforeEach(() => {
   currentLanguage = 'en'
+  mockNormalSession = [[], vi.fn()]
+  mockActiveSession = ['', vi.fn()]
 })
 
 afterEach(() => {
@@ -172,5 +197,52 @@ describe('TabsContext', () => {
     )
 
     await waitFor(() => expect(STABLE_PINNED[1]).toHaveBeenCalled())
+  })
+
+  it('restores the persisted session and keeps only the active tab awake', async () => {
+    const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
+    const tabB: Tab = { id: 'b', type: 'route', url: '/app/agents', title: '', lastAccessTime: 2, isDormant: false }
+    mockNormalSession = [[tabA, tabB], vi.fn()]
+    mockActiveSession = ['b', vi.fn()]
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('b'))
+    // Active tab (b) awake, the other restored tab (a) dormant ⇒ only one TabRouter mounts.
+    const dump = screen.getByTestId('tabs').textContent ?? ''
+    expect(dump).toContain('a:dormant')
+    expect(dump).toContain('b:awake')
+  })
+
+  it('caps the restored session to the LRU hard cap, dropping the oldest non-active tabs', async () => {
+    const overflow = TAB_LIMITS.hardCap + 5
+    // n0 is the OLDEST (lastAccessTime 0) yet is the active tab — it must survive the cap.
+    const many: Tab[] = Array.from({ length: overflow }, (_, i) => ({
+      id: `n${i}`,
+      type: 'route',
+      url: '/app/chat',
+      title: '',
+      lastAccessTime: i,
+      isDormant: false
+    }))
+    mockNormalSession = [many, vi.fn()]
+    mockActiveSession = ['n0', vi.fn()]
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('n0'))
+    const ids = (screen.getByTestId('ids').textContent ?? '').split(',').filter((id) => id.startsWith('n'))
+    expect(ids).toHaveLength(TAB_LIMITS.hardCap)
+    expect(ids).toContain('n0') // active retained despite being oldest
+    expect(ids).toContain(`n${overflow - 1}`) // newest retained
+    expect(ids).not.toContain('n1') // oldest non-active dropped
   })
 })
