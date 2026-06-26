@@ -46,13 +46,35 @@ import {
   knowledgeItemSourceType
 } from './knowledgeItem'
 import {
+  miniAppLogoFileRefSchema,
+  miniAppLogoRefFields,
+  miniAppLogoRoles,
+  miniAppLogoRoleSchema,
+  miniAppLogoSourceType
+} from './miniAppLogo'
+import {
   paintingFileRefSchema,
   paintingRefFields,
   paintingRoles,
   paintingRoleSchema,
   paintingSourceType
 } from './painting'
+import {
+  providerLogoFileRefSchema,
+  providerLogoRefFields,
+  providerLogoRoles,
+  providerLogoRoleSchema,
+  providerLogoSourceType
+} from './providerLogo'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
+import {
+  USER_AVATAR_SOURCE_ID,
+  userAvatarFileRefSchema,
+  userAvatarRefFields,
+  userAvatarRoles,
+  userAvatarRoleSchema,
+  userAvatarSourceType
+} from './userAvatar'
 
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
 
@@ -87,7 +109,10 @@ export const allSourceTypes = [
   tempSessionSourceType,
   knowledgeItemSourceType,
   chatMessageSourceType,
-  paintingSourceType
+  paintingSourceType,
+  providerLogoSourceType,
+  userAvatarSourceType,
+  miniAppLogoSourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -111,7 +136,10 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   knowledgeItemFileRefSchema,
   chatMessageFileRefSchema,
-  paintingFileRefSchema
+  paintingFileRefSchema,
+  providerLogoFileRefSchema,
+  userAvatarFileRefSchema,
+  miniAppLogoFileRefSchema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
 
@@ -129,13 +157,29 @@ export {
   knowledgeItemRoles,
   knowledgeItemRoleSchema,
   knowledgeItemSourceType,
+  miniAppLogoFileRefSchema,
+  miniAppLogoRefFields,
+  miniAppLogoRoles,
+  miniAppLogoRoleSchema,
+  miniAppLogoSourceType,
   paintingFileRefSchema,
   paintingRefFields,
   paintingRoles,
   paintingRoleSchema,
   paintingSourceType,
+  providerLogoFileRefSchema,
+  providerLogoRefFields,
+  providerLogoRoles,
+  providerLogoRoleSchema,
+  providerLogoSourceType,
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,
-  tempSessionSourceType
+  tempSessionSourceType,
+  USER_AVATAR_SOURCE_ID,
+  userAvatarFileRefSchema,
+  userAvatarRefFields,
+  userAvatarRoles,
+  userAvatarRoleSchema,
+  userAvatarSourceType
 }

@@ -45,6 +45,8 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_get_dangling_states': async ({ ids }) => application.get('FileManager').batchGetDanglingStates({ ids }),
   'file.batch_create_internal_entries': async ({ items }) =>
     application.get('FileManager').batchCreateInternalEntries(items as CreateInternalEntryIpcParams[]),
+  'file.put_entity_image': async (input) => application.get('FileManager').putEntityImage(input),
+  'file.clear_entity_image': async (input) => application.get('FileManager').clearEntityImage(input),
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
