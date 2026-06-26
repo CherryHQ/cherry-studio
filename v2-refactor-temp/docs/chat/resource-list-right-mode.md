@@ -1,15 +1,10 @@
 # Chat View Modes (new / old)
 
-**Status:** implemented on the `jd/resource-list-config` branch.
-
-This note records the shipped behavior for the assistant/agent chat view modes. Each
-surface has its own preference; the "old view" recreates a compact entity rail + a
-right-side resource panel, while the "new view" keeps the classic single sidebar.
-
-> Terminology: earlier drafts called the rail "right mode" and the sidebar "left
-> mode". The codebase now uses **new / old** everywhere — the **old** view is the
-> rail + right panel, the **new** view is the classic sidebar (preference values,
-> settings labels, the `isOldView` flag in the pages).
+Each chat surface — assistant conversations (Home) and agent work — has its own
+view-mode preference. The **old view** is a compact entity rail plus a right-side
+resource panel; the **new view** is the classic single sidebar. The `new` / `old`
+values are used consistently across preference values, settings labels, and the
+`isOldView` flag in the pages.
 
 ## Preferences
 
@@ -34,11 +29,9 @@ When the relevant preference is `old`:
 3. Right: an independently toggleable resource panel for the current
    assistant/agent's conversations/works.
 
-When the preference is `new`, the previous classic sidebar is used
-(`HomeTabs` / `AgentSidePanel`). Its display-mode preferences are still
-respected, but the display-mode controls are intentionally hidden for now while
-the old-view rail settles; this PR does not delete the underlying display-mode
-logic or persisted preferences.
+When the preference is `new`, the classic single sidebar is used
+(`HomeTabs` / `AgentSidePanel`). Its display-mode preferences and logic are kept,
+though the display-mode controls are currently hidden in the UI.
 
 ## State
 
@@ -99,7 +92,7 @@ own data fetching, pins, deletion, and context menus.
 
 - Non-pinned entities are ordered by assistant/agent `orderKey`; drag reorders and
   persists the real `orderKey` (optimistic, then refetch).
-- Entity rows keep their left-mode entity context menus (assistant grouped-row /
+- Entity rows keep the classic sidebar's entity context menus (assistant grouped-row /
   agent `AgentItem` behavior). Deleting the current entity, or clearing all its
   resources, closes the right panel and leaves the main chat in that entity's
   blank state.
@@ -118,7 +111,7 @@ level instead of prop-threaded).
   open/closed. The panel is mutually exclusive with branch/trace/files/status/flow
   (scoped to the current chat instance).
 - Fixed time grouping, groups expanded by default; does not read/write the
-  left-mode group-collapsed state or display options. Header keeps only search,
+  classic sidebar's group-collapsed state or display options. Header keeps only search,
   scoped to the current entity; creating a topic/session stays on the left rail
   and classic sidebar entry points. Drag/group movement is disabled (the list is
   fixed time-grouped).
@@ -139,7 +132,7 @@ shared full list and filter in the frontend.
 - `loadAll` is intentional and unavoidable: the rail must know which entities own
   resources, and the panel filters the same list by the current entity. A single
   fetch feeds both.
-- Create/delete/rename/clear/move use the existing left-mode mutation/invalidate
+- Create/delete/rename/clear/move use the existing mutation/invalidate
   flow; after a mutation the shared source is refreshed once and both sides
   re-derive. No local shadow copies.
 - Assistant/agent metadata supplies display data + operations (name, emoji/avatar,
