@@ -153,7 +153,7 @@ interface AgentRightPaneContextValue {
 
 interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   children: ReactNode
-  /** In right mode the session list mounts as the first right-pane tab; null leaves files/status/flow. */
+  /** In old view the session list mounts as the first right-pane tab; null leaves files/status/flow. */
   resourcePane?: ResourcePaneConfig | null
   defaultOpen?: boolean
   /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
@@ -328,8 +328,11 @@ function AgentRightPaneStateProvider({
 
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
   const { children, resourcePane, defaultOpen = false, onOpenChange, ...rest } = props
+  const shellModeKey = resourcePane ? 'resource-pane' : 'files-pane'
+
   return (
     <Shell
+      key={shellModeKey}
       defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
       defaultOpen={defaultOpen}
       onOpenChange={onOpenChange}>
@@ -673,7 +676,6 @@ function AgentRightPaneFilesToggle() {
       tab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
       command="topic.sidebar.toggle"
       commandEnabled={isActiveTab}
-      disabled={resourcePane?.disabled}
     />
   )
 }

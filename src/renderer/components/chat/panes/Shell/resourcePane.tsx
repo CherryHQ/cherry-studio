@@ -5,7 +5,7 @@ import { Shell } from './Shell'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
 // In old-view mode (`chat.conversation_view`/`chat.work_view === 'old'`) the topic/session list moves into the
-// chat's right pane as an extra tab. The list node + its label + disabled flag are provided once at
+// chat's right pane as an extra tab. The list node + its label are provided once at
 // the page level via context, so the Chat/AgentChat tree and the pane surfaces don't prop-thread
 // them through every layer. The tab/panel/toggle below derive everything from this context, and
 // render nothing in left (sidebar) mode where the context is null.
@@ -17,7 +17,6 @@ export type ResourcePaneConfig = {
   node: ReactNode
   /** Tab label + toggle tooltip source — pages supply the product word ("topic" / "work"). */
   label: string
-  disabled?: boolean
 }
 
 const ResourcePaneContext = createContext<ResourcePaneConfig | null>(null)
@@ -31,7 +30,7 @@ export function useResourcePane(): ResourcePaneConfig | null {
   return use(ResourcePaneContext)
 }
 
-/** Shared `resources` tab-strip entry. Renders nothing outside right mode. Place inside `Shell.TabList`. */
+/** Shared `resources` tab-strip entry. Renders nothing outside old view. Place inside `Shell.TabList`. */
 export function ResourcePaneTab() {
   const config = useResourcePane()
   if (!config) return null
@@ -43,7 +42,7 @@ export function ResourcePaneTab() {
   )
 }
 
-/** Shared `resources` tab panel. Renders nothing outside right mode. Place inside `Shell.Tabs`. */
+/** Shared `resources` tab panel. Renders nothing outside old view. Place inside `Shell.Tabs`. */
 export function ResourcePanePanel() {
   const config = useResourcePane()
   if (!config) return null
