@@ -61,7 +61,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   modelGenerating: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: {
       id: 'home',

@@ -295,8 +295,9 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
-  useOptionalTabsContext: () => tabsContextMocks
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () => tabsContextMocks,
+  useCurrentTabId: () => null
 }))
 
 vi.mock('@renderer/components/resource/dialogs', () => ({

@@ -1,14 +1,14 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import Selector from '@renderer/components/Selector'
 import { AppLogo } from '@renderer/config/env'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -75,7 +75,7 @@ const S3Settings: FC = () => {
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {s3Sync?.syncing && <SyncOutlined spin />}
+        {s3Sync?.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
             content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
@@ -190,14 +190,14 @@ const S3Settings: FC = () => {
             onClick={showBackupModal}
             variant="outline"
             disabled={backuping || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
-            <SaveOutlined />
+            <Save size={14} />
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
             onClick={showBackupManager}
             variant="outline"
             disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.s3.backup.manager.button')}
           </Button>
         </RowFlex>

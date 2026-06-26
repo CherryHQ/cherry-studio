@@ -23,7 +23,7 @@ const mockTabs = vi.hoisted(() => ({
   hasContext: true,
   openTab: vi.fn()
 }))
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => (mockTabs.hasContext ? { tabs: mockTabs.tabs, openTab: mockTabs.openTab } : null)
 }))
 

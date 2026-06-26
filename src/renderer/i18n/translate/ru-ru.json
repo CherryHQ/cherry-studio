@@ -224,7 +224,12 @@
           "runFailed": "Не удалось выполнить задачу",
           "updateFailed": "Не удалось обновить задачу"
         },
-        "intervalPlaceholder": "Интервал в минутах",
+        "frequency": {
+          "everyPrefix": "Каждые",
+          "everySuffix": "минут",
+          "label": "Частота выполнения"
+        },
+        "intervalPlaceholder": "Минимум 1",
         "intervalUnit": "минуты",
         "lastRun": "Последний запуск",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Интервал",
-          "label": "Тип расписания",
           "once": "Однократно"
         },
-        "scheduleValue": "Значение расписания",
         "status": {
           "active": "Активна",
           "completed": "Завершена",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}} мин. назад"
         },
         "timeout": {
-          "label": "Тайм-аут",
+          "label": "Максимальное время выполнения",
           "placeholder": "Без ограничений"
         },
         "title": "Запланированные задачи"

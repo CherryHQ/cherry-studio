@@ -224,7 +224,12 @@
           "runFailed": "Error al ejecutar la tarea",
           "updateFailed": "Error al actualizar la tarea"
         },
-        "intervalPlaceholder": "Intervalo en minutos",
+        "frequency": {
+          "everyPrefix": "Cada",
+          "everySuffix": "minutos",
+          "label": "Frecuencia de ejecución"
+        },
+        "intervalPlaceholder": "Al menos 1",
         "intervalUnit": "minutos",
         "lastRun": "Última ejecución",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalo",
-          "label": "Tipo de programación",
           "once": "Una vez"
         },
-        "scheduleValue": "Valor de programación",
         "status": {
           "active": "Activo",
           "completed": "Completado",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m hace"
         },
         "timeout": {
-          "label": "Tiempo de espera agotado",
+          "label": "Tiempo máximo de ejecución",
           "placeholder": "Sin límite"
         },
         "title": "Tareas programadas"

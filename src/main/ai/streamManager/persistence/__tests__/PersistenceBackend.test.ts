@@ -10,7 +10,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { finalizeInterruptedParts } from '../PersistenceBackend'
+import { dropEmptyContentParts, finalizeInterruptedParts } from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -212,5 +212,54 @@ describe('finalizeInterruptedParts', () => {
     })
     const cherryMeta = (result[0] as any).providerMetadata?.cherry
     expect(cherryMeta?.thinkingMs).toBeUndefined()
+  })
+})
+
+const reasoningPart = (text: string): CherryMessagePart =>
+  ({ type: 'reasoning', text, state: 'done' }) as unknown as CherryMessagePart
+
+describe('dropEmptyContentParts', () => {
+  it('drops empty and whitespace-only text parts', () => {
+    const keep = textPart('answer')
+    const result = dropEmptyContentParts([textPart(''), keep, textPart('   \n  ')])
+
+    expect(result).toEqual([keep])
+  })
+
+  it('drops empty and whitespace-only reasoning parts', () => {
+    const keep = reasoningPart('real thought')
+    const result = dropEmptyContentParts([reasoningPart(''), keep, reasoningPart('  ')])
+
+    expect(result).toEqual([keep])
+  })
+
+  it('keeps non-text/reasoning parts even when they look empty', () => {
+    const parts: CherryMessagePart[] = [
+      { type: 'data-translation', data: { content: '' } } as unknown as CherryMessagePart,
+      {
+        type: 'tool-search',
+        toolCallId: 't',
+        toolName: 'search',
+        state: 'output-available',
+        output: {}
+      } as unknown as CherryMessagePart
+    ]
+
+    const result = dropEmptyContentParts(parts)
+
+    expect(result).toBe(parts)
+  })
+
+  it('returns the original array by reference when nothing is dropped', () => {
+    const parts: CherryMessagePart[] = [textPart('hi'), reasoningPart('thinking')]
+
+    expect(dropEmptyContentParts(parts)).toBe(parts)
+  })
+
+  it('drops a trailing empty text part next to a reasoning part', () => {
+    const reasoning = reasoningPart('deep thought')
+    const result = dropEmptyContentParts([reasoning, textPart('')])
+
+    expect(result).toEqual([reasoning])
   })
 })

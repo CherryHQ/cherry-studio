@@ -224,7 +224,12 @@
           "runFailed": "Failed to run task",
           "updateFailed": "Failed to update task"
         },
-        "intervalPlaceholder": "Interval in minutes",
+        "frequency": {
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "label": "Execution Frequency"
+        },
+        "intervalPlaceholder": "At least 1",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Schedule Type",
           "once": "Once"
         },
-        "scheduleValue": "Schedule Value",
         "status": {
           "active": "Active",
           "completed": "Completed",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m ago"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Maximum Execution Time",
           "placeholder": "No limit"
         },
         "title": "Scheduled Tasks"
