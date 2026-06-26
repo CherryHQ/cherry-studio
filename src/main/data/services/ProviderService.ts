@@ -119,6 +119,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
+    logo: row.logo ?? undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
@@ -226,6 +227,7 @@ class ProviderService {
       providerId: dto.providerId,
       presetProviderId: dto.presetProviderId ?? null,
       name: dto.name,
+      logo: dto.logo ?? null,
       endpointConfigs: dto.endpointConfigs ?? null,
       defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
       apiKeys: dto.apiKeys ?? [],
@@ -281,6 +283,7 @@ class ProviderService {
       const updates: Partial<InsertUserProviderRow> = {}
 
       if (dto.name !== undefined) updates.name = dto.name
+      if (dto.logo !== undefined) updates.logo = dto.logo ?? null
       if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
       if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig

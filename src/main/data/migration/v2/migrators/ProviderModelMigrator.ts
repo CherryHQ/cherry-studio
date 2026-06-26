@@ -391,9 +391,13 @@ export class ProviderModelMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         await ensureCherryAiDefaultProviderAndModelTx(tx)
 
-        const providerRowsWithoutOrderKey = this.providers.map((provider) =>
-          this.enrichProviderRow(transformProvider(provider, this.settings), provider)
-        )
+        const providerRowsWithoutOrderKey = this.providers.map((provider) => {
+          const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
+          // v1 stored custom provider logos in Dexie settings under
+          // `image://provider-{id}` (via ImageStorage); carry them onto the row.
+          const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
+          return logo ? { ...row, logo } : row
+        })
         const [lastProvider] = await tx
           .select({ orderKey: userProviderTable.orderKey })
           .from(userProviderTable)

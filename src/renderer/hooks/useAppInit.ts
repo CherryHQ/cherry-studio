@@ -1,12 +1,10 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { setInlineFilePathHomePath } from '@renderer/components/chat/messages/utils/filePath'
-import db from '@renderer/databases'
 import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { defaultLanguage } from '@shared/utils/languages'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import useFullScreenNotice from './useFullScreenNotice'
@@ -17,7 +15,6 @@ export function useAppInit() {
   const [customCss] = usePreference('ui.custom_css')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
-  const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const navBackgroundColor = useNavBackgroundColor()
 
   useEffect(() => {
@@ -48,10 +45,6 @@ export function useAppInit() {
   useAppUpdateHandler()
   useFullScreenNotice()
   useStorageMonitorNotification()
-
-  useEffect(() => {
-    savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)
-  }, [savedAvatar])
 
   useEffect(() => {
     const currentLanguage = language || navigator.language || defaultLanguage

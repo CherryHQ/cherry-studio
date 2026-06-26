@@ -1,23 +1,14 @@
-import { loggerService } from '@logger'
 import { useProviderActions } from '@renderer/hooks/useProvider'
 import type { Provider } from '@shared/data/types/provider'
 import { useCallback } from 'react'
 
-import { removeProviderLogo } from '../hooks/useProviderLogo'
-
-const logger = loggerService.withContext('useProviderDelete')
-
 export function useProviderDelete() {
   const { deleteProviderById } = useProviderActions()
 
+  // The custom logo lives on the provider row, so it is removed together with
+  // the provider — no separate logo cleanup needed.
   const deleteProvider = useCallback(
     async (providerId: Provider['id']) => {
-      try {
-        await removeProviderLogo(providerId)
-      } catch (error) {
-        logger.error('Failed to delete logo', error as Error)
-      }
-
       await deleteProviderById(providerId)
     },
     [deleteProviderById]

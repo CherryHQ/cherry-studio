@@ -59,6 +59,16 @@ export const CreateProviderSchema = z.strictObject({
   presetProviderId: z.string().optional(),
   /** Display name (required on create) */
   name: z.string().min(1),
+  /**
+   * Custom logo for a user-defined provider, stored inline on the row (data
+   * URL / SVG / remote URL). Capped at 1 MiB to keep a runaway data URL from
+   * bloating the row and the cached entity — mirrors the mini-app logo cap.
+   */
+  logo: z
+    .string()
+    .min(1)
+    .max(1024 * 1024)
+    .optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -91,7 +101,17 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
   /** Whether this provider is enabled */
-  isEnabled: z.boolean().optional()
+  isEnabled: z.boolean().optional(),
+  /**
+   * Custom logo. `null` clears it (falls back to the bundled icon); a string
+   * sets it; omitted leaves it unchanged. Nullable, so it lives here rather
+   * than in the picked create fields (which can't express clear).
+   */
+  logo: z
+    .string()
+    .max(1024 * 1024)
+    .nullable()
+    .optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

@@ -1,13 +1,8 @@
-import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'
-
-import { clearProviderLogo, saveProviderLogo, useProviderLogo } from '../hooks/useProviderLogo'
-
-const logger = loggerService.withContext('useProviderEditor')
 
 export type ProviderEditorMode =
   | { kind: 'create-custom' }
@@ -37,12 +32,6 @@ export type SubmitProviderEditorParams =
       logo?: string | null
     }
 
-export type ProviderEditorSubmitNotice = 'create-logo-save-failed' | 'update-logo-save-failed'
-
-export interface ProviderEditorSubmitResult {
-  notice?: ProviderEditorSubmitNotice
-}
-
 export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {
   const { createProvider } = useProviders()
   const { updateProviderById } = useProviderActions()
@@ -50,7 +39,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const modeRef = useRef<ProviderEditorMode | null>(null)
   const submitTokenRef = useRef(0)
   const editingProvider = mode?.kind === 'edit' ? mode.provider : null
-  const { logo: initialLogo } = useProviderLogo(editingProvider?.id)
+  const initialLogo = editingProvider?.logo
 
   const updateMode = useCallback((next: ProviderEditorMode | null) => {
     submitTokenRef.current += 1
@@ -64,47 +53,29 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const startEdit = useCallback((provider: Provider) => updateMode({ kind: 'edit', provider }), [updateMode])
 
   const submit = useCallback(
-    async (params: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
+    async (params: SubmitProviderEditorParams): Promise<void> => {
       const trimmedName = params.name.trim()
       if (!trimmedName) {
-        return {}
+        return
       }
 
       if (params.mode === 'edit') {
         if (!editingProvider) {
-          return {}
+          return
         }
         const originalEditingId = editingProvider.id
+        // Logo persists atomically with the row: `null` clears it, a string
+        // sets it, `undefined` leaves it unchanged.
         await updateProviderById(originalEditingId, {
           name: trimmedName,
-          defaultChatEndpoint: params.defaultChatEndpoint
+          defaultChatEndpoint: params.defaultChatEndpoint,
+          ...(params.logo !== undefined ? { logo: params.logo } : {})
         })
-        let notice: ProviderEditorSubmitNotice | undefined
-
-        if (params.logo !== undefined) {
-          if (params.logo) {
-            try {
-              await saveProviderLogo(originalEditingId, params.logo)
-            } catch (error) {
-              logger.error('Failed to save logo', error as Error)
-              notice = 'update-logo-save-failed'
-            }
-          } else {
-            try {
-              await clearProviderLogo(originalEditingId)
-            } catch (error) {
-              logger.error('Failed to reset logo', error as Error)
-              // Same surfaced toast as the save-logo failure — clearing is
-              // still a logo update; without this the failure is silent.
-              notice = 'update-logo-save-failed'
-            }
-          }
-        }
 
         if (modeRef.current?.kind === 'edit' && modeRef.current.provider.id === originalEditingId) {
           cancel()
         }
-        return notice ? { notice } : {}
+        return
       }
 
       const providerId = uuid()
@@ -116,24 +87,14 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         defaultChatEndpoint: params.defaultChatEndpoint,
         ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
         ...(params.authConfig ? { authConfig: params.authConfig } : {}),
-        ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {})
+        ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {}),
+        ...(params.logo ? { logo: params.logo } : {})
       })
-      let notice: ProviderEditorSubmitNotice | undefined
-
-      if (params.logo) {
-        try {
-          await saveProviderLogo(providerId, params.logo)
-        } catch (error) {
-          logger.error('Failed to save logo', error as Error)
-          notice = 'create-logo-save-failed'
-        }
-      }
 
       if (submitTokenRef.current === submitToken && modeRef.current?.kind !== 'edit') {
         onProviderCreated(provider.id)
         cancel()
       }
-      return notice ? { notice } : {}
     },
     [cancel, createProvider, editingProvider, onProviderCreated, updateProviderById]
   )

@@ -1,0 +1,1 @@
+ALTER TABLE `user_provider` ADD `logo` text;

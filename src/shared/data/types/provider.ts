@@ -254,6 +254,8 @@ export const ProviderSchema = z.object({
   presetProviderId: z.string().optional(),
   /** Display name */
   name: z.string(),
+  /** Custom logo for user-defined providers (data URL / SVG / remote URL); absent for preset providers */
+  logo: z.string().optional(),
   /** Description */
   description: z.string().optional(),
   /** Preset provider website links */

@@ -1,7 +1,7 @@
 import { Button, Input } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import db from '@renderer/databases'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -25,30 +25,16 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   const { addMcpServer } = useMcpServers()
   const [isFetching, setIsFetching] = useState(false)
   const [token, setToken] = useState<string>('')
-  const [availableServers, setAvailableServers] = useState<McpServer[]>([])
+  // Fetched marketplace servers are re-fetchable network data, so they live in
+  // persist cache (one fixed key, keyed internally by provider).
+  const [allServers, setAllServers] = usePersistCache('feature.mcp.provider_available_servers')
+  const availableServers = useMemo(() => allServers[provider.key] ?? [], [allServers, provider.key])
   const [searchText, setSearchText] = useState('')
   const { t } = useTranslation()
 
   useEffect(() => {
     setToken(provider.getToken() || '')
   }, [provider])
-
-  // Load available servers from database when provider changes
-  useEffect(() => {
-    const loadServersFromDb = async () => {
-      try {
-        const dbKey = `mcp:provider:${provider.key}:servers`
-        const setting = await db.settings.get(dbKey)
-        const savedServers = setting?.value || []
-        setAvailableServers(savedServers)
-      } catch (error) {
-        logger.error('Failed to load servers from database', error as Error)
-        setAvailableServers([])
-      }
-    }
-
-    void loadServersFromDb()
-  }, [provider.key])
 
   // Sort servers: servers with logo first, then by name
   const sortedServers = useMemo(() => {
@@ -98,13 +84,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       const result = await provider.syncServers(token)
 
       if (result.success) {
-        const servers = result.allServers
-        setAvailableServers(servers)
-
-        // Save to database
-        const dbKey = `mcp:provider:${provider.key}:servers`
-        await db.settings.put({ id: dbKey, value: servers })
-
+        setAllServers({ ...allServers, [provider.key]: result.allServers })
         window.toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
         window.toast.error(result.message)
@@ -115,7 +95,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     } finally {
       setIsFetching(false)
     }
-  }, [provider, t, token])
+  }, [allServers, provider, setAllServers, t, token])
 
   const isFetchDisabled = !token
   return (

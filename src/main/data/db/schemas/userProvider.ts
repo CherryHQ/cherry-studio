@@ -35,6 +35,9 @@ export const userProviderTable = sqliteTable(
 
     name: text().notNull(),
 
+    /** Custom logo for user-defined providers (data URL / SVG / remote URL). Null for preset providers, which render a bundled icon. */
+    logo: text(),
+
     /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
     endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
 

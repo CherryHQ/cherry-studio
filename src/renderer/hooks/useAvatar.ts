@@ -1,7 +1,7 @@
-import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { UserAvatar } from '@renderer/config/env'
 
 export default function useAvatar() {
-  const [avatar] = useCache('app.user.avatar', UserAvatar)
-  return avatar
+  const [avatar] = usePreference('app.user.avatar')
+  return avatar || UserAvatar
 }

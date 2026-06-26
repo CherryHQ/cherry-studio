@@ -1,4 +1,4 @@
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import type React from 'react'
 import type ReactType from 'react'
@@ -99,14 +99,6 @@ vi.mock('@renderer/components/TopView', () => ({
   TopView: mocks.TopView
 }))
 
-vi.mock('@renderer/services/ImageStorage', () => ({
-  default: {
-    get: vi.fn(),
-    remove: vi.fn(),
-    set: vi.fn()
-  }
-}))
-
 vi.mock('@renderer/utils/image', () => ({
   fileToAvatarDataUrl: vi.fn(async () => 'data:image/png;base64,avatar')
 }))
@@ -137,7 +129,7 @@ async function renderUserPopup() {
 describe('UserPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
   })
 
   afterEach(() => {
@@ -146,7 +138,7 @@ describe('UserPopup', () => {
 
   it('renders image avatars with object-cover cropping', async () => {
     const avatar = 'file:///tmp/wide-avatar.png'
-    MockUseCacheUtils.setCacheValue('app.user.avatar', avatar)
+    MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', avatar)
 
     await renderUserPopup()
 

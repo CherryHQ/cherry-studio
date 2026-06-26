@@ -434,6 +434,30 @@ describe('ProviderModelMigrator', () => {
       expect(providerRow.apiFeatures).toBeNull()
     })
 
+    it('migrates a v1 custom provider logo from dexie settings onto the logo column', async () => {
+      const migrationContext = createContext(
+        dbh.db,
+        { llm: { providers: [makeProvider('with-logo'), makeProvider('no-logo')] } },
+        { 'image://provider-with-logo': 'data:image/png;base64,v1logo' }
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [withLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'with-logo'))
+      expect(withLogo.logo).toBe('data:image/png;base64,v1logo')
+
+      const [withoutLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'no-logo'))
+      expect(withoutLogo.logo).toBeNull()
+    })
+
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {
       // aihubmix's anthropic-messages endpoint routes through adapterFamily
       // 'aihubmix' (vendor-specific multi-provider relay), which is strictly

@@ -15,11 +15,8 @@ import {
   PopoverTrigger,
   RowFlex
 } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
-import ImageStorage from '@renderer/services/ImageStorage'
 import { fileToAvatarDataUrl } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
@@ -38,6 +35,7 @@ type AvatarPopoverView = 'menu' | 'emoji'
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
+  const [, setAvatar] = usePreference('app.user.avatar')
 
   const [open, setOpen] = useState(true)
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
@@ -61,10 +59,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleEmojiClick = async (emoji: string) => {
     try {
-      // set emoji string
-      await ImageStorage.set('avatar', emoji)
-      // update avatar display
-      cacheService.set('app.user.avatar', emoji)
+      await setAvatar(emoji)
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -74,8 +69,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleReset = async () => {
     try {
-      await ImageStorage.set('avatar', DefaultAvatar)
-      cacheService.set('app.user.avatar', DefaultAvatar)
+      // Empty value falls back to the bundled default avatar (see useAvatar).
+      await setAvatar('')
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -86,8 +81,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const handleUploadAvatar = async (file: File) => {
     try {
       const dataUrl = await fileToAvatarDataUrl(file)
-      await ImageStorage.set('avatar', dataUrl)
-      cacheService.set('app.user.avatar', dataUrl)
+      await setAvatar(dataUrl)
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

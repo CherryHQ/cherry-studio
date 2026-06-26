@@ -114,7 +114,6 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 export type UseCacheSchema = {
   // App state
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
-  'app.user.avatar': string
 
   'app.path.files': string
   'app.path.resources': string
@@ -198,7 +197,6 @@ export const DefaultUseCache: UseCacheSchema = {
     ignore: false,
     manualCheck: false
   },
-  'app.user.avatar': '',
   'app.path.files': '',
   'app.path.resources': '',
   // Chat context
@@ -324,6 +322,8 @@ export type RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
+  // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
+  'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
@@ -351,6 +351,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
+  'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []
 }

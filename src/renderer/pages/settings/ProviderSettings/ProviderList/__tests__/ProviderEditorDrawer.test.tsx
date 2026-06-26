@@ -5,9 +5,6 @@ import ProviderEditorDrawer from '../ProviderEditorDrawer'
 
 const mocks = vi.hoisted(() => ({
   fileToAvatarDataUrl: vi.fn(),
-  imageStorageGet: vi.fn(),
-  imageStorageRemove: vi.fn(),
-  imageStorageSet: vi.fn(),
   providerAvatarPrimitive: vi.fn()
 }))
 
@@ -74,14 +71,6 @@ vi.mock('@renderer/components/ProviderLogoPicker', () => ({
   )
 }))
 
-vi.mock('@renderer/services/ImageStorage', () => ({
-  default: {
-    get: (...args: any[]) => mocks.imageStorageGet(...args),
-    remove: (...args: any[]) => mocks.imageStorageRemove(...args),
-    set: (...args: any[]) => mocks.imageStorageSet(...args)
-  }
-}))
-
 vi.mock('@renderer/utils/image', () => ({
   fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args)
 }))
@@ -111,9 +100,6 @@ describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
-    mocks.imageStorageGet.mockResolvedValue('data:image/png;base64,stored')
-    mocks.imageStorageRemove.mockResolvedValue(undefined)
-    mocks.imageStorageSet.mockResolvedValue(undefined)
     window.toast = {
       error: vi.fn()
     } as unknown as typeof window.toast
