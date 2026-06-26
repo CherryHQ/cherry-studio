@@ -126,6 +126,7 @@ export function useExecutionOverlay(
       if (readers.has(key)) continue
 
       const branch = sub.register(executionId, anchorMessageId)
+      // Readers use execution+anchor keys; snapshots stay executionId-keyed because only one anchor is live per execution.
       // New turn for this execution: clear any retained prior snapshot.
       setSnapshots((prev) => {
         if (!(executionId in prev)) return prev
