@@ -53,28 +53,39 @@ class RegionService {
   }
 
   private async detectAndCache(proxyKey: string | null): Promise<string> {
-    const country = await this.fetchCountry()
-    application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
-    return country
-  }
-
-  private async fetchCountry(): Promise<string> {
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
-
-      const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-      const data = await response.json()
-      const country = data.country_code || DEFAULT_COUNTRY
-      logger.info(`Detected user IP address country: ${country}`)
+      const country = await this.fetchCountry()
+      application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       return country
     } catch (error) {
       logger.error('Failed to get IP address information:', error as Error)
       return DEFAULT_COUNTRY
+    }
+  }
+
+  private async fetchCountry(): Promise<string> {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+
+    try {
+      const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
+        signal: controller.signal
+      })
+
+      if (!response.ok) {
+        throw new Error(`IP info request failed with HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      const country = data.country_code
+      if (!country) {
+        throw new Error('IP info response missing country_code')
+      }
+
+      logger.info(`Detected user IP address country: ${country}`)
+      return country
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 }

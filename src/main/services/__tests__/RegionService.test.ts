@@ -43,7 +43,11 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 import { regionService } from '../RegionService'
 
-const fetchResponse = (body: unknown) => ({ json: async () => body })
+const fetchResponse = (body: unknown, init: { ok?: boolean; status?: number } = {}) => ({
+  ok: init.ok ?? true,
+  status: init.status ?? 200,
+  json: async () => body
+})
 
 describe('RegionService', () => {
   beforeEach(() => {
@@ -70,14 +74,32 @@ describe('RegionService', () => {
     await expect(regionService.isInChina()).resolves.toBe(false)
   })
 
-  it('defaults to CN when the request fails', async () => {
-    netFetchMock.mockRejectedValue(new Error('network down'))
+  it('does not cache the CN fallback when the request fails', async () => {
+    netFetchMock
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
+
     await expect(regionService.getCountry()).resolves.toBe('CN')
+    await expect(regionService.getCountry()).resolves.toBe('US')
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('defaults to CN when the response has no country_code', async () => {
-    netFetchMock.mockResolvedValue(fetchResponse({}))
+  it('does not cache the CN fallback when the response has no country_code', async () => {
+    netFetchMock.mockResolvedValueOnce(fetchResponse({})).mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
+
     await expect(regionService.getCountry()).resolves.toBe('CN')
+    await expect(regionService.getCountry()).resolves.toBe('US')
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('treats HTTP non-ok responses as retryable failures', async () => {
+    netFetchMock
+      .mockResolvedValueOnce(fetchResponse({ country_code: 'US' }, { ok: false, status: 500 }))
+      .mockResolvedValueOnce(fetchResponse({ country_code: 'JP' }))
+
+    await expect(regionService.getCountry()).resolves.toBe('CN')
+    await expect(regionService.getCountry()).resolves.toBe('JP')
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('re-detects when the applied proxy key changes (egress may have moved)', async () => {
