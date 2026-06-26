@@ -4478,7 +4478,13 @@
         "upscale": "[to be translated]:Upscale",
         "variation": "[to be translated]:Variation"
       },
-      "retry": "[to be translated]:Retry"
+      "retry": "[to be translated]:Retry",
+      "tool": {
+        "add_board": "[to be translated]:Add board",
+        "pan": "[to be translated]:Pan",
+        "select": "[to be translated]:Select",
+        "upload": "[to be translated]:Upload image"
+      }
     },
     "custom_size": "Dimensions personnalisées",
     "dashscope": {

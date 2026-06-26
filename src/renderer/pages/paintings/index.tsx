@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next'
 
 import type { CanvasActions } from './components/canvas/canvasActions'
 import type { CanvasOp } from './components/canvas/canvasOps'
+import type { CanvasPoint } from './components/canvas/CanvasToolbar'
 import PaintingComposer from './components/PaintingComposer'
+import { presentPaintingGenerateError } from './errors/paintingGenerateError'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
 import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
@@ -22,6 +24,16 @@ import { paintingClasses } from './paintingPrimitives'
 
 // React Flow is heavy; keep it (and the whole canvas) out of the main bundle.
 const CanvasView = lazy(() => import('./components/canvas/CanvasView'))
+
+// Browser File → data URL for `createInternalEntry({ source: 'base64' })`.
+function readFileAsDataUrl(file: File): Promise<`data:${string};base64,${string}`> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as `data:${string};base64,${string}`)
+    reader.onerror = () => reject(reader.error ?? new Error('file read failed'))
+    reader.readAsDataURL(file)
+  })
+}
 
 const PaintingPage: FC = () => {
   const { t } = useTranslation()
@@ -44,7 +56,7 @@ const PaintingPage: FC = () => {
   const modelCatalog = usePaintingModelCatalog({ providerOptions, painting: draft })
 
   const {
-    inflightCard,
+    inflightCards,
     submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
@@ -52,7 +64,7 @@ const PaintingPage: FC = () => {
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
-  const generating = inflightCard != null
+  const generating = inflightCards.length > 0
 
   const switchModel = usePaintingModelSwitch({
     draft,
@@ -63,8 +75,9 @@ const PaintingPage: FC = () => {
   const list = usePaintingList({ cancelGeneration })
 
   const onCancel = useCallback(() => {
-    if (inflightCard) cancelGeneration(inflightCard.id)
-  }, [cancelGeneration, inflightCard])
+    const primary = inflightCards[0]
+    if (primary) cancelGeneration(primary.id)
+  }, [cancelGeneration, inflightCards])
 
   // Generating forks (or, for a retry, fills) a card; afterward the draft returns
   // to a fresh waiting-to-create state on the same provider.
@@ -74,8 +87,9 @@ const PaintingPage: FC = () => {
     setDraft(createDraft(providerId))
   }, [submit, draft])
 
-  // Select = highlight only; the composer keeps its own draft untouched.
-  const onSelectPainting = useCallback((card: PaintingData) => setSelectedId(card.id), [])
+  // Select = highlight only; the composer keeps its own draft untouched. The id
+  // may be a painting/group id or a group child image id (`${pid}::${fid}`).
+  const onSelect = useCallback((nodeId: string) => setSelectedId(nodeId), [])
   const onDeselect = useCallback(() => setSelectedId(undefined), [])
 
   // Derive a new generation from a card (node op): feed its outputs in as inputs
@@ -93,6 +107,33 @@ const PaintingPage: FC = () => {
     setSelectedId(card.id)
     setDraft(cardToRetryDraft(card))
   }, [])
+
+  // Add an empty board, then point the composer at it (targetCardId) so the next
+  // generation fills this card in place instead of forking a new one.
+  const onAddBoard = useCallback(
+    async (position: CanvasPoint) => {
+      const id = await list.createBoard(draft.providerId, position)
+      if (!id) return
+      setSelectedId(id)
+      patchDraft({ targetCardId: id })
+    },
+    [list, draft.providerId, patchDraft]
+  )
+
+  // Import an image file as a source card (selected so it's ready to derive from).
+  const onUploadAsset = useCallback(
+    async (file: File, position: CanvasPoint) => {
+      try {
+        const data = await readFileAsDataUrl(file)
+        const entry = await window.api.file.createInternalEntry({ source: 'base64', data })
+        const id = await list.createAsset(draft.providerId, entry.id, position)
+        if (id) setSelectedId(id)
+      } catch (error) {
+        presentPaintingGenerateError(error)
+      }
+    },
+    [list, draft.providerId]
+  )
 
   const onDownload = useCallback((source: PaintingData) => {
     for (const file of source.files) download(FileManager.getFileUrl(file))
@@ -117,6 +158,9 @@ const PaintingPage: FC = () => {
 
   const onResizePainting = useCallback((id: string, width: number) => void list.resize(id, width), [list])
 
+  // Drag a card out of its group hull → detach it (clears its group_id).
+  const onUngroup = useCallback((id: string) => void list.ungroup(id), [list])
+
   const canvasActions = useMemo<CanvasActions>(
     () => ({ onNodeOp, onDelete, onDownload, onCopyPrompt, onResize: onResizePainting, onRetry: onRetryPainting }),
     [onNodeOp, onDelete, onDownload, onCopyPrompt, onResizePainting, onRetryPainting]
@@ -131,12 +175,15 @@ const PaintingPage: FC = () => {
               <Suspense fallback={null}>
                 <CanvasView
                   items={history.items}
-                  inflightCard={inflightCard}
+                  inflightCards={inflightCards}
                   selectedId={selectedId}
                   actions={canvasActions}
-                  onSelectPainting={onSelectPainting}
+                  onSelect={onSelect}
                   onMovePainting={list.move}
+                  onUngroup={onUngroup}
                   onDeselect={onDeselect}
+                  onAddBoard={onAddBoard}
+                  onUploadAsset={onUploadAsset}
                   composer={
                     <QuickPanelProvider>
                       <PaintingComposer

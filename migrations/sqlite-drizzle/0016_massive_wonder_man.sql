@@ -1,0 +1,1 @@
+ALTER TABLE `painting` ADD `group_id` text;

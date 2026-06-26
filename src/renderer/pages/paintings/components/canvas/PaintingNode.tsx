@@ -61,7 +61,10 @@ const PaintingNodeComponent = ({ data, selected }: NodeProps<PaintingNodeType>) 
         <Handle type="source" position={Position.Right} className="!opacity-0" isConnectable={false} />
 
         <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-secondary">
-          {url ? (
+          {generating ? (
+            // Horizontal shimmer sweep (skeleton) while the image generates.
+            <div className="animation-shimmer-block absolute inset-0" />
+          ) : url ? (
             <img
               src={url}
               alt=""
@@ -92,12 +95,6 @@ const PaintingNodeComponent = ({ data, selected }: NodeProps<PaintingNodeType>) 
           {extraCount > 0 && (
             <div className="absolute top-1.5 right-1.5 rounded-full bg-foreground/60 px-1.5 py-0.5 text-[10px] text-background">
               +{extraCount}
-            </div>
-          )}
-
-          {generating && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
-              <div className="size-7 animate-spin rounded-full border-2 border-border border-t-primary" />
             </div>
           )}
 

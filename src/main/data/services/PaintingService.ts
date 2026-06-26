@@ -57,7 +57,8 @@ export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
   'canvasX',
   'canvasY',
   'canvasW',
-  'status'
+  'status',
+  'groupId'
 ]
 
 function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
@@ -73,6 +74,7 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
     canvasY: row.canvasY,
     canvasW: row.canvasW,
     status: row.status,
+    groupId: row.groupId,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -191,7 +193,8 @@ class PaintingService {
               canvasX: dto.canvasX ?? null,
               canvasY: dto.canvasY ?? null,
               canvasW: dto.canvasW ?? null,
-              status: dto.status ?? null
+              status: dto.status ?? null,
+              groupId: dto.groupId ?? null
             },
             {
               pkColumn: paintingTable.id,

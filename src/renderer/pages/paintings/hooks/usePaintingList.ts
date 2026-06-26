@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
+import { uuid } from '@renderer/utils/uuid'
 import { useCallback } from 'react'
 
+import type { CanvasPoint } from '../components/canvas/CanvasToolbar'
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
 
@@ -12,13 +14,65 @@ interface UsePaintingListInput {
 }
 
 /**
- * Card lifecycle on the canvas: delete, and persist board placement / size.
- * Cards are created by the generation pipeline (not here); the composer draft is
- * a separate, never-persisted concern. So there is no add/select/save — selecting
- * a card is page-level (`selectedId`), and a draft only hits the DB on generate.
+ * Card lifecycle on the canvas: create empty boards / imported assets, delete,
+ * and persist board placement / size. Generated cards come from the generation
+ * pipeline (not here); the composer draft is a separate, never-persisted
+ * concern. Selecting a card is page-level (`selectedId`); a draft only hits the
+ * DB on generate.
  */
 export function usePaintingList({ cancelGeneration }: UsePaintingListInput) {
-  const { updatePainting, deletePainting, refresh } = usePaintings()
+  const { createPainting, updatePainting, deletePainting, refresh } = usePaintings()
+
+  // An empty board: no output, no status (= empty board, not a failed run). The
+  // page points the composer's draft at it so the next generation fills it.
+  const createBoard = useCallback(
+    async (providerId: string, position: CanvasPoint): Promise<string | undefined> => {
+      const id = uuid()
+      try {
+        await createPainting({
+          id,
+          providerId,
+          prompt: '',
+          files: { output: [], input: [] },
+          canvasX: position.x,
+          canvasY: position.y
+        })
+      } catch (error) {
+        logger.error('Failed to create blank board', error as Error)
+        presentPaintingGenerateError(error)
+        return undefined
+      }
+      await refresh()
+      return id
+    },
+    [createPainting, refresh]
+  )
+
+  // An imported image as a source card: it carries the file as output + a
+  // `succeeded` status so it renders like any other image and feeds lineage.
+  const createAsset = useCallback(
+    async (providerId: string, fileId: string, position: CanvasPoint): Promise<string | undefined> => {
+      const id = uuid()
+      try {
+        await createPainting({
+          id,
+          providerId,
+          prompt: '',
+          files: { output: [fileId], input: [] },
+          status: 'succeeded',
+          canvasX: position.x,
+          canvasY: position.y
+        })
+      } catch (error) {
+        logger.error('Failed to create asset card', error as Error)
+        presentPaintingGenerateError(error)
+        return undefined
+      }
+      await refresh()
+      return id
+    },
+    [createPainting, refresh]
+  )
 
   const move = useCallback(
     async (id: string, x: number, y: number) => {
@@ -58,5 +112,18 @@ export function usePaintingList({ cancelGeneration }: UsePaintingListInput) {
     [cancelGeneration, deletePainting, refresh]
   )
 
-  return { remove, move, resize }
+  // Detach a card from its multi-image group (clears its group_id). The card
+  // keeps its position; the group's hull shrinks to the remaining members.
+  const ungroup = useCallback(
+    async (id: string) => {
+      try {
+        await updatePainting(id, { groupId: null })
+      } catch (error) {
+        logger.error('Failed to ungroup painting', error as Error)
+      }
+    },
+    [updatePainting]
+  )
+
+  return { remove, move, resize, createBoard, createAsset, ungroup }
 }

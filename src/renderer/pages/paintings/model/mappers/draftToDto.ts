@@ -44,6 +44,31 @@ export function draftToUpdateDto(draft: ComposerDraft): UpdatePaintingDto {
 }
 
 /**
+ * Draft → create DTO for one output image of a finished generation: the recipe
+ * plus exactly one output file, a `succeeded` status, and — for a multi-image
+ * generation — the shared `groupId`. Position is left unset so the canvas
+ * clusters group members.
+ */
+export function draftToOutputCreateDto(
+  draft: ComposerDraft,
+  id: string,
+  fileId: string,
+  groupId?: string
+): CreatePaintingDto {
+  return {
+    id,
+    providerId: draft.providerId,
+    modelId: draft.model?.trim() ? draft.model : undefined,
+    prompt: draft.prompt,
+    files: { output: [fileId], input: inputFileIds(draft.inputFiles) },
+    mode: draft.mode,
+    params: draft.params,
+    status: 'succeeded',
+    groupId
+  }
+}
+
+/**
  * The transient in-flight card built from a draft at generate time. Used both as
  * the optimistic canvas node (shown with a spinner until `refresh()` surfaces the
  * real record) and as the generation input (`paintingGenerate` reads

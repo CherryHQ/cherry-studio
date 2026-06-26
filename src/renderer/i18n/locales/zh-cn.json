@@ -4478,7 +4478,13 @@
         "upscale": "放大",
         "variation": "变体"
       },
-      "retry": "重试"
+      "retry": "重试",
+      "tool": {
+        "add_board": "添加画板",
+        "pan": "抓手",
+        "select": "选择",
+        "upload": "上传素材"
+      }
     },
     "custom_size": "自定义尺寸",
     "dashscope": {

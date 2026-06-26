@@ -2,7 +2,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { describe, expect, it } from 'vitest'
 
 import type { ComposerDraft } from '../../composerDraft'
-import { draftToCreateDto, draftToInflightCard, draftToUpdateDto } from '../draftToDto'
+import { draftToCreateDto, draftToInflightCard, draftToOutputCreateDto, draftToUpdateDto } from '../draftToDto'
 
 const makeEntry = (id: string): FileEntry =>
   ({ id, name: `${id}.png`, ext: 'png', size: 10, origin: 'internal' }) as unknown as FileEntry
@@ -53,6 +53,26 @@ describe('draftToDto', () => {
   it('omits modelId when the draft carries no usable model', () => {
     expect(draftToCreateDto(makeDraft({ model: undefined }), 'card-2').modelId).toBeUndefined()
     expect(draftToUpdateDto(makeDraft({ model: '  ' })).modelId).toBeUndefined()
+  })
+
+  // One output image of a finished generation: same recipe, exactly one output
+  // file, a `succeeded` status, and (for a group) the shared groupId.
+  it('builds an output create DTO carrying one output + the group tag', () => {
+    expect(draftToOutputCreateDto(makeDraft(), 'card-4', 'out-2', 'grp-1')).toEqual({
+      id: 'card-4',
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      prompt: 'a cat',
+      files: { output: ['out-2'], input: ['in-1', 'in-2'] },
+      mode: 'edit',
+      params: { seed: '42', size: '1024x1024' },
+      status: 'succeeded',
+      groupId: 'grp-1'
+    })
+  })
+
+  it('omits groupId for a single (ungrouped) output', () => {
+    expect(draftToOutputCreateDto(makeDraft(), 'card-5', 'out-1').groupId).toBeUndefined()
   })
 
   // The optimistic node + generation input: the draft's recipe with empty output,

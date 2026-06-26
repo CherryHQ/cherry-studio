@@ -217,6 +217,27 @@
   will-change: background-position;
 }
 
+/* 骨架屏流光(块状,横向扫光 — 用于加载占位) */
+.animation-shimmer-block {
+  background-color: var(--color-accent);
+  background-image: linear-gradient(
+    90deg,
+    transparent 20%,
+    color-mix(in srgb, var(--color-foreground) 14%, transparent) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: animation-shimmer 1.6s linear infinite;
+  will-change: background-position;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-shimmer-block {
+    animation: none;
+  }
+}
+
 /* Reveal 动画 */
 @keyframes animation-reveal {
   from {

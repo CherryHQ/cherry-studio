@@ -86,7 +86,8 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     canvasX: record.canvasX,
     canvasY: record.canvasY,
     canvasW: record.canvasW,
-    status: record.status
+    status: record.status,
+    groupId: record.groupId
   }
 }
 

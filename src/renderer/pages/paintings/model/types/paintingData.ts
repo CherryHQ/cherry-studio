@@ -66,4 +66,9 @@ export interface PaintingData {
    * is what disambiguates an empty `files` (failed vs intentionally empty).
    */
   status?: PaintingStatus | null
+  /**
+   * Soft grouping tag: the N images of one multi-image generation are N
+   * separate paintings sharing this id. NULL/undefined = ungrouped.
+   */
+  groupId?: string | null
 }

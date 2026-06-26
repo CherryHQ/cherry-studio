@@ -34,6 +34,10 @@ export const paintingTable = sqliteTable(
     canvasY: real('canvas_y'),
     canvasW: real('canvas_w'),
     status: text().$type<'generating' | 'succeeded' | 'failed' | 'canceled'>(),
+    // Soft grouping tag: the N images of one multi-image generation are N rows
+    // sharing this id. NULL = ungrouped. Membership only — each row keeps its
+    // own canvasX/Y/W.
+    groupId: text('group_id'),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

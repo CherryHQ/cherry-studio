@@ -4478,7 +4478,13 @@
         "upscale": "Upscale",
         "variation": "Variation"
       },
-      "retry": "Retry"
+      "retry": "Retry",
+      "tool": {
+        "add_board": "Add board",
+        "pan": "Pan",
+        "select": "Select",
+        "upload": "Upload image"
+      }
     },
     "custom_size": "Custom Size",
     "dashscope": {

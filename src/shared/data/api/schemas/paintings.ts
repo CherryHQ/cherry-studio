@@ -19,7 +19,8 @@ const PaintingSnapshotShape = {
   canvasX: z.number().nullable().optional(),
   canvasY: z.number().nullable().optional(),
   canvasW: z.number().nullable().optional(),
-  status: PaintingStatusSchema.nullable().optional()
+  status: PaintingStatusSchema.nullable().optional(),
+  groupId: z.string().nullable().optional()
 } as const
 
 export const ListPaintingsQuerySchema = z

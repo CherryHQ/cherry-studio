@@ -19,7 +19,7 @@ interface UsePaintingGenerationSubmitInput {
  */
 export function usePaintingGenerationSubmit({ draft, ensureCurrentCatalog }: UsePaintingGenerationSubmitInput) {
   const { validateBeforeGenerate } = usePaintingGenerationGuard({ painting: draft, ensureCurrentCatalog })
-  const { generate, cancel, inflightCard } = usePaintingGeneration({ draft })
+  const { generate, cancel, inflightCards } = usePaintingGeneration({ draft })
 
   const submittingRef = useRef(false)
 
@@ -38,5 +38,5 @@ export function usePaintingGenerationSubmit({ draft, ensureCurrentCatalog }: Use
     }
   }, [generate, draft.providerId, validateBeforeGenerate])
 
-  return { inflightCard, submit, cancel }
+  return { inflightCards, submit, cancel }
 }

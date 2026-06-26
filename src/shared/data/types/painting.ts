@@ -41,6 +41,8 @@ export const PaintingSchema = z.strictObject({
   canvasW: z.number().nullable().optional(),
   // Persisted generation outcome; NULL = empty board (no run attempted).
   status: PaintingStatusSchema.nullable().optional(),
+  // Soft grouping tag shared by the N images of one multi-image generation.
+  groupId: z.string().nullable().optional(),
   orderKey: z.string().min(1),
   // ISO 8601 (matches the assistant/topic/tag/note/prompt convention); the
   // service emits these via `timestampToISO`. `id` stays `z.string()` because
