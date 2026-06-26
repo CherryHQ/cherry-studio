@@ -1,19 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, assertSafePathForDefaultOpenMock, getMetadataByPathMock, openPathMock, showPathInFolderMock } =
-  vi.hoisted(() => ({
-    appGetMock: vi.fn(),
-    assertSafePathForDefaultOpenMock: vi.fn(),
-    getMetadataByPathMock: vi.fn(),
-    openPathMock: vi.fn(),
-    showPathInFolderMock: vi.fn()
-  }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/file/internal/system/openGuard', () => ({
-  assertSafePathForDefaultOpen: assertSafePathForDefaultOpenMock
+const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  getMetadataByPathMock: vi.fn(),
+  safeOpenMock: vi.fn(),
+  showPathInFolderMock: vi.fn()
 }))
-vi.mock('@main/services/file/internal/system/shell', () => ({
-  open: openPathMock,
+vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/services/file', () => ({
+  safeOpen: safeOpenMock,
   showInFolder: showPathInFolderMock
 }))
 vi.mock('@main/services/file/utils/metadata', () => ({ getMetadataByPath: getMetadataByPathMock }))
@@ -123,8 +118,7 @@ describe('fileHandlers', () => {
     await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' }, ctx)
     await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' }, ctx)
 
-    expect(assertSafePathForDefaultOpenMock).toHaveBeenCalledWith('/tmp/report.md')
-    expect(openPathMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(fileManager.open).not.toHaveBeenCalled()
     expect(fileManager.showInFolder).not.toHaveBeenCalled()

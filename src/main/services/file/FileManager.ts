@@ -185,9 +185,9 @@ import {
   runDbSweep,
   runFileSweep
 } from './internal/orphanSweep'
-import { assertSafeForDefaultOpen } from './internal/system/openGuard'
-import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
+import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { safeOpen } from './system'
 import { getMetadataByPath } from './utils/metadata'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -1021,9 +1021,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   async open(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry)
-    assertSafeForDefaultOpen(entry, physicalPath)
-    return internalShellOpen(physicalPath)
+    return safeOpen(resolvePhysicalPath(entry))
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {

@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-import type { FileEntry } from '@shared/data/types/file'
 import { IpcError } from '@shared/ipc/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { FilePath } from '@shared/types/file'
@@ -24,14 +23,6 @@ function assertSafeExtForDefaultOpen(ext: string | null): void {
   )
 }
 
-function getEffectiveExt(entry: FileEntry, physicalPath: FilePath): string | null {
-  return normalizeExt(entry.ext) ?? getEffectivePathExt(physicalPath)
-}
-
 export function assertSafePathForDefaultOpen(physicalPath: FilePath): void {
   assertSafeExtForDefaultOpen(getEffectivePathExt(physicalPath))
-}
-
-export function assertSafeForDefaultOpen(entry: FileEntry, physicalPath: FilePath): void {
-  assertSafeExtForDefaultOpen(getEffectiveExt(entry, physicalPath))
 }
