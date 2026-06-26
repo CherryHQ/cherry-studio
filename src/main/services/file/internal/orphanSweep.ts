@@ -1,5 +1,5 @@
 /**
- * Orphan sweep — startup data-consistency pass.
+ * Orphan sweep — on-demand data-consistency pass.
  *
  * Two surfaces composed under one module:
  *
@@ -131,8 +131,8 @@ export interface ScanOrphanEntriesDeps {
 /**
  * Identify active entries with zero `file_ref` rows pointing at them. The
  * default policy in architecture §7.1 is "preserve" — this scan only
- * **reports**; cleanup belongs to user-driven UI flows or to the narrow
- * dangling-external auto-cleanup pass (architecture §7.2, deferred).
+ * **reports**. FileEntry row cleanup belongs to explicit user/caller-driven
+ * flows; dangling external entries are not auto-deleted by sweep.
  */
 export async function scanOrphanEntries(deps: ScanOrphanEntriesDeps): Promise<OrphanEntryReport> {
   const rows = await deps.fileEntryService.findUnreferenced()
@@ -178,8 +178,8 @@ export type { OrphanReport } from '@shared/types/file/sweep'
  * Run both DB-level passes (orphan refs + orphan-entry report) and emit a
  * single structured `orphan-sweep` log record. Per-sourceType failures are
  * isolated and surface as `outcome: 'partial'` with `errorsByType`; an
- * outer-level throw collapses to `outcome: 'failed'`. Caller decides
- * whether to fire-and-forget (FileManager does this in `onInit`).
+ * outer-level throw collapses to `outcome: 'failed'`. Caller decides when to
+ * invoke the sweep; FileManager exposes it on demand and does not run it at startup.
  */
 export async function runDbSweep(deps: RunDbSweepDeps): Promise<DbSweepReport> {
   const startedAt = Date.now()

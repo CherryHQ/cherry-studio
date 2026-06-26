@@ -7,8 +7,7 @@ import Selector from '@renderer/components/Selector'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
+import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -35,7 +34,7 @@ const S3Settings: FC = () => {
 
   const { openSmartMiniApp } = useMiniAppPopup()
 
-  const { s3Sync } = useAppSelector((state) => state.backup)
+  const { s3Sync } = getBackupSyncState()
 
   const onSyncIntervalChange = async (value: number) => {
     void setS3SyncInterval(value)

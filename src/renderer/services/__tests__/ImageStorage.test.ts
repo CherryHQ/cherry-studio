@@ -20,7 +20,7 @@ vi.mock('@renderer/databases', () => ({
   }
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/image', () => ({
   convertToBase64: mocks.convertToBase64
 }))
 

@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "Hành động",
     "all": "Tất cả các tệp",
+    "audio": "Âm thanh",
     "batch_delete": "Xóa hàng loạt",
     "batch_operation": "Chọn tất cả",
     "count": "tệp tin",
@@ -2358,22 +2359,52 @@
       },
       "title": "Xóa Tệp"
     },
+    "delete_or_remove": "Xóa / loại bỏ",
     "document": "Tài liệu",
+    "drag_upload": "Kéo thả tệp vào đây để tải lên",
     "edit": "Chỉnh sửa",
+    "empty": {
+      "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
+      "no_match_title": "Không tìm thấy tệp phù hợp"
+    },
     "error": {
-      "open_path": "Không thể mở đường dẫn {{path}}"
+      "delete_failed": "Không thể xóa tệp",
+      "delete_partial_failed": "Một số tệp không thể bị xóa",
+      "import_failed": "Không thể nhập tệp",
+      "import_partial_failed": "Một số tệp không thể được nhập",
+      "open_path": "Không thể mở đường dẫn {{path}}",
+      "rename_failed": "Không đổi được tên tệp",
+      "restore_failed": "Không thể khôi phục các tệp",
+      "restore_partial_failed": "Một số tập tin không thể được khôi phục"
     },
     "file": "Tệp",
+    "footer_count": "{{count}} tệp",
+    "footer_selected_count": "{{count}} đã chọn",
     "image": "Hình ảnh",
+    "missing": "Thiếu",
+    "modified_at": "Đã chỉnh sửa lúc",
     "name": "Tên",
     "open": "Mở",
+    "other": "Khác",
+    "permanent_delete": "Xóa vĩnh viễn",
+    "permanent_delete_confirm": {
+      "description": "Thao tác này sẽ xóa vĩnh viễn {{count}} tệp. Không thể hoàn tác hành động này.",
+      "title": "Xóa vĩnh viễn tệp?"
+    },
     "preview": {
       "error": "Không thể mở tệp"
     },
+    "remove_from_library": "Xóa khỏi thư viện",
+    "rename": "Đổi tên",
+    "restore": "Khôi phục",
+    "selected_count": "{{count}} tệp đã được chọn",
+    "show_in_folder": "Hiển thị trong thư mục",
     "size": "Kích thước",
     "text": "Văn bản",
     "title": "Tập tin",
-    "type": "Kiểu"
+    "trash": "Rác",
+    "type": "Kiểu",
+    "video": "Video"
   },
   "globalSearch": {
     "clear": "Xóa tìm kiếm",
@@ -2767,6 +2798,8 @@
       "chunk_overlap_invalid": "Độ chồng lấn của đoạn phải lớn hơn hoặc bằng 0",
       "chunk_overlap_must_be_smaller": "Độ chồng lấn của chunk phải nhỏ hơn kích thước chunk",
       "chunk_overlap_requires_chunk_size": "Kích thước chunk là bắt buộc khi đặt chồng lấn chunk",
+      "chunk_separator": "Phân cách",
+      "chunk_separator_required": "Bắt buộc phải có bộ phân tách khi tính năng chia nhỏ thông minh bị tắt",
       "chunk_size": "Kích thước khối",
       "chunk_size_change_warning": "Kích thước chunk và chồng lấn chỉ áp dụng cho nội dung mới được thêm vào",
       "chunk_size_invalid": "Kích thước chunk phải lớn hơn 0",
@@ -2779,6 +2812,7 @@
       "file_processing_hint": "Xử lý tệp chạy tự động trong quá trình nhập tài liệu. Việc chọn nhà cung cấp phù hợp có thể cải thiện chất lượng phân tích tài liệu.",
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
+        "chunk_separator": "Dấu phân cách mà văn bản được chia theo, ở dạng đã thoát. Khi bật tính năng chia khối thông minh, nó thêm một điểm ngắt; khi tắt tính năng này, văn bản chỉ được chia bằng dấu phân cách này.",
         "chunk_size": "Số lượng token mục tiêu cho mỗi đoạn tài liệu. Điều này ảnh hưởng đến độ chi tiết khi truy xuất và độ dài ngữ cảnh.",
         "document_count": "Số lượng tối đa các đoạn tài liệu được trả về cho mỗi lần truy xuất. Giá trị cao hơn sẽ bao phủ nhiều nội dung hơn nhưng sử dụng nhiều ngữ cảnh hơn.",
         "embedding_model": "Dùng để chuyển nội dung cơ sở kiến thức thành các vector. Việc thay đổi mô hình thường đòi hỏi lập chỉ mục lại nội dung hiện có.",
@@ -2786,6 +2820,7 @@
         "processor": "Trình phân tích được sử dụng khi nhập tệp để trích xuất văn bản chính, bảng và nội dung liên quan.",
         "rerank_model": "Mô hình được sử dụng để xếp hạng lại kết quả truy xuất ban đầu và cải thiện độ liên quan của đoạn cuối cùng.",
         "search_mode": "Chọn một chế độ truy xuất: tìm kiếm vector để khớp ngữ nghĩa, tìm kiếm toàn văn cho từ khóa, hoặc tìm kiếm lai cho cả hai.",
+        "smart_chunking": "Tự động chia theo cấu trúc Markdown (tiêu đề, khối mã, đoạn văn) và không bao giờ chia bên trong một khối mã. Tắt để chia hoàn toàn theo dấu phân cách.",
         "threshold": "Ngưỡng độ tương đồng để lọc các đoạn có độ liên quan thấp. Giá trị cao hơn sẽ làm cho việc truy xuất trở nên nghiêm ngặt hơn.",
         "threshold_disabled": "Chế độ truy xuất này trả về kết quả có thứ tự và không sử dụng ngưỡng độ tương đồng."
       },
@@ -2805,6 +2840,7 @@
         "vector": "Tìm kiếm Vector"
       },
       "separator_rule": "Quy tắc phân cách",
+      "smart_chunking": "Phân đoạn thông minh",
       "threshold": "Ngưỡng Độ Tương Đồng",
       "tokens_unit": "mã thông báo"
     },
@@ -3977,12 +4013,12 @@
     "all": "Tất cả",
     "custom_parameters": "Tham số Tùy chỉnh",
     "detail": {
-      "context_window": "[to be translated]:Context window",
-      "image_modes": "[to be translated]:Image modes",
-      "max_input_tokens": "[to be translated]:Max input",
-      "max_output_tokens": "[to be translated]:Max output",
-      "model_id": "[to be translated]:Model ID",
-      "provider": "[to be translated]:Provider"
+      "context_window": "Cửa sổ ngữ cảnh",
+      "image_modes": "Chế độ hình ảnh",
+      "max_input_tokens": "Đầu vào tối đa",
+      "max_output_tokens": "Đầu ra tối đa",
+      "model_id": "ID mô hình",
+      "provider": "Nhà cung cấp"
     },
     "dimensions": "Kích thước {{dimensions}}",
     "edit": "Chỉnh sửa Mô hình",
@@ -6732,6 +6768,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Hiển thị thêm {{count}} mô hình",
+        "model_in_use_by_knowledge_base": "Mô hình này đang được sử dụng bởi một cơ sở kiến thức và không thể bị xóa.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
@@ -6866,14 +6903,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
       "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Cài đặt",
       "installError": "Failed to install tool",
       "installing": "Đang cài đặt...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Tên công cụ hoặc khóa không hợp lệ",
       "notInstalled": "Chưa cài đặt",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",

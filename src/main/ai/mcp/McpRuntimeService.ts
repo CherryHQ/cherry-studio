@@ -34,7 +34,6 @@ import {
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
-import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -46,6 +45,7 @@ import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
+import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 

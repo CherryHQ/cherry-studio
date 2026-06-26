@@ -40,6 +40,8 @@ export const SafeNameSchema = z
  * - multi-part names like `archive.tar.gz` split as `name='archive.tar'`,
  *   `ext='gz'`
  * - extensionless files should use `null`, not empty string / whitespace
+ * - dots and whitespace are rejected so OS-default-open safety checks cannot
+ *   be bypassed by platform-normalized suffixes such as `exe.` or `exe `
  */
 export const SafeExtSchema = z
   .string()
@@ -47,5 +49,5 @@ export const SafeExtSchema = z
   .max(255)
   .refine((s) => !s.includes('\0'), 'Extension must not contain null bytes')
   .refine((s) => !/[/\\]/.test(s), 'Extension must not contain path separators')
-  .refine((s) => !s.startsWith('.'), 'Extension must be bare (no leading dot), e.g. "pdf" not ".pdf"')
-  .refine((s) => s.trim().length > 0, 'Extension must not be all whitespace')
+  .refine((s) => !s.includes('.'), 'Extension must be bare (no dots), e.g. "pdf" not ".pdf"')
+  .refine((s) => !/\s/.test(s), 'Extension must not contain whitespace')

@@ -19,18 +19,18 @@ import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/tools/agent/types'
-import type {
-  AISDKWebSearchResult,
-  BaseTool,
-  Citation,
-  NormalToolResponse,
-  WebSearchProviderResponse
-} from '@renderer/types'
-import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { Citation } from '@renderer/types/message'
 import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
+import type { BaseTool } from '@renderer/types/tool'
+import {
+  type AISDKWebSearchResult,
+  WEB_SEARCH_SOURCE,
+  type WebSearchProviderResponse
+} from '@renderer/types/webSearchProvider'
 
-import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
+import type { RootState } from './index'
 
 // Create a simplified type for the entity adapter to avoid circular type issues
 type MessageBlockEntity = MessageBlock

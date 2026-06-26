@@ -1,6 +1,7 @@
-import type { FileMetadata, GenerateImageParams } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { CanonicalParamKey } from '@shared/data/types/model'
+import type { GenerateImageParams } from '@shared/types/image'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
 import { generatePainting } from './generatePainting'

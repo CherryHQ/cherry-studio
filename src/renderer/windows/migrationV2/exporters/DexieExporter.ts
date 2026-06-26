@@ -1,9 +1,19 @@
 /**
- * Dexie database exporter for migration
- * Exports IndexedDB tables to JSON files for Main process to read
+ * Dexie database exporter for migration.
+ *
+ * Exports the legacy v1 `CherryStudio` IndexedDB tables to JSON files for the
+ * Main process to read. The database is opened in Dexie "dynamic mode" (no
+ * schema declared) so the migration window no longer depends on the deprecated
+ * `@renderer/databases` schema module: `db.tables` is reflected from whatever
+ * object stores exist on disk. The v2 migration gate (`versionPolicy.ts`) only
+ * admits users coming from a final v1 release, whose on-disk schema is already
+ * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
-import { db } from '@renderer/databases'
+import { Dexie } from 'dexie'
+
+/** Legacy v1 IndexedDB database name. */
+const DEXIE_DB_NAME = 'CherryStudio'
 
 // Required tables that must exist
 const REQUIRED_TABLES = [
@@ -30,62 +40,90 @@ export class DexieExporter {
   }
 
   /**
+   * Open the legacy v1 database in dynamic mode, or return null when no such
+   * database exists (fresh install — nothing to migrate). The caller owns
+   * closing the returned instance.
+   */
+  private async openLegacyDb(): Promise<Dexie | null> {
+    if (!(await Dexie.exists(DEXIE_DB_NAME))) {
+      return null
+    }
+    const db = new Dexie(DEXIE_DB_NAME)
+    await db.open()
+    return db
+  }
+
+  /**
    * Export all Dexie tables to JSON files
    * @param onProgress - Progress callback
    * @returns Export path
    */
   async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
-    const existingTables = db.tables.map((t) => t.name)
-
-    // No Dexie tables at all — fresh install, nothing to export
-    if (existingTables.length === 0) {
+    const db = await this.openLegacyDb()
+    if (!db) {
+      // No Dexie database at all — fresh install, nothing to export
       return this.exportPath
     }
 
-    // Determine which tables to export (skip missing ones gracefully)
-    const tablesToExport = [...REQUIRED_TABLES, ...OPTIONAL_TABLES].filter((t) => existingTables.includes(t))
+    try {
+      const existingTables = db.tables.map((t) => t.name)
 
-    // Export each table
-    for (let i = 0; i < tablesToExport.length; i++) {
-      const tableName = tablesToExport[i]
+      // Determine which tables to export (skip missing ones gracefully)
+      const tablesToExport = [...REQUIRED_TABLES, ...OPTIONAL_TABLES].filter((t) => existingTables.includes(t))
 
-      onProgress?.({
-        table: tableName,
-        progress: 0,
-        total: tablesToExport.length
-      })
+      // Export each table
+      for (let i = 0; i < tablesToExport.length; i++) {
+        const tableName = tablesToExport[i]
 
-      const data = await db.table(tableName).toArray()
+        onProgress?.({
+          table: tableName,
+          progress: 0,
+          total: tablesToExport.length
+        })
 
-      // Send data to Main process for writing
-      // Uses IPC invoke with migration channel
-      await window.electron.ipcRenderer.invoke(
-        'migration:write-export-file',
-        this.exportPath,
-        tableName,
-        JSON.stringify(data)
-      )
+        const data = await db.table(tableName).toArray()
 
-      onProgress?.({
-        table: tableName,
-        progress: i + 1,
-        total: tablesToExport.length
-      })
+        // Send data to Main process for writing
+        // Uses IPC invoke with migration channel
+        await window.electron.ipcRenderer.invoke(
+          'migration:write-export-file',
+          this.exportPath,
+          tableName,
+          JSON.stringify(data)
+        )
+
+        onProgress?.({
+          table: tableName,
+          progress: i + 1,
+          total: tablesToExport.length
+        })
+      }
+
+      return this.exportPath
+    } finally {
+      db.close()
     }
-
-    return this.exportPath
   }
 
   /**
    * Get table counts for validation
    */
   async getTableCounts(): Promise<Record<string, number>> {
-    const counts: Record<string, number> = {}
-
-    for (const table of db.tables) {
-      counts[table.name] = await table.count()
+    const db = await this.openLegacyDb()
+    if (!db) {
+      return {}
     }
 
-    return counts
+    try {
+      const counts: Record<string, number> = {}
+
+      for (const table of db.tables) {
+        counts[table.name] = await table.count()
+      }
+
+      return counts
+    } finally {
+      db.close()
+    }
   }
 }

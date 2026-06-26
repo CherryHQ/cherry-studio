@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -1,5 +1,4 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
-import type { Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -209,6 +208,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 
 import { useHomeMessageListProviderValue } from '../homeMessageListAdapter'

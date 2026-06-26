@@ -1,4 +1,3 @@
-import type { Topic } from '@renderer/types'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +8,8 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
+
+import type { Topic } from '@renderer/types/topic'
 
 import { useChatWriteActions } from '../useChatWriteActions'
 

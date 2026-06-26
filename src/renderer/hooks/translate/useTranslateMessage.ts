@@ -5,14 +5,14 @@
  * Drives a stream entirely through main:
  *   - `window.api.translate.open({ ..., messageId })` opens a stream with a
  *     `TranslationBackend` attached on main.
- *   - chunks land via `Ai_StreamChunk` → we accumulate locally and write into
+ *   - chunks land via `ai.stream_chunk` → we accumulate locally and write into
  *     the renderer-side `TranslationOverlayContext` (no SWR PATCH).
- *   - `Ai_StreamDone` is dispatched after main's persistence listener
+ *   - `ai.stream_done` is dispatched after main's persistence listener
  *     completes the DB write (listener order in `TranslateService.open` puts
  *     Persistence before WebContents, and the manager awaits each terminal
  *     callback serially). On `status: 'success'` we refresh the messages
  *     cache and clear the overlay so the persisted `data-translation` part
- *     becomes the source of truth. On `paused` (cancel) or `Ai_StreamError`
+ *     becomes the source of truth. On `paused` (cancel) or `ai.stream_error`
  *     we just clear the overlay — main wrote nothing.
  *
  * Orphan translations (selection translate, translate page) keep using
@@ -22,8 +22,9 @@
 
 import { loggerService } from '@logger'
 import { useOptionalTranslationOverlaySetter, useRefresh } from '@renderer/components/chat/messages/blocks'
-import type { TranslateLanguage } from '@renderer/types'
+import { ipcApi } from '@renderer/ipc'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useRef } from 'react'
 import { v4 as uuid } from 'uuid'
 
@@ -81,7 +82,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
       // user is explicitly asking for a different target. Server-side abort
       // is best-effort; the renderer teardown is the source of truth.
       if (activeRef.current) {
-        void window.api.ai.streamAbort({ topicId: activeRef.current.streamId }).catch(() => {})
+        void ipcApi.request('ai.stream_abort', { topicId: activeRef.current.streamId }).catch(() => {})
         teardown(null)
       }
 
@@ -103,7 +104,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         targetLanguage: language.langCode as TranslateLangCode
       })
 
-      const unsubChunk = window.api.ai.onStreamChunk(({ topicId, chunk }) => {
+      const unsubChunk = ipcApi.on('ai.stream_chunk', ({ topicId, chunk }) => {
         if (topicId !== streamId) return
         if (
           chunk &&
@@ -118,7 +119,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         }
       })
 
-      const unsubDone = window.api.ai.onStreamDone(async ({ topicId, status }) => {
+      const unsubDone = ipcApi.on('ai.stream_done', async ({ topicId, status }) => {
         if (topicId !== streamId) return
         if (status === 'success') {
           try {
@@ -131,7 +132,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         teardown(streamId)
       })
 
-      const unsubError = window.api.ai.onStreamError(({ topicId }) => {
+      const unsubError = ipcApi.on('ai.stream_error', ({ topicId }) => {
         if (topicId !== streamId) return
         setOverlay?.(messageId, null)
         teardown(streamId)
@@ -159,7 +160,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
   const cancel = useCallback(() => {
     const active = activeRef.current
     if (!active) return
-    void window.api.ai.streamAbort({ topicId: active.streamId }).catch(() => {})
+    void ipcApi.request('ai.stream_abort', { topicId: active.streamId }).catch(() => {})
     // onStreamError / onStreamDone (status: 'paused') will clear the overlay.
   }, [])
 

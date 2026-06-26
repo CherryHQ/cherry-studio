@@ -286,19 +286,19 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerContext', () => ({
+vi.mock('@renderer/components/composer/ComposerContext', () => ({
   ComposerContextProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerCore', () => ({
+vi.mock('@renderer/components/composer/ComposerCore', () => ({
   default: ({ fallback }: { fallback: ReactNode }) => <>{fallback}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', () => ({
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => ({})
 }))
 
-vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
@@ -419,13 +419,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    messageNavigation: 'none',
-    messageStyle: 'message-style'
-  })
-}))
-
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
   useTopicOverlayHandoffOnTerminal: () => {}
@@ -444,7 +437,7 @@ vi.mock('../components/AgentChatNavbar', () => ({
   default: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
+vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: ({ sendDisabled, sessionId }: { sendDisabled?: boolean; sessionId?: string }) => (
     <div data-testid="agent-composer" data-send-disabled={String(Boolean(sendDisabled))} data-session-id={sessionId} />
   ),
