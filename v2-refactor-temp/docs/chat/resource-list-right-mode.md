@@ -16,14 +16,12 @@ right-side resource panel, while the "new view" keeps the classic single sidebar
 Two independent preferences, both `'new' | 'old'` (`PreferenceTypes.ChatViewMode`),
 both defaulting to `'old'`:
 
-- `chat.conversation_view` — assistant chats (Home). Migrated from the v1
-  `topicPosition` via a complex mapping: `right → new`, `left → old`
-  (`mapTopicPositionToConversationView`).
+- `chat.conversation_view` — assistant chats (Home). v2-only, no v1 source.
 - `chat.work_view` — agent chats. v2-only, no v1 source.
 
 Both are declared in `target-key-definitions.json` and generated into
-`preferenceSchemas.ts`; the conversation-view migration lives in
-`PreferenceTransformers.ts` + `ComplexPreferenceMappings.ts`. The settings UI
+`preferenceSchemas.ts`; the legacy v1 `topicPosition` field is deleted during
+classification and is not migrated into either setting. The settings UI
 (`ChatPreferenceSections`) exposes them as "Conversation view" and "Work view",
 each "New view" / "Old view".
 
@@ -36,8 +34,11 @@ When the relevant preference is `old`:
 3. Right: an independently toggleable resource panel for the current
    assistant/agent's conversations/works.
 
-When the preference is `new`, the classic sidebar behavior is unchanged
-(`HomeTabs` / `AgentSidePanel`).
+When the preference is `new`, the previous classic sidebar is used
+(`HomeTabs` / `AgentSidePanel`). Its display-mode preferences are still
+respected, but the display-mode controls are intentionally hidden for now while
+the old-view rail settles; this PR does not delete the underlying display-mode
+logic or persisted preferences.
 
 ## State
 
@@ -107,19 +108,20 @@ own data fetching, pins, deletion, and context menus.
 
 The right panel reuses the existing `Shell` right-pane chrome. The topic/session
 list is injected as the first `resources` tab via `ResourcePaneProvider` /
-`useResourcePane` (a context, so the node + label + disabled flag are supplied
-once at the page level instead of prop-threaded).
+`useResourcePane` (a context, so the node + label are supplied once at the page
+level instead of prop-threaded).
 
 - Home lists topics ("topic" / "话题"); Agent lists works ("work" / "工作").
-- Lists only the current entity's resources. With no current entity the toggle is
-  disabled; a blank new entity opens to an empty list.
+- Lists only the current entity's resources. With no current entity the panel
+  opens to an empty list.
 - The toggle lives in the chat top-right tool area; the same button toggles
   open/closed. The panel is mutually exclusive with branch/trace/files/status/flow
   (scoped to the current chat instance).
 - Fixed time grouping, groups expanded by default; does not read/write the
-  left-mode group-collapsed state or display options. Header keeps only the
-  new-item action; search is kept and scoped to the current entity. Drag/group
-  movement is disabled (the list is fixed time-grouped).
+  left-mode group-collapsed state or display options. Header keeps only search,
+  scoped to the current entity; creating a topic/session stays on the left rail
+  and classic sidebar entry points. Drag/group movement is disabled (the list is
+  fixed time-grouped).
 - Switching assistant/agent clears the right-list search; switching topic/session
   within the same entity does not.
 
