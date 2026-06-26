@@ -233,7 +233,9 @@ export function AgentResourceList({
         ariaLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
+        createItemLabel={t('chat.conversation.new')}
         onAdd={() => onStartMissingAgentDraft?.()}
+        onCreateItem={(item) => onStartDraftAgent(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

@@ -230,7 +230,9 @@ export function AssistantResourceList({
         ariaLabel={t('assistants.abbr')}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
+        createItemLabel={t('chat.conversation.new')}
         onAdd={() => onStartDraftAssistant(null)}
+        onCreateItem={(item) => onStartDraftAssistant(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
