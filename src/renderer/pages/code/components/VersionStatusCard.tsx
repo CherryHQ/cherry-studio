@@ -3,14 +3,8 @@ import { Download, ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { VersionStatus } from '../types'
 import { CLIIcon } from './CLIIcon'
-
-export interface VersionStatus {
-  installed: boolean
-  current?: string
-  latest?: string
-  canUpgrade: boolean
-}
 
 interface VersionStatusCardProps {
   toolId: string
@@ -62,7 +56,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                 {status.canUpgrade && (
                   <Badge
                     variant="outline"
-                    className="gap-1 px-1.5 py-0 text-[11px] leading-4 text-warning border-warning/50">
+                    className="gap-1 border-warning/50 px-1.5 py-0 text-[11px] text-warning leading-4">
                     {t('code.can_upgrade')} → v{status.latest}
                   </Badge>
                 )}
@@ -70,7 +64,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             )}
             {!status.installed && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4 text-muted-foreground">
+                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] text-muted-foreground leading-4">
                   {t('code.not_installed')}
                 </Badge>
               </div>

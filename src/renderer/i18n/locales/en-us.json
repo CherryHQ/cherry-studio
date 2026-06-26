@@ -1943,7 +1943,7 @@
         "effort_level": "Reasoning Effort",
         "enable_tool_search": "Enable Tool Search",
         "haiku_model": "Haiku Model",
-        "include_co_authored_by": "Include Co-authored-by",
+        "hide_attribution": "Hide AI Attribution",
         "max_output_tokens": "Max Output Tokens",
         "model_roles": "Model Role Mapping",
         "model_roles_hint": "Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",

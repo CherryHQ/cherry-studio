@@ -95,9 +95,6 @@ export const CLI_TOOLS = [
   { value: codeCLI.hermes, label: 'Hermes', icon: Nousresearch }
 ] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
-// @legacy — removed in v2
-// export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
-
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
 // Provider 过滤映射
@@ -121,8 +118,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeCLI.hermes]: (providers) => providers.filter(isOpenAILikeProvider)
 }
 
-// @legacy — removed in v2: gemini endpoint type
-// export const getCodeCliApiBaseUrl = (providerId, type) => { ... }
 export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic') => {
   const CODE_CLI_API_ENDPOINTS: Record<string, { anthropic?: { api_base_url: string } }> = {
     deepseek: {
@@ -248,8 +243,6 @@ export const generateProviderConfig = ({
         ...(codex?.reviewModel !== undefined ? { reviewModel: codex.reviewModel } : {})
       }
 
-    // @legacy — removed in v2: kimiCli
-
     case codeCLI.openCode: {
       // @ai-sdk/anthropic appends /messages to the baseURL, so preserve any existing /v1 (formatApiHost
       // with appendV1=false); other endpoints get the standard /v1.
@@ -300,5 +293,3 @@ export const generateProviderConfig = ({
       throw new Error(`Unsupported CLI tool for provider config: ${tool}`)
   }
 }
-
-export { default } from './CodeCliPage'

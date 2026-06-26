@@ -21,7 +21,7 @@ export const CLIIcon: FC<CLIIconProps> = ({ id, size = 28, className }) => {
   if (!Icon) {
     return (
       <div
-        className={`flex items-center justify-center rounded-md bg-accent/50 text-foreground/70 font-medium ${className}`}
+        className={`flex items-center justify-center rounded-md bg-accent/50 font-medium text-foreground/70 ${className}`}
         style={{ width: size, height: size, fontSize: size * 0.4 }}>
         {id.charAt(0).toUpperCase()}
       </div>
