@@ -1303,6 +1303,11 @@ describe('main web search API providers', () => {
             "body": {
               "limit": 4,
               "query": "hello",
+              "scrapeOptions": {
+                "formats": [
+                  "markdown",
+                ],
+              },
             },
             "headers": {
               "authorization": "Bearer firecrawl-key",
@@ -1311,7 +1316,7 @@ describe('main web search API providers', () => {
               "x-title": "Cherry Studio",
             },
             "method": "POST",
-            "url": "https://api.firecrawl.example/v1/search",
+            "url": "https://api.firecrawl.example/v2/search",
           },
         }
       `)

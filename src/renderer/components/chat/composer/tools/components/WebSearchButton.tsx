@@ -21,13 +21,16 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-// Mirrors WebSearchProviderSetting.tsx for UI-availability: fetch / searxng /
-// exa-mcp never require an API key, and firecrawl works keyless within a
-// monthly free quota (its input is still shown in settings so users can opt
-// in with a key for higher limits). searxng uses basic auth; fetch and exa-mcp
-// need none.
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean =>
-  id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp' && id !== 'firecrawl'
+const webSearchProviderRequiresApiKey = (id: WebSearchProviderId, apiHost?: string): boolean => {
+  if (id === 'fetch' || id === 'searxng' || id === 'exa-mcp') return false
+  if (id === 'firecrawl') {
+    if (apiHost && (apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('192.168.'))) {
+      return false
+    }
+    return true
+  }
+  return true
+}
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
@@ -43,9 +46,10 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const activeProviderId = useMemo(() => {
     const p = defaultSearchKeywordsProvider
     if (!p) return undefined
-    const available = webSearchProviderRequiresApiKey(p.id)
+    const apiHost = p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim()
+    const available = webSearchProviderRequiresApiKey(p.id, apiHost)
       ? p.apiKeys.some((k) => k.trim().length > 0)
-      : Boolean(p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim())
+      : Boolean(apiHost)
     return available ? p.id : undefined
   }, [defaultSearchKeywordsProvider])
   const hasSearchBackend = hasBuiltinWebSearch || Boolean(activeProviderId)

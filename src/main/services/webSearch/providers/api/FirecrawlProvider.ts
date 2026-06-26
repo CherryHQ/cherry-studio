@@ -4,33 +4,38 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
-import type { RequestSearchContext } from '../base/context'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const FirecrawlSearchRequestSchema = z.object({
   query: z.string(),
-  limit: z.number().int().positive().optional()
+  limit: z.number().int().positive().optional(),
+  scrapeOptions: z
+    .object({
+      formats: z.array(z.string()).optional()
+    })
+    .optional()
 })
 
 const FirecrawlSearchResponseSchema = z.object({
   success: z.boolean().optional(),
   error: z.string().optional(),
   data: z
-    .array(
-      z.object({
-        title: z.string().optional(),
-        markdown: z.string().optional(),
-        description: z.string().optional(),
-        url: z.string().optional()
-      })
-    )
-    .default([])
+    .object({
+      web: z
+        .array(
+          z.object({
+            title: z.string().optional(),
+            markdown: z.string().optional(),
+            description: z.string().optional(),
+            url: z.string().optional()
+          })
+        )
+        .default([])
+    })
+    .optional()
 })
 
-type FirecrawlSearchContext = RequestSearchContext<z.infer<typeof FirecrawlSearchRequestSchema>> & {
-  // Resolved from `ApiKeyRotationState.resolve(required=false)`; the empty
-  // string means "no key configured, allowing use of free quota" — never sent as `Bearer `.
-  apiKey?: string
-}
+type FirecrawlSearchContext = ApiKeyRequestSearchContext<z.infer<typeof FirecrawlSearchRequestSchema>>
 
 export class FirecrawlProvider extends BaseWebSearchProvider {
   async searchKeywords(
@@ -49,16 +54,19 @@ export class FirecrawlProvider extends BaseWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): FirecrawlSearchContext {
-    const resolvedApiKey = this.resolveApiKey(false).trim()
+    const resolvedApiKey = this.resolveApiKey(false)
 
     return {
-      apiKey: resolvedApiKey || undefined,
+      apiKey: resolvedApiKey,
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('searchKeywords', '/v1/search'),
+      requestUrl: this.resolveApiUrl('searchKeywords', '/v2/search'),
       requestBody: FirecrawlSearchRequestSchema.parse({
         query,
-        limit: config.maxResults
+        limit: config.maxResults,
+        scrapeOptions: {
+          formats: ['markdown']
+        }
       }),
       signal: httpOptions?.signal ?? undefined
     }
@@ -99,12 +107,14 @@ export class FirecrawlProvider extends BaseWebSearchProvider {
       throw new Error(`Firecrawl search failed: ${searchPayload.error ?? 'unknown error'}`)
     }
 
+    const webResults = searchPayload.data?.web ?? []
+
     return {
       query: context.query,
       providerId: this.provider.id,
       capability: 'searchKeywords',
       inputs: [context.query],
-      results: searchPayload.data.slice(0, context.maxResults).map((item) => ({
+      results: webResults.slice(0, context.maxResults).map((item) => ({
         title: item.title?.trim() || '',
         content: item.markdown?.trim() || item.description?.trim() || '',
         url: item.url || '',
