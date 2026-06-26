@@ -1933,23 +1933,86 @@
     }
   },
   "code": {
+    "add_config": "Add",
+    "add_provider_hint": "Add provider in Settings → Model Service",
+    "adv": {
+      "claude": {
+        "auto_compact_window": "Auto Compact Window",
+        "effort_level": "Reasoning Effort",
+        "enable_tool_search": "Enable Tool Search",
+        "include_co_authored_by": "Include Co-authored-by",
+        "max_output_tokens": "Max Output Tokens",
+        "skip_web_fetch_preflight": "Skip Web Fetch Preflight",
+        "timeout_ms": "API Timeout (ms)",
+        "disable_nonessential_traffic": "Disable Nonessential Traffic",
+        "disable_experimental_betas": "Disable Experimental Betas"
+      },
+      "codex": {
+        "auto_compact_token_limit": "Auto Compact Token Limit",
+        "context_window": "Context Window",
+        "disable_response_storage": "Disable Response Storage",
+        "personality": "Personality",
+        "reasoning_effort": "Reasoning Effort",
+        "review_model": "Review Model",
+        "verbosity": "Verbosity"
+      },
+      "effort": {
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium"
+      },
+      "hermes": {
+        "context_length": "Context Length",
+        "max_tokens": "Max Tokens"
+      },
+      "openclaw": {
+        "context_window": "Context Window",
+        "max_tokens": "Max Tokens",
+        "reasoning": "Enable Reasoning"
+      },
+      "opencode": {
+        "budget_tokens": "Reasoning Budget Tokens",
+        "context_limit": "Context Limit",
+        "output_limit": "Output Limit"
+      },
+      "select_placeholder": "Select…"
+    },
     "auto_update_to_latest": "Automatically update to latest version",
+    "basic_info": "Basic Info",
     "bun_required_message": "Bun environment is required to run CLI tools",
+    "can_upgrade": "Upgrade available",
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "config_name": "Name",
+    "config_name_placeholder": "e.g. Work Claude",
+    "configure": "Configure",
+    "configuring_provider": "Configure {{provider}}",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
+    "current_config": "Current",
+    "current_config_settings": "Current Config",
     "custom_path": "Custom path",
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "duplicate": "Duplicate",
+    "duplicate_success": "Duplicated",
+    "edit_config": "Edit Config",
+    "enable": "Enable",
+    "enabled": "Enabled",
+    "endpoint_key_in_model_service": "Endpoint / Key in Model Service",
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
     "hero_tagline": "Pick a CLI tool to configure",
+    "install": "Install",
     "install_bun": "Install Bun",
+    "install_error": "Installation failed",
+    "install_success": "Installation successful",
+    "installing": "Installing…",
     "installing_bun": "Installing...",
+    "latest": "Latest",
     "launch": {
       "bun_required": "Please install Bun environment first before launching CLI tools",
       "error": "Launch failed, please try again",
@@ -1961,9 +2024,18 @@
     "launching": "Launching...",
     "model": "Model",
     "model_hint": "Choose which AI model the CLI tool should use",
+    "model_hint_config": "Select the model to use",
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
+    "no_configs_description": "Add a named config to manage multiple providers/models for this CLI tool",
+    "no_configs_title": "No configs yet",
+    "no_matching_tools": "No matching tools",
+    "no_tools": "No tools available",
+    "not_installed": "Not installed",
+    "providers": "Providers",
+    "search_cli_placeholder": "Search CLI…",
     "select_folder": "Select Folder",
+    "select_tool_to_start": "Select a CLI tool from the left to start configuring",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
@@ -1972,17 +2044,18 @@
     "title": "Code Tools",
     "tool_description": {
       "claude_code": "Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "Google's official Gemini command-line assistant",
-      "github_copilot_cli": "GitHub's official Copilot command-line companion",
-      "kimi_cli": "Moonshot's Kimi command-line assistant",
+      "hermes": "Nous Research agentic coding CLI",
       "openai_codex": "OpenAI's official code generation CLI",
-      "opencode": "Open-source multi-model coding agent",
-      "qoder_cli": "Alibaba Qoder's agentic command-line coding tool",
-      "qwen_code": "Alibaba Tongyi's open-source CLI coding tool"
+      "openclaw": "Multi-channel personal AI assistant with gateway service",
+      "opencode": "Open-source multi-model coding agent"
     },
     "update_options": "Update Options",
+    "upgrade": "Upgrade",
+    "upgrade_error": "Upgrade failed",
+    "upgrade_success": "Upgrade successful",
     "working_directory": "Working Directory",
-    "working_directory_hint": "The working directory that the CLI tool launches in"
+    "working_directory_hint": "The working directory that the CLI tool launches in",
+    "advanced_config": "Advanced Config"
   },
   "code_block": {
     "collapse": "Collapse",
@@ -2495,6 +2568,9 @@
       "title": "Keep Alive Time"
     },
     "title": "GPUStack"
+  },
+  "hermes": {
+    "title": "Hermes"
   },
   "history": {
     "continue_chat": "Continue Chatting",
@@ -6787,7 +6863,6 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "Some models are in use as the default model and cannot be removed.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

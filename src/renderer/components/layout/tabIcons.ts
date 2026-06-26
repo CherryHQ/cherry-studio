@@ -14,8 +14,6 @@ import {
   Settings
 } from 'lucide-react'
 
-import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
-
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
 // ─── Route → Icon mapping ─────────────────────────────────────────────────────
@@ -31,7 +29,6 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/files': Folder,
   '/app/code': Code,
   '/app/notes': NotepadText,
-  '/app/openclaw': OpenClawSidebarIcon,
   '/settings': Settings
 }
 

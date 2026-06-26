@@ -1,4 +1,3 @@
-import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import {
   buildTabInstanceMetadata,
@@ -144,11 +143,6 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     id: 'notes',
     icon: NotepadText,
     routePrefix: '/app/notes'
-  },
-  {
-    id: 'openclaw',
-    icon: OpenClawSidebarIcon,
-    routePrefix: '/app/openclaw'
   }
 ]
 
