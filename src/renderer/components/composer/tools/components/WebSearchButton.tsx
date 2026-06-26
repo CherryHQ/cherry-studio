@@ -22,13 +22,7 @@ interface Props {
 }
 
 const webSearchProviderRequiresApiKey = (id: WebSearchProviderId, apiHost?: string): boolean => {
-  if (id === 'fetch' || id === 'searxng' || id === 'exa-mcp') return false
-  if (id === 'firecrawl') {
-    if (apiHost && (apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('192.168.'))) {
-      return false
-    }
-    return true
-  }
+  if (id === 'fetch' || id === 'searxng' || id === 'exa-mcp' || id === 'firecrawl') return false
   return true
 }
 
