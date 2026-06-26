@@ -676,12 +676,24 @@ const Sessions = ({
   const handleDeleteSession = useCallback(
     async (id: string) => {
       const success = await deleteSession(id)
-      if (success && activeSessionId === id) {
-        const remaining = sessionItems.find((s) => s.id !== id)
-        setActiveSessionId(remaining?.id ?? null)
+      if (!success || activeSessionId !== id) return
+
+      if (isRightPanel) {
+        // Old view is scoped to a single agent: select that agent's neighbouring session rather than
+        // the first remaining session, which could belong to another agent.
+        const index = filteredGroupedSessions.findIndex((s) => s.id === id)
+        const next =
+          index !== -1 && filteredGroupedSessions.length > 1
+            ? filteredGroupedSessions[index + 1 === filteredGroupedSessions.length ? index - 1 : index + 1]
+            : undefined
+        setActiveSessionId(next?.id ?? null)
+        return
       }
+
+      const remaining = sessionItems.find((s) => s.id !== id)
+      setActiveSessionId(remaining?.id ?? null)
     },
-    [activeSessionId, deleteSession, sessionItems, setActiveSessionId]
+    [activeSessionId, deleteSession, filteredGroupedSessions, isRightPanel, sessionItems, setActiveSessionId]
   )
 
   const handleRenameSession = useCallback(

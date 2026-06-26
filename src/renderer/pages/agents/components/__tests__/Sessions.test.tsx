@@ -1473,6 +1473,52 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
   })
 
+  it('selects the same agent neighbouring session after deleting the active session in the right panel', async () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a1-first', name: 'A1 First session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-a1-second', name: 'A1 Second session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-a2-first', name: 'A2 First session', agentId: 'agent-b', orderKey: 'c' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    render(
+      <SessionsForTest
+        agentIdFilter="agent-a"
+        presentation="right-panel"
+        activeSessionId="session-a1-second"
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A1 Second session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a1-second'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith(
+        'session-a1-first',
+        expect.objectContaining({ id: 'session-a1-first' })
+      )
+    )
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setSessionGroupExpansionCache({

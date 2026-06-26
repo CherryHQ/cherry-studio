@@ -478,12 +478,21 @@ export function Topics({
         return
       }
 
-      if (topic.id === activeTopic?.id && topics.length > 1) {
-        const index = findIndex(topics, (candidate) => candidate.id === topic.id)
-        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
-      }
+      if (topic.id !== activeTopic?.id) return
+
+      // The old-view right panel is scoped to a single assistant, so select that assistant's
+      // neighbouring topic instead of the global next one (which could belong to another assistant).
+      const selectionList = isRightPanel
+        ? topics.filter((candidate) => candidate.assistantId === assistantIdFilter)
+        : topics
+      if (selectionList.length <= 1) return
+
+      const index = findIndex(selectionList, (candidate) => candidate.id === topic.id)
+      if (index === -1) return
+
+      setActiveTopic(selectionList[index + 1 === selectionList.length ? index - 1 : index + 1])
     },
-    [activeTopic?.id, removeTopic, setActiveTopic, t, topics]
+    [activeTopic?.id, assistantIdFilter, isRightPanel, removeTopic, setActiveTopic, t, topics]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
