@@ -2767,6 +2767,8 @@
       "chunk_overlap_invalid": "El solapamiento de fragmentos debe ser mayor o igual que 0",
       "chunk_overlap_must_be_smaller": "El solapamiento de fragmentos debe ser menor que el tamaño del fragmento.",
       "chunk_overlap_requires_chunk_size": "El tamaño del fragmento es obligatorio cuando se establece la superposición de fragmentos.",
+      "chunk_separator": "Separador",
+      "chunk_separator_required": "Se requiere un separador cuando la segmentación inteligente está desactivada.",
       "chunk_size": "Tamaño del fragmento",
       "chunk_size_change_warning": "Los cambios en el tamaño del fragmento y la superposición solo se aplican al contenido recién agregado",
       "chunk_size_invalid": "El tamaño del fragmento debe ser mayor que 0",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "El procesamiento de archivos se ejecuta automáticamente durante la importación del documento. Elegir el proveedor adecuado puede mejorar la calidad del análisis del documento.",
       "hints": {
         "chunk_overlap": "Número de tokens superpuestos que se conservan entre fragmentos adyacentes para reducir las rupturas semánticas.",
+        "chunk_separator": "Delimitador en el que se divide el texto, en forma escapada. Con la división inteligente activada, añade un punto de corte; con ella desactivada, el texto se divide únicamente por este delimitador.",
         "chunk_size": "Recuento objetivo de tokens para cada fragmento de documento. Esto afecta la granularidad de recuperación y la longitud del contexto.",
         "document_count": "Número máximo de fragmentos de documento devueltos para cada recuperación. Valores más altos cubren más contenido pero utilizan más contexto.",
         "embedding_model": "Se utiliza para convertir el contenido de la base de conocimientos en vectores. Cambiar el modelo suele requerir reindexar el contenido existente.",
@@ -2786,6 +2789,7 @@
         "processor": "Analizador utilizado al importar archivos para extraer el texto del cuerpo, tablas y contenido relacionado.",
         "rerank_model": "Modelo utilizado para reordenar los resultados de recuperación inicial y mejorar la relevancia del fragmento final.",
         "search_mode": "Elige un modo de recuperación: búsqueda vectorial para coincidencia semántica, búsqueda de texto completo para palabras clave o búsqueda híbrida para ambas.",
+        "smart_chunking": "Dividir automáticamente según la estructura de Markdown (encabezados, bloques de código, párrafos) y nunca dividir dentro de un bloque de código. Desactivar para dividir únicamente por el separador.",
         "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta.",
         "threshold_disabled": "Este modo de recuperación devuelve resultados ordenados y no utiliza un umbral de similitud."
       },
@@ -2805,6 +2809,7 @@
         "vector": "Búsqueda Vectorial"
       },
       "separator_rule": "Regla de Separador",
+      "smart_chunking": "Fragmentación Inteligente",
       "threshold": "Umbral de Similitud",
       "tokens_unit": "tokens"
     },
@@ -6356,8 +6361,8 @@
         "connected": "Conectado",
         "connecting": "Conectando",
         "disabled": "Deshabilitado",
-        "error": "[to be translated]:Error",
-        "unavailable": "[to be translated]:Unavailable"
+        "error": "Error",
+        "unavailable": "No disponible"
       },
       "search": {
         "placeholder": "Buscar servidores MCP...",
@@ -6482,7 +6487,7 @@
       "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif",
-      "wide_mode": "[to be translated]:Wide layout mode"
+      "wide_mode": "Modo de diseño amplio"
     },
     "miniApps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
@@ -6732,6 +6737,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Mostrar {{count}} modelos más",
+        "model_in_use_by_knowledge_base": "Este modelo es utilizado por una base de conocimientos y no puede ser eliminado.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Volver a obtener la lista de modelos",
         "reload_catalog": "Refresh list",
@@ -6866,14 +6872,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
       "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Instalar",
       "installError": "Failed to install tool",
       "installing": "Instalando...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Nombre o clave de herramienta no válido",
       "notInstalled": "No instalado",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6904,7 +6910,7 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+      "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
     "privacy": {
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
@@ -6927,7 +6933,7 @@
       "title": "Gestión de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduce el título del prompt",
-      "variablePlaceholder": "[to be translated]:${variable}"
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
@@ -7667,7 +7673,7 @@
     "settings": "Configuración",
     "store": "Biblioteca de asistentes",
     "translate": "Traducir",
-    "work": "[to be translated]:Work"
+    "work": "Trabajo"
   },
   "trace": {
     "agent": "Agente",

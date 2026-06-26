@@ -2767,6 +2767,8 @@
       "chunk_overlap_invalid": "Le chevauchement des blocs doit être supérieur ou égal à 0",
       "chunk_overlap_must_be_smaller": "Le chevauchement des morceaux doit être inférieur à la taille des morceaux",
       "chunk_overlap_requires_chunk_size": "La taille du chunk est requise lorsque le chevauchement des chunks est défini",
+      "chunk_separator": "Séparateur",
+      "chunk_separator_required": "Un séparateur est requis lorsque le découpage intelligent est désactivé",
       "chunk_size": "Taille de bloc",
       "chunk_size_change_warning": "Les modifications de la taille des blocs et du chevauchement ne s'appliquent qu'au contenu nouvellement ajouté",
       "chunk_size_invalid": "La taille du chunk doit être supérieure à 0",
@@ -2779,6 +2781,7 @@
       "file_processing_hint": "Le traitement des fichiers s'exécute automatiquement lors de l'importation des documents. Choisir le bon fournisseur peut améliorer la qualité de l'analyse des documents.",
       "hints": {
         "chunk_overlap": "Nombre de jetons chevauchants conservés entre les segments adjacents afin de réduire les ruptures sémantiques.",
+        "chunk_separator": "Délimiteur sur lequel le texte est découpé, sous forme échappée. Lorsque la découpe intelligente est activée, il ajoute un point de rupture ; lorsqu’elle est désactivée, le texte n’est découpé que par ce délimiteur.",
         "chunk_size": "Nombre cible de jetons pour chaque fragment de document. Cela influence la granularité de la récupération et la longueur du contexte.",
         "document_count": "Nombre maximal de fragments de document retournés pour chaque récupération. Des valeurs plus élevées couvrent davantage de contenu mais utilisent plus de contexte.",
         "embedding_model": "Utilisé pour convertir le contenu de la base de connaissances en vecteurs. Changer le modèle nécessite généralement de réindexer le contenu existant.",
@@ -2786,6 +2789,7 @@
         "processor": "Analyseur utilisé lors de l'importation des fichiers pour extraire le corps du texte, les tableaux et le contenu associé.",
         "rerank_model": "Modèle utilisé pour réordonner les résultats initiaux de récupération et améliorer la pertinence finale des segments.",
         "search_mode": "Choisissez un mode de récupération : recherche vectorielle pour la correspondance sémantique, recherche plein texte pour les mots-clés ou recherche hybride pour les deux.",
+        "smart_chunking": "Fractionner automatiquement selon la structure Markdown (titres, blocs de code, paragraphes) et ne jamais fractionner à l’intérieur d’un bloc de code. Désactivez pour fractionner uniquement par le séparateur.",
         "threshold": "Seuil de similarité pour filtrer les fragments peu pertinents. Des valeurs plus élevées rendent la récupération plus stricte.",
         "threshold_disabled": "Ce mode de récupération retourne des résultats ordonnés et n'utilise pas de seuil de similarité."
       },
@@ -2805,6 +2809,7 @@
         "vector": "Recherche vectorielle"
       },
       "separator_rule": "Règle de séparateur",
+      "smart_chunking": "Fragmentation intelligente",
       "threshold": "Seuil de similarité",
       "tokens_unit": "jetons"
     },
@@ -6355,9 +6360,9 @@
       "runtimeStatus": {
         "connected": "Connecté",
         "connecting": "Connexion",
-        "disabled": "[to be translated]:Disabled",
-        "error": "[to be translated]:Error",
-        "unavailable": "[to be translated]:Unavailable"
+        "disabled": "Désactivé",
+        "error": "Erreur",
+        "unavailable": "Indisponible"
       },
       "search": {
         "placeholder": "Rechercher des serveurs MCP...",
@@ -6482,7 +6487,7 @@
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif",
-      "wide_mode": "[to be translated]:Wide layout mode"
+      "wide_mode": "Mode d'affichage large"
     },
     "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
@@ -6732,6 +6737,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Afficher {{count}} modèles supplémentaires",
+        "model_in_use_by_knowledge_base": "Ce modèle est utilisé par une base de connaissances et ne peut pas être supprimé.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "reload_catalog": "Refresh list",
@@ -6866,14 +6872,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Aucun outil personnalisé pour l'instant. Ajoutez-en un pour commencer.",
       "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Installer",
       "installError": "Failed to install tool",
       "installing": "Installation en cours...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Nom ou clé d'outil invalide",
       "notInstalled": "Non installé",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6904,7 +6910,7 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+      "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
