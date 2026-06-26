@@ -172,6 +172,22 @@ describe('fileTransfer handlers', () => {
       expect(formatFileSize(1536)).toBe('1.5 KB')
       expect(formatFileSize(1.5 * 1024 * 1024)).toBe('1.5 MB')
     })
+
+    it('should format terabytes and petabytes', () => {
+      expect(formatFileSize(1024 ** 4)).toBe('1 TB')
+      expect(formatFileSize(2 * 1024 ** 4)).toBe('2 TB')
+      expect(formatFileSize(1024 ** 5)).toBe('1 PB')
+    })
+
+    it('should clamp extremely large sizes to the largest unit instead of printing undefined', () => {
+      expect(formatFileSize(1024 ** 6)).toBe('1024 PB')
+    })
+
+    it('should return 0 B for non-positive or non-finite input', () => {
+      expect(formatFileSize(-1)).toBe('0 B')
+      expect(formatFileSize(NaN)).toBe('0 B')
+      expect(formatFileSize(Infinity)).toBe('0 B')
+    })
   })
 
   // Note: streamFileChunks tests require careful mocking of fs.createReadStream
