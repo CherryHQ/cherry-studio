@@ -1,3 +1,4 @@
+import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import {
   buildTabInstanceMetadata,
   getTabInstanceAppId,
@@ -118,10 +119,6 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   {
     id: 'notes',
     routePrefix: '/app/notes'
-  },
-  {
-    id: 'openclaw',
-    routePrefix: '/app/openclaw'
   }
 ]
 

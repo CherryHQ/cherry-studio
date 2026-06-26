@@ -1,23 +1,13 @@
 import type { IconComponent } from '@cherrystudio/ui/icons'
-import {
-  ClaudeCode,
-  GeminiCli,
-  GithubCopilotCli,
-  KimiCli,
-  OpenaiCodex,
-  OpenCode,
-  QoderCli,
-  QwenCode
-} from '@cherrystudio/ui/icons'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code/codeProviders'
+import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/codeProviders'
 import { formatApiHost } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { type CliProviderConfig, codeCLI } from '@shared/types/codeCli'
 import {
   isAnthropicProvider,
-  isGeminiProvider,
   isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider
@@ -56,21 +46,58 @@ export interface ToolEnvironmentConfig {
     supportsReasoningEffort: boolean
     budgetTokens?: number
   }
+  claude?: {
+    haikuModel?: string
+    sonnetModel?: string
+    opusModel?: string
+    timeoutMs?: string
+    maxOutputTokens?: string
+    disableNonessentialTraffic?: number
+    autoCompactWindow?: string
+    disableExperimentalBetas?: string
+    enableToolSearch?: boolean
+    skipWebFetchPreflight?: boolean
+    includeCoAuthoredBy?: boolean
+    effortLevel?: string
+    enabledPlugins?: Record<string, boolean>
+  }
+  codex?: {
+    reasoningEffort?: string
+    disableResponseStorage?: boolean
+    personality?: string
+    verbosity?: string
+    contextWindow?: number
+    autoCompactTokenLimit?: number
+    reviewModel?: string
+  }
+  opencode?: {
+    contextLimit?: number
+    outputLimit?: number
+  }
+  openclaw?: {
+    reasoning?: boolean
+    contextWindow?: number
+    maxTokens?: number
+    headers?: Record<string, string>
+  }
+  hermes?: {
+    contextLength?: number
+    maxTokens?: number
+  }
 }
 
 // CLI 工具选项
+// @legacy — removed in v2: qwenCode, geminiCli, qoderCli, kimiCli, githubCopilotCli
 export const CLI_TOOLS = [
-  { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: ClaudeCode },
-  { value: CodeCli.QWEN_CODE, label: 'Qwen Code', icon: QwenCode },
-  { value: CodeCli.GEMINI_CLI, label: 'Gemini CLI', icon: GeminiCli },
-  { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: OpenaiCodex },
-  { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: QoderCli },
-  { value: CodeCli.GITHUB_COPILOT_CLI, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
-  { value: CodeCli.KIMI_CLI, label: 'Kimi Code', icon: KimiCli },
-  { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: OpenCode }
-] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
+  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
+  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
+  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode },
+  { value: codeCLI.openclaw, label: 'OpenClaw', icon: Openclaw },
+  { value: codeCLI.hermes, label: 'Hermes', icon: Nousresearch }
+] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
-export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
+// @legacy — removed in v2
+// export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
@@ -87,24 +114,19 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter(
       (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
-  [CodeCli.GEMINI_CLI]: (providers) =>
-    providers.filter((p) => isGeminiProvider(p) || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
-  [CodeCli.QWEN_CODE]: (providers) => providers.filter(isOpenAILikeProvider),
-  [CodeCli.OPENAI_CODEX]: (providers) =>
+  // @legacy — removed in v2: geminiCli, qwenCode, qoderCli, githubCopilotCli, kimiCli
+  [codeCLI.openaiCodex]: (providers) =>
     providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [CodeCli.QODER_CLI]: () => [],
-  [CodeCli.GITHUB_COPILOT_CLI]: () => [],
-  [CodeCli.KIMI_CLI]: (providers) => providers.filter(isOpenAILikeProvider),
-  [CodeCli.OPEN_CODE]: (providers) => providers.filter(isOpenCodeProvider)
+
+  [codeCLI.openCode]: (providers) => providers.filter(isOpenCodeProvider),
+  [codeCLI.openclaw]: (providers) => providers.filter(isOpenCodeProvider),
+  [codeCLI.hermes]: (providers) => providers.filter(isOpenAILikeProvider)
 }
 
-export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
-  const CODE_CLI_API_ENDPOINTS = {
-    aihubmix: {
-      gemini: {
-        api_base_url: 'https://aihubmix.com/gemini'
-      }
-    },
+// @legacy — removed in v2: gemini endpoint type
+// export const getCodeCliApiBaseUrl = (providerId, type) => { ... }
+export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic') => {
+  const CODE_CLI_API_ENDPOINTS: Record<string, { anthropic?: { api_base_url: string } }> = {
     deepseek: {
       anthropic: {
         api_base_url: 'https://api.deepseek.com/anthropic'
@@ -165,14 +187,8 @@ export const parseEnvironmentVariables = (envVars: string): Record<string, strin
   return env
 }
 
-/**
- * Opencode expects a wire-format string in OPENCODE_PROVIDER_TYPE. v2 has no
- * `provider.type`; the caller derives this from v2 predicates.
- */
-export type ProviderWireType = 'anthropic' | 'openai-response' | 'openai'
-
-// 为不同 CLI 工具生成环境变量配置
-export const generateToolEnvironment = ({
+// Resolve the selected provider/model into the typed config the matching CLI writer persists in main
+export const generateProviderConfig = ({
   tool,
   rawModelId,
   modelName,
@@ -183,100 +199,110 @@ export const generateToolEnvironment = ({
   anthropicBaseUrl,
   apiKey,
   baseUrl,
-  reasoning
-}: ToolEnvironmentConfig & { providerWireType?: ProviderWireType }): { env: Record<string, string> } => {
-  const env: Record<string, string> = {}
+  reasoning,
+  claude,
+  codex,
+  opencode,
+  openclaw,
+  hermes
+}: ToolEnvironmentConfig): CliProviderConfig => {
   const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
-    case CodeCli.CLAUDE_CODE: {
-      // https://code.claude.com/docs/en/env-vars — mark provider env as
-      // host-managed so Claude Code ignores ANTHROPIC_* from the user's
-      // ~/.claude/settings.json (avoids auth-token/api-key conflict). #15089
-      env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1'
-      env.ANTHROPIC_BASE_URL = getCodeCliApiBaseUrl(providerId, 'anthropic') || anthropicBaseUrl || baseUrl
-      env.ANTHROPIC_MODEL = rawModelId
-      if (isAnthropic) {
-        env.ANTHROPIC_API_KEY = apiKey
-      } else {
-        env.ANTHROPIC_AUTH_TOKEN = apiKey
+    case codeCLI.claudeCode:
+      return {
+        baseUrl: getCodeCliApiBaseUrl(providerId, 'anthropic') || anthropicBaseUrl || baseUrl,
+        model: rawModelId,
+        ...(isAnthropic ? { apiKey } : { authToken: apiKey }),
+        ...(claude?.haikuModel !== undefined ? { haikuModel: claude.haikuModel } : {}),
+        ...(claude?.sonnetModel !== undefined ? { sonnetModel: claude.sonnetModel } : {}),
+        ...(claude?.opusModel !== undefined ? { opusModel: claude.opusModel } : {}),
+        ...(claude?.timeoutMs !== undefined ? { timeoutMs: claude.timeoutMs } : {}),
+        ...(claude?.maxOutputTokens !== undefined ? { maxOutputTokens: claude.maxOutputTokens } : {}),
+        ...(claude?.disableNonessentialTraffic !== undefined
+          ? { disableNonessentialTraffic: claude.disableNonessentialTraffic }
+          : {}),
+        ...(claude?.autoCompactWindow !== undefined ? { autoCompactWindow: claude.autoCompactWindow } : {}),
+        ...(claude?.disableExperimentalBetas !== undefined
+          ? { disableExperimentalBetas: claude.disableExperimentalBetas }
+          : {}),
+        ...(claude?.enableToolSearch !== undefined ? { enableToolSearch: claude.enableToolSearch } : {}),
+        ...(claude?.skipWebFetchPreflight !== undefined ? { skipWebFetchPreflight: claude.skipWebFetchPreflight } : {}),
+        ...(claude?.includeCoAuthoredBy !== undefined ? { includeCoAuthoredBy: claude.includeCoAuthoredBy } : {}),
+        ...(claude?.effortLevel !== undefined ? { effortLevel: claude.effortLevel } : {}),
+        ...(claude?.enabledPlugins !== undefined ? { enabledPlugins: claude.enabledPlugins } : {})
       }
-      break
+
+    // @legacy — removed in v2: geminiCli, qwenCode
+
+    case codeCLI.openaiCodex:
+      return {
+        apiKey,
+        baseUrl: formattedBaseUrl,
+        providerName: sanitizeProviderName(fancyProviderName),
+        model: rawModelId,
+        ...(codex?.reasoningEffort !== undefined ? { reasoningEffort: codex.reasoningEffort } : {}),
+        ...(codex?.disableResponseStorage !== undefined
+          ? { disableResponseStorage: codex.disableResponseStorage }
+          : {}),
+        ...(codex?.personality !== undefined ? { personality: codex.personality } : {}),
+        ...(codex?.verbosity !== undefined ? { verbosity: codex.verbosity } : {}),
+        ...(codex?.contextWindow !== undefined ? { contextWindow: codex.contextWindow } : {}),
+        ...(codex?.autoCompactTokenLimit !== undefined ? { autoCompactTokenLimit: codex.autoCompactTokenLimit } : {}),
+        ...(codex?.reviewModel !== undefined ? { reviewModel: codex.reviewModel } : {})
+      }
+
+    // @legacy — removed in v2: kimiCli
+
+    case codeCLI.openCode: {
+      // @ai-sdk/anthropic appends /messages to the baseURL, so preserve any existing /v1 (formatApiHost
+      // with appendV1=false); other endpoints get the standard /v1.
+      const isAnthropicEndpoint = endpointType === 'anthropic-messages' || (!endpointType && isAnthropic)
+      return {
+        apiKey,
+        baseUrl: isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl,
+        providerName: sanitizeProviderName(fancyProviderName),
+        providerType: isAnthropic ? 'anthropic' : 'openai',
+        endpointType: endpointType ?? '',
+        model: rawModelId,
+        modelName,
+        isReasoning: reasoning?.isReasoning ?? false,
+        supportsReasoningEffort: reasoning?.supportsReasoningEffort ?? false,
+        ...(reasoning?.budgetTokens !== undefined ? { budgetTokens: reasoning.budgetTokens } : {}),
+        ...(opencode?.contextLimit !== undefined ? { contextLimit: opencode.contextLimit } : {}),
+        ...(opencode?.outputLimit !== undefined ? { outputLimit: opencode.outputLimit } : {})
+      }
     }
 
-    case CodeCli.GEMINI_CLI: {
-      const apiBaseUrl = getCodeCliApiBaseUrl(providerId, 'gemini') || baseUrl
-      env.GEMINI_API_KEY = apiKey
-      env.GEMINI_BASE_URL = apiBaseUrl
-      env.GOOGLE_GEMINI_BASE_URL = apiBaseUrl
-      env.GEMINI_MODEL = rawModelId
-      break
-    }
-
-    case CodeCli.QWEN_CODE:
-      env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = rawModelId
-      break
-    case CodeCli.OPENAI_CODEX:
-      // Codex CLI rejects model_providers keys colliding with its reserved
-      // built-in IDs (openai/ollama/lmstudio). Hand the provider through
-      // Cherry-namespaced vars; CodeToolsService maps them to a sanitized
-      // Cherry- prefixed config key (or openai_base_url for reserved). #15068
-      env.CHERRY_CODEX_API_KEY = apiKey
-      env.CHERRY_CODEX_BASE_URL = formattedBaseUrl
-      env.CHERRY_CODEX_PROVIDER_ID = providerId
-      env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(fancyProviderName)
-      break
-
-    case CodeCli.QODER_CLI:
-      env.QODERCN_PERSONAL_ACCESS_TOKEN = apiKey || ''
-      break
-
-    case CodeCli.GITHUB_COPILOT_CLI:
-      env.GITHUB_TOKEN = apiKey || ''
-      break
-
-    case CodeCli.KIMI_CLI:
-      env.KIMI_MODEL_NAME = rawModelId
-      env.KIMI_MODEL_API_KEY = apiKey
-      env.KIMI_MODEL_BASE_URL = formattedBaseUrl
-      env.KIMI_MODEL_PROVIDER_TYPE = 'openai'
-      break
-
-    case CodeCli.OPEN_CODE:
-      // Set environment variable with provider-specific suffix for security
-      {
-        // Determine base URL format based on model's endpoint type and provider type
-        // anthropic: use formatApiHost(url, false) to preserve existing /v1 from provider config
-        // @ai-sdk/anthropic appends /messages to the baseURL (not /v1/messages)
-        // others: append /v1 (standard OpenAI-compatible endpoint)
-        const isAnthropicEndpoint = endpointType === 'anthropic-messages' || (!endpointType && isAnthropic)
-        const openCodeBaseUrl = isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl
-
-        env.OPENCODE_BASE_URL = openCodeBaseUrl
-        env.OPENCODE_MODEL_NAME = modelName
-        env.OPENCODE_MODEL_ENDPOINT_TYPE = endpointType ?? ''
-        // Reasoning flags are precomputed by the caller (v2 @shared/utils/model).
-        const providerName = sanitizeProviderName(fancyProviderName)
-        env.OPENCODE_MODEL_IS_REASONING = String(reasoning?.isReasoning ?? false)
-        env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT = String(reasoning?.supportsReasoningEffort ?? false)
-        if (reasoning?.budgetTokens !== undefined) {
-          env.OPENCODE_MODEL_BUDGET_TOKENS = String(reasoning.budgetTokens)
-        }
-        env.OPENCODE_PROVIDER_TYPE = isAnthropic ? 'anthropic' : 'openai'
-        env.OPENCODE_PROVIDER_NAME = providerName
-        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
-        env[envVarKey] = apiKey
-        // opencode's auto-update check can't detect Cherry Studio's bun install,
-        // causing a confusing "Update Available" dialog that always fails.
-        // Cherry Studio manages opencode updates via its own autoUpdateToLatest.
-        env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
+    case codeCLI.openclaw:
+      return {
+        apiKey,
+        baseUrl: formattedBaseUrl,
+        api: isAnthropic ? 'anthropic-messages' : 'openai-completions',
+        model: rawModelId,
+        modelName,
+        providerName: sanitizeProviderName(fancyProviderName),
+        ...(openclaw?.reasoning !== undefined ? { reasoning: openclaw.reasoning } : {}),
+        ...(openclaw?.contextWindow !== undefined ? { contextWindow: openclaw.contextWindow } : {}),
+        ...(openclaw?.maxTokens !== undefined ? { maxTokens: openclaw.maxTokens } : {}),
+        ...(openclaw?.headers !== undefined ? { headers: openclaw.headers } : {})
       }
-      break
+
+    case codeCLI.hermes:
+      return {
+        apiKey,
+        baseUrl: formattedBaseUrl,
+        apiMode: isAnthropic ? 'anthropic_messages' : 'chat_completions',
+        model: rawModelId,
+        modelName,
+        providerName: sanitizeProviderName(fancyProviderName),
+        ...(hermes?.contextLength !== undefined ? { contextLength: hermes.contextLength } : {}),
+        ...(hermes?.maxTokens !== undefined ? { maxTokens: hermes.maxTokens } : {})
+      }
+
+    default:
+      throw new Error(`Unsupported CLI tool for provider config: ${tool}`)
   }
-
-  return { env }
 }
 
 export { default } from './CodeCliPage'
