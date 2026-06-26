@@ -86,6 +86,9 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Local embedding model cache (transformers.js / onnxruntime-node, downloaded on first use)
+    'feature.models.transformers': path.join(appUserDataData, 'Models', 'transformers'),
+
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
     'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),

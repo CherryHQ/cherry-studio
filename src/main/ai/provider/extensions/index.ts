@@ -16,6 +16,7 @@ import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perpl
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
@@ -28,6 +29,10 @@ import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix/aihubmixProvider'
 import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi/dmxapiProvider'
+import {
+  createLocalEmbeddingProvider,
+  type LocalEmbeddingProviderSettings
+} from '../custom/localEmbedding/localEmbeddingProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms/ovmsProvider'
@@ -251,6 +256,20 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
+/**
+ * Local Embedding Extension - optional in-process text embeddings via
+ * transformers.js + onnxruntime-node (no auth, no network). Embedding-only.
+ */
+export const LocalEmbeddingExtension = ProviderExtension.create({
+  name: LOCAL_EMBEDDING_PROVIDER_ID,
+  supportsImageGeneration: false,
+  create: createLocalEmbeddingProvider
+} as const satisfies ProviderExtensionConfig<
+  LocalEmbeddingProviderSettings,
+  ProviderV3,
+  typeof LOCAL_EMBEDDING_PROVIDER_ID
+>)
+
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
@@ -273,5 +292,6 @@ export const extensions = [
   DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension
+  GroqExtension,
+  LocalEmbeddingExtension
 ] as const
