@@ -118,6 +118,12 @@
 - **optional ref**（如 `translate_history.sourceLanguage → translate_language`）——重写保留关联或按 optional 语义 SET_NULL（不可留悬空备份 uuid）。
 - **junction ref**（如 `entity_tag.tagId → tag`）——随 root cascade-prune，target 合并时 FK 一并重写。
 
+> **标量 ID 列（无 FK 声明）三分判定**（防"无 FK=悬挂"误判 + 防"指向用户数据必声明 EntityReference"过宽）：
+> - 指向**非 DB 资源**（app 内置 preset/常量/目录，如 `knowledge.fileProcessorId`、`userModel.presetModelId`/`userProvider.presetProviderId`/`miniApp.presetMiniAppId`）→ 天然非 EntityReference 候选（无 target 表行），不声明、不重写。
+> - 指向 **DB 用户数据 + 有 FK** → 声明 `EntityReference` 走身份传播（不变量 #24/#25 要求声明的 EntityReference 对应生成的 FK）。
+> - 指向 **DB 用户数据 + 无 FK**（scalar soft ref，如 `topic.activeNodeId`→message、`painting.providerId/modelId`）→ **不声明 EntityReference**（无 FK，不变量 #24 要求声明须对应 FK）；此类由 `cloneAggregate` 重写（renamable 聚合，如 `activeNodeId` 随克隆映射新 message id）或作 tolerant ref（缺失仅降级，如 painting 软引用）处理。域接受悬空的须域 spec 注 reason（如 PAINTINGS）。
+> 「无 FK 声明」≠ 悬挂风险——按"目标是否 DB 资源 + 是否有 FK"三分判定。
+
 > **≠ 已删的 ID remap**：remap 给 uuid-entity 源记录 PK 生成新 uuid（不需要，保留源 PK 幂等）；identity propagation 把源 FK 重定向到 natural-key target 的 canonical id（源记录 PK 不变，natural-key 合并所必需）。
 
 **典型工作流（AGENTS）**：`agent_session.workspaceId → 独立 agent_workspace 聚合`（域内跨聚合 owning reference：同属 AGENTS、分属两个独立聚合根）。workspaceId 是 cascade NOT NULL owning FK，但 target `agent_workspace`（natural-key `path` UNIQUE）是独立聚合根、非 `session.root`——故不变量 14 不计它入 `session.members`、workspace 不强制为 member。这不等于逃避 owning 校验：不变量 25 强制 AGENTS 声明此 FK → 不变量 19 校验 onDelete=cascade 对应 kind=owning 自洽（codegen `DB_FOREIGN_KEYS` 作数据源）。`agent_session` renamable:false（跨聚合 owning 克隆矛盾 + 撞 `path` UNIQUE）。
