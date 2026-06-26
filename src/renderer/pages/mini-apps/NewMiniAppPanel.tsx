@@ -12,6 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { fileToAvatarDataUrl } from '@renderer/utils/image'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { Upload } from 'lucide-react'
 import type { ChangeEvent, FC } from 'react'
@@ -63,21 +64,23 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
     [miniApps, disabled, pinned]
   )
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const data = event.target?.result
-      if (typeof data === 'string') {
-        setLogo(data)
-        setLogoUrl('')
-        window.toast.success(t('settings.miniApps.custom.logo_upload_success'))
-      }
-    }
-    reader.onerror = () => window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
-    reader.readAsDataURL(file)
     e.target.value = ''
+    if (!file) return
+    try {
+      // Normalize the upload (non-GIF → ≤128px, oversized GIFs rejected) so the
+      // stored logo string stays small instead of encoding the original image.
+      const dataUrl = await fileToAvatarDataUrl(file)
+      setLogo(dataUrl)
+      setLogoUrl('')
+      window.toast.success(t('settings.miniApps.custom.logo_upload_success'))
+    } catch (error) {
+      logger.error('Failed to process uploaded mini app logo', error as Error)
+      const message =
+        error instanceof Error && error.message ? error.message : t('settings.miniApps.custom.logo_upload_error')
+      window.toast.error(message)
+    }
   }
 
   const handleSubmit = async () => {
@@ -183,7 +186,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleFileChange}
+              onChange={(e) => void handleFileChange(e)}
               aria-label={t('settings.miniApps.custom.logo_upload_label')}
             />
           </Field>

@@ -63,10 +63,16 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const fileToAvatarDataUrlMock = vi.fn()
+vi.mock('@renderer/utils/image', () => ({
+  fileToAvatarDataUrl: (...args: unknown[]) => fileToAvatarDataUrlMock(...args)
+}))
+
 // window.toast — used in success/error paths
 beforeEach(() => {
   mocks.dialogOnOpenChange = undefined
   mocks.createCustomMiniApp.mockClear()
+  fileToAvatarDataUrlMock.mockReset()
   ;(window as unknown as { toast: { success: () => void; error: () => void; info: () => void } }).toast = {
     success: vi.fn(),
     error: vi.fn(),
@@ -136,6 +142,35 @@ describe('NewMiniAppPanel', () => {
         expect.objectContaining({
           logo: 'https://my.app/logo.png'
         })
+      )
+    })
+  })
+
+  it('normalizes an uploaded logo via fileToAvatarDataUrl before submitting', async () => {
+    fileToAvatarDataUrlMock.mockResolvedValue('data:image/png;base64,normalized')
+    render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.id_placeholder'), {
+      target: { value: 'custom-app' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
+      target: { value: 'My App' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
+      target: { value: 'https://my.app' }
+    })
+
+    const file = new File(['png'], 'logo.png', { type: 'image/png' })
+    fireEvent.change(screen.getByLabelText('settings.miniApps.custom.logo_upload_label'), {
+      target: { files: [file] }
+    })
+
+    await waitFor(() => expect(fileToAvatarDataUrlMock).toHaveBeenCalledWith(file))
+
+    fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
+
+    await waitFor(() => {
+      expect(mocks.createCustomMiniApp).toHaveBeenCalledWith(
+        expect.objectContaining({ logo: 'data:image/png;base64,normalized' })
       )
     })
   })
