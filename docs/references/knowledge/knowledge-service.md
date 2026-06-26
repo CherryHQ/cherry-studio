@@ -117,7 +117,7 @@ reindex-items(baseId, itemIds)
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. (The former `knowledge:delete-item-chunk` entrypoint was removed with the per-base index store cutover — chunks are derived index rows, replaced wholesale by reindexing.)
 
-`KnowledgeService` also owns one v1 bridge entrypoint, `knowledge-base:delete`, still invoked by the legacy Redux `store/knowledge` slice until that slice is removed in the unified step. It routes to the same `delete-base` path.
+`KnowledgeService` also owns one orphaned v1 bridge entrypoint, `knowledge-base:delete`. Its only caller was the legacy Redux `store/knowledge` slice, which has now been removed, so this entrypoint is dead and pending cleanup. It routes to the same `delete-base` path.
 
 The chunk IPC entrypoint is a runtime inspection helper:
 

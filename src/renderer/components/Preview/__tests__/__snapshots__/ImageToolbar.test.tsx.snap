@@ -4,7 +4,7 @@ exports[`ImageToolbar > should match snapshot 1`] = `
 <DocumentFragment>
   <div
     aria-label="preview.label"
-    class="preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1 [&_.ant-btn]:leading-[0]"
+    class="preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1"
     role="toolbar"
   >
     <div
