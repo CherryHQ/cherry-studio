@@ -1,7 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { Provider } from '@shared/data/types/provider'
-import type { StopCondition, ToolSet } from 'ai'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import type { StopCondition, ToolSet } from 'ai'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures'
