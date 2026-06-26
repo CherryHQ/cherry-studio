@@ -245,15 +245,6 @@ beforeEach(() => {
     }
   }))
 
-  // Mock store - primarily for settings
-  vi.doMock('@renderer/store', () => ({
-    default: {
-      getState: () => ({
-        settings: { forceDollarMathInMarkdown: false }
-      })
-    }
-  }))
-
   mockedMessages = [] // Clear messages for the next describe block
 })
 
@@ -713,14 +704,6 @@ describe('export', () => {
   describe('topicToPlainText', () => {
     beforeEach(() => {
       vi.clearAllMocks() // Clear mocks before each test in this suite
-      // Mock store for settings if not already done globally or if specific settings are needed
-      vi.doMock('@renderer/store', () => ({
-        default: {
-          getState: () => ({
-            settings: { forceDollarMathInMarkdown: false } // Default or specific settings
-          })
-        }
-      }))
     })
 
     it('should handle empty content in topic messages', async () => {

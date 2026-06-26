@@ -23,20 +23,6 @@ const isSupportedThinkingTokenQwenModel = A(_isSupportedThinkingTokenQwenModel)
 const isVisionModel = A(_isVisionModel)
 const isQwen35to39Model = A(_isQwen35to39Model)
 
-vi.mock('@renderer/store/llm', () => ({
-  initialState: {}
-}))
-
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: () => ({
-      llm: {
-        settings: {}
-      }
-    })
-  }
-}))
-
 const isEmbeddingModelMock = vi.fn()
 const isRerankModelMock = vi.fn()
 

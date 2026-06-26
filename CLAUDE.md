@@ -217,7 +217,7 @@ All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) 
 
 ### Data Layer
 
-- **Removing**: Redux, Dexie, ElectronStore
+- **Removing**: Dexie, ElectronStore (Redux is fully removed)
 - **Adopting**: Cache / Preference / DataApi architecture (see [Data](#data))
 
 ### UI Layer
@@ -228,7 +228,7 @@ All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) 
 
 Two things on this branch are throwaway — do not defend them.
 
-**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Redux, Dexie, ElectronStore) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work (v1 fixes go to the `v1` branch). The refactor is now in its cleanup stage, so the posture shifts from leaving v1 alone to **opportunistic removal**: when you're already editing an area, delete the v1 residue you touch — orphaned legacy-stack call sites, dead v1 reads/writes, now-unused modules — instead of leaving it in place. Don't go hunting for v1 code to delete in unrelated PRs, and never delete code still wired into live v2 behavior (flag it instead).
+**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Dexie, ElectronStore — Redux already removed) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work (v1 fixes go to the `v1` branch). The refactor is now in its cleanup stage, so the posture shifts from leaving v1 alone to **opportunistic removal**: when you're already editing an area, delete the v1 residue you touch — orphaned legacy-stack call sites, dead v1 reads/writes, now-unused modules — instead of leaving it in place. Don't go hunting for v1 code to delete in unrelated PRs, and never delete code still wired into live v2 behavior (flag it instead).
 
 **Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
