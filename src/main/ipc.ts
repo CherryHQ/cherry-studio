@@ -25,7 +25,6 @@ import fontList from 'font-list'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
-import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
@@ -34,7 +33,6 @@ import FileService from './services/FileSystemService'
 import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
-import ObsidianVaultService from './services/ObsidianVaultService'
 import { vertexAiService } from './services/VertexAiService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -47,7 +45,6 @@ const logger = loggerService.withContext('IPC')
 
 const backupManager = new LegacyBackupManager()
 const exportService = new ExportService()
-const obsidianVaultService = new ObsidianVaultService()
 
 export async function registerIpc() {
   const notificationService = new NotificationService()
@@ -302,14 +299,14 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
   ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
   ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
+  ipcMain.handle(IpcChannel.System_CheckGitBash, async () => {
     if (!isWin) {
       return true // Non-Windows systems don't need Git Bash
     }
 
     try {
       // Use autoDiscoverGitBash to handle auto-discovery and persistence
-      const bashPath = autoDiscoverGitBash()
+      const bashPath = await autoDiscoverGitBash()
       if (bashPath) {
         logger.info('Git Bash is available', { path: bashPath })
         return true
@@ -328,8 +325,7 @@ export async function registerIpc() {
       return null
     }
 
-    const customPath = configManager.get(ConfigKeys.GitBashPath)
-    return customPath ?? null
+    return application.get('PreferenceService').get('feature.code_cli.git_bash_path')
   })
 
   // Returns { path, source } where source is 'manual' | 'auto' | null
@@ -337,17 +333,19 @@ export async function registerIpc() {
     return getGitBashPathInfo()
   })
 
-  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
+  ipcMain.handle(IpcChannel.System_SetGitBashPath, async (_, newPath: string | null) => {
     if (!isWin) {
       return false
     }
 
+    const preferenceService = application.get('PreferenceService')
+
     if (!newPath) {
       // Clear manual setting and re-run auto-discovery
-      configManager.set(ConfigKeys.GitBashPath, null)
-      configManager.set(ConfigKeys.GitBashPathSource, null)
+      await preferenceService.set('feature.code_cli.git_bash_path', null)
+      await preferenceService.set('feature.code_cli.git_bash_path_source', null)
       // Re-run auto-discovery to restore auto-discovered path if available
-      autoDiscoverGitBash()
+      await autoDiscoverGitBash()
       return true
     }
 
@@ -357,8 +355,8 @@ export async function registerIpc() {
     }
 
     // Set path with 'manual' source
-    configManager.set(ConfigKeys.GitBashPath, validated)
-    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
+    await preferenceService.set('feature.code_cli.git_bash_path', validated)
+    await preferenceService.set('feature.code_cli.git_bash_path_source', 'manual')
     return true
   })
 
@@ -485,14 +483,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
 
-  // Obsidian service
-  ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
-    return obsidianVaultService.getVaults()
-  })
-
-  ipcMain.handle(IpcChannel.Obsidian_GetFiles, (_event, vaultName) => {
-    return obsidianVaultService.getFilesByVaultName(vaultName)
-  })
+  // Obsidian: migrated to IpcApi (obsidian.* — src/main/ipc/handlers/obsidian.ts)
 
   // nutstore
   ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))

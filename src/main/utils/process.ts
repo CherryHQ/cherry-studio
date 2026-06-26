@@ -1,14 +1,13 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import type { GitBashPathInfo, GitBashPathSource } from '@shared/types/codeCli'
+import type { GitBashPathInfo } from '@shared/types/codeCli'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import iconv from 'iconv-lite'
 import path from 'path'
 
-import { ConfigKeys, configManager } from '../services/ConfigManager'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -703,7 +702,7 @@ export function validateGitBashPath(customPath?: string | null): string | null {
  * 2. Configured path from settings (manual or auto)
  * 3. Auto-discovery via findGitBash (only if no valid config exists)
  */
-export function autoDiscoverGitBash(): string | null {
+export async function autoDiscoverGitBash(): Promise<string | null> {
   if (!isWin) {
     return null
   }
@@ -719,9 +718,11 @@ export function autoDiscoverGitBash(): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
+  const preferenceService = application.get('PreferenceService')
+
   // 2. Check if a path is already configured
-  const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
-  const existingSource = configManager.get<GitBashPathSource | undefined>(ConfigKeys.GitBashPathSource)
+  const existingPath = preferenceService.get('feature.code_cli.git_bash_path')
+  const existingSource = preferenceService.get('feature.code_cli.git_bash_path_source')
 
   if (existingPath) {
     const validated = validateGitBashPath(existingPath)
@@ -739,8 +740,8 @@ export function autoDiscoverGitBash(): string | null {
   const discoveredPath = findGitBash()
   if (discoveredPath) {
     // Persist the discovered path with 'auto' source
-    configManager.set(ConfigKeys.GitBashPath, discoveredPath)
-    configManager.set(ConfigKeys.GitBashPathSource, 'auto')
+    await preferenceService.set('feature.code_cli.git_bash_path', discoveredPath)
+    await preferenceService.set('feature.code_cli.git_bash_path_source', 'auto')
     logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
   }
 
@@ -751,17 +752,18 @@ export function autoDiscoverGitBash(): string | null {
  * Get Git Bash path info including source
  * If no path is configured, triggers auto-discovery first
  */
-export function getGitBashPathInfo(): GitBashPathInfo {
+export async function getGitBashPathInfo(): Promise<GitBashPathInfo> {
   if (!isWin) {
     return { path: null, source: null }
   }
 
-  let path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
-  let source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+  const preferenceService = application.get('PreferenceService')
+  let path = preferenceService.get('feature.code_cli.git_bash_path')
+  let source = preferenceService.get('feature.code_cli.git_bash_path_source')
 
   // If no path configured, trigger auto-discovery (handles upgrade from old versions)
   if (!path) {
-    path = autoDiscoverGitBash()
+    path = await autoDiscoverGitBash()
     source = path ? 'auto' : null
   }
 
