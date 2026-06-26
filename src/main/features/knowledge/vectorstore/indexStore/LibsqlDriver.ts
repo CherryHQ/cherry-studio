@@ -149,16 +149,16 @@ export class LibsqlDriver implements SqliteDriver {
       // live rows in the search_text_fts_data shadow table, which VACUUM cannot reclaim
       // (they are not free pages). 'optimize' merges and drops them, returning their pages
       // to the freelist so the VACUUM below hands them back to the OS — without it a
-      // whole-folder delete leaves the FTS index nearly as large as before. It preserves
-      // the surviving rows' rowids, so the external-content mapping stays aligned.
+      // whole-folder delete leaves the FTS index nearly as large as before.
       await this.client.execute(`INSERT INTO search_text_fts(search_text_fts) VALUES('optimize')`)
       await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
 
-      // The index keeps auto_vacuum=0 (never set otherwise), so VACUUM preserves the
-      // implicit rowids via SQLite's xfer optimization — the external-content
-      // search_text_fts stays aligned (the hazard raised in issue #16132 only fires on
-      // rowid-renumbering table rebuilds, not on same-schema VACUUM). VACUUM rewrites
-      // the whole file into the WAL, so checkpoint+truncate again to release it.
+      // VACUUM rewrites the whole file and renumbers every table's implicit rowid — but
+      // search_text_fts keys on search_text.fts_rowid (a real integer column copied verbatim
+      // through the rewrite), NOT the implicit rowid, so the external-content index stays
+      // aligned by construction (see schema.ts; this is exactly the #16132 desync class that
+      // keying on the implicit rowid would reintroduce). VACUUM rewrites into the WAL, so
+      // checkpoint+truncate again to release it.
       await this.client.execute('VACUUM')
       await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
       const pageCountAfter = await this.readPragmaInt('page_count')

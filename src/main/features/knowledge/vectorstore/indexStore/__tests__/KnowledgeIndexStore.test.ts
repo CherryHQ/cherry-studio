@@ -56,11 +56,17 @@ describe('KnowledgeIndexStore', () => {
     (
       await driver.execute(
         `SELECT st.search_text_id AS id
-         FROM search_text_fts JOIN search_text st ON st.rowid = search_text_fts.rowid
+         FROM search_text_fts JOIN search_text st ON st.fts_rowid = search_text_fts.rowid
          WHERE search_text_fts MATCH ?`,
         [term]
       )
     ).rows.length
+
+  // The reliable external-content desync detector: the default `integrity-check` does NOT compare
+  // the index against the content table, so a rowid desync passes it silently (see
+  // database-construction.md §4). `integrity-check, 1` does the cross-check and throws on a mismatch.
+  const ftsIntegrityCheck = () =>
+    driver.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
 
   it('persists material, content, units, search_text and embeddings, then lists units in order', async () => {
     await store.rebuildMaterial(
@@ -375,9 +381,9 @@ describe('KnowledgeIndexStore', () => {
 
   it('reclaimSpace VACUUMs a large delete and keeps the survivor FTS-searchable (issue #16132 guard)', async () => {
     // A ~13 MB content row whose delete frees enough pages to cross the VACUUM threshold,
-    // plus a small survivor m2. VACUUM rewrites the whole file; if it reshuffled the
-    // implicit rowids the external-content search_text_fts keys on, m2 — whose search_text
-    // is untouched — would silently drop out of keyword search. It must stay reachable.
+    // plus a small survivor m2. VACUUM rewrites the whole file and renumbers implicit rowids;
+    // because search_text_fts keys on the stable fts_rowid (not the implicit rowid), m2 — whose
+    // search_text is untouched — stays aligned. It must remain reachable, and the index intact.
     const hugeText = 'knowledge body filler '.repeat(600_000)
     await store.rebuildMaterial('m1', buildInput(hugeText, [[0, 20]], 'big.md'))
     await store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
@@ -387,6 +393,7 @@ describe('KnowledgeIndexStore', () => {
 
     expect(outcome.vacuumed).toBe(true)
     expect(outcome.reclaimedBytes).toBeGreaterThan(0)
+    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
     // The survivor stays both keyword- and vector-reachable after the rewrite.
     expect(await ftsMatchCount('knowledge')).toBe(1)
     expect((await store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
@@ -432,6 +439,58 @@ describe('KnowledgeIndexStore', () => {
     expect((await store.search({ queryText: 'shared', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
       'm2'
     ])
+    // VACUUM renumbers implicit rowids; assert the external-content FTS did NOT desync. Keyed on the
+    // stable fts_rowid it stays aligned by construction — verified with the reliable integrity check
+    // (the default integrity-check would pass even on a desync).
+    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
+  })
+
+  it('keeps search_text_fts aligned after a rowid-reshuffling rebuild (fts_rowid keying)', async () => {
+    // Regression guard for the desync the reviewer flagged: VACUUM and table rebuilds renumber
+    // search_text's implicit rowid, and an external-content FTS keyed on that rowid would then
+    // silently point at the wrong rows. search_text_fts keys on the stable fts_rowid column instead.
+    // The index MUST be populated before the reshuffle, or it cannot expose the bug.
+    await store.rebuildMaterial('m1', buildInput('alpha apple body', [[0, 16]], 'a.md'))
+    await store.rebuildMaterial('m2', buildInput('bravo banana body', [[0, 17]], 'b.md'))
+    await store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
+    await store.rebuildMaterial('m4', buildInput('delta date body', [[0, 15]], 'd.md'))
+    // Delete a middle material to leave a rowid hole — the precondition the reshuffle needs.
+    await store.deleteMaterials(['m2'])
+    expect(await ftsMatchCount('cherry')).toBe(1)
+
+    // Reshuffle the implicit rowid exactly as a table rebuild / VACUUM does: copy the table (new
+    // contiguous rowids, dropping the hole) while carrying fts_rowid verbatim, then re-assert the
+    // dropped indexes + triggers. The FTS vtable is untouched, so it stays keyed by fts_rowid.
+    await driver.execute('PRAGMA foreign_keys=OFF')
+    await driver.execute('CREATE TABLE __new_search_text AS SELECT * FROM search_text')
+    await driver.execute('DROP TABLE search_text')
+    await driver.execute('ALTER TABLE __new_search_text RENAME TO search_text')
+    await driver.execute('PRAGMA foreign_keys=ON')
+    await createKnowledgeIndexSchema(driver)
+
+    // fts_rowid was copied through the rebuild, so the index stays aligned: the reliable check passes
+    // and the survivors resolve to the right materials (a rowid-keyed index would return wrong/empty).
+    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
+    expect((await store.search({ queryText: 'cherry', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
+      'm3'
+    ])
+    expect((await store.search({ queryText: 'date', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual(['m4'])
+    // The reshuffle reassigned implicit rowids while leaving fts_rowid untouched and unique.
+    expect(await count('search_text')).toBe(3)
+    expect(Number((await driver.execute(`SELECT COUNT(DISTINCT fts_rowid) AS n FROM search_text`)).rows[0].n)).toBe(3)
+  })
+
+  it('integrity-check,1 catches a NULL fts_rowid desync (and proves the detector is live)', async () => {
+    await store.rebuildMaterial('m1', buildInput('orphan searchable body', [[0, 22]], 'a.md'))
+    expect(await ftsMatchCount('searchable')).toBe(1)
+
+    // Simulate a future bulk-insert / restore path that bypassed the AFTER INSERT trigger and left
+    // fts_rowid NULL (the nullable-window hazard the schema comment + docs warn about): the FTS entry
+    // now references a key the content row no longer carries. This both guards that hazard AND is the
+    // positive control that ftsIntegrityCheck() really throws on a desync — every other use of it in
+    // this suite asserts it resolves, so without this case those assertions could pass vacuously.
+    await driver.execute(`UPDATE search_text SET fts_rowid = NULL`)
+    await expect(ftsIntegrityCheck()).rejects.toThrow()
   })
 
   it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {

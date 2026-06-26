@@ -388,7 +388,7 @@ export class KnowledgeIndexStore {
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
        FROM search_text_fts
        JOIN search_text st
-         ON st.rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
+         ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE search_text_fts MATCH ?
        ORDER BY score

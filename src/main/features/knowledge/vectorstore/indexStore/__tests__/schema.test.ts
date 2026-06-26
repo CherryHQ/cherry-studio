@@ -160,7 +160,7 @@ describe('knowledge index schema', () => {
       const result = await client.execute({
         sql: `SELECT st.search_text_id AS id
               FROM search_text_fts
-              JOIN search_text st ON st.rowid = search_text_fts.rowid
+              JOIN search_text st ON st.fts_rowid = search_text_fts.rowid
               WHERE search_text_fts MATCH ?`,
         args: [term]
       })
@@ -191,6 +191,9 @@ describe('knowledge index schema', () => {
       // today; the trigger is kept defensively and this test pins its behavior.
       await insertSearchText('st1', 'u1', 'alpha knowledge base', 'eh1')
       expect(await matchBody('knowledge')).toEqual(['st1'])
+      const ftsRowidBefore = (
+        await client.execute({ sql: `SELECT fts_rowid FROM search_text WHERE search_text_id = ?`, args: ['st1'] })
+      ).rows[0].fts_rowid
 
       await client.execute({
         sql: `UPDATE search_text SET text = ? WHERE search_text_id = ?`,
@@ -199,6 +202,15 @@ describe('knowledge index schema', () => {
 
       expect(await matchBody('knowledge')).toEqual([])
       expect(await matchBody('wisdom')).toEqual(['st1'])
+      // fts_rowid is stable across a text edit (the au trigger re-keys the FTS row by NEW.fts_rowid,
+      // it does not reassign it) — so the external-content index stays aligned.
+      const ftsRowidAfter = (
+        await client.execute({ sql: `SELECT fts_rowid FROM search_text WHERE search_text_id = ?`, args: ['st1'] })
+      ).rows[0].fts_rowid
+      expect(ftsRowidAfter).toBe(ftsRowidBefore)
+      await expect(
+        client.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
+      ).resolves.toBeDefined()
     })
 
     it('exposes a bm25 rank for matches', async () => {
