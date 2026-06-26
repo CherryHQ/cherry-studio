@@ -4473,10 +4473,9 @@
       },
       "minimap": "[to be translated]:Minimap",
       "op": {
+        "add_to_chat": "新增到聊天",
         "edit": "編輯",
-        "reference": "用作參考",
-        "upscale": "放大",
-        "variation": "變體"
+        "regenerate": "重新生成"
       },
       "retry": "[to be translated]:Retry",
       "tool": {

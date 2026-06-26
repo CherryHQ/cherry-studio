@@ -1,7 +1,6 @@
 import { createContext, use } from 'react'
 
 import type { PaintingData } from '../../model/types/paintingData'
-import type { CanvasOp } from './canvasOps'
 
 /**
  * Stable canvas actions shared with every node via context — keeps node `data`
@@ -10,8 +9,12 @@ import type { CanvasOp } from './canvasOps'
  * context menu.
  */
 export interface CanvasActions {
-  /** Derive a new generation from this card under the op's mode. */
-  onNodeOp: (op: CanvasOp, source: PaintingData) => void
+  /** Load this card's image into the composer under edit mode (replaces the draft). */
+  onEdit: (source: PaintingData) => void
+  /** One click: fork a new card from this card's recipe and generate it right away. */
+  onRegenerate: (source: PaintingData) => void
+  /** Append this card's image to the current composer draft as an input. */
+  onAddToChat: (source: PaintingData) => void
   onDelete: (source: PaintingData) => void
   onDownload: (source: PaintingData) => void
   onCopyPrompt: (source: PaintingData) => void

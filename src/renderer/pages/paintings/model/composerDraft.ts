@@ -55,10 +55,11 @@ export function cardToRetryDraft(card: PaintingData): ComposerDraft {
 }
 
 /**
- * Build a draft from a source card for a canvas node op (edit / variation /
- * reference / upscale). No `targetCardId` → a new card is forked; `mode` is the
- * op's mode and the source's outputs (already resolved to `FileEntry[]`) ride in
- * as inputs when the op uses the source image.
+ * Build a draft from a source card for a canvas toolbar action (edit /
+ * regenerate). No `targetCardId` → a new card is forked; `mode` is the action's
+ * mode and the source's outputs (already resolved to `FileEntry[]`) ride in as
+ * inputs when the action uses the source image (edit). `inputFiles` is empty for
+ * a plain regenerate, which reruns the same recipe from scratch.
  */
 export function cardToDerivedDraft(source: PaintingData, mode: PaintingMode, inputFiles: FileEntry[]): ComposerDraft {
   return {
@@ -70,4 +71,17 @@ export function cardToDerivedDraft(source: PaintingData, mode: PaintingMode, inp
     mode,
     inputFiles
   }
+}
+
+/**
+ * Add a card's image(s) into the *current* draft ("add to chat") — keep the
+ * prompt / model / params / mode the user is already composing and just append
+ * the new inputs, deduped by id. A fresh `sessionId` re-seeds the composer so the
+ * added chip shows. No genuinely new file → the draft is returned unchanged.
+ */
+export function appendComposerInputFiles(draft: ComposerDraft, additions: FileEntry[]): ComposerDraft {
+  const existing = new Set(draft.inputFiles.map((file) => file.id))
+  const next = additions.filter((file) => !existing.has(file.id))
+  if (next.length === 0) return draft
+  return { ...draft, sessionId: uuid(), inputFiles: [...draft.inputFiles, ...next] }
 }

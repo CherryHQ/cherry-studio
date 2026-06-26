@@ -4473,10 +4473,9 @@
       },
       "minimap": "Minimap",
       "op": {
+        "add_to_chat": "Add to chat",
         "edit": "Edit",
-        "reference": "Use as reference",
-        "upscale": "Upscale",
-        "variation": "Variation"
+        "regenerate": "Regenerate"
       },
       "retry": "Retry",
       "tool": {

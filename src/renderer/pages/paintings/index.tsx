@@ -1,11 +1,10 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import FileManager from '@renderer/services/FileManager'
 import { download } from '@renderer/utils/download'
-import { type FC, lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import { type FC, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CanvasActions } from './components/canvas/canvasActions'
-import type { CanvasOp } from './components/canvas/canvasOps'
 import type { CanvasPoint } from './components/canvas/CanvasToolbar'
 import PaintingComposer from './components/PaintingComposer'
 import { presentPaintingGenerateError } from './errors/paintingGenerateError'
@@ -17,7 +16,13 @@ import { usePaintingList } from './hooks/usePaintingList'
 import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
-import { cardToDerivedDraft, cardToRetryDraft, type ComposerDraft, createDraft } from './model/composerDraft'
+import {
+  appendComposerInputFiles,
+  cardToDerivedDraft,
+  cardToRetryDraft,
+  type ComposerDraft,
+  createDraft
+} from './model/composerDraft'
 import { resolvePaintingFileEntries } from './model/mappers/recordToPaintingData'
 import type { PaintingData } from './model/types/paintingData'
 import { paintingClasses } from './paintingPrimitives'
@@ -44,6 +49,9 @@ const PaintingPage: FC = () => {
   // produces a card; the draft is then reset. Selecting a card never touches it.
   const [draft, setDraft] = useState<ComposerDraft>(() => createDraft(initialProviderId))
   const [selectedId, setSelectedId] = useState<string>()
+  // Set by `onRegenerate` to fire a generation on the next render — once the new
+  // draft has committed, so `submit` (and the provider runtime) see it.
+  const [pendingRegenerate, setPendingRegenerate] = useState(false)
 
   const patchDraft = useCallback((updates: Partial<ComposerDraft>) => {
     setDraft((current) => ({ ...current, ...updates }))
@@ -88,17 +96,40 @@ const PaintingPage: FC = () => {
     patchDraft({ targetCardId: undefined })
   }, [submit, patchDraft])
 
+  // Drain a pending regenerate: `onRegenerate` swapped the draft and set the flag,
+  // so by now `onGenerate` (and the provider runtime) read the source's recipe.
+  useEffect(() => {
+    if (!pendingRegenerate) return
+    setPendingRegenerate(false)
+    void onGenerate()
+  }, [pendingRegenerate, onGenerate])
+
   // Select = highlight only; the composer keeps its own draft untouched. The id
   // may be a painting/group id or a group child image id (`${pid}::${fid}`).
   const onSelect = useCallback((nodeId: string) => setSelectedId(nodeId), [])
   const onDeselect = useCallback(() => setSelectedId(undefined), [])
 
-  // Derive a new generation from a card (node op): feed its outputs in as inputs
-  // for image-bearing ops. This explicitly replaces the draft (the user chose to
-  // build on this image) — unlike a plain select, which leaves the draft alone.
-  const onNodeOp = useCallback(async (op: CanvasOp, source: PaintingData) => {
-    const inputFiles = op.usesSourceImage ? await resolvePaintingFileEntries(source.files.map((file) => file.id)) : []
-    setDraft(cardToDerivedDraft(source, op.mode, inputFiles))
+  // Edit: load the card's image into the composer under edit mode. This explicitly
+  // replaces the draft (the user chose to build on this image) — unlike a plain
+  // select, which leaves the draft alone.
+  const onEdit = useCallback(async (source: PaintingData) => {
+    const inputFiles = await resolvePaintingFileEntries(source.files.map((file) => file.id))
+    setDraft(cardToDerivedDraft(source, 'edit', inputFiles))
+  }, [])
+
+  // Regenerate: one click forks a new card from the card's recipe (same prompt /
+  // model / params, no source image) and fires the generation immediately — the
+  // `pendingRegenerate` flag defers the submit until the new draft has committed.
+  const onRegenerate = useCallback((source: PaintingData) => {
+    setDraft(cardToDerivedDraft(source, 'generate', []))
+    setPendingRegenerate(true)
+  }, [])
+
+  // Add to chat: drop the card's image into the *current* composer as an input,
+  // keeping the prompt / model / params the user is composing.
+  const onAddToChat = useCallback(async (source: PaintingData) => {
+    const additions = await resolvePaintingFileEntries(source.files.map((file) => file.id))
+    setDraft((current) => appendComposerInputFiles(current, additions))
   }, [])
 
   // Retry a failed/canceled card: load its recipe into the composer (targetCardId
@@ -163,8 +194,17 @@ const PaintingPage: FC = () => {
   const onUngroup = useCallback((id: string) => void list.ungroup(id), [list])
 
   const canvasActions = useMemo<CanvasActions>(
-    () => ({ onNodeOp, onDelete, onDownload, onCopyPrompt, onResize: onResizePainting, onRetry: onRetryPainting }),
-    [onNodeOp, onDelete, onDownload, onCopyPrompt, onResizePainting, onRetryPainting]
+    () => ({
+      onEdit,
+      onRegenerate,
+      onAddToChat,
+      onDelete,
+      onDownload,
+      onCopyPrompt,
+      onResize: onResizePainting,
+      onRetry: onRetryPainting
+    }),
+    [onEdit, onRegenerate, onAddToChat, onDelete, onDownload, onCopyPrompt, onResizePainting, onRetryPainting]
   )
 
   return (
