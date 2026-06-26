@@ -25,13 +25,13 @@
 
 > 回应 PR #12659 review A3/L289：避免 domain facts 集中到 backup 模块。
 
-**规则**：各域 contributor declaration **co-locate 在 owning domain module**，由业务域 owner 维护该域 entity facts（表归属/引用/聚合/file-ref/JSON 软引用）。
+**规则**：各域 contributor declaration **co-locate 在该域 owning module 的实际位置**（遵守 main-process 现有目录边界，不强制 `src/main/services/`），由业务域 owner 维护该域 entity facts（表归属/引用/聚合/file-ref/JSON 软引用）。
 
-- 路径：`src/main/services/<domain>/backupContributor.ts`（如 `services/topics/backupContributor.ts` = `TOPICS_CONTRIBUTOR`）。每域可多文件拆分（如 KNOWLEDGE restoreResources 重 IO 可独立文件），测试就近放该域 `__tests__/`。
-- **backup 模块只持**：统一 barrel（`contributors/index.ts` 聚合 14 域导出）+ `ContributorManager` + registry + 纯类型（`types.ts`）+ 通用 runtime helper（`deepFreeze`）。**不承载任何 domain-specific 表/列/聚合事实**——否则 domain facts 退回集中到 backup 模块，与下放目标矛盾。
-- 检查：`src/main/services/backup/contributors/` **SHALL 仅含** barrel / finalize / 纯类型 / runtime helper；**SHALL NOT 含**域 schema/policy/operations declaration。
+- 路径：co-locate 在该域 owning module 实际位置。**per-domain 目录**（`<owning>/<domain>/backupContributor.ts`）为默认；**flat owning module**（多域 Service 同目录，如 `src/main/data/services/`）SHALL 用 per-domain 子目录（`<dir>/<domain>/backupContributor.ts`）或唯一文件名（`<dir>/backupContributor-<domain>.ts`），避免多域争用同一路径。合法位置示例（遵守 main-process 目录边界）：`src/main/services/<domain>/`（topics/agents 等 service 域）、`src/main/data/services/<domain>/`（data services，如 providers）、`src/main/features/knowledge/`（knowledge）、`src/main/ai/`（AI/agent）。每域可多文件拆分（如 KNOWLEDGE restoreResources 重 IO 可独立文件），测试就近放该域 `__tests__/`。
+- **backup 模块只持**：统一 barrel（`contributors/index.ts` 聚合 14 域导出）+ `ContributorManager` + registry + orchestrator。**纯类型 / context 类型 / deepFreeze / dbSchemaRefs / BackupDomain / ConflictStrategy 归 neutral layer**（`@main/data/db/backup/`，见下），backup 与各域 contributor 同向依赖。**不承载任何 domain-specific 表/列/聚合事实**——否则 domain facts 退回集中到 backup 模块，与下放目标矛盾。
+- 检查：`src/main/services/backup/contributors/` **SHALL 仅含** barrel（index.ts）/ finalize（ContributorManager）；**SHALL NOT 含** orchestrator（归 `src/main/services/backup/orchestrator/`）/ 纯类型 / context 类型 / deepFreeze（归 neutral layer `@main/data/db/backup/`）/ 域 schema/policy/operations declaration。
 
-**Ownership 边界**：业务域（topics/agents/...）**反向 import backup 的纯类型**（`@main/services/backup/contributors/types` + `@shared/data/backup/dbSchemaRefs`）+ 通用 runtime helper（`deepFreeze`，acyclic、非 domain-specific）来声明并导出该域 contributor；**不依赖 backup 的 domain-specific facts**。列名从 `@shared/data/backup/dbSchemaRefs` import helper 与 `DB_PRIMARY_KEYS`，**SHALL NOT** 重新定义 `DbTableName`/`DbColumnName` 品牌。
+**Ownership 边界 + neutral layer**：contributor-consumed 的纯类型 / context 类型 / runtime helper / codegen 产物 / 枚举归 **process-local neutral layer** `@main/data/db/backup/`（data/schema-owned，main-only）：`contributor-types`（BackupContributor/EntityGraphSchema）、`contexts`（BackupScopedDb/hooks context）、`freeze`（deepFreeze）、`dbSchemaRefs`（codegen DB_TABLES/COLUMNS/PK/FK/FTS + 品牌）、`domains`（BackupDomain/ConflictStrategy，main-only——renderer 传简单参数由 BackupService 转换，不 import 枚举）。业务域（topics/agents/...）+ backup service **同向** import 该 neutral layer 声明并导出 contributor——避免 data 域 contributor → services/backup 逆向依赖、shared 层不扩大（dbSchemaRefs/main-only 枚举不放 shared）。**SHALL NOT** 重新定义 `DbTableName`/`DbColumnName` 品牌（从 `@main/data/db/backup/dbSchemaRefs` import）。
 
 > `domain/`（集中式规则库）是 v1 throwaway：contributor 并行实现，等价测试通过后替换 orchestrator import 来源再删 `domain/`，不修其 bug、不加 fallback。
 
@@ -160,8 +160,9 @@
 聚合根 `topic` + 成员 `message(topicId)`；冲突 → 整组（topic + 其 message 树）按策略处理。
 
 ```typescript
-import { table } from '@shared/data/backup/dbSchemaRefs'
-import { deepFreeze, type BackupContributor } from '@main/services/backup/contributors/types'
+import { table } from '@main/data/db/backup/dbSchemaRefs'
+import { type BackupContributor } from '@main/data/db/backup/contributor-types'
+import { deepFreeze } from '@main/data/db/backup/freeze'
 
 // TOPICS 拥有 topic(uuid-v4) + message(uuid-v7) 两表
 // message.topicId→topic.id: 域内 cascade FK → owning include member
