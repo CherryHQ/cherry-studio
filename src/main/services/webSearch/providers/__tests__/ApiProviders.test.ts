@@ -1361,5 +1361,64 @@ describe('main web search API providers', () => {
       const request = toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined])
       expect(request.headers.authorization).toBeUndefined()
     })
+
+    it('handles API errors when success is false', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createJsonResponse({
+          success: false,
+          error: 'Rate limit exceeded'
+        })
+      )
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['test-key'],
+          apiHost: 'https://api.firecrawl.example'
+        })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+        'Firecrawl search failed: Rate limit exceeded'
+      )
+    })
+
+    it('falls back to description when markdown is missing, and to empty string if both missing', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createJsonResponse({
+          success: true,
+          data: {
+            web: [
+              {
+                title: 'Result with description',
+                url: 'https://example.com/desc',
+                description: 'Fallback Description'
+              },
+              {
+                title: 'Result with nothing',
+                url: 'https://example.com/nothing'
+              }
+            ]
+          }
+        })
+      )
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['test-key'],
+          apiHost: 'https://api.firecrawl.example'
+        })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+      expect(result.results).toHaveLength(2)
+      expect(result.results[0].content).toBe('Fallback Description')
+      expect(result.results[1].content).toBe('')
+    })
   })
 })
