@@ -47,12 +47,7 @@ import { WebContentsListener } from './streamManager/listeners/WebContentsListen
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
-import {
-  buildImageProviderOptions,
-  normalizeAspectRatio,
-  type SplitImageParams,
-  splitParamValues
-} from './utils/imageOptions'
+import { buildImageProviderOptions, type SplitImageParams, splitParamValues } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -476,7 +471,8 @@ export class AiService extends BaseService {
       )
     }
 
-    const aspectRatio = normalizeAspectRatio(structured.aspectRatio)
+    // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
+    // native binding's `map` (in `splitParamValues`).
     const requestSize = resolveImageRequestSize(structured.size)
 
     const imageParams = {
@@ -490,7 +486,7 @@ export class AiService extends BaseService {
       ...(structured.numInferenceSteps !== undefined ? { numInferenceSteps: structured.numInferenceSteps } : {}),
       ...(structured.guidanceScale !== undefined ? { guidanceScale: structured.guidanceScale } : {}),
       ...(structured.promptEnhancement !== undefined ? { promptEnhancement: structured.promptEnhancement } : {}),
-      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {

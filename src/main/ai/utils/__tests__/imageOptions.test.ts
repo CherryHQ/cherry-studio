@@ -227,4 +227,11 @@ describe('splitParamValues', () => {
       vendorBag: { cfg: 7.5 }
     })
   })
+
+  it('normalizes aspectRatio (ASPECT_X_Y → X:Y) once during the split, dropping invalid values', () => {
+    expect(splitParamValues({ aspectRatio: 'ASPECT_16_9' }).structured).toEqual({ aspectRatio: '16:9' })
+    // already-normalized passes through (idempotent); a mismatched value is dropped
+    expect(splitParamValues({ aspectRatio: '1:1' }).structured).toEqual({ aspectRatio: '1:1' })
+    expect(splitParamValues({ aspectRatio: 'weird' }).structured).toEqual({})
+  })
 })

@@ -1,7 +1,7 @@
 import type { GenerateImageParams } from '@shared/types/image'
 import type { JSONValue } from 'ai'
 
-import { nativeOptionFor } from './aiSdkNativeBindings'
+import { nativeBindingFor, normalizeAspectRatio } from './aiSdkNativeBindings'
 
 /**
  * Structural subset of the image params that {@link buildImageProviderOptions}
@@ -48,26 +48,18 @@ export function splitParamValues(paramValues: Record<string, unknown>): SplitIma
   const vendorBag: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(paramValues)) {
     if (value === undefined || value === '' || value === null) continue
-    const option = nativeOptionFor(key) // numImages → n; rest identity
-    if (option) structured[option] = value
-    else vendorBag[key] = value
+    const binding = nativeBindingFor(key) // numImages → n; aspectRatio normalized once; rest identity
+    if (binding) {
+      const mapped = binding.map ? binding.map(value) : value
+      if (mapped !== undefined && mapped !== null && mapped !== '') structured[binding.option] = mapped
+    } else {
+      vendorBag[key] = value
+    }
   }
   return { structured: structured as ImageOptionParams & { n?: number }, vendorBag }
 }
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>
-
-/**
- * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized
- * `X:Y`) into the `${number}:${number}` shape Google/Imagen/Gemini-image
- * accept. Returns `undefined` for blank or mismatched values so the caller
- * can omit the field entirely.
- */
-export function normalizeAspectRatio(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+:\d+$/.test(stripped) ? stripped : undefined
-}
 
 /**
  * Parse the painting form's seed string into a number, or `undefined` when
