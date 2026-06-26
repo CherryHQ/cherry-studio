@@ -1,9 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -95,27 +93,23 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
     <QueryClientProvider client={queryClient}>
       <StyleSheetManager>
         <ThemeProvider>
-          <AntdProvider>
-            <NotificationProvider>
-              <CodeStyleProvider>
-                <CommandContextKeyProvider>
-                  <CommandProvider>
-                    <TopViewContainer>
-                      <div
-                        className={cn(
-                          'flex h-screen w-screen overflow-hidden text-foreground',
-                          settingsWindowFormControlTextClassName,
-                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                        )}
-                        style={shellStyle}>
-                        <SettingsWindowRouter initialPath={initialPath} />
-                      </div>
-                    </TopViewContainer>
-                  </CommandProvider>
-                </CommandContextKeyProvider>
-              </CodeStyleProvider>
-            </NotificationProvider>
-          </AntdProvider>
+          <CodeStyleProvider>
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <TopViewContainer>
+                  <div
+                    className={cn(
+                      'flex h-screen w-screen overflow-hidden text-foreground',
+                      settingsWindowFormControlTextClassName,
+                      isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                    )}
+                    style={shellStyle}>
+                    <SettingsWindowRouter initialPath={initialPath} />
+                  </div>
+                </TopViewContainer>
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </CodeStyleProvider>
         </ThemeProvider>
       </StyleSheetManager>
     </QueryClientProvider>

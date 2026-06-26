@@ -1,4 +1,3 @@
-import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import {
   Button,
   InputGroup,
@@ -10,6 +9,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { FolderOpen, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -92,13 +92,13 @@ const MarkdownExportSettings: FC = () => {
                   onClick={handleClearPath}
                   size="icon-sm"
                   className="text-destructive hover:text-destructive">
-                  <DeleteOutlined />
+                  <Trash2 size={14} />
                 </InputGroupButton>
               </InputGroupAddon>
             )}
           </InputGroup>
           <Button onClick={handleSelectFolder} variant="outline" className="h-8">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.markdown_export.select')}
           </Button>
         </RowFlex>

@@ -32,33 +32,6 @@ import {
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
 import { isOpenAIWebSearchChatCompletionOnlyModel } from '../websearch'
 
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  },
-  useAppDispatch: vi.fn(),
-  useAppSelector: vi.fn()
-}))
-
-vi.mock('@renderer/store/settings', () => {
-  const noop = vi.fn()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (prop === 'initialState') {
-          return {}
-        }
-        return noop
-      }
-    }
-  )
-})
-
 vi.mock('@renderer/config/models/embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()
