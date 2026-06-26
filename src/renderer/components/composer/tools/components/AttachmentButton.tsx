@@ -15,7 +15,7 @@ interface Props {
   disabled?: boolean
 }
 
-const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, files, setFiles, disabled }: Props) => {
+const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, setFiles, disabled }: Props) => {
   const { t } = useTranslation()
   const [selecting, setSelecting] = useState<boolean>(false)
 
@@ -40,12 +40,12 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
 
     if (_files) {
       if (!useAllFiles) {
-        setFiles([...files, ...toComposerAttachments(_files)])
+        setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(_files)])
         return
       }
       const supportedFiles = await filterSupportedFiles(_files, extensions)
       if (supportedFiles.length > 0) {
-        setFiles([...files, ...toComposerAttachments(supportedFiles)])
+        setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(supportedFiles)])
       }
 
       if (supportedFiles.length !== _files.length) {
@@ -56,7 +56,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         )
       }
     }
-  }, [extensions, files, selecting, setFiles, t])
+  }, [extensions, selecting, setFiles, t])
 
   useEffect(() => {
     const isDocumentOnly = !couldAddImageFile
