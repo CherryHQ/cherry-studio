@@ -177,14 +177,8 @@ export const AbsolutePathSchema = z
  *   `CanonicalExternalPath` at the service boundary is acceptable because
  *   writes on that column already go through the canonicalization path.
  */
-// Branded with a string-literal key rather than a module-private `unique symbol`:
-// a `unique symbol` brand is not nameable when TypeScript emits declarations under
-// `composite: true`, so any exported value whose inferred type transitively carries
-// this brand (e.g. `ipcRequestSchemas`, the preload `api`, file/ai schemas) fails
-// with TS4023 "cannot be named". A string-literal brand is just as effective at
-// blocking accidental plain-`string` assignment; the `as` cast stays the
-// documented, controlled way to mint one (see the provenance note above).
-export type CanonicalExternalPath = string & { readonly __canonicalExternalPath: 'CanonicalExternalPath' }
+declare const canonicalExternalPathBrand: unique symbol
+export type CanonicalExternalPath = string & { readonly [canonicalExternalPathBrand]: 'CanonicalExternalPath' }
 
 /**
  * Intersection brand carried by the `externalPath` field on the FileEntry
