@@ -1,4 +1,4 @@
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache } from '@data/hooks/useCache'
@@ -43,20 +43,8 @@ import { cn } from '@renderer/utils/style'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import {
-  Bot,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Clock,
-  History,
-  ListFilter,
-  MoreHorizontal,
-  PinIcon,
-  SquarePen,
-  Trash2,
-  XIcon
-} from 'lucide-react'
-import type { MouseEvent, ReactNode, RefObject } from 'react'
+import { Bot, History, ListFilter, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,13 +88,6 @@ interface Props {
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
-}
-
-const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
-
-const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
-  time: <Clock size={16} />,
-  assistant: <Bot size={16} />
 }
 
 const RIGHT_PANEL_SEARCH_INPUT_CLASS_NAME =
@@ -156,73 +137,30 @@ function resolveAssistantIdForTopicGroup(
   return assistantId
 }
 
-function TopicListOptionsMenu({
-  mode,
-  onChange,
-  onOpenHistoryRecords,
-  sectionId
-}: {
-  mode: TopicDisplayMode
-  onChange: (mode: TopicDisplayMode) => void
-  onOpenHistoryRecords?: () => void
-  sectionId?: string
-}) {
+function TopicListOptionsMenu({ onOpenHistoryRecords }: { onOpenHistoryRecords?: () => void }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+
+  if (!onOpenHistoryRecords) return null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ResourceList.HeaderActionButton type="button" aria-label={t('chat.topics.display.title')}>
+        <ResourceList.HeaderActionButton type="button" aria-label={t('history.records.shortTitle')}>
           <ListFilter className="block" />
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
         <MenuList>
-          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">{t('chat.topics.display.title')}</div>
-          {TOPIC_DISPLAY_OPTIONS.map((option) => (
-            <MenuItem
-              key={option}
-              size="sm"
-              icon={TOPIC_DISPLAY_ICONS[option]}
-              label={t(`chat.topics.display.${option}`)}
-              active={mode === option}
-              onClick={() => {
-                onChange(option)
-                setOpen(false)
-              }}
-            />
-          ))}
-          {sectionId && (
-            <>
-              <MenuDivider />
-              <ResourceList.SectionToggleMenuItem
-                size="sm"
-                expandIcon={<ChevronsUpDown size={16} />}
-                collapseIcon={<ChevronsDownUp size={16} />}
-                sectionId={sectionId}
-                expandLabel={t('chat.topics.group.expand_all')}
-                collapseLabel={t('chat.topics.group.collapse_all')}
-                onClick={() => {
-                  setOpen(false)
-                }}
-              />
-            </>
-          )}
-          {onOpenHistoryRecords && (
-            <>
-              <MenuDivider />
-              <MenuItem
-                size="sm"
-                icon={<History size={16} />}
-                label={t('history.records.shortTitle')}
-                onClick={() => {
-                  onOpenHistoryRecords()
-                  setOpen(false)
-                }}
-              />
-            </>
-          )}
+          <MenuItem
+            size="sm"
+            icon={<History size={16} />}
+            label={t('history.records.shortTitle')}
+            onClick={() => {
+              onOpenHistoryRecords()
+              setOpen(false)
+            }}
+          />
         </MenuList>
       </PopoverContent>
     </Popover>
@@ -295,7 +233,7 @@ export function Topics({
     deleteTopicsByAssistantId,
     refreshTopics
   } = useTopicMutations()
-  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
@@ -1142,14 +1080,7 @@ export function Topics({
               icon={<SquarePen />}
               label={t('chat.conversation.new')}
               onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-              actions={
-                <TopicListOptionsMenu
-                  mode={displayMode}
-                  onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
-                  onOpenHistoryRecords={onOpenHistoryRecords}
-                  sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
-                />
-              }
+              actions={<TopicListOptionsMenu onOpenHistoryRecords={onOpenHistoryRecords} />}
             />
           )}
         </ResourceList.Header>

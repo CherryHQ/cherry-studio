@@ -1510,6 +1510,8 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const displayModeContent = openSessionListOptions()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).queryByRole('button', { name: 'Agent' })).not.toBeInTheDocument()
     fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')

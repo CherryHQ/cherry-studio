@@ -246,6 +246,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.expand_all') return 'Expand all'
       if (key === 'chat.topics.search.placeholder') return 'Search conversations'
       if (key === 'chat.topics.search.title') return 'Search conversations'
+      if (key === 'history.records.shortTitle') return 'History'
       if (key === 'chat.topics.pin') return 'Pin Conversation'
       if (key === 'chat.topics.unpin') return 'Unpin Conversation'
       if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
@@ -437,12 +438,14 @@ function renderTopicList({
   activeTopic = createRendererTopic(),
   assistantIdFilter,
   onNewTopic = vi.fn(),
+  onOpenHistoryRecords = vi.fn(),
   presentation,
   revealRequest
 }: {
   activeTopic?: Topic
   assistantIdFilter?: string | null
   onNewTopic?: OnNewTopicMock
+  onOpenHistoryRecords?: Mock<() => void>
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
 } = {}) {
@@ -453,6 +456,7 @@ function renderTopicList({
       assistantIdFilter={assistantIdFilter}
       setActiveTopic={setActiveTopic}
       onNewTopic={onNewTopic}
+      onOpenHistoryRecords={onOpenHistoryRecords}
       presentation={presentation}
       revealRequest={nextRevealRequest}
     />
@@ -461,6 +465,7 @@ function renderTopicList({
   return {
     ...view,
     onNewTopic,
+    onOpenHistoryRecords,
     rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
       view.rerender(renderNode(nextRevealRequest, nextActiveTopic)),
     setActiveTopic
@@ -468,7 +473,7 @@ function renderTopicList({
 }
 
 function openTopicListOptions() {
-  fireEvent.click(screen.getByLabelText('Display mode'))
+  fireEvent.click(screen.getByLabelText('History'))
   return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-44'))
 }
 
@@ -1236,7 +1241,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
   })
 
-  it('collapses assistant groups from the display options menu', async () => {
+  it('hides assistant group bulk actions from the topic options menu', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1271,7 +1276,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { rerenderTopicList } = renderTopicList({
+    renderTopicList({
       activeTopic: createRendererTopic({
         id: 'assistant-1-topic-1',
         assistantId: 'assistant-1',
@@ -1281,32 +1286,13 @@ describe('Topics', () => {
 
     expect(screen.getByText('Alpha topic 1')).toBeInTheDocument()
     expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    const collapseAllButton = screen.getByRole('button', { name: 'Collapse all' })
-    expect(collapseAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-down-up')
-    fireEvent.click(collapseAllButton)
-    await vi.waitFor(() => {
-      expect(getTopicGroupExpansionCache().assistant).toEqual(
-        expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
-      )
-    })
-    rerenderTopicList()
-
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Alpha topic 1')).not.toBeInTheDocument()
-    expect(screen.queryByText('Beta topic 1')).not.toBeInTheDocument()
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
-    expect(getTopicGroupExpansionCache().assistant).toEqual(
-      expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
-    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    const expandAllButton = screen.getByRole('button', { name: 'Expand all' })
-    expect(expandAllButton).toBeInTheDocument()
-    // Icon flips with the action: expand state shows the opposite chevrons.
-    expect(expandAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-up-down')
+    const menuContent = openTopicListOptions()
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'History' })).toBeInTheDocument()
+    expect(within(menuContent as HTMLElement).queryByText('Display mode')).not.toBeInTheDocument()
+    expect(within(menuContent as HTMLElement).queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
+    expect(within(menuContent as HTMLElement).queryByRole('button', { name: 'Expand all' })).not.toBeInTheDocument()
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -1328,10 +1314,10 @@ describe('Topics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
     expect(
-      screen.getAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
+      screen.queryAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
     ).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
+    const menuContent = openTopicListOptions()
+    expect(within(menuContent as HTMLElement).queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toHaveTextContent('Collapse conversations')
   })
 
@@ -1434,34 +1420,30 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('renders the topic header controls and persists display mode selection', () => {
-    renderTopicList()
+  it('renders the topic header history action without display mode controls', () => {
+    const { onOpenHistoryRecords } = renderTopicList()
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
 
-    const displayModeContent = openTopicListOptions()
-    expect(displayModeContent).toHaveClass('w-44', 'p-1')
-    // Each options item now renders a leading icon.
-    expect(displayModeContent?.querySelector('svg')).not.toBeNull()
-    expect(screen.getByText('Display mode')).toHaveClass('text-xs', 'font-medium', 'text-muted-foreground')
-    // Options items rely on MenuItem's built-in `size="sm"` styling; the ad-hoc 11px override is gone.
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).not.toHaveClass(
+    const historyContent = openTopicListOptions()
+    expect(historyContent).toHaveClass('w-44', 'p-1')
+    expect(historyContent?.querySelector('svg')).not.toBeNull()
+    expect(within(historyContent as HTMLElement).getByRole('button', { name: 'History' })).not.toHaveClass(
       'text-[11px]'
     )
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+    expect(within(historyContent as HTMLElement).queryByText('Display mode')).not.toBeInTheDocument()
+    expect(within(historyContent as HTMLElement).queryByRole('button', { name: 'Time' })).not.toBeInTheDocument()
+    expect(within(historyContent as HTMLElement).queryByRole('button', { name: 'Assistant' })).not.toBeInTheDocument()
     expect(
-      within(displayModeContent as HTMLElement).queryByRole('button', { name: 'Manage topics' })
+      within(historyContent as HTMLElement).queryByRole('button', { name: 'Manage topics' })
     ).not.toBeInTheDocument()
 
-    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
-
-    const nextDisplayModeContent = openTopicListOptions()
-    fireEvent.click(within(nextDisplayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' }))
+    fireEvent.click(within(historyContent as HTMLElement).getByRole('button', { name: 'History' }))
+    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
   })
 

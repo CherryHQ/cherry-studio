@@ -112,7 +112,7 @@ type SessionsProps = ControlledSessionsProps
 
 const logger = loggerService.withContext('AgentSessions')
 
-const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'agent', 'workdir']
+const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir']
 const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',
