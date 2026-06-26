@@ -1114,15 +1114,15 @@
   "assistants": {
     "abbr": "Assistants",
     "clear": {
-      "content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
+      "content": "Clearing conversations will delete all conversations and files in the assistant. Are you sure you want to continue?",
       "menu_title": "Delete all assistant conversations",
-      "title": "Clear topics"
+      "title": "Clear conversations"
     },
     "copy": {
       "title": "Copy Assistant"
     },
     "delete": {
-      "content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "content": "Deleting an assistant will delete all conversations and files under the assistant. Are you sure you want to delete it?",
       "error": {
         "remain_one": "Not allowed to delete the last one assistant"
       },
@@ -1389,7 +1389,7 @@
         "title": "Select Type"
       },
       "topic": {
-        "title": "New Topic"
+        "title": "New Conversation"
       }
     },
     "alerts": {
@@ -1425,7 +1425,7 @@
       "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "name": "Default Assistant",
       "topic": {
-        "name": "Default Topic"
+        "name": "Default Conversation"
       }
     },
     "history": {
@@ -1445,7 +1445,7 @@
       "auto_resize": "Auto resize height",
       "cancel_editing": "Cancel editing",
       "clear": {
-        "content": "Do you want to clear all messages of the current topic?",
+        "content": "Do you want to clear all messages of the current conversation?",
         "label": "Clear",
         "title": "Clear all messages?"
       },
@@ -1481,7 +1481,7 @@
         "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
-      "new_topic": "New Topic {{Command}}",
+      "new_topic": "New Conversation {{Command}}",
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1548,7 +1548,7 @@
         "open_file_error": "Failed to open file: {{path}}",
         "reveal_in_finder": "Reveal in Finder"
       },
-      "topics": " Topics ",
+      "topics": " Conversations ",
       "translate": "Translate to {{target_language}}",
       "translating": "Translating...",
       "upload": {
@@ -1704,26 +1704,26 @@
         "knowledge": {
           "content": {
             "maintext": {
-              "description": "Includes topic title and main text content from all messages"
+              "description": "Includes conversation title and main text content from all messages"
             }
           },
           "empty": {
-            "no_content": "This topic has no saveable content"
+            "no_content": "This conversation has no saveable content"
           },
           "error": {
-            "save_failed": "Failed to save topic, please check knowledge base configuration"
+            "save_failed": "Failed to save conversation, please check knowledge base configuration"
           },
-          "loading": "Analyzing topic content...",
+          "loading": "Analyzing conversation content...",
           "menu_title": "Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Select content types to save",
               "selected_tip": "Selected {{count}} items from {{messages}} messages",
-              "tip": "Topic will be saved to knowledge base with complete conversation context"
+              "tip": "Conversation will be saved to knowledge base with complete context"
             }
           },
-          "success": "Topic successfully saved to knowledge base ({{count}} items)",
-          "title": "Save Topic to Knowledge Base"
+          "success": "Conversation successfully saved to knowledge base ({{count}} items)",
+          "title": "Save Conversation to Knowledge Base"
         }
       }
     },
@@ -1789,7 +1789,7 @@
     "thinking": "Thinking ({{seconds}} seconds)",
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
-      "auto_rename": "Auto Rename",
+      "auto_rename": "Generate conversation name",
       "clear": {
         "title": "Clear Messages"
       },
@@ -1810,8 +1810,8 @@
       },
       "edit": {
         "placeholder": "Enter new name",
-        "title": "Edit Name",
-        "title_tip": "Tips: Double-click the topic name to rename it directly in place"
+        "title": "Edit conversation name",
+        "title_tip": "Tips: Double-click the conversation name to rename it directly in place"
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
@@ -1879,48 +1879,48 @@
         "unknown_assistant": "Unlinked Assistant",
         "yesterday": "Yesterday"
       },
-      "list": "Topic List",
+      "list": "Conversation List",
       "manage": {
         "clear_selection": "Clear Selection",
         "delete": {
           "confirm": {
-            "content": "Are you sure you want to delete {{count}} selected topic(s)? This action cannot be undone.",
-            "title": "Delete Topics"
+            "content": "Are you sure you want to delete {{count}} selected conversation(s)? This action cannot be undone.",
+            "title": "Delete Conversations"
           },
           "error": "Failed to delete. Please try again.",
-          "partial_success": "Successfully deleted {{successCount}} topics, {{failedCount}} failed",
-          "success": "Deleted {{count}} topic(s)"
+          "partial_success": "Successfully deleted {{successCount}} conversations, {{failedCount}} failed",
+          "success": "Deleted {{count}} conversation(s)"
         },
         "deselect_all": "Deselect All",
         "error": {
-          "at_least_one": "At least one topic must be kept"
+          "at_least_one": "At least one conversation must be kept"
         },
         "move": {
           "button": "Move",
           "placeholder": "Select target assistant",
-          "success": "Moved {{count}} topic(s)"
+          "success": "Moved {{count}} conversation(s)"
         },
-        "pinned": "Pinned Topics",
+        "pinned": "Pinned Conversations",
         "selected_count": "{{count}} selected",
-        "title": "Manage Topics",
-        "unpinned": "Unpinned Topics"
+        "title": "Manage Conversations",
+        "unpinned": "Unpinned Conversations"
       },
       "move_to": "Move to",
-      "new": "New Topic",
-      "pin": "Pin Topic",
+      "new": "Start new conversation",
+      "pin": "Pin Conversation",
       "prompt": {
         "edit": {
-          "title": "Edit Topic Prompts"
+          "title": "Edit Conversation Prompts"
         },
-        "label": "Topic Prompts",
-        "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
+        "label": "Conversation Prompts",
+        "tips": "Conversation Prompts: Additional supplementary prompts provided for the current conversation"
       },
       "search": {
-        "placeholder": "Search topics...",
+        "placeholder": "Search conversations...",
         "title": "Search"
       },
-      "title": "Topics",
-      "unpin": "Unpin Topic"
+      "title": "Conversations",
+      "unpin": "Unpin Conversation"
     },
     "translate": "Translate",
     "user": "User",
@@ -2155,7 +2155,7 @@
     "subscribe": "Subscribe",
     "success": "Success",
     "swap": "Swap",
-    "topics": "Topics",
+    "topics": "Conversations",
     "translate_text": "Translate text",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
@@ -2466,7 +2466,7 @@
   "history": {
     "continue_chat": "Continue Chatting",
     "error": {
-      "topic_not_found": "Topic not found"
+      "topic_not_found": "Conversation not found"
     },
     "locate": {
       "message": "Locate the message"
@@ -2538,16 +2538,16 @@
         "whole_word": "Whole word"
       },
       "messages": "Search All Messages",
-      "placeholder": "Search topics or messages...",
+      "placeholder": "Search conversations or messages...",
       "sort": {
         "newest": "Newest first",
         "oldest": "Oldest first"
       },
       "topics": {
-        "empty": "No topics found, press Enter to search all messages"
+        "empty": "No conversations found, press Enter to search all messages"
       }
     },
-    "title": "Topics Search"
+    "title": "Conversation Search"
   },
   "html_artifacts": {
     "capture": {
@@ -3483,7 +3483,7 @@
       "excel": {
         "export": "Failed to export Excel"
       },
-      "fetchTopicName": "Failed to name the topic",
+      "fetchTopicName": "Failed to name the conversation",
       "file": {
         "process_failed": "File {{name}} could not be processed",
         "text_extraction_failed": "Failed to extract text from {{name}}"
@@ -3812,7 +3812,7 @@
       }
     },
     "topic": {
-      "added": "New topic added"
+      "added": "New conversation added"
     },
     "upgrade": {
       "success": {
@@ -5367,7 +5367,7 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Auto switch to topic",
+      "auto_switch_to_topics": "Auto switch to conversation",
       "title": "Advanced Settings"
     },
     "assistant": {
@@ -6059,7 +6059,7 @@
       },
       "title": "Display Settings",
       "topic": {
-        "title": "Topic Settings"
+        "title": "Conversation Settings"
       },
       "zoom": {
         "title": "Zoom Settings"
@@ -6802,7 +6802,7 @@
       "quick_assistant_model": "Quick Assistant Model",
       "quick_assistant_selection": "Select Assistant",
       "quick_model": {
-        "description": "Model used for simple tasks such as topic naming and keyword extraction",
+        "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",
         "setting_title": "Quick model setup",
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
@@ -6814,9 +6814,9 @@
         "pull_short": "Get model list"
       },
       "topic_naming": {
-        "auto": "Topic Auto Naming",
-        "label": "Topic naming",
-        "prompt": "Topic Naming Prompt"
+        "auto": "Conversation Auto Naming",
+        "label": "Conversation naming",
+        "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",
@@ -7340,13 +7340,13 @@
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
       "move_tab_to_first": "Move Tab to First",
-      "new_topic": "New Topic",
+      "new_topic": "New Conversation",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
       "open_tab_in_new_window": "Open Tab in New Window",
       "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
-      "rename_topic": "Rename Topic",
+      "rename_topic": "Rename Conversation",
       "reset": "Reset",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
@@ -7366,7 +7366,7 @@
       "toggle_left_sidebar": "Toggle Left Sidebar",
       "toggle_new_context": "Clear Context",
       "toggle_right_sidebar": "Toggle Right Sidebar",
-      "toggle_show_topics": "Toggle Topics",
+      "toggle_show_topics": "Toggle Conversations",
       "toggle_sidebar": "Toggle Sidebar",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
@@ -7581,14 +7581,14 @@
       }
     },
     "topic": {
-      "pin_to_top": "Pin Topics to Top",
+      "pin_to_top": "Pin Conversations to Top",
       "position": {
-        "label": "Topic position",
+        "label": "Conversation position",
         "left": "Left",
         "right": "Right"
       },
       "show": {
-        "time": "Show topic time"
+        "time": "Show conversation time"
       }
     },
     "translate": {
