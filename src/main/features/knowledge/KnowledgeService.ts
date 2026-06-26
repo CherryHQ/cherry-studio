@@ -75,6 +75,15 @@ const CONCEPT_GREP_DEFAULT_MAX_MATCHES = 50
 const CONCEPT_GREP_MAX_MATCHES = 200
 /** Characters of context kept on each side of a grep match in its snippet. */
 const CONCEPT_GREP_SNIPPET_PAD = 60
+/**
+ * Max characters of any single line {@link KnowledgeService.grepConcept} runs the pattern over. Matching one bounded
+ * line at a time keeps a catastrophic-backtracking pattern (e.g. `(a+)+$`) from freezing the main-process event loop
+ * by spanning the whole document; matches past this point on an over-long line are not scanned. This only removes the
+ * whole-document blow-up — a pathological pattern can still backtrack exponentially within one 2000-char line, so it
+ * is not RE2/ripgrep-grade linear-time matching. Reuses the same 2000-char value as the filesystem grep tool (there
+ * it truncates displayed lines; here it bounds the text the pattern actually runs over).
+ */
+const CONCEPT_GREP_MAX_LINE_CHARS = 2000
 /** Hard ceiling on nodes {@link KnowledgeService.getOrganizationTree} returns, bounding the response for a huge base. */
 const KNOWLEDGE_TREE_MAX_NODES = 1000
 
@@ -189,11 +198,16 @@ function compileGrepRegex(pattern: string, ignoreCase: boolean): RegExp {
 }
 
 /**
- * Scan `text` for every match of the global `regex`, returning the total count
- * and the first `limit` matches with 1-based line numbers and padded snippets.
- * Line numbers are tracked in a single forward pass (matches arrive in order);
- * `lastIndex` is advanced past zero-width matches so an empty-matching pattern
- * cannot spin. `regex` MUST carry the global flag (the caller compiles it so).
+ * Scan `text` for every match of the global `regex`, one line at a time, returning the
+ * total count and the first `limit` matches with 1-based line numbers, document-absolute
+ * offsets, and padded snippets. Each line is matched independently and truncated at
+ * {@link CONCEPT_GREP_MAX_LINE_CHARS}, so a single regex evaluation never runs over more
+ * than one bounded line — a catastrophic-backtracking pattern therefore cannot freeze the
+ * main process by spanning the whole document (this mirrors the line-oriented fallback in
+ * the filesystem grep tool). Anchors (`^`/`$`) consequently bind to each line, and a match
+ * cannot span lines. `lastIndex` is advanced past zero-width matches so an empty-matching
+ * pattern cannot spin. `regex` MUST carry the global flag (the caller compiles it so); it
+ * is reset at the start of every line.
  */
 function scanConceptMatches(
   text: string,
@@ -202,33 +216,42 @@ function scanConceptMatches(
 ): { totalMatches: number; matches: KnowledgeConceptGrepMatch[] } {
   const matches: KnowledgeConceptGrepMatch[] = []
   let totalMatches = 0
-  // Forward line cursor: `line` is the 1-based line at offset `lineScanIndex`.
-  let line = 1
-  let lineScanIndex = 0
+  let lineNumber = 0
+  // Absolute offset of the current line's first character within `text`.
+  let lineStart = 0
 
-  for (let result = regex.exec(text); result !== null; result = regex.exec(text)) {
-    totalMatches++
-    const start = result.index
-    const end = start + result[0].length
+  while (lineStart <= text.length) {
+    lineNumber++
+    const newlineIndex = text.indexOf('\n', lineStart)
+    const lineEnd = newlineIndex === -1 ? text.length : newlineIndex
+    // Run the pattern over a single, truncated line so backtracking can't blow up across the
+    // whole document; a match past the per-line cap on an over-long line is dropped.
+    const line = text.slice(lineStart, Math.min(lineEnd, lineStart + CONCEPT_GREP_MAX_LINE_CHARS))
 
-    if (matches.length < limit) {
-      // Count only the newlines in the gap since the previous match — O(n) total.
-      for (; lineScanIndex < start; lineScanIndex++) {
-        if (text[lineScanIndex] === '\n') line++
+    regex.lastIndex = 0
+    for (let result = regex.exec(line); result !== null; result = regex.exec(line)) {
+      totalMatches++
+      const matchLength = result[0].length
+      const start = lineStart + result.index
+      const end = start + matchLength
+
+      if (matches.length < limit) {
+        matches.push({
+          line: lineNumber,
+          charStart: start,
+          charEnd: end,
+          snippet: text.slice(
+            Math.max(0, start - CONCEPT_GREP_SNIPPET_PAD),
+            Math.min(text.length, end + CONCEPT_GREP_SNIPPET_PAD)
+          )
+        })
       }
-      matches.push({
-        line,
-        charStart: start,
-        charEnd: end,
-        snippet: text.slice(
-          Math.max(0, start - CONCEPT_GREP_SNIPPET_PAD),
-          Math.min(text.length, end + CONCEPT_GREP_SNIPPET_PAD)
-        )
-      })
+
+      // Zero-width match: bump lastIndex so exec() advances past the same position.
+      regex.lastIndex = result.index + (matchLength > 0 ? matchLength : 1)
     }
 
-    // Zero-width match: bump lastIndex so exec() advances past the same position.
-    regex.lastIndex = end > start ? end : end + 1
+    lineStart = lineEnd + 1
   }
 
   return { totalMatches, matches }

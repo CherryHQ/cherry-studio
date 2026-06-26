@@ -143,8 +143,8 @@ export const kbGrepInputSchema = z.object({
     .min(1)
     .max(200)
     .describe(
-      'JavaScript regular expression to find in the document text. Matches exact text — use kb_search for ' +
-        'semantic/meaning-based lookup.'
+      'JavaScript regular expression matched line by line against the document text (anchors `^`/`$` bind to each ' +
+        'line; a match cannot span lines). Matches exact text — use kb_search for semantic/meaning-based lookup.'
     ),
   ignoreCase: z.boolean().optional().describe('Case-insensitive matching. Defaults to true.'),
   maxMatches: z

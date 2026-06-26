@@ -1884,8 +1884,8 @@ describe('KnowledgeService', () => {
 
     it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
       const service = new KnowledgeService()
-      // Matches sit on row 2 (not the first line) so the assertion pins BOTH behaviours of the forward
-      // cursor: it must advance to the shared row AND not advance again between matches on that row.
+      // Matches sit on row 2 (not the first line) so the assertion pins both: the line number is the shared
+      // row, and the offsets are distinct and ascending per match on that row.
       arrangeReadable('intro\nFoo foo FOO')
 
       const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
@@ -1914,6 +1914,29 @@ describe('KnowledgeService', () => {
 
       // 'x*' matches empty at each position (4 in "abc"); the lastIndex bump keeps it terminating.
       expect(result.totalMatches).toBe(4)
+    })
+
+    it('matches anchors and bounds matching per line (no full-document backtracking)', async () => {
+      const service = new KnowledgeService()
+      // `^`/`$` bind to each line now that matching is line-oriented: a whole-document scan
+      // would never match `^beta$` mid-string.
+      arrangeReadable('alpha\nbeta\ngamma')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^beta$' })
+
+      expect(result.totalMatches).toBe(1)
+      expect(result.matches[0].line).toBe(2)
+    })
+
+    it('drops matches past the per-line length cap so a single line cannot freeze the scan', async () => {
+      const service = new KnowledgeService()
+      // The needle sits past CONCEPT_GREP_MAX_LINE_CHARS (2000) on one line, so the truncated
+      // line the pattern runs over never reaches it — proving the per-line evaluation is bounded.
+      arrangeReadable('x'.repeat(2100) + 'NEEDLE')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'NEEDLE' })
+
+      expect(result.totalMatches).toBe(0)
     })
 
     it('throws a validation error for an invalid regular expression', async () => {
