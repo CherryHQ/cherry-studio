@@ -136,7 +136,7 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { SafeNameSchema } from '@shared/data/types/file/essential'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   BatchCreateResult,
@@ -147,6 +147,7 @@ import type {
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
+import { SafeExtSchema } from '@shared/types/file/common'
 import type { FileHandle } from '@shared/types/file/handle'
 import { FileHandleSchema } from '@shared/types/file/handle'
 import mime from 'mime'

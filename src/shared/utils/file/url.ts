@@ -47,7 +47,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import type { FilePath, FileUrlString } from '@shared/types/file'
+import { type FilePath, type FileUrlString, SafeExtSchema } from '@shared/types/file/common'
 
 // ─── Danger extension policy ───
 
@@ -128,16 +128,17 @@ const DANGEROUS_EXTS = new Set([
  * Normalize a file extension for shared file safety checks.
  *
  * Accepts legacy dotted extensions (`.exe`) and v2 bare extensions (`exe`),
- * strips trailing spaces / dots that can appear in filesystem paths, and
- * returns `null` when no usable extension remains.
+ * strips boundary spaces / dots that can appear in filesystem paths, then
+ * accepts only a conservative bare-extension shape for safety checks.
  */
 export function normalizeExt(ext: string | null | undefined): string | null {
   if (!ext) return null
   const normalized = ext
-    .replace(/^\./, '')
+    .replace(/^[\s.]+/, '')
     .replace(/[\s.]+$/, '')
     .toLowerCase()
-  return normalized || null
+
+  return SafeExtSchema.safeParse(normalized).success ? normalized : null
 }
 
 /**

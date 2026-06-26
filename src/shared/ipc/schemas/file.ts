@@ -3,10 +3,9 @@ import {
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
-  SafeExtSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileHandleSchema, PhysicalFileMetadataSchema } from '@shared/types/file'
+import { FileHandleSchema, PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'

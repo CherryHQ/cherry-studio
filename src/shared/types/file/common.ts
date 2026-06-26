@@ -39,6 +39,32 @@ export type FilePath = `/${string}` | `${string}:\\${string}`
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`
 
+// ─── File Extension ───
+
+/**
+ * Conservative bare file-extension schema.
+ *
+ * Design intent:
+ * - extension values are suffixes only (`pdf`, `md`, `gz`) — never `.pdf`
+ * - multi-part names like `archive.tar.gz` split as `name='archive.tar'`,
+ *   `ext='gz'`
+ * - extensionless files should use `null`, not empty string / whitespace
+ * - dots and whitespace are rejected so OS-default-open safety checks cannot
+ *   be bypassed by platform-normalized suffixes such as `exe.` or `exe `
+ * - separators and null bytes are rejected so an extension cannot become more
+ *   than one path segment when composed into a filename
+ */
+// TODO(file-ext): Refactor this into a branded bare-extension type, then make
+// `normalizeExt` the factory that returns that branded value or `null`.
+export const SafeExtSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((s) => !s.includes('\0'), 'Extension must not contain null bytes')
+  .refine((s) => !/[/\\]/.test(s), 'Extension must not contain path separators')
+  .refine((s) => !s.includes('.'), 'Extension must be bare (no dots), e.g. "pdf" not ".pdf"')
+  .refine((s) => !/\s/.test(s), 'Extension must not contain whitespace')
+
 /**
  * `file://` URL pointing at a local resource.
  *

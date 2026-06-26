@@ -4,11 +4,22 @@ import { describe, expect, it } from 'vitest'
 import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
 
 describe('normalizeExt', () => {
-  it('normalizes dotted, cased, and trailing-padded extensions', () => {
+  it('normalizes dotted, cased, and boundary-padded extensions', () => {
     expect(normalizeExt('.EXE. ')).toBe('exe')
+    expect(normalizeExt(' .EXE')).toBe('exe')
+    expect(normalizeExt('\t..EXE')).toBe('exe')
     expect(normalizeExt('Pdf')).toBe('pdf')
     expect(normalizeExt(null)).toBeNull()
     expect(normalizeExt('...')).toBeNull()
+  })
+
+  it('returns null for normalized extensions that are not conservative bare suffixes', () => {
+    expect(normalizeExt('tar.gz')).toBeNull()
+    expect(normalizeExt('ex e')).toBeNull()
+    expect(normalizeExt('dir/exe')).toBeNull()
+    expect(normalizeExt('dir\\exe')).toBeNull()
+    expect(normalizeExt('exe\0')).toBeNull()
+    expect(normalizeExt('x'.repeat(256))).toBeNull()
   })
 })
 

@@ -70,6 +70,26 @@ describe('useMessageLeafCapabilities', () => {
     expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/file.pdf' })
   })
 
+  it('falls back to a file entry handle when shared attachment path is missing', async () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: '019606a0-0000-7000-8000-000000000001',
+      type: FILE_TYPE.DOCUMENT,
+      ext: '.pdf',
+      path: '',
+      origin_name: 'file.pdf',
+      name: 'stored-file.pdf',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    await result.current.openFile?.(file)
+
+    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' })
+  })
+
   it('projects file display data for shared attachment renderers', () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
@@ -119,6 +139,48 @@ describe('useMessageLeafCapabilities', () => {
     expect(result.current.getFileView?.(file)).toEqual({
       displayName: '2026-01-01 message.attachments.pasted_image.png',
       previewUrl: 'file:///tmp/temp_file_1_image.png'
+    })
+  })
+
+  it('keeps legacy pasted text display behavior local to message attachments', () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.TEXT,
+      ext: '.txt',
+      path: '/tmp/pasted_text.txt',
+      origin_name: 'pasted_text.txt',
+      name: 'pasted_text.txt',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    expect(result.current.getFileView?.(file)).toEqual({
+      displayName: '2026-01-01 message.attachments.pasted_text.txt',
+      previewUrl: 'file:///tmp/pasted_text.txt'
+    })
+  })
+
+  it('returns an empty attachment display name when origin_name is missing', () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.DOCUMENT,
+      ext: '.pdf',
+      path: '/tmp/file.pdf',
+      origin_name: '',
+      name: 'stored-file.pdf',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    expect(result.current.getFileView?.(file)).toEqual({
+      displayName: '',
+      previewUrl: 'file:///tmp/file.pdf'
     })
   })
 })
