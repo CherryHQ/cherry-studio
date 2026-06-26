@@ -2345,6 +2345,7 @@
   "files": {
     "actions": "Actions",
     "all": "All Files",
+    "audio": "Audio",
     "batch_delete": "Batch delete",
     "batch_operation": "Select All",
     "count": "files",
@@ -2358,22 +2359,52 @@
       },
       "title": "Delete File"
     },
+    "delete_or_remove": "Delete / remove",
     "document": "Document",
+    "drag_upload": "Drag files here to upload",
     "edit": "Edit",
+    "empty": {
+      "no_match_description": "No files match the current filters",
+      "no_match_title": "No matching files found"
+    },
     "error": {
-      "open_path": "Failed to open path {{path}}"
+      "delete_failed": "Failed to delete files",
+      "delete_partial_failed": "Some files could not be deleted",
+      "import_failed": "Failed to import files",
+      "import_partial_failed": "Some files could not be imported",
+      "open_path": "Failed to open path {{path}}",
+      "rename_failed": "Failed to rename file",
+      "restore_failed": "Failed to restore files",
+      "restore_partial_failed": "Some files could not be restored"
     },
     "file": "File",
+    "footer_count": "{{count}} files",
+    "footer_selected_count": "{{count}} selected",
     "image": "Image",
+    "missing": "Missing",
+    "modified_at": "Modified At",
     "name": "Name",
     "open": "Open",
+    "other": "Other",
+    "permanent_delete": "Permanently delete",
+    "permanent_delete_confirm": {
+      "description": "This will permanently remove {{count}} file(s). This action cannot be undone.",
+      "title": "Permanently delete files?"
+    },
     "preview": {
       "error": "Failed to open file"
     },
+    "remove_from_library": "Remove from library",
+    "rename": "Rename",
+    "restore": "Restore",
+    "selected_count": "{{count}} files selected",
+    "show_in_folder": "Show in folder",
     "size": "Size",
     "text": "Text",
     "title": "Files",
-    "type": "Type"
+    "trash": "Trash",
+    "type": "Type",
+    "video": "Video"
   },
   "globalSearch": {
     "clear": "Clear search",
@@ -6469,8 +6500,6 @@
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / and @ triggers",
-        "paste_long_text_as_file": "Paste long text as file",
-        "paste_long_text_threshold": "Paste long text length",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
@@ -6755,6 +6784,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Some models are in use as the default model and cannot be removed.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

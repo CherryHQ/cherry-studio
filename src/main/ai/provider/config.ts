@@ -160,7 +160,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
   }
 
   // Default every provider to the proxy-aware net.fetch base so the app proxy
-  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
+  // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch

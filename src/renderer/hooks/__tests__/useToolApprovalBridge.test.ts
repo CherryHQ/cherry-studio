@@ -9,6 +9,15 @@ const mocks = vi.hoisted(() => ({
   respondToolApproval: vi.fn()
 }))
 
+// The bridge now delivers decisions via ipcApi.request('ai.respond_tool_approval', …).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 function makeApprovalPart(overrides: Partial<Record<string, unknown>> = {}): CherryMessagePart {
   return {
     type: 'tool-CustomTool',
@@ -37,17 +46,6 @@ describe('useToolApprovalBridge', () => {
   beforeEach(() => {
     mocks.respondToolApproval.mockReset()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
-
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        ai: {
-          toolApproval: {
-            respond: mocks.respondToolApproval
-          }
-        }
-      }
-    })
   })
 
   it('delivers approval decisions to main with anchor context', async () => {

@@ -13,6 +13,7 @@ import type {
   ToolSet
 } from 'ai'
 
+import type { MediaCapabilities } from '../../../messages/messageCapabilities'
 import type { AppProviderSettingsMap } from '../../../types'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
@@ -109,4 +110,6 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   options?: AgentOptions
   /** Independent hook contributors folded by `composeHooks`. */
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
+  /** Modalities the model accepts; unsupported media is stripped before conversion. */
+  mediaCapabilities?: MediaCapabilities
 }

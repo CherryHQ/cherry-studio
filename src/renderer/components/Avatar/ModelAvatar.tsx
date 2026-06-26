@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { first } from 'lodash'
 import type { FC } from 'react'
 

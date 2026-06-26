@@ -1,4 +1,4 @@
-import type { WebSearchProvider } from '@renderer/types'
+import type { WebSearchProvider } from '@renderer/types/webSearchProvider'
 
 export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
   {

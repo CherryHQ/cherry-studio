@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -93,7 +94,7 @@ export class TopicStreamSubscription {
     this.#branches.clear()
     this.#terminalByExecutionId.clear()
     this.#terminalListeners.clear()
-    if (this.#attached) void window.api.ai.streamDetach({ topicId: this.#topicId }).catch(() => {})
+    if (this.#attached) void ipcApi.request('ai.stream_detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
     for (const unsub of this.#ipcUnsubs) unsub()
@@ -160,14 +161,14 @@ export class TopicStreamSubscription {
   #setupIpcListeners(): void {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
-      window.api.ai.onStreamChunk((data) => this.#routeChunk(data)),
-      window.api.ai.onStreamDone((data) => {
+      ipcApi.on('ai.stream_chunk', (data) => this.#routeChunk(data)),
+      ipcApi.on('ai.stream_done', (data) => {
         if (data.topicId !== this.#topicId) return
         const terminal: ExecutionTerminal = { isAbort: data.status === 'paused', isError: false }
         if (data.executionId) this.#emitTerminal(data.executionId, terminal)
         if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
       }),
-      window.api.ai.onStreamError((data) => {
+      ipcApi.on('ai.stream_error', (data) => {
         if (data.topicId !== this.#topicId) return
         const terminal: ExecutionTerminal = { isAbort: false, isError: true }
         if (data.executionId) this.#emitTerminal(data.executionId, terminal)
@@ -183,7 +184,7 @@ export class TopicStreamSubscription {
     this.#setupIpcListeners()
     this.#attachInFlight = (async () => {
       try {
-        const res = await window.api.ai.streamAttach({ topicId: this.#topicId })
+        const res = await ipcApi.request('ai.stream_attach', { topicId: this.#topicId })
         if (this.#disposed) return
         this.#attached = true
         switch (res.status) {
@@ -216,7 +217,7 @@ export class TopicStreamSubscription {
 
   #detach(): void {
     if (!this.#attached) return
-    void window.api.ai.streamDetach({ topicId: this.#topicId }).catch(() => {})
+    void ipcApi.request('ai.stream_detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
   }

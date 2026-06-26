@@ -1,21 +1,7 @@
-/**
- * @deprecated Scheduled for removal in v2.0.0
- * --------------------------------------------------------------------------
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
- * --------------------------------------------------------------------------
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- * Only critical bug fixes are accepted during this migration phase.
- *
- * This file is being refactored to v2 standards.
- * Any non-critical changes will conflict with the ongoing work.
- *
- * 🔗 Context & Status:
- * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
- * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
- * --------------------------------------------------------------------------
- */
-import type { FileMetadata, KnowledgeNoteItem, QuickPhrase } from '@renderer/types'
 // Import necessary types for blocks and new message structure
+import type { QuickPhrase } from '@renderer/types/assistant'
+import type { FileMetadata } from '@renderer/types/file'
+import type { KnowledgeNoteItem } from '@renderer/types/knowledge'
 import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMessage'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { Dexie, type EntityTable } from 'dexie'

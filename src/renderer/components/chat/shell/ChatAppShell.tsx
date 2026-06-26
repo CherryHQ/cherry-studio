@@ -6,7 +6,7 @@ import {
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
