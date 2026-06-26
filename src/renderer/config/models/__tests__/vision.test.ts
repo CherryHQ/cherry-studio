@@ -30,33 +30,6 @@ const isPureGenerateImageModel = adapt(_isPureGenerateImageModel)
 const isTextToImageModel = adapt(_isTextToImageModel)
 const isVisionModel = adapt(_isVisionModel)
 
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: {
-    getState: () => ({
-      llm: { providers: [] },
-      settings: {}
-    })
-  },
-  useAppDispatch: vi.fn(),
-  useAppSelector: vi.fn()
-}))
-
-vi.mock('@renderer/store/settings', () => {
-  const noop = vi.fn()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (prop === 'initialState') {
-          return {}
-        }
-        return noop
-      }
-    }
-  )
-})
-
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()
