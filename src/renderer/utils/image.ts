@@ -36,26 +36,27 @@ export const compressImage = async (
   })
 }
 
-// Avatars / provider logos render at ≤80px; 128px stays crisp on HiDPI while
-// keeping the stored base64 small. Animated GIFs can't be re-encoded here
-// without losing the animation, so their raw upload is size-capped instead of
-// recompressed — this keeps the persisted string size controllable.
+// Avatars / logos render at ≤80px; 128px stays crisp on HiDPI while keeping the
+// stored base64 small. GIF (animation) and SVG (vector) can't be re-encoded via
+// the canvas/compression path without losing fidelity — they're kept as-is but
+// capped on raw size so the persisted string stays controllable.
 const AVATAR_MAX_DIMENSION = 128
-const AVATAR_MAX_GIF_BYTES = 256 * 1024
+const AVATAR_MAX_RAW_BYTES = 256 * 1024
+const AVATAR_KEEP_AS_IS_TYPES = new Set(['image/gif', 'image/svg+xml'])
 
 /**
  * 将上传的头像 / logo 图片归一化为可直接存储/预览的 base64 data URL。
- * 非 GIF 压缩到 {@link AVATAR_MAX_DIMENSION}px；GIF 保留动画但限制原始体积到
- * {@link AVATAR_MAX_GIF_BYTES}，超出则抛错由调用方提示用户。
+ * 普通位图压缩到 {@link AVATAR_MAX_DIMENSION}px；GIF / SVG 保留原始内容（动画 /
+ * 矢量）但限制原始体积到 {@link AVATAR_MAX_RAW_BYTES}，超出则抛错由调用方提示用户。
  * @param {File} file 用户上传的图片文件
  * @returns {Promise<string>} base64 data URL
  */
 export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
   let processed: File
-  if (file.type === 'image/gif') {
-    if (file.size > AVATAR_MAX_GIF_BYTES) {
+  if (AVATAR_KEEP_AS_IS_TYPES.has(file.type)) {
+    if (file.size > AVATAR_MAX_RAW_BYTES) {
       throw new Error(
-        i18n.t('message.error.avatar_gif_too_large', { limit: `${Math.round(AVATAR_MAX_GIF_BYTES / 1024)} KB` })
+        i18n.t('message.error.avatar_image_too_large', { limit: `${Math.round(AVATAR_MAX_RAW_BYTES / 1024)} KB` })
       )
     }
     processed = file

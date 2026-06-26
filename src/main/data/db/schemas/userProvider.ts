@@ -35,7 +35,7 @@ export const userProviderTable = sqliteTable(
 
     name: text().notNull(),
 
-    /** Custom logo for user-defined providers (data URL / SVG / remote URL). Null for preset providers, which render a bundled icon. */
+    /** Custom logo (data URL / SVG / remote URL / `icon:<providerId>` ref). Usually null for preset providers, which render a bundled icon by id. */
     logo: text(),
 
     /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */

@@ -3498,7 +3498,7 @@
     },
     "empty_url": "Αδυναμία λήψης της εικόνας, πιθανόν οι οδηγίες να περιέχουν ευαίσθητο περιεχόμενο ή απαγορευμένες λέξεις",
     "error": {
-      "avatar_gif_too_large": "[to be translated]:Animated GIF is too large (max {{limit}})",
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Η επικάλυψη μεριδίων δεν μπορεί να είναι μεγαλύτερη από το μέγεθος του μεριδίου",
       "copy": "Η αντιγραφή απέτυχε",
       "dimension_too_large": "Το μέγεθος του περιεχομένου είναι πολύ μεγάλο",

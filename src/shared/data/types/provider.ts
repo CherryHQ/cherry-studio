@@ -254,7 +254,7 @@ export const ProviderSchema = z.object({
   presetProviderId: z.string().optional(),
   /** Display name */
   name: z.string(),
-  /** Custom logo for user-defined providers (data URL / SVG / remote URL); absent for preset providers */
+  /** Custom logo: data URL / SVG / remote URL / `icon:<providerId>` brand-icon ref; usually absent for preset providers (rendered by id) */
   logo: z.string().optional(),
   /** Description */
   description: z.string().optional(),

@@ -3498,7 +3498,7 @@
     },
     "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
     "error": {
-      "avatar_gif_too_large": "[to be translated]:Animated GIF is too large (max {{limit}})",
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
       "copy": "Не удалось скопировать",
       "dimension_too_large": "Размер содержимого слишком велик",

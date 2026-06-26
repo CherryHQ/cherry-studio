@@ -3498,7 +3498,7 @@
     },
     "empty_url": "No se puede descargar la imagen, es posible que la descripción contenga contenido sensible o palabras prohibidas",
     "error": {
-      "avatar_gif_too_large": "[to be translated]:Animated GIF is too large (max {{limit}})",
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "El solapamiento del fragmento no puede ser mayor que el tamaño del fragmento",
       "copy": "Fallo al copiar",
       "dimension_too_large": "La dimensión del contenido es demasiado grande",

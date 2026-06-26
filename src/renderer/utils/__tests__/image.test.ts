@@ -1,3 +1,4 @@
+import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,6 +28,7 @@ vi.mock('html-to-image', () => ({
 
 // mock window.toast
 beforeEach(() => {
+  vi.mocked(imageCompression).mockClear()
   vi.mocked(htmlToImage.toCanvas).mockReset()
   vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
     Promise.resolve({
@@ -67,15 +69,33 @@ describe('utils/image', () => {
       expect(dataUrl).toMatch(/^data:image\/png;base64,/)
     })
 
+    it('should compress non-GIF uploads to the avatar dimension', async () => {
+      const png = new File(['hello'], 'a.png', { type: 'image/png' })
+      await fileToAvatarDataUrl(png)
+      expect(imageCompression).toHaveBeenCalledWith(
+        png,
+        expect.objectContaining({ maxWidthOrHeight: 128, maxSizeMB: 0.25 })
+      )
+    })
+
     it('should encode a small GIF without compressing it', async () => {
       const gif = new File(['gif-bytes'], 'a.gif', { type: 'image/gif' })
       const dataUrl = await fileToAvatarDataUrl(gif)
       // Untouched GIF bytes encode to a gif data URL (not the compressor's png).
       expect(dataUrl).toMatch(/^data:image\/gif;base64,/)
+      expect(imageCompression).not.toHaveBeenCalled()
     })
 
-    it('should reject an oversized GIF instead of encoding the original', async () => {
-      // > 256 KiB raw — kept-as-is animation would blow up the stored base64.
+    it('should keep an SVG as-is instead of rasterizing it', async () => {
+      const svg = new File(['<svg/>'], 'a.svg', { type: 'image/svg+xml' })
+      const dataUrl = await fileToAvatarDataUrl(svg)
+      // SVG is kept (vector) and encoded directly, not routed through the canvas compressor.
+      expect(dataUrl).toMatch(/^data:image\/svg\+xml/)
+      expect(imageCompression).not.toHaveBeenCalled()
+    })
+
+    it('should reject an oversized GIF or SVG instead of encoding the original', async () => {
+      // > 256 KiB raw — kept-as-is animation/vector would blow up the stored base64.
       const bigGif = new File([new Uint8Array(300 * 1024)], 'big.gif', { type: 'image/gif' })
       await expect(fileToAvatarDataUrl(bigGif)).rejects.toThrow()
     })

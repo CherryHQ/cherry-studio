@@ -69,9 +69,10 @@ export const CreateProviderSchema = z.strictObject({
   /** Display name (required on create) */
   name: z.string().min(1),
   /**
-   * Custom logo for a user-defined provider, stored inline on the row (data
-   * URL / SVG / remote URL). Size-capped so a runaway data URL can't bloat the
-   * row and the cached entity — see {@link LOGO_MAX_BASE64_BYTES}.
+   * Custom logo for a user-defined provider, stored inline on the row: a data
+   * URL, raw SVG, remote URL, or an `icon:<providerId>` ref to a bundled brand
+   * icon (resolved by `ProviderAvatarPrimitive`). Size-capped so a runaway data
+   * URL can't bloat the row and the cached entity — see {@link LOGO_MAX_BASE64_BYTES}.
    */
   logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).optional(),
   /** Per-endpoint-type configuration */
@@ -108,11 +109,12 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   /** Whether this provider is enabled */
   isEnabled: z.boolean().optional(),
   /**
-   * Custom logo. `null` clears it (falls back to the bundled icon); a string
-   * sets it; omitted leaves it unchanged. Nullable, so it lives here rather
-   * than in the picked create fields (which can't express clear).
+   * Custom logo. `null` clears it (falls back to the bundled icon); a non-empty
+   * string sets it; omitted leaves it unchanged. `.min(1)` rejects `""` so
+   * `null` is the sole clear signal (no silent `"" ?? null` asymmetry). Nullable,
+   * so it lives here rather than in the picked create fields (which can't express clear).
    */
-  logo: z.string().max(LOGO_MAX_BASE64_BYTES).nullable().optional()
+  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).nullable().optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

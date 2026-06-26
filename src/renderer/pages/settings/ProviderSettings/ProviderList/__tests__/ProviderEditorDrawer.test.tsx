@@ -136,7 +136,7 @@ describe('ProviderEditorDrawer', () => {
   it("surfaces the error's message when encoding the uploaded logo fails", async () => {
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
     // e.g. the oversized-GIF rejection carries a clear i18n message — surface it.
-    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error('Animated GIF is too large (max 256 KB)'))
+    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error('Image is too large (max 256 KB)'))
 
     render(
       <ProviderEditorDrawer
@@ -153,7 +153,7 @@ describe('ProviderEditorDrawer', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('Animated GIF is too large (max 256 KB)')
+      expect(window.toast.error).toHaveBeenCalledWith('Image is too large (max 256 KB)')
     })
   })
 

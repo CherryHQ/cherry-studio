@@ -3498,7 +3498,7 @@
     },
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
-      "avatar_gif_too_large": "Animated GIF is too large (max {{limit}})",
+      "avatar_image_too_large": "Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",

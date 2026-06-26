@@ -3498,7 +3498,7 @@
     },
     "empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
     "error": {
-      "avatar_gif_too_large": "[to be translated]:Animated GIF is too large (max {{limit}})",
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
