@@ -64,7 +64,15 @@ const agentPageMocks = vi.hoisted(() => ({
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
-  invalidateCache: vi.fn()
+  invalidateCache: vi.fn(),
+  oldViewSessions: [] as Array<{
+    id: string
+    agentId?: string
+    name: string
+    updatedAt: string
+    workspaceId?: string
+    workspace?: { type?: string }
+  }>
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -78,6 +86,10 @@ vi.mock('@data/DataApiService', () => ({
     get: agentPageMocks.dataApiGet,
     post: agentPageMocks.dataApiPost
   }
+}))
+
+vi.mock('@renderer/hooks/resourceViewSources', () => ({
+  useAgentSessionsSource: () => ({ sessions: agentPageMocks.oldViewSessions })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -434,6 +446,7 @@ describe('AgentPage', () => {
     vi.clearAllMocks()
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
+    agentPageMocks.oldViewSessions = []
     agentPageMocks.currentTab = undefined
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
@@ -549,6 +562,76 @@ describe('AgentPage', () => {
       }
     })
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-remembered')
+  })
+
+  it('reuses the agent latest empty session instead of creating another one from the old-view picker', async () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.oldViewSessions = [
+      {
+        id: 'session-empty-latest',
+        agentId: 'agent-b',
+        name: 'common.unnamed',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspace: { type: 'system' }
+      },
+      {
+        id: 'session-real-older',
+        agentId: 'agent-b',
+        name: 'Real session',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        workspace: { type: 'system' }
+      }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('creates a new session when the agent latest session is not empty from the old-view picker', async () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.oldViewSessions = [
+      {
+        id: 'session-real-latest',
+        agentId: 'agent-b',
+        name: 'Real session',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspace: { type: 'system' }
+      }
+    ]
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-created',
+      agentId: 'agent-b',
+      workspaceId: undefined,
+      workspace: { type: 'system', name: 'No project', path: '' }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-b' }) })
+      )
+    )
   })
 
   it('uses tab metadata as the session entry when the URL is the agents route', () => {

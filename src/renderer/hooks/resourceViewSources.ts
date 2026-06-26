@@ -15,12 +15,17 @@ import { useTopics } from './useTopic'
 /** Full agent-session page size — kept in one place so the rail and right panel never drift. */
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
-/** The shared full-topics source for the assistant old-view rail + right-panel topic list. */
-export function useAssistantTopicsSource() {
-  return useTopics({ loadAll: true })
+/**
+ * The shared full-topics source for the assistant old-view rail + right-panel topic list.
+ *
+ * `enabled` lets always-mounted consumers (e.g. HomePage) gate the fetch to old view so new view
+ * pays nothing; old-view consumers share the same SWR key, so there is still a single fetch.
+ */
+export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
+  return useTopics({ loadAll: true, enabled })
 }
 
 /** The shared full-sessions source for the agent old-view rail + right-panel session list. */
-export function useAgentSessionsSource() {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE })
+export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
+  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
 }

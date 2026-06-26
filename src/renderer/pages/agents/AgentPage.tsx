@@ -17,6 +17,7 @@ import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -48,6 +49,10 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [workView] = usePreference('chat.work_view')
+  const isOldView = workView === 'old'
+  // Old view shares this full-sessions source with the rail; new view leaves it disabled (no fetch).
+  // The picker uses it to reuse an empty placeholder session instead of stacking new ones.
+  const { sessions: oldViewSessions } = useAgentSessionsSource({ enabled: isOldView })
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
@@ -372,31 +377,57 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentPickerOpen(false)
       try {
-        const defaults = { agentId }
-        const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
-        const started = await buildDraftSessionWithFallback(defaults, workspaceSource, rememberedWorkspaceId)
-        if (!started) return
-
-        const session = await dataApiService.post('/agent-sessions', {
-          body: {
-            agentId: started.agentId,
-            name: t('common.unnamed'),
-            workspace: started.workspaceSource
+        // The empty session only exists to surface the agent in the old-view rail. To avoid stacking
+        // another empty one on repeated adds, reuse the agent's latest session when it is still an
+        // unused placeholder.
+        //
+        // Tradeoff: the list API exposes no message count / "has messages" flag, so "unused" is
+        // approximated by the default unnamed name (a session is renamed once it gets content). A
+        // still-unnamed session with messages would also be treated as reusable — acceptable, since
+        // reuse just reopens it (no data loss, no duplicate). A precise check would need a backend
+        // `messageCount` on the session list; swap the name test for it if that lands.
+        let latestSession: (typeof oldViewSessions)[number] | undefined
+        for (const candidate of oldViewSessions) {
+          if (candidate.agentId !== agentId) continue
+          if (!latestSession || Date.parse(candidate.updatedAt) > Date.parse(latestSession.updatedAt)) {
+            latestSession = candidate
           }
-        })
+        }
+        const reusableSession =
+          latestSession && latestSession.name.trim() === t('common.unnamed') ? latestSession : undefined
+
+        let session = reusableSession
+        if (!session) {
+          const defaults = { agentId }
+          const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
+          const started = await buildDraftSessionWithFallback(defaults, workspaceSource, rememberedWorkspaceId)
+          if (!started) return
+
+          session = await dataApiService.post('/agent-sessions', {
+            body: {
+              agentId: started.agentId,
+              name: t('common.unnamed'),
+              workspace: started.workspaceSource
+            }
+          })
+        }
 
         setPendingLocateMessageId(undefined)
         pendingSelectedSessionRef.current = session
         setDraftSessionState(null)
         setMissingAgentDraft(false)
         rememberLastUsedSession(
-          session.agentId ?? started.agentId,
+          session.agentId ?? agentId,
           isUserWorkspaceSession(session) ? session.workspaceId : undefined
         )
         setActiveSessionId(session.id)
-        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
-          logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
-        })
+        if (!reusableSession) {
+          void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
+            (err) => {
+              logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
+            }
+          )
+        }
       } catch (err) {
         logger.error('Failed to create agent session from old-view picker', err as Error, { agentId })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -405,6 +436,7 @@ const AgentPage = () => {
     [
       buildDraftSessionWithFallback,
       invalidateCache,
+      oldViewSessions,
       rememberLastUsedSession,
       resolveDraftWorkspaceSource,
       setActiveSessionId,
@@ -677,7 +709,6 @@ const AgentPage = () => {
 
   const panePosition = 'left'
   // Old view = entity rail + right session panel; new view = the classic sidebar (AgentSidePanel).
-  const isOldView = workView === 'old'
   useEffect(() => {
     if (!isOldView && workPaneOpen) {
       setWorkPaneOpen(false)

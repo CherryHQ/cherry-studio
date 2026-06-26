@@ -32,6 +32,7 @@ export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
+  enabled?: boolean
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
@@ -97,10 +98,12 @@ export const useSessions = (
   const { t } = useTranslation()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
+  const enabled = typeof options === 'number' ? undefined : options.enabled
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
-    limit: pageSize
+    limit: pageSize,
+    enabled
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')

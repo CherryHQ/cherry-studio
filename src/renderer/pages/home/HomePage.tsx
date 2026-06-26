@@ -22,6 +22,7 @@ import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -89,6 +90,10 @@ const HomePage: FC = () => {
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [conversationView] = usePreference('chat.conversation_view')
+  const isOldView = conversationView === 'old'
+  // Old view shares this full-topics source with the rail; new view leaves it disabled (no fetch).
+  // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
+  const { topics: oldViewTopics } = useAssistantTopicsSource({ enabled: isOldView })
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
@@ -429,20 +434,49 @@ const HomePage: FC = () => {
       setAssistantPickerOpen(false)
       try {
         const assistantId = await resolveAssistantIdForSelection(selection)
-        const topic = await createTopic({ assistantId })
+
+        // The empty conversation only exists to surface the assistant in the old-view rail. To avoid
+        // stacking another empty one on repeated adds, reuse the assistant's latest topic when it is
+        // still an unused placeholder.
+        //
+        // Tradeoff: the list API exposes no message count / "has messages" flag, so "unused" is
+        // approximated by a blank name (a topic is auto-titled once it gets messages). A topic that has
+        // messages but isn't titled yet would also be treated as reusable — acceptable, since reuse
+        // just reopens it (no data loss, no duplicate). A precise check would need a backend
+        // `messageCount` on the topic list; swap the name test for it if that lands.
+        let latestTopic: (typeof oldViewTopics)[number] | undefined
+        for (const candidate of oldViewTopics) {
+          if (candidate.assistantId !== assistantId) continue
+          if (!latestTopic || Date.parse(candidate.updatedAt) > Date.parse(latestTopic.updatedAt)) {
+            latestTopic = candidate
+          }
+        }
+        const reusableTopic = latestTopic && latestTopic.name.trim() === '' ? latestTopic : undefined
+
+        const topic = reusableTopic ?? (await createTopic({ assistantId }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
         setDraftAssistantSelectionState(undefined)
         setActiveTopic(rendererTopic)
-        void refreshTopics().catch((err) => {
-          logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
-        })
+        if (!reusableTopic) {
+          void refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
+          })
+        }
       } catch (err) {
         logger.error('Failed to create assistant conversation from old-view picker', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [createTopic, refreshTopics, resolveAssistantIdForSelection, setActiveTopic, setDraftAssistantSelectionState, t]
+    [
+      createTopic,
+      oldViewTopics,
+      refreshTopics,
+      resolveAssistantIdForSelection,
+      setActiveTopic,
+      setDraftAssistantSelectionState,
+      t
+    ]
   )
 
   useEffect(() => {
@@ -531,7 +565,6 @@ const HomePage: FC = () => {
   }
 
   // Old view = entity rail + right topic panel; new view = the classic single sidebar (HomeTabs).
-  const isOldView = conversationView === 'old'
   const panePosition: ChatPanePosition = 'left'
   const pane = isOldView ? (
     <AssistantResourceList

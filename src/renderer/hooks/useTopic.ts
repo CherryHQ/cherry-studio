@@ -211,13 +211,14 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number }) {
+export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number; enabled?: boolean }) {
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
   const loadAll = opts?.loadAll === true
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
-    limit: pageSize
+    limit: pageSize,
+    enabled: opts?.enabled
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)

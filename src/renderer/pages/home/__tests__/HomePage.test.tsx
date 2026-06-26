@@ -52,6 +52,7 @@ const homeMocks = vi.hoisted(() => ({
   cacheSetPersist: vi.fn(),
   addAssistant: vi.fn(),
   createTopic: vi.fn(),
+  oldViewTopics: [] as Array<{ id: string; assistantId?: string; name: string; updatedAt: string }>,
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
@@ -238,6 +239,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     refetch: vi.fn(),
     mutate: vi.fn()
   })
+}))
+
+vi.mock('@renderer/hooks/resourceViewSources', () => ({
+  useAssistantTopicsSource: () => ({ topics: homeMocks.oldViewTopics })
 }))
 
 vi.mock('@renderer/hooks/useTopic', async () => {
@@ -505,6 +510,7 @@ describe('HomePage', () => {
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }]
+    homeMocks.oldViewTopics = []
     homeMocks.assistantsError = undefined
     homeMocks.assistantsLoaded = true
     homeMocks.assistantsLoading = false
@@ -604,6 +610,37 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-existing' }))
     expect(homeMocks.addAssistant).not.toHaveBeenCalled()
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-existing')
+  })
+
+  it('reuses the assistant latest empty topic instead of creating another one in the old-view picker', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.oldViewTopics = [
+      { id: 'topic-empty-latest', assistantId: 'assistant-2', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' },
+      { id: 'topic-real-older', assistantId: 'assistant-2', name: 'Real chat', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('creates a new topic when the assistant latest topic is not empty in the old-view picker', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.oldViewTopics = [
+      { id: 'topic-real-latest', assistantId: 'assistant-2', name: 'Real chat', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
   })
 
   it('forwards a reveal request when navigation asks the current chat tab to reveal its selection', async () => {
