@@ -15,8 +15,8 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import type { AgentSessionSource } from '@renderer/hooks/agents/useSession'
+import { useAgent } from '@renderer/hooks/agent/useAgent'
+import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController

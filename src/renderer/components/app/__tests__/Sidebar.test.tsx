@@ -51,10 +51,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'logo.png'
-}))
-
 vi.mock('@renderer/hooks/useAvatar', () => ({
   default: () => undefined
 }))
@@ -193,7 +189,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 

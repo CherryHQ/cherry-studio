@@ -338,7 +338,12 @@ vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
   )
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
+  // Mirrors the real reconcile logic using the mocked predicates below:
+  // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
+  // The first two predicates are stubbed to false here, so it reduces to the function-call check.
+  canModelUseAssistantWebSearch: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   getThinkModelType: () => 'default',
   isEmbeddingModel: () => false,
   isFunctionCallingModel: (currentModel?: Model) =>

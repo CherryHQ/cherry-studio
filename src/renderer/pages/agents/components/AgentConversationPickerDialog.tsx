@@ -6,7 +6,7 @@ import {
   type ResourceCreateDialogValues
 } from '@renderer/components/resource/dialogs/ResourceCreateDialog'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { MessageSquarePlus } from 'lucide-react'

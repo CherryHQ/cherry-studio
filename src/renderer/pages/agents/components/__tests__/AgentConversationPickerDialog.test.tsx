@@ -42,7 +42,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
 
 vi.mock('@renderer/utils/agent', () => ({ getAgentAvatarFromConfiguration: () => '🤖' }))
 

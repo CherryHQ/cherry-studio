@@ -19,12 +19,12 @@ import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
 import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { ModelSelector } from '@renderer/components/Selector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
-import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessionCompaction'
-import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
-import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { isSoulModeEnabled } from '@renderer/hooks/agent/agentConfiguration'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
+import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -1111,18 +1111,16 @@ const MissingAgentHomeComposerInner = ({
   })
   const controlSlots = renderAgentHomeControls({
     agent: undefined,
-    workspace: undefined,
-    workspaceId: null,
-    workspaceWarning: undefined,
     selectAgentLabel: selectAgentMessage,
-    selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
+    model: undefined,
+    modelProviderName: undefined,
+    selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
     showAgentTrigger: workView !== 'old',
-    workspaceChanging: false,
-    showWorkspaceSelector: false,
+    canChangeModel: false,
     onAgentChange: handleAgentChange,
-    onWorkspaceChange: undefined
+    onModelSelect: () => undefined
   })
 
   return (

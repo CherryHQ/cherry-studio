@@ -152,7 +152,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
     agent: activeAgentMock.value,
     isLoading: false

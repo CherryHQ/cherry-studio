@@ -176,7 +176,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: agentPageMocks.agents,
     isLoading: false
@@ -186,7 +186,7 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: () => ({
     session: undefined,
     isLoading: false

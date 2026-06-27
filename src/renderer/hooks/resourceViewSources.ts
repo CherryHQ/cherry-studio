@@ -1,4 +1,4 @@
-import { useSessions } from './agents/useSession'
+import { useSessions } from './agent/useSession'
 import { useTopics } from './useTopic'
 
 /**
