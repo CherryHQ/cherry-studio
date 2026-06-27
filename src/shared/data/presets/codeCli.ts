@@ -19,7 +19,7 @@ export const CliNamedConfigSchema = z.object({
   name: z.string(),
   providerId: z.string(),
   modelId: z.string(),
-  advanced: z.record(z.string(), z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
   directory: z.string().optional(),
   createdAt: z.number().optional(),
   sortIndex: z.number().optional(),

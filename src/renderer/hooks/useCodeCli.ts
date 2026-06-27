@@ -85,7 +85,7 @@ export const useCodeCli = () => {
         modelId: partial.modelId,
         createdAt: now,
         sortIndex: orderLen,
-        ...(partial.advanced ? { advanced: partial.advanced } : {}),
+        ...(partial.config ? { config: partial.config } : {}),
         ...(partial.directory ? { directory: partial.directory } : {}),
         ...(partial.notes ? { notes: partial.notes } : {}),
         ...(partial.icon ? { icon: partial.icon } : {}),

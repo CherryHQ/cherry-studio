@@ -1,33 +1,27 @@
-import { Button, EmptyState } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
-import { useModels } from '@renderer/hooks/useModel'
-import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
-import { ipcApi } from '@renderer/ipc'
-import {
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
-  isSiliconAnthropicCompatibleModel
-} from '@renderer/pages/code/codeProviders'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { codeCLI, TerminalConfig } from '@shared/types/codeCli'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS } from './cliTools'
+import { CLI_TOOLS } from './cliTools'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
-import { ConfigCard } from './components/ConfigCard'
 import { ConfigEditPanel } from './components/configEditPanel/ConfigEditPanel'
+import { ConfigList } from './components/ConfigList'
+import { CurrentConfigPanel } from './components/CurrentConfigPanel'
 import { VersionStatusCard } from './components/VersionStatusCard'
 import type { CodeToolMeta, VersionStatus } from './types'
-import { CLI_BINARY_NAMES, useCliVersionStatuses } from './useCliVersionStatuses'
+import { useAvailableTerminals } from './useAvailableTerminals'
+import { useBinaryActions } from './useBinaryActions'
+import { useCliVersionStatuses } from './useCliVersionStatuses'
+import { useConfigMetadata } from './useConfigMetadata'
 
 const logger = loggerService.withContext('CodeCliPage')
 
@@ -42,10 +36,10 @@ const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   icon: tool.icon
 })
 
+type PanelState = { open: true; target: CliNamedConfig | null } | { open: false }
+
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
-  const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
   const [, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
@@ -63,176 +57,38 @@ const CodeCliPage: FC = () => {
     selectFolder
   } = useCodeCli()
 
-  // Track install/upgrade progress per tool so each card is independent —
-  // installing codex must not make the claude-code card show "installing".
-  const [installingTools, setInstallingTools] = useState<Set<string>>(() => new Set())
-  const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
-  const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
-  // Edit / add panel state
-  const [editTarget, setEditTarget] = useState<CliNamedConfig | null>(null)
-  const [panelOpen, setPanelOpen] = useState(false)
+  const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
+  const availableTerminals = useAvailableTerminals()
+  const { modelFilter, resolveConfigMeta } = useConfigMetadata(selectedCliTool)
 
-  const modelPredicate = useCallback(
-    (m: Model) => {
-      if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
-        return false
-      }
-      return providerMap.has(m.providerId)
-    },
-    [providerMap]
-  )
+  const [panel, setPanel] = useState<PanelState>({ open: false })
 
-  const availableProviders = useMemo(() => {
-    const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
-    return filterFn ? filterFn(providers) : []
-  }, [providers, selectedCliTool])
-
-  const allowedProviderIds = useMemo(
-    () => new Set(availableProviders.map((provider) => provider.id)),
-    [availableProviders]
-  )
-
-  const codeCliModelFilter = useCallback(
-    (model: Model) => allowedProviderIds.has(model.providerId) && modelPredicate(model),
-    [allowedProviderIds, modelPredicate]
-  )
-
-  // Resolve display names for each config (provider/model)
-  const { models: allModels } = useModels({ enabled: true })
-  const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
-  const resolveConfigMeta = useCallback(
-    (config: CliNamedConfig) => {
-      if (!isUniqueModelId(config.modelId)) return { providerName: undefined, modelName: undefined }
-      const { providerId, modelId: rawId } = parseUniqueModelId(config.modelId)
-      const provider = providerMap.get(providerId)
-      const model = modelById.get(config.modelId)
-      return {
-        providerName: provider ? getProviderDisplayName(provider) : providerId,
-        modelName: model?.name || rawId
-      }
-    },
-    [providerMap, modelById]
-  )
-
-  const checkBunInstallation = useCallback(async () => {
-    try {
-      const bunExists = await window.api.isBinaryExist('bun')
-      setIsBunInstalled(bunExists)
-    } catch (error) {
-      logger.error('Failed to check bun installation status:', error as Error)
-    }
-  }, [setIsBunInstalled])
-
-  const loadAvailableTerminals = useCallback(async () => {
-    if (!isMac && !isWin) return
-    try {
-      const terminals = await window.api.codeCli.getAvailableTerminals()
-      setAvailableTerminals(terminals)
-    } catch (error) {
-      logger.error('Failed to load available terminals:', error as Error)
-      setAvailableTerminals([])
-    }
-  }, [])
-
-  const handleInstall = async () => {
-    const toolId = selectedCliTool
-    try {
-      setInstallingTools((prev) => new Set(prev).add(toolId))
-      const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
-      if (cliPreset) {
-        await ipcApi.request('binary.install_tool', {
-          name: CLI_BINARY_NAMES[toolId],
-          tool: cliPreset.miseTool
-        })
-        window.toast.success(t('code.install_success'))
-      }
-    } catch (error) {
-      logger.error('Failed to install:', error as Error)
-      window.toast.error(t('code.install_error'))
-    } finally {
-      setInstallingTools((prev) => {
-        const next = new Set(prev)
-        next.delete(toolId)
-        return next
-      })
-    }
-  }
-
-  const handleUpgrade = async () => {
-    const toolId = selectedCliTool
-    try {
-      setUpgradingTools((prev) => new Set(prev).add(toolId))
-      const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
-      if (cliPreset) {
-        await ipcApi.request('binary.install_tool', {
-          name: CLI_BINARY_NAMES[toolId],
-          tool: cliPreset.miseTool
-        })
-        window.toast.success(t('code.upgrade_success'))
-      }
-    } catch (error) {
-      logger.error('Failed to upgrade:', error as Error)
-      window.toast.error(t('code.upgrade_error'))
-    } finally {
-      setUpgradingTools((prev) => {
-        const next = new Set(prev)
-        next.delete(toolId)
-        return next
-      })
-    }
-  }
-
-  const handleRemove = async () => {
-    try {
-      await ipcApi.request('binary.remove_tool', CLI_BINARY_NAMES[selectedCliTool])
-      window.toast.success(t('common.delete_success'))
-    } catch (error) {
-      logger.error('Failed to remove:', error as Error)
-      window.toast.error(t('common.delete_failed'))
-    }
-  }
-
-  const handleSelectTool = (tool: codeCLI) => {
-    selectTool(tool)
-  }
-
-  // ── Config CRUD handlers ──────────────────────────────────────────────
-  const handleOpenAdd = useCallback(() => {
-    setEditTarget(null)
-    setPanelOpen(true)
-  }, [])
-
-  const handleOpenEdit = useCallback((config: CliNamedConfig) => {
-    setEditTarget(config)
-    setPanelOpen(true)
-  }, [])
+  const openAddPanel = useCallback(() => setPanel({ open: true, target: null }), [])
+  const openEditPanel = useCallback((target: CliNamedConfig) => setPanel({ open: true, target }), [])
+  const closePanel = useCallback(() => setPanel({ open: false }), [])
 
   const handlePanelSubmit = useCallback(
-    async (values: {
-      name: string
-      providerId: string
-      modelId: UniqueModelId
-      advanced?: Record<string, unknown>
-    }) => {
-      if (editTarget) {
-        await updateConfig(selectedCliTool, editTarget.id, {
+    async (values: { name: string; providerId: string; modelId: UniqueModelId; config?: Record<string, unknown> }) => {
+      const target = panel.open ? panel.target : null
+      if (target) {
+        await updateConfig(selectedCliTool, target.id, {
           name: values.name,
           providerId: values.providerId,
           modelId: values.modelId,
-          ...(values.advanced ? { advanced: values.advanced } : {})
+          ...(values.config ? { config: values.config } : {})
         })
-        logger.info('Updated CLI config', { toolId: selectedCliTool, configId: editTarget.id })
+        logger.info('Updated CLI config', { toolId: selectedCliTool, configId: target.id })
       } else {
         const newId = await addConfig(selectedCliTool, {
           name: values.name,
           providerId: values.providerId,
           modelId: values.modelId,
-          ...(values.advanced ? { advanced: values.advanced } : {})
+          ...(values.config ? { config: values.config } : {})
         })
         await setCurrentConfig(selectedCliTool, newId)
       }
     },
-    [editTarget, selectedCliTool, updateConfig, addConfig, setCurrentConfig]
+    [panel, selectedCliTool, updateConfig, addConfig, setCurrentConfig]
   )
 
   const handleDuplicate = useCallback(
@@ -258,16 +114,45 @@ const CodeCliPage: FC = () => {
     [setCurrentConfig, selectedCliTool]
   )
 
-  const handleSelectFolder = useCallback(
-    async (configId: string) => {
-      try {
-        await selectFolder(configId)
-      } catch (err) {
-        logger.error('Failed to select folder:', err as Error)
+  const handleSelectFolder = useCallback(async () => {
+    if (!currentConfig) return
+    try {
+      await selectFolder(currentConfig.id)
+    } catch (err) {
+      logger.error('Failed to select folder:', err as Error)
+    }
+  }, [currentConfig, selectFolder])
+
+  // Launch the current config: apply its config body to the tool's native
+  // config file (claude-code writes ~/.claude/settings.json, cc-switch style),
+  // then open a terminal running the CLI in the config's directory.
+  const handleLaunch = useCallback(async () => {
+    if (!currentConfig || !currentConfig.directory) {
+      window.toast.error(t('code.folder_placeholder'))
+      return
+    }
+    const config = currentConfig.config ?? {}
+    const { providerId, modelId: rawModelId } = isUniqueModelId(currentConfig.modelId)
+      ? parseUniqueModelId(currentConfig.modelId)
+      : { providerId: '', modelId: currentConfig.modelId }
+    try {
+      const runResult = await window.api.codeCli.run(
+        selectedCliTool,
+        rawModelId,
+        providerId,
+        currentConfig.directory,
+        {},
+        { terminal: selectedTerminal ?? undefined },
+        config
+      )
+      if (!runResult.success) {
+        window.toast.error(runResult.message)
       }
-    },
-    [selectFolder]
-  )
+    } catch (err) {
+      logger.error('Failed to launch CLI tool:', err as Error)
+      window.toast.error(t('code.launch.error'))
+    }
+  }, [currentConfig, selectedCliTool, selectedTerminal, t])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
@@ -278,13 +163,21 @@ const CodeCliPage: FC = () => {
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
 
+  // Refresh the shared MCP bun-presence cache once on mount (MCP relies on it).
   useEffect(() => {
-    void checkBunInstallation()
-  }, [checkBunInstallation])
-
-  useEffect(() => {
-    void loadAvailableTerminals()
-  }, [loadAvailableTerminals])
+    let cancelled = false
+    void (async () => {
+      try {
+        const bunExists = await window.api.isBinaryExist('bun')
+        if (!cancelled) setIsBunInstalled(bunExists)
+      } catch (error) {
+        logger.error('Failed to check bun installation status:', error as Error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [setIsBunInstalled])
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
@@ -297,7 +190,7 @@ const CodeCliPage: FC = () => {
         <CodeCliSidebar
           tools={CLI_TOOLS}
           selectedCliTool={selectedCliTool}
-          onSelectTool={handleSelectTool}
+          onSelectTool={selectTool}
           toMeta={toMeta}
           statuses={statuses}
           installingTools={installingTools}
@@ -312,7 +205,7 @@ const CodeCliPage: FC = () => {
                 {/* Header: tool name + add button */}
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-foreground text-sm">{activeMeta.label}</span>
-                  <Button variant="default" size="sm" onClick={handleOpenAdd} className="gap-1 text-xs">
+                  <Button variant="default" size="sm" onClick={openAddPanel} className="gap-1 text-xs">
                     <Plus size={12} />
                     {t('code.add_config')}
                   </Button>
@@ -327,93 +220,39 @@ const CodeCliPage: FC = () => {
                     repoUrl={cliPreset.repoUrl}
                     homepage={cliPreset.homepage}
                     status={versionStatus}
-                    onInstall={handleInstall}
-                    onUpgrade={handleUpgrade}
-                    onRemove={handleRemove}
+                    onInstall={() => void install(selectedCliTool)}
+                    onUpgrade={() => void upgrade(selectedCliTool)}
+                    onRemove={() => void remove(selectedCliTool)}
                     isInstalling={installingTools.has(selectedCliTool)}
                     isUpgrading={upgradingTools.has(selectedCliTool)}
                   />
                 )}
 
                 {/* Named configs list */}
-                {orderedList.length === 0 ? (
-                  <EmptyState
-                    preset="no-code-tool"
-                    title={t('code.no_configs_title')}
-                    description={t('code.no_configs_description')}
-                  />
-                ) : (
-                  <div className="space-y-[1px]">
-                    {orderedList.map((config) => {
-                      const meta = resolveConfigMeta(config)
-                      const isCurrent = currentConfig?.id === config.id
-                      return (
-                        <ConfigCard
-                          key={config.id}
-                          config={config}
-                          providerName={meta.providerName}
-                          modelName={meta.modelName}
-                          isCurrent={isCurrent}
-                          onEdit={handleOpenEdit}
-                          onDuplicate={handleDuplicate}
-                          onDelete={handleDelete}
-                          onToggleCurrent={handleToggleCurrent}
-                        />
-                      )
-                    })}
-                  </div>
-                )}
+                <ConfigList
+                  configs={orderedList}
+                  currentConfigId={currentConfig?.id ?? null}
+                  resolveMeta={resolveConfigMeta}
+                  onEdit={openEditPanel}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                  onToggleCurrent={handleToggleCurrent}
+                />
 
                 {/* Current config: working directory + terminal */}
                 {currentConfig && (
-                  <div className="space-y-3 border-border/15 border-t pt-4">
-                    <div className="font-medium text-muted-foreground text-xs">{t('code.current_config_settings')}</div>
-                    <div className="space-y-1.5">
-                      <label className="text-foreground/70 text-xs">{t('code.working_directory')}</label>
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1 truncate rounded-md border border-border-muted bg-muted/30 px-3 py-2 font-mono text-foreground text-xs">
-                          {currentConfig.directory || t('code.folder_placeholder')}
-                        </div>
-                        <Button
-                          variant="secondary"
-                          size="lg"
-                          onClick={() => void handleSelectFolder(currentConfig.id)}
-                          className="shrink-0">
-                          {t('code.select_folder')}
-                        </Button>
-                      </div>
-                      {directories.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {directories.map((dir) => (
-                            <button
-                              key={dir}
-                              type="button"
-                              onClick={() => void updateConfig(selectedCliTool, currentConfig.id, { directory: dir })}
-                              className="max-w-[200px] truncate rounded border border-border/40 bg-muted/20 px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                              title={dir}>
-                              {dir}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {(isMac || isWin) && availableTerminals.length > 0 && (
-                      <div className="space-y-1.5">
-                        <label className="text-foreground/70 text-xs">{t('code.terminal')}</label>
-                        <select
-                          value={selectedTerminal ?? ''}
-                          onChange={(e) => void setTerminal(e.target.value)}
-                          className="w-full rounded-md border border-border-muted bg-muted/30 px-3 py-2 text-foreground text-sm">
-                          {availableTerminals.map((terminal) => (
-                            <option key={terminal.id} value={terminal.id}>
-                              {terminal.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
+                  <CurrentConfigPanel
+                    config={currentConfig}
+                    directories={directories}
+                    terminals={availableTerminals}
+                    selectedTerminal={selectedTerminal}
+                    onSelectFolder={() => void handleSelectFolder()}
+                    onSelectDirectory={(dir) =>
+                      void updateConfig(selectedCliTool, currentConfig.id, { directory: dir })
+                    }
+                    onSelectTerminal={(terminal) => void setTerminal(terminal)}
+                    onLaunch={() => void handleLaunch()}
+                  />
                 )}
               </div>
             </div>
@@ -427,11 +266,11 @@ const CodeCliPage: FC = () => {
 
       {/* Add / Edit dialog */}
       <ConfigEditPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
+        open={panel.open}
+        onClose={closePanel}
         cliTool={selectedCliTool}
-        config={editTarget}
-        modelFilter={codeCliModelFilter}
+        config={panel.open ? panel.target : null}
+        modelFilter={modelFilter}
         onSubmit={handlePanelSubmit}
       />
     </div>

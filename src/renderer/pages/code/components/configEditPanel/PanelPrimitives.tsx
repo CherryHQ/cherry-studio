@@ -1,6 +1,5 @@
 import { Button, Label } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 
 export const Section: FC<{ title: string; description?: string; action?: ReactNode; children: ReactNode }> = ({
@@ -43,19 +42,4 @@ export const AdvancedSettingsButton: FC<React.ComponentPropsWithoutRef<typeof Bu
     className={cn('h-8 w-fit gap-1.5 px-2 text-primary hover:text-primary', className)}
     {...props}
   />
-)
-
-export const CollapsibleSection: FC<{
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  label: string
-  children: ReactNode
-}> = ({ open, onOpenChange, label, children }) => (
-  <section className="space-y-2.5">
-    <AdvancedSettingsButton onClick={() => onOpenChange(!open)}>
-      <ChevronDown size={16} className={cn('transition-transform duration-200', open && 'rotate-180')} />
-      {label}
-    </AdvancedSettingsButton>
-    {open && children}
-  </section>
 )

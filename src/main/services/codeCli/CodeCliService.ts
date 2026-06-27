@@ -21,25 +21,24 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { regionService } from '@main/services/RegionService'
 import { removeEnvProxy } from '@main/utils'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import { removeEnvProxy } from '@main/utils/shell-env'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import {
-  type CliProviderConfig,
-  codeCLI,
-  type OpenCodeProviderConfig,
-  terminalApps,
-  type TerminalConfig,
-  type TerminalConfigWithCommand
-} from '@shared/types/codeCli'
+import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
-import { getCliConfigWriter } from './cliConfigFiles'
+import { writeClaudeCodeConfigBody } from './claudeCodeConfig'
+import { writeCodexConfig } from './codexConfig'
 import { sanitizeEnvForLogging } from './envRedaction'
+import { writeHermesConfig } from './hermesConfig'
+import { writeOpenCodeConfig } from './openCodeConfig'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -86,11 +85,12 @@ export class CodeCliService extends BaseService {
         event,
         cliTool: string,
         model: string,
+        providerId: string,
         directory: string,
         env: Record<string, string>,
         options?: { autoUpdateToLatest?: boolean; terminal?: string },
-        providerConfig?: CliProviderConfig
-      ) => this.run(event, cliTool, model, directory, env, options, providerConfig)
+        config?: Record<string, unknown>
+      ) => this.run(event, cliTool, model, providerId, directory, env, options, config)
     )
     this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
     this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
@@ -584,14 +584,133 @@ export class CodeCliService extends BaseService {
     }
   }
 
+  /**
+   * Resolve provider credentials at launch time and write them to the
+   * CLI tool's native config file. API keys are never stored in Preference —
+   * they are looked up from the provider service on every launch.
+   */
+  private async resolveAndApplyConfig(
+    cliTool: string,
+    model: string,
+    providerId: string,
+    config?: Record<string, unknown>
+  ): Promise<void> {
+    const provider = await providerService.getByProviderId(providerId)
+    const apiKeys = await providerService.getApiKeys(providerId, { enabled: true })
+    const apiKey = apiKeys[0]?.key ?? ''
+
+    switch (cliTool) {
+      case codeCLI.claudeCode: {
+        const configObj = (config && typeof config === 'object' ? { ...config } : {}) as Record<string, any>
+        const env = {
+          ...(configObj.env && typeof configObj.env === 'object' ? (configObj.env as Record<string, string>) : {})
+        }
+        const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
+        if (baseUrl) env.ANTHROPIC_BASE_URL = baseUrl
+        if (apiKey) env.ANTHROPIC_AUTH_TOKEN = apiKey
+        if (model) env.ANTHROPIC_MODEL = model
+        configObj.env = env
+        await writeClaudeCodeConfigBody(configObj)
+        return
+      }
+      case codeCLI.openaiCodex: {
+        const baseUrl = this.getProviderBaseUrl(provider)
+        const providerName = this.sanitizeProviderName(provider.name, provider.id)
+        await writeCodexConfig({
+          apiKey,
+          baseUrl,
+          providerName,
+          model,
+          disableResponseStorage: true
+        })
+        return
+      }
+      case codeCLI.openCode: {
+        const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
+        const endpointType = isAnthropic
+          ? 'anthropic-messages'
+          : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
+        const baseUrl = this.getEndpointBaseUrl(provider, endpointType)
+        const providerName = this.sanitizeProviderName(provider.name, provider.id)
+        let modelRecord: Model | null = null
+        try {
+          modelRecord = await modelService.getByKey(providerId, model)
+        } catch {
+          /* use defaults when model metadata is unavailable */
+        }
+        await writeOpenCodeConfig({
+          apiKey,
+          baseUrl,
+          providerName,
+          providerType: isAnthropic ? 'anthropic' : 'openai',
+          endpointType,
+          model,
+          modelName: modelRecord?.name ?? model,
+          isReasoning: modelRecord?.reasoning?.isReasoning ?? false,
+          supportsReasoningEffort: modelRecord?.reasoning?.supportsReasoningEffort ?? false,
+          budgetTokens: modelRecord?.reasoning?.budgetTokens
+        })
+        return
+      }
+      case codeCLI.hermes: {
+        const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
+        const endpointType = isAnthropic
+          ? 'anthropic-messages'
+          : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
+        const baseUrl = this.getEndpointBaseUrl(provider, endpointType)
+        const providerName = this.sanitizeProviderName(provider.name, provider.id)
+        let modelRecord: Model | null = null
+        try {
+          modelRecord = await modelService.getByKey(providerId, model)
+        } catch {
+          /* use defaults */
+        }
+        await writeHermesConfig({
+          apiKey,
+          baseUrl,
+          apiMode: isAnthropic ? 'anthropic_messages' : 'chat_completions',
+          model,
+          modelName: modelRecord?.name ?? model,
+          providerName
+        })
+        return
+      }
+      case codeCLI.openclaw: {
+        // OpenClaw config is synced via OpenClawService, not a file writer.
+        await application.get('OpenClawService').syncConfig(`${providerId}::${model}`)
+        return
+      }
+      default:
+        return
+    }
+  }
+
+  /** Get the primary chat endpoint base URL for a provider. */
+  private getEndpointBaseUrl(provider: Provider, endpointType: string): string {
+    return provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+  }
+
+  /** Get base URL preferring the default chat endpoint. */
+  private getProviderBaseUrl(provider: Provider): string {
+    const endpointType = provider.defaultChatEndpoint ?? 'openai-chat-completions'
+    return provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+  }
+
+  /** Sanitize a provider display name for use in config file keys. */
+  private sanitizeProviderName(name: string, fallback: string): string {
+    const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
+    return sanitized || fallback
+  }
+
   async run(
     _: Electron.IpcMainInvokeEvent,
     cliTool: string,
     model: string,
+    providerId: string,
     directory: string,
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {},
-    providerConfig?: CliProviderConfig
+    config?: Record<string, unknown>
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     env = { ...getBinaryExecutionEnv(), ...env }
@@ -609,23 +728,15 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    // File-based CLIs persist their provider selection to a native config file from the dedicated
-    // `providerConfig` payload, so the selection survives across runs and credentials are not
-    // injected as launch env. The launch `env` carries only user-defined vars.
-    const configWriter = getCliConfigWriter(cliTool)
-    if (configWriter) {
-      if (!providerConfig) {
-        const message = `Missing provider config for ${cliTool}`
-        logger.error(message)
-        return { success: false, message, command: '' }
-      }
-      try {
-        await configWriter(providerConfig)
-      } catch (error) {
-        const message = `Failed to write ${cliTool} config file: ${error instanceof Error ? error.message : String(error)}`
-        logger.error(message, error as Error)
-        return { success: false, message, command: '' }
-      }
+    // Resolve provider credentials and write them to the CLI's native config file.
+    // API keys are fetched from the provider service at launch time — they are never
+    // stored in Preference.
+    try {
+      await this.resolveAndApplyConfig(cliTool, model, providerId, config)
+    } catch (error) {
+      const message = `Failed to write ${cliTool} config: ${error instanceof Error ? error.message : String(error)}`
+      logger.error(message, error as Error)
+      return { success: false, message, command: '' }
     }
 
     const executableName = await this.getCliExecutableName(cliTool)
@@ -740,7 +851,13 @@ export class CodeCliService extends BaseService {
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.
     if (cliTool === codeCLI.openCode) {
-      const providerName = (providerConfig as OpenCodeProviderConfig | undefined)?.providerName || 'Studio'
+      let providerName = 'Studio'
+      try {
+        const provider = await providerService.getByProviderId(providerId)
+        providerName = this.sanitizeProviderName(provider.name, provider.id)
+      } catch {
+        /* keep default */
+      }
       baseCommand = `${baseCommand} --model Cherry-${providerName}/${model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }

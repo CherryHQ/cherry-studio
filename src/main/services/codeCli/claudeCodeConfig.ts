@@ -109,12 +109,60 @@ export async function writeClaudeCodeConfig(config: ClaudeProviderConfig): Promi
 
   await fs.promises.mkdir(path.dirname(settingsPath), { recursive: true })
   await atomicWriteFile(settingsPath as FilePath, `${JSON.stringify(merged, null, 2)}\n`)
-  if (!isWin) {
-    try {
-      await fs.promises.chmod(settingsPath, 0o600)
-    } catch (error) {
-      logger.warn('Failed to chmod ~/.claude/settings.json to 0600', error as Error)
+  await chmodSettings(settingsPath)
+  logger.info(`Wrote Claude Code provider config to ${settingsPath}`)
+}
+
+async function chmodSettings(settingsPath: string): Promise<void> {
+  if (isWin) return
+  try {
+    await fs.promises.chmod(settingsPath, 0o600)
+  } catch (error) {
+    logger.warn('Failed to chmod ~/.claude/settings.json to 0600', error as Error)
+  }
+}
+
+/**
+ * Write the user-editable native config body (cc-switch model: the blob IS the
+ * settings.json content) into ~/.claude/settings.json. Deep-merges into the
+ * existing file so unrelated keys (e.g. `mcpServers`) survive; ANTHROPIC_*
+ * managed keys in `env` are cleared from the existing env first so switching
+ * configs does not leak stale tokens/baseUrls. Top-level keys override existing.
+ */
+export async function writeClaudeCodeConfigBody(config: Record<string, any>): Promise<void> {
+  const settingsPath = application.getPath('external.claude_code.config', 'settings.json')
+
+  let existing: Record<string, any> = {}
+  if (fs.existsSync(settingsPath)) {
+    const parsed = parseJSONC(fs.readFileSync(settingsPath, 'utf8'))
+    if (parsed) {
+      existing = parsed
     }
   }
-  logger.info(`Wrote Claude Code provider config to ${settingsPath}`)
+
+  const configEnv = config.env && typeof config.env === 'object' ? { ...(config.env as Record<string, any>) } : {}
+  const existingEnv =
+    existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, any>) } : null
+
+  // Drop managed keys from the on-disk env unless the blob re-supplies them —
+  // prevents a previous config's token/baseUrl lingering after a switch.
+  if (existingEnv) {
+    for (const key of CLAUDE_MANAGED_ENV_KEYS) {
+      if (!(key in configEnv)) {
+        delete existingEnv[key]
+      }
+    }
+  }
+
+  const merged: Record<string, any> = { ...existing, ...config }
+  if (existingEnv) {
+    merged.env = { ...existingEnv, ...configEnv }
+  } else if (Object.keys(configEnv).length > 0) {
+    merged.env = { ...configEnv }
+  }
+
+  await fs.promises.mkdir(path.dirname(settingsPath), { recursive: true })
+  await atomicWriteFile(settingsPath as FilePath, `${JSON.stringify(merged, null, 2)}\n`)
+  await chmodSettings(settingsPath)
+  logger.info(`Applied Claude Code config body to ${settingsPath}`)
 }

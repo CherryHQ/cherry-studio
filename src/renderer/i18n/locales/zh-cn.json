@@ -1937,34 +1937,22 @@
     "add_provider_hint": "在 设置 → 模型服务 添加服务商",
     "adv": {
       "claude": {
-        "auto_compact_window": "自动压缩窗口",
-        "disable_experimental_betas": "禁用实验性 Beta",
-        "disable_nonessential_traffic": "禁用非必要流量",
-        "effort_level": "推理努力程度",
+        "disable_auto_upgrade": "禁用自动更新",
+        "effort_max": "努力程度: Max",
+        "enable_teammates": "启用 Teammates",
         "enable_tool_search": "启用工具搜索",
+        "fable_model": "Fable 模型",
         "haiku_model": "Haiku 模型",
-        "hide_attribution": "隐藏AI署名",
-        "max_output_tokens": "最大输出 Token",
+        "hide_attribution": "隐藏 AI 署名",
         "model_roles": "模型角色映射",
-        "model_roles_hint": "覆盖后台子任务（如压缩、标题）使用的模型，留空则跟随主模型",
+        "model_roles_hint": "覆盖后台子任务（如压缩、标题）使用的模型。留空则跟随主模型。",
+        "options": "快捷选项",
         "opus_model": "Opus 模型",
-        "skip_web_fetch_preflight": "跳过 Web 预检",
-        "sonnet_model": "Sonnet 模型",
-        "timeout_ms": "API 超时 (ms)"
+        "sonnet_model": "Sonnet 模型"
       },
       "codex": {
-        "auto_compact_token_limit": "自动压缩 Token 限制",
-        "context_window": "上下文窗口",
-        "disable_response_storage": "禁用响应存储",
-        "personality": "个性",
-        "reasoning_effort": "推理努力程度",
-        "review_model": "审查模型",
-        "verbosity": "详细程度"
-      },
-      "effort": {
-        "high": "高",
-        "low": "低",
-        "medium": "中"
+        "auth_json": "auth.json",
+        "config_toml": "config.toml"
       },
       "hermes": {
         "context_length": "上下文长度",
