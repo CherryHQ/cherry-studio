@@ -499,6 +499,7 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
   it('passes the chat model shortcut to the model selector', () => {
@@ -1436,6 +1437,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('Workspace 1')
     expect(belowControls).toHaveTextContent('Agent')
@@ -1463,6 +1465,7 @@ describe('AgentComposer', () => {
     expect(belowControls).not.toHaveTextContent('Workspace 1')
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
 
     act(() => {
       mocks.surfaceProps?.onTextChange('draft before agent')

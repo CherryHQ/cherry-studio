@@ -9,7 +9,7 @@ import {
   getSidebarAppTabInstanceKey,
   tabBelongsToApp
 } from '@renderer/config/sidebar'
-import { type TabsContextValue, useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'

@@ -1,42 +1,14 @@
-import type { CodeMirrorTheme } from '@cherrystudio/ui'
 import { getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { useMermaid } from '@renderer/hooks/useMermaid'
-import type { HighlightChunkResult, ShikiPreProperties } from '@renderer/services/ShikiStreamService'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type React from 'react'
-import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useState } from 'react'
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
 import type { BundledThemeInfo } from 'shiki/types'
-interface CodeStyleContextType {
-  highlightCodeChunk: (trunk: string, language: string, callerId: string) => Promise<HighlightChunkResult>
-  highlightStreamingCode: (code: string, language: string, callerId: string) => Promise<HighlightChunkResult>
-  cleanupTokenizers: (callerId: string) => void
-  getShikiPreProperties: (language: string) => Promise<ShikiPreProperties>
-  highlightCode: (code: string, language: string) => Promise<string>
-  shikiMarkdownIt: (code: string) => Promise<string>
-  themeNames: string[]
-  activeShikiTheme: string
-  isShikiThemeDark: boolean
-  activeCmTheme: CodeMirrorTheme
-}
-
-const defaultCodeStyleContext: CodeStyleContextType = {
-  highlightCodeChunk: async () => ({ lines: [], recall: 0 }),
-  highlightStreamingCode: async () => ({ lines: [], recall: 0 }),
-  cleanupTokenizers: () => {},
-  getShikiPreProperties: async () => ({ class: '', style: '', tabindex: 0 }),
-  highlightCode: async () => '',
-  shikiMarkdownIt: async () => '',
-  themeNames: ['auto'],
-  activeShikiTheme: 'auto',
-  isShikiThemeDark: false,
-  activeCmTheme: 'none'
-}
-
-const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [codeEditorEnabled] = usePreference('chat.code.editor.enabled')
@@ -194,12 +166,4 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   )
 
   return <CodeStyleContext value={contextValue}>{children}</CodeStyleContext>
-}
-
-export const useCodeStyle = () => {
-  const context = use(CodeStyleContext)
-  if (!context) {
-    throw new Error('useCodeStyle must be used within a CodeStyleProvider')
-  }
-  return context
 }

@@ -8,14 +8,7 @@ import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { regionService } from '@main/services/RegionService'
-import {
-  autoDiscoverGitBash,
-  getBinaryPath,
-  getGitBashPathInfo,
-  isBinaryExists,
-  runInstallScript,
-  validateGitBashPath
-} from '@main/utils/process'
+import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@shared/types/notification'
@@ -25,7 +18,6 @@ import fontList from 'font-list'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
-import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
@@ -302,65 +294,8 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
   ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
   ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
-    if (!isWin) {
-      return true // Non-Windows systems don't need Git Bash
-    }
-
-    try {
-      // Use autoDiscoverGitBash to handle auto-discovery and persistence
-      const bashPath = autoDiscoverGitBash()
-      if (bashPath) {
-        logger.info('Git Bash is available', { path: bashPath })
-        return true
-      }
-
-      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
-      return false
-    } catch (error) {
-      logger.error('Unexpected error checking Git Bash', error as Error)
-      return false
-    }
-  })
-
-  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
-    if (!isWin) {
-      return null
-    }
-
-    const customPath = configManager.get(ConfigKeys.GitBashPath)
-    return customPath ?? null
-  })
-
-  // Returns { path, source } where source is 'manual' | 'auto' | null
-  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
-    return getGitBashPathInfo()
-  })
-
-  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
-    if (!isWin) {
-      return false
-    }
-
-    if (!newPath) {
-      // Clear manual setting and re-run auto-discovery
-      configManager.set(ConfigKeys.GitBashPath, null)
-      configManager.set(ConfigKeys.GitBashPathSource, null)
-      // Re-run auto-discovery to restore auto-discovered path if available
-      autoDiscoverGitBash()
-      return true
-    }
-
-    const validated = validateGitBashPath(newPath)
-    if (!validated) {
-      return false
-    }
-
-    // Set path with 'manual' source
-    configManager.set(ConfigKeys.GitBashPath, validated)
-    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
-    return true
-  })
+  // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
+  // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
@@ -501,12 +436,6 @@ export async function registerIpc() {
     NutstoreService.getDirectoryContents(token, path)
   )
 
-  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-  //   configManager.setDisableHardwareAcceleration(isDisable)
-  // })
-  // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
-  //   configManager.setUseSystemTitleBar(isActive)
-  // })
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 

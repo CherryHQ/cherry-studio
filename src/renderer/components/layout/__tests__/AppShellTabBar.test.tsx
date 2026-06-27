@@ -50,7 +50,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [false]
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ settedTheme: 'light', toggleTheme: vi.fn() })
 }))
 

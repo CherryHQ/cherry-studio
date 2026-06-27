@@ -68,7 +68,7 @@ const useKnowledgeBaseToolController = ({
     const configuredIds = new Set(
       configuredKnowledgeBaseIdsKey ? configuredKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []
     )
-    if (configuredIds.size === 0) return []
+    if (configuredIds.size === 0) return knowledgeBases
     return knowledgeBases.filter((base) => configuredIds.has(base.id))
   }, [configuredKnowledgeBaseIdsKey, knowledgeBases])
   onSelectRef.current = onSelect

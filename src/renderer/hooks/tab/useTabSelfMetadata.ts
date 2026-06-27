@@ -1,34 +1,12 @@
-import { emojiTabIcon } from '@renderer/components/layout/tabIcons'
 import { buildTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { emojiTabIcon } from '@renderer/utils/tabIcons'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
-import { createContext, type ReactNode, use, useEffect } from 'react'
+import { useEffect } from 'react'
 
-/**
- * Provides the id of the tab that owns the content rendered beneath it.
- *
- * All non-dormant tabs mount simultaneously (React 19 `Activity` keep-alive in
- * {@link import('../components/layout/TabRouter').TabRouter}), so a page cannot
- * rely on `useTabs().activeTab` to identify itself — that points at the globally
- * active tab. A page reads its OWN id from here.
- */
-const TabIdContext = createContext<string | null>(null)
-
-export function TabIdProvider({ tabId, children }: { tabId: string; children: ReactNode }) {
-  return <TabIdContext value={tabId}>{children}</TabIdContext>
-}
-
-/** The owning tab's id, or null when rendered outside a tab (e.g. tests). */
-export function useCurrentTabId(): string | null {
-  return use(TabIdContext)
-}
-
-export function useCurrentTab(): Tab | undefined {
-  const currentTabId = useCurrentTabId()
-  return useOptionalTabsContext()?.tabs.find((tab) => tab.id === currentTabId)
-}
+import { useCurrentTabId } from './useCurrentTab'
+import { useOptionalTabsContext } from './useTabsContext'
 
 export interface TabSelfMetadata {
   title: string
@@ -95,14 +73,4 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
       metadata
     })
   }, [currentTabId, currentTab, updateTab, title, emoji, instanceAppId, instanceKey])
-}
-
-/**
- * True when this tab is the globally-focused one. Gates "last used" writes so background
- * tabs (also mounted under keep-alive) don't clobber the single global value.
- */
-export function useIsActiveTab(): boolean {
-  const currentTabId = useCurrentTabId()
-  const activeTabId = useOptionalTabsContext()?.activeTabId
-  return !!currentTabId && currentTabId === activeTabId
 }

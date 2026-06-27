@@ -4,6 +4,7 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { isDataApiError } from '@shared/data/api'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { Menu, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useState } from 'react'
@@ -21,6 +22,7 @@ const MiniAppsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newAppOpen, setNewAppOpen] = useState(false)
+  const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
   const { miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
 
@@ -32,6 +34,11 @@ const MiniAppsPage: FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
+  }
+
+  const closeCustomAppPanel = () => {
+    setNewAppOpen(false)
+    setEditingApp(null)
   }
 
   return (
@@ -48,7 +55,10 @@ const MiniAppsPage: FC = () => {
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.miniApps.custom.title')}
-              onClick={() => setNewAppOpen(true)}>
+              onClick={() => {
+                setEditingApp(null)
+                setNewAppOpen(true)
+              }}>
               <Plus size={14} />
             </Button>
             <Button
@@ -95,7 +105,7 @@ const MiniAppsPage: FC = () => {
             ) : (
               <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(84px,92px))] justify-center gap-x-4 gap-y-8 px-2 pt-12 pb-8 sm:gap-x-5 md:gap-x-6">
                 {filteredApps.map((app) => (
-                  <App key={app.appId} app={app} size={44} variant="launchpad" />
+                  <App key={app.appId} app={app} size={44} variant="launchpad" onEditCustom={setEditingApp} />
                 ))}
               </div>
             )}
@@ -109,7 +119,7 @@ const MiniAppsPage: FC = () => {
             <MiniAppDisplaySettings />
           </div>
         </MiniAppSettingsPanel>
-        <NewMiniAppPanel open={newAppOpen} onClose={() => setNewAppOpen(false)} />
+        <NewMiniAppPanel open={newAppOpen || editingApp != null} app={editingApp} onClose={closeCustomAppPanel} />
       </div>
     </div>
   )
