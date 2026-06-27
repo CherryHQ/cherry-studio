@@ -101,7 +101,10 @@ describe('TopicNamingService', () => {
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
-    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', { name: 'Generated Title' })
+    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
   })
 
   it('falls back to the managed CherryAI default when topic naming model preference is empty', async () => {
@@ -208,6 +211,54 @@ describe('TopicNamingService', () => {
     expect(mocks.broadcast).toHaveBeenCalledWith('agent-session:auto-renamed', { sessionId: 'session-1' })
   })
 
+  it('does not first-message rename a topic after a manual rename race', async () => {
+    mocks.getTopic
+      .mockResolvedValueOnce({
+        id: 'topic-1',
+        name: 'Old Topic',
+        isNameManuallyEdited: false
+      })
+      .mockResolvedValueOnce({
+        id: 'topic-1',
+        name: 'Manual Topic',
+        isNameManuallyEdited: true
+      })
+    mocks.getMessageById.mockResolvedValue({
+      id: 'message-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'First user text' }] }
+    })
+
+    await createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.getTopic).toHaveBeenCalledTimes(2)
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('does not summary-rename a topic after a manual rename race', async () => {
+    mocks.getTopic
+      .mockResolvedValueOnce({
+        id: 'topic-1',
+        name: 'First user text',
+        isNameManuallyEdited: false
+      })
+      .mockResolvedValueOnce({
+        id: 'topic-1',
+        name: 'Manual Topic',
+        isNameManuallyEdited: true
+      })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.getTopic).toHaveBeenCalledTimes(2)
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
   it('extracts first-message agent session names from message data', async () => {
     mocks.getSession.mockResolvedValue({
       id: 'session-1',
@@ -229,6 +280,48 @@ describe('TopicNamingService', () => {
       name: 'Inspect renderer startup suggest fixes',
       isNameManuallyEdited: false
     })
+  })
+
+  it('does not first-message rename an agent session after a manual rename race', async () => {
+    mocks.getSession
+      .mockResolvedValueOnce({
+        id: 'session-1',
+        agentId: 'agent-1',
+        name: '未命名',
+        isNameManuallyEdited: false
+      })
+      .mockResolvedValueOnce({
+        id: 'session-1',
+        agentId: 'agent-1',
+        name: 'Manual Session',
+        isNameManuallyEdited: true
+      })
+
+    await createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
+
+    expect(mocks.getSession).toHaveBeenCalledTimes(2)
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('isolates first-message agent session rename failures', async () => {
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: '未命名',
+      isNameManuallyEdited: false
+    })
+    mocks.updateSession.mockRejectedValue(new Error('write failed'))
+
+    await expect(
+      createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
+    ).resolves.toBeUndefined()
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to auto-rename agent session from first user message',
+      expect.any(Error)
+    )
+    expect(mocks.broadcast).not.toHaveBeenCalled()
   })
 
   it('does not first-message rename an agent session that already has a real title', async () => {

@@ -87,6 +87,45 @@ describe('TopicService', () => {
     expect((await topicService.getById('topic-trace')).traceId).toBe(traceId)
   })
 
+  it('treats name-only updates as manual topic renames', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-name-only',
+      name: 'Before name-only update',
+      isNameManuallyEdited: false,
+      orderKey: 'a0'
+    })
+
+    const updated = await topicService.update('topic-name-only', {
+      name: 'Manual topic name'
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-name-only',
+      name: 'Manual topic name',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('preserves explicit automatic topic renames', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-auto-name',
+      name: 'Before automatic update',
+      isNameManuallyEdited: false,
+      orderKey: 'a1'
+    })
+
+    const updated = await topicService.update('topic-auto-name', {
+      name: 'Automatic topic name',
+      isNameManuallyEdited: false
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-auto-name',
+      name: 'Automatic topic name',
+      isNameManuallyEdited: false
+    })
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()

@@ -214,6 +214,35 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('treats name-only updates as manual session renames', async () => {
+    const session = await createSession('Before name-only update')
+
+    const updated = await agentSessionService.update(session.id, {
+      name: 'Manual name'
+    })
+
+    expect(updated).toMatchObject({
+      id: session.id,
+      name: 'Manual name',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('preserves explicit automatic session renames', async () => {
+    const session = await createSession('Before automatic update')
+
+    const updated = await agentSessionService.update(session.id, {
+      name: 'Automatic name',
+      isNameManuallyEdited: false
+    })
+
+    expect(updated).toMatchObject({
+      id: session.id,
+      name: 'Automatic name',
+      isNameManuallyEdited: false
+    })
+  })
+
   it('ignores workspace updates even if callers bypass the schema', async () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')

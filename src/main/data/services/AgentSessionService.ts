@@ -212,8 +212,12 @@ export class AgentSessionService {
 
   async update(id: string, dto: UpdateAgentSessionDto): Promise<AgentSessionEntity> {
     const patch: UpdateAgentSessionDto = {}
-    if (dto.name !== undefined) patch.name = dto.name
-    if (dto.isNameManuallyEdited !== undefined) patch.isNameManuallyEdited = dto.isNameManuallyEdited
+    if (dto.name !== undefined) {
+      patch.name = dto.name
+      patch.isNameManuallyEdited = dto.isNameManuallyEdited ?? true
+    } else if (dto.isNameManuallyEdited !== undefined) {
+      patch.isNameManuallyEdited = dto.isNameManuallyEdited
+    }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
     if (Object.keys(patch).length === 0) return this.getById(id)

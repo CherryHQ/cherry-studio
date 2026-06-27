@@ -258,8 +258,12 @@ export class TopicService {
       if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
 
       const updates: Partial<typeof topicTable.$inferInsert> = {}
-      if (dto.name !== undefined) updates.name = dto.name
-      if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      if (dto.name !== undefined) {
+        updates.name = dto.name
+        updates.isNameManuallyEdited = dto.isNameManuallyEdited ?? true
+      } else if (dto.isNameManuallyEdited !== undefined) {
+        updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      }
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
