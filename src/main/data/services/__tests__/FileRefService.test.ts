@@ -150,6 +150,40 @@ describe('FileRefService', () => {
       await expect(fileRefService.create(values)).rejects.toThrow()
     })
 
+    it('createTx inserts inside the caller transaction', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000cc04' as FileEntryId
+      await seedEntry(entryId)
+      const ref = await dbh.db.transaction((tx) =>
+        fileRefService.createTx(tx, {
+          fileEntryId: entryId,
+          sourceType: 'temp_session',
+          sourceId: 'tx-session',
+          role: 'pending'
+        })
+      )
+      expect(ref.fileEntryId).toBe(entryId)
+      const persisted = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'tx-session' })
+      expect(persisted).toHaveLength(1)
+    })
+
+    it('createTx rolls back with the caller transaction', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
+      await seedEntry(entryId)
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await fileRefService.createTx(tx, {
+            fileEntryId: entryId,
+            sourceType: 'temp_session',
+            sourceId: 'rollback-session',
+            role: 'pending'
+          })
+          throw new Error('abort')
+        })
+      ).rejects.toThrow('abort')
+      const persisted = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'rollback-session' })
+      expect(persisted).toEqual([])
+    })
+
     it('createMany skips conflicting rows and returns the inserted ones', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
       await seedEntry(entryId)

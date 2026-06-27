@@ -136,6 +136,33 @@ describe('PreferenceService BootConfig routing', () => {
     })
   })
 
+  describe('setTx()', () => {
+    const makeTx = () => ({
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined)
+        })
+      })
+    })
+
+    it('writes through the provided tx and defers the cache update to the returned callback', async () => {
+      const mockTx = makeTx()
+
+      const afterCommit = await service.setTx(mockTx, PREFERENCE_KEY, 'zh-CN')
+
+      // DB write happened inside the caller tx, but the cache is untouched until commit
+      expect(mockTx.update).toHaveBeenCalled()
+      expect(service.get(PREFERENCE_KEY)).toBe(DefaultPreferences.default[PREFERENCE_KEY])
+
+      await afterCommit()
+      expect(service.get(PREFERENCE_KEY)).toBe('zh-CN')
+    })
+
+    it('throws for a BootConfig key (file-backed, outside the DB tx)', async () => {
+      await expect(service.setTx(makeTx(), BOOT_CONFIG_KEY, true)).rejects.toThrow()
+    })
+  })
+
   describe('setMultiple()', () => {
     it('separates BootConfig and preference updates', async () => {
       mockBootConfigGet.mockReturnValue(false)

@@ -53,6 +53,13 @@ export interface FileRefService {
    */
   create(values: CreateFileRefRow): Promise<FileRef>
 
+  /**
+   * Transaction-aware variant of {@link FileRefService.create}. Lets an owning
+   * service insert a slot ref alongside its own row write in one atomic boundary
+   * (tx-first, `Tx` suffix — same convention as {@link FileRefService.cleanupBySourceTx}).
+   */
+  createTx(tx: Pick<DbType, 'insert'>, values: CreateFileRefRow): Promise<FileRef>
+
   /** Batch variant. Rows that violate the uniqueness constraint are skipped. */
   createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]>
 
@@ -144,8 +151,12 @@ class FileRefServiceImpl implements FileRefService {
   }
 
   async create(values: CreateFileRefRow): Promise<FileRef> {
+    return this.createTx(this.getDb(), values)
+  }
+
+  async createTx(tx: Pick<DbType, 'insert'>, values: CreateFileRefRow): Promise<FileRef> {
     const now = Date.now()
-    const rows = await this.getDb()
+    const rows = await tx
       .insert(fileRefTable)
       .values({
         id: uuidv4(),

@@ -25,6 +25,7 @@ import { BrowserWindow } from 'electron'
 import { isEqual } from 'lodash'
 
 import { preferenceTable } from './db/schemas/preference'
+import type { DbType } from './db/types'
 
 const logger = loggerService.withContext('PreferenceService')
 
@@ -344,6 +345,43 @@ export class PreferenceService extends BaseService {
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
+    }
+  }
+
+  /**
+   * Transaction-aware single-key write for tx-composition (tx-first, `Tx`
+   * suffix — same convention as `FileRefService.cleanupBySourceTx`). Writes the
+   * preference row inside the caller's write tx and returns a **post-commit**
+   * callback that updates the memory cache and broadcasts the change. The caller
+   * MUST run the callback only after the tx commits, so a rolled-back tx never
+   * leaves the cache/listeners ahead of the database.
+   *
+   * Only DB-backed preference keys are supported; BootConfig keys (file-backed,
+   * outside the DB tx) throw — use `set()` for those.
+   */
+  public async setTx<K extends UnifiedPreferenceKeyType>(
+    tx: Pick<DbType, 'update'>,
+    key: K,
+    value: UnifiedPreferenceType[K]
+  ): Promise<() => Promise<void>> {
+    if (!isPreferenceKey(key)) {
+      throw new Error(`setTx only supports DB-backed preference keys; ${key} is a BootConfig key — use set()`)
+    }
+    if (!(key in this.cache)) {
+      throw new Error(`Preference ${key} not found in cache`)
+    }
+
+    const oldValue = this.cache[key]
+
+    await tx
+      .update(preferenceTable)
+      .set({ value: value as any })
+      .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+
+    return async () => {
+      // Update memory cache immediately — safe after type guard + cache key check
+      ;(this.cache as Record<string, unknown>)[key] = value
+      await this.notifyChange(key, value, oldValue)
     }
   }
 

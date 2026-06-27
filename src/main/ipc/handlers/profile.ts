@@ -9,31 +9,45 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 const AVATAR_SLOT = { sourceType: userAvatarRef.sourceType, sourceId: USER_AVATAR_SOURCE_ID }
 
 /**
- * Profile request handler. `set_avatar` is the avatar owner. An uploaded image
- * is sent as raw bytes: the handler creates the `file_entry` (after a successful
- * transcode), points the `user_avatar` `file_ref` slot at it, and stores a
- * `file:<id>` ref in `app.user.avatar` — compensating (permanentDelete) if the
- * slot/preference write fails. Emoji / clear are file-free preference writes.
+ * Profile request handler. `set_avatar` is the avatar owner. The owner invariant
+ * — the `user_avatar` `file_ref` slot and the `app.user.avatar` preference must
+ * agree on which file (if any) the avatar is — is kept atomic by doing the slot
+ * cleanup, the slot ref insert, and the preference row write in a single
+ * `DbService.withWriteTx`, then syncing the preference cache / broadcasting only
+ * after the tx commits (the `afterCommit` callback). A rolled-back tx therefore
+ * never leaves the slot and the preference pointing at different files.
+ *
+ * For an uploaded image the `file_entry` is created first (a bad upload leaves
+ * the old avatar intact) and `permanentDelete`-compensated if the tx fails — the
+ * compensation wraps only the tx, not `afterCommit`, so a committed avatar is
+ * never deleted by a later cache/broadcast hiccup. Emoji / clear are file-free.
  */
 export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
   'profile.set_avatar': async (input) => {
     const preferences = application.get('PreferenceService')
+    const db = application.get('DbService')
 
     if (input.kind === 'image') {
-      // createInternalEntry runs first (a bad upload leaves the old avatar
-      // intact); the slot + preference write happens in the bound callback so a
-      // failure there triggers compensation of the just-created file.
-      await withCreatedImageEntry(input.data, async (fileId) => {
-        await fileRefService.cleanupBySource(AVATAR_SLOT)
-        await fileRefService.create({ fileEntryId: fileId, ...AVATAR_SLOT, role: 'avatar' })
-        await preferences.set('app.user.avatar', tagStoredFileRef(fileId))
-      })
+      // withCreatedImageEntry compensates (permanentDelete) iff the tx throws;
+      // its bind returns the post-commit callback, run outside that scope.
+      const afterCommit = await withCreatedImageEntry(input.data, (fileId) =>
+        db.withWriteTx(async (tx) => {
+          await fileRefService.cleanupBySourceTx(tx, AVATAR_SLOT)
+          await fileRefService.createTx(tx, { fileEntryId: fileId, ...AVATAR_SLOT, role: 'avatar' })
+          return preferences.setTx(tx, 'app.user.avatar', tagStoredFileRef(fileId))
+        })
+      )
+      await afterCommit()
       return
     }
 
     // Emoji / clear — no file. Clear the slot, then store the value verbatim
     // (emoji glyph, or `''` to reset to the bundled default).
-    await fileRefService.cleanupBySource(AVATAR_SLOT)
-    await preferences.set('app.user.avatar', input.kind === 'emoji' ? input.emoji : '')
+    const value = input.kind === 'emoji' ? input.emoji : ''
+    const afterCommit = await db.withWriteTx(async (tx) => {
+      await fileRefService.cleanupBySourceTx(tx, AVATAR_SLOT)
+      return preferences.setTx(tx, 'app.user.avatar', value)
+    })
+    await afterCommit()
   }
 }
