@@ -40,8 +40,20 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, type = 'button', loading: _loading, variant: _variant, size: _size, ...rest }: any) => (
-    <button type={type} {...rest}>
+  // Forward only the props the test exercises; drop loading/variant/size/className so they
+  // neither hit the DOM nor sit as unused destructured vars (CI oxlint flags those).
+  Button: ({
+    children,
+    type = 'button',
+    onClick,
+    disabled
+  }: {
+    children: ReactNode
+    type?: 'button' | 'submit' | 'reset'
+    onClick?: () => void
+    disabled?: boolean
+  }) => (
+    <button type={type} onClick={onClick} disabled={disabled}>
       {children}
     </button>
   ),
