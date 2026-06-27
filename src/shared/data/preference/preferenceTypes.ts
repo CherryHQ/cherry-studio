@@ -99,9 +99,6 @@ export type SidebarFavorite =
   | 'notes'
   | 'openclaw'
 
-/** @deprecated Legacy v1 Redux naming. Use SidebarFavorite for v2 sidebar preferences. */
-export type SidebarIcon = SidebarFavorite
-
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type ProxyMode = 'system' | 'custom' | 'none'

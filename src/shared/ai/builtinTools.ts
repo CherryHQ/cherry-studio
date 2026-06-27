@@ -146,3 +146,55 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
   'if the task produced no files.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
+
+// ── read_file ────────────────────────────────────────────────────
+
+export const READ_FILE_TOOL_NAME = 'read_file'
+
+/**
+ * Page size for inlined attachment text — the cap on what's inlined up front
+ * and the default page size when `read_file` is called without `limit`.
+ */
+export const READ_FILE_PAGE_SIZE = 8000
+
+export const readFileInputSchema = z.object({
+  filename: z
+    .string()
+    .trim()
+    .min(1)
+    .describe(
+      'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
+    ),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('0-based character offset to start from. Page through long documents with offset + limit.'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(200_000)
+    .optional()
+    .describe(`Max characters to return. Defaults to ${READ_FILE_PAGE_SIZE} when omitted.`)
+})
+
+export const readFileOutputSchema = z.object({
+  text: z.string(),
+  /** Total characters available in the extracted text (for paging). */
+  totalChars: z.number().int().nonnegative(),
+  /** Next `offset` to pass to continue reading, omitted when the end was reached. */
+  nextOffset: z.number().int().nonnegative().optional()
+})
+
+/** Lookup failure shape — a sanitized, filename-level message; distinguishable from a successful read. */
+export const readFileErrorSchema = z.object({ error: z.string() })
+
+/** Full `read_file` wire result: a successful (possibly paged) read, or an error. */
+export const readFileResultSchema = z.union([readFileOutputSchema, readFileErrorSchema])
+
+export type ReadFileInput = z.infer<typeof readFileInputSchema>
+export type ReadFileOutput = z.infer<typeof readFileOutputSchema>
+export type ReadFileError = z.infer<typeof readFileErrorSchema>
+export type ReadFileResult = z.infer<typeof readFileResultSchema>
