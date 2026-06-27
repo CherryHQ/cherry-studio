@@ -6228,6 +6228,9 @@
         "button": "Buscar Servidores",
         "success": "Servidores MCP obtidos com sucesso"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Mais servidores MCP",
       "headers": "Cabeçalhos da Requisição",
       "headersTooltip": "Cabeçalhos HTTP personalizados para as requisições",
@@ -6268,6 +6271,7 @@
       "noDescriptionAvailable": "Nenhuma descrição disponível no momento",
       "noLogs": "Ainda sem registos",
       "noServers": "Nenhum servidor configurado",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Modelo Não Suportado",
       "npx_list": {
         "actions": "Ações",
@@ -6350,10 +6354,7 @@
         "getTokenDescription": "Obtenha um token de API pessoal da sua conta",
         "noServersAvailable": "Nenhum servidor MCP disponível",
         "providerDescriptions": {
-          "302ai": "302.Serviço MCP da Plataforma AI",
           "bailian": "Alibaba Cloud Bailian Plataforma Serviço MCP",
-          "lanyun": "Plataforma Cloud da Lanyun Technology - Serviço MCP",
-          "mcprouter": "Plataforma de Roteamento MCP Serviço MCP",
           "modelscope": "Serviço MCP da Plataforma ModelScope"
         },
         "selectProvider": "Selecione o provedor:",
@@ -6465,6 +6466,8 @@
         "logo_upload_label": "Enviar Logo",
         "name": "Nome",
         "name_placeholder": "Digite o nome",
+        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
+        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
@@ -6493,6 +6496,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
+      "title": "[to be translated]:Mini Apps Settings",
       "visible": "Mini Aplicativos Visíveis"
     },
     "model": "Modelo padrão",
@@ -6644,6 +6648,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

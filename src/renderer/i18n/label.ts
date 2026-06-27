@@ -281,10 +281,7 @@ export const getMcpTypeLabelKey = (key: string): string => {
 }
 
 const mcpProviderDescriptionKeyMap = {
-  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
   bailian: 'settings.mcp.sync.providerDescriptions.bailian',
-  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
-  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
   modelscope: 'settings.mcp.sync.providerDescriptions.modelscope'
 } as const
 

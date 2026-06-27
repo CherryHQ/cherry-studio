@@ -10,6 +10,10 @@ interface CollapsibleSearchBarProps {
   tooltip?: string
   icon?: React.ReactNode
   maxWidth?: string | number
+  collapsedSize?: number
+  animated?: boolean
+  inputClassName?: string
+  expandedIconPosition?: 'left' | 'right'
   style?: React.CSSProperties
 }
 
@@ -23,12 +27,15 @@ const CollapsibleSearchBar = ({
   tooltip = i18n.t('common.search'),
   icon = <Search size={14} color="var(--color-icon)" />,
   maxWidth = '100%',
+  collapsedSize = 32,
+  animated = true,
+  inputClassName,
+  expandedIconPosition = 'right',
   style
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const collapsedWidth = 32
 
   const handleTextChange = useCallback(
     (text: string) => {
@@ -55,15 +62,15 @@ const CollapsibleSearchBar = ({
       initial={false}
       animate={searchVisible ? 'expanded' : 'collapsed'}
       variants={{
-        expanded: { width: maxWidth, transition: { duration: 0.3, ease: 'easeInOut' } },
-        collapsed: { width: collapsedWidth, transition: { duration: 0.3, ease: 'easeInOut' } }
+        expanded: { width: maxWidth, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
+        collapsed: { width: collapsedSize, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
       }}
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
         position: 'relative',
-        height: collapsedWidth,
+        height: collapsedSize,
         minWidth: 0,
         overflow: 'hidden',
         flexShrink: searchVisible ? 1 : 0
@@ -72,18 +79,28 @@ const CollapsibleSearchBar = ({
         initial={false}
         animate={searchVisible ? 'expanded' : 'collapsed'}
         variants={{
-          expanded: { width: '100%', opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
-          collapsed: { width: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
+          expanded: { width: '100%', opacity: 1, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
+          collapsed: { width: 0, opacity: 0, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
         }}
         style={{ overflow: 'hidden', flexShrink: 1 }}>
         <div className="relative flex items-center">
+          {expandedIconPosition === 'left' && (
+            <button
+              type="button"
+              aria-label={tooltip}
+              className="-translate-y-1/2 absolute top-1/2 left-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => inputRef.current?.focus()}>
+              {icon}
+            </button>
+          )}
           <Input
             ref={inputRef}
             type="text"
             placeholder={placeholder}
             value={searchText}
             autoFocus
-            className="h-8 rounded-full pr-8 text-sm shadow-none"
+            className={`h-8 rounded-full text-sm shadow-none focus-visible:border-border-hover focus-visible:ring-0 ${expandedIconPosition === 'left' ? 'pr-8 pl-8' : 'pr-8'} ${inputClassName ?? ''}`}
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -95,16 +112,18 @@ const CollapsibleSearchBar = ({
             onBlur={() => {
               if (!searchText) setSearchVisible(false)
             }}
-            style={{ width: '100%', height: collapsedWidth, ...style }}
+            style={{ width: '100%', height: collapsedSize, ...style }}
           />
-          <button
-            type="button"
-            aria-label={searchText ? i18n.t('common.clear') : tooltip}
-            className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
-            {searchText ? <X size={14} /> : icon}
-          </button>
+          {(searchText || expandedIconPosition === 'right') && (
+            <button
+              type="button"
+              aria-label={searchText ? i18n.t('common.clear') : tooltip}
+              className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
+              {searchText ? <X size={14} /> : icon}
+            </button>
+          )}
         </div>
       </motion.div>
       <motion.div
@@ -112,14 +131,17 @@ const CollapsibleSearchBar = ({
         animate={searchVisible ? 'hidden' : 'visible'}
         className="rounded-lg transition-colors hover:bg-accent"
         variants={{
-          visible: { opacity: 1, transition: { duration: 0.1, delay: 0.3, ease: 'easeInOut' } },
-          hidden: { opacity: 0, transition: { duration: 0.1, ease: 'easeInOut' } }
+          visible: {
+            opacity: 1,
+            transition: { duration: animated ? 0.1 : 0, delay: animated ? 0.3 : 0, ease: 'easeInOut' }
+          },
+          hidden: { opacity: 0, transition: { duration: animated ? 0.1 : 0, ease: 'easeInOut' } }
         }}
         style={{
           position: 'absolute',
           right: 0,
-          width: collapsedWidth,
-          height: collapsedWidth,
+          width: collapsedSize,
+          height: collapsedSize,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',

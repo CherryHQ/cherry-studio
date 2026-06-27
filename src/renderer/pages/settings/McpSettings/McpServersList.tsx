@@ -7,20 +7,16 @@ import {
   PopoverContent,
   PopoverTrigger,
   Sortable,
-  Tabs,
-  TabsList,
-  TabsTrigger,
   useDndReorder
 } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
-import { Plus, Search } from 'lucide-react'
+import { Check, Filter, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +27,16 @@ import EnvironmentDependencies from './EnvironmentDependencies'
 import McpServerCard from './McpServerCard'
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
+type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'builtin'
+
+const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: string }[] = [
+  { value: 'all', labelKey: 'models.all' },
+  { value: 'enabled', labelKey: 'common.enabled' },
+  { value: 'disabled', labelKey: 'common.disabled' },
+  { value: 'stdio', label: 'STDIO' },
+  { value: 'sse', label: 'SSE' },
+  { value: 'builtin', labelKey: 'settings.mcp.builtinServers' }
+]
 
 const McpServersList: FC = () => {
   const { mcpServers, addMcpServer, reorderMcpServers } = useMcpServers()
@@ -38,9 +44,9 @@ const McpServersList: FC = () => {
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
-  const [isEditing, setIsEditing] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'builtin'>('all')
+  const [filter, setFilter] = useState<McpServerFilter>('all')
 
   const [searchText, _setSearchText] = useState('')
 
@@ -134,7 +140,7 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-2">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-3">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2">
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -144,25 +150,52 @@ const McpServersList: FC = () => {
                 {activeServerCount}/{mcpServers.length}
               </span>
             </div>
-            <CollapsibleSearchBar
-              onSearch={setSearchText}
-              placeholder={t('settings.mcp.search.placeholder')}
-              tooltip={t('settings.mcp.search.tooltip')}
-              icon={<Search size={15} className="text-muted-foreground" />}
-              maxWidth={200}
-              style={{ borderRadius: 16 }}
-            />
+            <div className="flex shrink-0 items-center gap-1">
+              <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t('settings.mcp.filter.label')}
+                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
+                    <Filter
+                      size={14}
+                      color={filter === 'all' ? 'var(--color-icon)' : undefined}
+                      className={filter === 'all' ? undefined : 'text-primary'}
+                    />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
+                  <MenuList className="gap-1">
+                    {FILTER_OPTIONS.map((option) => (
+                      <MenuItem
+                        key={option.value}
+                        label={option.label ?? t(option.labelKey!)}
+                        className="h-8 rounded-lg px-2.5 text-sm"
+                        icon={
+                          <Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />
+                        }
+                        onClick={() => {
+                          setFilter(option.value)
+                          setIsFilterMenuOpen(false)
+                        }}
+                      />
+                    ))}
+                  </MenuList>
+                </PopoverContent>
+              </Popover>
+              <CollapsibleSearchBar
+                onSearch={setSearchText}
+                placeholder={t('settings.mcp.search.placeholder')}
+                tooltip={t('settings.mcp.search.tooltip')}
+                maxWidth={200}
+                collapsedSize={28}
+                animated={false}
+                style={{ borderRadius: 14 }}
+              />
+            </div>
           </div>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <EnvironmentDependencies mini />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-lg text-xs shadow-none"
-              onClick={() => setIsEditing((value) => !value)}>
-              <EditIcon size={14} />
-              {isEditing ? t('common.completed') : t('common.edit')}
-            </Button>
             <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
               <PopoverTrigger asChild>
                 <Button variant="secondary" size="sm" className="rounded-lg text-xs shadow-none">
@@ -181,30 +214,6 @@ const McpServersList: FC = () => {
             </Popover>
           </div>
         </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
-          <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="hidden xl:block">
-            <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
-              <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
-                {t('models.all')}
-              </TabsTrigger>
-              <TabsTrigger value="enabled" className="h-7 rounded-[14px] px-2.5 text-xs">
-                {t('common.enabled')}
-              </TabsTrigger>
-              <TabsTrigger value="disabled" className="h-7 rounded-[14px] px-2.5 text-xs">
-                {t('common.disabled')}
-              </TabsTrigger>
-              <TabsTrigger value="stdio" className="h-7 rounded-[14px] px-2.5 text-xs">
-                STDIO
-              </TabsTrigger>
-              <TabsTrigger value="sse" className="h-7 rounded-[14px] px-2.5 text-xs">
-                SSE
-              </TabsTrigger>
-              <TabsTrigger value="builtin" className="h-7 rounded-[14px] px-2.5 text-xs">
-                {t('settings.mcp.builtinServers')}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
@@ -218,6 +227,7 @@ const McpServersList: FC = () => {
                     layout="list"
                     horizontal={false}
                     listStyle={{ gap: 0 }}
+                    itemStyle={{ transition: 'none' }}
                     gap={0}
                     restrictions={{ scrollableAncestor: true }}
                     useDragOverlay
@@ -225,7 +235,6 @@ const McpServersList: FC = () => {
                     renderItem={(server) => (
                       <McpServerCard
                         server={server}
-                        isEditing={isEditing}
                         onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })}
                       />
                     )}

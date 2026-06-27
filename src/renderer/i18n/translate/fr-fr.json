@@ -6228,6 +6228,9 @@
         "button": "Récupérer les serveurs",
         "success": "Serveurs MCP récupérés avec succès"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
       "headersTooltip": "Пользовательские заголовки HTTP-запроса",
@@ -6268,6 +6271,7 @@
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
       "noLogs": "Aucun journal pour le moment",
       "noServers": "Aucun serveur configuré",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Actions",
@@ -6350,10 +6354,7 @@
         "getTokenDescription": "Получите персональный API-токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных MCP-серверов",
         "providerDescriptions": {
-          "302ai": "302.Service MCP de la Plateforme AI",
           "bailian": "Service MCP de la plateforme Bailian d'Alibaba Cloud",
-          "lanyun": "Plateforme Cloud Lanyun Technology Service MCP",
-          "mcprouter": "Plateforme de routeur MCP Service MCP",
           "modelscope": "Service MCP de la plateforme ModelScope"
         },
         "selectProvider": "Выберите провайдера:",
@@ -6465,6 +6466,8 @@
         "logo_upload_label": "Загрузить логотип",
         "name": "Имя",
         "name_placeholder": "Введите имя",
+        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
+        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
         "save_error": "Не удалось сохранить пользовательское приложение.",
@@ -6493,6 +6496,7 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
+      "title": "[to be translated]:Mini Apps Settings",
       "visible": "Applications visibles"
     },
     "model": "Modèle par défaut",
@@ -6644,6 +6648,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

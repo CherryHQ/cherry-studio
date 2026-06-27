@@ -6228,6 +6228,9 @@
         "button": "获取服务器",
         "success": "服务器获取成功"
       },
+      "filter": {
+        "label": "筛选"
+      },
       "findMore": "更多 MCP",
       "headers": "请求头",
       "headersTooltip": "HTTP 请求的自定义请求头",
@@ -6268,6 +6271,7 @@
       "noDescriptionAvailable": "暂无描述",
       "noLogs": "暂无日志",
       "noServers": "未配置服务器",
+      "notInstalled": "未安装",
       "not_support": "模型不支持",
       "npx_list": {
         "actions": "操作",
@@ -6350,10 +6354,7 @@
         "getTokenDescription": "从您的帐户中获取个人 API 令牌",
         "noServersAvailable": "无可用的 MCP 服务器",
         "providerDescriptions": {
-          "302ai": "302.AI 平台 MCP 服务",
           "bailian": "百炼平台服务",
-          "lanyun": "蓝耘科技云平台 MCP 服务",
-          "mcprouter": "MCP Router 平台 MCP 服务",
           "modelscope": "ModelScope 平台 MCP 服务"
         },
         "selectProvider": "选择提供商：",
