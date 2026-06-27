@@ -27,6 +27,15 @@ interface ComposerFileCapabilitiesArgs {
 
 const EMPTY_MODELS: Model[] = []
 
+/** Each gateable input modality → the predicate pair that probes whether the active
+ *  model set supports it (single model vs. every mentioned model). */
+const MEDIA_INPUT_PREDICATES = {
+  vision: [isVisionModel, isVisionModels],
+  imageGen: [isGenerateImageModel, isGenerateImageModels],
+  audio: [isAudioModel, isAudioModels],
+  video: [isVideoModel, isVideoModels]
+} as const satisfies Record<string, readonly [(model: Model) => boolean, (models: Model[]) => boolean]>
+
 function isMultiModelArgs(
   input: Model | undefined | ComposerFileCapabilitiesArgs
 ): input is ComposerFileCapabilitiesArgs {
@@ -56,39 +65,27 @@ export function useComposerFileCapabilities(
   const isChatSurface = isMultiModelArgs(input)
   const { models, fallbackModel } = isChatSurface ? input : { models: EMPTY_MODELS, fallbackModel: input }
 
-  const isVisionSupported = useMemo(
-    () => (models.length > 0 ? isVisionModels(models) : fallbackModel ? isVisionModel(fallbackModel) : false),
-    [models, fallbackModel]
-  )
-  const isGenerateImageSupported = useMemo(
-    () =>
-      models.length > 0 ? isGenerateImageModels(models) : fallbackModel ? isGenerateImageModel(fallbackModel) : false,
-    [models, fallbackModel]
-  )
-  const isAudioSupported = useMemo(
-    () => (models.length > 0 ? isAudioModels(models) : fallbackModel ? isAudioModel(fallbackModel) : false),
-    [models, fallbackModel]
-  )
-  const isVideoSupported = useMemo(
-    () => (models.length > 0 ? isVideoModels(models) : fallbackModel ? isVideoModel(fallbackModel) : false),
-    [models, fallbackModel]
-  )
+  return useMemo(() => {
+    const supports = ([single, plural]: (typeof MEDIA_INPUT_PREDICATES)[keyof typeof MEDIA_INPUT_PREDICATES]) =>
+      models.length > 0 ? plural(models) : fallbackModel ? single(fallbackModel) : false
 
-  // Chat OCRs images for any model; agent stays native-only (vision / edit-image).
-  const canAddImageFile = isChatSurface || isVisionSupported || isGenerateImageSupported
-  // Chat always extracts text; agent disallows it only for a pure image generator.
-  const canAddTextFile = isChatSurface || isVisionSupported || !isGenerateImageSupported
-  const canAddAudioFile = isAudioSupported
-  const canAddVideoFile = isVideoSupported
+    const vision = supports(MEDIA_INPUT_PREDICATES.vision)
+    const imageGen = supports(MEDIA_INPUT_PREDICATES.imageGen)
+    const audio = supports(MEDIA_INPUT_PREDICATES.audio)
+    const video = supports(MEDIA_INPUT_PREDICATES.video)
 
-  const supportedExts = useMemo(() => {
-    const exts: string[] = []
-    if (canAddImageFile) exts.push(...imageExts)
-    if (canAddAudioFile) exts.push(...audioExts)
-    if (canAddVideoFile) exts.push(...videoExts)
-    if (canAddTextFile) exts.push(...documentExts, ...textExts)
-    return exts
-  }, [canAddImageFile, canAddAudioFile, canAddVideoFile, canAddTextFile])
+    // Chat OCRs images for any model and always extracts document/text; agent has no
+    // text fallback, so it stays native-only (vision / edit-image, and no text for a
+    // pure image generator). Audio/video have no fallback anywhere → strict capability.
+    const canAddImageFile = isChatSurface || vision || imageGen
+    const canAddTextFile = isChatSurface || vision || !imageGen
 
-  return { canAddImageFile, canAddTextFile, supportedExts }
+    const supportedExts = [
+      ...(canAddImageFile ? imageExts : []),
+      ...(audio ? audioExts : []),
+      ...(video ? videoExts : []),
+      ...(canAddTextFile ? [...documentExts, ...textExts] : [])
+    ]
+    return { canAddImageFile, canAddTextFile, supportedExts }
+  }, [isChatSurface, models, fallbackModel])
 }
