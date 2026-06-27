@@ -668,14 +668,48 @@ const Sessions = ({
           index !== -1 && filteredGroupedSessions.length > 1
             ? filteredGroupedSessions[index + 1 === filteredGroupedSessions.length ? index - 1 : index + 1]
             : undefined
-        setActiveSessionId(next?.id ?? null)
+        if (next) {
+          setActiveSessionId(next.id)
+          return
+        }
+
+        const deletedSession =
+          (index !== -1 ? filteredGroupedSessions[index] : undefined) ??
+          sessionItemsRef.current.find((session) => session.id === id)
+        const seed = buildCreateSessionSeed(
+          deletedSession
+            ? {
+                agentId: agentIdFilter ?? deletedSession.agentId,
+                workspace: deletedSession.workspace,
+                workspaceId: deletedSession.workspaceId
+              }
+            : agentIdFilter
+              ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+              : null
+        )
+        if (seed?.agentId && onStartDraftSession) {
+          await onStartDraftSession({
+            agentId: seed.agentId,
+            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+          })
+        }
+        setActiveSessionId(null)
         return
       }
 
       const remaining = sessionItems.find((s) => s.id !== id)
       setActiveSessionId(remaining?.id ?? null)
     },
-    [activeSessionId, deleteSession, filteredGroupedSessions, isRightPanel, sessionItems, setActiveSessionId]
+    [
+      activeSessionId,
+      agentIdFilter,
+      deleteSession,
+      filteredGroupedSessions,
+      isRightPanel,
+      onStartDraftSession,
+      sessionItems,
+      setActiveSessionId
+    ]
   )
 
   const handleRenameSession = useCallback(
