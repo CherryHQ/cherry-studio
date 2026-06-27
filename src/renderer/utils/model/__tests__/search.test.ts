@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSearchMatchScore, type ModelSearchField } from '../modelSearch'
+import { getSearchMatchScore, type ModelSearchField } from '../search'
 
-describe('modelSearch', () => {
+describe('search', () => {
   const fields = [
     { value: 'GPT-4o', weight: 0, allowAbbreviation: true },
     { value: 'gpt-4o-mini', weight: 1, allowAbbreviation: true }

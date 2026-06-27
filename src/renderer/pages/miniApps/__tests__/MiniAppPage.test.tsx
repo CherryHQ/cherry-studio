@@ -44,11 +44,11 @@ vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
 
-vi.mock('@renderer/pages/mini-apps/components/MinimalToolbar', () => ({
+vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
   default: () => <div data-testid="minimal-toolbar" />
 }))
 
-vi.mock('@renderer/pages/mini-apps/components/WebviewSearch', () => ({
+vi.mock('@renderer/pages/miniApps/components/WebviewSearch', () => ({
   default: () => <div data-testid="webview-search" />
 }))
 

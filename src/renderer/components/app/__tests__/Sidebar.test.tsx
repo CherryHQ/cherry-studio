@@ -193,7 +193,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 

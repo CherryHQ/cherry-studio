@@ -11,11 +11,6 @@ vi.mock('../ModelService', () => ({
   readDefaultModel: vi.fn().mockResolvedValue(undefined)
 }))
 
-// Mock CHERRYAI_PROVIDER
-vi.mock('@renderer/config/providers', () => ({
-  CHERRYAI_PROVIDER: { id: 'cherryai', type: 'openai', apiHost: 'https://api.cherry-ai.com', models: [] }
-}))
-
 // Mock LoggerService
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {

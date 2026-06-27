@@ -1,7 +1,7 @@
 import { type Model, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { canModelUseAssistantWebSearch, reconcileWebSearchForModel } from '../modelReconcile'
+import { canModelUseAssistantWebSearch, reconcileWebSearchForModel } from '../reconcile'
 
 const createModel = (capabilities: ModelCapability[] = []): Model => ({
   id: 'provider::model',
@@ -14,7 +14,7 @@ const createModel = (capabilities: ModelCapability[] = []): Model => ({
   isHidden: false
 })
 
-describe('modelReconcile web search', () => {
+describe('reconcile web search', () => {
   it('rejects enabled web search when the next model cannot consume it', () => {
     const nextModel = createModel()
 

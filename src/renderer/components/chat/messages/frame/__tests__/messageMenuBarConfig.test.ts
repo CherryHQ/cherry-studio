@@ -1,7 +1,7 @@
 import { TopicType } from '@renderer/types/topic'
 import { describe, expect, it } from 'vitest'
 
-import { getMessageMenuBarConfig } from '../messageMenuBar'
+import { getMessageMenuBarConfig } from '../messageMenuBarConfig'
 
 describe('messageMenuBar registry', () => {
   // Regression: agent sessions don't mount the translation-overlay provider,

@@ -1,13 +1,12 @@
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
-  getDefaultSidebarFavorites,
   getOrderedVisibleSidebarIcons,
   getRequiredSidebarIconsVisible,
   getSidebarMenuPath,
   resolveSidebarActiveItem,
-  SIDEBAR_ICON_COMPONENTS,
   SIDEBAR_ICON_ORDER
 } from '../sidebar'
 
@@ -41,12 +40,6 @@ describe('sidebar config helpers', () => {
       'translate',
       'agents'
     ])
-  })
-
-  it('resets to default sidebar favorites without forcing non-default icons visible', () => {
-    const reset = getDefaultSidebarFavorites()
-
-    expect(reset).toEqual(['assistants', 'agents', 'store', 'translate', 'mini_app'])
   })
 
   it('resolves menu paths and active items with the paintings provider route', () => {

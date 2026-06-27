@@ -30,7 +30,7 @@ vi.mock('@renderer/components/Icons', () => ({
   LogoAvatar: ({ logo }: { logo: string }) => <span data-testid={`logo-${logo}`} />
 }))
 
-vi.mock('@renderer/config/miniApps', () => ({
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: () => undefined
 }))
 
